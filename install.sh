@@ -7,22 +7,44 @@
 #   Project-level         — committed / shared with a specific repo
 #
 # Usage:
-#   ./install.sh cursor                       # user-level Cursor skills
-#   ./install.sh cursor --project [path]      # project-level Cursor skills
-#   ./install.sh claude                       # user-level Claude Code reference
-#   ./install.sh claude --project [path]      # project-level Claude Code reference
-#   ./install.sh all                          # user-level Cursor + Claude
-#   ./install.sh all --project [path]         # project-level Cursor + Claude
+#   ./install.sh cursor                                  # user-level, all workflows
+#   ./install.sh cursor --workflows bugfix               # user-level, specific workflow
+#   ./install.sh cursor --workflows bugfix,docs-writer   # user-level, multiple workflows
+#   ./install.sh cursor --project [path]                 # project-level, all workflows
+#   ./install.sh claude                                  # user-level Claude Code reference
+#   ./install.sh claude --project [path]                 # project-level Claude Code reference
+#   ./install.sh all                                     # user-level Cursor + Claude
+#   ./install.sh all --project [path]                    # project-level Cursor + Claude
+#   ./install.sh --list                                  # list available workflows
 
 set -e
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="${HOME}/.ai-workflows"
 
+# --- discover all available workflows ---
+ALL_WORKFLOWS=()
+for skill in "$REPO_DIR"/*/SKILL.md; do
+  [[ -f "$skill" ]] || continue
+  ALL_WORKFLOWS+=("$(basename "$(dirname "$skill")")")
+done
+
+# --- handle --list early ---
+for arg in "$@"; do
+  if [[ "$arg" == "--list" ]]; then
+    echo "Available workflows:"
+    for wf in "${ALL_WORKFLOWS[@]}"; do
+      echo "  $wf"
+    done
+    exit 0
+  fi
+done
+
 # --- parse arguments ---
 TARGET="${1:-cursor}"
 SCOPE="user"
 PROJECT_ROOT=""
+SELECTED_WORKFLOWS=()
 
 shift 2>/dev/null || true
 while [[ $# -gt 0 ]]; do
@@ -34,6 +56,16 @@ while [[ $# -gt 0 ]]; do
         shift
       fi
       ;;
+    --workflows)
+      if [[ -n "${2:-}" && "${2:0:1}" != "-" ]]; then
+        IFS=',' read -ra _wfs <<< "$2"
+        SELECTED_WORKFLOWS+=("${_wfs[@]}")
+        shift
+      else
+        echo "Error: --workflows requires a comma-separated list of workflow names" >&2
+        exit 1
+      fi
+      ;;
   esac
   shift
 done
@@ -42,12 +74,27 @@ if [[ "$SCOPE" == "project" && -z "$PROJECT_ROOT" ]]; then
   PROJECT_ROOT="$(pwd)"
 fi
 
-# --- discover workflows ---
-WORKFLOWS=()
-for skill in "$REPO_DIR"/*/SKILL.md; do
-  [[ -f "$skill" ]] || continue
-  WORKFLOWS+=("$(basename "$(dirname "$skill")")")
-done
+# --- resolve final workflow list ---
+if [[ ${#SELECTED_WORKFLOWS[@]} -gt 0 ]]; then
+  WORKFLOWS=()
+  for sel in "${SELECTED_WORKFLOWS[@]}"; do
+    found=false
+    for avail in "${ALL_WORKFLOWS[@]}"; do
+      if [[ "$sel" == "$avail" ]]; then
+        found=true
+        break
+      fi
+    done
+    if [[ "$found" == false ]]; then
+      echo "Error: unknown workflow '$sel'" >&2
+      echo "Available workflows: ${ALL_WORKFLOWS[*]}" >&2
+      exit 1
+    fi
+    WORKFLOWS+=("$sel")
+  done
+else
+  WORKFLOWS=("${ALL_WORKFLOWS[@]}")
+fi
 
 if [[ ${#WORKFLOWS[@]} -eq 0 ]]; then
   echo "Error: no workflows found (directories with SKILL.md)" >&2
@@ -99,18 +146,19 @@ install_claude() {
 
   mkdir -p "$CLAUDE_DIR"
 
-  if [[ -f "$CLAUDE_MD" ]] && grep -qF "$MARKER" "$CLAUDE_MD"; then
-    echo "  Reference already present in $CLAUDE_MD"
-    return
+  if ! [[ -f "$CLAUDE_MD" ]] || ! grep -qF "$MARKER" "$CLAUDE_MD"; then
+    printf '\n%s\n' "$MARKER" >> "$CLAUDE_MD"
   fi
 
-  {
-    printf '\n%s\n' "$MARKER"
-    for wf in "${WORKFLOWS[@]}"; do
-      printf 'For %s workflows, read and follow ~/.ai-workflows/%s/skills/controller.md\n' "$wf" "$wf"
-    done
-  } >> "$CLAUDE_MD"
-  echo "  Added reference to $CLAUDE_MD  ($SCOPE)"
+  for wf in "${WORKFLOWS[@]}"; do
+    LINE="For ${wf} workflows, read and follow ~/.ai-workflows/${wf}/skills/controller.md"
+    if grep -qF "$LINE" "$CLAUDE_MD"; then
+      echo "  Reference for $wf already present in $CLAUDE_MD"
+    else
+      printf '%s\n' "$LINE" >> "$CLAUDE_MD"
+      echo "  Added $wf reference to $CLAUDE_MD  ($SCOPE)"
+    fi
+  done
 }
 
 # --- main ---
@@ -131,17 +179,19 @@ case "$TARGET" in
     install_claude
     ;;
   *)
-    echo "Usage: $0 <cursor|claude|all> [--project [path]]" >&2
+    echo "Usage: $0 <cursor|claude|all> [--workflows wf1,wf2] [--project [path]]" >&2
     echo "" >&2
     echo "Targets:" >&2
     echo "  cursor   Cursor skill symlinks" >&2
     echo "  claude   Claude Code instruction references" >&2
     echo "  all      Cursor + Claude" >&2
     echo "" >&2
-    echo "Scopes:" >&2
-    echo "  (default)           user-level  (~/.cursor/skills/, ~/.claude/)" >&2
-    echo "  --project [path]    project-level (.cursor/skills/, .claude/)" >&2
-    echo "                      path defaults to current directory" >&2
+    echo "Options:" >&2
+    echo "  --workflows wf1,wf2   install only the listed workflows (comma-separated)" >&2
+    echo "                         defaults to all available workflows" >&2
+    echo "  --project [path]      project-level (.cursor/skills/, .claude/)" >&2
+    echo "                         path defaults to current directory" >&2
+    echo "  --list                list available workflows and exit" >&2
     exit 1
     ;;
 esac

@@ -1,13 +1,15 @@
 # AI Workflows
 
-Reusable AI coding workflows your team can install globally or per-project, in any environment: Cursor, Claude Code, and others.
+Reusable AI coding workflows a team member can install globally or per-project, in any environment: Cursor, Claude Code, and others.
 
 ## What's Included
 
 - **Bugfix** -- Systematic bug resolution: assess, reproduce, diagnose, fix, test, review, document, pr.
+  Used in the **Flight Control** projects ([flightctl](https://github.com/flightctl/flightctl), [flightctl-ui](https://github.com/flightctl/flightctl-ui)).
   See [bugfix/README.md](bugfix/README.md).
 
 - **Docs Writer** -- Systematic documentation creation: gather context, plan structure, draft content, validate, apply changes, create merge request.
+  Used in the [edge-manager](https://gitlab.cee.redhat.com/red-hat-enterprise-openshift-documentation/edge-manager) downstream docs project.
   See [docs-writer/README.md](docs-writer/README.md).
 
 ## How It Works
@@ -26,52 +28,40 @@ Each workflow is a directory with a `SKILL.md`, a `skills/controller.md`, comman
 
 ## Installation
 
-### Cursor
-
-**Plugin marketplace:**
-
-```text
-/plugin-add ai-workflows
-```
-
-**Manual (user-level)** -- available in all your projects:
+Clone the repo and run the install script:
 
 ```bash
-git clone <repo-url> ~/.ai-workflows
+git clone https://github.com/flightctl/ai-workflows.git
+cd ai-workflows
+```
+
+### Cursor
+
+**User-level** -- available in all your projects:
+
+```bash
 ./install.sh cursor
 ```
 
-**Manual (project-level)** -- shared with anyone who clones the repo:
+**Project-level** -- shared with anyone who clones the repo:
 
 ```bash
 ./install.sh cursor --project /path/to/project
 ```
 
-See [.cursor-plugin/INSTALL.md](.cursor-plugin/INSTALL.md) for details.
-
 ### Claude Code
 
-**Plugin marketplace:**
+**User-level:**
 
 ```bash
-/plugin marketplace add flightctl/ai-workflows
-/plugin install ai-workflows
-```
-
-**Manual (user-level):**
-
-```bash
-git clone <repo-url> ~/.ai-workflows
 ./install.sh claude
 ```
 
-**Manual (project-level):**
+**Project-level:**
 
 ```bash
 ./install.sh claude --project /path/to/project
 ```
-
-See [.claude-plugin/INSTALL.md](.claude-plugin/INSTALL.md) for details.
 
 ### All Environments at Once
 
@@ -80,12 +70,20 @@ See [.claude-plugin/INSTALL.md](.claude-plugin/INSTALL.md) for details.
 ./install.sh all --project /path/to/proj  # project-level
 ```
 
-### Other Environments
+### Selective Installation
 
-Clone and point your tool's global instructions at the controller for the workflow you need:
+Each workflow is intended for a specific project:
 
-- `~/.ai-workflows/bugfix/skills/controller.md`
-- `~/.ai-workflows/docs-writer/skills/controller.md`
+- **bugfix** -- the **Flight Control** projects ([flightctl](https://github.com/flightctl/flightctl), [flightctl-ui](https://github.com/flightctl/flightctl-ui))
+- **docs-writer** -- the [edge-manager](https://gitlab.cee.redhat.com/red-hat-enterprise-openshift-documentation/edge-manager) downstream docs project
+
+Use `--workflows` to install only the workflows relevant to a given project:
+
+```bash
+./install.sh cursor --project ~/flightctl --workflows bugfix
+./install.sh cursor --project ~/edge-manager --workflows docs-writer
+./install.sh --list                       # show available workflows
+```
 
 ## Scopes
 
@@ -98,25 +96,17 @@ Clone and point your tool's global instructions at the controller for the workfl
 
 ### Cursor
 
-Reference a workflow skill or a specific command:
+Invoke a workflow command:
 
-- `@bugfix` / `@bugfix/commands/fix`
-- `@docs-writer` / `@docs-writer/commands/draft`
+- `@bugfix/commands/assess`, `@bugfix/commands/diagnose`, `@bugfix/commands/fix`, ...
+- `@docs-writer/commands/gather`, `@docs-writer/commands/plan`, `@docs-writer/commands/draft`, ...
 
 ### Claude Code
 
-Ask the agent to run a phase:
+Ask the agent to run a command:
 
 > "Run the diagnose phase on this bug"
 > "Gather context for JIRA-1234"
-
-### Any Environment
-
-Tell the agent to read and follow the controller for the workflow you want.
-
-## Adding New Workflows
-
-Drop a new directory at the repo root with a `SKILL.md`, a `skills/controller.md`, and `commands/`. The installer auto-discovers it -- no script changes needed.
 
 ## Updating
 
@@ -127,10 +117,11 @@ cd ~/.ai-workflows && git pull
 ## Uninstalling
 
 ```bash
-./uninstall.sh                                # user-level everything
-./uninstall.sh cursor                         # user-level Cursor only
-./uninstall.sh cursor --project /path/to/proj # project-level Cursor
-./uninstall.sh all --project /path/to/proj    # project-level everything
+./uninstall.sh                                          # user-level everything
+./uninstall.sh cursor                                   # user-level Cursor only
+./uninstall.sh cursor --workflows bugfix                # remove specific workflow
+./uninstall.sh cursor --project /path/to/proj           # project-level Cursor
+./uninstall.sh all --project /path/to/proj              # project-level everything
 ```
 
 ## Contributing
