@@ -6,6 +6,7 @@ description: Multi-step diagnostic and repair workflow. Use when fixing bugs, de
 
 Systematic bug resolution through these phases:
 
+0. **Start** (`/start`) — Present available phases and help choose where to begin
 1. **Assess** (`/assess`) — Read the bug report, explain understanding, propose a plan
 2. **Reproduce** (`/reproduce`) — Confirm and document the bug
 3. **Diagnose** (`/diagnose`) — Identify root cause and impact
