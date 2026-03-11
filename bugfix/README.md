@@ -16,6 +16,7 @@ This workflow provides a structured approach to fixing software bugs:
 ```text
 bugfix/
 ├── commands/             # Slash commands (thin wrappers → skills)
+│   ├── start.md
 │   ├── assess.md
 │   ├── diagnose.md
 │   ├── document.md
@@ -25,6 +26,7 @@ bugfix/
 │   ├── review.md
 │   └── test.md
 └── skills/               # Detailed process definitions
+    ├── start.md
     ├── assess.md
     ├── controller.md
     ├── diagnose.md
@@ -47,6 +49,19 @@ This separation keeps commands simple and consistent while the skills contain th
 ## Workflow Phases
 
 The Bug Fix Workflow follows this approach:
+
+### Phase 0: Start (`/start`)
+
+**Purpose**: Present the available workflow phases and help the user choose the right starting point.
+
+- Show all available phases with descriptions and guidance on when to use each
+- Ask the user what context they have (issue URL, error message, known root cause, etc.)
+- Recommend the best starting phase based on their situation
+- Wait for the user to select a phase before proceeding
+
+**Output**: Phase overview and recommendation presented to the user (no files created).
+
+**When to use**: When you want to see all options before diving in, or when you're unsure which phase to start with.
 
 ### Phase 1: Reproduce (`/reproduce`)
 
@@ -158,8 +173,8 @@ The Bug Fix Workflow follows this approach:
 
 ### Quick Start
 
-1. **Provide context**: Bug report URL, issue number, or symptom description
-2. **Start with `/reproduce`** to systematically document the bug
+1. **Run `/start`** to see all available phases and get a recommendation
+2. **Or provide context directly**: Bug report URL, issue number, or symptom description
 3. **Follow the phases** sequentially or jump to any phase based on your context
 
 ### Example Usage

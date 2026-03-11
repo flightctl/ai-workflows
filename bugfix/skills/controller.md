@@ -10,6 +10,9 @@ executing phases and handling transitions between them.
 
 ## Phases
 
+0. **Start** (`/start`) — `start.md`
+   Present available phases, gather context, and help the user choose where to begin.
+
 1. **Assess** (`/assess`) — `assess.md`
    Read the bug report, summarize your understanding, identify gaps, propose a plan.
 
@@ -98,7 +101,12 @@ Other options:
 
 ## Starting the Workflow
 
-When the user first provides a bug report, issue URL, or description:
+When the user runs `/start` or asks to begin without providing specific context:
+
+1. Execute the **start** phase to present options and gather context
+2. After the user selects a phase, dispatch it
+
+When the user provides a bug report, issue URL, or description directly:
 
 1. Execute the **assess** phase
 2. After assessment, present results and wait
