@@ -13,8 +13,10 @@
 #   ./install.sh cursor --project [path]                 # project-level, all workflows
 #   ./install.sh claude                                  # user-level Claude Code reference
 #   ./install.sh claude --project [path]                 # project-level Claude Code reference
-#   ./install.sh all                                     # user-level Cursor + Claude
-#   ./install.sh all --project [path]                    # project-level Cursor + Claude
+#   ./install.sh gemini                                  # user-level Gemini CLI skill symlinks
+#   ./install.sh gemini --project [path]                 # project-level Gemini CLI skill symlinks
+#   ./install.sh all                                     # user-level Cursor + Claude + Gemini
+#   ./install.sh all --project [path]                    # project-level Cursor + Claude + Gemini
 #   ./install.sh --list                                  # list available workflows
 
 set -e
@@ -161,6 +163,20 @@ install_claude() {
   done
 }
 
+install_gemini() {
+  if [[ "$SCOPE" == "project" ]]; then
+    SKILLS_DIR="${PROJECT_ROOT}/.gemini/skills"
+  else
+    SKILLS_DIR="${HOME}/.gemini/skills"
+  fi
+
+  mkdir -p "$SKILLS_DIR"
+  for wf in "${WORKFLOWS[@]}"; do
+    ln -sfn "${INSTALL_DIR}/${wf}" "${SKILLS_DIR}/${wf}"
+    echo "  Linked ${SKILLS_DIR}/${wf} -> ${INSTALL_DIR}/${wf}  ($SCOPE)"
+  done
+}
+
 # --- main ---
 
 echo "Installing ai-workflows ($TARGET, $SCOPE)..."
@@ -174,22 +190,27 @@ case "$TARGET" in
   claude)
     install_claude
     ;;
+  gemini)
+    install_gemini
+    ;;
   all)
     install_cursor
     install_claude
+    install_gemini
     ;;
   *)
-    echo "Usage: $0 <cursor|claude|all> [--workflows wf1,wf2] [--project [path]]" >&2
+    echo "Usage: $0 <cursor|claude|gemini|all> [--workflows wf1,wf2] [--project [path]]" >&2
     echo "" >&2
     echo "Targets:" >&2
     echo "  cursor   Cursor skill symlinks" >&2
     echo "  claude   Claude Code instruction references" >&2
-    echo "  all      Cursor + Claude" >&2
+    echo "  gemini   Gemini CLI skill symlinks" >&2
+    echo "  all      Cursor + Claude + Gemini" >&2
     echo "" >&2
     echo "Options:" >&2
     echo "  --workflows wf1,wf2   install only the listed workflows (comma-separated)" >&2
     echo "                         defaults to all available workflows" >&2
-    echo "  --project [path]      project-level (.cursor/skills/, .claude/)" >&2
+    echo "  --project [path]      project-level (.cursor/skills/, .claude/, .gemini/skills/)" >&2
     echo "                         path defaults to current directory" >&2
     echo "  --list                list available workflows and exit" >&2
     exit 1
