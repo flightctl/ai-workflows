@@ -12,6 +12,9 @@ Reusable AI coding workflows a team member can install globally or per-project, 
   Used in the [edge-manager](https://gitlab.cee.redhat.com/red-hat-enterprise-openshift-documentation/edge-manager) downstream docs project.
   See [docs-writer/README.md](docs-writer/README.md).
 
+- **Cherry-picker** -- Backport merged PRs from one branch to another using GitHub PR labels: scan, pick, pr.
+  See [cherry-picker/README.md](cherry-picker/README.md).
+
 ## How It Works
 
 Each workflow is a directory with a `SKILL.md`, a `skills/controller.md`, command wrappers, and phase skills -- all plain markdown, no IDE-specific syntax. The installer auto-discovers every directory that contains a `SKILL.md`.
