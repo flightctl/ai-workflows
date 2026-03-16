@@ -93,6 +93,26 @@ Create `.artifacts/{number}/bugfix/analysis/root-cause.md` containing:
 - **Similar Bugs**: References to related issues or patterns to fix
 - **References**: Links to relevant PRs, issues, documentation
 
+### Example
+
+```markdown
+# Diagnosis — Issue #421: NullPointerException on user login
+
+## Root Cause
+`AuthService.java:87` calls `session.getUserId()` before null-check.
+Introduced in commit `a1b2c3d` (2024-12-01).
+
+## Evidence
+- Stack trace points to `AuthService.authenticate()` line 87
+- `git blame` shows the null-check was removed in a refactor
+- Reproduced with `./gradlew test --tests AuthServiceTest.testNullSession`
+
+## Blast Radius
+Only affects unauthenticated users hitting `/api/login`. No data loss.
+
+## Confidence: High (95%)
+```
+
 ## Best Practices
 
 - Take time to fully understand the root cause — rushing leads to incomplete fixes
