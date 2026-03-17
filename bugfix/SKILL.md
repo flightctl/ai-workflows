@@ -75,10 +75,17 @@ Each phase must meet its exit criteria before the next phase begins. If a later 
 - `/test` → proceed when all new and existing tests pass; if tests fail, return to `/fix`
 - `/review` → if the fix is inadequate or edge cases are missed, return to `/diagnose` or `/fix`
 
+## Automated Mode
+
+For unattended execution (CI/CD bots, automated systems), use
+`skills/automated.md` instead of the interactive controller. It chains
+diagnose → fix → test → review with self-correction loops and runs to
+completion without human input. See `/automated` or read the skill directly.
+
 ## File Layout
 
-The workflow controller lives at `skills/controller.md`.
-It defines how to execute phases, recommend next steps, and handle transitions.
+The workflow controller lives at `skills/controller.md` (interactive) or
+`skills/automated.md` (unattended).
 Phase skills are at `skills/{name}.md`.
 
 For principles, hard limits, safety, quality, and escalation rules, see `guidelines.md`.

@@ -11,10 +11,11 @@ Systematic bug resolution through these phases:
 7. **Document** (`/document`) — Release notes and documentation
 8. **PR** (`/pr`) — Submit a pull request
 
-The workflow controller lives at `skills/controller.md`.
-It defines how to execute phases, recommend next steps, and handle transitions.
+The workflow controller lives at `skills/controller.md` (interactive) or
+`skills/automated.md` (unattended).
 Phase skills are at `skills/{name}.md`.
-Artifacts go in `.artifacts/{number}/bugfix/{issue}`.
+Artifacts go in `.artifacts/{number}/bugfix/{issue}` (interactive) or a
+caller-configured directory (automated).
 
 ## Principles
 
@@ -55,6 +56,10 @@ Stop and request human guidance when:
 - The change affects API contracts or introduces breaking changes
 - A security or compliance concern arises
 - Confidence on the proposed solution is below 80%
+
+In **automated mode** (`skills/automated.md`), "stop and request human
+guidance" means writing an escalation report to the artifact directory
+and terminating. See the Escalation section in `skills/automated.md`.
 
 ## Working With the Project
 
