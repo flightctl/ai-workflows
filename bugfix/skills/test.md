@@ -75,7 +75,7 @@ Systematically verify fixes and build test coverage that prevents recurrence. Yo
 
 ### Step 8: Document Test Results
 
-Create comprehensive test report at `.artifacts/{number}/bugfix/tests/verification.md` containing:
+Create comprehensive test report at `.artifacts/bugfix/{issue}/verification.md` containing:
 
 - **Test Summary**: Overview of testing performed
 - **Regression Test**: Location and description of new test(s)
@@ -90,7 +90,7 @@ Create comprehensive test report at `.artifacts/{number}/bugfix/tests/verificati
 
 ### Step 9: Report Results to the User
 
-After writing `.artifacts/{number}/bugfix/tests/verification.md`:
+After writing `.artifacts/bugfix/{issue}/verification.md`:
 
 1. **Tell the user where the file was written** — include the full path
 2. **Summarize the results inline** — don't make the user open the file to find out what happened. Include at minimum:
@@ -103,7 +103,7 @@ After writing `.artifacts/{number}/bugfix/tests/verification.md`:
 ## Output
 
 - New test files in the project repository
-- `.artifacts/{number}/bugfix/tests/verification.md`
+- `.artifacts/bugfix/{issue}/verification.md`
 
 ## Best Practices
 

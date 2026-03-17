@@ -6,9 +6,10 @@ description: Diagnostic and repair workflow that analyzes error logs, traces roo
 
 ## Quick Start
 
-1. Read `skills/controller.md` to load the workflow controller
-2. If the user provided a bug report or issue URL, execute the `/assess` phase
-3. Otherwise, execute `/start` to present available phases
+1. If the user invoked a specific command (e.g. `/unattended`, `/diagnose`, `/fix`), read the matching file in `commands/{command}.md` and follow it.
+2. Otherwise, read `skills/controller.md` to load the workflow controller:
+   - If the user provided a bug report or issue URL, execute the `/assess` phase
+   - Otherwise, execute `/start` to present available phases
 
 Each phase skill (e.g. `skills/diagnose.md`) follows this pattern:
 
@@ -18,7 +19,7 @@ Each phase skill (e.g. `skills/diagnose.md`) follows this pattern:
 
 ```bash
 # Artifact directory setup and example commands during investigation
-mkdir -p .artifacts/1/bugfix/421
+mkdir -p .artifacts/bugfix/421
 rg "NullPointerException" --type java -l
 git log --oneline -10 -- src/auth/AuthService.java
 git blame src/auth/AuthService.java | head -100
@@ -26,24 +27,48 @@ git blame src/auth/AuthService.java | head -100
 
 ## Example: Running /diagnose
 
-To execute the diagnose phase without opening external files:
+To execute the diagnose phase:
 
-1. Create the artifact dir: `mkdir -p .artifacts/1/bugfix/421`
-2. Find the failure location: search the codebase for the error or stack-trace symbol (e.g. `rg "NullPointerException" --type java -l`)
+1. Create the artifact dir: `mkdir -p .artifacts/bugfix/421`
+2. Find the failure location: `rg "NullPointerException" --type java -l`
 3. Trace when it was introduced: `git blame <file>` and `git log --oneline -10 -- <file>`
-4. Write `.artifacts/1/bugfix/421/diagnose.md` with: Root Cause, Evidence (`file:line`), Blast Radius, Confidence. See `skills/diagnose.md` for the full template.
+4. Write `.artifacts/bugfix/421/root-cause.md` using this structure:
+
+```markdown
+# Root Cause — Issue #421
+
+## Root Cause Summary
+`AuthService.java:87` calls `session.getUserId()` before null-check.
+
+## Evidence
+- Stack trace: `AuthService.authenticate():87`
+- `git blame` shows null-check removed in commit `a1b2c3d`
+
+## Affected Components
+- `AuthService.java:87` — missing null guard
+
+## Impact Assessment
+- Severity: High
+- Blast radius: All unauthenticated login attempts
+
+## Recommended Fix
+Add null-check before `getUserId()` call.
+
+## Confidence: High (95%)
+```
+
+See `skills/diagnose.md` for the full process and additional fields.
 
 ## Example Session
 
 ```text
 User: "Fix issue #421 — NullPointerException on login"
 
-/assess    → reads bug report, proposes plan
-             → writes .artifacts/1/bugfix/421/assess.md
+/assess    → reads bug report, proposes plan (inline; no artifact)
 /reproduce → confirms the failure with a test
-             → writes .artifacts/1/bugfix/421/reproduce.md
+             → writes .artifacts/bugfix/421/reproduction.md
 /diagnose  → traces root cause to AuthService.java:87
-             → writes .artifacts/1/bugfix/421/diagnose.md
+             → writes .artifacts/bugfix/421/root-cause.md
 /fix       → adds null-check, minimal diff
 /test      → regression test passes ✓
              → if tests fail → return to /fix

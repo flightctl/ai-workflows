@@ -14,7 +14,7 @@ Systematic bug resolution through these phases:
 The workflow controller lives at `skills/controller.md`.
 It defines how to execute phases, recommend next steps, and handle transitions.
 Phase skills are at `skills/{name}.md`.
-Artifacts go in `.artifacts/{number}/bugfix/{issue}`.
+Artifacts go in `.artifacts/bugfix/{issue}`.
 
 ## Principles
 

@@ -20,7 +20,7 @@ Perform thorough root cause analysis that provides clear, evidence-based conclus
 
 ### Step 1: Review Reproduction
 
-- Read the reproduction report thoroughly (check `.artifacts/{number}/bugfix/reports/reproduction.md` if it exists)
+- Read the reproduction report thoroughly (check `.artifacts/bugfix/{issue}/reproduction.md` if it exists)
 - Understand the exact conditions that trigger the bug
 - Try to use the attached issue's logs, screenshots or other files to get a clear picture of the failure
 - Note any patterns or edge cases discovered
@@ -77,7 +77,7 @@ Perform thorough root cause analysis that provides clear, evidence-based conclus
 
 ## Output
 
-Create `.artifacts/{number}/bugfix/analysis/root-cause.md` containing:
+Create `.artifacts/bugfix/{issue}/root-cause.md` containing:
 
 - **Root Cause Summary**: Clear, concise statement of the underlying issue
 - **Evidence**: Code references, logs, test results supporting the conclusion

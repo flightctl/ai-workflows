@@ -49,7 +49,7 @@ Methodically reproduce bugs and document their behavior so that diagnosis and fi
 
 ### Step 5: Create Reproduction Report
 
-Write comprehensive report to `.artifacts/{number}/bugfix/reports/reproduction.md` containing:
+Write comprehensive report to `.artifacts/bugfix/{issue}/reproduction.md` containing:
 
 - **Bug Summary**: One-line description
 - **Severity**: Critical/High/Medium/Low with justification
@@ -63,7 +63,7 @@ Write comprehensive report to `.artifacts/{number}/bugfix/reports/reproduction.m
 
 ## Output
 
-- `.artifacts/{number}/bugfix/reports/reproduction.md`
+- `.artifacts/bugfix/{issue}/reproduction.md`
 
 ## Best Practices
 

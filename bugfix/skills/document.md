@@ -20,7 +20,7 @@ Produce all documentation artifacts needed to close out a bug fix. You will:
 
 ### Step 1: Update Issue/Ticket
 
-Create `.artifacts/{number}/bugfix/docs/issue-update.md` with:
+Create `.artifacts/bugfix/{issue}/issue-update.md` with:
 
 - Root cause summary
 - Description of the fix approach and what was changed
@@ -31,7 +31,7 @@ Create `.artifacts/{number}/bugfix/docs/issue-update.md` with:
 
 ### Step 2: Create Release Notes Entry
 
-Create `.artifacts/{number}/bugfix/docs/release-notes.md` with:
+Create `.artifacts/bugfix/{issue}/release-notes.md` with:
 
 - User-facing description of what was fixed
 - Impact and who was affected
@@ -41,7 +41,7 @@ Create `.artifacts/{number}/bugfix/docs/release-notes.md` with:
 
 ### Step 3: Update CHANGELOG
 
-Create `.artifacts/{number}/bugfix/docs/changelog-entry.md` with:
+Create `.artifacts/bugfix/{issue}/changelog-entry.md` with:
 
 - Entry following project CHANGELOG conventions
 - Placed in appropriate category (Bug Fixes, Security, etc.)
@@ -59,7 +59,7 @@ Create `.artifacts/{number}/bugfix/docs/changelog-entry.md` with:
 
 ### Step 5: Technical Communication
 
-Create `.artifacts/{number}/bugfix/docs/team-announcement.md` with:
+Create `.artifacts/bugfix/{issue}/team-announcement.md` with:
 
 - Message for engineering team
 - Severity and urgency of deployment
@@ -69,7 +69,7 @@ Create `.artifacts/{number}/bugfix/docs/team-announcement.md` with:
 
 ### Step 6: User Communication (if user-facing bug)
 
-Create `.artifacts/{number}/bugfix/docs/user-announcement.md` with:
+Create `.artifacts/bugfix/{issue}/user-announcement.md` with:
 
 - Customer-facing announcement
 - Non-technical explanation of the issue
@@ -79,9 +79,9 @@ Create `.artifacts/{number}/bugfix/docs/user-announcement.md` with:
 
 ### Step 7: Create PR Description (optional but recommended)
 
-Create `.artifacts/{number}/bugfix/docs/pr-description.md` with:
+Create `.artifacts/bugfix/{issue}/pr-description.md` with:
 
-- **A `## Title` section** — Required. The PR title must follow this format: **`[ISSUE_KEY]: short description in lowercase`**. Use the issue/ticket key from the bug reference (e.g. Jira `EDM-3407`, GitHub `#47`).
+- **A `## Title` section** — Required. The PR title must follow this format: **`[ISSUE_KEY]: short description in lowercase`**. Use the issue/ticket key from the bug reference (e.g. Jira `EDM-3407`, GitHub `#47`). This file is read by the `/pr` phase.
 - Comprehensive PR description (body)
 - Root cause, fix, and testing summary
 - Before/after comparisons if applicable
@@ -91,14 +91,14 @@ Create `.artifacts/{number}/bugfix/docs/pr-description.md` with:
 
 ## Output
 
-All files created in `.artifacts/{number}/bugfix/docs/`:
+All files created in `.artifacts/bugfix/{issue}/`:
 
 1. **`issue-update.md`** — Text to paste in issue comment
 2. **`release-notes.md`** — Release notes entry
 3. **`changelog-entry.md`** — CHANGELOG addition
 4. **`team-announcement.md`** — Internal team communication
 5. **`user-announcement.md`** (optional) — Customer communication
-6. **`pr-description.md`** (optional) — Pull request description
+6. **`pr-description.md`** (optional) — Pull request description (read by `/pr` phase)
 
 ## Documentation Templates
 
