@@ -88,7 +88,9 @@ mandatory requirements that are easy to overlook after deep diagnosis work.**
 Read and execute `fix.md`.
 
 **Input**: Root cause analysis from Phase 1.
-**Output**: Code changes and test changes in the working tree.
+**Output**:
+- Code changes and test changes in the working tree.
+- `ARTIFACT_DIR/implementation-notes.md` — see below.
 
 **Overrides**:
 - **Skip Step 2** (Create Feature Branch) — the branch already exists.
@@ -99,6 +101,13 @@ Read and execute `fix.md`.
   Do not defer tests to a later step. Phase 3 will verify that test
   files were actually modified; if they weren't, you will be sent back
   here.
+- **Write implementation notes** to `ARTIFACT_DIR/implementation-notes.md`.
+  A future AI session may need to address PR review comments without
+  any memory of this session. Record the context it will need:
+  - Files modified and why (with `file:line` references)
+  - Design choices made and alternatives considered or rejected
+  - Test strategy: what scenarios are covered, what was intentionally
+    excluded and why
 
 ### Phase 3 — Test
 
@@ -184,6 +193,7 @@ When the pipeline completes successfully, the working tree contains:
 | Source code changes | Production fix in the working tree |
 | Test changes | New or updated tests in the working tree |
 | `ARTIFACT_DIR/diagnosis.md` | Root cause analysis |
+| `ARTIFACT_DIR/implementation-notes.md` | Design decisions, alternatives, test rationale |
 | `ARTIFACT_DIR/test-verification.md` | Test results summary |
 | `ARTIFACT_DIR/review.md` | Self-review findings |
 | `PR_OUTPUT` | PR title and description |
