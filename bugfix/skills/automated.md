@@ -82,6 +82,9 @@ Read and execute `diagnose.md`.
 
 ### Phase 2 — Fix
 
+**⚠ Before proceeding, re-read the Overrides below carefully. They contain
+mandatory requirements that are easy to overlook after deep diagnosis work.**
+
 Read and execute `fix.md`.
 
 **Input**: Root cause analysis from Phase 1.
@@ -89,10 +92,13 @@ Read and execute `fix.md`.
 
 **Overrides**:
 - **Skip Step 2** (Create Feature Branch) — the branch already exists.
-- **Unit tests are mandatory.** Add or update tests in the appropriate
-  test file that cover the changed behavior. The fix is not complete
-  until tests exercise the new or changed code paths. Do not defer
-  tests to a later step.
+- **Unit tests are mandatory.** You MUST modify or create at least one
+  test file (e.g., `_test.go`). Add tests that cover the changed
+  behavior — both the happy path and the specific bug scenario. The fix
+  is not complete until tests exercise the new or changed code paths.
+  Do not defer tests to a later step. Phase 3 will verify that test
+  files were actually modified; if they weren't, you will be sent back
+  here.
 
 ### Phase 3 — Test
 
@@ -100,6 +106,10 @@ Read and execute `test.md`.
 
 **Input**: Changes from Phase 2.
 **Output**: Test verification at `ARTIFACT_DIR/test-verification.md`.
+
+**Gate check**: Before running tests, verify that you actually added or
+modified at least one test file (e.g., `_test.go`). If no test files
+were modified, **stop and return to Phase 2** — do not proceed.
 
 Run the project's full test suite. If tests fail:
 
@@ -150,7 +160,8 @@ Write the PR title and description to `PR_OUTPUT`.
 - **Lines 3+**: PR body in markdown containing:
   - **Root Cause** — summary from `ARTIFACT_DIR/diagnosis.md`
   - **Fix** — what was changed and why
-  - **Testing** — what tests were added or modified
+  - **Tests Added** — list the specific test functions you wrote or
+    modified to verify this fix, with file paths
 
 ## Escalation
 
