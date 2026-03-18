@@ -38,7 +38,7 @@ executing phases and handling transitions between them.
    Push the branch to a fork and create a draft pull request.
 
 9. **Feedback** (`/feedback`) — `feedback.md`
-   Address PR review comments, update session context for continuity.
+   Address PR review comments.
 
 Phases can be skipped or reordered at the user's discretion.
 

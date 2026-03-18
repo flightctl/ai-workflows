@@ -11,6 +11,32 @@ verify correctness, and record what you did so that future sessions
 (including your own, if there are additional review rounds) have full
 context.
 
+## Configuration
+
+Before starting, determine these values from your context (task file,
+calling system instructions, or environment). Use the defaults if not
+specified.
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `ARTIFACT_DIR` | `.artifacts/{number}/bugfix` | Directory containing prior session artifacts |
+
+**Path conventions vary by mode.** The prior session may have been
+interactive or automated. The artifact filenames differ:
+
+| Artifact | Interactive path | Automated path |
+|----------|-----------------|----------------|
+| Root cause analysis | `ARTIFACT_DIR/analysis/root-cause.md` | `ARTIFACT_DIR/diagnosis.md` |
+| Implementation notes | `ARTIFACT_DIR/fixes/implementation-notes.md` | `ARTIFACT_DIR/implementation-notes.md` |
+| Test verification | `ARTIFACT_DIR/tests/verification.md` | `ARTIFACT_DIR/test-verification.md` |
+| Self-review | `ARTIFACT_DIR/review/review.md` | `ARTIFACT_DIR/review.md` |
+| Session context | `ARTIFACT_DIR/session-context.md` | `ARTIFACT_DIR/session-context.md` |
+
+When reading artifacts in Step 2, check both path conventions — use
+whichever exists. If following an automated pipeline session,
+`ARTIFACT_DIR` is typically `.ai-bot/` (or whatever the pipeline was
+configured to use).
+
 ## Your Role
 
 Make focused, correct changes that address each review comment. You will:
@@ -33,7 +59,7 @@ sources in order and use the first one that applies:
    the review comments inline (e.g., in a structured format with file
    paths, line numbers, and comment bodies), use those directly.
 2. **PR URL or number**: If given a PR URL or number, use `gh pr view`
-   and `gh api repos/{owner}/{repo}/pulls/{number}/comments` to fetch
+   and `gh api repos/{owner}/{repo}/pulls/{pr_number}/comments` to fetch
    the review comments. Filter to unresolved comments.
 3. **User-provided context**: If the user describes feedback verbally
    or pastes comments, work from that.
@@ -43,14 +69,15 @@ clarification.
 
 ### Step 2: Recover Prior Context
 
-Check for session context from the prior session:
+Check for session context from the prior session. Look in `ARTIFACT_DIR`
+for each artifact, checking both interactive and automated path
+conventions (see Configuration table above):
 
-- Read `.artifacts/{number}/bugfix/session-context.md` if it exists — this
-  summarizes the original implementation decisions, test strategy, and
-  known concerns
-- Read `.artifacts/{number}/bugfix/implementation-notes.md` if it exists —
-  this has detailed file-by-file rationale
-- Read `.artifacts/{number}/bugfix/diagnosis.md` if it exists — this has
+- **Session context** (`session-context.md`) — summarizes the original
+  implementation decisions, test strategy, and known concerns
+- **Implementation notes** (`fixes/implementation-notes.md` or
+  `implementation-notes.md`) — detailed file-by-file rationale
+- **Root cause analysis** (`analysis/root-cause.md` or `diagnosis.md`) —
   the original root cause analysis
 
 If none of these exist, work from the code and review comments directly.
@@ -81,7 +108,10 @@ For each actionable comment:
 ### Step 5: Verify
 
 - Run the project's test suite and fix any failures
-- Run lint and format checks if the project has them
+- Run lint and format checks. To find the lint command: check the
+  project's `AGENTS.md`, then `Makefile` for `lint`/`fmt`
+  targets, then `package.json` scripts, then fall back to
+  language-specific defaults.
 - Ensure no regressions were introduced
 
 ### Step 6: Update Session Context
@@ -90,8 +120,9 @@ For each actionable comment:
 session will have no memory of what you did. Update the session artifacts
 so the next session can pick up where you left off.
 
-Append a feedback round section to
-`.artifacts/{number}/bugfix/session-context.md`:
+Append a feedback round section to `ARTIFACT_DIR/session-context.md`.
+Determine the round number by counting existing `## Feedback Round`
+sections in the file and incrementing by one.
 
 ```markdown
 ## Feedback Round N
@@ -114,7 +145,7 @@ Write a JSON file mapping each comment you addressed to a brief summary
 of what you did (or chose not to do). The calling system uses this to
 post descriptive replies on the PR.
 
-Write to `.artifacts/{number}/bugfix/comment-responses.json`:
+Write to `ARTIFACT_DIR/comment-responses.json`:
 
 ```json
 [
@@ -123,16 +154,22 @@ Write to `.artifacts/{number}/bugfix/comment-responses.json`:
 ]
 ```
 
-Use the `comment_id` values from the review comment headers (Step 1).
-Keep responses concise (1-2 sentences). If a comment ID is not available
-(e.g., user-provided feedback without IDs), skip this step.
+Use the `comment_id` values from Step 1:
+- **From `gh api`**: Use the `id` field from each comment object in the
+  API response.
+- **From a task file**: Use the comment ID if provided in the structured
+  format.
+- **From user-provided feedback**: If no IDs are available, skip this
+  step entirely.
+
+Keep responses concise (1-2 sentences).
 
 ## Output
 
 - **Modified code files**: Changes addressing review feedback
-- **Updated session context**: `.artifacts/{number}/bugfix/session-context.md`
+- **Updated session context**: `ARTIFACT_DIR/session-context.md`
   with a new feedback round section appended
-- **Comment responses**: `.artifacts/{number}/bugfix/comment-responses.json`
+- **Comment responses**: `ARTIFACT_DIR/comment-responses.json`
   with per-comment summaries
 
 ## Best Practices
@@ -166,4 +203,6 @@ Report your results:
 - Which suggestions were declined and why
 - Where the session context was updated
 
-Then **re-read the controller** (`skills/controller.md`) for next-step guidance.
+Then **stop and wait for instructions.** Feedback is typically the final
+phase. If invoked from an automated pipeline, return to the calling
+orchestrator instead of reading the interactive controller.

@@ -94,8 +94,14 @@ Read and execute `fix.md`.
 
 **Overrides**:
 - **Skip Step 2** (Create Feature Branch) — the branch already exists.
+- **Confidence threshold**: If you proceeded past a low-confidence
+  diagnosis in Phase 1, the 80% escalation threshold from
+  `guidelines.md` does not apply to the fix phase. Attempt the fix
+  based on your best-effort diagnosis. The self-review in Phase 4
+  will catch inadequate fixes.
 - **Unit tests are mandatory.** You MUST modify or create at least one
-  test file (e.g., `_test.go`). Add tests that cover the changed
+  test file (e.g., `*_test.go`, `test_*.py`, `*.test.js`, `*.spec.ts`).
+  Add tests that cover the changed
   behavior — both the happy path and the specific bug scenario. The fix
   is not complete until tests exercise the new or changed code paths.
   Do not defer tests to a later step. Phase 3 will verify that test
@@ -117,8 +123,9 @@ Read and execute `test.md`.
 **Output**: Test verification at `ARTIFACT_DIR/test-verification.md`.
 
 **Gate check**: Before running tests, verify that you actually added or
-modified at least one test file (e.g., `_test.go`). If no test files
-were modified, **stop and return to Phase 2** — do not proceed.
+modified at least one test file (e.g., `*_test.go`, `test_*.py`,
+`*.test.js`, `*.spec.ts`). If no test files were modified, **stop and
+return to Phase 2** — do not proceed.
 
 Run the project's full test suite. If tests fail:
 
@@ -150,12 +157,17 @@ Run the project's lint and format checks.
 **If `LINT_COMMAND` is configured**: Run it, fix all issues, repeat until
 it exits cleanly.
 
-**If `LINT_COMMAND` is not configured**: Check the project's `AGENTS.md`,
-`Makefile`, or CI configuration for lint/format commands. Common patterns:
+**If `LINT_COMMAND` is not configured**, detect it using this priority
+order:
 
-- Go: `make fmt && make lint`, or `gofmt` + `golangci-lint run ./...`
-- Python: `ruff check --fix .` or `black . && flake8`
-- JS/TS: `npm run lint -- --fix`
+1. Check the project's `AGENTS.md` for a lint command.
+2. Check the `Makefile` for `lint` or `fmt` targets.
+3. Check `package.json` scripts for a `lint` script.
+4. Fall back to language-specific defaults based on file extensions
+   present in the project:
+   - Go: `gofmt -w . && golangci-lint run ./...`
+   - Python: `ruff check --fix .` or `black . && flake8`
+   - JS/TS: `npx eslint --fix .`
 
 Fix all reported issues before proceeding.
 
@@ -171,6 +183,10 @@ Write the PR title and description to `PR_OUTPUT`.
   - **Fix** — what was changed and why
   - **Tests Added** — list the specific test functions you wrote or
     modified to verify this fix, with file paths
+  - **Known Issues** — if `MAX_REVIEW_ROUNDS` was exhausted with
+    unresolved findings, list them here so the human reviewer knows
+    to look more carefully. Omit this section if the self-review
+    was clean.
 
 ### Phase 7 — Session Context
 
