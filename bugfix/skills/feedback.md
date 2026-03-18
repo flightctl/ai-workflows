@@ -108,11 +108,32 @@ Append a feedback round section to
 If `session-context.md` does not exist, create it with a brief summary
 section before adding the feedback round.
 
+### Step 7: Write Comment Responses
+
+Write a JSON file mapping each comment you addressed to a brief summary
+of what you did (or chose not to do). The calling system uses this to
+post descriptive replies on the PR.
+
+Write to `.artifacts/{number}/bugfix/comment-responses.json`:
+
+```json
+[
+  {"comment_id": 123, "response": "Switched to Optional pattern as suggested."},
+  {"comment_id": 456, "response": "Kept the fallback path — needed for v1 backward compat."}
+]
+```
+
+Use the `comment_id` values from the review comment headers (Step 1).
+Keep responses concise (1-2 sentences). If a comment ID is not available
+(e.g., user-provided feedback without IDs), skip this step.
+
 ## Output
 
 - **Modified code files**: Changes addressing review feedback
 - **Updated session context**: `.artifacts/{number}/bugfix/session-context.md`
   with a new feedback round section appended
+- **Comment responses**: `.artifacts/{number}/bugfix/comment-responses.json`
+  with per-comment summaries
 
 ## Best Practices
 
