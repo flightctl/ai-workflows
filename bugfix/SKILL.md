@@ -63,6 +63,7 @@ Systematic bug resolution through these phases:
 6. **Review** (`/review`) — *(Optional)* Critically evaluate fix and tests
 7. **Document** (`/document`) — Release notes and documentation
 8. **PR** (`/pr`) — Submit a pull request
+9. **Feedback** (`/feedback`) — Address PR review comments
 
 ## Phase Transitions
 

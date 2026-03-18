@@ -172,6 +172,50 @@ Write the PR title and description to `PR_OUTPUT`.
   - **Tests Added** — list the specific test functions you wrote or
     modified to verify this fix, with file paths
 
+### Phase 7 — Session Context
+
+Write a session context manifest to `ARTIFACT_DIR/session-context.md`.
+
+This file is the entry point for any future AI session that works on this
+PR without memory of the current session (e.g., addressing PR review
+feedback). Keep it concise — its purpose is to let a future session
+quickly recover the "why" behind your decisions.
+
+**Contents** (use this structure):
+
+```markdown
+# Session Context
+
+## Summary
+[1-2 sentence description of what was done and why]
+
+## Key Design Decisions
+[Summarize the most important choices from your implementation:
+what approach was taken, what alternatives were rejected, and why.
+Include file:line references for the core changes.]
+
+## Test Strategy
+[What scenarios are covered by tests, what was intentionally
+excluded and why]
+
+## Known Concerns
+[Any risks, caveats, or unresolved issues from the self-review.
+If the review was clean, say so.]
+
+## Artifacts
+The following files in this directory contain detailed context:
+- `diagnosis.md` — Root cause analysis
+- `implementation-notes.md` — Detailed file changes and rationale
+- `test-verification.md` — Test results and coverage
+- `review.md` — Self-review findings
+```
+
+**Why this matters**: A future session using `feedback.md` to address PR
+review comments has no memory of this session. Without this file, the AI
+must re-derive your reasoning from the code diff alone, which leads to
+worse responses to reviewer challenges and a higher risk of accidentally
+reverting intentional decisions.
+
 ## Escalation
 
 When a phase fails beyond its retry limit, or when `guidelines.md`
@@ -196,4 +240,5 @@ When the pipeline completes successfully, the working tree contains:
 | `ARTIFACT_DIR/implementation-notes.md` | Design decisions, alternatives, test rationale |
 | `ARTIFACT_DIR/test-verification.md` | Test results summary |
 | `ARTIFACT_DIR/review.md` | Self-review findings |
+| `ARTIFACT_DIR/session-context.md` | Summary manifest for future sessions |
 | `PR_OUTPUT` | PR title and description |
