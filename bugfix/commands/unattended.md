@@ -1,7 +1,11 @@
 # /unattended
 
-Read `../skills/unattended.md` and follow it.
+You MUST read `../skills/unattended.md` now and follow every step in it.
 
-Run the autonomous bugfix workflow from `/diagnose` through `/pr`. Context:
+This command runs the autonomous bugfix workflow. It MUST produce artifact
+files in `.artifacts/bugfix/{issue}/`. If no artifacts are written, the
+workflow has failed.
+
+Context provided by the user:
 
 $ARGUMENTS
