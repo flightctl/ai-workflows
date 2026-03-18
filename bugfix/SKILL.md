@@ -1,6 +1,12 @@
 ---
 name: bugfix
-description: Diagnostic and repair workflow that analyzes error logs, traces root causes, implements fixes, and verifies with regression tests. Use when fixing bugs, debugging runtime errors or exceptions, investigating test failures or crashes, or submitting bug-fix pull requests.
+description: >-
+  Diagnostic and repair workflow that analyzes error logs, traces root causes,
+  implements fixes, and verifies with regression tests.
+  Use when fixing bugs, debugging runtime errors or exceptions, investigating
+  test failures or crashes, or submitting bug-fix pull requests.
+  Activated by commands: /unattended, /assess, /diagnose, /reproduce, /fix,
+  /test, /review, /document, /pr, /start.
 ---
 # Bugfix Workflow Orchestrator
 

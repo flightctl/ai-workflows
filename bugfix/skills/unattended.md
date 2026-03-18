@@ -25,8 +25,10 @@ If `branch` is provided, the `/fix` phase must use that branch as-is — do not 
 ## Quick Start
 
 1. Read the bug report / issue URL / description provided as input
-2. Execute the phase loop below, starting at `/diagnose`
-3. After each phase, proceed directly to the next — do not stop or wait
+2. Extract the issue key (e.g. `EDM-3467` from a Jira URL, `#421` from a GitHub issue)
+3. Create the artifact directory immediately: `mkdir -p .artifacts/bugfix/{issue}`
+4. Execute the phase loop below, starting at `/diagnose`
+5. After each phase, proceed directly to the next — do not stop or wait
 
 ## Phase Loop
 
@@ -34,37 +36,20 @@ Run these phases in order. Read each skill from the same `skills/` directory:
 
 | Order | Phase | Skill file | Done signal |
 |-------|-------|------------|-------------|
-| 1 | `/diagnose` | `diagnose.md` | `diagnose.md` artifact written |
-| 2 | `/fix` | `fix.md` | Code changes committed on feature branch |
-| 3 | `/test` | `test.md` | All tests pass |
-| 4 | `/review` | `review.md` | Review verdict rendered |
-| 5 | `/document` | `document.md` | Documentation artifacts written |
+| 1 | `/diagnose` | `diagnose.md` | Skill Output artifacts written |
+| 2 | `/fix` | `fix.md` | Code changes committed on feature branch; skill Output artifacts written |
+| 3 | `/test` | `test.md` | All tests pass; skill Output artifacts written |
+| 4 | `/review` | `review.md` | Skill Output artifacts written |
+| 5 | `/document` | `document.md` | Skill Output artifacts written |
 
 ## How to Execute a Phase
 
 1. Announce the phase: *"Starting /fix (unattended mode)."*
-2. Read the skill file from the table above
-3. Execute the skill's steps
-4. **Override:** when the skill says "re-read the controller" or "stop and wait," ignore that — proceed directly to the next phase in the table
-
-```bash
-# Example: commands the workflow runs autonomously
-mkdir -p .artifacts/bugfix/421
-rg "NullPointerException" --type java -l
-git checkout -b fix/issue-421
-git commit -m "fix: add null-check in AuthService#authenticate"
-```
-
-## Overrides from Bugfix Controller
-
-This skill reuses the phase skills in `skills/*.md` and `guidelines.md` with these overrides:
-
-| Bugfix controller rule | Unattended override |
-|------------------------|---------------------|
-| "Never auto-advance. Always wait for the user between phases." | Auto-advance to the next phase immediately. |
-| "Stop and wait for the user to tell you what to do next." | Proceed to the next phase in the loop. |
-| "Re-read the controller for next-step guidance." | Return to this skill's Phase Loop and continue. |
-| "Stop and request human guidance" (escalation) | Make the best-effort decision, document it in the artifacts, and continue. |
+2. Read the skill file from the table above. While executing it, apply these overrides:
+   - "Never auto-advance" / "Stop and wait" / "re-read the controller" — ignore; proceed to the next phase in this table
+   - "Stop and request human guidance" (escalation) — make a best-effort decision, document it in the artifacts, and continue
+3. Execute the skill's steps fully, including its Output section — every artifact the skill specifies must be written to disk
+4. Proceed to the next phase in the Phase Loop
 
 ## Feedback Loops
 
