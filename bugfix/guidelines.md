@@ -10,9 +10,10 @@ Systematic bug resolution through these phases:
 6. **Review** (`/review`) — *(Optional)* Critically evaluate fix and tests
 7. **Document** (`/document`) — Release notes and documentation
 8. **PR** (`/pr`) — Submit a pull request
+9. **Feedback** (`/feedback`) — Address PR review comments
 
-The workflow controller lives at `skills/controller.md`.
-It defines how to execute phases, recommend next steps, and handle transitions.
+The workflow controller lives at `skills/controller.md` (interactive) or
+`skills/unattended.md` (unattended).
 Phase skills are at `skills/{name}.md`.
 Artifacts go in `.artifacts/bugfix/{issue}`.
 
@@ -27,7 +28,7 @@ Artifacts go in `.artifacts/bugfix/{issue}`.
 
 ## Hard Limits
 
-- **No git commits except in `/pr`** — always use feature branches; all phases leave changes in the working tree; `/pr` creates a single squashed commit
+- No direct commits to `main` — always use feature branches
 - No token or secret logging — use `len(token)`, redact in logs
 - No force-push, hard reset, or destructive git operations
 - No modifying security-critical code without human review
@@ -55,6 +56,13 @@ Stop and request human guidance when:
 - The change affects API contracts or introduces breaking changes
 - A security or compliance concern arises
 - Confidence on the proposed solution is below 80%
+
+In **unattended mode** (`skills/unattended.md`), "stop and request human
+guidance" means writing an escalation report to the artifact directory
+and terminating. See the Escalation section in `skills/unattended.md`.
+Note: retry-limit exhaustion in unattended mode degrades gracefully
+rather than triggering escalation — see `skills/unattended.md` for
+details.
 
 ## Working With the Project
 

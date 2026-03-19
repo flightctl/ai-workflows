@@ -6,7 +6,7 @@ description: >-
   Use when fixing bugs, debugging runtime errors or exceptions, investigating
   test failures or crashes, or submitting bug-fix pull requests.
   Activated by commands: /unattended, /assess, /diagnose, /reproduce, /fix,
-  /test, /review, /document, /pr, /start.
+  /test, /review, /document, /pr, /feedback, /start.
 ---
 # Bugfix Workflow Orchestrator
 
@@ -94,6 +94,7 @@ Systematic bug resolution through these phases:
 6. **Review** (`/review`) — *(Optional)* Critically evaluate fix and tests
 7. **Document** (`/document`) — Release notes and documentation
 8. **PR** (`/pr`) — Submit a pull request
+9. **Feedback** (`/feedback`) — Address PR review comments
 
 ## Phase Transitions
 
@@ -106,10 +107,17 @@ Each phase must meet its exit criteria before the next phase begins. If a later 
 - `/test` → proceed when all new and existing tests pass; if tests fail, return to `/fix`
 - `/review` → if the fix is inadequate or edge cases are missed, return to `/diagnose` or `/fix`
 
+## Unattended Mode
+
+For unattended execution (CI/CD bots, automated systems), use
+`skills/unattended.md` instead of the interactive controller. It chains
+diagnose → fix → test → review with self-correction loops and runs to
+completion without human input. See `/unattended` or read the skill directly.
+
 ## File Layout
 
-The workflow controller lives at `skills/controller.md`.
-It defines how to execute phases, recommend next steps, and handle transitions.
+The workflow controller lives at `skills/controller.md` (interactive) or
+`skills/unattended.md` (unattended).
 Phase skills are at `skills/{name}.md`.
 
 For principles, hard limits, safety, quality, and escalation rules, see `guidelines.md`.
