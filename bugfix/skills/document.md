@@ -175,6 +175,6 @@ Report your results:
 
 - What documents were created and where
 - Any gaps flagged for later
+- Your proposed plan
 
 Then **re-read the controller** (`skills/controller.md`) for next-step guidance.
-- Your proposed plan

@@ -52,12 +52,13 @@ These are determined during pre-flight checks. Record each value as you go.
 
 ### Step 0: Locate the Project Repository
 
-The bugfix workflow runs from the workflow directory, but the code changes live
-in the project repository. Before doing any git work:
+If the project repo is already the current workspace (e.g., opened in Cursor or
+the IDE), skip this step — you're already in it.
+
+Otherwise (sandboxed environments, CI pipelines), locate the project repo:
 
 ```bash
-# Find the project repo — it's typically in /workspace/repos/ or an add_dirs path
-ls /workspace/repos/ 2>/dev/null || ls /workspace/.artifacts/ 2>/dev/null
+ls /workspace/repos/ 2>/dev/null
 ```
 
 `cd` into the project repo directory before proceeding. All subsequent git
@@ -358,13 +359,17 @@ it instead of creating a new one.
 
 ### Step 5: Stage and Commit
 
+This is the **only** phase that creates git commits. All code changes from
+prior phases (`/fix`, `/test`, etc.) should be in the working tree as an
+uncommitted diff. This step consolidates them into a single commit.
+
 **Stage changes selectively** — don't blindly `git add .`:
 
 ```bash
 # Review what would be staged
 git diff --stat
 
-# Stage the relevant files
+# Stage the relevant files (exclude .artifacts/ and other non-code files)
 git add path/to/changed/files
 
 # Verify staging

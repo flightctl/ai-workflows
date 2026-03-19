@@ -128,7 +128,7 @@ Report your results:
 
 - How many tests were added and their results
 - Whether the full test suite passes
-
-Then **re-read the controller** (`skills/controller.md`) for next-step guidance.
 - Where the verification report was written
 - Your proposed plan
+
+Then **re-read the controller** (`skills/controller.md`) for next-step guidance.

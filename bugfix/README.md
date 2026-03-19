@@ -196,7 +196,7 @@ The Bug Fix Workflow follows this approach:
 - Supports optional `branch` and `max_retries` inputs
 - Includes feedback loops: `/test` failures retry `/fix`, `/review` inadequacy retries `/fix`
 
-**Output**: All phase artifacts in `.artifacts/bugfix/{issue}/` + committed fix on feature branch.
+**Output**: All phase artifacts in `.artifacts/bugfix/{issue}/` + code changes in the working tree.
 
 **When to use**: When a bot or CI pipeline needs to diagnose and fix a bug end-to-end without interactive feedback.
 
