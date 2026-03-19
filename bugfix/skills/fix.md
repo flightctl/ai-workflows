@@ -20,7 +20,7 @@ Implement targeted bug fixes that resolve the underlying issue without introduci
 
 ### Step 1: Review Fix Strategy
 
-- Read the root cause analysis (check `.artifacts/{number}/bugfix/analysis/root-cause.md` if it exists)
+- Read the root cause analysis (check `.artifacts/bugfix/{issue}/root-cause.md` if it exists)
 - Confirm you understand the recommended fix approach
 - Consider alternative solutions and their trade-offs
 - Plan for backward compatibility if needed
@@ -28,10 +28,10 @@ Implement targeted bug fixes that resolve the underlying issue without introduci
 
 ### Step 2: Create Feature Branch
 
-- Ensure you're on the correct base branch (usually `main`)
-- Create a descriptive branch: `bugfix/{number}-{short-description}`
+- If a branch was specified (e.g. by the user or via the unattended `branch` setting), use it as-is — do not create a new branch
+- Otherwise, ensure you're on the correct base branch (usually `main`) and create a descriptive branch: `bugfix/{number}-{short-description}`
 - Example: `bugfix/EDM-1234-status-update-retry`
-- Verify you're on the new branch before making changes
+- Verify you're on the correct branch before making changes
 
 ### Step 3: Implement Core Fix
 
@@ -64,7 +64,7 @@ Before finalizing the implementation, ensure thoroughness:
 - Update configuration documentation if settings changed
 - Note any breaking changes clearly
 
-### Step 7: Pre-commit Quality Checks
+### Step 7: Quality Checks
 
 - Run code formatters
 - Run linters and fix all warnings
@@ -74,7 +74,7 @@ Before finalizing the implementation, ensure thoroughness:
 
 ### Step 8: Document Implementation
 
-Create `.artifacts/{number}/bugfix/fixes/implementation-notes.md` containing:
+Create `.artifacts/bugfix/{issue}/implementation-notes.md` containing:
 
 - Summary of changes
 - Files modified with `file:line` references
@@ -86,12 +86,12 @@ Create `.artifacts/{number}/bugfix/fixes/implementation-notes.md` containing:
 ## Output
 
 - **Modified code files**: Bug fix implementation in working tree
-- **Implementation notes**: `.artifacts/{number}/bugfix/fixes/implementation-notes.md`
+- **Implementation notes**: `.artifacts/bugfix/{issue}/implementation-notes.md`
 
 ## Best Practices
 
 - **Keep fixes minimal** — only change what's necessary to fix the bug
-- **Don't combine refactoring with bug fixes** — separate concerns into different commits
+- **Don't combine refactoring with bug fixes** — separate concerns
 - **Reference the issue number** in code comments for future context
 - **Consider backward compatibility** — avoid breaking changes when possible
 - **Document trade-offs** — if you chose one approach over another, explain why
@@ -112,6 +112,6 @@ Report your results:
 - What was changed (files, approach)
 - What quality checks passed
 - Where the implementation notes were written
+- Your proposed plan
 
 Then **re-read the controller** (`skills/controller.md`) for next-step guidance.
-- Your proposed plan

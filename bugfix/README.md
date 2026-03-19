@@ -24,25 +24,32 @@ bugfix/
 │   ├── pr.md
 │   ├── reproduce.md
 │   ├── review.md
-│   └── test.md
-└── skills/               # Detailed process definitions
-    ├── start.md
-    ├── assess.md
-    ├── controller.md
-    ├── diagnose.md
-    ├── document.md
-    ├── fix.md
-    ├── pr.md
-    ├── reproduce.md
-    ├── review.md
-    └── test.md
-├── CLAUDE.md             # Behavioral guidelines
+│   ├── test.md
+│   ├── feedback.md
+│   └── unattended.md
+├── skills/               # Detailed process definitions
+│   ├── start.md
+│   ├── assess.md
+│   ├── controller.md
+│   ├── diagnose.md
+│   ├── document.md
+│   ├── feedback.md
+│   ├── fix.md
+│   ├── pr.md
+│   ├── reproduce.md
+│   ├── review.md
+│   ├── test.md
+│   └── unattended.md
+├── guidelines.md         # Principles, hard limits, safety, and quality rules
+├── SKILL.md              # Entry point for the workflow
 └── README.md             # This file
 ```
 
 ### How Commands and Skills Work Together
 
-Each **command** is a thin wrapper that invokes a corresponding **skill**. When you run `/diagnose`, the command file tells the agent to read the Diagnose skill from `.claude/skills/diagnose/SKILL.md` and apply it — passing along any arguments you provided plus existing session context.
+Each **command** is a thin wrapper that invokes a corresponding **skill**. When you run `/diagnose`, the command file tells the agent to read `skills/diagnose.md` and execute it — passing along any arguments you provided plus existing session context.
+
+`SKILL.md` routes to commands first: if the user invoked a specific command (e.g. `/unattended`, `/diagnose`), it reads the matching `commands/{command}.md`. Otherwise it falls through to the interactive controller flow.
 
 This separation keeps commands simple and consistent while the skills contain the full process details.
 
@@ -63,7 +70,20 @@ The Bug Fix Workflow follows this approach:
 
 **When to use**: When you want to see all options before diving in, or when you're unsure which phase to start with.
 
-### Phase 1: Reproduce (`/reproduce`)
+### Phase 1: Assess (`/assess`)
+
+**Purpose**: Read the bug report, build understanding, and propose a plan before any work begins.
+
+- Gather the bug report (issue URL, conversation context, attachments)
+- Summarize understanding: what the bug is, where it occurs, severity
+- Identify gaps and assumptions
+- Propose a reproduction plan
+
+**Output**: Assessment presented inline to the user (no file artifact).
+
+**When to use**: When you have a bug report or issue URL and want to align understanding before diving in.
+
+### Phase 2: Reproduce (`/reproduce`)
 
 **Purpose**: Systematically reproduce the bug and document observable behavior.
 
@@ -73,11 +93,11 @@ The Bug Fix Workflow follows this approach:
 - Document minimal reproduction steps
 - Create reproduction report with severity assessment
 
-**Output**: `.artifacts/{number}/bugfix/reports/reproduction.md`
+**Output**: `.artifacts/bugfix/{issue}/reproduction.md`
 
 **When to use**: Start here if you have a bug report, an issue URL, or a symptom description.
 
-### Phase 2: Diagnose (`/diagnose`)
+### Phase 3: Diagnose (`/diagnose`)
 
 **Purpose**: Perform root cause analysis and assess impact.
 
@@ -88,26 +108,26 @@ The Bug Fix Workflow follows this approach:
 - Assess impact across the codebase
 - Recommend fix approach
 
-**Output**: `.artifacts/{number}/bugfix/analysis/root-cause.md`
+**Output**: `.artifacts/bugfix/{issue}/root-cause.md`
 
 **When to use**: After successful reproduction, or skip here if you know the symptoms.
 
-### Phase 3: Fix (`/fix`)
+### Phase 4: Fix (`/fix`)
 
 **Purpose**: Implement the bug fix following best practices.
 
 - Review fix strategy from diagnosis phase
-- Create feature branch (`bugfix/{number}-{description}`)
+- Create feature branch (or use one if specified)
 - Implement minimal code changes to fix the bug
 - Address similar patterns identified in analysis
 - Run linters and formatters
 - Document implementation choices
 
-**Output**: Modified code files + `.artifacts/{number}/bugfix/fixes/implementation-notes.md`
+**Output**: Modified code files + `.artifacts/bugfix/{issue}/implementation-notes.md`
 
 **When to use**: After diagnosis phase, or jump here if you already know the root cause.
 
-### Phase 4: Test (`/test`)
+### Phase 5: Test (`/test`)
 
 **Purpose**: Verify the fix and create regression tests.
 
@@ -118,11 +138,11 @@ The Bug Fix Workflow follows this approach:
 - Perform manual verification of original reproduction steps
 - Check for performance or security impacts
 
-**Output**: New test files + `.artifacts/{number}/bugfix/tests/verification.md`
+**Output**: New test files + `.artifacts/bugfix/{issue}/verification.md`
 
 **When to use**: After implementing the fix.
 
-### Phase 5: Review (`/review`) — Optional
+### Phase 6: Review (`/review`) — Optional
 
 **Purpose**: Critically evaluate the fix and its tests before proceeding.
 
@@ -137,11 +157,11 @@ The Bug Fix Workflow follows this approach:
 - **Fix is adequate, tests are incomplete** → Provide instructions for what additional testing is needed (including manual steps for the user)
 - **Fix and tests are solid** → Recommend proceeding to `/document` and `/pr`
 
-**Output**: Review findings reported inline to the user (not a file).
+**Output**: `.artifacts/bugfix/{issue}/review.md` + findings presented inline to the user.
 
 **When to use**: After `/test`, especially for complex or high-risk fixes.
 
-### Phase 6: Document (`/document`)
+### Phase 7: Document (`/document`)
 
 **Purpose**: Create complete documentation for the fix.
 
@@ -151,11 +171,11 @@ The Bug Fix Workflow follows this approach:
 - Update code comments with issue references
 - Draft PR description
 
-**Output**: `.artifacts/{number}/bugfix/docs/` containing issue updates, release notes, changelog entries, and PR description.
+**Output**: `.artifacts/bugfix/{issue}/` containing issue updates, release notes, changelog entries, and PR description.
 
 **When to use**: After testing is complete.
 
-### Phase 7: PR (`/pr`)
+### Phase 8: PR (`/pr`)
 
 **Purpose**: Create a pull request to submit the bug fix.
 
@@ -168,6 +188,33 @@ The Bug Fix Workflow follows this approach:
 **Output**: A draft pull request URL (or manual creation instructions if automation fails).
 
 **When to use**: After all prior phases are complete, or whenever you're ready to submit.
+
+### Phase 9: Feedback (`/feedback`)
+
+**Purpose**: Address PR review feedback across sessions.
+
+- Gather review comments from a PR, task file, or user input
+- Recover context from prior session artifacts (session-context.md, implementation-notes.md)
+- Implement targeted changes addressing reviewer feedback
+- Track declined suggestions with rationale to prevent re-litigation
+- Update session context for continuity across review rounds
+
+**Output**: Modified code files + updated `.artifacts/bugfix/{issue}/session-context.md` + `.artifacts/bugfix/{issue}/comment-responses.json`
+
+**When to use**: After a PR has been submitted and reviewers have left comments, especially when a different AI session needs to address the feedback.
+
+### Unattended (`/unattended`)
+
+**Purpose**: Run the workflow autonomously from `/diagnose` through `/document` without human interaction.
+
+- Designed for bots and CI pipelines
+- Auto-advances between phases; skips `/assess` and `/reproduce`
+- Supports optional `branch` and `max_retries` inputs
+- Includes feedback loops: `/test` failures retry `/fix`, `/review` inadequacy retries `/fix`
+
+**Output**: All phase artifacts in `.artifacts/bugfix/{issue}/` + code changes in the working tree.
+
+**When to use**: When a bot or CI pipeline needs to diagnose and fix a bug end-to-end without interactive feedback.
 
 ## Getting Started
 
@@ -223,26 +270,23 @@ Workflow: Jumps to /fix to implement
 
 ## Artifacts Generated
 
-All workflow artifacts are organized in the `.artifacts/{number}/bugfix/` directory:
+All workflow artifacts are organized in the `.artifacts/bugfix/{issue}/` directory:
 
 ```text
-.artifacts/{number}/bugfix/
-├── reports/                  # Bug reproduction reports
-│   └── reproduction.md
-├── analysis/                 # Root cause analysis
-│   └── root-cause.md
-├── fixes/                    # Implementation notes
-│   └── implementation-notes.md
-├── tests/                    # Test results and verification
-│   └── verification.md
-├── review/                   # Review results and notes
-│   └── review.md
-└── docs/                     # Documentation and release notes
-    ├── issue-update.md
-    ├── release-notes.md
-    ├── changelog-entry.md
-    ├── team-announcement.md
-    └── pr-description.md
+.artifacts/bugfix/{issue}/
+├── reproduction.md           # Bug reproduction report
+├── root-cause.md             # Root cause analysis
+├── implementation-notes.md   # Implementation notes
+├── verification.md           # Test results and verification
+├── review.md                 # Review findings and verdict
+├── issue-update.md           # Text for issue/ticket comment
+├── release-notes.md          # Release notes entry
+├── changelog-entry.md        # CHANGELOG addition
+├── team-announcement.md      # Internal team communication
+├── user-announcement.md      # Customer communication (optional)
+├── pr-description.md         # Pull request description
+├── session-context.md        # Cross-session context manifest (unattended)
+└── comment-responses.json    # PR comment reply summaries (feedback)
 ```
 
 ## Best Practices

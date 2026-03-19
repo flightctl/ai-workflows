@@ -52,12 +52,13 @@ These are determined during pre-flight checks. Record each value as you go.
 
 ### Step 0: Locate the Project Repository
 
-The bugfix workflow runs from the workflow directory, but the code changes live
-in the project repository. Before doing any git work:
+If the project repo is already the current workspace (e.g., opened in Cursor or
+the IDE), skip this step — you're already in it.
+
+Otherwise (sandboxed environments, CI pipelines), locate the project repo:
 
 ```bash
-# Find the project repo — it's typically in /workspace/repos/ or an add_dirs path
-ls /workspace/repos/ 2>/dev/null || ls /workspace/.artifacts/ 2>/dev/null
+ls /workspace/repos/ 2>/dev/null
 ```
 
 `cd` into the project repo directory before proceeding. All subsequent git
@@ -358,13 +359,17 @@ it instead of creating a new one.
 
 ### Step 5: Stage and Commit
 
+This is the **only** phase that creates git commits. All code changes from
+prior phases (`/fix`, `/test`, etc.) should be in the working tree as an
+uncommitted diff. This step consolidates them into a single commit.
+
 **Stage changes selectively** — don't blindly `git add .`:
 
 ```bash
 # Review what would be staged
 git diff --stat
 
-# Stage the relevant files
+# Stage the relevant files (exclude .artifacts/ and other non-code files)
 git add path/to/changed/files
 
 # Verify staging
@@ -406,7 +411,7 @@ access. Please run: `git push -u fork BRANCH_NAME`"
 
 ### Step 7: Create the Draft PR
 
-**PR title format:** Use **`[ISSUE_KEY]: short description in lowercase`**. If the artifact `.artifacts/{number}/bugfix/docs/pr-description.md` exists and has a `## Title` line in this format, use that title. Otherwise set `ISSUE_KEY` from the branch name or context (e.g. Jira EDM-1234, GitHub #47) and build the title as `[ISSUE_KEY]: short description`.
+**PR title format:** Use **`[ISSUE_KEY]: short description in lowercase`**. If the artifact `.artifacts/bugfix/{issue}/pr-description.md` exists and has a `## Title` line in this format, use that title. Otherwise set `ISSUE_KEY` from the branch name or context (e.g. Jira EDM-1234, GitHub #47) and build the title as `[ISSUE_KEY]: short description`.
 
 **Try `gh pr create` first** (it works for normal user tokens):
 
@@ -417,7 +422,7 @@ gh pr create \
   --head FORK_OWNER:bugfix/BRANCH_NAME \
   --base main \
   --title "[ISSUE_KEY]: short description in lowercase" \
-  --body-file artifacts/{number}/bugfix/docs/pr-description.md
+  --body-file .artifacts/bugfix/{issue}/pr-description.md
 ```
 
 **Key flags explained:**
@@ -468,7 +473,7 @@ Fixes #ISSUE_NUMBER"
 This is the expected outcome when running as a GitHub App bot. Do NOT retry,
 do NOT debug further, do NOT fall back to a patch file. Instead:
 
-1. **Write the PR description** to `.artifacts/{number}/bugfix/docs/pr-description.md`
+1. **Write the PR description** to `.artifacts/bugfix/{issue}/pr-description.md`
    (if not already written). This ensures the user has the body ready to paste.
 
 2. **Give the user a pre-filled GitHub compare URL:**
@@ -514,7 +519,7 @@ Diagnose it using the Error Recovery table and retry.
 If `gh pr create` fails but the branch is pushed to the fork (this is the
 **expected** outcome when running as a GitHub App bot):
 
-1. **Write the PR body** to `.artifacts/{number}/bugfix/docs/pr-description.md`
+1. **Write the PR body** to `.artifacts/bugfix/{issue}/pr-description.md`
 2. **Provide the compare URL**: `https://github.com/UPSTREAM_OWNER/REPO/compare/main...FORK_OWNER:BRANCH?expand=1`
 3. **Show the PR title and body** for the user to paste in. The PR title must follow `[ISSUE_KEY]: short description in lowercase`.
 4. **Note**: this is a good outcome — the user gets a pre-filled PR form
@@ -533,14 +538,14 @@ Only if ALL of the above fail — for example, the user has no GitHub account,
 or network access is completely blocked:
 
 1. Generate a patch: `git diff > bugfix.patch`
-2. Write it to `.artifacts/{number}/bugfix/bugfix.patch`
+2. Write it to `.artifacts/bugfix/{issue}/bugfix.patch`
 3. Explain to the user how to apply it: `git apply bugfix.patch`
 4. **Acknowledge this is a degraded experience** and explain what prevented the normal flow
 
 ## Output
 
 - The PR URL (printed to the user)
-- Optionally updates `.artifacts/{number}/bugfix/docs/pr-description.md` if it didn't already exist
+- Optionally updates `.artifacts/bugfix/{issue}/pr-description.md` if it didn't already exist
 
 ## Usage Examples
 
@@ -580,7 +585,7 @@ or network access is completely blocked:
 - This skill assumes the bug fix work (code changes, tests) is already done.
   Run `/fix` and `/test` first.
 - If `/document` was run, the PR description artifact should already exist at
-  `.artifacts/{number}/bugfix/docs/pr-description.md`. Use its `## Title` line
+  `.artifacts/bugfix/{issue}/pr-description.md`. Use its `## Title` line
   for the PR title if it follows `[ISSUE_KEY]: description`.
 - If `/document` was NOT run, this skill creates a minimal PR body from
   session context (conversation history, prior artifacts). Build the title as

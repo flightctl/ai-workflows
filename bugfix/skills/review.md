@@ -23,10 +23,10 @@ You are NOT the person who wrote the fix or the tests. You are a fresh set of ey
 
 Gather all available context before forming any opinion:
 
-- Reproduction report (`.artifacts/{number}/bugfix/reports/reproduction.md`)
-- Root cause analysis (`.artifacts/{number}/bugfix/analysis/root-cause.md`)
-- Implementation notes (`.artifacts/{number}/bugfix/fixes/implementation-notes.md`)
-- Test verification (`.artifacts/{number}/bugfix/tests/verification.md`)
+- Reproduction report (`.artifacts/bugfix/{issue}/reproduction.md`)
+- Root cause analysis (`.artifacts/bugfix/{issue}/root-cause.md`)
+- Implementation notes (`.artifacts/bugfix/{issue}/implementation-notes.md`)
+- Test verification (`.artifacts/bugfix/{issue}/verification.md`)
 - The actual code changes (diff or modified files)
 - The actual test code that was written
 
@@ -160,7 +160,7 @@ covered, and you don't see meaningful gaps.
 
 ### Step 6: Report to the User
 
-Persist the review report to `.artifacts/{number}/bugfix/review/review.md`, then present the same findings inline to the user. Use the issue/ticket number from context (e.g. EDM-1234) for `{number}`. Classify each finding by **severity** (CRITICAL / HIGH / MEDIUM / LOW) and as **blocker** (must fix before merge) or **suggestion** (nice to have). CRITICAL and HIGH are blockers; MEDIUM and LOW are suggestions.
+Persist the review report to `.artifacts/bugfix/{issue}/review.md`, then present the same findings inline to the user. Use the issue/ticket key from context (e.g. EDM-1234) for `{issue}`. Classify each finding by **severity** (CRITICAL / HIGH / MEDIUM / LOW) and as **blocker** (must fix before merge) or **suggestion** (nice to have). CRITICAL and HIGH are blockers; MEDIUM and LOW are suggestions.
 
 **Severity levels:**
 
@@ -214,7 +214,7 @@ are insufficient, say what's missing.
 
 ## Output
 
-- **Persisted**: Full review report written to `.artifacts/{number}/bugfix/review/review.md` (create the `review/` directory if needed)
+- **Persisted**: Full review report written to `.artifacts/bugfix/{issue}/review.md`
 - **Inline**: The same review findings presented directly to the user in the conversation
 - If issues are found, specific guidance on what to fix or test next
 
@@ -242,6 +242,6 @@ are insufficient, say what's missing.
 
 ## When This Phase Is Done
 
-Your verdict and recommendation (from Step 6) serve as the phase summary. Tell the user where the review was written (`.artifacts/{number}/bugfix/review/review.md`).
+Your verdict and recommendation (from Step 6) serve as the phase summary. Tell the user where the review was written (`.artifacts/bugfix/{issue}/review.md`).
 
 Then **re-read the controller** (`skills/controller.md`) for next-step guidance.

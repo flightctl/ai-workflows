@@ -37,6 +37,9 @@ executing phases and handling transitions between them.
 8. **PR** (`/pr`) — `pr.md`
    Push the branch to a fork and create a draft pull request.
 
+9. **Feedback** (`/feedback`) — `feedback.md`
+   Address PR review comments.
+
 Phases can be skipped or reordered at the user's discretion.
 
 ## How to Execute a Phase
@@ -75,6 +78,7 @@ After presenting results, consider what just happened, then offer options that m
 - The bug is a test coverage gap, not a runtime issue → skip `/reproduce`
   and `/diagnose`
 - Review says everything is solid → offer `/pr` directly
+- PR has been submitted and reviewers have commented → offer `/feedback`
 
 **Going back** — sometimes earlier work needs revision:
 
