@@ -64,7 +64,7 @@ Before finalizing the implementation, ensure thoroughness:
 - Update configuration documentation if settings changed
 - Note any breaking changes clearly
 
-### Step 7: Pre-commit Quality Checks
+### Step 7: Quality Checks
 
 - Run code formatters
 - Run linters and fix all warnings
@@ -91,7 +91,7 @@ Create `.artifacts/bugfix/{issue}/implementation-notes.md` containing:
 ## Best Practices
 
 - **Keep fixes minimal** — only change what's necessary to fix the bug
-- **Don't combine refactoring with bug fixes** — separate concerns into different commits
+- **Don't combine refactoring with bug fixes** — separate concerns
 - **Reference the issue number** in code comments for future context
 - **Consider backward compatibility** — avoid breaking changes when possible
 - **Document trade-offs** — if you chose one approach over another, explain why
@@ -112,6 +112,6 @@ Report your results:
 - What was changed (files, approach)
 - What quality checks passed
 - Where the implementation notes were written
+- Your proposed plan
 
 Then **re-read the controller** (`skills/controller.md`) for next-step guidance.
-- Your proposed plan

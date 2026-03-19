@@ -136,8 +136,8 @@ Report your findings:
 
 - The identified root cause (or top hypotheses if uncertain)
 - Confidence level in the diagnosis
-
-Then **re-read the controller** (`skills/controller.md`) for next-step guidance.
 - Where the root cause analysis was written
 - Your proposed plan
+
+Then **re-read the controller** (`skills/controller.md`) for next-step guidance.
 

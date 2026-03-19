@@ -36,19 +36,20 @@ gh issue view NUMBER --repo OWNER/REPO --json title,body,labels,comments,state
 ```
 
 - If the user described the bug in conversation, use that context
-- Check if any prior artifacts exist (from a previous session, attached files or phase) adn use them to inform your understanding
+- Check if any prior artifacts exist (from a previous session, attached files or phase) and use them to inform your understanding
 
 ### Step 2: Ensure the Repository Is Available
 
-Check if the project repository is already accessible:
+If the project repo is already the current workspace (e.g., opened in Cursor or
+the IDE), skip this step — you're already in it.
+
+Otherwise (sandboxed environments, CI pipelines), check if the repo is accessible:
 
 ```bash
-# Check common locations
 ls /workspace/repos/ 2>/dev/null
-ls /workspace/.artifacts/ 2>/dev/null
 ```
 
-- If the repo is already present (e.g., mounted via `add_dirs`), note its path
+- If present (e.g., mounted via `add_dirs`), note its path
 - If not, clone it:
 
 ```bash
@@ -143,6 +144,6 @@ Report your assessment:
 
 - Your understanding of the bug
 - Key gaps or risks identified
+- Your proposed plan
 
 Then **re-read the controller** (`skills/controller.md`) for next-step guidance.
-- Your proposed plan

@@ -37,7 +37,7 @@ Run these phases in order. Read each skill from the same `skills/` directory:
 | Order | Phase | Skill file | Done signal |
 |-------|-------|------------|-------------|
 | 1 | `/diagnose` | `diagnose.md` | Skill Output artifacts written |
-| 2 | `/fix` | `fix.md` | Code changes committed on feature branch; skill Output artifacts written |
+| 2 | `/fix` | `fix.md` | Code changes in working tree; skill Output artifacts written |
 | 3 | `/test` | `test.md` | All tests pass; skill Output artifacts written |
 | 4 | `/review` | `review.md` | Skill Output artifacts written |
 | 5 | `/document` | `document.md` | Skill Output artifacts written |
@@ -50,6 +50,12 @@ Run these phases in order. Read each skill from the same `skills/` directory:
    - "Stop and request human guidance" (escalation) — make a best-effort decision, document it in the artifacts, and continue
 3. Execute the skill's steps fully, including its Output section — every artifact the skill specifies must be written to disk
 4. Proceed to the next phase in the Phase Loop
+
+## Commit Policy
+
+**Do NOT create git commits.** All code changes and artifacts remain in the working tree as an uncommitted diff. No phase in the unattended workflow may run `git add` or `git commit`.
+
+Committing is the responsibility of the `/pr` phase, which the unattended workflow does not run. When `/pr` is invoked later (by the user or a separate step), it stages and commits all accumulated changes as a single squashed commit.
 
 ## Feedback Loops
 
@@ -68,7 +74,7 @@ When all phases finish (or if the workflow stops early), output:
 
 Phases: diagnose ✓ → fix ✓ → test ✓ → review ✓ → document ✓
 Artifacts: .artifacts/bugfix/{issue}/
-Result: <commit SHA or reason for early stop>
+Result: <summary of changes or reason for early stop>
 Retries: <any fix/test retry cycles>
 Escalations: <decisions made autonomously, if any>
 ```
@@ -79,7 +85,7 @@ Escalations: <decisions made autonomously, if any>
 Bot triggers: "Fix issue #421 — NullPointerException on login"
 
 /diagnose  → traces root cause to AuthService.java:87
-/fix       → adds null-check, commits on fix/issue-421
+/fix       → adds null-check on fix/issue-421
 /test      → tests fail → retry /fix → tests pass ✓
 /review    → "fix and tests are solid"
 /document  → writes changelog entry and pr-description.md

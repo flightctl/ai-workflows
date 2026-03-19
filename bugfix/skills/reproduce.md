@@ -87,7 +87,7 @@ Report your findings:
 
 - Whether the bug was successfully reproduced
 - Key observations and environment details
-
-Then **re-read the controller** (`skills/controller.md`) for next-step guidance.
 - Where the reproduction report was written
 - Your proposed plan
+
+Then **re-read the controller** (`skills/controller.md`) for next-step guidance.
