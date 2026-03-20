@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Triage Report — {PROJECT_KEY}</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%231565C0'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --md-primary: #1565C0;
+    --md-primary-light: #1976D2;
+    --md-primary-container: #D1E4FF;
+    --md-on-primary: #FFFFFF;
+    --md-on-primary-container: #001D36;
+    --md-secondary: #00897B;
+    --md-secondary-container: #B2DFDB;
+    --md-tertiary: #7B1FA2;
+    --md-tertiary-container: #F3E5F5;
+    --md-error: #C62828;
+    --md-error-container: #FFCDD2;
+    --md-surface: #FAFAFA;
+    --md-surface-container: #FFFFFF;
+    --md-surface-container-low: #F5F5F5;
+    --md-surface-container-high: #EEEEEE;
+    --md-on-surface: #1C1B1F;
+    --md-on-surface-variant: #49454F;
+    --md-outline: #CAC4D0;
+    --md-outline-variant: #E0E0E0;
+    --md-shadow: rgba(0, 0, 0, 0.15);
+    --md-elevation-1: 0 1px 2px rgba(0,0,0,0.3), 0 1px 3px 1px rgba(0,0,0,0.15);
+    --md-elevation-2: 0 1px 2px rgba(0,0,0,0.3), 0 2px 6px 2px rgba(0,0,0,0.15);
+    --md-elevation-3: 0 4px 8px 3px rgba(0,0,0,0.15), 0 1px 3px rgba(0,0,0,0.3);
+    --md-shape-sm: 8px;
+    --md-shape-md: 12px;
+    --md-shape-lg: 16px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Roboto', sans-serif;
+    background: var(--md-surface);
+    color: var(--md-on-surface);
+    line-height: 1.6;
+    padding: 0;
+  }
+
+  /* Top app bar */
+  header {
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+    padding: 20px 32px;
+    box-shadow: var(--md-elevation-2);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  header h1 {
+    font-size: 1.375rem;
+    font-weight: 400;
+    letter-spacing: 0;
+  }
+  header .meta {
+    font-size: 0.875rem;
+    font-weight: 300;
+    opacity: 0.87;
+  }
+
+  .page-content {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 24px 24px 48px;
+  }
+
+  .section { margin-top: 32px; }
+  .section h2 {
+    font-size: 1rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    margin-bottom: 16px;
+    color: var(--md-primary);
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--md-outline-variant);
+  }
+
+  /* Simulation banner */
+  .sim-banner {
+    display: none;
+    background: #FFF8E1;
+    color: #E65100;
+    padding: 12px 24px;
+    border-radius: var(--md-shape-sm);
+    margin-bottom: 16px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border: 1px solid #FFE082;
+  }
+  .sim-banner.active { display: block; }
+
+  /* Stats tiles */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .stat-tile {
+    background: var(--md-surface-container);
+    border-radius: var(--md-shape-md);
+    padding: 20px 16px;
+    text-align: center;
+    box-shadow: var(--md-elevation-1);
+    border-left: 4px solid var(--rec-color);
+    transition: box-shadow 0.2s ease;
+  }
+  .stat-tile:hover { box-shadow: var(--md-elevation-2); }
+  .stat-tile .count {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--rec-color);
+    font-family: 'Roboto Mono', monospace;
+  }
+  .stat-tile .label {
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 500;
+    margin-top: 4px;
+    color: var(--md-on-surface-variant);
+  }
+
+  .stat-total {
+    --rec-color: var(--md-primary);
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+  }
+  .stat-total .count { color: var(--md-on-primary); }
+  .stat-total .label { color: rgba(255,255,255,0.87); }
+
+  .rec-close      { --rec-color: #C62828; }
+  .rec-fix_now    { --rec-color: #E65100; }
+  .rec-auto_fix   { --rec-color: #00897B; }
+  .rec-backlog    { --rec-color: #1565C0; }
+  .rec-needs_info { --rec-color: #F9A825; }
+  .rec-duplicate  { --rec-color: #78909C; }
+  .rec-escalate   { --rec-color: #6A1B9A; }
+  .rec-wont_fix   { --rec-color: #546E7A; }
+
+  .badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 100px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #fff;
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+  }
+  .badge.rec-close      { background: #C62828; }
+  .badge.rec-fix_now    { background: #E65100; }
+  .badge.rec-auto_fix   { background: #00897B; }
+  .badge.rec-backlog    { background: #1565C0; }
+  .badge.rec-needs_info { background: #F9A825; color: #1C1B1F; }
+  .badge.rec-duplicate  { background: #CFD8DC; color: #37474F; }
+  .badge.rec-escalate   { background: #6A1B9A; }
+  .badge.rec-wont_fix   { background: #546E7A; }
+
+  /* Auto-fix likelihood bar */
+  .likelihood-bar {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8125rem;
+    font-family: 'Roboto Mono', monospace;
+  }
+  .likelihood-bar .bar-track {
+    width: 64px;
+    height: 6px;
+    background: var(--md-outline-variant);
+    border-radius: 100px;
+    overflow: hidden;
+  }
+  .likelihood-bar .bar-fill {
+    height: 100%;
+    border-radius: 100px;
+    background: var(--md-secondary);
+  }
+
+  .suggested-priority {
+    font-style: italic;
+    color: var(--md-tertiary);
+    font-weight: 500;
+  }
+  .suggested-priority::before { content: "\2B21 "; }
+
+  /* Key recommendations */
+  .key-recs {
+    background: var(--md-primary-container);
+    border-radius: var(--md-shape-md);
+    padding: 20px 24px;
+    color: var(--md-on-primary-container);
+  }
+  .key-recs ol {
+    margin: 0;
+    padding-left: 20px;
+    font-size: 0.875rem;
+    line-height: 1.7;
+  }
+  .key-recs li { margin-bottom: 8px; }
+
+  /* Breakdown cards grid */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 16px;
+  }
+  .card {
+    background: var(--md-surface-container);
+    border-radius: var(--md-shape-md);
+    box-shadow: var(--md-elevation-1);
+    padding: 20px 24px;
+    transition: box-shadow 0.2s ease;
+  }
+  .card:hover { box-shadow: var(--md-elevation-2); }
+  .card h3 {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--md-on-surface-variant);
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--md-outline-variant);
+  }
+
+  /* Mini tables inside cards */
+  .mini-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+  .mini-table th, .mini-table td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--md-outline-variant);
+  }
+  .mini-table th {
+    font-weight: 500;
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--md-on-surface-variant);
+    background: var(--md-surface-container-low);
+  }
+  .mini-table td.num { text-align: right; font-variant-numeric: tabular-nums; font-family: 'Roboto Mono', monospace; }
+  .mini-table tbody tr:last-child td { border-bottom: none; }
+
+  /* Horizontal bar inside tables */
+  .h-bar {
+    display: inline-block;
+    height: 8px;
+    border-radius: 100px;
+    background: var(--md-primary-light);
+    vertical-align: middle;
+    margin-right: 8px;
+    min-width: 3px;
+  }
+
+  /* Aging buckets */
+  .aging-bar { background: #F9A825; }
+  .aging-bar.old { background: #E65100; }
+  .aging-bar.very-old { background: #C62828; }
+
+  /* Controls bar */
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-end;
+    margin-bottom: 16px;
+    background: var(--md-surface-container);
+    padding: 16px 24px;
+    border-radius: var(--md-shape-md);
+    box-shadow: var(--md-elevation-1);
+  }
+  .controls label {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--md-on-surface-variant);
+  }
+  .controls select,
+  .controls input[type="text"] {
+    padding: 10px 12px;
+    border: 1px solid var(--md-outline);
+    border-radius: var(--md-shape-sm);
+    font-size: 0.875rem;
+    font-family: 'Roboto', sans-serif;
+    background: var(--md-surface-container);
+    color: var(--md-on-surface);
+    transition: border-color 0.2s ease;
+    outline: none;
+  }
+  .controls select:focus,
+  .controls input[type="text"]:focus {
+    border-color: var(--md-primary);
+    box-shadow: 0 0 0 1px var(--md-primary);
+  }
+  .controls input[type="text"] { width: 220px; }
+  .sim-toggle {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--md-on-surface-variant);
+    cursor: pointer;
+  }
+  .sim-toggle input {
+    cursor: pointer;
+    accent-color: var(--md-primary);
+    width: 18px;
+    height: 18px;
+  }
+
+  /* Main table */
+  .table-wrap {
+    overflow-x: auto;
+    background: var(--md-surface-container);
+    border-radius: var(--md-shape-md);
+    box-shadow: var(--md-elevation-1);
+  }
+  table.main { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+  table.main th, table.main td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--md-outline-variant);
+  }
+  table.main th {
+    background: var(--md-surface-container-low);
+    font-weight: 500;
+    white-space: nowrap;
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--md-on-surface-variant);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: var(--md-primary); }
+  th.sortable::after { content: " \2195"; font-size: 0.7rem; opacity: 0.5; }
+  th.sort-asc::after { content: " \2191"; opacity: 1; color: var(--md-primary); }
+  th.sort-desc::after { content: " \2193"; opacity: 1; color: var(--md-primary); }
+  table.main tbody tr { transition: background 0.15s ease; }
+  tr:hover td { background: var(--md-surface-container-low); }
+  tr.simulated td { opacity: 0.35; text-decoration: line-through; }
+  td a { color: var(--md-primary); text-decoration: none; font-weight: 500; }
+  td a:hover { text-decoration: underline; }
+  .confidence { font-size: 0.75rem; color: var(--md-on-surface-variant); }
+  .no-results {
+    padding: 48px;
+    text-align: center;
+    color: var(--md-on-surface-variant);
+    font-size: 0.875rem;
+  }
+
+  /* Cluster cards */
+  .cluster-card {
+    background: var(--md-surface-container);
+    border-radius: var(--md-shape-md);
+    box-shadow: var(--md-elevation-1);
+    padding: 20px 24px;
+    margin-bottom: 16px;
+    border-left: 4px solid var(--md-tertiary);
+    transition: box-shadow 0.2s ease;
+  }
+  .cluster-card:hover { box-shadow: var(--md-elevation-2); }
+  .cluster-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .cluster-theme { font-weight: 500; font-size: 0.9375rem; }
+  .cluster-meta { font-size: 0.8125rem; color: var(--md-on-surface-variant); }
+  .link-type {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 100px;
+    background: var(--md-tertiary-container);
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--md-tertiary);
+  }
+  .cluster-issues { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .cluster-issues a {
+    color: var(--md-primary);
+    font-weight: 500;
+    font-size: 0.8125rem;
+    text-decoration: none;
+    padding: 2px 8px;
+    border-radius: var(--md-shape-sm);
+    background: var(--md-primary-container);
+    transition: background 0.15s ease;
+  }
+  .cluster-issues a:hover { background: #BBDEFB; text-decoration: none; }
+  .cluster-next-steps {
+    margin: 0;
+    padding-left: 20px;
+    font-size: 0.8125rem;
+    line-height: 1.7;
+  }
+  .cluster-next-steps li { margin-bottom: 4px; }
+  .no-clusters {
+    padding: 24px;
+    text-align: center;
+    color: var(--md-on-surface-variant);
+    font-size: 0.875rem;
+  }
+
+  /* Priority mismatch */
+  .mismatch-arrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+  }
+  .mismatch-arrow .pri-assigned { color: var(--md-error); }
+  .mismatch-arrow .pri-suggested { color: var(--md-secondary); }
+  .mismatch-arrow .arrow { color: var(--md-on-surface-variant); margin: 0 2px; }
+
+  /* Issues counter */
+  .issues-counter {
+    font-size: 0.875rem;
+    color: var(--md-on-surface-variant);
+    margin-bottom: 12px;
+    font-weight: 400;
+  }
+  .issues-counter strong {
+    font-weight: 500;
+    color: var(--md-on-surface);
+    font-family: 'Roboto Mono', monospace;
+  }
+
+  /* Recommendation legend */
+  .rec-legend {
+    background: var(--md-surface-container);
+    border-radius: var(--md-shape-md);
+    box-shadow: var(--md-elevation-1);
+    padding: 16px 24px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 12px;
+  }
+  .rec-legend-item {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--md-on-surface-variant);
+  }
+  .rec-legend-item .badge {
+    flex-shrink: 0;
+    min-width: 80px;
+    text-align: center;
+  }
+
+  /* Footer */
+  .footer {
+    margin-top: 40px;
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--md-on-surface-variant);
+    padding-top: 24px;
+    border-top: 1px solid var(--md-outline-variant);
+  }
+  .legend {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Triage Report: {PROJECT_KEY}</h1>
+  <div class="meta">{REPORT_DATE} &middot; {TOTAL_ISSUES} issues</div>
+</header>
+
+<div class="page-content">
+
+<div class="sim-banner" id="simBanner">
+  Simulation mode — CLOSE, WONT_FIX, and DUPLICATE issues are struck through. Stats reflect the remaining backlog.
+</div>
+
+<!-- Recommendation stats tiles -->
+<div class="stats" id="statsContainer"></div>
+
+<!-- Recommendation legend -->
+<div class="section">
+  <h2>Recommendation Types</h2>
+  <div class="rec-legend">
+    <div class="rec-legend-item"><span class="badge rec-close">Close</span><span>Invalid, obsolete, cannot reproduce, or stale with vague description</span></div>
+    <div class="rec-legend-item"><span class="badge rec-fix_now">Fix Now</span><span>Critical/high priority with clear impact; blockers; recent regressions; quick wins</span></div>
+    <div class="rec-legend-item"><span class="badge rec-auto_fix">Auto Fix</span><span>Well-described bug suitable for the unattended bugfix bot &mdash; clear repro steps, specific error, bounded scope</span></div>
+    <div class="rec-legend-item"><span class="badge rec-backlog">Backlog</span><span>Valid bug, not urgent; keep for future prioritization</span></div>
+    <div class="rec-legend-item"><span class="badge rec-needs_info">Needs Info</span><span>Missing reproduction steps, unclear description, or no error details to determine root cause</span></div>
+    <div class="rec-legend-item"><span class="badge rec-duplicate">Duplicate</span><span>Appears to duplicate another issue</span></div>
+    <div class="rec-legend-item"><span class="badge rec-escalate">Escalate</span><span>Needs architectural decision, cross-team coordination, or security review</span></div>
+    <div class="rec-legend-item"><span class="badge rec-wont_fix">Won&#8217;t Fix</span><span>Valid but out of scope, cost-prohibitive, or affected feature is being deprecated</span></div>
+  </div>
+</div>
+
+<!-- Key Recommendations -->
+<div class="section">
+  <h2>Key Recommendations</h2>
+  <div class="key-recs" id="keyRecsContainer"></div>
+</div>
+
+<!-- Analysis breakdown cards -->
+<div class="section">
+  <h2>Analysis</h2>
+  <div class="card-grid">
+    <div class="card"><h3>Priority Breakdown</h3><div id="priorityBreakdown"></div></div>
+    <div class="card"><h3>Status Distribution</h3><div id="statusDistribution"></div></div>
+    <div class="card"><h3>Assignee Load</h3><div id="assigneeLoad"></div></div>
+    <div class="card"><h3>Aging Analysis</h3><div id="agingAnalysis"></div></div>
+  </div>
+</div>
+
+<!-- Bugs not updated for more than 3 months -->
+<div class="section">
+  <h2>Bugs Not Updated for More Than 3 Months</h2>
+  <div class="table-wrap"><table class="main" id="oldBugsTable"></table></div>
+  <div class="no-results" id="noOldBugs" style="display:none">No bugs with last update older than 3 months.</div>
+</div>
+
+<!-- Priority Mismatches -->
+<div class="section">
+  <h2>Priority Mismatches</h2>
+  <div class="table-wrap"><table class="main" id="mismatchTable"></table></div>
+  <div class="no-results" id="noMismatches" style="display:none">No priority mismatches detected.</div>
+</div>
+
+<!-- Clusters -->
+<div class="section">
+  <h2>Duplicate &amp; Related Clusters</h2>
+  <div id="clustersContainer"></div>
+</div>
+
+<!-- All issues table -->
+<div class="section">
+  <h2>All Issues</h2>
+  <div class="issues-counter" id="issuesCounter"></div>
+  <div class="controls">
+    <div>
+      <label for="filterRec">Recommendation</label><br>
+      <select id="filterRec"><option value="">All</option></select>
+    </div>
+    <div>
+      <label for="filterPri">Priority</label><br>
+      <select id="filterPri"><option value="">All</option></select>
+    </div>
+    <div>
+      <label for="filterComp">Component</label><br>
+      <select id="filterComp"><option value="">All</option></select>
+    </div>
+    <div>
+      <label for="searchBox">Search</label><br>
+      <input type="text" id="searchBox" placeholder="Key or summary...">
+    </div>
+    <label class="sim-toggle">
+      <input type="checkbox" id="simToggle"> Simulate cleanup
+    </label>
+  </div>
+
+  <div class="table-wrap">
+    <table class="main">
+      <thead>
+        <tr>
+          <th class="sortable" data-sort="key">Key</th>
+          <th class="sortable" data-sort="summary">Summary</th>
+          <th class="sortable" data-sort="priority">Priority</th>
+          <th class="sortable" data-sort="status">Status</th>
+          <th class="sortable" data-sort="assignee">Assignee</th>
+          <th class="sortable" data-sort="created">Created</th>
+          <th class="sortable" data-sort="updated">Updated</th>
+          <th>Components</th>
+          <th class="sortable" data-sort="recommendation">Recommendation</th>
+          <th>Reason</th>
+          <th class="sortable" data-sort="confidence">Confidence</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="no-results" id="noResults" style="display:none">No issues match the current filters.</div>
+  </div>
+</div>
+
+<div class="footer">
+  <div class="legend">
+    <span class="legend-item"><em style="color:var(--md-tertiary);font-weight:500">Priority</em>&nbsp;= suggested (not set in Jira)</span>
+    <span class="legend-item"><span class="badge rec-auto_fix">Auto Fix 75%</span>&nbsp;= likelihood shown inside badge</span>
+  </div>
+  Generated by the Triage Workflow
+</div>
+
+</div><!-- .page-content -->
+
+<script>
+(function () {
+  "use strict";
+
+  var JIRA_BASE           = "{JIRA_BASE_URL}";
+  var ISSUES              = {ISSUES_JSON};
+  var CLUSTERS            = {CLUSTERS_JSON};
+  var KEY_RECOMMENDATIONS = {KEY_RECOMMENDATIONS_JSON};
+
+  var REC_ORDER  = ["CLOSE","FIX_NOW","AUTO_FIX","BACKLOG","NEEDS_INFO","DUPLICATE","ESCALATE","WONT_FIX"];
+  var REC_LABELS = {
+    CLOSE:"Close", FIX_NOW:"Fix Now", AUTO_FIX:"Auto Fix", BACKLOG:"Backlog",
+    NEEDS_INFO:"Needs Info", DUPLICATE:"Duplicate", ESCALATE:"Escalate", WONT_FIX:"Won\u2019t Fix"
+  };
+  var PRI_ORDER = ["Blocker","Critical","Highest","High","Major","Medium","Normal","Low","Minor","Lowest","Trivial"];
+  var SIM_RECS  = {CLOSE:1, WONT_FIX:1, DUPLICATE:1};
+
+  var sortField = "recommendation", sortDir = 1, simMode = false;
+  var NOW = Date.now();
+  var DAY = 86400000;
+  var THREE_MONTHS = 90 * DAY;
+
+  /* ---- helpers ---- */
+
+  function esc(s) {
+    var el = document.createElement("span");
+    el.textContent = s;
+    return el.innerHTML;
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return "";
+    return new Date(iso).toLocaleDateString("en-CA");
+  }
+
+  function hasPriority(issue) {
+    return issue.priority && issue.priority !== "Undefined";
+  }
+
+  function effectivePriority(issue) {
+    return (hasPriority(issue) ? issue.priority : issue.suggestedPriority) || "";
+  }
+
+  function priIndex(v) {
+    var idx = PRI_ORDER.indexOf(v);
+    return idx === -1 ? 99 : idx;
+  }
+
+  function issueAge(issue) {
+    var d = issue.updated || issue.created;
+    return d ? Math.floor((NOW - new Date(d).getTime()) / DAY) : 0;
+  }
+
+  function issueUrl(key) {
+    return JIRA_BASE + "/browse/" + encodeURIComponent(key);
+  }
+
+  function barHtml(count, max, cls) {
+    var pct = max > 0 ? Math.round(count / max * 100) : 0;
+    return '<span class="h-bar ' + (cls || "") + '" style="width:' + Math.max(pct, 2) + 'px"></span>' + count;
+  }
+
+  /* ---- key recommendations ---- */
+
+  function renderKeyRecs() {
+    var c = document.getElementById("keyRecsContainer");
+    if (!KEY_RECOMMENDATIONS || KEY_RECOMMENDATIONS.length === 0) {
+      c.innerHTML = "<p>No key recommendations.</p>";
+      return;
+    }
+    var html = "<ol>";
+    KEY_RECOMMENDATIONS.forEach(function (r) { html += "<li>" + esc(r) + "</li>"; });
+    html += "</ol>";
+    c.innerHTML = html;
+  }
+
+  /* ---- priority breakdown ---- */
+
+  function renderPriorityBreakdown() {
+    var counts = {};
+    var undefinedCount = 0;
+    ISSUES.forEach(function (i) {
+      if (!hasPriority(i)) { undefinedCount++; return; }
+      counts[i.priority] = (counts[i.priority] || 0) + 1;
+    });
+    var rows = PRI_ORDER.filter(function (p) { return counts[p]; });
+    var max = 0;
+    rows.forEach(function (p) { if (counts[p] > max) max = counts[p]; });
+    if (undefinedCount > max) max = undefinedCount;
+
+    var html = '<table class="mini-table"><thead><tr><th>Priority</th><th>Count</th></tr></thead><tbody>';
+    rows.forEach(function (p) {
+      html += '<tr><td>' + esc(p) + '</td><td class="num">' + barHtml(counts[p], max) + '</td></tr>';
+    });
+    if (undefinedCount > 0) {
+      html += '<tr><td><em style="color:var(--md-on-surface-variant)">Undefined</em></td><td class="num">' + barHtml(undefinedCount, max) + '</td></tr>';
+    }
+    html += '</tbody></table>';
+    document.getElementById("priorityBreakdown").innerHTML = html;
+  }
+
+  /* ---- status distribution ---- */
+
+  function renderStatusDistribution() {
+    var statuses = {}, priorities = {};
+    var matrix = {};
+    ISSUES.forEach(function (i) {
+      var s = i.status || "Unknown";
+      var p = effectivePriority(i) || "Undefined";
+      statuses[s] = 1;
+      priorities[p] = 1;
+      var k = s + "|" + p;
+      matrix[k] = (matrix[k] || 0) + 1;
+    });
+
+    var sList = Object.keys(statuses).sort();
+    var pList = PRI_ORDER.filter(function (p) { return priorities[p]; });
+    if (priorities["Undefined"]) pList.push("Undefined");
+
+    var html = '<table class="mini-table"><thead><tr><th>Status</th>';
+    pList.forEach(function (p) { html += '<th>' + esc(p) + '</th>'; });
+    html += '<th>Total</th></tr></thead><tbody>';
+
+    sList.forEach(function (s) {
+      html += '<tr><td>' + esc(s) + '</td>';
+      var total = 0;
+      pList.forEach(function (p) {
+        var v = matrix[s + "|" + p] || 0;
+        total += v;
+        html += '<td class="num">' + (v || "-") + '</td>';
+      });
+      html += '<td class="num"><strong>' + total + '</strong></td></tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById("statusDistribution").innerHTML = html;
+  }
+
+  /* ---- assignee load ---- */
+
+  function renderAssigneeLoad() {
+    var data = {};
+    ISSUES.forEach(function (i) {
+      var a = i.assignee || "Unassigned";
+      if (!data[a]) data[a] = {total: 0, high: 0};
+      data[a].total++;
+      var p = effectivePriority(i);
+      if (p === "Critical" || p === "Blocker" || p === "Highest" || p === "High") data[a].high++;
+    });
+
+    var sorted = Object.keys(data).sort(function (a, b) { return data[b].total - data[a].total; });
+    var max = sorted.length > 0 ? data[sorted[0]].total : 0;
+
+    var html = '<table class="mini-table"><thead><tr><th>Assignee</th><th>Total</th><th>Critical &amp; Above</th></tr></thead><tbody>';
+    sorted.forEach(function (a) {
+      html += '<tr><td>' + esc(a) + '</td><td class="num">' + barHtml(data[a].total, max) + '</td><td class="num">' + data[a].high + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById("assigneeLoad").innerHTML = html;
+  }
+
+  /* ---- aging analysis ---- */
+
+  function renderAgingAnalysis() {
+    var buckets = [
+      {label: "< 1 month", max: 30, cls: "", count: 0},
+      {label: "1-3 months", max: 90, cls: "", count: 0},
+      {label: "3-6 months", max: 182, cls: "aging-bar", count: 0},
+      {label: "6-12 months", max: 365, cls: "aging-bar old", count: 0},
+      {label: "> 12 months", max: Infinity, cls: "aging-bar very-old", count: 0}
+    ];
+    ISSUES.forEach(function (i) {
+      var age = issueAge(i);
+      for (var b = 0; b < buckets.length; b++) {
+        if (age <= buckets[b].max || b === buckets.length - 1) { buckets[b].count++; break; }
+      }
+    });
+    var max = 0;
+    buckets.forEach(function (b) { if (b.count > max) max = b.count; });
+
+    var html = '<table class="mini-table"><thead><tr><th>Age</th><th>Count</th></tr></thead><tbody>';
+    buckets.forEach(function (b) {
+      html += '<tr><td>' + b.label + '</td><td class="num">' + barHtml(b.count, max, b.cls) + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById("agingAnalysis").innerHTML = html;
+  }
+
+  /* ---- bugs not updated for more than 3 months ---- */
+
+  function renderOldBugs() {
+    var old = ISSUES.filter(function (i) {
+      var d = i.updated || i.created;
+      return d && (NOW - new Date(d).getTime()) > THREE_MONTHS;
+    }).sort(function (a, b) {
+      var da = a.updated || a.created;
+      var db = b.updated || b.created;
+      return new Date(da).getTime() - new Date(db).getTime();
+    });
+
+    var container = document.getElementById("oldBugsTable");
+    var noOld = document.getElementById("noOldBugs");
+
+    if (old.length === 0) { container.style.display = "none"; noOld.style.display = "block"; return; }
+    noOld.style.display = "none";
+
+    var html = '<thead><tr><th>Key</th><th>Summary</th><th>Priority</th><th>Status</th><th>Assignee</th><th>Last Updated</th><th>Inactive (days)</th><th>Recommendation</th></tr></thead><tbody>';
+    old.forEach(function (i) {
+      var recCls = "rec-" + i.recommendation.toLowerCase();
+      html += '<tr>' +
+        '<td><a href="' + issueUrl(i.key) + '" target="_blank" rel="noopener">' + esc(i.key) + '</a></td>' +
+        '<td>' + esc(i.summary) + '</td>' +
+        '<td>' + (i.priority ? esc(i.priority) : (i.suggestedPriority ? '<span class="suggested-priority">' + esc(i.suggestedPriority) + '</span>' : '')) + '</td>' +
+        '<td>' + esc(i.status || "") + '</td>' +
+        '<td>' + esc(i.assignee || "Unassigned") + '</td>' +
+        '<td>' + fmtDate(i.updated || i.created) + '</td>' +
+        '<td class="num">' + issueAge(i) + '</td>' +
+        '<td><span class="badge ' + recCls + '">' + (REC_LABELS[i.recommendation] || i.recommendation) + '</span></td>' +
+        '</tr>';
+    });
+    html += '</tbody>';
+    container.innerHTML = html;
+  }
+
+  /* ---- priority mismatches ---- */
+
+  function renderMismatches() {
+    var mismatches = ISSUES.filter(function (i) {
+      return i.priorityMismatch && i.priorityMismatch.assigned && i.priorityMismatch.suggested;
+    }).sort(function (a, b) {
+      return priIndex(a.priorityMismatch.suggested) - priIndex(b.priorityMismatch.suggested);
+    });
+
+    var container = document.getElementById("mismatchTable");
+    var noMismatch = document.getElementById("noMismatches");
+
+    if (mismatches.length === 0) { container.style.display = "none"; noMismatch.style.display = "block"; return; }
+    noMismatch.style.display = "none";
+
+    var html = '<thead><tr><th>Key</th><th>Summary</th><th>Assigned</th><th></th><th>Suggested</th><th>Reason</th></tr></thead><tbody>';
+    mismatches.forEach(function (i) {
+      var m = i.priorityMismatch;
+      html += '<tr>' +
+        '<td><a href="' + issueUrl(i.key) + '" target="_blank" rel="noopener">' + esc(i.key) + '</a></td>' +
+        '<td>' + esc(i.summary) + '</td>' +
+        '<td><span class="pri-assigned">' + esc(m.assigned) + '</span></td>' +
+        '<td class="arrow">\u2192</td>' +
+        '<td><span class="pri-suggested">' + esc(m.suggested) + '</span></td>' +
+        '<td>' + esc(m.reason || "") + '</td>' +
+        '</tr>';
+    });
+    html += '</tbody>';
+    container.innerHTML = html;
+  }
+
+  /* ---- filters & sorting (main table) ---- */
+
+  function addOptions(id, values) {
+    var sel = document.getElementById(id);
+    values.forEach(function (v) {
+      var o = document.createElement("option");
+      o.value = v;
+      o.textContent = REC_LABELS[v] || v;
+      sel.appendChild(o);
+    });
+  }
+
+  function populateFilters() {
+    var recs = {}, pris = {}, comps = {};
+    ISSUES.forEach(function (i) {
+      recs[i.recommendation] = 1;
+      var p = effectivePriority(i);
+      if (p) pris[p] = 1;
+      (i.components || []).forEach(function (c) { comps[c] = 1; });
+    });
+    addOptions("filterRec",  REC_ORDER.filter(function (r) { return recs[r]; }));
+    addOptions("filterPri",  PRI_ORDER.filter(function (p) { return pris[p]; }));
+    addOptions("filterComp", Object.keys(comps).sort());
+  }
+
+  function getFiltered() {
+    var fRec  = document.getElementById("filterRec").value;
+    var fPri  = document.getElementById("filterPri").value;
+    var fComp = document.getElementById("filterComp").value;
+    var q     = document.getElementById("searchBox").value.toLowerCase();
+
+    return ISSUES.filter(function (i) {
+      if (fRec && i.recommendation !== fRec) return false;
+      if (fPri && effectivePriority(i) !== fPri) return false;
+      if (fComp && (i.components || []).indexOf(fComp) === -1) return false;
+      if (q && i.key.toLowerCase().indexOf(q) === -1 && i.summary.toLowerCase().indexOf(q) === -1) return false;
+      return true;
+    });
+  }
+
+  function doSort(issues) {
+    return issues.slice().sort(function (a, b) {
+      var va, vb;
+      if (sortField === "recommendation") {
+        va = REC_ORDER.indexOf(a.recommendation);
+        vb = REC_ORDER.indexOf(b.recommendation);
+      } else if (sortField === "priority") {
+        va = priIndex(effectivePriority(a));
+        vb = priIndex(effectivePriority(b));
+      } else if (sortField === "created" || sortField === "updated") {
+        va = new Date(a[sortField] || 0).getTime();
+        vb = new Date(b[sortField] || 0).getTime();
+      } else if (sortField === "autoFixLikelihood") {
+        va = a.autoFixLikelihood || 0;
+        vb = b.autoFixLikelihood || 0;
+      } else {
+        va = (a[sortField] || "").toString().toLowerCase();
+        vb = (b[sortField] || "").toString().toLowerCase();
+      }
+      if (va < vb) return -1 * sortDir;
+      if (va > vb) return  1 * sortDir;
+      return 0;
+    });
+  }
+
+  /* ---- render stats ---- */
+
+  function renderStats() {
+    var pool = simMode ? ISSUES.filter(function (i) { return !SIM_RECS[i.recommendation]; }) : ISSUES;
+    var counts = {};
+    REC_ORDER.forEach(function (r) { counts[r] = 0; });
+    pool.forEach(function (i) { counts[i.recommendation] = (counts[i.recommendation] || 0) + 1; });
+
+    var c = document.getElementById("statsContainer");
+    c.innerHTML = "";
+
+    var totalTile = document.createElement("div");
+    totalTile.className = "stat-tile stat-total";
+    totalTile.innerHTML = '<div class="count">' + pool.length + '</div><div class="label">' + (simMode ? "Remaining" : "Total Bugs") + '</div>';
+    c.appendChild(totalTile);
+
+    REC_ORDER.forEach(function (r) {
+      if (simMode && SIM_RECS[r]) return;
+      var tile = document.createElement("div");
+      tile.className = "stat-tile rec-" + r.toLowerCase();
+      tile.innerHTML = '<div class="count">' + counts[r] + '</div><div class="label">' + (REC_LABELS[r] || r) + '</div>';
+      c.appendChild(tile);
+    });
+  }
+
+  /* ---- render main table ---- */
+
+  function renderTable() {
+    var issues = doSort(getFiltered());
+    var tbody  = document.getElementById("tbody");
+    var noRes  = document.getElementById("noResults");
+    tbody.innerHTML = "";
+
+    var simCount = 0;
+    if (simMode) {
+      issues.forEach(function (i) { if (SIM_RECS[i.recommendation]) simCount++; });
+    }
+    var activeCount = issues.length - simCount;
+    var counterEl = document.getElementById("issuesCounter");
+    var counterText = 'Showing <strong>' + activeCount + '</strong> of <strong>' + ISSUES.length + '</strong> issues';
+    if (simCount > 0) counterText += ' (<strong>' + simCount + '</strong> simulated cleanup)';
+    counterEl.innerHTML = counterText;
+
+    if (issues.length === 0) { noRes.style.display = "block"; return; }
+    noRes.style.display = "none";
+
+    issues.forEach(function (i) {
+      var tr = document.createElement("tr");
+      if (simMode && SIM_RECS[i.recommendation]) tr.className = "simulated";
+
+      var comps   = (i.components || []).join(", ");
+      var recCls  = "rec-" + i.recommendation.toLowerCase();
+      var recLabel = REC_LABELS[i.recommendation] || i.recommendation;
+      if (i.recommendation === "AUTO_FIX" && i.autoFixLikelihood != null) {
+        recLabel += ' ' + i.autoFixLikelihood + '%';
+      }
+      var priCell = i.priority ? esc(i.priority)
+        : (i.suggestedPriority ? '<span class="suggested-priority">' + esc(i.suggestedPriority) + '</span>' : '');
+
+      tr.innerHTML =
+        '<td><a href="' + issueUrl(i.key) + '" target="_blank" rel="noopener">' + esc(i.key) + '</a></td>' +
+        '<td>' + esc(i.summary) + '</td>' +
+        '<td>' + priCell + '</td>' +
+        '<td>' + esc(i.status || "") + '</td>' +
+        '<td>' + esc(i.assignee || "Unassigned") + '</td>' +
+        '<td>' + fmtDate(i.created) + '</td>' +
+        '<td>' + fmtDate(i.updated) + '</td>' +
+        '<td>' + esc(comps) + '</td>' +
+        '<td><span class="badge ' + recCls + '">' + recLabel + '</span></td>' +
+        '<td>' + esc(i.reason || "") + '</td>' +
+        '<td><span class="confidence">' + esc(i.confidence || "") + '</span></td>';
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  /* ---- clusters ---- */
+
+  function renderClusters() {
+    var container = document.getElementById("clustersContainer");
+    container.innerHTML = "";
+
+    if (!CLUSTERS || CLUSTERS.length === 0) {
+      container.innerHTML = '<div class="no-clusters">No clusters identified.</div>';
+      return;
+    }
+
+    CLUSTERS.forEach(function (cl, idx) {
+      var card = document.createElement("div");
+      card.className = "cluster-card";
+
+      var links = cl.issues.map(function (key) {
+        return '<a href="' + issueUrl(key) + '" target="_blank" rel="noopener">' + esc(key) + '</a>';
+      }).join(" ");
+
+      var steps = (cl.nextSteps || []).map(function (s) {
+        return '<li>' + esc(s) + '</li>';
+      }).join("");
+
+      card.innerHTML =
+        '<div class="cluster-header">' +
+          '<span class="cluster-theme">' + (idx + 1) + '. ' + esc(cl.theme) + '</span>' +
+          '<span class="cluster-meta">' + cl.issues.length + ' issues &middot; <span class="link-type">' + esc(cl.suggestedLinkType) + '</span></span>' +
+        '</div>' +
+        '<div class="cluster-issues">' + links + '</div>' +
+        '<ol class="cluster-next-steps">' + steps + '</ol>';
+
+      container.appendChild(card);
+    });
+  }
+
+  /* ---- events ---- */
+
+  function bindEvents() {
+    document.querySelectorAll("th.sortable").forEach(function (th) {
+      th.addEventListener("click", function () {
+        var field = th.dataset.sort;
+        if (sortField === field) { sortDir *= -1; } else { sortField = field; sortDir = 1; }
+        document.querySelectorAll("th.sortable").forEach(function (t) {
+          t.classList.remove("sort-asc", "sort-desc");
+        });
+        th.classList.add(sortDir === 1 ? "sort-asc" : "sort-desc");
+        renderTable();
+      });
+    });
+
+    ["filterRec", "filterPri", "filterComp"].forEach(function (id) {
+      document.getElementById(id).addEventListener("change", renderTable);
+    });
+    document.getElementById("searchBox").addEventListener("input", renderTable);
+
+    document.getElementById("simToggle").addEventListener("change", function (e) {
+      simMode = e.target.checked;
+      document.getElementById("simBanner").classList.toggle("active", simMode);
+      renderStats();
+      renderTable();
+    });
+  }
+
+  /* ---- init ---- */
+
+  document.addEventListener("DOMContentLoaded", function () {
+    renderKeyRecs();
+    renderPriorityBreakdown();
+    renderStatusDistribution();
+    renderAssigneeLoad();
+    renderAgingAnalysis();
+    renderOldBugs();
+    renderMismatches();
+    populateFilters();
+    renderStats();
+    renderTable();
+    renderClusters();
+    bindEvents();
+  });
+})();
+</script>
+</body>
+</html>
