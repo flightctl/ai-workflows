@@ -36,6 +36,56 @@
     --md-shape-lg: 16px;
   }
 
+  [data-theme="dark"] {
+    --md-primary: #90CAF9;
+    --md-primary-light: #64B5F6;
+    --md-primary-container: #0D47A1;
+    --md-on-primary: #003258;
+    --md-on-primary-container: #D1E4FF;
+    --md-secondary: #80CBC4;
+    --md-secondary-container: #00695C;
+    --md-tertiary: #CE93D8;
+    --md-tertiary-container: #4A148C;
+    --md-error: #EF9A9A;
+    --md-error-container: #B71C1C;
+    --md-surface: #121212;
+    --md-surface-container: #1E1E1E;
+    --md-surface-container-low: #2C2C2C;
+    --md-surface-container-high: #383838;
+    --md-on-surface: #E0E0E0;
+    --md-on-surface-variant: #BDBDBD;
+    --md-outline: #616161;
+    --md-outline-variant: #424242;
+    --md-shadow: rgba(0, 0, 0, 0.4);
+    --md-elevation-1: 0 1px 2px rgba(0,0,0,0.5), 0 1px 3px 1px rgba(0,0,0,0.3);
+    --md-elevation-2: 0 1px 2px rgba(0,0,0,0.5), 0 2px 6px 2px rgba(0,0,0,0.3);
+    --md-elevation-3: 0 4px 8px 3px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.5);
+  }
+
+  [data-theme="dark"] header {
+    background: #1E1E1E;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.1);
+  }
+  [data-theme="dark"] header h1,
+  [data-theme="dark"] header .meta { color: #E0E0E0; }
+  [data-theme="dark"] header .meta { opacity: 0.7; }
+
+  [data-theme="dark"] .stat-total {
+    background: var(--md-primary-container);
+    color: var(--md-on-primary-container);
+  }
+  [data-theme="dark"] .stat-total .count { color: var(--md-on-primary-container); }
+  [data-theme="dark"] .stat-total .label { color: rgba(209,228,255,0.8); }
+
+  [data-theme="dark"] .sim-banner {
+    background: #3E2723;
+    color: #FFAB91;
+    border-color: #5D4037;
+  }
+
+  [data-theme="dark"] .badge.rec-needs_info { color: #1C1B1F; }
+  [data-theme="dark"] .badge.rec-duplicate { background: #546E7A; color: #E0E0E0; }
+
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
@@ -491,13 +541,42 @@
     margin-bottom: 8px;
   }
   .legend-item { display: flex; align-items: center; gap: 6px; }
+
+  /* Theme toggle */
+  .theme-toggle {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 100px;
+    color: var(--md-on-primary);
+    cursor: pointer;
+    font-size: 1.125rem;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s ease;
+    flex-shrink: 0;
+  }
+  .theme-toggle:hover { background: rgba(255,255,255,0.1); }
+  [data-theme="dark"] .theme-toggle {
+    border-color: rgba(255,255,255,0.15);
+    color: #E0E0E0;
+  }
+  [data-theme="dark"] .theme-toggle:hover { background: rgba(255,255,255,0.08); }
 </style>
 </head>
 <body>
+<script>
+(function(){var t=localStorage.getItem("triage-theme");if(t)document.documentElement.setAttribute("data-theme",t);})();
+</script>
 
 <header>
   <h1>Triage Report: {PROJECT_KEY}</h1>
-  <div class="meta">{REPORT_DATE} &middot; {TOTAL_ISSUES} issues</div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <span class="meta">{REPORT_DATE} &middot; {TOTAL_ISSUES} issues</span>
+    <button class="theme-toggle" id="themeToggle" title="Toggle dark mode" aria-label="Toggle dark mode">&#9790;</button>
+  </div>
 </header>
 
 <div class="page-content">
@@ -1075,6 +1154,20 @@
       document.getElementById("simBanner").classList.toggle("active", simMode);
       renderStats();
       renderTable();
+    });
+
+    var toggleBtn = document.getElementById("themeToggle");
+    function updateToggleIcon() {
+      var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+      toggleBtn.innerHTML = isDark ? "&#9788;" : "&#9790;";
+    }
+    updateToggleIcon();
+    toggleBtn.addEventListener("click", function () {
+      var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+      var next = isDark ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      localStorage.setItem("triage-theme", next);
+      updateToggleIcon();
     });
   }
 
