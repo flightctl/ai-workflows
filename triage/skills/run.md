@@ -28,9 +28,9 @@ Execute the phases sequentially. After each phase, verify its exit criteria befo
 ### Phase 2 — Scan
 
 1. Read `scan.md` and execute it
-2. **Exit criteria:** `issues.json` written with all unresolved bugs, issue count > 0
-3. On success → announce the count and proceed to Phase 3
-4. If zero issues found → stop and report (nothing to triage)
+2. **Exit criteria:** `issues.json` written with all unresolved bugs; `resolved.json` written (may be empty `issues` array); unresolved issue count > 0
+3. On success → announce the counts and proceed to Phase 3
+4. If zero **unresolved** issues found → stop and report (nothing to triage)
 
 ### Phase 3 — Analyze
 
