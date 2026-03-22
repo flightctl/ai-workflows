@@ -1,16 +1,16 @@
 ---
 name: scan
-description: Fetch all unresolved bugs from a Jira project via JQL with pagination.
+description: Fetch all unresolved bugs and recently resolved bugs from a Jira project via JQL with pagination.
 ---
 
 # Scan Jira Bugs Skill
 
-You are fetching every unresolved bug from the target Jira project. Your goal is to produce a complete, raw dataset of all unresolved bugs for analysis.
+You are fetching **every unresolved bug** and **recently resolved bugs** (for regression / fix-history context in `/analyze`) from the target Jira project. Your goal is to produce complete raw datasets for analysis.
 
 ## Allowed Tools
 
 - **Jira MCP (read-only):** `jira_search` — fetch issues via JQL
-- **Local:** write `issues.json` artifact
+- **Local:** write `issues.json` and `resolved.json` artifacts
 - **Prohibited:** all Jira write tools (create, update, delete, comment, transition)
 
 ## Prerequisites
@@ -23,7 +23,7 @@ If the project key is missing, ask the user before proceeding.
 
 ## Process
 
-### Step 1: Execute JQL Search with Key-Based Cursor Pagination
+### Step 1: Fetch Unresolved Bugs (JQL with Key-Based Cursor Pagination)
 
 Use the `jira_search` MCP tool (server: `user-mcp-jira`) to fetch all unresolved bugs. The tool returns a maximum of 50 results per call, so you must paginate.
 
@@ -64,9 +64,25 @@ Important:
 - Stop when a page returns fewer than 50 issues (final page) or zero issues.
 - Deduplicate by key as a safety net before saving.
 
-### Step 2: Normalize Issue Data
+### Step 2: Fetch Recently Resolved Bugs (Regression Context)
 
-For each issue, extract and normalize:
+After the unresolved scan completes, fetch **bugs resolved in the last 90 days** using the same key-based cursor pagination pattern.
+
+**JQL (first call):**
+
+```text
+project = {PROJECT} AND issuetype = Bug AND resolution != Unresolved AND resolved >= -90d ORDER BY key ASC
+```
+
+**Pagination:** Same loop as Step 1, but substitute the unresolved JQL with the resolved JQL above, and use `AND key > '{last_key}'` on subsequent pages.
+
+**Fields:** Include at minimum: `summary,status,priority,assignee,reporter,created,updated,labels,components,description,resolution`. Request resolution date if your Jira API exposes it (e.g. `resolutiondate` or equivalent) so `/analyze` can match fix timing.
+
+If the resolved query returns **zero** issues (quiet project), still write `resolved.json` with an empty `issues` array — `/analyze` must be able to read the file.
+
+### Step 3: Normalize Issue Data
+
+For each **unresolved** issue, extract and normalize:
 
 - `key` — Jira issue key (e.g. `EDM-1234`)
 - `summary` — issue title
@@ -80,11 +96,16 @@ For each issue, extract and normalize:
 - `components` — array of component names
 - `description` — full description text (may be long; preserve it for analysis)
 
-### Step 3: Extract Jira Base URL
+For each **resolved** issue, normalize the same fields plus when available:
+
+- `resolution` — resolution name (e.g. Fixed, Done)
+- `resolved` — resolution date (ISO 8601), if available from the API response
+
+### Step 4: Extract Jira Base URL
 
 Inspect the `jira_search` response for a `self` URL or similar field that contains the Jira instance domain (e.g. `https://mycompany.atlassian.net`). Save this so the `/report` phase can link issue keys without making additional Jira calls.
 
-### Step 4: Save Raw Data
+### Step 5: Save Raw Data
 
 Write the normalized issues to the artifact file:
 
@@ -104,40 +125,63 @@ Format as a JSON object:
 }
 ```
 
-### Step 5: Present Summary
+Write the resolved-bug dataset to:
+
+```
+.artifacts/triage/{PROJECT}/resolved.json
+```
+
+Format:
+
+```json
+{
+  "project": "EDM",
+  "jiraBaseUrl": "https://mycompany.atlassian.net",
+  "scannedAt": "2026-03-19T12:05:00Z",
+  "windowDays": 90,
+  "totalCount": 42,
+  "issues": [ ... ]
+}
+```
+
+Use the same `jiraBaseUrl` and a `scannedAt` timestamp when you finish the resolved pass. `windowDays` should be `90` when using the default `-90d` JQL window.
+
+### Step 6: Present Summary
 
 Display a summary of the scan results:
 
 ```text
 Scan complete: 87 unresolved bugs in EDM
+Resolved (last 90 days): 42 bugs — saved for regression context
 
 By priority:
   Critical:  3
   High:     12
-  Medium:   45
-  Low:      27
+  ...
 
 By status:
   Open:        52
-  In Progress: 20
-  Reopened:    15
+  ...
 
-Data saved to .artifacts/triage/EDM/issues.json
+Data saved to:
+  .artifacts/triage/EDM/issues.json
+  .artifacts/triage/EDM/resolved.json
 ```
 
 ## Output
 
 - Scan summary displayed to the user
 - `.artifacts/triage/{PROJECT}/issues.json` written
+- `.artifacts/triage/{PROJECT}/resolved.json` written
 
 ## On Completion
 
-Report your findings (total bugs fetched, breakdown by priority and status, artifact path), then recommend next steps:
+Report your findings (total unresolved bugs, total resolved in window, breakdown by priority and status, artifact paths), then recommend next steps:
 
-**Recommended:** `/analyze` — categorize the {N} unresolved bugs with AI recommendations.
+**Recommended:** `/analyze` — categorize the {N} unresolved bugs with AI recommendations (using `resolved.json` for regression hints).
 
 **Alternatives:**
 - `/scan` — re-scan if the data looks stale or parameters need changing
 - Stop here if you only needed issue counts
 
-**Edge case:** If zero issues were fetched, the workflow is done — there's nothing to triage. Suggest verifying the project key or issue type filter.
+**Edge case:** If zero **unresolved** issues were fetched, the workflow is done — there's nothing to triage. Suggest verifying the project key or issue type filter. (Resolved-only data can still exist; still write `resolved.json`.)
