@@ -1191,7 +1191,7 @@
       html += '<tr>' +
         '<td><a href="' + issueUrl(i.key) + '" target="_blank" rel="noopener">' + esc(i.key) + '</a></td>' +
         '<td>' + esc(i.summary) + '</td>' +
-        '<td>' + (i.priority ? esc(i.priority) : (i.suggestedPriority ? '<span class="suggested-priority">' + esc(i.suggestedPriority) + '</span>' : '')) + '</td>' +
+        '<td>' + (hasPriority(i) ? esc(i.priority) : (i.suggestedPriority ? '<span class="suggested-priority">' + esc(i.suggestedPriority) + '</span>' : '')) + '</td>' +
         '<td>' + esc(i.status || "") + '</td>' +
         '<td>' + esc(i.assignee || "Unassigned") + '</td>' +
         '<td>' + fmtDate(i.updated || i.created) + '</td>' +
@@ -1245,7 +1245,7 @@
     var html = '<thead><tr><th>Key</th><th>Summary</th><th>Priority</th><th>Regression of</th><th>Reason</th></tr></thead><tbody>';
     regs.forEach(function (i) {
       var r = i.regressionOf;
-      var priCell = i.priority ? esc(i.priority)
+      var priCell = hasPriority(i) ? esc(i.priority)
         : (i.suggestedPriority ? '<span class="suggested-priority">' + esc(i.suggestedPriority) + '</span>' : '');
       html += '<tr>' +
         '<td><a href="' + issueUrl(i.key) + '" target="_blank" rel="noopener">' + esc(i.key) + '</a></td>' +
@@ -1442,7 +1442,7 @@
       if (i.recommendation === "AUTO_FIX" && i.autoFixLikelihood != null) {
         recLabel += ' ' + i.autoFixLikelihood + '%';
       }
-      var priCell = i.priority ? esc(i.priority)
+      var priCell = hasPriority(i) ? esc(i.priority)
         : (i.suggestedPriority ? '<span class="suggested-priority">' + esc(i.suggestedPriority) + '</span>' : '');
 
       tr.innerHTML =
