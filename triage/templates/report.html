@@ -364,7 +364,7 @@
   /* Breakdown cards grid */
   .card-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    grid-template-columns: repeat(3, 1fr);
     gap: 16px;
   }
   .card {
@@ -373,8 +373,11 @@
     box-shadow: var(--md-elevation-1);
     padding: 20px 24px;
     transition: box-shadow 0.2s ease;
+    overflow-x: auto;
+    min-width: 0;
   }
   .card:hover { box-shadow: var(--md-elevation-2); }
+  .card-wide { grid-column: 1 / -1; }
   .card h3 {
     font-size: 0.6875rem;
     font-weight: 500;
@@ -389,9 +392,12 @@
   /* Mini tables inside cards */
   .mini-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
   .mini-table th, .mini-table td {
-    padding: 8px 12px;
-    text-align: left;
+    padding: 6px 10px;
+    text-align: center;
     border-bottom: 1px solid var(--md-outline-variant);
+  }
+  .mini-table th:first-child, .mini-table td:first-child {
+    text-align: left;
   }
   .mini-table th {
     font-weight: 500;
@@ -401,7 +407,8 @@
     color: var(--md-on-surface-variant);
     background: var(--md-surface-container-low);
   }
-  .mini-table td.num { text-align: right; font-variant-numeric: tabular-nums; font-family: 'Roboto Mono', monospace; }
+  .mini-table td.num { font-variant-numeric: tabular-nums; font-family: 'Roboto Mono', monospace; }
+  .mini-table th.bar, .mini-table td.bar { text-align: left; }
   .mini-table tbody tr:last-child td { border-bottom: none; }
 
   /* Horizontal bar inside tables */
@@ -757,9 +764,9 @@
   <h2>Analysis</h2>
   <div class="card-grid">
     <div class="card"><h3>Priority Breakdown</h3><div id="priorityBreakdown"></div></div>
-    <div class="card"><h3>Status Distribution</h3><div id="statusDistribution"></div></div>
     <div class="card"><h3>Assignee Load</h3><div id="assigneeLoad"></div></div>
     <div class="card"><h3>Aging Analysis</h3><div id="agingAnalysis"></div></div>
+    <div class="card card-wide"><h3>Status Distribution</h3><div id="statusDistribution"></div></div>
   </div>
 </div>
 
@@ -1070,12 +1077,12 @@
     rows.forEach(function (p) { if (counts[p] > max) max = counts[p]; });
     if (undefinedCount > max) max = undefinedCount;
 
-    var html = '<table class="mini-table"><thead><tr><th>Priority</th><th>Count</th></tr></thead><tbody>';
+    var html = '<table class="mini-table"><thead><tr><th>Priority</th><th class="bar">Count</th></tr></thead><tbody>';
     rows.forEach(function (p) {
-      html += '<tr><td>' + esc(p) + '</td><td class="num">' + barHtml(counts[p], max) + '</td></tr>';
+      html += '<tr><td>' + esc(p) + '</td><td class="num bar">' + barHtml(counts[p], max) + '</td></tr>';
     });
     if (undefinedCount > 0) {
-      html += '<tr><td><em style="color:var(--md-on-surface-variant)">Undefined</em></td><td class="num">' + barHtml(undefinedCount, max) + '</td></tr>';
+      html += '<tr><td><em style="color:var(--md-on-surface-variant)">Undefined</em></td><td class="num bar">' + barHtml(undefinedCount, max) + '</td></tr>';
     }
     html += '</tbody></table>';
     document.getElementById("priorityBreakdown").innerHTML = html;
@@ -1132,9 +1139,9 @@
     var sorted = Object.keys(data).sort(function (a, b) { return data[b].total - data[a].total; });
     var max = sorted.length > 0 ? data[sorted[0]].total : 0;
 
-    var html = '<table class="mini-table"><thead><tr><th>Assignee</th><th>Total</th><th>Critical &amp; Above</th></tr></thead><tbody>';
+    var html = '<table class="mini-table"><thead><tr><th>Assignee</th><th class="bar">Total</th><th>Critical &amp; Above</th></tr></thead><tbody>';
     sorted.forEach(function (a) {
-      html += '<tr><td>' + esc(a) + '</td><td class="num">' + barHtml(data[a].total, max) + '</td><td class="num">' + data[a].high + '</td></tr>';
+      html += '<tr><td>' + esc(a) + '</td><td class="num bar">' + barHtml(data[a].total, max) + '</td><td class="num">' + data[a].high + '</td></tr>';
     });
     html += '</tbody></table>';
     document.getElementById("assigneeLoad").innerHTML = html;
@@ -1159,9 +1166,9 @@
     var max = 0;
     buckets.forEach(function (b) { if (b.count > max) max = b.count; });
 
-    var html = '<table class="mini-table"><thead><tr><th>Age</th><th>Count</th></tr></thead><tbody>';
+    var html = '<table class="mini-table"><thead><tr><th>Age</th><th class="bar">Count</th></tr></thead><tbody>';
     buckets.forEach(function (b) {
-      html += '<tr><td>' + b.label + '</td><td class="num">' + barHtml(b.count, max, b.cls) + '</td></tr>';
+      html += '<tr><td>' + b.label + '</td><td class="num bar">' + barHtml(b.count, max, b.cls) + '</td></tr>';
     });
     html += '</tbody></table>';
     document.getElementById("agingAnalysis").innerHTML = html;
