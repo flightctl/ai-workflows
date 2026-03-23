@@ -123,8 +123,7 @@
   }
 
   .page-content {
-    max-width: 1440px;
-    margin: 0 auto;
+    width: 100%;
     padding: 24px 24px 48px;
   }
 
@@ -248,6 +247,105 @@
     font-weight: 500;
   }
 
+  /* Executive summary */
+  .exec-summary {
+    background: var(--md-surface-container);
+    border-left: 4px solid var(--md-primary);
+    border-radius: var(--md-shape-md);
+    box-shadow: var(--md-elevation-1);
+    padding: 20px 24px;
+  }
+  .exec-summary ul {
+    margin: 0;
+    padding-left: 20px;
+    font-size: 0.875rem;
+    line-height: 1.8;
+    color: var(--md-on-surface);
+  }
+  .exec-summary li { margin-bottom: 6px; }
+
+  /* Release risk assessment */
+  .risk-card {
+    border-radius: var(--md-shape-md);
+    box-shadow: var(--md-elevation-1);
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .risk-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .risk-badge {
+    display: inline-block;
+    padding: 4px 16px;
+    border-radius: 100px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .risk-high   { background: #C62828; color: #fff; }
+  .risk-medium { background: #E65100; color: #fff; }
+  .risk-low    { background: #2E7D32; color: #fff; }
+  .risk-card.level-high   { border-left: 4px solid #C62828; }
+  .risk-card.level-medium { border-left: 4px solid #E65100; }
+  .risk-card.level-low    { border-left: 4px solid #2E7D32; }
+  .risk-summary {
+    font-size: 0.9375rem;
+    color: var(--md-on-surface);
+    line-height: 1.5;
+  }
+  .risk-factors {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .risk-factor {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--md-on-surface);
+  }
+  .risk-factor-severity {
+    flex-shrink: 0;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 1px 8px;
+    border-radius: 100px;
+  }
+  .risk-sev-high   { background: var(--md-error-container); color: var(--md-error); }
+  .risk-sev-medium { background: #FFF3E0; color: #E65100; }
+  .risk-sev-low    { background: #E3F2FD; color: #1565C0; }
+  .risk-mitigations {
+    margin: 0;
+    padding-left: 20px;
+    font-size: 0.8125rem;
+    line-height: 1.7;
+    color: var(--md-on-surface-variant);
+  }
+  .risk-mitigations li { margin-bottom: 4px; }
+  .risk-section-label {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--md-on-surface-variant);
+    margin-bottom: -8px;
+  }
+  .risk-scope {
+    font-size: 0.75rem;
+    color: var(--md-on-surface-variant);
+    font-style: italic;
+  }
+
   /* Key recommendations */
   .key-recs {
     background: var(--md-primary-container);
@@ -266,7 +364,7 @@
   /* Breakdown cards grid */
   .card-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    grid-template-columns: repeat(3, 1fr);
     gap: 16px;
   }
   .card {
@@ -275,8 +373,11 @@
     box-shadow: var(--md-elevation-1);
     padding: 20px 24px;
     transition: box-shadow 0.2s ease;
+    overflow-x: auto;
+    min-width: 0;
   }
   .card:hover { box-shadow: var(--md-elevation-2); }
+  .card-wide { grid-column: 1 / -1; }
   .card h3 {
     font-size: 0.6875rem;
     font-weight: 500;
@@ -291,9 +392,12 @@
   /* Mini tables inside cards */
   .mini-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
   .mini-table th, .mini-table td {
-    padding: 8px 12px;
-    text-align: left;
+    padding: 6px 10px;
+    text-align: center;
     border-bottom: 1px solid var(--md-outline-variant);
+  }
+  .mini-table th:first-child, .mini-table td:first-child {
+    text-align: left;
   }
   .mini-table th {
     font-weight: 500;
@@ -303,7 +407,8 @@
     color: var(--md-on-surface-variant);
     background: var(--md-surface-container-low);
   }
-  .mini-table td.num { text-align: right; font-variant-numeric: tabular-nums; font-family: 'Roboto Mono', monospace; }
+  .mini-table td.num { font-variant-numeric: tabular-nums; font-family: 'Roboto Mono', monospace; }
+  .mini-table th.bar, .mini-table td.bar { text-align: left; }
   .mini-table tbody tr:last-child td { border-bottom: none; }
 
   /* Horizontal bar inside tables */
@@ -376,9 +481,8 @@
     height: 18px;
   }
 
-  /* Main table */
+  /* Main table — no overflow here so thead sticky works against the viewport */
   .table-wrap {
-    overflow-x: auto;
     background: var(--md-surface-container);
     border-radius: var(--md-shape-md);
     box-shadow: var(--md-elevation-1);
@@ -398,8 +502,9 @@
     letter-spacing: 0.06em;
     color: var(--md-on-surface-variant);
     position: sticky;
-    top: 0;
-    z-index: 1;
+    top: var(--header-h, 68px);
+    z-index: 5;
+    box-shadow: 0 1px 0 var(--md-outline-variant);
   }
   th.sortable { cursor: pointer; user-select: none; }
   th.sortable:hover { color: var(--md-primary); }
@@ -450,6 +555,39 @@
     color: var(--md-tertiary);
   }
   .cluster-issues { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .cluster-urgency {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-right: 16px;
+    padding-right: 16px;
+    border-right: 1px solid var(--md-outline-variant);
+    font-size: 0.75rem;
+    font-weight: 500;
+    font-family: 'Roboto Mono', monospace;
+  }
+  .cluster-urgency .urgency-label {
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-family: 'Roboto', sans-serif;
+    color: var(--md-on-surface-variant);
+  }
+  .urgency-bar {
+    display: inline-block;
+    height: 8px;
+    border-radius: 100px;
+    min-width: 4px;
+    align-self: center;
+  }
+  .urgency-high   { background: #C62828; }
+  .urgency-medium { background: #E65100; }
+  .urgency-low    { background: #1565C0; }
+  .urgency-score {
+    display: inline-flex;
+    align-items: baseline;
+  }
+  .urgency-max    { opacity: 0.45; font-size: 0.75rem; }
   .cluster-issues a {
     color: var(--md-primary);
     font-weight: 500;
@@ -574,7 +712,7 @@
 <header>
   <h1>Triage Report: {PROJECT_KEY}</h1>
   <div style="display:flex;align-items:center;gap:12px">
-    <span class="meta">{REPORT_DATE} &middot; {TOTAL_ISSUES} issues</span>
+    <span class="meta"><time id="reportTime">{REPORT_DATE}</time> &middot; {TOTAL_ISSUES} issues</span>
     <button class="theme-toggle" id="themeToggle" title="Toggle dark mode" aria-label="Toggle dark mode">&#9790;</button>
   </div>
 </header>
@@ -587,6 +725,18 @@
 
 <!-- Recommendation stats tiles -->
 <div class="stats" id="statsContainer"></div>
+
+<!-- Executive Summary -->
+<div class="section" id="execSummarySection" style="display:none">
+  <h2>Executive Summary</h2>
+  <div class="exec-summary" id="execSummaryContainer"></div>
+</div>
+
+<!-- Release Risk Assessment -->
+<div class="section" id="riskSection" style="display:none">
+  <h2>Release Risk Assessment</h2>
+  <div id="riskContainer"></div>
+</div>
 
 <!-- Recommendation legend -->
 <div class="section">
@@ -614,9 +764,9 @@
   <h2>Analysis</h2>
   <div class="card-grid">
     <div class="card"><h3>Priority Breakdown</h3><div id="priorityBreakdown"></div></div>
-    <div class="card"><h3>Status Distribution</h3><div id="statusDistribution"></div></div>
     <div class="card"><h3>Assignee Load</h3><div id="assigneeLoad"></div></div>
     <div class="card"><h3>Aging Analysis</h3><div id="agingAnalysis"></div></div>
+    <div class="card card-wide"><h3>Status Distribution</h3><div id="statusDistribution"></div></div>
   </div>
 </div>
 
@@ -632,6 +782,13 @@
   <h2>Priority Mismatches</h2>
   <div class="table-wrap"><table class="main" id="mismatchTable"></table></div>
   <div class="no-results" id="noMismatches" style="display:none">No priority mismatches detected.</div>
+</div>
+
+<!-- Possible regressions (issues with regressionOf set in analysis) -->
+<div class="section" id="regressionSection" style="display:none">
+  <h2>Possible Regressions</h2>
+  <div class="issues-counter">Open bugs that may regress a recently resolved issue (from analysis).</div>
+  <div class="table-wrap"><table class="main" id="regressionTable"></table></div>
 </div>
 
 <!-- Clusters -->
@@ -658,6 +815,10 @@
       <select id="filterComp"><option value="">All</option></select>
     </div>
     <div>
+      <label for="filterAssignee">Assignee</label><br>
+      <select id="filterAssignee"><option value="">All</option></select>
+    </div>
+    <div>
       <label for="searchBox">Search</label><br>
       <input type="text" id="searchBox" placeholder="Key or summary...">
     </div>
@@ -678,6 +839,10 @@
           <th class="sortable" data-sort="created">Created</th>
           <th class="sortable" data-sort="updated">Updated</th>
           <th>Components</th>
+          <th class="sortable" data-sort="signature">Signature</th>
+          <th class="sortable" data-sort="duplicateOf">Duplicate of</th>
+          <th class="sortable" data-sort="duplicateConfidence">Duplication %</th>
+          <th class="sortable" data-sort="regressionKey">Regression</th>
           <th class="sortable" data-sort="recommendation">Recommendation</th>
           <th>Reason</th>
           <th class="sortable" data-sort="confidence">Confidence</th>
@@ -707,6 +872,8 @@
   var ISSUES              = {ISSUES_JSON};
   var CLUSTERS            = {CLUSTERS_JSON};
   var KEY_RECOMMENDATIONS = {KEY_RECOMMENDATIONS_JSON};
+  var EXECUTIVE_SUMMARY   = {EXECUTIVE_SUMMARY_JSON};
+  var RELEASE_RISK        = {RELEASE_RISK_JSON};
 
   var REC_ORDER  = ["CLOSE","FIX_NOW","AUTO_FIX","BACKLOG","NEEDS_INFO","DUPLICATE","ESCALATE","WONT_FIX"];
   var REC_LABELS = {
@@ -714,6 +881,10 @@
     NEEDS_INFO:"Needs Info", DUPLICATE:"Duplicate", ESCALATE:"Escalate", WONT_FIX:"Won\u2019t Fix"
   };
   var PRI_ORDER = ["Blocker","Critical","Highest","High","Major","Medium","Normal","Low","Minor","Lowest","Trivial"];
+  /** Sentinel value for Assignee filter: issues with no assignee */
+  var ASSIGNEE_FILTER_UNASSIGNED = "__ASSIGNEE_UNASSIGNED__";
+  /** Sentinel value for Priority filter: no Jira priority set (see hasPriority) */
+  var PRI_FILTER_UNASSIGNED = "__PRI_UNASSIGNED__";
   var SIM_RECS  = {CLOSE:1, WONT_FIX:1, DUPLICATE:1};
 
   var sortField = "recommendation", sortDir = 1, simMode = false;
@@ -742,6 +913,58 @@
     return (hasPriority(issue) ? issue.priority : issue.suggestedPriority) || "";
   }
 
+  function assigneeKey(issue) {
+    var a = issue.assignee;
+    if (a == null || String(a).trim() === "") return null;
+    return String(a).trim();
+  }
+
+  function signatureSortKey(i) {
+    var parts = [];
+    if (i.errorType) parts.push(String(i.errorType));
+    if (i.errorCode) parts.push(String(i.errorCode));
+    if (i.errorMessageExcerpt) parts.push(String(i.errorMessageExcerpt));
+    return parts.join(" ").toLowerCase();
+  }
+
+  function regressionSortKey(i) {
+    return (i.regressionOf && i.regressionOf.key) ? String(i.regressionOf.key) : "";
+  }
+
+  function formatSignatureCell(i) {
+    var parts = [];
+    if (i.errorType) parts.push(i.errorType);
+    if (i.errorCode) parts.push(i.errorCode);
+    if (parts.length) return esc(parts.join(" · "));
+    var ex = i.errorMessageExcerpt;
+    if (ex && String(ex).trim()) {
+      var s = String(ex).trim();
+      return esc(s.length > 56 ? s.slice(0, 56) + "\u2026" : s);
+    }
+    return '<span class="confidence">\u2014</span>';
+  }
+
+  function formatDuplicateOfCell(i) {
+    if (!i.duplicateOf) return '<span class="confidence">\u2014</span>';
+    return '<a href="' + issueUrl(i.duplicateOf) + '">' + esc(i.duplicateOf) + '</a>';
+  }
+
+  function formatDuplicationPct(i) {
+    if (i.duplicateConfidence == null || i.duplicateConfidence === "") return '<span class="confidence">\u2014</span>';
+    return '<span class="num">' + esc(String(i.duplicateConfidence)) + "%</span>";
+  }
+
+  function formatRegressionCell(i) {
+    var r = i.regressionOf;
+    if (!r || !r.key) return '<span class="confidence">\u2014</span>';
+    var link = '<a href="' + issueUrl(r.key) + '">' + esc(r.key) + '</a>';
+    if (r.summary) {
+      var sm = String(r.summary);
+      link += ' <span class="confidence">' + esc(sm.length > 40 ? sm.slice(0, 40) + "\u2026" : sm) + '</span>';
+    }
+    return link;
+  }
+
   function priIndex(v) {
     var idx = PRI_ORDER.indexOf(v);
     return idx === -1 ? 99 : idx;
@@ -759,6 +982,71 @@
   function barHtml(count, max, cls) {
     var pct = max > 0 ? Math.round(count / max * 100) : 0;
     return '<span class="h-bar ' + (cls || "") + '" style="width:' + Math.max(pct, 2) + 'px"></span>' + count;
+  }
+
+  /* ---- executive summary ---- */
+
+  function renderExecSummary() {
+    var section = document.getElementById("execSummarySection");
+    var c = document.getElementById("execSummaryContainer");
+    if (!EXECUTIVE_SUMMARY || EXECUTIVE_SUMMARY.length === 0) {
+      section.style.display = "none";
+      return;
+    }
+    section.style.display = "block";
+    var html = "<ul>";
+    EXECUTIVE_SUMMARY.forEach(function (s) { html += "<li>" + esc(s) + "</li>"; });
+    html += "</ul>";
+    c.innerHTML = html;
+  }
+
+  /* ---- release risk assessment ---- */
+
+  function renderRiskAssessment() {
+    var section = document.getElementById("riskSection");
+    var c = document.getElementById("riskContainer");
+    if (!RELEASE_RISK || !RELEASE_RISK.riskLevel) {
+      section.style.display = "none";
+      return;
+    }
+    section.style.display = "block";
+    var level = RELEASE_RISK.riskLevel.toLowerCase();
+    var badgeCls = "risk-badge risk-" + level;
+    var cardCls = "risk-card level-" + level;
+
+    var factorsHtml = "";
+    if (RELEASE_RISK.factors && RELEASE_RISK.factors.length) {
+      factorsHtml = '<div class="risk-section-label">Risk Factors</div><div class="risk-factors">';
+      RELEASE_RISK.factors.forEach(function (f) {
+        var sevCls = "risk-factor-severity risk-sev-" + (f.severity || "medium").toLowerCase();
+        factorsHtml +=
+          '<div class="risk-factor">' +
+            '<span class="' + sevCls + '">' + esc(f.severity || "Medium") + '</span>' +
+            '<span><strong>' + esc(f.signal) + ':</strong> ' + esc(f.detail) + '</span>' +
+          '</div>';
+      });
+      factorsHtml += '</div>';
+    }
+
+    var mitigationsHtml = "";
+    if (RELEASE_RISK.mitigations && RELEASE_RISK.mitigations.length) {
+      mitigationsHtml = '<div class="risk-section-label">Mitigations</div><ol class="risk-mitigations">';
+      RELEASE_RISK.mitigations.forEach(function (m) {
+        mitigationsHtml += '<li>' + esc(m) + '</li>';
+      });
+      mitigationsHtml += '</ol>';
+    }
+
+    c.innerHTML =
+      '<div class="' + cardCls + '">' +
+        '<div class="risk-header">' +
+          '<span class="' + badgeCls + '">' + esc(RELEASE_RISK.riskLevel) + ' Risk</span>' +
+          '<span class="risk-summary">' + esc(RELEASE_RISK.summary || "") + '</span>' +
+        '</div>' +
+        factorsHtml +
+        mitigationsHtml +
+        '<div class="risk-scope">Based on bug backlog analysis only — does not account for test coverage, feature completeness, or deployment readiness.</div>' +
+      '</div>';
   }
 
   /* ---- key recommendations ---- */
@@ -789,12 +1077,12 @@
     rows.forEach(function (p) { if (counts[p] > max) max = counts[p]; });
     if (undefinedCount > max) max = undefinedCount;
 
-    var html = '<table class="mini-table"><thead><tr><th>Priority</th><th>Count</th></tr></thead><tbody>';
+    var html = '<table class="mini-table"><thead><tr><th>Priority</th><th class="bar">Count</th></tr></thead><tbody>';
     rows.forEach(function (p) {
-      html += '<tr><td>' + esc(p) + '</td><td class="num">' + barHtml(counts[p], max) + '</td></tr>';
+      html += '<tr><td>' + esc(p) + '</td><td class="num bar">' + barHtml(counts[p], max) + '</td></tr>';
     });
     if (undefinedCount > 0) {
-      html += '<tr><td><em style="color:var(--md-on-surface-variant)">Undefined</em></td><td class="num">' + barHtml(undefinedCount, max) + '</td></tr>';
+      html += '<tr><td><em style="color:var(--md-on-surface-variant)">Undefined</em></td><td class="num bar">' + barHtml(undefinedCount, max) + '</td></tr>';
     }
     html += '</tbody></table>';
     document.getElementById("priorityBreakdown").innerHTML = html;
@@ -851,9 +1139,9 @@
     var sorted = Object.keys(data).sort(function (a, b) { return data[b].total - data[a].total; });
     var max = sorted.length > 0 ? data[sorted[0]].total : 0;
 
-    var html = '<table class="mini-table"><thead><tr><th>Assignee</th><th>Total</th><th>Critical &amp; Above</th></tr></thead><tbody>';
+    var html = '<table class="mini-table"><thead><tr><th>Assignee</th><th class="bar">Total</th><th>Critical &amp; Above</th></tr></thead><tbody>';
     sorted.forEach(function (a) {
-      html += '<tr><td>' + esc(a) + '</td><td class="num">' + barHtml(data[a].total, max) + '</td><td class="num">' + data[a].high + '</td></tr>';
+      html += '<tr><td>' + esc(a) + '</td><td class="num bar">' + barHtml(data[a].total, max) + '</td><td class="num">' + data[a].high + '</td></tr>';
     });
     html += '</tbody></table>';
     document.getElementById("assigneeLoad").innerHTML = html;
@@ -878,9 +1166,9 @@
     var max = 0;
     buckets.forEach(function (b) { if (b.count > max) max = b.count; });
 
-    var html = '<table class="mini-table"><thead><tr><th>Age</th><th>Count</th></tr></thead><tbody>';
+    var html = '<table class="mini-table"><thead><tr><th>Age</th><th class="bar">Count</th></tr></thead><tbody>';
     buckets.forEach(function (b) {
-      html += '<tr><td>' + b.label + '</td><td class="num">' + barHtml(b.count, max, b.cls) + '</td></tr>';
+      html += '<tr><td>' + b.label + '</td><td class="num bar">' + barHtml(b.count, max, b.cls) + '</td></tr>';
     });
     html += '</tbody></table>';
     document.getElementById("agingAnalysis").innerHTML = html;
@@ -910,7 +1198,7 @@
       html += '<tr>' +
         '<td><a href="' + issueUrl(i.key) + '" target="_blank" rel="noopener">' + esc(i.key) + '</a></td>' +
         '<td>' + esc(i.summary) + '</td>' +
-        '<td>' + (i.priority ? esc(i.priority) : (i.suggestedPriority ? '<span class="suggested-priority">' + esc(i.suggestedPriority) + '</span>' : '')) + '</td>' +
+        '<td>' + (hasPriority(i) ? esc(i.priority) : (i.suggestedPriority ? '<span class="suggested-priority">' + esc(i.suggestedPriority) + '</span>' : '')) + '</td>' +
         '<td>' + esc(i.status || "") + '</td>' +
         '<td>' + esc(i.assignee || "Unassigned") + '</td>' +
         '<td>' + fmtDate(i.updated || i.created) + '</td>' +
@@ -953,6 +1241,32 @@
     container.innerHTML = html;
   }
 
+  /* ---- possible regressions (subset of issues with regressionOf) ---- */
+
+  function renderRegressions() {
+    var regs = ISSUES.filter(function (i) { return i.regressionOf && i.regressionOf.key; });
+    var section = document.getElementById("regressionSection");
+    var table = document.getElementById("regressionTable");
+    if (!regs.length) { section.style.display = "none"; return; }
+    section.style.display = "block";
+    var html = '<thead><tr><th>Key</th><th>Summary</th><th>Priority</th><th>Regression of</th><th>Reason</th></tr></thead><tbody>';
+    regs.forEach(function (i) {
+      var r = i.regressionOf;
+      var priCell = hasPriority(i) ? esc(i.priority)
+        : (i.suggestedPriority ? '<span class="suggested-priority">' + esc(i.suggestedPriority) + '</span>' : '');
+      html += '<tr>' +
+        '<td><a href="' + issueUrl(i.key) + '" target="_blank" rel="noopener">' + esc(i.key) + '</a></td>' +
+        '<td>' + esc(i.summary) + '</td>' +
+        '<td>' + priCell + '</td>' +
+        '<td><a href="' + issueUrl(r.key) + '" target="_blank" rel="noopener">' + esc(r.key) + '</a>' +
+        (r.summary ? ' <span class="confidence">' + esc(r.summary) + '</span>' : '') + '</td>' +
+        '<td>' + esc((r && r.reason) ? r.reason : "") + '</td>' +
+        '</tr>';
+    });
+    html += '</tbody>';
+    table.innerHTML = html;
+  }
+
   /* ---- filters & sorting (main table) ---- */
 
   function addOptions(id, values) {
@@ -965,30 +1279,79 @@
     });
   }
 
+  function appendPriFilterOptions(values) {
+    var sel = document.getElementById("filterPri");
+    values.forEach(function (v) {
+      var o = document.createElement("option");
+      o.value = v;
+      o.textContent = v === PRI_FILTER_UNASSIGNED ? "Unassigned" : v;
+      sel.appendChild(o);
+    });
+  }
+
   function populateFilters() {
     var recs = {}, pris = {}, comps = {};
+    var anyUnassignedPriority = false;
     ISSUES.forEach(function (i) {
       recs[i.recommendation] = 1;
+      if (!hasPriority(i)) anyUnassignedPriority = true;
       var p = effectivePriority(i);
       if (p) pris[p] = 1;
       (i.components || []).forEach(function (c) { comps[c] = 1; });
     });
     addOptions("filterRec",  REC_ORDER.filter(function (r) { return recs[r]; }));
-    addOptions("filterPri",  PRI_ORDER.filter(function (p) { return pris[p]; }));
+    var priOpts = PRI_ORDER.filter(function (p) { return pris[p]; });
+    if (anyUnassignedPriority) priOpts.push(PRI_FILTER_UNASSIGNED);
+    appendPriFilterOptions(priOpts);
     addOptions("filterComp", Object.keys(comps).sort());
+
+    var assigneeSet = {};
+    var anyUnassignedAssignee = false;
+    ISSUES.forEach(function (i) {
+      var ak = assigneeKey(i);
+      if (ak) assigneeSet[ak] = 1;
+      else anyUnassignedAssignee = true;
+    });
+    addOptions("filterAssignee", Object.keys(assigneeSet).sort());
+    if (anyUnassignedAssignee) {
+      var selAsn = document.getElementById("filterAssignee");
+      var oAsn = document.createElement("option");
+      oAsn.value = ASSIGNEE_FILTER_UNASSIGNED;
+      oAsn.textContent = "Unassigned";
+      selAsn.appendChild(oAsn);
+    }
   }
 
   function getFiltered() {
     var fRec  = document.getElementById("filterRec").value;
     var fPri  = document.getElementById("filterPri").value;
     var fComp = document.getElementById("filterComp").value;
+    var fAsn  = document.getElementById("filterAssignee").value;
     var q     = document.getElementById("searchBox").value.toLowerCase();
 
     return ISSUES.filter(function (i) {
       if (fRec && i.recommendation !== fRec) return false;
-      if (fPri && effectivePriority(i) !== fPri) return false;
+      if (fPri) {
+        if (fPri === PRI_FILTER_UNASSIGNED) {
+          if (hasPriority(i)) return false;
+        } else if (effectivePriority(i) !== fPri) {
+          return false;
+        }
+      }
       if (fComp && (i.components || []).indexOf(fComp) === -1) return false;
-      if (q && i.key.toLowerCase().indexOf(q) === -1 && i.summary.toLowerCase().indexOf(q) === -1) return false;
+      if (fAsn) {
+        if (fAsn === ASSIGNEE_FILTER_UNASSIGNED) {
+          if (assigneeKey(i)) return false;
+        } else if (assigneeKey(i) !== fAsn) {
+          return false;
+        }
+      }
+      if (q) {
+        var hay = (i.key + " " + (i.summary || "")).toLowerCase();
+        if (i.duplicateOf) hay += " " + String(i.duplicateOf).toLowerCase();
+        if (i.regressionOf && i.regressionOf.key) hay += " " + String(i.regressionOf.key).toLowerCase();
+        if (hay.indexOf(q) === -1) return false;
+      }
       return true;
     });
   }
@@ -1002,6 +1365,18 @@
       } else if (sortField === "priority") {
         va = priIndex(effectivePriority(a));
         vb = priIndex(effectivePriority(b));
+      } else if (sortField === "signature") {
+        va = signatureSortKey(a);
+        vb = signatureSortKey(b);
+      } else if (sortField === "duplicateOf") {
+        va = (a.duplicateOf || "").toString().toLowerCase();
+        vb = (b.duplicateOf || "").toString().toLowerCase();
+      } else if (sortField === "duplicateConfidence") {
+        va = a.duplicateConfidence != null ? Number(a.duplicateConfidence) : -1;
+        vb = b.duplicateConfidence != null ? Number(b.duplicateConfidence) : -1;
+      } else if (sortField === "regressionKey") {
+        va = regressionSortKey(a).toLowerCase();
+        vb = regressionSortKey(b).toLowerCase();
       } else if (sortField === "created" || sortField === "updated") {
         va = new Date(a[sortField] || 0).getTime();
         vb = new Date(b[sortField] || 0).getTime();
@@ -1074,7 +1449,7 @@
       if (i.recommendation === "AUTO_FIX" && i.autoFixLikelihood != null) {
         recLabel += ' ' + i.autoFixLikelihood + '%';
       }
-      var priCell = i.priority ? esc(i.priority)
+      var priCell = hasPriority(i) ? esc(i.priority)
         : (i.suggestedPriority ? '<span class="suggested-priority">' + esc(i.suggestedPriority) + '</span>' : '');
 
       tr.innerHTML =
@@ -1086,6 +1461,10 @@
         '<td>' + fmtDate(i.created) + '</td>' +
         '<td>' + fmtDate(i.updated) + '</td>' +
         '<td>' + esc(comps) + '</td>' +
+        '<td>' + formatSignatureCell(i) + '</td>' +
+        '<td>' + formatDuplicateOfCell(i) + '</td>' +
+        '<td>' + formatDuplicationPct(i) + '</td>' +
+        '<td>' + formatRegressionCell(i) + '</td>' +
         '<td><span class="badge ' + recCls + '">' + recLabel + '</span></td>' +
         '<td>' + esc(i.reason || "") + '</td>' +
         '<td><span class="confidence">' + esc(i.confidence || "") + '</span></td>';
@@ -1096,6 +1475,34 @@
 
   /* ---- clusters ---- */
 
+  var PRI_WEIGHT = {};
+  (function () {
+    var w = [["Blocker",10],["Critical",9],["Highest",8],["High",7],["Major",6],["Medium",5],["Normal",4],["Low",3],["Minor",2],["Lowest",1],["Trivial",0]];
+    w.forEach(function (p) { PRI_WEIGHT[p[0]] = p[1]; });
+  })();
+
+  function issueBestPriWeight(issue) {
+    var candidates = [issue.priority, issue.suggestedPriority];
+    if (issue.priorityMismatch && issue.priorityMismatch.suggested) {
+      candidates.push(issue.priorityMismatch.suggested);
+    }
+    var best = -1;
+    candidates.forEach(function (p) {
+      if (p && PRI_WEIGHT[p] != null && PRI_WEIGHT[p] > best) best = PRI_WEIGHT[p];
+    });
+    return best >= 0 ? best : 0;
+  }
+
+  function clusterUrgencyScore(cl, issueMap) {
+    var score = 0;
+    var count = 0;
+    (cl.issues || []).forEach(function (key) {
+      var iss = issueMap[key];
+      if (iss) { score += issueBestPriWeight(iss); count++; }
+    });
+    return { score: score, max: count * 10 };
+  }
+
   function renderClusters() {
     var container = document.getElementById("clustersContainer");
     container.innerHTML = "";
@@ -1105,11 +1512,30 @@
       return;
     }
 
-    CLUSTERS.forEach(function (cl, idx) {
+    var issueMap = {};
+    ISSUES.forEach(function (i) { issueMap[i.key] = i; });
+
+    var scored = CLUSTERS.map(function (cl) {
+      var u = clusterUrgencyScore(cl, issueMap);
+      return { cluster: cl, score: u.score, max: u.max };
+    });
+    var globalMax = Math.max.apply(null, scored.map(function (s) { return s.score; }));
+
+    scored.sort(function (a, b) { return b.score - a.score; });
+
+    scored.forEach(function (entry, idx) {
+      var cl = entry.cluster;
+      var score = entry.score;
+      var possibleMax = entry.max;
       var card = document.createElement("div");
       card.className = "cluster-card";
 
-      var links = cl.issues.map(function (key) {
+      var sortedKeys = cl.issues.slice().sort(function (a, b) {
+        var wa = issueMap[a] ? issueBestPriWeight(issueMap[a]) : 0;
+        var wb = issueMap[b] ? issueBestPriWeight(issueMap[b]) : 0;
+        return wb - wa;
+      });
+      var links = sortedKeys.map(function (key) {
         return '<a href="' + issueUrl(key) + '" target="_blank" rel="noopener">' + esc(key) + '</a>';
       }).join(" ");
 
@@ -1117,10 +1543,19 @@
         return '<li>' + esc(s) + '</li>';
       }).join("");
 
+      var barPct = globalMax > 0 ? Math.round(score / globalMax * 100) : 0;
+      var barCls = barPct >= 70 ? 'urgency-high' : (barPct >= 40 ? 'urgency-medium' : 'urgency-low');
+      var urgencyHtml =
+        '<span class="cluster-urgency">' +
+          '<span class="urgency-label">urgency</span>' +
+          '<span class="urgency-bar ' + barCls + '" style="width:' + Math.max(barPct, 4) + 'px"></span>' +
+          '<span class="urgency-score">' + score + '<span class="urgency-max">&thinsp;/&thinsp;' + possibleMax + '</span></span>' +
+        '</span>';
+
       card.innerHTML =
         '<div class="cluster-header">' +
           '<span class="cluster-theme">' + (idx + 1) + '. ' + esc(cl.theme) + '</span>' +
-          '<span class="cluster-meta">' + cl.issues.length + ' issues &middot; <span class="link-type">' + esc(cl.suggestedLinkType) + '</span></span>' +
+          '<span class="cluster-meta">' + urgencyHtml + cl.issues.length + ' issues &middot; <span class="link-type">' + esc(cl.suggestedLinkType) + '</span></span>' +
         '</div>' +
         '<div class="cluster-issues">' + links + '</div>' +
         '<ol class="cluster-next-steps">' + steps + '</ol>';
@@ -1144,7 +1579,7 @@
       });
     });
 
-    ["filterRec", "filterPri", "filterComp"].forEach(function (id) {
+    ["filterRec", "filterPri", "filterComp", "filterAssignee"].forEach(function (id) {
       document.getElementById(id).addEventListener("change", renderTable);
     });
     document.getElementById("searchBox").addEventListener("input", renderTable);
@@ -1174,6 +1609,17 @@
   /* ---- init ---- */
 
   document.addEventListener("DOMContentLoaded", function () {
+    var hdr = document.querySelector("header");
+    if (hdr) document.documentElement.style.setProperty("--header-h", hdr.offsetHeight + "px");
+
+    var timeEl = document.getElementById("reportTime");
+    if (timeEl) {
+      var d = new Date(timeEl.textContent.trim());
+      if (!isNaN(d)) timeEl.textContent = d.toISOString().slice(0, 19).replace("T", " ") + " UTC";
+    }
+
+    renderExecSummary();
+    renderRiskAssessment();
     renderKeyRecs();
     renderPriorityBreakdown();
     renderStatusDistribution();
@@ -1181,11 +1627,16 @@
     renderAgingAnalysis();
     renderOldBugs();
     renderMismatches();
+    renderRegressions();
     populateFilters();
     renderStats();
     renderTable();
     renderClusters();
     bindEvents();
+
+    window.addEventListener("resize", function () {
+      if (hdr) document.documentElement.style.setProperty("--header-h", hdr.offsetHeight + "px");
+    });
   });
 })();
 </script>

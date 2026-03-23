@@ -2,15 +2,17 @@
 
 Bulk-triage unresolved Jira bugs through these phases:
 
-- **Run** (`/run`) — Execute all phases end-to-end without pausing
+- **Run** (`/run`) — Execute all bulk phases end-to-end without pausing
 
 1. **Start** (`/start`) — Validate Jira access, confirm project key
-2. **Scan** (`/scan`) — Fetch all unresolved bugs via JQL with pagination
-3. **Analyze** (`/analyze`) — Categorize each bug with recommendation
+2. **Scan** (`/scan`) — Fetch unresolved bugs and recently resolved bugs; write `issues.json` and `resolved.json`
+3. **Analyze** (`/analyze`) — Categorize each bug; read `resolved.json` for regression hints; write `analyzed.json`
 4. **Report** (`/report`) — Generate interactive HTML report
 
+**Single-issue triage** (`/assess`) — Not sequential with the bulk pipeline. Read `skills/assess.md`: read-only Jira search, optional read of `issues.json`, full triage in chat (no `analyzed.json` unless the user later runs bulk `/analyze`).
+
 Phase skills are at `skills/{name}.md`. Each skill is self-contained with its own instructions, allowed tools, and on-completion recommendations.
-Use `/run` for end-to-end execution, or individual commands for step-by-step control.
+Use `/run` for end-to-end bulk execution, or individual commands for step-by-step control.
 Artifacts go in `.artifacts/triage/{project}/`.
 
 ## Principles
@@ -35,9 +37,10 @@ Artifacts go in `.artifacts/triage/{project}/`.
 |---------|-------------------------------------|--------------------------------|
 | Run     | Per phase below                     | Per phase below                |
 | Start   | `jira_search`                       | `mkdir` (create artifact dir)  |
-| Scan    | `jira_search`                       | Write `issues.json` artifact   |
-| Analyze | none                                | Read `issues.json`, write `analyzed.json` |
+| Scan    | `jira_search`                       | Write `issues.json` and `resolved.json` |
+| Analyze | none                                | Read `issues.json`, read `resolved.json` (if present), write `analyzed.json` |
 | Report  | none                                | Read `analyzed.json`, read `templates/report.html`, write `report.html` |
+| Assess (`/assess`) | `jira_search`              | Optionally read `issues.json`; no required artifact writes |
 
 Any tool not listed above is **prohibited** in that phase. If a phase needs data not available through its allowed tools, stop and ask the user.
 
@@ -45,13 +48,13 @@ Any tool not listed above is **prohibited** in that phase. If a phase needs data
 
 - Validate Jira access before scanning — fail fast if authentication is broken
 - Handle pagination carefully — verify the total count matches the number of fetched issues
-- If the project has more than 500 unresolved bugs, warn the user before proceeding with analysis (the analysis may be slow and consume significant context)
+- If the project has more than 500 unresolved bugs, warn the user before proceeding — the batching strategy in `/analyze` will checkpoint progress, but the full run may take significant time
 
 ## Quality
 
 - Recommendations must be consistent — similar bugs should receive similar treatment
 - Duplicate detection should reference the specific target issue key, not just say "duplicate"
-- The HTML report must be self-contained — no external CSS, JS, or font dependencies
+- The HTML report must ship as one file with inline CSS/JS and embedded JSON; optional Google Fonts load when online (system fonts offline)
 - Artifact JSON files must be valid, parseable JSON
 
 ## Escalation
@@ -59,6 +62,6 @@ Any tool not listed above is **prohibited** in that phase. If a phase needs data
 Stop and request human guidance when:
 
 - Jira access fails or returns unexpected errors
-- The scan returns zero results (possibly wrong project key or issue type)
+- The scan returns zero **unresolved** bugs (possibly wrong project key or issue type)
 - More than 30% of issues lack descriptions (data quality problem, not a triage problem)
 - The user asks to modify Jira issues (out of scope for this workflow)
