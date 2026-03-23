@@ -22,21 +22,32 @@ You are NOT the author of the skill. You are a fresh set of eyes.
 ### Step 1: Identify the Target
 
 Determine the skill directory to review from the user's input (e.g. `bugfix/`,
-`docs-writer/`, `triage/`). If not specified, ask. If the directory does not
-exist or contains no skill files, report the error and stop.
+`docs-writer/`, `triage/`). If not specified, ask.
+
+**Minimum viable structure:** A skill directory must contain at least `SKILL.md`
+and one `.md` file in `skills/`. If either is missing, report the error and stop.
+Optional directories (`commands/`, `templates/`, etc.) and files (`guidelines.md`,
+`README.md`) are reviewed when present but not required to proceed. If you find
+non-standard directories, read their contents — they may be relevant findings.
 
 ### Step 2: Read All Files
 
-Read **every file** in the skill directory before forming any opinion:
+Read **every file** in the skill directory before forming any opinion. Read in
+this order to build understanding progressively:
 
-- `SKILL.md` (orchestrator / entry point)
-- `skills/*.md` (phase/step skills, including `controller.md`)
-- `commands/*.md` (command routers)
-- `guidelines.md` (principles and constraints)
-- `README.md` (user-facing docs)
+1. `SKILL.md` (orchestrator — tells you the overall structure and routing)
+2. `guidelines.md` (principles and constraints)
+3. `commands/*.md` (command routers — how users enter the workflow)
+4. `skills/*.md` (phase/step skills, including `controller.md` — the detailed logic)
+5. `README.md` (user-facing docs — check against what you've already read)
 
 Read each file in full. If any expected file is missing, note it — gaps in the
 structure are themselves a finding.
+
+**Large skill directories (15+ files):** Read in batches by file type (following
+the order above). After each batch, note preliminary observations but defer
+judgment until all files are read. This prevents context overload while
+preserving the "no opinions before all files" principle.
 
 ### Step 3: Evaluate Review Dimensions
 
@@ -77,12 +88,14 @@ Work through each dimension systematically. For each, note any findings.
 - Are "when to use" vs "when to skip" conditions clear and mutually exclusive?
 - Are allowed/prohibited tools explicitly listed per phase?
 
-#### Dimension 6: Documentation Alignment
+#### Dimension 6: Documentation & Project Alignment
 
 - Does `README.md` accurately reflect what the skills actually do?
 - Are all features mentioned in README implemented in the skills?
 - Are there implemented features not documented in README?
 - Do phase descriptions in `SKILL.md`, `README.md`, and `guidelines.md` match?
+- If the project has a `CONTRIBUTING.md`, does the skill follow its conventions (naming, structure, style)?
+- Are sibling skills in the same repository structurally consistent (e.g., same file layout patterns, similar command naming, compatible schema conventions)?
 
 #### Dimension 7: Command Naming
 
@@ -170,15 +183,12 @@ when there's an actual problem. If a skill is broken, say so.
 
 - Read every file in full before forming opinions. Skimming leads to missed findings.
 - The value of this review comes from being skeptical, not confirmatory.
-- If the user asks you to fix findings after the review, work through them from highest severity to lowest.
 
 ## When This Phase Is Done
 
 Your verdict and recommendations (from Step 6) serve as the phase summary. Tell
 the user where the review was written (`.artifacts/skill-reviewer/{skill-name}/review.md`).
 
-Offer next steps based on the verdict:
-
-- **Blockers found** → "I can fix the findings from highest severity to lowest. Say 'fix' to proceed."
-- **Only suggestions** → "No blockers found. You can ask me to address the suggestions or move on."
-- **Clean review** → "The skill looks solid. No action needed."
+The review itself is complete. If the user subsequently asks to fix findings,
+work through them from highest severity to lowest — this is normal editing, not
+part of the review phase.

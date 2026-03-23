@@ -41,7 +41,7 @@ The **command** (`commands/review.md`) is a thin wrapper that routes directly to
    - **Schema Consistency** — matching field names/types across files
    - **Cognitive Load & Context Risk** — step count, batching, synthesis placement
    - **Instruction Clarity** — unambiguous, first-try-correct instructions
-   - **Documentation Alignment** — README matches implementation
+   - **Documentation & Project Alignment** — README matches implementation, consistent with sibling skills and project conventions
    - **Command Naming** — consistent, self-explanatory names
    - **Error Handling & Edge Cases** — failure modes documented, escalation clear
 3. Classify findings by severity and produce a structured report
@@ -83,10 +83,12 @@ User: "/review triage — check if the scan skill handles empty results"
 
 #### Fix findings after review
 
+The review itself is read-only. After the review, the user can ask to fix findings — this is normal editing, not a workflow phase.
+
 ```text
 User: "Fix the findings"
 
-Workflow: Works through findings from highest severity to lowest
+Agent works through findings from highest severity to lowest.
 ```
 
 ## Artifacts Generated
@@ -109,7 +111,7 @@ Workflow: Works through findings from highest severity to lowest
 
 The `guidelines.md` file defines principles and quality standards for reviews. Key points:
 
-- **Read-only**: Reviews never modify the target skill's files
+- **Read-only**: The review phase never modifies the target skill's files; fixing findings afterward is a separate user-initiated action
 - **Complete reads**: Every file must be read in full before forming opinions
 - **Skeptical stance**: The goal is to find problems, not validate
 - **Actionable findings**: Every finding must include a concrete suggestion

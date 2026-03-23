@@ -17,7 +17,7 @@ Artifacts go in `.artifacts/skill-reviewer/{skill-name}/`.
 
 ## Hard Limits
 
-- No modifying the target skill's files during review — review is read-only
+- No modifying the target skill's files during the review phase — the review itself is read-only. Fixing findings afterward is a separate user-initiated action.
 - No skipping files — every file in the skill directory must be read
 - No forming opinions before reading all files
 - No rubber-stamping — if there are real problems, report them
