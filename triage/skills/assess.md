@@ -1,9 +1,9 @@
 ---
-name: single
+name: assess
 description: >-
   Full single-issue triage: error signature, recommendation (same taxonomy as bulk),
   priority mismatch, AUTO_FIX likelihood, duplicates, regression hints, read-only.
-  Invoked by /single.
+  Invoked by /assess.
 ---
 
 # Single-Issue Triage Skill
@@ -62,7 +62,7 @@ Derive: `errorType`, `errorCode`, `errorMessageExcerpt`, `affectedComponent`, `s
 
 ### Step 3: Single-issue assessment (parallel to bulk analyze signals)
 
-Using only this issue’s fields + extracted signature:
+Using only this issue's fields + extracted signature:
 
 - **Description quality** — repro steps, expected/actual, stack traces → NEEDS_INFO vs AUTO_FIX vs others
 - **Priority vs severity** — set `priorityMismatch` object or null (same shape as bulk: `assigned`, `suggested`, `reason`)
@@ -74,7 +74,7 @@ Using only this issue’s fields + extracted signature:
 
 Use **project key** `PROJECT`.
 
-1. **Duplicate-oriented searches** (up to three angles): error-focused, component-focused, symptom-focused — limit ~20 each; dedupe keys; exclude the current issue key in mode A when listing “other” candidates.
+1. **Duplicate-oriented searches** (up to three angles): error-focused, component-focused, symptom-focused — limit ~20 each; dedupe keys; exclude the current issue key in mode A when listing "other" candidates.
 2. **Resolved issues** — include JQL that surfaces recently **resolved** bugs in the same area (e.g. `resolved >= -90d`) to support regression narrative.
 
 Assign **duplicateConfidence** (0–100) per strong candidate using bulk bands.

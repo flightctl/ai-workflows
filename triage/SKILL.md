@@ -5,15 +5,15 @@ description: >-
   interactive HTML report. Scan also loads recently resolved bugs for regression
   matching in analyze. Use when triaging a project backlog, prioritizing bug
   fixes, identifying candidates for automated fixing, or reviewing stale issues.
-  For one bug in depth (no artifacts), use /single. Activated by commands:
-  /run, /start, /scan, /analyze, /report, and /single.
+  For one bug in depth (no artifacts), use /assess. Activated by commands:
+  /run, /start, /scan, /analyze, /report, and /assess.
 ---
 # Triage Workflow Orchestrator
 
 ## Quick Start
 
 1. If the user invoked `/run`, read `skills/run.md` and follow it — this drives all phases end-to-end without pausing
-2. If the user invoked `/single`, read `skills/single.md` and follow it — full single-issue triage in chat (does not write `analyzed.json` / `report.html`)
+2. If the user invoked `/assess`, read `skills/assess.md` and follow it — full single-issue triage in chat (does not write `analyzed.json` / `report.html`)
 3. If the user invoked a specific bulk phase command (`/start`, `/scan`, `/analyze`, `/report`), read the corresponding skill file from `skills/{phase}.md` and execute it
 4. If the user provided a Jira project key but no specific command, start with `skills/scan.md`
 5. If no project key was provided, start with `skills/start.md` to gather it
@@ -35,7 +35,7 @@ To execute the scan phase without opening external files:
    ```
 3. Paginate with JQL cursor: add `AND key > '{last_key}'` to the JQL using the last issue key from the previous page. Stop when a page returns fewer than 50 issues.
 4. Write unresolved issues to `.artifacts/triage/EDM/issues.json`
-5. Run the resolved-bug JQL from `skills/scan.md` (Step 1b) and write `.artifacts/triage/EDM/resolved.json`
+5. Run the resolved-bug JQL from `skills/scan.md` (Fetch Recently Resolved Bugs step) and write `.artifacts/triage/EDM/resolved.json`
 
 ## Example Session
 
@@ -50,7 +50,7 @@ User: "Triage unresolved bugs in EDM"
 /report  → generates interactive HTML dashboard
            → writes .artifacts/triage/EDM/report.html
 
-/single  → (separate) full triage of one issue in chat — read skills/single.md
+/assess  → (separate) full triage of one issue in chat — read skills/assess.md
 ```
 
 ## Phases
@@ -62,7 +62,7 @@ User: "Triage unresolved bugs in EDM"
 3. **Analyze** (`/analyze`) — Categorize each bug with recommendation, error signature, `duplicateConfidence`, `regressionOf` (using `resolved.json`), reason, confidence, and auto-fix likelihood where applicable
 4. **Report** (`/report`) — Generate a self-contained interactive HTML report
 
-- **Single** (`/single`) — Not part of the bulk sequence. Deep triage for **one** issue (see `skills/single.md`); no `analyzed.json` / `report.html` unless the user runs bulk `/analyze` / `/report` afterward.
+- **Assess** (`/assess`) — Not part of the bulk sequence. Deep triage for **one** issue (see `skills/assess.md`); no `analyzed.json` / `report.html` unless the user runs bulk `/analyze` / `/report` afterward.
 
 ## Phase Transitions
 

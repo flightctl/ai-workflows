@@ -1,6 +1,6 @@
 # Triage
 
-Bulk-triage unresolved Jira bugs with AI-driven recommendations. Fetches all open bugs and **recently resolved** bugs (for regression matching), analyzes each open bug (including error signatures, duplicate confidence, and possible regressions), and generates a self-contained interactive HTML report. For **one issue** in depth without bulk artifacts, use **`/single`** (see `skills/single.md`).
+Bulk-triage unresolved Jira bugs with AI-driven recommendations. Fetches all open bugs and **recently resolved** bugs (for regression matching), analyzes each open bug (including error signatures, duplicate confidence, and possible regressions), and generates a self-contained interactive HTML report. For **one issue** in depth without bulk artifacts, use **`/assess`** (see `skills/assess.md`).
 
 ## Prerequisites
 
@@ -16,9 +16,9 @@ Bulk-triage unresolved Jira bugs with AI-driven recommendations. Fetches all ope
 | Scan    | `/scan`    | Fetch unresolved bugs + recently resolved bugs (regression context); write `issues.json` and `resolved.json` |
 | Analyze | `/analyze` | Categorize each bug; error signature, `duplicateConfidence`, `regressionOf`  |
 | Report  | `/report`  | Generate interactive HTML report                                             |
-| Single  | `/single`  | Full triage of **one** issue in chat — not part of the bulk pipeline         |
+| Assess  | `/assess`  | Full triage of **one** issue in chat — not part of the bulk pipeline         |
 
-Use `/run` for unattended end-to-end execution, or run individual bulk phases for step-by-step control. The typical order is start → scan → analyze → report. **`/single`** is separate: use it when the user wants deep triage on a single bug without writing bulk artifacts.
+Use `/run` for unattended end-to-end execution, or run individual bulk phases for step-by-step control. The typical order is start → scan → analyze → report. **`/assess`** is separate: use it when the user wants deep triage on a single bug without writing bulk artifacts.
 
 ## Recommendation Types
 
@@ -55,7 +55,7 @@ Or step by step:
 Single-issue triage (issue URL or project + text):
 
 ```
-@triage/commands/single
+@triage/commands/assess
 ```
 
 ### Claude Code
@@ -66,21 +66,32 @@ Single-issue triage (issue URL or project + text):
 
 The generated report is a single HTML file (Material Design styling) with inline CSS/JS and embedded data. **Google Fonts** load when online; offline, the browser falls back to system fonts.
 
+### Overview
+
 - **Total bugs card** — prominent count at the top; switches to "Remaining" in simulation mode
 - **Stats dashboard** — color-coded tiles showing count per recommendation
-- **Executive summary** — 3–5 bullet-point health assessment for stakeholders (shown when present in analysis data)
-- **Release risk assessment** — color-coded risk level (High/Medium/Low) with risk factors, mitigations, and scope disclaimer (bug backlog only)
+- **Executive summary** — 3–5 bullet-point health assessment for stakeholders (synthesized during `/report` from analyzed data)
+- **Release risk assessment** — color-coded risk level (High/Medium/Low) with risk factors, mitigations, and scope disclaimer (synthesized during `/report`)
+
+### Analysis
+
 - **Recommendation legend** — description of each recommendation type and its meaning
-- **Key recommendations** — top actions to take
+- **Key recommendations** — top actionable items for the team
 - **Priority breakdown** — including bugs with undefined priority
 - **Status distribution** — status vs. priority matrix
 - **Assignee load** — bugs per assignee with critical-and-above count
 - **Aging analysis** — bug age distribution by update date
+
+### Issue Details
+
 - **Stale bugs table** — bugs not updated for more than 3 months
 - **Priority mismatches** — bugs where the assigned priority doesn't match the severity implied by the description
 - **Possible regressions** — table when analysis sets `regressionOf` (resolved-bug relationship)
 - **Duplicate & related clusters** — grouped bugs ranked by urgency score (computed from member-issue priorities), with suggested Jira link types and next steps
 - **All Issues table** — **Signature** (error signature / excerpt), **Duplicate of**, **Duplication %** (`duplicateConfidence` when DUPLICATE), **Regression** (`regressionOf`), plus existing columns
+
+### Interactivity
+
 - **Filters** — dropdown filters for recommendation, priority (including **Unassigned** when Jira has no priority), component, **assignee** (including **Unassigned** for no assignee); free-text search also matches duplicate/regression keys
 - **Live counter** — shows filtered/total count, updates as filters change
 - **Sortable table** — click any column header to sort
