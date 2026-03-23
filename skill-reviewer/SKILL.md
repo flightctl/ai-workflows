@@ -19,11 +19,12 @@ Run `/review` to execute the full workflow. The user must specify which skill di
    - **Schema Consistency** — matching field names/types across files, schema visible before first use
    - **Cognitive Load** — flag skills with >10 steps, synthesis after heavy processing, missing batching
    - **Instruction Clarity** — unambiguous, first-try-correct, clear when-to-use vs when-to-skip
-   - **Documentation Alignment** — README matches implementation, no undocumented features
+   - **Documentation & Project Alignment** — README matches implementation, consistent with sibling skills and project conventions
    - **Command Naming** — consistent pattern (verbs vs nouns), self-explanatory
    - **Error Handling** — failure modes documented, escalation paths clear
 3. Classify each finding by severity — **CRITICAL** / **HIGH** (blockers) or **MEDIUM** / **LOW** (suggestions).
-4. Produce a structured report and write it to `.artifacts/skill-reviewer/{skill-name}/review.md`:
+4. Validate findings: verify each finding cites a specific file, includes a concrete suggestion, and that blocker/suggestion counts are accurate. Drop any finding you cannot substantiate from the files you read.
+5. Produce a structured report and write it to `.artifacts/skill-reviewer/{skill-name}/review.md`:
 
 ```
 ## Skill Review: {skill-name}
@@ -45,21 +46,6 @@ Run `/review` to execute the full workflow. The user must specify which skill di
 - **Suggestions**: {count}
 - **Verdict**: [one-line summary]
 ```
-
-## Example Session
-
-```text
-User: "Review the bugfix skill"
-
-/review  → reads all files in bugfix/
-         → evaluates 8 review dimensions
-         → produces findings table with severities
-         → writes .artifacts/skill-reviewer/{skill-name}/review.md
-```
-
-## Phases
-
-1. **Review** (`/review`) — Read all files in a skill directory, evaluate against 8 dimensions, produce a structured findings report
 
 ## File Layout
 
