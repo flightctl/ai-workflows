@@ -9,7 +9,7 @@ Bulk-triage unresolved Jira bugs through these phases:
 3. **Analyze** (`/analyze`) — Categorize each bug; read `resolved.json` for regression hints; write `analyzed.json`
 4. **Report** (`/report`) — Generate interactive HTML report
 
-**Single-issue triage** (`/single`) — Not sequential with the bulk pipeline. Read `skills/single.md`: read-only Jira search, optional read of `issues.json`, full triage in chat (no `analyzed.json` unless the user later runs bulk `/analyze`).
+**Single-issue triage** (`/assess`) — Not sequential with the bulk pipeline. Read `skills/assess.md`: read-only Jira search, optional read of `issues.json`, full triage in chat (no `analyzed.json` unless the user later runs bulk `/analyze`).
 
 Phase skills are at `skills/{name}.md`. Each skill is self-contained with its own instructions, allowed tools, and on-completion recommendations.
 Use `/run` for end-to-end bulk execution, or individual commands for step-by-step control.
@@ -40,7 +40,7 @@ Artifacts go in `.artifacts/triage/{project}/`.
 | Scan    | `jira_search`                       | Write `issues.json` and `resolved.json` |
 | Analyze | none                                | Read `issues.json`, read `resolved.json` (if present), write `analyzed.json` |
 | Report  | none                                | Read `analyzed.json`, read `templates/report.html`, write `report.html` |
-| Single (`/single`) | `jira_search`              | Optionally read `issues.json`; no required artifact writes |
+| Assess (`/assess`) | `jira_search`              | Optionally read `issues.json`; no required artifact writes |
 
 Any tool not listed above is **prohibited** in that phase. If a phase needs data not available through its allowed tools, stop and ask the user.
 
@@ -48,7 +48,7 @@ Any tool not listed above is **prohibited** in that phase. If a phase needs data
 
 - Validate Jira access before scanning — fail fast if authentication is broken
 - Handle pagination carefully — verify the total count matches the number of fetched issues
-- If the project has more than 500 unresolved bugs, warn the user before proceeding with analysis (the analysis may be slow and consume significant context)
+- If the project has more than 500 unresolved bugs, warn the user before proceeding — the batching strategy in `/analyze` will checkpoint progress, but the full run may take significant time
 
 ## Quality
 
