@@ -712,7 +712,7 @@
 <header>
   <h1>Triage Report: {PROJECT_KEY}</h1>
   <div style="display:flex;align-items:center;gap:12px">
-    <span class="meta">{REPORT_DATE} &middot; {TOTAL_ISSUES} issues</span>
+    <span class="meta"><time id="reportTime">{REPORT_DATE}</time> &middot; {TOTAL_ISSUES} issues</span>
     <button class="theme-toggle" id="themeToggle" title="Toggle dark mode" aria-label="Toggle dark mode">&#9790;</button>
   </div>
 </header>
@@ -1611,6 +1611,12 @@
   document.addEventListener("DOMContentLoaded", function () {
     var hdr = document.querySelector("header");
     if (hdr) document.documentElement.style.setProperty("--header-h", hdr.offsetHeight + "px");
+
+    var timeEl = document.getElementById("reportTime");
+    if (timeEl) {
+      var d = new Date(timeEl.textContent.trim());
+      if (!isNaN(d)) timeEl.textContent = d.toISOString().slice(0, 19).replace("T", " ") + " UTC";
+    }
 
     renderExecSummary();
     renderRiskAssessment();
