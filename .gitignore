@@ -1,2 +1,14 @@
 .idea
 .vscode
+.claude
+.claude-plugin
+.cursor
+.cursor-plugin
+.codex
+.gemini
+.github
+.tessl
+.artifacts
+
+.DS_Store
+Thumbs.db

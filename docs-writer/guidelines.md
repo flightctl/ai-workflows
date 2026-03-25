@@ -62,5 +62,3 @@ This workflow operates on a documentation repository. Respect the target project
 - Use `topics/document-attributes.adoc` for product name attributes
 - Adopt the project's existing AsciiDoc patterns, not your own preferences
 - When in doubt about conventions, check existing `.adoc` files in the target guide
-
-____

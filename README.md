@@ -12,9 +12,15 @@ Reusable AI coding workflows a team member can install globally or per-project, 
   Used in the [edge-manager](https://gitlab.cee.redhat.com/red-hat-enterprise-openshift-documentation/edge-manager) downstream docs project.
   See [docs-writer/README.md](docs-writer/README.md).
 
+- **Triage** -- Bulk Jira bug triage with AI-driven categorization and interactive HTML reports.
+  See [triage/README.md](triage/README.md).
+
+- **Skill Reviewer** -- Meta-workflow that audits AI skill directories against eight quality dimensions.
+  See [skill-reviewer/README.md](skill-reviewer/README.md).
+
 ## How It Works
 
-Each workflow is a directory with a `SKILL.md`, a `skills/controller.md`, command wrappers, and phase skills -- all plain markdown, no IDE-specific syntax. The installer auto-discovers every directory that contains a `SKILL.md`.
+Each workflow is a directory with a `SKILL.md` (the mandatory entry point), optional phase skills under `skills/`, and optional command wrappers under `commands/` -- all plain markdown, no IDE-specific syntax. Some workflows also include a `skills/controller.md` for phase dispatch, but this is an optional pattern. The installer auto-discovers every directory that contains a `SKILL.md`.
 
 ```
 ~/.ai-workflows/  (symlink to your clone)
@@ -72,10 +78,12 @@ cd ai-workflows
 
 ### Selective Installation
 
-Each workflow is intended for a specific project:
+Each workflow is intended for a specific project or use case:
 
 - **bugfix** -- the **Flight Control** projects ([flightctl](https://github.com/flightctl/flightctl), [flightctl-ui](https://github.com/flightctl/flightctl-ui))
 - **docs-writer** -- the [edge-manager](https://gitlab.cee.redhat.com/red-hat-enterprise-openshift-documentation/edge-manager) downstream docs project
+- **triage** -- teams that want bulk Jira triage, categorization, and HTML reports from this repo or a clone
+- **skill-reviewer** -- reviewing or standardizing Cursor/agent skills and skill packs (structure, clarity, completeness)
 
 Use `--workflows` to install only the workflows relevant to a given project:
 

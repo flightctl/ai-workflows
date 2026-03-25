@@ -153,7 +153,11 @@ install_claude() {
   fi
 
   for wf in "${WORKFLOWS[@]}"; do
-    LINE="For ${wf} workflows, read and follow ~/.ai-workflows/${wf}/skills/controller.md"
+    if [[ "$SCOPE" == "project" ]]; then
+      LINE="For ${wf} workflows, read and follow ${INSTALL_DIR}/${wf}/SKILL.md"
+    else
+      LINE="For ${wf} workflows, read and follow ~/.ai-workflows/${wf}/SKILL.md"
+    fi
     if grep -qF "$LINE" "$CLAUDE_MD"; then
       echo "  Reference for $wf already present in $CLAUDE_MD"
     else
