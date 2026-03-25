@@ -8,8 +8,10 @@
 #   ./uninstall.sh cursor                                # user-level Cursor only
 #   ./uninstall.sh cursor --workflows bugfix             # user-level Cursor, specific workflow
 #   ./uninstall.sh claude                                # user-level Claude only
+#   ./uninstall.sh gemini                                # user-level Gemini only
 #   ./uninstall.sh cursor --project [path]               # project-level Cursor only
 #   ./uninstall.sh claude --project [path]               # project-level Claude only
+#   ./uninstall.sh gemini --project [path]               # project-level Gemini only
 #   ./uninstall.sh all --project [path]                  # project-level everything
 #   ./uninstall.sh --list                                # list available workflows
 
@@ -128,19 +130,48 @@ uninstall_claude() {
   MARKER="# ai-workflows"
 
   for wf in "${WORKFLOWS[@]}"; do
-    LINE="For ${wf} workflows, read and follow ~/.ai-workflows/${wf}/skills/controller.md"
-    if grep -qF "$LINE" "$CLAUDE_MD"; then
-      grep -vF "$LINE" "$CLAUDE_MD" > "${CLAUDE_MD}.tmp" && mv "${CLAUDE_MD}.tmp" "$CLAUDE_MD"
-      echo "  Removed $wf reference from $CLAUDE_MD"
+    REMOVE_LINES=()
+    if [[ "$SCOPE" == "project" ]]; then
+      REMOVE_LINES+=("For ${wf} workflows, read and follow ${INSTALL_DIR}/${wf}/SKILL.md")
+      REMOVE_LINES+=("For ${wf} workflows, read and follow ${INSTALL_DIR}/${wf}/skills/controller.md")
+    else
+      REMOVE_LINES+=("For ${wf} workflows, read and follow ~/.ai-workflows/${wf}/SKILL.md")
+      REMOVE_LINES+=("For ${wf} workflows, read and follow ~/.ai-workflows/${wf}/skills/controller.md")
     fi
+    for candidate in "${REMOVE_LINES[@]}"; do
+      if grep -qF "$candidate" "$CLAUDE_MD"; then
+        grep -vF "$candidate" "$CLAUDE_MD" > "${CLAUDE_MD}.tmp" && mv "${CLAUDE_MD}.tmp" "$CLAUDE_MD"
+        echo "  Removed $wf reference from $CLAUDE_MD"
+      fi
+    done
   done
 
   # Remove the marker if no workflow references remain
   if grep -qF "$MARKER" "$CLAUDE_MD" && ! grep -q "^For .* workflows, read and follow" "$CLAUDE_MD"; then
-    sed -i "/$MARKER/d" "$CLAUDE_MD"
-    sed -i -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$CLAUDE_MD"
+    grep -vF "$MARKER" "$CLAUDE_MD" > "${CLAUDE_MD}.tmp" && mv "${CLAUDE_MD}.tmp" "$CLAUDE_MD"
+    # strip trailing blank lines (portable -- no GNU sed -i)
+    awk '{lines[NR]=$0} END{e=NR; while(e>0&&lines[e]=="") e--; for(i=1;i<=e;i++) print lines[i]}' \
+      "$CLAUDE_MD" > "${CLAUDE_MD}.tmp" && mv "${CLAUDE_MD}.tmp" "$CLAUDE_MD"
     echo "  Removed ai-workflows marker from $CLAUDE_MD"
   fi
+}
+
+uninstall_gemini() {
+  if [[ "$SCOPE" == "project" ]]; then
+    SKILLS_DIR="${PROJECT_ROOT}/.gemini/skills"
+  else
+    SKILLS_DIR="${HOME}/.gemini/skills"
+  fi
+
+  for wf in "${WORKFLOWS[@]}"; do
+    LINK="${SKILLS_DIR}/${wf}"
+    if [[ -L "$LINK" ]]; then
+      rm -f "$LINK"
+      echo "  Removed $LINK"
+    elif [[ -e "$LINK" ]]; then
+      echo "  Warning: $LINK exists but is not a symlink; skipping" >&2
+    fi
+  done
 }
 
 uninstall_link() {
@@ -158,6 +189,7 @@ case "$TARGET" in
   all)
     uninstall_cursor
     uninstall_claude
+    uninstall_gemini
     if [[ "$SCOPE" == "user" && "$SELECTIVE" == false ]]; then
       uninstall_link
     fi
@@ -168,13 +200,16 @@ case "$TARGET" in
   claude)
     uninstall_claude
     ;;
+  gemini)
+    uninstall_gemini
+    ;;
   *)
-    echo "Usage: $0 <all|cursor|claude> [--workflows wf1,wf2] [--project [path]]" >&2
+    echo "Usage: $0 <all|cursor|claude|gemini> [--workflows wf1,wf2] [--project [path]]" >&2
     echo "" >&2
     echo "Options:" >&2
     echo "  --workflows wf1,wf2   uninstall only the listed workflows (comma-separated)" >&2
     echo "                         defaults to all workflows" >&2
-    echo "  --project [path]      project-level (.cursor/skills/, .claude/)" >&2
+    echo "  --project [path]      project-level (.cursor/skills/, .claude/, .gemini/skills/)" >&2
     echo "                         path defaults to current directory" >&2
     echo "  --list                list available workflows and exit" >&2
     exit 1

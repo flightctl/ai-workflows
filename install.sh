@@ -153,7 +153,29 @@ install_claude() {
   fi
 
   for wf in "${WORKFLOWS[@]}"; do
-    LINE="For ${wf} workflows, read and follow ~/.ai-workflows/${wf}/skills/controller.md"
+    if [[ "$SCOPE" == "project" ]]; then
+      LINE="For ${wf} workflows, read and follow ${INSTALL_DIR}/${wf}/SKILL.md"
+    else
+      LINE="For ${wf} workflows, read and follow ~/.ai-workflows/${wf}/SKILL.md"
+    fi
+
+    # Remove stale entries: old controller.md references and the alternate
+    # path format (~ vs expanded $HOME) to avoid duplicates when both scopes
+    # target the same CLAUDE.md.
+    STALE_LINES=(
+      "For ${wf} workflows, read and follow ${INSTALL_DIR}/${wf}/skills/controller.md"
+      "For ${wf} workflows, read and follow ~/.ai-workflows/${wf}/skills/controller.md"
+      "For ${wf} workflows, read and follow ${INSTALL_DIR}/${wf}/SKILL.md"
+      "For ${wf} workflows, read and follow ~/.ai-workflows/${wf}/SKILL.md"
+    )
+    for stale in "${STALE_LINES[@]}"; do
+      [[ "$stale" == "$LINE" ]] && continue
+      if grep -qF "$stale" "$CLAUDE_MD"; then
+        grep -vF "$stale" "$CLAUDE_MD" > "${CLAUDE_MD}.tmp" && mv "${CLAUDE_MD}.tmp" "$CLAUDE_MD"
+        echo "  Replaced outdated $wf reference in $CLAUDE_MD"
+      fi
+    done
+
     if grep -qF "$LINE" "$CLAUDE_MD"; then
       echo "  Reference for $wf already present in $CLAUDE_MD"
     else

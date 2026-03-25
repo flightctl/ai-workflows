@@ -6,14 +6,14 @@ Every workflow is a directory at the repo root containing:
 
 ```
 workflow-name/
-  SKILL.md              # Required -- YAML frontmatter (name, description) + phase overview
+  SKILL.md              # Required -- YAML frontmatter (name, description) + entry point
   guidelines.md         # Behavioral rules: principles, hard limits, safety, quality, escalation
   README.md             # Human-readable documentation
   skills/
-    controller.md       # Phase dispatch, transitions, next-step recommendations
+    controller.md       # Optional -- phase dispatch, transitions, next-step recommendations
     phase-name.md       # One file per phase
   commands/
-    phase-name.md       # Thin wrappers that invoke the controller for a specific phase
+    phase-name.md       # Thin wrappers that invoke the controller or SKILL.md for a specific phase
 ```
 
 The installer auto-discovers any directory with a `SKILL.md`. No script changes are needed when adding a workflow.
@@ -43,9 +43,9 @@ description: Brief description. Include trigger terms so the agent knows when to
 
 Contains principles, hard limits, safety, quality standards, escalation criteria, and project-respect rules. This file is not auto-discovered by Cursor (unlike `AGENTS.md`), so it only loads when the workflow explicitly references it.
 
-### skills/controller.md
+### skills/controller.md (optional)
 
-The controller manages phase execution and transitions. It should:
+Some workflows use a controller to manage phase execution and transitions. This is an optional pattern -- simpler workflows can route directly from `SKILL.md` without a controller. When present, it should:
 
 - List all phases with references to sibling skill files (e.g. `assess.md`, not `skills/assess.md`).
 - Define how to execute a phase (announce, read, execute, report, wait).
@@ -70,15 +70,15 @@ Dispatch the **phase-name** phase. Context:
 $ARGUMENTS
 ```
 
-The path `../skills/controller.md` is relative to the command file's location inside `commands/`.
+The path `../skills/controller.md` is relative to the command file's location inside `commands/`. If the workflow has no controller, commands can reference `../SKILL.md` or the phase skill directly.
 
 ## Path Conventions
 
 All internal file references must be **relative to the file's own location**:
 
-- `commands/*.md` reference the controller as `../skills/controller.md`
-- `skills/controller.md` references sibling skills as `assess.md`, `fix.md`, etc.
-- `SKILL.md` references `skills/controller.md` and `guidelines.md` (both in the same directory)
+- `commands/*.md` reference the controller as `../skills/controller.md` (or `../SKILL.md` if no controller)
+- `skills/controller.md` (when present) references sibling skills as `assess.md`, `fix.md`, etc.
+- `SKILL.md` references `guidelines.md` and optionally `skills/controller.md` (both in the same directory)
 
 This ensures symlinks resolve paths correctly regardless of where the workflow is installed.
 
@@ -105,4 +105,4 @@ Update these when adding a workflow only if the install instructions need to cha
 - Workflow content is plain markdown -- no IDE-specific syntax.
 - Keep `SKILL.md` under 30 lines. Use progressive disclosure (`guidelines.md`, `README.md`) for details.
 - Use consistent terminology within a workflow. Pick one term and stick with it.
-- Don't duplicate content between `SKILL.md`, `guidelines.md`, and `controller.md`. Each file has a distinct role.
+- Don't duplicate content between `SKILL.md`, `guidelines.md`, and `controller.md` (when present). Each file has a distinct role.

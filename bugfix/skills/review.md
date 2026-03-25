@@ -74,13 +74,12 @@ Ask these questions honestly:
 
 - No unnecessary allocations in hot paths
 - Loops bounded (no unbounded iteration over external data)
-- For agent code: serial operations preferred over parallel (per `internal/agent/AGENTS.md`)
 - Resource cleanup: connections, file handles, channels properly closed
 - No goroutine leaks (goroutines exit cleanly)
 
-**Project-specific (when the fix touches `internal/agent/`)**
+**Project-specific review rules**
 
-If the fix modifies code under `internal/agent/`, also check against the agent's code review checklist in `internal/agent/AGENTS.md`: no unnecessary dependencies; uses fileio for ALL disk operations; spec access via spec manager only; no unwarranted async code; PR is minimal and focused; one way to do things; error wrapping uses `errors.WithElement()` for user-facing error chains; import order (stdlib then external, per `gci`).
+If the project has an `AGENTS.md` or `CONTRIBUTING.md` that defines a code review checklist, read it and apply its rules.
 
 **Backward compatibility and rollback safety**
 

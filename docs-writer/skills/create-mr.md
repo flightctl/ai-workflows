@@ -365,5 +365,3 @@ Report your results:
 - MR URL (or manual creation URL if automated creation wasn't possible)
 - What was included
 - Any follow-up actions needed (mark ready for review, add reviewers, etc.)
-
-____

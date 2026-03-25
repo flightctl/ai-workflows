@@ -19,7 +19,7 @@ The workflow depends on external tools and integrations. Not all are needed for 
 | Tool | Used By | Required? | Install|
 |------|---------|-----------|--------|
 | **Jira MCP** | `/gather` | Required for Jira ticket input | Configure as an MCP server in your IDE or agent environment|
-| **GitHub MCP** or **`gh` CLI** | `/gather` | Required for GitHub issues and upstream PR diffs | [gh CLI](https://cli.github.com/) or configure GitHub MCP in your IDE. GtiHub CLI is prefered|
+| **GitHub MCP** or **`gh` CLI** | `/gather` | Required for GitHub issues and upstream PR diffs | [gh CLI](https://cli.github.com/) or configure GitHub MCP in your IDE. GitHub CLI is preferred|
 | **Vale** | `/draft`, `/validate` | Required | [vale.sh/docs/install](https://vale.sh/docs/install)|
 | **Asciidoctor** | `/draft`, `/validate` | Required (Vale uses it to parse `.adoc` files) | `dnf install asciidoctor` or `gem install asciidoctor`|
 | **`glab` CLI** | `/mr` | Required for merge request creation | [docs.gitlab.com/editor_extensions/gitlab_cli](https://docs.gitlab.com/editor_extensions/gitlab_cli)|
@@ -210,5 +210,3 @@ All workflow artifacts are organized in the `.artifacts/${ticket_id}/` directory
 ```
 
 The final artifact (`03-final-docs.adoc`) uses a multi-file format with `// File: <path>` markers and `----` separators so the apply phase knows which repository files to target.
-
-____
