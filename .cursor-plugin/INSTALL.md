@@ -36,7 +36,7 @@ Restart Cursor to discover the new skills.
 
 ## Verify
 
-Start a new session and reference `@bugfix` or `@docs-writer` -- the agent should load the workflow skill. You can also reference individual commands like `@bugfix/commands/fix` or `@docs-writer/commands/draft`.
+Start a new session and reference `@bugfix` or `@docs-writer` -- the agent should load the workflow skill.
 
 ## Scopes
 

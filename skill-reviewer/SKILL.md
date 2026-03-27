@@ -2,9 +2,9 @@
 name: skill-reviewer
 description: >-
   Deep review of an AI skill directory. Critically evaluates structure, clarity,
-  completeness, and consistency of SKILL.md, skills/*.md, commands/*.md, and
-  guidelines.md. Use when reviewing, auditing, or validating an AI workflow skill.
-  Activated by commands: /review.
+  completeness, and consistency of SKILL.md, skills/*.md, and guidelines.md.
+  Use when reviewing, auditing, or validating an AI workflow skill.
+  Activated by phases: /review.
 ---
 # Skill Reviewer Workflow Orchestrator
 
@@ -12,8 +12,9 @@ description: >-
 
 Run `/review` to execute the full workflow. The user must specify which skill directory to review (e.g. `bugfix/`, `docs-writer/`). Executable without opening other files:
 
-1. Read every file in the target skill directory: `SKILL.md`, `skills/*.md`, `commands/*.md`, `guidelines.md`, `README.md`. If the directory doesn't exist or has no skill files, report the error and stop. Note any missing files — gaps are themselves a finding.
-2. Evaluate against 8 dimensions:
+1. Read this workflow's `guidelines.md` to load review standards
+2. Read every file in the target skill directory: `SKILL.md`, `skills/*.md`, `guidelines.md`, `README.md`. If the directory doesn't exist or has no skill files, report the error and stop. Note any missing files — gaps are themselves a finding.
+3. Evaluate against 8 dimensions:
    - **Orchestration & Routing** — correct routing, no orphaned/dangling references, executable Quick Start
    - **Step Sequencing** — sequential numbering, correct cross-references, logical order
    - **Schema Consistency** — matching field names/types across files, schema visible before first use
@@ -22,9 +23,9 @@ Run `/review` to execute the full workflow. The user must specify which skill di
    - **Documentation & Project Alignment** — README matches implementation, consistent with sibling skills and project conventions
    - **Command Naming** — consistent pattern (verbs vs nouns), self-explanatory
    - **Error Handling** — failure modes documented, escalation paths clear
-3. Classify each finding by severity — **CRITICAL** / **HIGH** (blockers) or **MEDIUM** / **LOW** (suggestions).
-4. Validate findings: verify each finding cites a specific file, includes a concrete suggestion, and that blocker/suggestion counts are accurate. Drop any finding you cannot substantiate from the files you read.
-5. Produce a structured report and write it to `.artifacts/skill-reviewer/{skill-name}/review.md`:
+4. Classify each finding by severity — **CRITICAL** / **HIGH** (blockers) or **MEDIUM** / **LOW** (suggestions).
+5. Validate findings: verify each finding cites a specific file, includes a concrete suggestion, and that blocker/suggestion counts are accurate. Drop any finding you cannot substantiate from the files you read.
+6. Produce a structured report and write it to `.artifacts/skill-reviewer/{skill-name}/review.md`:
 
 ```
 ## Skill Review: {skill-name}
@@ -54,8 +55,6 @@ skill-reviewer/
   SKILL.md              # This file — workflow overview and routing
   guidelines.md         # Principles, hard limits, safety, quality standards
   README.md             # User-facing documentation
-  commands/
-    review.md           # /review command — loads guidelines + skill
   skills/
     review.md           # The review skill (detailed steps and output format)
 ```

@@ -39,23 +39,12 @@ AUTO_FIX and NEEDS_INFO are mutually exclusive — a bug without sufficient deta
 
 ### Cursor
 
-```
-@triage/commands/run EDM
-```
-
-Or step by step:
+Reference `@triage` and specify the phase in your message:
 
 ```
-@triage/commands/start EDM
-@triage/commands/scan
-@triage/commands/analyze
-@triage/commands/report
-```
-
-Single-issue triage (issue URL or project + text):
-
-```
-@triage/commands/assess
+@triage "Triage unresolved bugs in EDM"
+@triage "Run /scan for project EDM"
+@triage "Assess this issue: EDM-1234"
 ```
 
 ### Claude Code

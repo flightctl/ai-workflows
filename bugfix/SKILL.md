@@ -5,17 +5,18 @@ description: >-
   implements fixes, and verifies with regression tests.
   Use when fixing bugs, debugging runtime errors or exceptions, investigating
   test failures or crashes, or submitting bug-fix pull requests.
-  Activated by commands: /unattended, /assess, /diagnose, /reproduce, /fix,
+  Activated by phases: /unattended, /assess, /diagnose, /reproduce, /fix,
   /test, /review, /document, /pr, /feedback, /start.
 ---
 # Bugfix Workflow Orchestrator
 
 ## Quick Start
 
-1. If the user invoked a specific command (e.g. `/unattended`, `/diagnose`, `/fix`), read the matching file in `commands/{command}.md` and follow it.
-2. Otherwise, read `skills/controller.md` to load the workflow controller:
-   - If the user provided a bug report or issue URL, execute the `/assess` phase
-   - Otherwise, execute `/start` to present available phases
+1. If the user invoked `/unattended`, read `skills/unattended.md` and follow it — do not load the controller
+2. Read `skills/controller.md` to load the workflow controller
+3. If the user invoked a specific phase (e.g. `/diagnose`, `/fix`), dispatch that phase directly
+4. If the user provided a bug report or issue URL, execute the `/assess` phase
+5. Otherwise, execute `/start` to present available phases
 
 Each phase skill (e.g. `skills/diagnose.md`) follows this pattern:
 
@@ -117,7 +118,6 @@ completion without human input. See `/unattended` or read the skill directly.
 ## File Layout
 
 The workflow controller lives at `skills/controller.md` (interactive) or
-`skills/unattended.md` (unattended).
-Phase skills are at `skills/{name}.md`.
+`skills/unattended.md` (unattended). Phase skills are at `skills/{name}.md`.
 
 For principles, hard limits, safety, quality, and escalation rules, see `guidelines.md`.

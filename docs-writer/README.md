@@ -30,30 +30,22 @@ The workflow depends on external tools and integrations. Not all are needed for 
 
 ```text
 docs-writer/
-├── commands/             # Slash commands (thin wrappers → skills)
-│   ├── gather.md
-│   ├── plan.md
-│   ├── draft.md
+├── skills/               # Phase skills and workflow controller
+│   ├── controller.md     # Phase dispatch, shared context, transitions
+│   ├── gather-context.md
+│   ├── plan-structure.md
+│   ├── draft-content.md
 │   ├── validate.md
-│   ├── apply.md
-│   └── mr.md
-└── skills/               # Detailed process definitions
-    ├── controller.md
-    ├── gather-context.md
-    ├── plan-structure.md
-    ├── draft-content.md
-    ├── validate.md
-    ├── apply-changes.md
-    └── create-mr.md
+│   ├── apply-changes.md
+│   └── create-mr.md
 ├── guidelines.md         # Behavioral guidelines
+├── SKILL.md              # Entry point for the workflow
 └── README.md             # This file
 ```
 
-### How Commands and Skills Work Together
+### How Routing Works
 
-Each **command** is a thin wrapper that invokes the **controller**, which then dispatches the corresponding **skill**. When you run `/gather`, the command file tells the agent to read the controller and dispatch the gather phase — passing along any arguments you provided.
-
-The **controller** (`skills/controller.md`) owns all shared context (project references, AsciiDoc conventions, Vale config, artifact format) so individual skills stay focused on their specific task without repeating common instructions.
+`SKILL.md` is the entry point. It loads the controller (`skills/controller.md`), which dispatches the requested phase by reading the corresponding skill file. The controller owns all shared context (project references, AsciiDoc conventions, Vale config, artifact format) so individual skills stay focused on their specific task.
 
 ## Workflow Phases
 

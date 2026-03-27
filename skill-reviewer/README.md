@@ -15,8 +15,6 @@ This workflow provides a skeptical, structured review of any AI skill directory:
 
 ```text
 skill-reviewer/
-├── commands/
-│   └── review.md
 ├── skills/
 │   └── review.md
 ├── guidelines.md
@@ -24,9 +22,9 @@ skill-reviewer/
 └── README.md
 ```
 
-### How Commands and Skills Work Together
+### How Routing Works
 
-The **command** (`commands/review.md`) is a thin wrapper that routes directly to the **review skill** (`skills/review.md`), which contains the full review process. No controller is needed — this is a single-phase workflow.
+`SKILL.md` is the entry point. It loads `guidelines.md` for review standards, then dispatches `skills/review.md` which contains the full review process. No controller is needed — this is a single-phase workflow.
 
 ## Workflow Phase
 
@@ -34,7 +32,7 @@ The **command** (`commands/review.md`) is a thin wrapper that routes directly to
 
 **Purpose**: Perform a deep, skeptical review of an AI skill directory.
 
-1. Read all files in the target skill directory (`SKILL.md`, `skills/*.md`, `commands/*.md`, `guidelines.md`, `README.md`)
+1. Read all files in the target skill directory (`SKILL.md`, `skills/*.md`, `guidelines.md`, `README.md`)
 2. Evaluate against 8 review dimensions:
    - **Orchestration & Routing** — correct routing, no orphaned or dangling references
    - **Step Sequencing & Numbering** — sequential numbering, correct cross-references
