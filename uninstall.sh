@@ -146,6 +146,18 @@ uninstall_claude() {
     done
   done
 
+  # Remove skill symlinks
+  SKILLS_DIR="$(dirname "$CLAUDE_MD")/skills"
+  for wf in "${WORKFLOWS[@]}"; do
+    LINK="${SKILLS_DIR}/${wf}"
+    if [[ -L "$LINK" ]]; then
+      rm -f "$LINK"
+      echo "  Removed $LINK"
+    elif [[ -e "$LINK" ]]; then
+      echo "  Warning: $LINK exists but is not a symlink; skipping" >&2
+    fi
+  done
+
   # Remove the marker if no workflow references remain
   if grep -qF "$MARKER" "$CLAUDE_MD" && ! grep -q "^For .* workflows, read and follow" "$CLAUDE_MD"; then
     grep -vF "$MARKER" "$CLAUDE_MD" > "${CLAUDE_MD}.tmp" && mv "${CLAUDE_MD}.tmp" "$CLAUDE_MD"
