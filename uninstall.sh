@@ -146,6 +146,18 @@ uninstall_claude() {
     done
   done
 
+  # Remove command symlinks
+  COMMANDS_DIR="$(dirname "$CLAUDE_MD")/commands"
+  if [[ -d "$COMMANDS_DIR" ]]; then
+    for wf in "${WORKFLOWS[@]}"; do
+      for link in "$COMMANDS_DIR"/${wf}-*.md; do
+        [[ -e "$link" ]] || continue
+        rm -f "$link"
+        echo "  Removed command $(basename "$link" .md) from $COMMANDS_DIR"
+      done
+    done
+  fi
+
   # Remove the marker if no workflow references remain
   if grep -qF "$MARKER" "$CLAUDE_MD" && ! grep -q "^For .* workflows, read and follow" "$CLAUDE_MD"; then
     grep -vF "$MARKER" "$CLAUDE_MD" > "${CLAUDE_MD}.tmp" && mv "${CLAUDE_MD}.tmp" "$CLAUDE_MD"

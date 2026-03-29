@@ -183,6 +183,26 @@ install_claude() {
       echo "  Added $wf reference to $CLAUDE_MD  ($SCOPE)"
     fi
   done
+
+  # Install commands as Claude Code slash commands.
+  # Command files use relative paths (e.g. ../skills/controller.md) which
+  # won't resolve from ~/.claude/commands/, so we generate wrappers that
+  # rewrite those paths to absolute references via the install directory.
+  COMMANDS_DIR="${CLAUDE_DIR}/commands"
+  mkdir -p "$COMMANDS_DIR"
+  for wf in "${WORKFLOWS[@]}"; do
+    WF_COMMANDS_DIR="${INSTALL_DIR}/${wf}/commands"
+    [[ -d "$WF_COMMANDS_DIR" ]] || continue
+    for cmd_file in "$WF_COMMANDS_DIR"/*.md; do
+      [[ -f "$cmd_file" ]] || continue
+      cmd_name="$(basename "$cmd_file" .md)"
+      target="${COMMANDS_DIR}/${wf}-${cmd_name}.md"
+      # Rewrite relative paths to absolute paths pointing to the install dir
+      sed "s|\.\./skills/|${INSTALL_DIR}/${wf}/skills/|g; s|\.\./SKILL\.md|${INSTALL_DIR}/${wf}/SKILL.md|g; s|\.\./guidelines\.md|${INSTALL_DIR}/${wf}/guidelines.md|g" \
+        "$cmd_file" > "$target"
+      echo "  Created command /${wf}-${cmd_name} in ${COMMANDS_DIR}  ($SCOPE)"
+    done
+  done
 }
 
 install_gemini() {
