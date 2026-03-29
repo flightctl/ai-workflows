@@ -183,6 +183,15 @@ install_claude() {
       echo "  Added $wf reference to $CLAUDE_MD  ($SCOPE)"
     fi
   done
+
+  # Symlink workflow directories into Claude Code's skills directory so they
+  # are discovered as slash commands (Claude Code scans .claude/skills/).
+  SKILLS_DIR="${CLAUDE_DIR}/skills"
+  mkdir -p "$SKILLS_DIR"
+  for wf in "${WORKFLOWS[@]}"; do
+    ln -sfn "${INSTALL_DIR}/${wf}" "${SKILLS_DIR}/${wf}"
+    echo "  Linked ${SKILLS_DIR}/${wf} -> ${INSTALL_DIR}/${wf}  ($SCOPE)"
+  done
 }
 
 install_gemini() {
