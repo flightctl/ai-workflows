@@ -94,16 +94,6 @@ For Claude Code, the installer:
 2. Symlinks workflows into `~/.claude/skills/` (or `.claude/skills/` for project-level) for slash command discovery
 3. Removes stale references (old controller.md paths) to avoid duplicates
 
-## Quality Assurance
-
-### Cursor Rules (.cursor/rules/)
-
-**skill-review.mdc**: Deep review of AI skill directories
-- Evaluates 8 dimensions: orchestration, sequencing, schemas, cognitive load, clarity, documentation, naming, error handling
-- Severity levels: CRITICAL, HIGH, MEDIUM, LOW
-- Invoked on-demand (not automatic)
-- Use the **skill-reviewer** workflow (`/review`) for automated analysis
-
 ## Development Workflows
 
 For detailed workflow development guidelines (structure, file conventions, testing), see CONTRIBUTING.md.
