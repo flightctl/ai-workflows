@@ -18,7 +18,7 @@ This repository contains reusable AI coding workflows that can be installed glob
 
 Every workflow follows this canonical structure:
 
-```
+```text
 workflow-name/
   SKILL.md              # Entry point with YAML frontmatter (name, description)
   guidelines.md         # Behavioral rules: principles, hard limits, safety, quality
@@ -239,7 +239,7 @@ vale path/to/file.adoc    # Style/terminology validation
 
 ## File Organization
 
-```
+```text
 ai-workflows/
 ├── bugfix/                    # Workflows (auto-discovered via SKILL.md)
 ├── docs-writer/
