@@ -39,9 +39,9 @@ workflow-name/
 ### File Reference Conventions
 
 Critical for symlink resolution:
-- `commands/*.md` reference controller as `../skills/controller.md` or `../SKILL.md`
-- `skills/controller.md` references sibling skills as `phase-name.md` (not `skills/phase-name.md`)
-- `SKILL.md` references `guidelines.md` and `skills/controller.md` (same directory)
+- `commands/*.md` reference `../skills/controller.md` (if workflow has a controller) or `../SKILL.md` (for workflows without a controller) or `../skills/phase-name.md` (direct phase reference)
+- `skills/controller.md` (when present) references sibling skills as `phase-name.md` (not `skills/phase-name.md`)
+- `SKILL.md` references `guidelines.md` and optionally `skills/controller.md` (same directory)
 
 ### Artifact Management
 
@@ -58,7 +58,7 @@ Workflows write outputs to `.artifacts/{workflow-name}/{context}/`:
 ### Workflow-Specific Dependencies
 - **bugfix**: GitHub CLI (`gh`) — for PR queries and creation
 - **triage**: Jira MCP server — configured and authenticated for Jira API access
-- **docs-writer**: GitLab CLI or API access (for merge request creation)
+- **docs-writer**: GitLab CLI — for merge request creation (or GitHub CLI for GitHub-hosted projects)
 
 ## Installation System
 
@@ -69,7 +69,7 @@ The installer uses auto-discovery to find all workflows and creates symlinks:
 ```bash
 # User-level (all workflows)
 ./install.sh cursor                    # ~/.cursor/skills/
-./install.sh claude                    # ~/.claude/CLAUDE.md + ~/.claude/skills/
+./install.sh claude                    # ~/.claude/CLAUDE.md and ~/.claude/skills/
 ./install.sh gemini                    # ~/.gemini/skills/
 ./install.sh all                       # All environments
 
@@ -78,7 +78,7 @@ The installer uses auto-discovery to find all workflows and creates symlinks:
 
 # Project-level
 ./install.sh cursor --project /path/to/proj    # .cursor/skills/
-./install.sh claude --project /path/to/proj    # .claude/CLAUDE.md
+./install.sh claude --project /path/to/proj    # .claude/CLAUDE.md and .claude/skills/
 ```
 
 **Auto-discovery mechanism**: The script scans for `*/SKILL.md` files at repo root. No script changes needed when adding workflows.
@@ -90,8 +90,8 @@ Mirrors install.sh structure with removal logic.
 ### Claude Code Integration
 
 For Claude Code, the installer:
-1. Adds workflow references to `CLAUDE.md` (or `.claude/CLAUDE.md` for project-level)
-2. Symlinks workflows into `~/.claude/skills/` for slash command discovery
+1. Appends workflow references to `CLAUDE.md` (or `.claude/CLAUDE.md` for project-level) beneath the `# ai-workflows` marker
+2. Symlinks workflows into `~/.claude/skills/` (or `.claude/skills/` for project-level) for slash command discovery
 3. Removes stale references (old controller.md paths) to avoid duplicates
 
 ## Quality Assurance
@@ -106,52 +106,12 @@ For Claude Code, the installer:
 
 ## Development Workflows
 
-### Adding a New Workflow
+For detailed workflow development guidelines (structure, file conventions, testing), see CONTRIBUTING.md.
 
-1. Create directory at repo root: `new-workflow/`
-2. Add required files:
-   ```bash
-   new-workflow/SKILL.md          # With YAML frontmatter
-   new-workflow/guidelines.md
-   new-workflow/README.md
-   new-workflow/skills/           # Phase implementations
-   new-workflow/commands/         # Command wrappers
-   ```
-3. Test: `./install.sh cursor && ./uninstall.sh`
-4. Submit PR
-
-**SKILL.md frontmatter template:**
-```yaml
----
-name: workflow-name
-description: >-
-  Brief description. Include trigger terms so the agent knows when to use it.
-  Activated by commands: /command1, /command2.
----
-```
-
-### Modifying Workflows
-
-When editing workflow files:
-1. Read the entire skill first (SKILL.md, guidelines.md, all skills/, commands/)
-2. Maintain relative path conventions
-3. Don't duplicate content between SKILL.md and skills/ — use progressive disclosure
-4. Use the **skill-reviewer** workflow to validate changes after edits
-
-### Testing Changes
-
-```bash
-# Install locally
-./install.sh cursor
-
-# Test in Cursor
-@workflow-name/commands/phase-name
-
-# Clean reinstall to verify teardown
-./uninstall.sh && ./install.sh cursor
-```
-
-**Quality Review**: After modifying workflow files, use the **skill-reviewer** workflow to validate structure, sequencing, schema consistency, cognitive load, instruction clarity, documentation alignment, naming conventions, and error handling.
+**Quick reference:**
+- New workflow: Create directory with SKILL.md, run `./install.sh --list` to verify auto-discovery
+- Modify workflow: Maintain relative paths, use progressive disclosure, run skill-reviewer for validation
+- Test: `./install.sh cursor && ./uninstall.sh` for clean reinstall verification
 
 ## Workflow-Specific Notes
 
@@ -180,7 +140,7 @@ When editing workflow files:
 
 - Converts Jira tickets or GitHub issues into AsciiDoc documentation
 - Runs Vale for style compliance before applying changes
-- Creates GitLab merge requests (or GitHub PRs with appropriate CLI)
+- Creates GitLab merge requests (designed for GitLab-hosted docs repos, adaptable to GitHub with gh CLI)
 - Must get user approval after `/plan` phase before proceeding to `/draft`
 
 ## Common Commands
@@ -250,9 +210,10 @@ ai-workflows/
 ├── .cursor-plugin/           # Cursor marketplace files
 ├── .claude-plugin/           # Claude Code marketplace files
 ├── AGENTS.md                 # AI assistant guidance (this file)
-├── CLAUDE.md                 # Claude Code reference (points to AGENTS.md)
+├── CLAUDE.md                 # Claude Code reference (points to AGENTS.md + install.sh appends here)
 ├── CONTRIBUTING.md           # Workflow development guide
-└── README.md                 # User-facing documentation
+├── README.md                 # User-facing documentation
+└── .gitignore                # Excludes .cursor/, .claude/, .artifacts/, etc.
 ```
 
 ## Path to Production
