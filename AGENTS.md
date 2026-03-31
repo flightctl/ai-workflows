@@ -50,6 +50,7 @@ Workflows write outputs to `.artifacts/{workflow-name}/{context}/`:
 - **bugfix**: `.artifacts/bugfix/{issue-number}/` (root-cause.md, reproduction.md, etc.)
 - **triage**: `.artifacts/triage/{project}/` (issues.json, analyzed.json, report.html)
 - **skill-reviewer**: `.artifacts/skill-reviewer/{skill-name}/` (review.md)
+- **cve-fix**: `.artifacts/cve-fix/{context}/` (context.md, patch-log.md, validation-results.md, pr-description.md, backport-log.md, close-report.md)
 
 ## Prerequisites
 
@@ -60,6 +61,7 @@ Workflows write outputs to `.artifacts/{workflow-name}/{context}/`:
 - **bugfix**: GitHub CLI (`gh`) — for PR queries and creation
 - **triage**: Jira MCP server — configured and authenticated for Jira API access
 - **docs-writer**: GitLab CLI — for merge request creation (or GitHub CLI for GitHub-hosted projects)
+- **cve-fix**: Jira MCP server or Jira CLI (`jira`), GitHub CLI (`gh`), optionally `skopeo` for container image verification
 
 ## Installation System
 
