@@ -11,6 +11,7 @@ This repository contains reusable AI coding workflows that can be installed glob
 - **docs-writer** — Documentation creation workflow
 - **triage** — Bulk Jira bug triage with AI-driven categorization and HTML reports
 - **skill-reviewer** — Meta-workflow that audits AI skill directories
+- **cve-fix** — Automated CVE remediation from Jira tickets (start, patch, validate, pr, backport, close)
 
 ## Architecture
 
