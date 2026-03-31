@@ -136,6 +136,14 @@ For detailed workflow development guidelines (structure, file conventions, testi
 - Creates GitLab merge requests (designed for GitLab-hosted docs repos, adaptable to GitHub with gh CLI)
 - Must get user approval after `/plan` phase before proceeding to `/draft`
 
+### cve-fix
+
+- Requires Jira MCP server or CLI for ticket research
+- Only `/close` writes to Jira (all other phases are read-only)
+- `/backport` is optional and repeatable for multiple release branches
+- Container image verification via `skopeo` is optional
+- Multi-strategy patching tries fixes in ascending risk order (direct → transitive → override → major)
+
 ## Common Commands
 
 **Note**: This repository contains AI workflow definitions (markdown files), not traditional code requiring build/test commands. "Testing" refers to verifying workflow execution and symlink installation.
