@@ -11,6 +11,7 @@ This repository contains reusable AI coding workflows that can be installed glob
 - **docs-writer** — Documentation creation workflow
 - **triage** — Bulk Jira bug triage with AI-driven categorization and HTML reports
 - **skill-reviewer** — Meta-workflow that audits AI skill directories
+- **cve-fix** — Automated CVE remediation from Jira tickets (start, patch, validate, pr, backport, close)
 
 ## Architecture
 
@@ -49,6 +50,7 @@ Workflows write outputs to `.artifacts/{workflow-name}/{context}/`:
 - **bugfix**: `.artifacts/bugfix/{issue-number}/` (root-cause.md, reproduction.md, etc.)
 - **triage**: `.artifacts/triage/{project}/` (issues.json, analyzed.json, report.html)
 - **skill-reviewer**: `.artifacts/skill-reviewer/{skill-name}/` (review.md)
+- **cve-fix**: `.artifacts/cve-fix/{context}/` (context.md, patch-log.md, validation-results.md, pr-description.md, backport-log.md, close-report.md)
 
 ## Prerequisites
 
@@ -59,6 +61,7 @@ Workflows write outputs to `.artifacts/{workflow-name}/{context}/`:
 - **bugfix**: GitHub CLI (`gh`) — for PR queries and creation
 - **triage**: Jira MCP server — configured and authenticated for Jira API access
 - **docs-writer**: GitLab CLI — for merge request creation (or GitHub CLI for GitHub-hosted projects)
+- **cve-fix**: Jira MCP server or Jira CLI (`jira`), GitHub CLI (`gh`), optionally `skopeo` for container image verification
 
 ## Installation System
 
@@ -132,6 +135,14 @@ For detailed workflow development guidelines (structure, file conventions, testi
 - Runs Vale for style compliance before applying changes
 - Creates GitLab merge requests (designed for GitLab-hosted docs repos, adaptable to GitHub with gh CLI)
 - Must get user approval after `/plan` phase before proceeding to `/draft`
+
+### cve-fix
+
+- Requires Jira MCP server or CLI for ticket research
+- Only `/close` writes to Jira (all other phases are read-only)
+- `/backport` is optional and repeatable for multiple release branches
+- Container image verification via `skopeo` is optional
+- Multi-strategy patching tries fixes in ascending risk order (direct → transitive → override → major)
 
 ## Common Commands
 
