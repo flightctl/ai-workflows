@@ -20,14 +20,14 @@ Reusable AI coding workflows a team member can install globally or per-project, 
 
 ## How It Works
 
-Each workflow is a directory with a `SKILL.md` (the mandatory entry point), optional phase skills under `skills/`, and optional command wrappers under `commands/` -- all plain markdown, no IDE-specific syntax. Some workflows also include a `skills/controller.md` for phase dispatch, but this is an optional pattern. The installer auto-discovers every directory that contains a `SKILL.md`.
+Each workflow is a directory with a `SKILL.md` (the mandatory entry point) and phase skills under `skills/` -- all plain markdown, no IDE-specific syntax. Some workflows also include a `skills/controller.md` for phase dispatch, but this is an optional pattern. The installer auto-discovers every directory that contains a `SKILL.md`.
 
 ```
 ~/.ai-workflows/  (symlink to your clone)
   bugfix/
-    SKILL.md, skills/, commands/
+    SKILL.md, skills/
   docs-writer/
-    SKILL.md, skills/, commands/
+    SKILL.md, skills/
 ```
 
 `git pull` updates everything instantly through the symlink.
@@ -104,10 +104,10 @@ Use `--workflows` to install only the workflows relevant to a given project:
 
 ### Cursor
 
-Invoke a workflow command:
+Reference a workflow and specify the phase in your message:
 
-- `@bugfix/commands/assess`, `@bugfix/commands/diagnose`, `@bugfix/commands/fix`, ...
-- `@docs-writer/commands/gather`, `@docs-writer/commands/plan`, `@docs-writer/commands/draft`, ...
+- `@bugfix` — "run /assess on this bug" or "diagnose this issue"
+- `@docs-writer` — "gather context for JIRA-1234" or "run /draft"
 
 ### Claude Code
 

@@ -37,9 +37,8 @@ this order to build understanding progressively:
 
 1. `SKILL.md` (orchestrator — tells you the overall structure and routing)
 2. `guidelines.md` (principles and constraints)
-3. `commands/*.md` (command routers — how users enter the workflow)
-4. `skills/*.md` (phase/step skills, including `controller.md` — the detailed logic)
-5. `README.md` (user-facing docs — check against what you've already read)
+3. `skills/*.md` (phase/step skills, including `controller.md` — the detailed logic)
+4. `README.md` (user-facing docs — check against what you've already read)
 
 Read each file in full. If any expected file is missing, note it — gaps in the
 structure are themselves a finding.
@@ -55,8 +54,8 @@ Work through each dimension systematically. For each, note any findings.
 
 #### Dimension 1: Orchestration & Routing
 
-- Does `SKILL.md` correctly route to all commands and skills?
-- Are all `skills/*.md` and `commands/*.md` files referenced?
+- Does `SKILL.md` correctly route to all skills?
+- Are all `skills/*.md` files referenced?
 - Are there orphaned files (exist but never referenced)?
 - Are there dangling references (referenced but don't exist)?
 - Is the Quick Start section executable without reading other files?

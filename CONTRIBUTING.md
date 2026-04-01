@@ -12,8 +12,6 @@ workflow-name/
   skills/
     controller.md       # Optional -- phase dispatch, transitions, next-step recommendations
     phase-name.md       # One file per phase
-  commands/
-    phase-name.md       # Thin wrappers that invoke the controller or SKILL.md for a specific phase
 ```
 
 The installer auto-discovers any directory with a `SKILL.md`. No script changes are needed when adding a workflow.
@@ -56,29 +54,12 @@ Some workflows use a controller to manage phase execution and transitions. This 
 
 Each phase skill contains the detailed steps for that phase. At the end, it should instruct the agent to report findings and re-read the controller for next-step guidance.
 
-### commands/phase-name.md
-
-Each command is a thin wrapper:
-
-```markdown
-# /phase-name
-
-Read `../skills/controller.md` and follow it.
-
-Dispatch the **phase-name** phase. Context:
-
-$ARGUMENTS
-```
-
-The path `../skills/controller.md` is relative to the command file's location inside `commands/`. If the workflow has no controller, commands can reference `../SKILL.md` or the phase skill directly.
-
 ## Path Conventions
 
 All internal file references must be **relative to the file's own location**:
 
-- `commands/*.md` reference the controller as `../skills/controller.md` (or `../SKILL.md` if no controller)
-- `skills/controller.md` (when present) references sibling skills as `assess.md`, `fix.md`, etc.
 - `SKILL.md` references `guidelines.md` and optionally `skills/controller.md` (both in the same directory)
+- `skills/controller.md` (when present) references sibling skills as `assess.md`, `fix.md`, etc.
 
 This ensures symlinks resolve paths correctly regardless of where the workflow is installed.
 

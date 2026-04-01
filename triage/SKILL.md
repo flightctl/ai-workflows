@@ -5,7 +5,7 @@ description: >-
   interactive HTML report. Scan also loads recently resolved bugs for regression
   matching in analyze. Use when triaging a project backlog, prioritizing bug
   fixes, identifying candidates for automated fixing, or reviewing stale issues.
-  For one bug in depth (no artifacts), use /assess. Activated by commands:
+  For one bug in depth (no artifacts), use /assess. Activated by phases:
   /run, /start, /scan, /analyze, /report, and /assess.
 ---
 # Triage Workflow Orchestrator

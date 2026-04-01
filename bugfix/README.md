@@ -15,22 +15,10 @@ This workflow provides a structured approach to fixing software bugs:
 
 ```text
 bugfix/
-├── commands/             # Slash commands (thin wrappers → skills)
+├── skills/               # Phase skills and workflow controller
+│   ├── controller.md     # Phase dispatch, transitions, next-step recommendations
 │   ├── start.md
 │   ├── assess.md
-│   ├── diagnose.md
-│   ├── document.md
-│   ├── fix.md
-│   ├── pr.md
-│   ├── reproduce.md
-│   ├── review.md
-│   ├── test.md
-│   ├── feedback.md
-│   └── unattended.md
-├── skills/               # Detailed process definitions
-│   ├── start.md
-│   ├── assess.md
-│   ├── controller.md
 │   ├── diagnose.md
 │   ├── document.md
 │   ├── feedback.md
@@ -45,13 +33,9 @@ bugfix/
 └── README.md             # This file
 ```
 
-### How Commands and Skills Work Together
+### How Routing Works
 
-Each **command** is a thin wrapper that invokes a corresponding **skill**. When you run `/diagnose`, the command file tells the agent to read `skills/diagnose.md` and execute it — passing along any arguments you provided plus existing session context.
-
-`SKILL.md` routes to commands first: if the user invoked a specific command (e.g. `/unattended`, `/diagnose`), it reads the matching `commands/{command}.md`. Otherwise it falls through to the interactive controller flow.
-
-This separation keeps commands simple and consistent while the skills contain the full process details.
+`SKILL.md` is the entry point. It loads the controller (`skills/controller.md`), which dispatches the requested phase by reading the corresponding skill file. When you run `/diagnose`, the controller reads `skills/diagnose.md` and executes it. For unattended mode, `SKILL.md` loads `skills/unattended.md` directly instead of the controller — unattended is a separate orchestrator that chains phases without human input.
 
 ## Workflow Phases
 

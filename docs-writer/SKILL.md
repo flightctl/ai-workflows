@@ -1,6 +1,11 @@
 ---
 name: docs-writer
-description: Documentation workflow that converts requirements into structured AsciiDoc sections, runs Vale for style compliance, and produces merge-ready content. Use when creating or updating AsciiDoc documentation from Jira tickets, GitHub issues, or feature descriptions.
+description: >-
+  Documentation workflow that converts requirements into structured AsciiDoc
+  sections, runs Vale for style compliance, and produces merge-ready content.
+  Use when creating or updating AsciiDoc documentation from Jira tickets,
+  GitHub issues, or feature descriptions. Activated by phases: /gather,
+  /plan, /draft, /validate, /apply, /mr.
 ---
 # Docs Writer Workflow Orchestrator
 
