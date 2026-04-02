@@ -125,6 +125,18 @@ If any phase fails (Jira MCP errors, git failures, `gh` CLI errors):
 Do not fabricate results when a tool call fails. Do not silently continue
 past errors.
 
+## Context Management
+
+When output quality appears to be degrading (e.g., the AI misses details,
+repeats itself, or loses track of earlier decisions), consider spawning the
+next phase as a subagent with a fresh context window. Load the subagent with
+the skill file for the phase being executed, the relevant artifact files from
+`.artifacts/prd/{issue-number}/`, and any template files referenced by that
+skill (e.g., `prd.md` and `section-guidance.md` for `/draft`).
+
+This is a recommendation, not a requirement — not all AI runtimes support
+subagent spawning.
+
 ## Rules
 
 - **Never auto-advance.** Always wait for the user between phases.

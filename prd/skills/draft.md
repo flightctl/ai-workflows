@@ -78,9 +78,34 @@ After writing all sections, populate the Appendix: Review Notes:
 1. **Assumptions:** Collect every `[Assumption: ...]` marker from the document. List each with a section reference so reviewers can find the context.
 2. **Items Needing Resolution:** List open risks/questions from Section 9 that don't yet have owners or outcomes, plus any TBD markers from other sections.
 
-These items make assumptions and unresolved items visible to reviewers — not just the author. The same items should also appear in your conversation output (Step 8), but the appendix is what persists into the review.
+These items make assumptions and unresolved items visible to reviewers — not just the author. The same items should also appear in your conversation output (the "Present to User" step), but the appendix is what persists into the review.
 
-### Step 6: Self-Review
+### Step 6: Verify Coverage
+
+Before self-review, systematically verify that nothing was lost between
+source material and PRD:
+
+1. **Requirements coverage:** Re-read `01-requirements.md`. For each
+   requirement or acceptance criterion in the source, confirm it appears
+   in the PRD (Sections 4 or 5). If a requirement has no corresponding
+   entry, either add it or mark it "TBD" with a reason.
+
+2. **Clarification incorporation:** Re-read `02-clarifications.md`. For
+   each answered question, confirm the answer is reflected in the PRD.
+   Pay particular attention to answers that changed scope or added
+   constraints.
+
+3. **Locked decisions:** If `02-clarifications.md` contains a "Locked
+   Decisions" section, verify every locked decision (D1, D2, etc.) is
+   faithfully represented in the PRD. These are non-negotiable — if a
+   locked decision conflicts with other content, remove the conflicting
+   content and add a note referencing the locked decision (e.g.,
+   `[Per D1: Postgres only]`).
+
+4. **Traceability completeness:** Every requirement in Section 4 should
+   have at least one source marker. Flag any that don't.
+
+### Step 7: Self-Review
 
 Before presenting the PRD, verify:
 - [ ] Every functional requirement has a source marker (`[Jira: ...]`, `[Clarify: ...]`, `[User]`)
@@ -89,13 +114,14 @@ Before presenting the PRD, verify:
 - [ ] No sections are empty (use "TBD" markers if needed)
 - [ ] Terminology matches the source material
 - [ ] Assumptions are flagged inline and collected in the Review Notes appendix
+- [ ] All locked decisions from clarification are reflected
 - [ ] The document reads coherently end-to-end
 
-### Step 7: Write Artifact
+### Step 8: Write Artifact
 
 Save the PRD to `.artifacts/prd/{issue-number}/03-prd.md`.
 
-### Step 8: Present to User
+### Step 9: Present to User
 
 Show the user the complete PRD and highlight:
 - Any sections marked "TBD" that need further input

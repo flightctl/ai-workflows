@@ -15,6 +15,7 @@
 - No publishing (creating PRs, posting comments) without explicit user approval.
 - No modifying Jira issues. This workflow is read-only with respect to Jira.
 - No committing to `main` directly. Use feature branches for `/publish`.
+- Locked decisions from `/clarify` are binding. No phase may contradict a locked decision without explicit user override.
 
 ## Safety
 

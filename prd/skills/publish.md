@@ -35,7 +35,13 @@ Verify the environment:
 
 ```bash
 gh auth status
+```
+
+```bash
 git remote -v
+```
+
+```bash
 git status
 ```
 
@@ -51,7 +57,13 @@ Check if the branch already exists (locally or on the remote) before creating it
 
 ```bash
 git branch --list prd/{issue-number}
+```
+
+```bash
 git fetch origin
+```
+
+```bash
 git branch -r --list origin/prd/{issue-number}
 ```
 
@@ -72,11 +84,18 @@ Copy the PRD artifact to the agreed-upon repo location. All commands assume
 execution from the repository root:
 
 ```bash
-# Determine the target directory
-# e.g., for file-path "docs/prd/EDM-2324.md", target-dir is "docs/prd"
 mkdir -p {target-dir}
+```
+
+```bash
 cp .artifacts/prd/{issue-number}/03-prd.md {file-path}
+```
+
+```bash
 git add {file-path}
+```
+
+```bash
 git commit -m "Add PRD for {issue-number}: {title}"
 ```
 

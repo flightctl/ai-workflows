@@ -52,6 +52,7 @@ After applying changes, verify:
 - If a goal changed, do the requirements still support it?
 - If scope changed, are non-goals still accurate?
 - If dependencies changed, are risks updated?
+- Do any changes contradict a locked decision in `02-clarifications.md`? If so, flag the conflict to the user — locked decisions are binding and cannot be overridden without explicit user approval.
 
 ### Step 5: Update Artifact
 
@@ -66,7 +67,13 @@ gh pr list --head prd/{issue-number} --state open
 If a PR exists, also update the repo copy, commit, and push to the PR branch.
 If no PR exists, skip the remaining steps — the artifact update is sufficient.
 
-First, verify you are on the correct branch and the working tree is clean:
+First, verify the working tree is clean before checking out or committing:
+
+```bash
+git status
+```
+
+If there are uncommitted changes, ask the user before continuing.
 
 ```bash
 git branch --show-current
@@ -78,20 +85,21 @@ If not on the PR branch (`prd/{issue-number}`), check it out:
 git checkout prd/{issue-number}
 ```
 
-Check for unrelated uncommitted changes before proceeding:
-
-```bash
-git status
-```
-
-If there are unrelated staged changes, ask the user before continuing.
-
 Then update the repo copy:
 
 ```bash
 cp .artifacts/prd/{issue-number}/03-prd.md {prd-repo-path}
+```
+
+```bash
 git add {prd-repo-path}
+```
+
+```bash
 git commit -m "PRD {issue-number}: revise — {brief description of changes}"
+```
+
+```bash
 git push
 ```
 

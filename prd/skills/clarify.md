@@ -76,6 +76,12 @@ I have {M} questions:
 After the user responds, record their answers and assess whether more
 questions are needed.
 
+When the user makes a definitive choice (e.g., "TCP only, no UDP" or
+"we'll use Postgres, not SQLite"), record it as a locked decision in
+the clarification log's "Locked Decisions" section. These are binding
+constraints — `/draft` must reflect them exactly. Not every answer is
+a locked decision; only record clear, scope-affecting choices.
+
 ### Step 4: Update Clarification Log
 
 After each round, write or update `.artifacts/prd/{issue-number}/02-clarifications.md`:
@@ -104,6 +110,14 @@ After each round, write or update `.artifacts/prd/{issue-number}/02-clarificatio
 ### R2.Q1: {question}
 **Answer:** {user's response}
 **Impact:** {how this affects the PRD}
+
+## Locked Decisions
+
+Decisions the user made definitively during clarification. These are
+binding constraints for `/draft` — the PRD must reflect them exactly.
+
+- **D1:** {decision} `[Clarify: R{N}.Q{M}]`
+- **D2:** {decision} `[Clarify: R{N}.Q{M}]`
 
 ## Remaining Gaps
 
@@ -146,6 +160,7 @@ where it left off.
 Report your findings:
 - How many rounds were completed
 - Key decisions made
+- Locked decisions recorded (list the D-IDs and a brief summary of each)
 - Any remaining gaps the user chose to accept
 - Whether exit criteria are met
 

@@ -40,10 +40,10 @@ Fetch both issue-level comments (general discussion) and review-level
 comments (inline on specific lines):
 
 ```bash
-# Issue-level comments (general PR discussion)
 gh pr view {pr-number} --json comments,reviews,url
+```
 
-# Review-level comments (inline on specific lines/files)
+```bash
 gh api repos/{owner}/{repo}/pulls/{pr-number}/comments
 ```
 
@@ -96,6 +96,12 @@ Wait for the user to approve, modify, or reject each response.
 
 For comments that require PRD changes:
 
+**Check locked decisions:** Before applying any PRD change, read the
+"Locked Decisions" section of `.artifacts/prd/{issue-number}/02-clarifications.md`
+(if it exists). If a requested change contradicts a locked decision, flag the
+conflict to the user rather than applying the change — locked decisions are
+binding and cannot be overridden without explicit user approval.
+
 **Update the artifacts:** Update `.artifacts/prd/{issue-number}/03-prd.md`
 and the repo copy of the PRD (the file at the path used during `/publish`).
 
@@ -122,7 +128,13 @@ git checkout prd/{issue-number}
 
 ```bash
 git add {prd-repo-path}
+```
+
+```bash
 git commit -m "PRD {issue-number}: address review feedback"
+```
+
+```bash
 git push
 ```
 
