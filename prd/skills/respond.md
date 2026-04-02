@@ -104,6 +104,7 @@ binding and cannot be overridden without explicit user approval.
 
 **Update the artifacts:** Update `.artifacts/prd/{issue-number}/03-prd.md`
 and the repo copy of the PRD (the file at the path used during `/publish`).
+If the repo path is unknown, check the PR branch's commit history or ask the user.
 
 **Verify the branch:** Ensure you are on the PR branch and the working tree
 is clean before checking out or committing:
