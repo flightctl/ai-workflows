@@ -122,7 +122,7 @@ After each round, evaluate whether clarification is sufficient:
 - [ ] Non-functional requirements are identified (performance, security, compatibility)
 - [ ] Dependencies are identified
 
-If exit criteria are met, tell the user and recommend moving to `/draft`.
+If exit criteria are met, tell the user.
 
 If exit criteria are not met, present the remaining gaps and ask whether
 the user wants to:

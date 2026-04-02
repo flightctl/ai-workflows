@@ -99,7 +99,14 @@ For comments that require PRD changes:
 **Update the artifacts:** Update `.artifacts/prd/{issue-number}/03-prd.md`
 and the repo copy of the PRD (the file at the path used during `/publish`).
 
-**Verify the branch:** Ensure you are on the PR branch before committing:
+**Verify the branch:** Ensure you are on the PR branch and the working tree
+is clean before checking out or committing:
+
+```bash
+git status
+```
+
+If there are uncommitted changes, ask the user before continuing.
 
 ```bash
 git branch --show-current
@@ -110,14 +117,6 @@ If not on `prd/{issue-number}`, check it out:
 ```bash
 git checkout prd/{issue-number}
 ```
-
-**Check for unrelated changes:**
-
-```bash
-git status
-```
-
-If there are unrelated staged changes, ask the user before continuing.
 
 **Commit and push:**
 
