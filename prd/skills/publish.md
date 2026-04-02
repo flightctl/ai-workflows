@@ -51,22 +51,21 @@ Check if the branch already exists (locally or on the remote) before creating it
 
 ```bash
 git branch --list prd/{issue-number}
+git fetch origin
 git branch -r --list origin/prd/{issue-number}
 ```
 
-If the branch exists locally, check it out. If it exists only on the remote
-(e.g., fresh clone after a partial failure), fetch and check it out. If it
-doesn't exist anywhere, create it:
+Depending on the results:
 
 ```bash
-# Branch does not exist
-git checkout -b prd/{issue-number}
-
-# Branch exists locally (e.g., retry after partial failure)
+# If branch exists locally:
 git checkout prd/{issue-number}
 
-# Branch exists only on remote
+# If branch does not exist locally but exists on remote:
 git checkout -b prd/{issue-number} origin/prd/{issue-number}
+
+# If branch doesn't exist locally or remotely:
+git checkout -b prd/{issue-number}
 ```
 
 Copy the PRD artifact to the agreed-upon repo location. All commands assume
