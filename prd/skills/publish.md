@@ -46,8 +46,8 @@ correct values.
 
 - **Docs repo local path:** Where is the planning docs repo checked out?
   (e.g., `/home/user/src/planning-docs`)
-- **Docs repo remote:** Confirm the remote URL by running
-  `git -C {docs_repo_path} remote get-url origin`
+- **Docs repo remote:** Run `git -C {docs_repo_path} remote get-url origin`
+  and confirm the result with the user before proceeding
 
 Validate the path and remote, then save the config:
 
