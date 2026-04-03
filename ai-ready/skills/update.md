@@ -167,19 +167,19 @@ Present a summary to the user with two parts:
 
 **1. AGENTS.md changes** — What was added, modified, or removed. If created from scratch, summarize the sections written and key content in each.
 
-**2. AI convention file audit** — For every AI convention file found (and any created), list the file, what action was taken, and why.
+**2. AI convention file audit** — List every AI convention file found (and any created), the action taken, and why. Always include every file — even tool-auto-loaded ones that were kept unchanged — so the user has a complete picture.
 
 Example format:
 
 ```text
 AI convention file audit:
-- AGENTS.md          → Created (new file with 6 sections)
-- .windsurfrules     → Merged (generic instructions moved to AGENTS.md)
-- .cursor/rules/     → Kept (contains glob-scoped rules AGENTS.md can't express)
-- packages/api/      → Recommended: add nested AGENTS.md for API-specific conventions
+- AGENTS.md                          → Created (new file with 6 sections)
+- CLAUDE.md                          → Kept (auto-loaded by Claude Code)
+- .github/copilot-instructions.md    → Kept (auto-loaded by GitHub Copilot)
+- .windsurfrules                     → Merged (generic instructions moved to AGENTS.md)
+- .cursor/rules/                     → Kept (contains glob-scoped rules AGENTS.md can't express)
+- packages/api/                      → Recommended: add nested AGENTS.md for API-specific conventions
 ```
-
-Only include tool-auto-loaded files (e.g., `CLAUDE.md`, `.github/copilot-instructions.md`) in the report if they have issues — stale content, contradictions with AGENTS.md, or other findings worth flagging.
 
 ## Output
 
