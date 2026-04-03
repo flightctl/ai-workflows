@@ -29,83 +29,118 @@ Read `.artifacts/prd/{issue-number}/03-prd.md`.
 
 If the file doesn't exist, tell the user that `/draft` should be run first.
 
-### Step 2: Pre-Flight Checks
+### Step 2: Resolve Docs Repo
 
-Verify the environment:
+Check for an existing docs repo configuration at `.artifacts/prd/config.json`.
+
+**If the config exists**, read it and validate:
+
+1. Verify the path exists on the local filesystem
+2. Verify the directory is a git repository
+3. Verify the remote URL matches the configured `docs_repo_remote`
+
+If any validation fails, inform the user what failed and re-ask for the
+correct values.
+
+**If the config does not exist**, ask the user:
+
+- **Docs repo local path:** Where is the planning docs repo checked out?
+  (e.g., `/home/user/src/planning-docs`)
+- **Docs repo remote:** Confirm the remote URL by running
+  `git -C {docs_repo_path} remote get-url origin`
+
+Validate the path and remote, then save the config:
+
+```bash
+mkdir -p .artifacts/prd
+```
+
+Write `.artifacts/prd/config.json` with the validated `docs_repo_path` and
+`docs_repo_remote`.
+
+### Step 3: Pre-Flight Checks
+
+Verify the environment using the docs repo:
 
 ```bash
 gh auth status
 ```
 
+In the docs repo directory:
+
 ```bash
-git remote -v
+git -C {docs_repo_path} remote -v
 ```
 
 ```bash
-git status
+git -C {docs_repo_path} status
 ```
 
 Confirm with the user:
-- **Target repository:** Which repo should the PR be created against?
-- **Base branch:** Which branch should the PR target? (usually `main`; confirm, don't assume)
-- **File path:** Where in the repo should the PRD be placed? (e.g., `docs/prd/{issue-number}.md`, or a path the user specifies)
+- **Base branch:** Which branch should the PR target in the docs repo?
+  (usually `main`; confirm, don't assume)
+- **File path:** Where in the docs repo should the PRD be placed?
+  (e.g., `prds/{issue-number}.md`, or a path the user specifies)
 - **Branch name:** Propose `prd/{issue-number}` and let the user override
 
-### Step 3: Create Branch and Commit
+### Step 4: Create Branch and Commit
+
+All git operations in this step run against the **docs repo**, not the source
+repo. Use `git -C {docs_repo_path}` for all commands.
 
 Check if the branch already exists (locally or on the remote) before creating it:
 
 ```bash
-git branch --list prd/{issue-number}
+git -C {docs_repo_path} branch --list prd/{issue-number}
 ```
 
 ```bash
-git fetch origin
+git -C {docs_repo_path} fetch origin
 ```
 
 ```bash
-git branch -r --list origin/prd/{issue-number}
+git -C {docs_repo_path} branch -r --list origin/prd/{issue-number}
 ```
 
 Depending on the results:
 
 ```bash
 # If branch exists locally:
-git checkout prd/{issue-number}
+git -C {docs_repo_path} checkout prd/{issue-number}
 
 # If branch does not exist locally but exists on remote:
-git checkout -b prd/{issue-number} origin/prd/{issue-number}
+git -C {docs_repo_path} checkout -b prd/{issue-number} origin/prd/{issue-number}
 
 # If branch doesn't exist locally or remotely:
-git checkout -b prd/{issue-number}
+git -C {docs_repo_path} checkout -b prd/{issue-number}
 ```
 
-Copy the PRD artifact to the agreed-upon repo location. All commands assume
-execution from the repository root:
+Copy the PRD artifact from the source repo to the docs repo:
 
 ```bash
-mkdir -p {target-dir}
-```
-
-```bash
-cp .artifacts/prd/{issue-number}/03-prd.md {file-path}
+mkdir -p {docs_repo_path}/{target-dir}
 ```
 
 ```bash
-git add {file-path}
+cp .artifacts/prd/{issue-number}/03-prd.md {docs_repo_path}/{prd-file-path}
 ```
 
 ```bash
-git commit -m "Add PRD for {issue-number}: {title}"
+git -C {docs_repo_path} add {prd-file-path}
 ```
-
-### Step 4: Push and Create PR
 
 ```bash
-git push -u origin prd/{issue-number}
+git -C {docs_repo_path} commit -m "Add PRD for {issue-number}: {title}"
 ```
 
-Prepare the PR description and save it to `.artifacts/prd/{issue-number}/04-pr-description.md`:
+### Step 5: Push and Create PR
+
+```bash
+git -C {docs_repo_path} push -u origin prd/{issue-number}
+```
+
+Prepare the PR description and save it to `.artifacts/prd/{issue-number}/04-pr-description.md`
+(in the source repo's artifact directory):
 
 ```markdown
 ## PRD: {title}
@@ -127,31 +162,48 @@ Prepare the PR description and save it to `.artifacts/prd/{issue-number}/04-pr-d
 - Approve when the PRD accurately reflects the agreed requirements
 ```
 
-Create the draft PR:
+Determine `{owner}/{repo}` from the `docs_repo_remote` in `.artifacts/prd/config.json`
+(e.g., `git@github.com:org/planning-docs.git` → `org/planning-docs`), then
+create the draft PR:
 
 ```bash
-gh pr create --draft --base {base-branch} --title "PRD: {title}" --body-file .artifacts/prd/{issue-number}/04-pr-description.md
+gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head prd/{issue-number} --title "PRD: {title}" --body-file .artifacts/prd/{issue-number}/04-pr-description.md
 ```
 
-### Step 5: Report to User
+### Step 6: Save Publish Metadata
+
+Write `.artifacts/prd/{issue-number}/publish-metadata.json` to record the
+file path and PR details for use by `/revise` and `/respond`:
+
+```json
+{
+  "prd_file_path": "{prd-file-path}",
+  "pr_number": {pr-number},
+  "branch": "prd/{issue-number}"
+}
+```
+
+### Step 7: Report to User
 
 Present:
 - PR URL
-- Branch name
-- File location in the repo
+- Docs repo and branch name
+- File location in the docs repo
 - Next steps (share with reviewers, wait for comments, then use `/respond`)
 
 ## Output
 
-- PRD committed and pushed to feature branch
-- Draft PR created
+- `.artifacts/prd/config.json` (created on first run, reused on subsequent runs)
+- `.artifacts/prd/{issue-number}/publish-metadata.json`
+- PRD committed and pushed to feature branch in the docs repo
+- Draft PR created against the docs repo
 - `.artifacts/prd/{issue-number}/04-pr-description.md`
 
 ## When This Phase Is Done
 
 Report your results:
 - PR URL and branch name
-- File location
+- Docs repo and file location
 - Suggested next steps
 
 Then **re-read the controller** (`controller.md`) for next-step guidance.

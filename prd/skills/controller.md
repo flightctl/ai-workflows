@@ -30,7 +30,14 @@ executing phases and handling transitions between them.
 
 ## Workspace
 
-All artifacts are stored in `.artifacts/prd/{issue-number}/`:
+Drafting happens in the **source repo** — the AI needs codebase context to
+write a good PRD. Publishing and review happen in a **separate docs repo** so
+planning artifacts don't pollute the source tree.
+
+### Artifact directory
+
+All working artifacts are stored in `.artifacts/prd/{issue-number}/` within the
+source repo (this directory should be gitignored in the source repo):
 
 | Artifact | File | Written by |
 |----------|------|------------|
@@ -38,7 +45,27 @@ All artifacts are stored in `.artifacts/prd/{issue-number}/`:
 | Clarification log | `02-clarifications.md` | `/clarify` |
 | PRD document | `03-prd.md` | `/draft`, `/revise` |
 | PR description | `04-pr-description.md` | `/publish` |
+| Publish metadata | `publish-metadata.json` | `/publish` |
 | Review responses | `05-review-responses.md` | `/respond` |
+
+### Docs repo configuration
+
+The docs repo location is stored in `.artifacts/prd/config.json` (shared
+across all PRDs for this source repo):
+
+```json
+{
+  "docs_repo_path": "/home/user/src/planning-docs",
+  "docs_repo_remote": "git@github.com:org/planning-docs.git"
+}
+```
+
+This config is created by `/publish` the first time it runs. On subsequent
+runs, `/publish` validates that the path exists and the remote matches. If
+validation fails, it re-asks the user.
+
+`/revise` and `/respond` also read this config when they need to update the
+published copy in the docs repo.
 
 ## How to Execute a Phase
 

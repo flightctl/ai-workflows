@@ -24,23 +24,28 @@ repeatable as new comments arrive.
 
 ## Process
 
-### Step 1: Fetch PR Comments
+### Step 1: Resolve Docs Repo and Fetch PR Comments
 
-Get the PR number from the user or from the `/publish` output. Determine
-the `{owner}/{repo}` from the git remote:
+Read `.artifacts/prd/config.json` to get the docs repo path. If the config
+doesn't exist, tell the user that `/publish` should be run first.
+
+Determine `{owner}/{repo}` from the `docs_repo_remote` in the config (e.g.,
+`git@github.com:org/planning-docs.git` → `org/planning-docs`).
+
+Validate the docs repo path still exists:
 
 ```bash
-git remote get-url origin
+git -C {docs_repo_path} status
 ```
 
-Extract `{owner}/{repo}` from the URL (e.g., `github.com/flightctl/flightctl.git`
-→ `flightctl/flightctl`).
+Get the PR number from the user, from the `/publish` output, or from
+`.artifacts/prd/{issue-number}/publish-metadata.json`.
 
 Fetch both issue-level comments (general discussion) and review-level
 comments (inline on specific lines):
 
 ```bash
-gh pr view {pr-number} --json comments,reviews,url
+gh pr view {pr-number} --repo {owner}/{repo} --json comments,reviews,url
 ```
 
 ```bash
@@ -102,41 +107,69 @@ For comments that require PRD changes:
 conflict to the user rather than applying the change — locked decisions are
 binding and cannot be overridden without explicit user approval.
 
-**Update the artifacts:** Update `.artifacts/prd/{issue-number}/03-prd.md`
-and the repo copy of the PRD (the file at the path used during `/publish`).
-If the repo path is unknown, check the PR branch's commit history or ask the user.
+**Update the local artifact:** Update `.artifacts/prd/{issue-number}/03-prd.md`
+in the source repo.
 
-**Verify the branch:** Ensure you are on the PR branch and the working tree
-is clean before checking out or committing:
+**Update the docs repo copy:** Read `.artifacts/prd/{issue-number}/publish-metadata.json`
+to get `{prd-file-path}` (the PRD's location within the docs repo). If the
+metadata file doesn't exist, ask the user for the file path within the docs
+repo. If they provide it, write it to `publish-metadata.json` so subsequent
+runs don't re-ask, then proceed with the docs repo update. If they cannot
+provide it, skip the docs repo update.
+
+Copy the updated artifact to the docs repo and commit. All git operations use
+the docs repo path from `.artifacts/prd/config.json`.
+
+Fetch the latest state from the remote and verify the working tree is clean:
 
 ```bash
-git status
+git -C {docs_repo_path} fetch origin
+```
+
+```bash
+git -C {docs_repo_path} status
 ```
 
 If there are uncommitted changes, ask the user before continuing.
 
+Ensure the correct branch is checked out:
+
 ```bash
-git branch --show-current
+git -C {docs_repo_path} branch --show-current
 ```
 
 If not on `prd/{issue-number}`, check it out:
 
 ```bash
-git checkout prd/{issue-number}
+git -C {docs_repo_path} checkout prd/{issue-number}
 ```
 
-**Commit and push:**
+Fast-forward the local branch if the remote is ahead:
 
 ```bash
-git add {prd-repo-path}
+git -C {docs_repo_path} pull --ff-only
+```
+
+Ensure the target directory exists, copy the updated artifact, and commit:
+
+```bash
+mkdir -p {docs_repo_path}/$(dirname {prd-file-path})
 ```
 
 ```bash
-git commit -m "PRD {issue-number}: address review feedback"
+cp .artifacts/prd/{issue-number}/03-prd.md {docs_repo_path}/{prd-file-path}
 ```
 
 ```bash
-git push
+git -C {docs_repo_path} add {prd-file-path}
+```
+
+```bash
+git -C {docs_repo_path} commit -m "PRD {issue-number}: address review feedback"
+```
+
+```bash
+git -C {docs_repo_path} push
 ```
 
 **Post the reply** as a PR comment (see "Posting replies" below).
@@ -157,7 +190,7 @@ REPLY_EOF
 ```
 
 ```bash
-gh pr comment {pr-number} --body-file .artifacts/prd/{issue-number}/tmp-reply.md
+gh pr comment {pr-number} --repo {owner}/{repo} --body-file .artifacts/prd/{issue-number}/tmp-reply.md
 ```
 
 Delete the temp file after posting:

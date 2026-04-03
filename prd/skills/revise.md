@@ -58,52 +58,73 @@ After applying changes, verify:
 
 Overwrite `.artifacts/prd/{issue-number}/03-prd.md` with the revised PRD.
 
-Check whether a PR branch exists for this issue:
+Read `.artifacts/prd/config.json` to get the docs repo path and
+`.artifacts/prd/{issue-number}/publish-metadata.json` to get `{prd-file-path}`.
+If either file doesn't exist, skip the remaining steps — the PRD hasn't been
+published yet, so the artifact update is sufficient.
+
+Check whether a PR branch exists in the docs repo:
 
 ```bash
-gh pr list --head prd/{issue-number} --state open
+gh pr list --repo {owner}/{repo} --head prd/{issue-number} --state open --json number,url
 ```
 
-If a PR exists, also update the repo copy, commit, and push to the PR branch.
+(Determine `{owner}/{repo}` from the `docs_repo_remote` in the config.)
+
 If no PR exists, skip the remaining steps — the artifact update is sufficient.
 
-First, verify the working tree is clean before checking out or committing:
+If a PR exists, update the docs repo copy. All git operations use the docs
+repo path from the config.
+
+Fetch the latest state from the remote and verify the working tree is clean:
 
 ```bash
-git status
+git -C {docs_repo_path} fetch origin
+```
+
+```bash
+git -C {docs_repo_path} status
 ```
 
 If there are uncommitted changes, ask the user before continuing.
 
 ```bash
-git branch --show-current
+git -C {docs_repo_path} branch --show-current
 ```
 
 If not on the PR branch (`prd/{issue-number}`), check it out:
 
 ```bash
-git checkout prd/{issue-number}
+git -C {docs_repo_path} checkout prd/{issue-number}
 ```
 
-Then update the repo copy:
+Fast-forward the local branch if the remote is ahead:
 
 ```bash
-cp .artifacts/prd/{issue-number}/03-prd.md {prd-repo-path}
+git -C {docs_repo_path} pull --ff-only
 ```
 
-```bash
-git add {prd-repo-path}
-```
+Ensure the target directory exists, copy the updated artifact, and commit:
 
 ```bash
-git commit -m "PRD {issue-number}: revise — {brief description of changes}"
+mkdir -p {docs_repo_path}/$(dirname {prd-file-path})
 ```
 
 ```bash
-git push
+cp .artifacts/prd/{issue-number}/03-prd.md {docs_repo_path}/{prd-file-path}
 ```
 
-If the PR branch or repo path is unknown, ask the user.
+```bash
+git -C {docs_repo_path} add {prd-file-path}
+```
+
+```bash
+git -C {docs_repo_path} commit -m "PRD {issue-number}: revise — {brief description of changes}"
+```
+
+```bash
+git -C {docs_repo_path} push
+```
 
 ### Step 6: Present Changes
 
