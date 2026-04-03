@@ -19,15 +19,14 @@ Check whether an AGENTS.md exists at the project root.
 Then scan for all AI convention files in the project (one glob search):
 
 ```text
-**/{.github/copilot-instructions.md,AGENT.md,AGENTS.md,CLAUDE.md,.cursorrules,.windsurfrules,.clinerules,.cursor/rules/**,.windsurf/rules/**,.clinerules/**}
+**/{.github/copilot-instructions.md,AGENT.md,AGENTS.md,CLAUDE.md,.cursorrules,.windsurfrules,.cursor/rules/**,.windsurf/rules/**,.clinerules,.clinerules/**}
 ```
 
 Note every file found and its path.
 
 ### Step 2: Analyze the Codebase
 
-Gather the information needed to write or update AGENTS.md. Inspect these
-concrete signals — skip any that don't exist in the project:
+Gather the information needed to write or update AGENTS.md. Inspect these concrete signals — skip any that don't exist in the project:
 
 - **Directory tree** (top 2–3 levels) — project layout and architecture
 - **Package manifests** (package.json, pyproject.toml, Cargo.toml, go.mod, pom.xml, build.gradle, etc.) — dependencies, scripts, build commands
@@ -42,6 +41,8 @@ concrete signals — skip any that don't exist in the project:
 Also check recent git history (`git log --oneline -20`) to spot recently changed areas that may need documentation.
 
 Only collect information that is **concrete and verifiable**. Do not infer or assume anything you cannot confirm from the codebase.
+
+If analysis yields fewer than 2 concrete sections worth of content, report that the project has insufficient signals for a useful AGENTS.md and ask the user for guidance before proceeding.
 
 ### Step 3: Create or Update AGENTS.md
 
@@ -80,7 +81,7 @@ Branch naming, commit message format, review process.
 
 ## Security
 
-Security-sensitive areas, auth patterns, secrets handling.
+Areas where AI agents should exercise caution (e.g., "auth logic lives in `src/auth/` — changes here require manual review"). Do NOT document internal mechanisms, credentials, token formats, or implementation details of security controls.
 ```
 
 #### If updating an existing AGENTS.md
@@ -104,6 +105,7 @@ These apply to both creation and updates:
 - Reference key files and directories that exemplify important patterns
 - Keep it concise: prefer a command over a paragraph
 - Include specific examples from the codebase when describing patterns
+- Aim for under 500 lines per AGENTS.md file. For monorepos, split project-wide concerns into the root file and package-specific details into nested files rather than writing one large file
 
 #### AGENTS.md format reference
 
@@ -115,9 +117,9 @@ AGENTS.md is standard Markdown with no required fields or structure:
 
 ### Step 4: Audit AI Convention Files
 
-For each AI convention file found in Step 1, choose one action:
+For each AI convention file found in Step 1, choose one action. For directory-based conventions (`.cursor/rules/`, `.windsurf/rules/`, `.clinerules/`), evaluate each file within the directory individually — different files may warrant different actions:
 
-**Keep** — The file serves a tool-specific purpose that AGENTS.md cannot replace (e.g., `.cursor/rules/` with glob-scoped rules, tool-specific configuration). Leave it untouched.
+**Keep** — The file serves a tool-specific purpose that AGENTS.md cannot replace. This includes files that are auto-loaded by their respective tools (e.g., `CLAUDE.md` by Claude Code, `.github/copilot-instructions.md` by GitHub Copilot) or files with capabilities AGENTS.md can't express (e.g., `.cursor/rules/` with glob-scoped rules). Merging these into AGENTS.md would lose the tool integration. Leave them untouched.
 
 **Merge** — The file contains generic agent instructions that belong in AGENTS.md. Consolidate its unique content into AGENTS.md, then delete the original file.
 
@@ -132,8 +134,7 @@ When merging:
 - When sources conflict, prefer the most recently modified file
 - Deduplicate — do not repeat the same instruction in AGENTS.md and another file
 
-**Monorepo awareness:** If the project uses workspaces (package.json workspaces, pnpm-workspace.yaml, Cargo `[workspace]`, multiple go.mod files), check whether subprojects have
-their own AGENTS.md. Root AGENTS.md covers project-wide concerns; nested files cover package-specific details. Recommend creating nested files where they're missing.
+**Monorepo awareness:** If the project uses workspaces (package.json workspaces, pnpm-workspace.yaml, Cargo `[workspace]`, multiple go.mod files), check whether subprojects have their own AGENTS.md. Root AGENTS.md covers project-wide concerns; nested files cover package-specific details. For existing nested AGENTS.md files, apply the same create-or-update logic from Step 3 scoped to the subproject. Recommend creating nested files where they're missing.
 
 ### Step 5: Validate
 
@@ -144,6 +145,7 @@ Accuracy:
 - Every file path referenced in AGENTS.md exists in the project
 - Every command referenced is runnable (appears in package.json scripts, Makefile, CI config, etc.)
 - No contradictions between sections
+- No contradictions between AGENTS.md and kept convention files (e.g., `CLAUDE.md`, `.github/copilot-instructions.md`). If a kept file conflicts with AGENTS.md, update the kept file to align — AGENTS.md is the source of truth
 - No content duplicated across sections
 - Running this skill again would produce no further changes (idempotency check)
 
@@ -172,10 +174,12 @@ Example format:
 ```text
 AI convention file audit:
 - AGENTS.md          → Created (new file with 6 sections)
-- .cursorrules       → Merged (generic instructions moved to AGENTS.md)
+- .windsurfrules     → Merged (generic instructions moved to AGENTS.md)
 - .cursor/rules/     → Kept (contains glob-scoped rules AGENTS.md can't express)
 - packages/api/      → Recommended: add nested AGENTS.md for API-specific conventions
 ```
+
+Only include tool-auto-loaded files (e.g., `CLAUDE.md`, `.github/copilot-instructions.md`) in the report if they have issues — stale content, contradictions with AGENTS.md, or other findings worth flagging.
 
 ## Output
 
