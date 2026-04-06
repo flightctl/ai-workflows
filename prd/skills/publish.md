@@ -46,7 +46,7 @@ correct values.
 
 - **Docs repo local path:** Where is the planning docs repo checked out?
   (e.g., `/home/user/src/planning-docs`)
-- **Docs repo remote:** Run `git -C {docs_repo_path} remote get-url origin`
+- **Docs repo remote:** Run `git -C "{docs_repo_path}" remote get-url origin`
   and confirm the result with the user before proceeding
 
 Validate the path and remote, then save the config:
@@ -69,74 +69,80 @@ gh auth status
 In the docs repo directory:
 
 ```bash
-git -C {docs_repo_path} remote -v
+git -C "{docs_repo_path}" remote -v
 ```
 
 ```bash
-git -C {docs_repo_path} status
+git -C "{docs_repo_path}" status
 ```
 
 Confirm with the user:
 - **Base branch:** Which branch should the PR target in the docs repo?
   (usually `main`; confirm, don't assume)
-- **File path:** Where in the docs repo should the PRD be placed?
-  (e.g., `prds/{issue-number}.md`, or a path the user specifies)
+- **Release:** Which release is this PRD for? (e.g., `v2.1`, `2026-Q2`).
+  If the Jira issue has a fix version, suggest it as the default.
+- **Feature:** A short slug for the feature (e.g., `port-mappings`,
+  `user-auth`). Suggest a slug derived from the Jira issue summary.
 - **Branch name:** Propose `prd/{issue-number}` and let the user override
+
+The PRD file path is constructed as `{release}/{feature}/prd.md`. The
+filename is always `prd.md` — future documents (design docs, test plans)
+will be placed alongside it in the same directory.
 
 ### Step 4: Create Branch and Commit
 
 All git operations in this step run against the **docs repo**, not the source
-repo. Use `git -C {docs_repo_path}` for all commands.
+repo. Use `git -C "{docs_repo_path}"` for all commands.
 
 Check if the branch already exists (locally or on the remote) before creating it:
 
 ```bash
-git -C {docs_repo_path} branch --list prd/{issue-number}
+git -C "{docs_repo_path}" branch --list prd/{issue-number}
 ```
 
 ```bash
-git -C {docs_repo_path} fetch origin
+git -C "{docs_repo_path}" fetch origin
 ```
 
 ```bash
-git -C {docs_repo_path} branch -r --list origin/prd/{issue-number}
+git -C "{docs_repo_path}" branch -r --list origin/prd/{issue-number}
 ```
 
 Depending on the results:
 
 ```bash
 # If branch exists locally:
-git -C {docs_repo_path} checkout prd/{issue-number}
+git -C "{docs_repo_path}" checkout prd/{issue-number}
 
 # If branch does not exist locally but exists on remote:
-git -C {docs_repo_path} checkout -b prd/{issue-number} origin/prd/{issue-number}
+git -C "{docs_repo_path}" checkout -b prd/{issue-number} origin/prd/{issue-number}
 
 # If branch doesn't exist locally or remotely:
-git -C {docs_repo_path} checkout -b prd/{issue-number}
+git -C "{docs_repo_path}" checkout -b prd/{issue-number}
 ```
 
 Copy the PRD artifact from the source repo to the docs repo:
 
 ```bash
-mkdir -p {docs_repo_path}/{target-dir}
+mkdir -p "{docs_repo_path}/{release}/{feature}"
 ```
 
 ```bash
-cp .artifacts/prd/{issue-number}/03-prd.md {docs_repo_path}/{prd-file-path}
+cp ".artifacts/prd/{issue-number}/03-prd.md" "{docs_repo_path}/{release}/{feature}/prd.md"
 ```
 
 ```bash
-git -C {docs_repo_path} add {prd-file-path}
+git -C "{docs_repo_path}" add "{release}/{feature}/prd.md"
 ```
 
 ```bash
-git -C {docs_repo_path} commit -m "Add PRD for {issue-number}: {title}"
+git -C "{docs_repo_path}" commit -m "Add PRD for {issue-number}: {title}"
 ```
 
 ### Step 5: Push and Create PR
 
 ```bash
-git -C {docs_repo_path} push -u origin prd/{issue-number}
+git -C "{docs_repo_path}" push -u origin prd/{issue-number}
 ```
 
 Prepare the PR description and save it to `.artifacts/prd/{issue-number}/04-pr-description.md`
@@ -177,7 +183,9 @@ file path and PR details for use by `/revise` and `/respond`:
 
 ```json
 {
-  "prd_file_path": "{prd-file-path}",
+  "release": "{release}",
+  "feature": "{feature}",
+  "prd_file_path": "{release}/{feature}/prd.md",
   "pr_number": {pr-number},
   "branch": "prd/{issue-number}"
 }

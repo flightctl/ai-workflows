@@ -35,7 +35,7 @@ Determine `{owner}/{repo}` from the `docs_repo_remote` in the config (e.g.,
 Validate the docs repo path still exists:
 
 ```bash
-git -C {docs_repo_path} status
+git -C "{docs_repo_path}" status
 ```
 
 Get the PR number from the user, from the `/publish` output, or from
@@ -123,11 +123,11 @@ the docs repo path from `.artifacts/prd/config.json`.
 Fetch the latest state from the remote and verify the working tree is clean:
 
 ```bash
-git -C {docs_repo_path} fetch origin
+git -C "{docs_repo_path}" fetch origin
 ```
 
 ```bash
-git -C {docs_repo_path} status
+git -C "{docs_repo_path}" status
 ```
 
 If there are uncommitted changes, ask the user before continuing.
@@ -135,41 +135,41 @@ If there are uncommitted changes, ask the user before continuing.
 Ensure the correct branch is checked out:
 
 ```bash
-git -C {docs_repo_path} branch --show-current
+git -C "{docs_repo_path}" branch --show-current
 ```
 
 If not on `prd/{issue-number}`, check it out:
 
 ```bash
-git -C {docs_repo_path} checkout prd/{issue-number}
+git -C "{docs_repo_path}" checkout prd/{issue-number}
 ```
 
 Fast-forward the local branch if the remote is ahead:
 
 ```bash
-git -C {docs_repo_path} pull --ff-only
+git -C "{docs_repo_path}" pull --ff-only
 ```
 
 Ensure the target directory exists, copy the updated artifact, and commit:
 
 ```bash
-mkdir -p {docs_repo_path}/$(dirname {prd-file-path})
+mkdir -p "{docs_repo_path}/$(dirname "{prd-file-path}")"
 ```
 
 ```bash
-cp .artifacts/prd/{issue-number}/03-prd.md {docs_repo_path}/{prd-file-path}
+cp ".artifacts/prd/{issue-number}/03-prd.md" "{docs_repo_path}/{prd-file-path}"
 ```
 
 ```bash
-git -C {docs_repo_path} add {prd-file-path}
+git -C "{docs_repo_path}" add "{prd-file-path}"
 ```
 
 ```bash
-git -C {docs_repo_path} commit -m "PRD {issue-number}: address review feedback"
+git -C "{docs_repo_path}" commit -m "PRD {issue-number}: address review feedback"
 ```
 
 ```bash
-git -C {docs_repo_path} push
+git -C "{docs_repo_path}" push
 ```
 
 **Post the reply** as a PR comment (see "Posting replies" below).

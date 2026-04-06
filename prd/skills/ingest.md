@@ -18,9 +18,9 @@ happens during `/clarify` and `/draft`.
 
 ## Critical Rules
 
-- **Read-only.** Never modify Jira issues. Use only read tools: `get_issue`, `search_issues`, `get_epic_children`. Do not use `update_issue`, `create_issue`, `delete_issue`, `transition_issue`, `add_comment`, or `add_attachment`.
+- **Read-only.** Jira access is read-only. Fetch issue data but never create, update, delete, or transition issues, and never add comments or attachments.
 - **Capture, don't interpret.** Record what the source says, not what you think it means.
-- **Follow links.** If the issue links to parent epics, child stories, or related issues, fetch those too.
+- **Follow links opportunistically.** If the issue has linked issues that appear relevant, fetch them for additional context. Do not assume linked issues will exist.
 
 ## Process
 
@@ -28,7 +28,7 @@ happens during `/clarify` and `/draft`.
 
 The user will provide one of:
 - A Jira issue key (e.g., `EDM-2324`)
-- A Jira issue URL (e.g., `https://issues.redhat.com/browse/EDM-2324`)
+- A Jira issue URL (e.g., `https://redhat.atlassian.net/browse/EDM-2324`)
 
 Extract the issue key and set it as the context identifier for the
 artifact directory.
@@ -41,28 +41,36 @@ mkdir -p .artifacts/prd/{issue-number}
 
 ### Step 3: Fetch the Primary Issue
 
-Use the Jira MCP `get_issue` tool to fetch the issue. Capture:
+Fetch the issue using whatever Jira integration is available (MCP, CLI, or
+API). The source issue is expected to be a Jira Feature — a description of
+tangible value delivered to customers, typically structured with sections
+like Feature Goal, Problem Statement, User Stories, Definition of Done,
+and Out of Scope.
+
+Capture:
 - Summary / title
-- Description (full text)
-- Acceptance criteria (if present as a field or within the description)
+- Description (full text, preserving any section structure)
+- Acceptance criteria / Definition of Done (if present)
 - Status, priority, labels, fix version
 - Comments (all)
 - Attachments (note their names and descriptions)
 
-If the Jira MCP call fails (authentication error, invalid issue key, network
+If the fetch fails (authentication error, invalid issue key, network
 error), report the error to the user and stop. Do not fabricate issue content.
 
-### Step 4: Fetch Linked Issues
+### Step 4: Fetch Linked Issues (If Available)
 
-Check for linked issues (blocks, is blocked by, relates to, parent, subtasks).
-For each linked issue, fetch at minimum:
+Check for linked issues (e.g., blocks, relates to, is related to). Linked
+issues from related projects (e.g., EDMRFE) may provide additional context.
+
+If linked issues exist, fetch at minimum:
 - Summary
 - Description
 - Status
 - Relationship type
 
-If the issue is a subtask, fetch the parent epic or story for broader context.
-If the issue has subtasks, fetch them to understand the full scope.
+Not all Feature issues will have linked issues — this step is opportunistic.
+Do not fail or warn if no linked issues are found.
 
 ### Step 5: Compile Raw Requirements
 
@@ -82,9 +90,12 @@ Write `.artifacts/prd/{issue-number}/01-requirements.md` with this structure:
 
 ## Description
 
-{Full description text, preserved as-is}
+{Full description text, preserved as-is. If the Feature issue uses a
+ structured format (e.g., Feature Goal, Problem Statement, User Stories,
+ Definition of Done, Out of Scope), preserve those section headings as
+ sub-sections here.}
 
-## Acceptance Criteria
+## Acceptance Criteria / Definition of Done
 
 {If present, preserved as-is. If not present, note "None specified."}
 
