@@ -7,6 +7,10 @@
 | Jira        |         |
 | Date        |         |
 
+## Executive Summary
+
+{One to two sentences: what this PRD covers and why it matters.}
+
 ## 1. Problem Statement
 
 {Why does this work need to happen? What pain exists today? Who is affected and how?}
@@ -17,7 +21,13 @@
 
 - {Measurable outcome this work delivers}
 
-### 2.2 Non-Goals
+### 2.2 Success Metrics
+
+| Metric | Target | Baseline |
+|--------|--------|----------|
+| {What to measure} | {Target value} | {Current state or N/A} |
+
+### 2.3 Non-Goals
 
 - {Explicitly out of scope to prevent creep}
 

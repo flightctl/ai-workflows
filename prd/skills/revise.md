@@ -136,7 +136,7 @@ Summarize what changed:
 ### Changes Made
 - Section 4.1: Added requirement for UDP port mapping support
 - Section 5: Added acceptance criterion for UDP validation
-- Section 2.2: Removed "UDP support" from non-goals
+- Section 2.3: Removed "UDP support" from non-goals
 
 ### Consistency Updates
 - Section 9: Added open question about UDP performance testing

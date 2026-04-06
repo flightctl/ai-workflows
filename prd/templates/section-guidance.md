@@ -5,6 +5,7 @@ This file is read during the `/draft` phase. It is not included in the final out
 
 ## General Rules
 
+- **Favor conciseness.** These documents are read by humans. Write enough to communicate clearly and no more. If a section can be said in three sentences, do not use ten. Long PRDs don't get read.
 - Write in third person, present tense.
 - Be specific. Vague requirements produce vague implementations.
 - Every claim should be traceable to the source requirements or clarification answers. Use standardized source markers for traceability:
@@ -16,6 +17,12 @@ This file is read during the `/draft` phase. It is not included in the final out
 - Do not invent features, constraints, or details not supported by the ingested requirements or clarification responses.
 - If information for a section is genuinely unavailable after clarification, write "To be determined — [what's needed]" rather than fabricating content.
 
+## Executive Summary
+
+- **Skip this section during initial drafting (Step 4).** It is written as a dedicated step (Step 7) after all other sections are complete.
+- One to two sentences. State what the feature is and why it matters.
+- This is not a detailed overview — it orients the reader so they know what they're about to read.
+
 ## 1. Problem Statement
 
 - Lead with the user's pain, not the solution.
@@ -25,8 +32,20 @@ This file is read during the `/draft` phase. It is not included in the final out
 
 ## 2. Goals and Non-Goals
 
+### 2.1 Goals
+
 - Goals must be **measurable outcomes**, not activities. "Reduce deployment time" is an activity. "Users can deploy a single-container app without writing Compose or Quadlet YAML" is a measurable outcome.
 - Limit to 3-5 goals. If there are more, the scope is too broad.
+
+### 2.2 Success Metrics
+
+- Include a metrics table when the source material provides quantifiable targets (e.g., "time to first image < 15 minutes," "build success rate > 95%").
+- Each metric needs a target value and a baseline (the current state). If the baseline is unknown because this is a new capability, write "N/A (new feature)."
+- Only include metrics supported by the source material. If the requirements don't mention measurable targets, write "To be determined" rather than inventing numbers.
+- 3-5 metrics is typical. More suggests you're measuring implementation details, not outcomes.
+
+### 2.3 Non-Goals
+
 - Non-goals are just as important as goals. They prevent scope creep and set expectations. Include anything a reasonable reader might assume is in scope but isn't.
 
 ## 3. User Stories

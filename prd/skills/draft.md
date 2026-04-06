@@ -70,6 +70,9 @@ Generate the PRD following the template structure. For each section:
 3. Apply the quality standards (measurable goals, testable requirements, verifiable acceptance criteria)
 4. Flag any assumptions or judgment calls with an inline note: `[Assumption: ...]`
 
+Leave the Executive Summary blank for now — write it last, after all
+other sections are complete (see Step 7).
+
 Fill in the metadata table:
 - **Author(s):** The user (ask if not known), plus the AI as co-author (e.g., "Jane Smith, Claude (AI co-author)"). Use the AI product name (Claude, Gemini, etc.), not the model version ID.
 - **Status:** Draft
@@ -78,7 +81,7 @@ Fill in the metadata table:
 
 ### Step 5: Populate the Review Notes Appendix
 
-After writing all sections, populate the Appendix: Review Notes:
+After writing Sections 1–9, populate the Appendix: Review Notes:
 
 1. **Assumptions:** Collect every `[Assumption: ...]` marker from the document. List each with a section reference so reviewers can find the context.
 2. **Items Needing Resolution:** List open risks/questions from Section 9 that don't yet have owners or outcomes, plus any TBD markers from other sections.
@@ -110,7 +113,12 @@ source material and PRD:
 4. **Traceability completeness:** Every requirement in Section 4 should
    have at least one source marker. Flag any that don't.
 
-### Step 7: Self-Review
+### Step 7: Write Executive Summary
+
+Now that all numbered sections are complete, write the Executive Summary
+following the section guidance.
+
+### Step 8: Self-Review
 
 Before presenting the PRD, verify:
 - [ ] Every functional requirement has a source marker (`[Jira: ...]`, `[Clarify: ...]`, `[User]`)
@@ -120,13 +128,15 @@ Before presenting the PRD, verify:
 - [ ] Terminology matches the source material
 - [ ] Assumptions are flagged inline and collected in the Review Notes appendix
 - [ ] All locked decisions from clarification are reflected
+- [ ] Executive Summary is present and accurately reflects the complete document
+- [ ] Success Metrics table is populated (or marked TBD if source material lacks targets)
 - [ ] The document reads coherently end-to-end
 
-### Step 8: Write Artifact
+### Step 9: Write Artifact
 
 Save the PRD to `.artifacts/prd/{issue-number}/03-prd.md`.
 
-### Step 9: Present to User
+### Step 10: Present to User
 
 Show the user the complete PRD and highlight:
 - Any sections marked "TBD" that need further input
