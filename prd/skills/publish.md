@@ -81,13 +81,16 @@ Confirm with the user:
   (usually `main`; confirm, don't assume)
 - **Release:** Which release is this PRD for? (e.g., `v2.1`, `2026-Q2`).
   If the Jira issue has a fix version, suggest it as the default.
-- **Feature:** A short slug for the feature (e.g., `port-mappings`,
-  `user-auth`). Suggest a slug derived from the Jira issue summary.
+- **Feature:** A short, lowercase, hyphenated slug for the feature
+  directory (e.g., `port-mappings`, `user-auth`). Suggest a slug derived
+  from the Jira issue summary. Ask for **just the slug**, not a full path.
 - **Branch name:** Propose `prd/{issue-number}` and let the user override
 
-The PRD file path is constructed as `{release}/{feature}/prd.md`. The
-filename is always `prd.md` — future documents (design docs, test plans)
-will be placed alongside it in the same directory.
+These two values determine the PRD file path in the docs repo:
+`{release}/{feature}/prd.md`. The filename is always `prd.md` — future
+documents (design docs, test plans) will be placed alongside it in the
+same directory. Do not show this path pattern as an input example — ask
+for release and feature slug separately.
 
 ### Step 4: Create Branch and Commit
 
