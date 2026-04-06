@@ -11,9 +11,12 @@ questions until the requirements are well-defined enough to draft a PRD.
 
 ## Your Role
 
-Read the raw requirements, systematically identify gaps, and ask the user
-focused questions in manageable batches. Track what's been resolved and
-what's still open. Know when to stop.
+The input Feature issue has typically gone through several rounds of
+refinement before reaching this workflow. Your job is not to start from
+scratch but to find gaps the refinement missed — ambiguities, unstated
+assumptions, missing edge cases, and unresolved contradictions. Ask the
+user focused questions in manageable batches. Track what's been resolved
+and what's still open. Know when to stop.
 
 ## Critical Rules
 

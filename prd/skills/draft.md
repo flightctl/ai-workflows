@@ -41,6 +41,11 @@ The same lookup applies to section guidance: check for
 `.prd/templates/section-guidance.md` alongside a project-level template,
 then fall back to `../templates/section-guidance.md`.
 
+Note: if a project-level template adds sections not covered by the section
+guidance, fill them on a best-effort basis using the section heading and
+any placeholder text as cues. For precise control over custom sections,
+the project should also provide matching section guidance.
+
 ### Step 2: Read Source Material
 
 Read these files in order:
@@ -68,7 +73,7 @@ Generate the PRD following the template structure. For each section:
 Fill in the metadata table:
 - **Author(s):** The user (ask if not known), plus the AI as co-author (e.g., "Jane Smith, Claude (AI co-author)"). Use the AI product name (Claude, Gemini, etc.), not the model version ID.
 - **Status:** Draft
-- **Jira:** Link to the source issue
+- **Jira:** Link to the source Feature issue (e.g., `https://redhat.atlassian.net/browse/EDM-1471`)
 - **Date:** Today's date
 
 ### Step 5: Populate the Review Notes Appendix
