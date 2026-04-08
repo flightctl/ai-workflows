@@ -26,20 +26,22 @@ repeatable as new comments arrive.
 
 ### Step 1: Resolve Docs Repo and Fetch PR Comments
 
-Read `.artifacts/prd/config.json` to get the docs repo path. If the config
-doesn't exist, tell the user that `/publish` should be run first.
+Read `.artifacts/prd/config.json` to get the docs repo path and
+`.artifacts/prd/{issue-number}/publish-metadata.json` to get the PR
+number and file path. If either file doesn't exist, tell the user that
+`/publish` should be run first.
 
-Determine `{owner}/{repo}` from the `docs_repo_remote` in the config (e.g.,
-`git@github.com:org/planning-docs.git` → `org/planning-docs`).
+Determine `{owner}/{repo}` from the `docs_repo_remote` in the config.
+Extract the PR number from the publish metadata. If the `pr_number` field
+is missing or null, `/publish` was likely interrupted before the PR was
+created — suggest the user re-run `/publish`. If the user provides a PR
+number directly, use that instead.
 
 Validate the docs repo path still exists:
 
 ```bash
 git -C "{docs_repo_path}" status
 ```
-
-Get the PR number from the user, from the `/publish` output, or from
-`.artifacts/prd/{issue-number}/publish-metadata.json`.
 
 Fetch both issue-level comments (general discussion) and review-level
 comments (inline on specific lines):

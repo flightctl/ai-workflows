@@ -20,6 +20,7 @@ user may request multiple rounds of revision.
 - **Maintain consistency.** If a revision changes a requirement, check whether acceptance criteria, goals, or other sections need corresponding updates.
 - **Preserve traceability.** If new content is added, note its source (user feedback, not original requirements).
 - **Show your changes.** After revising, summarize what changed so the user can verify.
+- **No scope reduction.** Do not silently simplify, even when revising.
 
 ## Process
 
@@ -53,6 +54,7 @@ After applying changes, verify:
 - If scope changed, are non-goals still accurate?
 - If dependencies changed, are risks updated?
 - Do any changes contradict a locked decision in `02-clarifications.md`? If so, flag the conflict to the user — locked decisions are binding and cannot be overridden without explicit user approval.
+- If requirements were removed or simplified, verify this was explicitly requested by the user. Flag any silent scope reduction.
 
 ### Step 5: Update Artifact
 
