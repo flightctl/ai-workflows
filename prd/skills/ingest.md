@@ -20,7 +20,8 @@ happens during `/clarify` and `/draft`.
 
 - **Read-only.** Jira access is read-only. Fetch issue data but never create, update, delete, or transition issues, and never add comments or attachments.
 - **Capture, don't interpret.** Record what the source says, not what you think it means.
-- **Follow links opportunistically.** If the issue has linked issues that appear relevant, fetch them for additional context. Do not assume linked issues will exist.
+- **Follow lateral links only.** If the issue has linked issues from related projects (e.g., EDMRFE), fetch them for additional context. Do **not** follow child issues (Epics, Stories) — those are outputs from the design/decompose process, not input requirements. Do not assume linked issues will exist.
+- **Re-invocation overwrites.** If raw requirements already exist from a prior run, this skill produces a fresh snapshot from Jira, overwriting the previous artifact.
 
 ## Process
 
@@ -41,8 +42,7 @@ mkdir -p .artifacts/prd/{issue-number}
 
 ### Step 3: Fetch the Primary Issue
 
-Fetch the issue using whatever Jira integration is available (MCP, CLI, or
-API). The source issue is expected to be a Jira Feature — a description of
+Fetch the issue using whatever Jira integration is available (MCP or CLI). The source issue is expected to be a Jira Feature — a description of
 tangible value delivered to customers, typically structured with sections
 like Feature Goal, Problem Statement, User Stories, Definition of Done,
 and Out of Scope.
@@ -60,8 +60,14 @@ error), report the error to the user and stop. Do not fabricate issue content.
 
 ### Step 4: Fetch Linked Issues (If Available)
 
-Check for linked issues (e.g., blocks, relates to, is related to). Linked
-issues from related projects (e.g., EDMRFE) may provide additional context.
+Check for lateral linked issues (e.g., blocks, relates to, is related to).
+Linked issues from related projects (e.g., EDMRFE) may provide additional
+context about requirements.
+
+**Do not follow child issues** (Epics, Stories, sub-tasks). If child issues
+exist under the Feature, it means the design/decompose process has already
+run. Those children are outputs of this workflow, not inputs — ingesting
+them would mix source requirements with prior design decisions.
 
 If linked issues exist, fetch at minimum:
 - Summary

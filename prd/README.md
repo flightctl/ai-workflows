@@ -6,7 +6,7 @@ A requirements-to-PRD workflow that ingests requirements from Jira, clarifies am
 
 | Tool | Required | Purpose |
 |------|----------|---------|
-| Jira access (MCP, CLI, or API) | For `/ingest` | Fetch requirements from Jira issues |
+| Jira access (MCP or CLI) | For `/ingest` | Fetch requirements from Jira issues |
 | GitHub CLI (`gh`) | For `/publish`, `/respond` | Create PRs, post review comments |
 | Git | Yes | Branch management, commits |
 
