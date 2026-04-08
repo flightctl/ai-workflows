@@ -68,7 +68,13 @@ Generate the PRD following the template structure. For each section:
 1. Read the section guidance for that section
 2. Draw content from the source material
 3. Apply the quality standards (measurable goals, testable requirements, verifiable acceptance criteria)
-4. Flag any assumptions or judgment calls with an inline note: `[Assumption: ...]`
+4. Tag each requirement with a source marker: `[Jira: EDM-2324]`, `[Clarify: R1.Q3]`, or `[User]`
+5. Flag any assumptions or judgment calls with an inline note: `[Assumption: ...]`
+
+**Requirement IDs:** Assign a stable sequential ID to each functional
+requirement in Section 4.1 (e.g., FR-1, FR-2, FR-3). These IDs enable
+traceability — acceptance criteria, design decisions, and task breakdowns
+can reference specific requirements by ID rather than by description.
 
 Leave the Executive Summary blank for now — write it last, after all
 other sections are complete (see Step 7).
@@ -110,8 +116,12 @@ source material and PRD:
    content and add a note referencing the locked decision (e.g.,
    `[Per D1: Postgres only]`).
 
-4. **Traceability completeness:** Every requirement in Section 4 should
-   have at least one source marker. Flag any that don't.
+4. **Traceability completeness:** Every functional requirement in
+   Section 4.1 should have a stable ID (FR-N) and at least one source
+   marker. Flag any that don't.
+
+If this step discovers new gaps, assumptions, or TBD markers, update the
+Review Notes appendix (Step 5) to include them.
 
 ### Step 7: Write Executive Summary
 
@@ -121,15 +131,18 @@ following the section guidance.
 ### Step 8: Self-Review
 
 Before presenting the PRD, verify:
-- [ ] Every functional requirement has a source marker (`[Jira: ...]`, `[Clarify: ...]`, `[User]`)
+- [ ] Every functional requirement has a stable ID (FR-1, FR-2, ...) and a source marker (`[Jira: ...]`, `[Clarify: ...]`, `[User]`)
 - [ ] Goals are measurable outcomes, not activities
-- [ ] Acceptance criteria are independently verifiable
+- [ ] Acceptance criteria are testable assertions, not activities
 - [ ] No sections are empty (use "TBD" markers if needed)
 - [ ] Terminology matches the source material
 - [ ] Assumptions are flagged inline and collected in the Review Notes appendix
 - [ ] All locked decisions from clarification are reflected
 - [ ] Executive Summary is present and accurately reflects the complete document
 - [ ] Success Metrics table is populated (or marked TBD if source material lacks targets)
+- [ ] No vague language ("appropriate", "efficient", "standard" without specifics)
+- [ ] No scope reduction language ("v2", "simplified", "placeholder", "future enhancement")
+- [ ] The document is concise — no unnecessary repetition or filler
 - [ ] The document reads coherently end-to-end
 
 ### Step 9: Write Artifact

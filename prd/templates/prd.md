@@ -39,7 +39,7 @@
 
 ### 4.1 Functional Requirements
 
-- {What the system must do. Each requirement should be testable.}
+- **FR-1:** {What the system must do. Each requirement should be testable.} [source]
 
 ### 4.2 Non-Functional Requirements
 

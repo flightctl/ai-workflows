@@ -59,6 +59,7 @@ This file is read during the `/draft` phase. It is not included in the final out
 
 ### 4.1 Functional Requirements
 
+- **Assign a stable ID** to each requirement (FR-1, FR-2, ...). These IDs are referenced by acceptance criteria, design documents, and task breakdowns.
 - Each requirement should be **testable**. If you can't describe how to verify it, it isn't specific enough.
 - Use "must" for mandatory requirements, "should" for important but negotiable, "may" for optional.
 - Group related requirements under subheadings if the list exceeds 8 items.
