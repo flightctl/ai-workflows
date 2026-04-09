@@ -21,7 +21,7 @@ happens during `/clarify` and `/draft`.
 - **Read-only.** Jira access is read-only. Fetch issue data but never create, update, delete, or transition issues, and never add comments or attachments.
 - **Capture, don't interpret.** Record what the source says, not what you think it means.
 - **Follow lateral links only (one level deep).** If the primary issue has linked issues from related projects (e.g., EDMRFE), fetch them for additional context. Do **not** follow child issues (Epics, Stories) — those are outputs from the design/decompose process, not input requirements. Do not follow links-of-links. Do not assume linked issues will exist.
-- **Re-invocation overwrites.** If raw requirements already exist from a prior run, this skill produces a fresh snapshot from Jira, overwriting the previous artifact.
+- **Re-invocation diffs before overwriting.** If `01-requirements.md` already exists, read it before fetching fresh data. After fetching, diff the old and new content and present the changes to the user before overwriting (see Steps 2a and 5a).
 
 ## Process
 
@@ -39,6 +39,13 @@ artifact directory.
 ```bash
 mkdir -p .artifacts/prd/{issue-number}
 ```
+
+### Step 2a: Check for Prior Ingest
+
+If `.artifacts/prd/{issue-number}/01-requirements.md` already exists, this
+is a re-invocation. Copy the existing file to
+`.artifacts/prd/{issue-number}/01-requirements.md.prev` so it is
+preserved for the diff in Step 5a.
 
 ### Step 3: Fetch the Primary Issue
 
@@ -80,7 +87,12 @@ Do not fail or warn if no linked issues are found.
 
 ### Step 5: Compile Raw Requirements
 
-Write `.artifacts/prd/{issue-number}/01-requirements.md` with this structure:
+Compile the fetched Jira data into the structure below. If this is a
+re-invocation (Step 2a found an existing file), **do not write the file
+yet** — hold the compiled content and proceed to Step 5a first.
+
+If this is a first invocation, write
+`.artifacts/prd/{issue-number}/01-requirements.md` with this structure:
 
 ```markdown
 # Raw Requirements — {issue-number}
@@ -129,6 +141,31 @@ Write `.artifacts/prd/{issue-number}/01-requirements.md` with this structure:
  ambiguous or incomplete. These observations feed into /clarify.}
 ```
 
+### Step 5a: Diff Against Prior Ingest (Re-invocation Only)
+
+If Step 2a created a `.prev` file, compare `01-requirements.md.prev`
+against the newly compiled content. Walk through each section of the
+compiled content (Description, Acceptance Criteria, Comments, Linked
+Issues, Attachments) and note concrete differences:
+
+- Requirements added, removed, or modified — quote the specific text
+- New or removed comments — list author and date
+- Changes to acceptance criteria or definition of done — show before/after
+- Changes to linked issues — note added, removed, or status changes
+
+Then check whether downstream artifacts exist (`02-clarifications.md`,
+`03-prd.md`, `04-pr-description.md`, `05-review-responses.md`). If they
+do, tell the user:
+
+- Which artifacts exist and may be affected
+- Which specific changes are likely to affect them (e.g., "A new user
+  story was added — the clarification log and PRD don't cover it")
+
+Wait for the user to confirm before proceeding. If the user confirms,
+write the compiled content to `01-requirements.md` (overwriting the
+existing file) and clean up the temp file from Step 2a. If the user
+declines, delete the temp file and stop without overwriting.
+
 ### Step 6: Report to User
 
 Present a brief summary:
@@ -136,6 +173,10 @@ Present a brief summary:
 - How many linked issues were found
 - What attachments are available
 - Your initial observations on completeness
+
+If the user declined a re-invocation overwrite in Step 5a, report instead:
+- What issue was re-fetched and what changed (summary of the diff)
+- That the existing `01-requirements.md` was preserved unchanged
 
 ## Output
 
