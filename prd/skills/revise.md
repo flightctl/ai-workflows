@@ -19,6 +19,7 @@ user may request multiple rounds of revision.
 - **Change only what's requested.** Do not "improve" sections the user didn't mention.
 - **Maintain consistency.** If a revision changes a requirement, check whether acceptance criteria, goals, or other sections need corresponding updates.
 - **Preserve traceability.** If new content is added, note its source (user feedback, not original requirements).
+- **Preserve requirement IDs.** FR-N and NFR-N IDs are stable across revisions. When removing a requirement, replace it with a tombstone (e.g., `- ~~FR-3:~~ Removed — {brief reason}.`) so the ID is visibly retired. When adding requirements, assign the next ID after the highest existing or tombstoned ID. Downstream artifacts (design documents, coverage matrices, story references) depend on these IDs remaining fixed.
 - **Show your changes.** After revising, summarize what changed so the user can verify.
 - **No scope reduction.** Do not silently simplify, even when revising.
 

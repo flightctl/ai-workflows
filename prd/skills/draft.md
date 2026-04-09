@@ -72,9 +72,11 @@ Generate the PRD following the template structure. For each section:
 5. Flag any assumptions or judgment calls with an inline note: `[Assumption: ...]`
 
 **Requirement IDs:** Assign a stable sequential ID to each functional
-requirement in Section 4.1 (e.g., FR-1, FR-2, FR-3). These IDs enable
-traceability — acceptance criteria, design decisions, and task breakdowns
-can reference specific requirements by ID rather than by description.
+requirement in Section 4.1 (e.g., FR-1, FR-2, FR-3) and each
+non-functional requirement in Section 4.2 (e.g., NFR-1, NFR-2, NFR-3).
+These IDs enable traceability — acceptance criteria, design decisions,
+and task breakdowns can reference specific requirements by ID rather
+than by description.
 
 Leave the Executive Summary blank for now — write it last, after all
 other sections are complete (see Step 7).
@@ -117,8 +119,10 @@ source material and PRD:
    `[Per D1: Postgres only]`).
 
 4. **Traceability completeness:** Every functional requirement in
-   Section 4.1 should have a stable ID (FR-N) and at least one source
-   marker. Flag any that don't.
+   Section 4.1 should have a stable ID (FR-N) and every non-functional
+   requirement in Section 4.2 should have a stable ID (NFR-N). Each
+   requirement should have at least one source marker. Flag any that
+   don't.
 
 If this step discovers new gaps, assumptions, or TBD markers, update the
 Review Notes appendix (Step 5) to include them.
@@ -132,6 +136,7 @@ following the section guidance.
 
 Before presenting the PRD, verify:
 - [ ] Every functional requirement has a stable ID (FR-1, FR-2, ...) and a source marker (`[Jira: ...]`, `[Clarify: ...]`, `[User]`)
+- [ ] Every non-functional requirement has a stable ID (NFR-1, NFR-2, ...) and a source marker
 - [ ] Goals are measurable outcomes, not activities
 - [ ] Acceptance criteria are testable assertions, not activities
 - [ ] No sections are empty (use "TBD" markers if needed)

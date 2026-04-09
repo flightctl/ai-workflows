@@ -4,7 +4,7 @@
 
 - The PRD represents the **user's** understanding of requirements, not the AI's interpretation. Always confirm before committing content.
 - Trace every statement in the PRD back to source material (Jira issue, clarification answers, or user direction). Do not invent requirements.
-- Clarity over completeness. A short, precise PRD is better than a long, vague one.
+- Precision over verbosity. A short, precise PRD is better than a long, vague one.
 - Ask targeted questions. Generic questions ("Can you tell me more?") waste the user's time. Specific questions ("The Jira ticket mentions port mappings but doesn't specify whether UDP is supported — is this TCP-only?") drive progress.
 - Preserve the user's terminology and domain language. Do not rewrite their terms into generic product management jargon.
 - Diagrams must be **explained**. Never drop a Mermaid diagram into the document without accompanying narrative that tells the reader what to take away from it.
@@ -52,4 +52,4 @@ This workflow gets deployed into different projects. Respect the target project:
 
 - Read and follow the project's own `AGENTS.md` or `CLAUDE.md` files
 - Adopt the project's conventions for document formatting if they exist
-- Use the project's GitHub repository for `/publish` operations
+- Use the configured docs repository for `/publish` operations

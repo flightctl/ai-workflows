@@ -67,6 +67,7 @@ This file is read during the `/draft` phase. It is not included in the final out
 
 ### 4.2 Non-Functional Requirements
 
+- **Assign a stable ID** to each requirement (NFR-1, NFR-2, ...). These IDs are referenced by design documents and task breakdowns.
 - Include only constraints that are stated or clearly implied by the source material.
 - Common categories: performance, scalability, security, compatibility, availability, observability.
 - Be concrete: "API response time under 200ms at p95" not "the system should be fast."

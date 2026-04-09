@@ -131,12 +131,12 @@ binding constraints for `/draft` — the PRD must reflect them exactly.
 
 After each round, evaluate whether clarification is sufficient:
 
-- [ ] All functional requirements have enough detail to write acceptance criteria
+- [ ] Functional requirements are enumerable — each is distinct enough to assign an ID and write acceptance criteria
 - [ ] Target users/personas are identified
 - [ ] Scope boundaries (goals and non-goals) are clear
 - [ ] No unresolved contradictions remain
 - [ ] Key assumptions have been confirmed or corrected
-- [ ] Non-functional requirements are identified (performance, security, compatibility)
+- [ ] Non-functional requirements are enumerable — each is a specific, concrete constraint (not just "performance" as a category)
 - [ ] Dependencies are identified
 
 If exit criteria are met, tell the user.
