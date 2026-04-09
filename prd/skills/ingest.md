@@ -20,7 +20,7 @@ happens during `/clarify` and `/draft`.
 
 - **Read-only.** Jira access is read-only. Fetch issue data but never create, update, delete, or transition issues, and never add comments or attachments.
 - **Capture, don't interpret.** Record what the source says, not what you think it means.
-- **Follow lateral links only.** If the issue has linked issues from related projects (e.g., EDMRFE), fetch them for additional context. Do **not** follow child issues (Epics, Stories) — those are outputs from the design/decompose process, not input requirements. Do not assume linked issues will exist.
+- **Follow lateral links only (one level deep).** If the primary issue has linked issues from related projects (e.g., EDMRFE), fetch them for additional context. Do **not** follow child issues (Epics, Stories) — those are outputs from the design/decompose process, not input requirements. Do not follow links-of-links. Do not assume linked issues will exist.
 - **Re-invocation overwrites.** If raw requirements already exist from a prior run, this skill produces a fresh snapshot from Jira, overwriting the previous artifact.
 
 ## Process

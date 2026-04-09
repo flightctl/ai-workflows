@@ -82,8 +82,9 @@ Confirm with the user:
 - **Release:** Which release is this PRD for? (e.g., `v2.1`, `2026-Q2`).
   If the Jira issue has a fix version, suggest it as the default.
 - **Feature:** A short, lowercase, hyphenated slug for the feature
-  directory (e.g., `port-mappings`, `user-auth`). Suggest a slug derived
-  from the Jira issue summary. Ask for **just the slug**, not a full path.
+  directory. Suggest a slug derived from the Jira issue summary (e.g., if
+  the summary is "Container Port Mapping Support", suggest `port-mappings`).
+  Ask for **just the slug**, not a full path.
 - **Branch name:** Propose `prd/{issue-number}` and let the user override
 
 These two values determine the PRD file path in the docs repo:

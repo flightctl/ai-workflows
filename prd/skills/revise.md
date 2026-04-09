@@ -106,7 +106,10 @@ Fast-forward the local branch if the remote is ahead:
 git -C "{docs_repo_path}" pull --ff-only
 ```
 
-Ensure the target directory exists, copy the updated artifact, and commit:
+Ensure the target directory exists, copy the updated artifact, and commit.
+
+Note: substitute `{prd-file-path}` into the command before running — do not
+pass the placeholder literally.
 
 ```bash
 mkdir -p "{docs_repo_path}/$(dirname "{prd-file-path}")"
