@@ -28,7 +28,6 @@
 
 ## Quality
 
-- **AI co-authorship:** Any output document that includes an Author field must list the AI as a co-author alongside the user. Use the AI product name (e.g., "Claude", "Gemini"), not the model version ID. The user is always the primary author.
 - Follow the PRD template structure (`templates/prd.md`). Do not invent new sections or omit existing ones without user approval.
 - Follow the section guidance (`templates/section-guidance.md`) for content standards in each section.
 - Goals must be measurable outcomes, not activities.

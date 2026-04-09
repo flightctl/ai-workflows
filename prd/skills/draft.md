@@ -82,7 +82,7 @@ Leave the Executive Summary blank for now — write it last, after all
 other sections are complete (see Step 7).
 
 Fill in the metadata table:
-- **Author(s):** The user (ask if not known), plus the AI as co-author (e.g., "Jane Smith, Claude (AI co-author)"). Use the AI product name (Claude, Gemini, etc.), not the model version ID.
+- **Author(s):** The feature owner (ask if not known).
 - **Status:** Draft
 - **Jira:** Link to the source Feature issue (e.g., `https://redhat.atlassian.net/browse/EDM-1471`)
 - **Date:** Today's date
