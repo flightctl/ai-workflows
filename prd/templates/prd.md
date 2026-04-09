@@ -43,7 +43,7 @@
 
 ### 4.2 Non-Functional Requirements
 
-- {Performance, scalability, security, compatibility constraints.}
+- **NFR-1:** {Performance, scalability, security, compatibility constraints.} [source]
 
 ## 5. Acceptance Criteria
 

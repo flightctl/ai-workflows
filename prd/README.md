@@ -123,8 +123,4 @@ The same applies to `section-guidance.md`. Place both files alongside each other
 ./install.sh all
 ```
 
-Then in your project:
-
-```text
-/ingest EDM-2324
-```
+Then in your project, run the `prd` workflow's `ingest` command for your Jira issue (e.g., EDM-2324).
