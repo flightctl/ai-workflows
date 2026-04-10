@@ -202,6 +202,9 @@ install_claude() {
     if [[ -d "${INSTALL_DIR}/${wf}/commands" ]]; then
       ln -sfn "${INSTALL_DIR}/${wf}/commands" "${CMDS_DIR}/${wf}"
       echo "  Linked ${CMDS_DIR}/${wf} -> ${INSTALL_DIR}/${wf}/commands  ($SCOPE)"
+    elif [[ -L "${CMDS_DIR}/${wf}" ]]; then
+      rm -f "${CMDS_DIR}/${wf}"
+      echo "  Removed stale commands symlink ${CMDS_DIR}/${wf}  ($SCOPE)"
     fi
   done
 }
