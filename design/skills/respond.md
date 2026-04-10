@@ -133,15 +133,15 @@ git -C "{docs_repo_path}" pull --ff-only
 ```
 
 ```bash
-mkdir -p "{docs_repo_path}/$(dirname "{design-file-path}")"
+mkdir -p "{docs_repo_path}/$(dirname "{design_file_path}")"
 ```
 
 ```bash
-cp ".artifacts/design/{issue-number}/02-design.md" "{docs_repo_path}/{design-file-path}"
+cp ".artifacts/design/{issue-number}/02-design.md" "{docs_repo_path}/{design_file_path}"
 ```
 
 ```bash
-git -C "{docs_repo_path}" add "{design-file-path}"
+git -C "{docs_repo_path}" add "{design_file_path}"
 ```
 
 ```bash
