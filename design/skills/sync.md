@@ -64,7 +64,7 @@ appears in the manifest.
 **If all epics and stories on disk are already in the manifest**, stop and
 tell the user:
 
-```
+```text
 All items have already been synced — nothing to create.
 
 If you've revised the decomposition artifacts since the last sync,

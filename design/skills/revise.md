@@ -58,14 +58,15 @@ If `sync-manifest.json` does **not** exist (pre-sync), all restructuring
 operations are allowed — rename files, renumber, combine, split freely.
 
 If `sync-manifest.json` **exists** (post-sync), filenames are locked:
-- **Combining epics:** Do not delete synced epic files or directories.
-  Instead, update the epic content to reflect the combined scope and move
-  stories into the surviving epic's directory with new appended numbers.
-  **Warning:** Moved stories will have different file paths and will be
-  treated as new items on the next `/sync`. Flag this to the user — they
-  must either update the sync manifest manually to reflect the moves, or
-  create the stories in Jira manually and update the manifest with the
-  new Jira keys.
+- **Combining epics:** Do not delete synced epic files or move stories
+  to different directories. Keep synced story files at their original
+  paths — `/sync` uses filenames as idempotency keys and path changes
+  cause duplicate Jira creation. Instead, update the surviving epic's
+  content to reflect the combined scope and mark the absorbed epic as
+  deprecated in its content. Add any net-new work as new story files
+  using the next available number in the target epic. If the user wants
+  to reorganize epics and stories in Jira, that is a manual Jira
+  operation (move stories between epics in Jira's UI).
 - **Splitting stories:** Keep the original story file. Add new stories
   with the next available number (e.g., if story-03 is the last, add
   story-04 and story-05).

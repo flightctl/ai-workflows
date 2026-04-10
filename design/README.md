@@ -133,8 +133,8 @@ The `/sync` phase creates Jira issues from the approved decomposition:
 
 - **Dry-run first** — always previews what would be created
 - **Batch creation** — epics first (confirm), then stories per epic (confirm)
-- **Idempotent** — tracks created issues in `sync-manifest.json`; re-running only creates new items
-- **Create only** — never modifies or deletes existing Jira issues
+- **Idempotent** — tracks created issues in `sync-manifest.json`; re-running creates only new items
+- **Create-only behavior** — never modifies or deletes existing Jira issues
 
 ## Directory Structure
 
