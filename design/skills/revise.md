@@ -29,6 +29,8 @@ multiple rounds of revision.
 ### Step 1: Read Current Artifacts
 
 Determine which artifacts exist and read them:
+- `.artifacts/design/{issue-number}/01-context.md` (requirements context with FR/NFR IDs)
+- `.artifacts/prd/{issue-number}/02-clarifications.md` (if exists — locked decisions)
 - `.artifacts/design/{issue-number}/02-design.md` (design document)
 - `.artifacts/design/{issue-number}/03-epics.md` (epic metadata, if exists)
 - `.artifacts/design/{issue-number}/04-stories/` (epic and story files, if exist)
