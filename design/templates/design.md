@@ -49,7 +49,7 @@ If no schema changes: "No schema changes required."}
 impact. Include concrete examples where they aid understanding.
 If no API changes: "No API changes required."}
 
-## 4.4 Scalability
+## 4.4 Scalability and Performance
 
 Estimate:
 
