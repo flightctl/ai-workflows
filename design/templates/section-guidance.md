@@ -67,7 +67,7 @@ This is the core section. All subsections (4.1–4.8) are required. If a subsect
 - Note whether changes are additive (non-breaking) or breaking.
 - If no changes: "No API changes required."
 
-#### 4.4 Scalability
+#### 4.4 Scalability and Performance
 
 - Estimate impact on CPU, memory, database load, and storage.
 - State assumptions about expected scale.

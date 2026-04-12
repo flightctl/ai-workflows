@@ -100,7 +100,7 @@ The design document template (`templates/design.md`) follows the team's establis
    - 4.1 Architecture
    - 4.2 Data Model / Schema Changes
    - 4.3 API Changes
-   - 4.4 Scalability
+   - 4.4 Scalability and Performance
    - 4.5 Security Considerations
    - 4.6 Failure Handling and Recovery
    - 4.7 RBAC / Tenancy

@@ -167,7 +167,7 @@ Prepare the PR description and save it to
 ### Requesting Review On
 - Architecture and component design
 - Data model and API changes
-- Scalability and failure handling assessment
+- Scalability, performance, and failure handling assessment
 - Open questions that need resolution
 
 ### How to Review
