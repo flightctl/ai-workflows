@@ -59,7 +59,7 @@ Before writing, create a mental map:
 - Which existing codebase patterns should the design follow?
 - Which decisions have multiple viable approaches and need alternatives analysis?
 - Where are the remaining unknowns (sections that will need open questions)?
-- If the PRD includes a Design Overview section, use it as a starting point for §4.1 Architecture. Note where the design refines, follows, or departs from the PRD's initial direction.
+- Use the PRD's requirements and any architectural context from `/ingest` as the starting point for §4.1 Architecture.
 
 ### Step 4: Write the Design Document
 
@@ -127,12 +127,12 @@ source material and design document:
    rationale).
 
 5. **Traceability completeness:** Every design decision should have a
-   source marker (`[PRD: §4.1]`, `[PRD: FR-3]`, `[PRD: NFR-2]`, `[User]`,
+   source marker (`[PRD: §3.1]`, `[PRD: FR-3]`, `[PRD: NFR-2]`, `[User]`,
    `[Locked: D{N}]`, `[Codebase: path/to/file]`) or be flagged as
    `[Assumption]`.
 
 6. **Open risks and unresolved items:** Check the PRD's Risks and Open
-   Questions section (§9). Import any with Status=Open into the design's
+   Questions section (§6). Import any with Status=Open into the design's
    Open Questions — these are unresolved issues that may affect design
    decisions. Also check the PRD's Appendix: Review Notes for
    assumptions that were never validated during PRD review and items
