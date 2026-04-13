@@ -11,10 +11,18 @@ These apply across all sections:
 - Write in third person, present tense.
 - **Be specific.** No vague language: "efficient data structure" → name the structure. "Appropriate caching" → specify the cache strategy and invalidation approach. "Standard error handling" → define the error taxonomy.
 - Every design decision must be traceable to source material. Use source markers at the end of statements: `[PRD: §4.1]`, `[PRD: FR-3]`, `[PRD: NFR-2]`, `[Locked: D{N}]`, `[User]`, `[Assumption]`, `[Codebase: path/to/file]`.
+- **Consolidate markers.** When most design decisions trace to the same PRD, tagging every statement with `[PRD: §X.Y]` adds noise without aiding traceability. Instead:
+  - Tag each decision with its specific source(s) only when the source is non-obvious or differs from the primary PRD.
+  - Rely on the metadata table's Jira and PRD links for the overall reference.
+  - Reserve inline markers for clarification-derived changes (`[Locked: D{N}]`), direct user instructions (`[User]`), codebase-derived decisions (`[Codebase: ...]`), and assumptions (`[Assumption]`).
+- **Incorporate, don't narrate.** When a clarification or PRD revision changed the scope or corrected an assumption, write the design decision in its final form. Do not describe what the original PRD said, what was removed, or why a previous position was abandoned. The clarification log preserves the editorial history; the design document states the current position as if it was always the intent.
 - Do NOT invent requirements. If the PRD doesn't specify something, either mark it as an assumption or flag it as an open question.
 - If information is unavailable, write "To be determined — {what's needed}".
 - **No scope reduction.** Never use "simplified version", "v2", "placeholder", or "future enhancement" to silently reduce scope. If something won't fit, say so explicitly and propose a split.
-- **Diagrams:** Use Mermaid diagrams (sequence, flowchart, or component) when they add clarity. Every diagram **must** be accompanied by narrative explaining what it shows and what the reader should take away. A diagram without explanation is worse than no diagram — it forces the reader to reverse-engineer your intent.
+- **Formatting restraint.** Use bold sparingly for genuine emphasis — terms the reader must not miss or that distinguish this design element from a similar one. When every noun phrase is bold, nothing stands out and the document becomes harder to scan.
+- **Diagrams:** Use Mermaid diagrams when they add clarity. Any Mermaid diagram type is allowed — choose the one that best communicates the concept (e.g., `sequenceDiagram` for interactions, `flowchart` for control flow, `classDiagram` for data models, `erDiagram` for schema relationships, `stateDiagram-v2` for state machines). Every diagram **must** be accompanied by narrative explaining what it shows and what the reader should take away. A diagram without explanation is worse than no diagram — it forces the reader to reverse-engineer your intent.
+  - Keep diagrams simple: labeled nodes, clear edge labels, no styling directives (`style`, `classDef`, color codes).
+  - Do not use ASCII art or PlantUML.
 
 ## Per-Section Guidance
 
@@ -123,6 +131,7 @@ This is the core section. All subsections (4.1–4.8) are required. If a subsect
 - Number each question.
 - Track outcomes alongside original questions — do not delete resolved questions.
 - Format: question text, then "Outcome:" with resolution or "Open".
+- **Design scope only.** This section contains technical design questions and risks. Process-level actions (e.g., "update Jira ticket text," "schedule a meeting to discuss") belong in the PR description or review discussion, not in the design document.
 - Open questions with significant design impact should be resolved before the document moves to "Final" status.
 
 ## Appendix: Review Notes

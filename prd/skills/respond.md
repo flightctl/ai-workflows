@@ -20,7 +20,10 @@ repeatable as new comments arrive.
 - **Never post comments without user approval.** Propose responses, then wait for the user to approve, modify, or reject each one.
 - **Separate content changes from clarifications.** Some comments need PRD edits; others just need a reply.
 - **Preserve the review trail.** Don't delete or modify existing comments.
-- **Allowed `gh` operations:** `gh pr view`, `gh pr comment`, `gh api` (GET only for fetching comments). Do not use `gh pr close`, `gh pr merge`, `gh pr edit`, or `gh pr ready`.
+- **Allowed `gh` operations:**
+  - **Read:** `gh pr view`, `gh api` GET (for fetching PR comments and review data)
+  - **Write:** `gh pr comment` (for top-level replies), `gh api` POST to `pulls/{pr-number}/comments/{id}/replies` (for replying to line-level review comments)
+  - **Forbidden:** `gh pr close`, `gh pr merge`, `gh pr edit`, `gh pr ready`
 
 ## Process
 
@@ -185,14 +188,25 @@ For comments that only need a reply (no PRD changes), post the reply directly.
 
 #### Posting replies
 
-Write the reply to a temp file and use `--body-file` to avoid shell
-metacharacter issues. Run these as separate commands:
+Write the reply to a temp file to avoid shell metacharacter issues:
 
 ```bash
 cat > .artifacts/prd/{issue-number}/tmp-reply.md << 'REPLY_EOF'
 {approved reply text}
 REPLY_EOF
 ```
+
+**For line-level review comments** (those fetched via
+`gh api .../pulls/{pr-number}/comments` — attached to a specific file and
+line), reply in-thread so the response appears alongside the original
+comment:
+
+```bash
+gh api repos/{owner}/{repo}/pulls/{pr-number}/comments/{comment-id}/replies --field body=@.artifacts/prd/{issue-number}/tmp-reply.md
+```
+
+**For top-level PR comments** (those from `gh pr view --json comments` —
+general conversation comments), use:
 
 ```bash
 gh pr comment {pr-number} --repo {owner}/{repo} --body-file .artifacts/prd/{issue-number}/tmp-reply.md

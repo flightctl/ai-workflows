@@ -22,7 +22,7 @@ creating, and always get explicit user approval.
 - **Idempotent.** Track what was created in a manifest. If re-run, only create new items.
 - **Create only — never update or delete.** Once Jira issues are created, they evolve independently — developers add implementation notes, QA adds test details, PMs adjust criteria. Pushing file content back to Jira would clobber those additions. If the decomposition is revised after sync, `/revise` will tell the user exactly which Jira issues need manual updates.
 - **Link to source.** Every Jira issue description references the design document.
-- **Jira-native references.** Local identifiers (`Story 1.01`, `Epic 1`) have meaning only within the `.artifacts/` directory. When constructing Jira issue descriptions, resolve all local references (in Dependencies, Documentation Inputs, Design Reference, and any other cross-references) to Jira issue keys using the sync manifest. Jira is the source of truth — readers of a Jira issue should never need to decode a local artifact numbering scheme.
+- **Jira-native references.** Local identifiers (`Story 1.01`, `Epic 1`) have meaning only within the `.artifacts/` directory. When constructing Jira issue descriptions, resolve all local references (in Dependencies, Design Reference, and any other cross-references) to Jira issue keys using the sync manifest. Jira is the source of truth — readers of a Jira issue should never need to decode a local artifact numbering scheme.
 
 ## Reference Resolution
 
@@ -223,11 +223,6 @@ For each story under each epic, create a Jira issue:
 
 {testing approach from story file}
 
-## Documentation Inputs
-
-{documentation inputs from story file — include only for [DOCS] stories,
- omit this section entirely for other story types}
-
 ## Dependencies
 
 {dependencies from story file, with local references resolved to Jira keys
@@ -241,11 +236,16 @@ PRD Requirements: {requirement IDs}
 Design section: {§reference}
 ```
 
+**`[DOCS]` stories:** For stories with a `[DOCS]` prefix, include a
+`## Documentation Inputs` section (between Testing Approach and
+Dependencies) containing the documentation inputs from the story file.
+Resolve story references in the documentation inputs to Jira keys
+(`**Story 1.01 — {title}:**` → `**EDM-XXXX — {title}:**`).
+
 **Reference resolution:** Before submitting the description, resolve all
 local identifiers to Jira keys (see Reference Resolution). This applies to
-Dependencies (`Story 1.01` → `EDM-XXXX`), Documentation Inputs story
-headers (`**Story 1.01 — {title}:**` → `**EDM-XXXX — {title}:**`), and
-Design Reference (`Epic 1` → `EDM-YYYY`).
+Dependencies (`Story 1.01` → `EDM-XXXX`) and Design Reference
+(`Epic 1` → `EDM-YYYY`).
 
 After creating each story, record the Jira key in the sync manifest
 immediately (before creating the next story).
@@ -257,11 +257,17 @@ wasn't created or failed), skip the link and note it for the user. These
 links enable downstream workflows (e.g., docs-writer) to traverse the
 dependency chain via the Jira API.
 
-Creating issue links is a separate operation from creating issues — use
-whatever Jira integration is available (MCP or CLI) to create a "Blocks"
-or equivalent link where the new story depends on each dependency. The
-exact link type name varies by Jira instance; use the available link types
-to find the appropriate one.
+For each dependency, create a link where the current story **depends on**
+the dependency story. Try the Jira "Dependency" link type first
+(relationship `"depends on"` / `"is depended on by"`). If the API
+returns an error indicating the link type is not available, fall back to
+"Blocks" (where the dependency story **blocks** the current story).
+Issue link creation is a separate Jira operation — use the Jira CLI or
+MCP server to create the link.
+
+If a specific link fails, log it and continue with the remaining links.
+Include all failures in the per-epic story report so the user knows
+exactly which links to create manually.
 
 **If creation fails:** Stop immediately. Report which stories were created
 successfully and which one failed, including the error. Offer to:

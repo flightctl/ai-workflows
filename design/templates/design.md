@@ -34,8 +34,8 @@ from the PRD for technical reviewers who may not have read it.}
 
 {High-level overview, component responsibilities, and data flow.}
 
-{Use Mermaid diagrams where they add clarity (sequence diagrams, component
-diagrams, flowcharts). Every diagram MUST be accompanied by narrative
+{Use Mermaid diagrams where they add clarity — any diagram type that best
+communicates the concept. Every diagram MUST be accompanied by narrative
 explaining what it shows and what the reader should take away from it.}
 
 ## 4.2 Data Model / Schema Changes
@@ -51,14 +51,17 @@ If no API changes: "No API changes required."}
 
 ## 4.4 Scalability and Performance
 
-Estimate:
+Estimate impact on:
 
-- Memory and CPU usage
-- Expected database load (reads/writes)
+- CPU and memory usage
+- Database load (reads/writes) and storage
 - Data retention and cleanup policies
-- Future growth assumptions
 
-{If minimal impact, state so explicitly with brief justification.}
+State assumptions about expected scale and future growth.
+
+{If minimal impact, state so explicitly with brief justification
+(e.g., "Processing occurs only during application install/update and
+is lightweight for single containers").}
 
 ## 4.5 Security Considerations
 

@@ -101,6 +101,11 @@ Write `.artifacts/design/{issue-number}/03-epics.md`:
 | 1 | [{title}](04-stories/epic-1-{slug}.md) | {size} | [{N} stories](04-stories/epic-1/) | FR-1, FR-2, NFR-1 | None |
 | 2 | [{title}](04-stories/epic-2-{slug}.md) | {size} | [{N} stories](04-stories/epic-2/) | FR-3, NFR-2 | Epic 1 |
 
+{PRD Requirements column: list the primary requirements for quick reference.
+ If an epic maps to more than ~8 requirements, list the most significant
+ and add "See coverage matrix for full mapping." The coverage matrix
+ (Step 6) is the authoritative source for requirement-to-story traceability.}
+
 ## Dependency Order
 
 {Brief description of the recommended implementation order and why.
@@ -180,14 +185,6 @@ Write each story to
  criteria are still met and the rationale for deviation is documented
  in the PR.}
 
-## Documentation Inputs
-
-{[DOCS] stories only — omit this section for other story types.
-
- Inventory of user-facing artifacts introduced or changed by this feature,
- grouped by the story that delivers each one. See [DOCS] story requirements
- below for format and content guidance.}
-
 ## Testing Approach
 
 {For each test type relevant to this story's changes:
@@ -228,9 +225,9 @@ If unsure of the correct prefix, use `[DEV]` as the default and note it for
 user review.
 
 **`[DOCS]` story requirements:** `[DOCS]` stories must include a
-**Documentation Inputs** section (included in the story template above) that
-inventories every user-facing artifact introduced or changed by the feature,
-grouped by the implementation story that delivers it.
+**Documentation Inputs** section (added between Testing Approach and
+Dependencies) that inventories every user-facing artifact introduced or
+changed by the feature, grouped by the implementation story that delivers it.
 
 At design time you have the complete picture of what's new and what changed.
 Capture it so the documentation author (human or AI) gets a concrete
@@ -243,8 +240,11 @@ API fields/resources, CLI output or behavior, configuration options, status
 values and their meanings, error messages, and UI elements. Give enough
 detail that the writer knows what to look for in the implementation.
 
-Place the `[DOCS]` story after all stories it references (typically the last
-story in the last epic) so that all references are resolvable during `/sync`.
+Place each `[DOCS]` story after all stories it references so that all
+references are resolvable during `/sync`. For per-epic `[DOCS]` stories,
+place them as the last story within their own epic. For a cross-cutting
+`[DOCS]` story that spans multiple epics, place it as the last story in
+the last epic.
 
 **Story quality checks:**
 - For `[DEV]` stories: does this story add a capability AND testing for that capability?

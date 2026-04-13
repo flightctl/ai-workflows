@@ -69,7 +69,14 @@ Generate the design document following the template structure. For each section:
 2. Draw content from the context and PRD
 3. Apply specificity standards (no vague language)
 4. Flag assumptions with an inline note: `[Assumption: ...]`
-5. Use source markers: `[PRD: §4.1]`, `[PRD: FR-3]`, `[PRD: NFR-2]`, `[Locked: D{N}]`, `[User]`, `[Codebase: path/to/file]`
+5. Use source markers (`[PRD: §4.1]`, `[PRD: FR-3]`, `[PRD: NFR-2]`, `[Locked: D{N}]`, `[User]`, `[Codebase: path/to/file]`), following the consolidation guidance in the section guidance General Rules
+
+**Incorporating clarifications:** When a clarification or PRD revision
+changed the scope or corrected an assumption, write the design decision
+in its final form. Do not describe what the original PRD said, what was
+removed, or why a previous position was abandoned. The clarification log
+(`02-clarifications.md`) preserves the editorial history; the design
+document states the current position as if it was always the intent.
 
 Fill in the metadata header:
 - **Author(s):** The feature owner (ask if not known).
@@ -78,9 +85,9 @@ Fill in the metadata header:
 - **Date:** Today's date
 
 **Mermaid diagrams:** Use them where they add clarity — especially for
-architecture (section 4.1) and data flow. Supported types: `sequenceDiagram`,
-`flowchart`, `classDiagram`, `stateDiagram-v2`. Always follow a diagram with
-a paragraph explaining what it illustrates.
+architecture (section 4.1) and data flow. Any Mermaid diagram type is
+allowed; choose the one that best communicates the concept. Always follow
+a diagram with a paragraph explaining what it illustrates.
 
 ### Step 5: Populate the Review Notes Appendix
 
@@ -146,14 +153,15 @@ the Review Notes appendix (Step 5) to include them.
 
 Before presenting the design document, verify:
 
-- [ ] Every design decision traces to a PRD requirement, codebase pattern, or is flagged as `[Assumption]`
+- [ ] Every design decision traces to a PRD requirement, codebase pattern, or is flagged as `[Assumption]` — source markers follow the consolidation rule (no redundant tags for the primary PRD)
 - [ ] Goals are design-scoped (implementation constraints, not product outcomes)
 - [ ] No sections are empty — sections with no impact say so explicitly
 - [ ] Every Mermaid diagram has accompanying narrative explanation
 - [ ] API changes include validation rules and concrete examples where helpful
 - [ ] Data model changes show field names, types, and constraints
 - [ ] Alternatives Considered includes at least one alternative for each non-trivial decision
-- [ ] Open Questions are numbered and clearly stated
+- [ ] Open Questions are numbered, clearly stated, and limited to design scope (no process-level actions)
+- [ ] No narration of editorial history — decisions are stated in final form, not as changes from a prior position
 - [ ] No vague language ("appropriate", "efficient", "standard" without specifics)
 - [ ] No scope reduction language ("v2", "simplified", "placeholder", "future enhancement")
 - [ ] Locked decisions from PRD clarification are respected

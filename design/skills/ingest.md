@@ -100,8 +100,10 @@ codebase that will be affected. Focus on:
    there relevant CI/CD considerations?
 
 Use file search (glob), content search (grep), and targeted file reading.
-Don't try to read everything — read enough to understand the patterns and
-identify the boundaries of change.
+Don't try to read everything — focus on 10–20 key files that establish
+the patterns and boundaries of change. If the last 3–5 files explored
+introduced no new patterns or constraints, exploration is likely
+complete. Note what remains uncertain in the Open Questions section.
 
 ### Step 6: Compile Context
 
