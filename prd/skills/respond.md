@@ -90,7 +90,7 @@ Present each comment with a proposed response:
 
 **Category:** Factual correction
 **Proposed response:** {your suggested reply}
-**PRD change needed:** Yes — update Section 4.1, requirement 3
+**PRD change needed:** Yes — update Section 3.1, requirement 3
 
 ...
 ```
