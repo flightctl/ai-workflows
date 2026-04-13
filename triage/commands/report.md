@@ -1,3 +1,7 @@
+---
+name: triage:report
+description: "Generate an interactive HTML triage report"
+---
 # /report
 
 Read `../skills/report.md` and follow it.
