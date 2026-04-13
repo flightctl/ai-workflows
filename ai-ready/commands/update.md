@@ -1,3 +1,7 @@
+---
+name: ai-ready:update
+description: "Scan codebase and update AI convention files like AGENTS.md"
+---
 # /update
 
 Read `../guidelines.md`, then read `../skills/update.md` and follow it.

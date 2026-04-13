@@ -1,3 +1,7 @@
+---
+name: bugfix:unattended
+description: "Run autonomous bugfix workflow: diagnose, fix, test, review"
+---
 # /unattended
 
 You MUST read `../skills/unattended.md` now and follow every step in it.

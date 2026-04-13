@@ -192,6 +192,21 @@ install_claude() {
     ln -sfn "${INSTALL_DIR}/${wf}" "${SKILLS_DIR}/${wf}"
     echo "  Linked ${SKILLS_DIR}/${wf} -> ${INSTALL_DIR}/${wf}  ($SCOPE)"
   done
+
+  # Symlink each workflow's commands/ directory into Claude Code's commands
+  # directory so individual phases are discoverable as /{workflow}:{command}
+  # slash commands (e.g. /bugfix:assess, /cve-fix:patch).
+  CMDS_DIR="${CLAUDE_DIR}/commands"
+  mkdir -p "$CMDS_DIR"
+  for wf in "${WORKFLOWS[@]}"; do
+    if [[ -d "${INSTALL_DIR}/${wf}/commands" ]]; then
+      ln -sfn "${INSTALL_DIR}/${wf}/commands" "${CMDS_DIR}/${wf}"
+      echo "  Linked ${CMDS_DIR}/${wf} -> ${INSTALL_DIR}/${wf}/commands  ($SCOPE)"
+    elif [[ -L "${CMDS_DIR}/${wf}" ]]; then
+      rm -f "${CMDS_DIR}/${wf}"
+      echo "  Removed stale commands symlink ${CMDS_DIR}/${wf}  ($SCOPE)"
+    fi
+  done
 }
 
 install_gemini() {
