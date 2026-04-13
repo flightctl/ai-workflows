@@ -157,6 +157,7 @@ Before presenting the PRD, verify:
 - [ ] All locked decisions from clarification are reflected
 - [ ] Executive Summary is present and accurately reflects the complete document
 - [ ] Success Metrics table is populated when the source material provides quantifiable targets (omit the subsection otherwise)
+- [ ] No narration of editorial history — requirements are stated in final form, not as changes from a prior position
 - [ ] No vague language ("appropriate", "efficient", "standard" without specifics)
 - [ ] No scope reduction language ("v2", "simplified", "placeholder", "future enhancement")
 - [ ] The document is concise — no unnecessary repetition or filler
