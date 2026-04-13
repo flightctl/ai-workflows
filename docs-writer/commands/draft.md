@@ -1,3 +1,7 @@
+---
+name: docs-writer:draft
+description: "Draft AsciiDoc documentation content"
+---
 # /draft
 
 Read `../skills/controller.md` and follow it.

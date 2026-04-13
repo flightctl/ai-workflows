@@ -1,3 +1,7 @@
+---
+name: triage:assess
+description: "Deep-dive assessment of a single bug"
+---
 # /assess
 
 Read `../skills/assess.md` and follow it.

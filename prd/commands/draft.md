@@ -1,3 +1,7 @@
+---
+name: prd:draft
+description: "Draft the Product Requirements Document"
+---
 # /draft
 
 Read `../skills/controller.md` and follow it.
