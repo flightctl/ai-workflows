@@ -66,13 +66,10 @@ The PRD template (`templates/prd.md`) defines the document structure:
 - Executive Summary
 1. Problem Statement
 2. Goals and Non-Goals (including Success Metrics)
-3. User Stories
-4. Requirements (Functional and Non-Functional)
-5. Acceptance Criteria
-6. Design Overview
-7. Alternatives Considered
-8. Dependencies
-9. Risks and Open Questions
+3. Requirements (Functional and Non-Functional)
+4. Acceptance Criteria
+5. Dependencies
+6. Risks and Open Questions
 
 Section-level guidance for the AI is in `templates/section-guidance.md`.
 

@@ -168,7 +168,7 @@ Prepare the PR description and save it to `.artifacts/prd/{issue-number}/04-pr-d
 
 ### How to Review
 - Comment inline on specific sections
-- Use the open questions table (Section 9) to flag new concerns
+- Use the open questions table (Section 6) to flag new concerns
 - Approve when the PRD accurately reflects the agreed requirements
 ```
 

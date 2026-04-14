@@ -32,7 +32,7 @@ Read `.artifacts/prd/{issue-number}/03-prd.md`.
 ### Step 2: Understand the Feedback
 
 The user's feedback may come as:
-- Specific edits ("Change section 4.1 to say X instead of Y")
+- Specific edits ("Change section 3.1 to say X instead of Y")
 - Directional feedback ("The goals section is too vague")
 - New information ("We also need to support feature Z")
 - Deletions ("Remove the alternative about X, we already decided against it")
@@ -140,12 +140,12 @@ Summarize what changed:
 ## Revision Summary
 
 ### Changes Made
-- Section 4.1: Added requirement for UDP port mapping support
-- Section 5: Added acceptance criterion for UDP validation
+- Section 3.1: Added requirement for UDP port mapping support
+- Section 4: Added acceptance criterion for UDP validation
 - Section 2.3: Removed "UDP support" from non-goals
 
 ### Consistency Updates
-- Section 9: Added open question about UDP performance testing
+- Section 6: Added open question about UDP performance testing
 ```
 
 ## Output
