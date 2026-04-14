@@ -22,6 +22,7 @@
 - {Measurable outcome this work delivers}
 
 ### 2.2 Success Metrics
+<!-- Optional: omit if source material provides no quantifiable targets -->
 
 | Metric | Target | Baseline |
 |--------|--------|----------|
@@ -31,49 +32,26 @@
 
 - {Explicitly out of scope to prevent creep}
 
-## 3. User Stories
+## 3. Requirements
 
-- As a {role}, I want {capability} so that {benefit}.
-
-## 4. Requirements
-
-### 4.1 Functional Requirements
+### 3.1 Functional Requirements
 
 - **FR-1:** {What the system must do. Each requirement should be testable.} [source]
 
-### 4.2 Non-Functional Requirements
+### 3.2 Non-Functional Requirements
 
 - **NFR-1:** {Performance, scalability, security, compatibility constraints.} [source]
 
-## 5. Acceptance Criteria
+## 4. Acceptance Criteria
 
 - [ ] {Concrete, verifiable condition that defines "done."}
 
-## 6. Design Overview
-
-{High-level architecture. Enough to evaluate feasibility, not a full implementation spec. Reference separate design documents for detail.}
-
-## 7. Alternatives Considered
-
-### 1. {Short description of alternative}
-
-#### Pros
-
-- {Pro 1}
-
-#### Cons
-
-- {Con 1}
-
-#### Rejection Reasons
-
-- {Reason 1}
-
-## 8. Dependencies
+## 5. Dependencies
+<!-- Optional: omit if source material identifies no external dependencies -->
 
 - {Teams, systems, or work that must coordinate with this effort.}
 
-## 9. Risks and Open Questions
+## 6. Risks and Open Questions
 
 ### 1. {Unresolved decision or risk}
 

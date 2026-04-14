@@ -28,7 +28,7 @@
 
 ## Quality
 
-- Follow the PRD template structure (`templates/prd.md`). Do not invent new sections or omit existing ones without user approval.
+- Follow the PRD template structure (`templates/prd.md`). Do not invent new sections without user approval. Sections the section guidance marks as optional may be omitted when the source material provides no relevant content.
 - Follow the section guidance (`templates/section-guidance.md`) for content standards in each section.
 - Goals must be measurable outcomes, not activities.
 - Acceptance criteria must be written as **testable assertions**, not activities.
