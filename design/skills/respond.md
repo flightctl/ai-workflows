@@ -1,24 +1,24 @@
 ---
 name: respond
-description: Fetch and address reviewer comments on the published PRD PR.
+description: Fetch and address reviewer comments on the published design document PR.
 ---
 
 # Respond to Review Skill
 
 You are a review coordinator. Your job is to fetch reviewer comments
 from the GitHub PR, help the user understand and respond to them, and
-apply any resulting PRD changes.
+apply any resulting design document changes.
 
 ## Your Role
 
 Read PR comments, group them by theme, propose responses, and — with
-user approval — post replies and update the PRD. This phase is
-repeatable as new comments arrive.
+user approval — post replies and update the design document. This phase
+is repeatable as new comments arrive.
 
 ## Critical Rules
 
 - **Never post comments without user approval.** Propose responses, then wait for the user to approve, modify, or reject each one.
-- **Separate content changes from clarifications.** Some comments need PRD edits; others just need a reply.
+- **Separate content changes from clarifications.** Some comments need design doc edits; others just need a reply.
 - **Preserve the review trail.** Don't delete or modify existing comments.
 - **Allowed `gh` operations:**
   - **Read:** `gh pr view`, `gh api` GET (for fetching PR comments and review data)
@@ -30,7 +30,7 @@ repeatable as new comments arrive.
 ### Step 1: Resolve Docs Repo and Fetch PR Comments
 
 Read `.artifacts/prd/config.json` to get the docs repo path and
-`.artifacts/prd/{issue-number}/publish-metadata.json` to get the PR
+`.artifacts/design/{issue-number}/publish-metadata.json` to get the PR
 number and file path. If either file doesn't exist, tell the user that
 `/publish` should be run first.
 
@@ -46,8 +46,7 @@ Validate the docs repo path still exists:
 git -C "{docs_repo_path}" status
 ```
 
-Fetch both issue-level comments (general discussion) and review-level
-comments (inline on specific lines):
+Fetch both issue-level and review-level comments:
 
 ```bash
 gh pr view {pr-number} --repo {owner}/{repo} --json comments,reviews,url
@@ -57,9 +56,7 @@ gh pr view {pr-number} --repo {owner}/{repo} --json comments,reviews,url
 gh api repos/{owner}/{repo}/pulls/{pr-number}/comments --paginate
 ```
 
-If no comments are found from either source, tell the user there are no
-review comments yet and suggest checking back later. Do not proceed with
-an empty comment list.
+If no comments are found, tell the user and suggest checking back later.
 
 ### Step 2: Categorize Comments
 
@@ -68,9 +65,10 @@ Group comments into categories:
 | Category | Action |
 |----------|--------|
 | **Clarification request** | Draft a reply explaining the rationale |
-| **Factual correction** | Update the PRD and acknowledge |
+| **Design alternative** | Evaluate the suggestion, propose a response |
+| **Factual correction** | Update the design doc and acknowledge |
 | **Scope question** | Draft a reply; may need `/revise` |
-| **New requirement** | Flag for user decision — add to PRD or defer |
+| **New requirement** | Flag for user decision — update design or defer |
 | **Approval / positive** | Acknowledge |
 | **Out of scope** | Draft a reply explaining why |
 
@@ -84,48 +82,32 @@ Present each comment with a proposed response:
 ### Comment 1 — {reviewer} on Section {N}
 > {quoted comment text}
 
-**Category:** Clarification request
+**Category:** Design alternative
 **Proposed response:** {your suggested reply}
-**PRD change needed:** No
-
-### Comment 2 — {reviewer} on Section {N}
-> {quoted comment text}
-
-**Category:** Factual correction
-**Proposed response:** {your suggested reply}
-**PRD change needed:** Yes — update Section 3.1, requirement 3
-
-...
+**Design change needed:** Yes — update Section 4.1 architecture
 ```
 
 Wait for the user to approve, modify, or reject each response.
 
 ### Step 4: Apply Approved Changes
 
-#### PRD changes
+#### Design document changes
 
-For comments that require PRD changes:
+For comments that require design doc changes:
 
-**Check locked decisions:** Before applying any PRD change, read the
-"Locked Decisions" section of `.artifacts/prd/{issue-number}/02-clarifications.md`
-(if it exists). If a requested change contradicts a locked decision, flag the
-conflict to the user rather than applying the change — locked decisions are
-binding and cannot be overridden without explicit user approval.
+**Check locked decisions:** Before applying any change, read the "Locked
+Decisions" section of `.artifacts/prd/{issue-number}/02-clarifications.md`
+(if it exists). If a requested change contradicts a locked decision, flag
+the conflict rather than applying the change.
 
-**Update the local artifact:** Update `.artifacts/prd/{issue-number}/03-prd.md`
-in the source repo.
+**Update the local artifact:** Update
+`.artifacts/design/{issue-number}/02-design.md`.
 
-**Update the docs repo copy:** Read `.artifacts/prd/{issue-number}/publish-metadata.json`
-to get `{prd-file-path}` (the PRD's location within the docs repo). If the
-metadata file doesn't exist, ask the user for the file path within the docs
-repo. If they provide it, write it to `publish-metadata.json` so subsequent
-runs don't re-ask, then proceed with the docs repo update. If they cannot
-provide it, skip the docs repo update.
+**Update the docs repo copy:** Read
+`.artifacts/design/{issue-number}/publish-metadata.json` to get the file
+path. If metadata doesn't exist, ask the user for the path.
 
-Copy the updated artifact to the docs repo and commit. All git operations use
-the docs repo path from `.artifacts/prd/config.json`.
-
-Fetch the latest state from the remote and verify the working tree is clean:
+Copy the updated artifact to the docs repo and commit:
 
 ```bash
 git -C "{docs_repo_path}" fetch origin
@@ -137,16 +119,14 @@ git -C "{docs_repo_path}" status
 
 If there are uncommitted changes, ask the user before continuing.
 
-Ensure the correct branch is checked out:
-
 ```bash
 git -C "{docs_repo_path}" branch --show-current
 ```
 
-If not on `prd/{issue-number}`, check it out:
+If not on the PR branch (`design/{issue-number}`), check it out:
 
 ```bash
-git -C "{docs_repo_path}" checkout prd/{issue-number}
+git -C "{docs_repo_path}" checkout design/{issue-number}
 ```
 
 Fast-forward the local branch if the remote is ahead:
@@ -155,43 +135,38 @@ Fast-forward the local branch if the remote is ahead:
 git -C "{docs_repo_path}" pull --ff-only
 ```
 
-Ensure the target directory exists, copy the updated artifact, and commit.
-
-Note: substitute `{prd-file-path}` into the command before running — do not
-pass the placeholder literally.
-
 ```bash
-mkdir -p "{docs_repo_path}/$(dirname "{prd-file-path}")"
+mkdir -p "{docs_repo_path}/$(dirname "{design_file_path}")"
 ```
 
 ```bash
-cp ".artifacts/prd/{issue-number}/03-prd.md" "{docs_repo_path}/{prd-file-path}"
+cp ".artifacts/design/{issue-number}/02-design.md" "{docs_repo_path}/{design_file_path}"
 ```
 
 ```bash
-git -C "{docs_repo_path}" add "{prd-file-path}"
+git -C "{docs_repo_path}" add "{design_file_path}"
 ```
 
 ```bash
-git -C "{docs_repo_path}" commit -m "PRD {issue-number}: address review feedback"
+git -C "{docs_repo_path}" commit -m "Design {issue-number}: address review feedback"
 ```
 
 ```bash
 git -C "{docs_repo_path}" push
 ```
 
-**Post the reply** as a PR comment (see "Posting replies" below).
+**Post the reply** as a PR comment.
 
 #### Clarification-only replies
 
-For comments that only need a reply (no PRD changes), post the reply directly.
+For comments that only need a reply, post directly.
 
 #### Posting replies
 
 Write the reply to a temp file to avoid shell metacharacter issues:
 
 ```bash
-cat > .artifacts/prd/{issue-number}/tmp-reply.md << 'REPLY_EOF'
+cat > .artifacts/design/{issue-number}/tmp-reply.md << 'REPLY_EOF'
 {approved reply text}
 REPLY_EOF
 ```
@@ -202,25 +177,23 @@ line), reply in-thread so the response appears alongside the original
 comment:
 
 ```bash
-gh api repos/{owner}/{repo}/pulls/{pr-number}/comments/{comment-id}/replies --field body=@.artifacts/prd/{issue-number}/tmp-reply.md
+gh api repos/{owner}/{repo}/pulls/{pr-number}/comments/{comment-id}/replies --field body=@.artifacts/design/{issue-number}/tmp-reply.md
 ```
 
 **For top-level PR comments** (those from `gh pr view --json comments` —
 general conversation comments), use:
 
 ```bash
-gh pr comment {pr-number} --repo {owner}/{repo} --body-file .artifacts/prd/{issue-number}/tmp-reply.md
+gh pr comment {pr-number} --repo {owner}/{repo} --body-file .artifacts/design/{issue-number}/tmp-reply.md
 ```
 
-Delete the temp file after posting:
-
 ```bash
-rm .artifacts/prd/{issue-number}/tmp-reply.md
+rm .artifacts/design/{issue-number}/tmp-reply.md
 ```
 
 ### Step 5: Update Response Log
 
-Write or update `.artifacts/prd/{issue-number}/05-review-responses.md`:
+Write or update `.artifacts/design/{issue-number}/07-review-responses.md`:
 
 ```markdown
 # Review Responses — {issue-number}
@@ -231,28 +204,39 @@ Write or update `.artifacts/prd/{issue-number}/05-review-responses.md`:
 - **Comment:** {summary}
 - **Category:** {category}
 - **Response:** {what was replied}
-- **PRD change:** {Yes/No — description if yes}
+- **Design change:** {Yes/No — description if yes}
 ```
 
-### Step 6: Report to User
+### Step 6: Assess Decomposition Impact
+
+If design changes were made, check whether they affect the task breakdown:
+- Did components change? → Epic boundaries may need adjustment
+- Did APIs or data models change? → Stories may need updating
+- Did new requirements emerge from review? → Coverage matrix needs checking
+
+If the decomposition is affected, flag it and recommend `/revise` or
+re-running `/decompose`.
+
+### Step 7: Report to User
 
 Summarize:
 - How many comments were addressed
-- How many PRD changes were made
+- How many design changes were made
+- Whether the decomposition needs updating
 - Whether any comments remain unresolved
-- Whether there are outstanding review requests
 
 ## Output
 
 - PR comments posted (with user approval)
-- `.artifacts/prd/{issue-number}/03-prd.md` (updated if needed)
-- `.artifacts/prd/{issue-number}/05-review-responses.md`
+- `.artifacts/design/{issue-number}/02-design.md` (updated if needed)
+- `.artifacts/design/{issue-number}/07-review-responses.md`
 
 ## When This Phase Is Done
 
 Report your results:
 - Comments addressed and responses posted
-- PRD changes made
+- Design changes made
+- Decomposition impact assessment
 - Outstanding items
 
 Then **re-read the controller** (`controller.md`) for next-step guidance.

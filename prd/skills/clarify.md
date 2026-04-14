@@ -79,6 +79,15 @@ I have {M} questions:
 After the user responds, record their answers and assess whether more
 questions are needed.
 
+**Impact statements must not extrapolate scope reductions.** The impact
+field records how the answer affects the PRD — not what it excludes.
+When the user says "X is delivered by another team," the impact is that
+X is a **dependency**, not that work involving X is out of scope. For
+example, if the user says "e2e test infrastructure is a separate
+initiative," the impact is "list as a dependency" — not "testing
+deliverables exclude e2e tests." The feature still includes work that
+*uses* the dependency; it just doesn't *deliver* the dependency itself.
+
 When the user makes a definitive choice (e.g., "TCP only, no UDP" or
 "we'll use Postgres, not SQLite"), record it as a locked decision in
 the clarification log's "Locked Decisions" section. These are binding

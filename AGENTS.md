@@ -13,6 +13,7 @@ This repository contains reusable AI coding workflows that can be installed glob
 - **skill-reviewer** — Meta-workflow that audits AI skill directories
 - **cve-fix** — Automated CVE remediation from Jira tickets (start, patch, validate, pr, backport, close)
 - **prd** — Requirements-to-PRD workflow (ingest, clarify, draft, revise, publish, respond)
+- **design** — Design-and-decompose workflow (ingest, draft, decompose, revise, publish, respond, sync)
 
 ## Architecture
 
@@ -53,6 +54,7 @@ Workflows write outputs to `.artifacts/{workflow-name}/{context}/`:
 - **skill-reviewer**: `.artifacts/skill-reviewer/{skill-name}/` (review.md)
 - **cve-fix**: `.artifacts/cve-fix/{context}/` (context.md, patch-log.md, validation-results.md, pr-description.md, backport-log.md, close-report.md)
 - **prd**: `.artifacts/prd/{issue-number}/` (01-requirements.md, 02-clarifications.md, 03-prd.md, 04-pr-description.md, 05-review-responses.md)
+- **design**: `.artifacts/design/{issue-number}/` (01-context.md, 02-design.md, 03-epics.md, 04-stories/epic-{N}-{slug}.md, 04-stories/epic-{N}/story-{NN}-{slug}.md, 05-coverage.md, 06-pr-description.md, 07-review-responses.md, publish-metadata.json, sync-manifest.json)
 
 ## Prerequisites
 
@@ -65,6 +67,7 @@ Workflows write outputs to `.artifacts/{workflow-name}/{context}/`:
 - **docs-writer**: GitLab CLI — for merge request creation (or GitHub CLI for GitHub-hosted projects)
 - **cve-fix**: Jira MCP server or Jira CLI (`jira`), GitHub CLI (`gh`), optionally `skopeo` for container image verification
 - **prd**: Jira MCP server — for requirements ingestion; GitHub CLI (`gh`) — for PR creation and review comment management
+- **design**: Jira MCP server or CLI — for `/ingest` (read-only) and `/sync` (creates epics/stories); GitHub CLI (`gh`) — for `/publish` and `/respond`
 
 ## Installation System
 
@@ -156,6 +159,15 @@ For detailed workflow development guidelines (structure, file conventions, testi
 - PRD template and section guidance live in `templates/` (not embedded in skills)
 - Must get user review after `/draft` before proceeding to `/publish`
 
+### design
+
+- Requires a completed PRD (`.artifacts/prd/{issue-number}/03-prd.md`) as input
+- Jira is read-only until `/sync`; only `/sync` creates issues, and only with dry-run + explicit approval
+- Design and decomposition co-evolve — changes to the design flag the decomposition for regeneration, and decomposition gaps recommend revising the design
+- Shares docs repo config with PRD workflow (`.artifacts/prd/config.json`)
+- Design doc template and section guidance live in `templates/` with project-level override support
+- Each story must include functionality AND testing (no deferred test stories)
+
 ## Common Commands
 
 **Note**: This repository contains AI workflow definitions (markdown files), not traditional code requiring build/test commands. "Testing" refers to verifying workflow execution and symlink installation.
@@ -190,7 +202,7 @@ gh issue view <num> --repo <owner/repo>    # For docs-writer
 gh pr diff <num> --repo <owner/repo>       # For docs-writer
 ```
 
-### Jira MCP (for triage, docs-writer, prd)
+### Jira MCP (for triage, docs-writer, prd, design)
 ```bash
 # Invoked via MCP tools, not CLI directly
 # Example JQL: "project = EDM AND issuetype = Bug AND resolution = Unresolved"
@@ -219,6 +231,7 @@ ai-workflows/
 ├── triage/
 ├── skill-reviewer/
 ├── prd/
+├── design/
 ├── install.sh                 # Installer with auto-discovery
 ├── uninstall.sh              # Removal script
 ├── .cursor-plugin/           # Cursor marketplace files
