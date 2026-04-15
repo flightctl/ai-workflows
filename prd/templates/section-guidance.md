@@ -28,12 +28,6 @@ This file is read during the `/draft` phase. It is not included in the final out
   - Always introduce a diagram with a sentence explaining what it shows and why it's relevant.
   - Do not use ASCII art or PlantUML.
 
-## Executive Summary
-
-- **Skip this section during initial drafting (Step 4).** It is written as a dedicated step (Step 7) after all other sections are complete.
-- One to two sentences. State what the feature is and why it matters.
-- This is not a detailed overview — it orients the reader so they know what they're about to read.
-
 ## 1. Problem Statement
 
 - Lead with the user's pain, not the solution.
@@ -96,10 +90,3 @@ This file is read during the `/draft` phase. It is not included in the final out
 - Risks should describe what could go wrong and the mitigation strategy, if known.
 - **Product scope only.** This section contains product risks and open product questions. Process-level actions (e.g., "update Jira text to match this PRD") belong in the PR description or review discussion, not in the PRD itself.
 - This section is a living part of the document — it gets updated during review.
-
-## Appendix: Review Notes
-
-- This appendix collects items that reviewers should pay attention to. It makes assumptions and unresolved items visible to all reviewers, not just the author.
-- **Assumptions:** List every assumption flagged during drafting with `[Assumption: ...]` markers. Include the section reference so reviewers can find the context. These are judgment calls the AI made where the source material was ambiguous — reviewers should confirm or correct them.
-- **Items Needing Resolution:** List open risks/questions from Section 6 that don't yet have owners or outcomes, plus any other items that need reviewer input. Cross-reference the section and item so reviewers can navigate directly.
-- Populate this appendix during `/draft`. The items listed here should match those presented in the conversation output (the "Present to User" step of draft.md) — the conversation output is ephemeral, the appendix persists into review.

@@ -7,10 +7,6 @@
 | Jira        |         |
 | Date        |         |
 
-## Executive Summary
-
-{One to two sentences: what this PRD covers and why it matters.}
-
 ## 1. Problem Statement
 
 {Why does this work need to happen? What pain exists today? Who is affected and how?}
@@ -58,13 +54,3 @@
 - **Owner:** {person or team}
 - **Status:** Open
 - **Outcome:** {recorded when resolved}
-
-## Appendix: Review Notes
-
-### Assumptions
-
-- [{Section reference}] {Assumption made and rationale}
-
-### Items Needing Resolution
-
-- [{Section reference}] {Item that needs reviewer attention}
