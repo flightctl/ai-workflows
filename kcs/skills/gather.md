@@ -31,12 +31,18 @@ Both are expected. The Jira ticket provides the bug description and metadata;
 the additional context provides the workaround and technical details that may
 not be in the ticket.
 
+If no Jira ticket is provided, ask the user for a short identifier to use as
+the artifact key (e.g., a slug like `rollback-loop` or `pull-secret-failure`).
+Use this identifier wherever `{issue-key}` appears in artifact paths.
+
 ## Process
 
 ### Step 1: Classify Input
 
 - Determine what the user provided: Jira ticket, free-form context, or both
 - Extract the Jira issue key if present
+- If no Jira ticket is provided, ask the user for a short artifact identifier
+  (e.g., `rollback-loop`) to use as `{issue-key}` in artifact paths
 
 ### Step 2: Fetch Jira Details
 
