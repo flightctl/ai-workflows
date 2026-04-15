@@ -21,7 +21,7 @@ This file is read during the `/draft` phase. It is not included in the final out
 
 - **ISSUE_KEY:** Replace with the Jira issue key (e.g., `EDM-3340`).
 - **Article Type:** Always `Solution`.
-- **Article Confidence:** Start at `Not-Validated (WIP)`. The support engineer sets the final confidence level after publishing.
+- **Article Confidence:** Start at `Not-Validated (WIP)`. Possible values: `Not-Validated`, `Validated`, `Verified`. The support engineer sets the final confidence level after publishing.
 - **Product:** Product name and version from the Jira ticket or user input. Use the official product name, not internal shorthand.
 
 ## Title

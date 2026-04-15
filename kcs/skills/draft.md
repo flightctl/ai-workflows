@@ -31,20 +31,9 @@ the controller. Do not draft with insufficient context.
 
 ### Step 2: Fill the Template
 
-Work through each section of the template, following the section guidance:
-
-1. **Metadata block** — Fill in the issue key, product name, and version from
-   the context.
-2. **Title** — Write a short, searchable title: main symptom + product name.
-3. **Issue** — Describe the problem from the customer's perspective using the
-   symptoms from the context.
-4. **Environment** — List affected products and versions.
-5. **Diagnostic Steps** — Convert the diagnostic information from the context
-   into numbered steps with commands and expected output.
-6. **Resolution** — Convert the workaround/fix from the context into numbered
-   steps. Label workarounds explicitly.
-7. **Root Cause** — Write the technical explanation. Include the Jira link if
-   a fix is tracked.
+Work through each section of the article template in order, following the
+per-section instructions in the section guidance. The section guidance defines
+what content each section needs, how to format it, and what to avoid.
 
 ### Step 3: Apply Style Rules
 

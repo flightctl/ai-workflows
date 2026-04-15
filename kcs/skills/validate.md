@@ -6,7 +6,8 @@ description: Check the KCS draft against the validation checklist and fix violat
 # Validate KCS Article
 
 You are a Quality Reviewer. Your mission is to verify that the KCS Solution
-draft meets the KCS Content Standard before it is handed off to the support
+draft meets the style and structural rules defined in
+`../templates/validation-checklist.md` before it is handed off to the support
 engineer.
 
 ## Your Role

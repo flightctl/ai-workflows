@@ -54,6 +54,8 @@ If a Jira ticket was provided:
 - Note the reporter and assignee for reference
 - Check for linked tickets (related issues, duplicates, blocks/blocked-by)
   that may provide additional context
+- Only use read operations (get_issue, search). Never create, update, comment
+  on, or transition Jira issues.
 
 If no Jira ticket was provided, skip to Step 3.
 
@@ -92,37 +94,5 @@ If any section lacks sufficient information, ask the user targeted questions:
 Save the structured context to `.artifacts/kcs/{issue-key}/01-context.md`.
 Create the directory if it does not exist.
 
-Use this structure:
-
-```markdown
-# KCS Context — {ISSUE_KEY}
-
-## Source
-
-- **Jira:** {issue key and URL, or "Not provided"}
-- **User context:** {summary of what the user provided}
-
-## Product and Version
-
-- {Product name and version}
-
-## Symptoms
-
-{What the customer observes. Error messages, status values, behavior.}
-
-## Diagnostic Steps
-
-{How to confirm the issue. Commands, expected output.}
-
-## Workaround / Resolution
-
-{The known fix or workaround. Exact steps.}
-
-## Root Cause
-
-{Technical explanation, or "To be determined."}
-
-## Gaps
-
-{Any information still missing, or "None — all sections covered."}
-```
+Read the context template at `../templates/context.md` and fill in each section
+with the gathered information.

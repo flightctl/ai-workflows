@@ -36,7 +36,7 @@ Artifacts go in `.artifacts/kcs/{issue-key}/`.
 
 ## Quality
 
-- Follow the KCS Solutions Content Standard for article structure and style.
+- Follow the KCS style rules defined in `templates/section-guidance.md` and validated by `templates/validation-checklist.md`.
 - Use present tense throughout ("The device shows..." not "The device showed...").
 - Use backticks for file paths, command names, configuration keys, and technical terms.
 - Use fenced code blocks for full commands and example output.

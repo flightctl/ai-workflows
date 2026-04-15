@@ -158,5 +158,7 @@ User: "I already wrote a draft at .artifacts/kcs/PROJ-789/02-kcs-draft.md"
 
 ## References
 
+These links are for human reference only (Red Hat SSO required). The skill itself does not access these at runtime — all rules are embedded in the `templates/` files.
+
 - [KCS Solutions Content Standard v3.0](https://source.redhat.com/departments/products_and_global_engineering/cee_kcs_program/cee_kcs_program_wiki/kcs_solutions_content_standard_v20) (Red Hat internal)
 - [Red Hat Customer Portal - Solutions](https://access.redhat.com/solutions)
