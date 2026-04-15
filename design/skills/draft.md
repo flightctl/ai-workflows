@@ -141,10 +141,10 @@ source material and design document:
 6. **Open risks and unresolved items:** Check the PRD's Risks and Open
    Questions section (§6). Import any with Status=Open into the design's
    Open Questions — these are unresolved issues that may affect design
-   decisions. Also check the PRD's Appendix: Review Notes for
-   assumptions that were never validated during PRD review and items
-   still needing resolution. Import relevant items into the design's
-   Review Notes appendix or Open Questions section.
+   decisions. Also check for any remaining TBD markers in the PRD, which
+   represent genuine unknowns that may affect design choices. Import
+   relevant items into the design's Review Notes appendix or Open
+   Questions section.
 
 If this step discovers new gaps, assumptions, or open questions, update
 the Review Notes appendix (Step 5) to include them.
