@@ -27,6 +27,7 @@ kcs/
 ├── guidelines.md               # Behavioral guidelines
 ├── README.md                   # This file
 ├── templates/
+│   ├── context.md              # Context artifact structure for /gather
 │   ├── kcs-solution.md         # Article skeleton
 │   ├── section-guidance.md     # Per-section AI writing instructions
 │   └── validation-checklist.md # Checklist for /validate phase
