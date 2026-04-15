@@ -155,3 +155,8 @@ User: "I already wrote a draft at .artifacts/kcs/PROJ-789/02-kcs-draft.md"
 ├── 02-kcs-draft.md        # The KCS Solution article (markdown)
 └── 03-handoff-message.md  # Ready-to-send message for the support engineer
 ```
+
+## References
+
+- [KCS Solutions Content Standard v3.0](https://source.redhat.com/departments/products_and_global_engineering/cee_kcs_program/cee_kcs_program_wiki/kcs_solutions_content_standard_v20) (Red Hat internal)
+- [Red Hat Customer Portal - Solutions](https://access.redhat.com/solutions)
