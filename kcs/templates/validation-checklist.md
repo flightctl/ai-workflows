@@ -16,7 +16,7 @@ Each item must pass. Failures are reported with the section and specific issue.
 ## Title
 
 - [ ] Describes the main symptom and includes the product name
-- [ ] Under 120 characters
+- [ ] One liner — short enough to be scannable as a single line
 - [ ] No brackets around product names
 - [ ] No article type prefix ("Solution:", "KCS:", etc.)
 
@@ -63,4 +63,4 @@ Each item must pass. Failures are reported with the section and specific issue.
 - [ ] Fenced code blocks used for full commands and example output
 - [ ] Numbered steps for sequential actions, bullet points for non-sequential items
 - [ ] en-US English spelling
-- [ ] No "To be determined" placeholders remaining (all sections filled or flagged to user)
+- [ ] No "To be determined" placeholders remaining — except Root Cause, which may remain TBD if the user has explicitly acknowledged it

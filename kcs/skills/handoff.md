@@ -77,5 +77,6 @@ Use this structure:
 
 ### Step 5: Present to User
 
-Show the composed message to the user for review before they send it.
-Offer to adjust the tone, add details, or change the recipient.
+Show the composed message to the user for review before they send it via
+their preferred channel (Slack, email, or other). Offer to adjust the tone,
+add details, or change the recipient.
