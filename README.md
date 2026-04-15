@@ -21,6 +21,9 @@ Reusable AI coding workflows a team member can install globally or per-project, 
 - **Design** -- Design-and-decompose workflow: take a PRD, draft a technical design document, break work into Jira-ready epics and stories, and manage review via GitHub PRs.
   See [design/README.md](design/README.md).
 
+- **Implement** -- Story-to-code workflow: take a Jira Story, plan the implementation, write contract-based tests and production code via TDD, validate against the project's CI expectations, and manage review via GitHub PRs.
+  See [implement/README.md](implement/README.md).
+
 - **Skill Reviewer** -- Meta-workflow that audits AI skill directories against eight quality dimensions.
   See [skill-reviewer/README.md](skill-reviewer/README.md).
 
@@ -90,6 +93,7 @@ Each workflow is intended for a specific project or use case:
 - **docs-writer** -- the [edge-manager](https://gitlab.cee.redhat.com/red-hat-enterprise-openshift-documentation/edge-manager) downstream docs project
 - **prd** -- teams drafting Product Requirements Documents from Jira features
 - **design** -- teams creating technical design documents and Jira-ready epic/story breakdowns from PRDs
+- **implement** -- teams implementing Jira stories produced by the design workflow
 - **triage** -- teams that want bulk Jira triage, categorization, and HTML reports from this repo or a clone
 - **skill-reviewer** -- reviewing or standardizing Cursor/agent skills and skill packs (structure, clarity, completeness)
 

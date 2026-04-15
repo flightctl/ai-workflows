@@ -14,6 +14,7 @@ This repository contains reusable AI coding workflows that can be installed glob
 - **cve-fix** — Automated CVE remediation from Jira tickets (start, patch, validate, pr, backport, close)
 - **prd** — Requirements-to-PRD workflow (ingest, clarify, draft, revise, publish, respond)
 - **design** — Design-and-decompose workflow (ingest, draft, decompose, revise, publish, respond, sync)
+- **implement** — Story-to-code workflow (ingest, plan, revise, implement, validate, publish, respond)
 
 ## Architecture
 
@@ -55,6 +56,7 @@ Workflows write outputs to `.artifacts/{workflow-name}/{context}/`:
 - **cve-fix**: `.artifacts/cve-fix/{context}/` (context.md, patch-log.md, validation-results.md, pr-description.md, backport-log.md, close-report.md)
 - **prd**: `.artifacts/prd/{issue-number}/` (01-requirements.md, 02-clarifications.md, 03-prd.md, 04-pr-description.md, 05-review-responses.md)
 - **design**: `.artifacts/design/{issue-number}/` (01-context.md, 02-design.md, 03-epics.md, 04-stories/epic-{N}-{slug}.md, 04-stories/epic-{N}/story-{NN}-{slug}.md, 05-coverage.md, 06-pr-description.md, 07-review-responses.md, publish-metadata.json, sync-manifest.json)
+- **implement**: `.artifacts/implement/{jira-key}/` (01-context.md, 02-plan.md, 03-test-report.md, 04-impl-report.md, 05-validation-report.md, 06-pr-description.md, 07-review-responses.md, publish-metadata.json)
 
 ## Prerequisites
 
@@ -68,6 +70,7 @@ Workflows write outputs to `.artifacts/{workflow-name}/{context}/`:
 - **cve-fix**: Jira MCP server or Jira CLI (`jira`), GitHub CLI (`gh`), optionally `skopeo` for container image verification
 - **prd**: Jira MCP server — for requirements ingestion; GitHub CLI (`gh`) — for PR creation and review comment management
 - **design**: Jira MCP server or CLI — for `/ingest` (read-only) and `/sync` (creates epics/stories); GitHub CLI (`gh`) — for `/publish` and `/respond`
+- **implement**: Jira MCP server or CLI — for `/ingest` (read-only); GitHub CLI (`gh`) — for `/publish` and `/respond`; project build/test/lint tooling (discovered during `/ingest`); docs repo (local clone) — for `/ingest` (reads PRD and design document)
 
 ## Installation System
 
@@ -168,6 +171,16 @@ For detailed workflow development guidelines (structure, file conventions, testi
 - Design doc template and section guidance live in `templates/` with project-level override support
 - Each story must include functionality AND testing (no deferred test stories)
 
+### implement
+
+- Requires a Jira Story (typically created by the design workflow's `/sync` phase) as input
+- Jira is read-only — no phase in this workflow writes to Jira
+- Discovery-based validation: build, test, lint, and coverage commands are discovered during `/ingest` from the project's AGENTS.md, Makefile, and CI workflows — not hardcoded
+- Contract-based testing: tests validate behavioral contracts through public interfaces; unit tests always required, integration tests required when the story touches component interactions
+- Incremental commits prefixed with Jira key — no squashing, each commit independently meaningful for backporting
+- Plan evolves during implementation — `02-plan.md` is updated as tasks complete, enabling resumption after interruptions
+- Code changes happen in the source repo on a feature branch; `/publish` creates a PR in the source repo (not a separate docs repo)
+
 ## Common Commands
 
 **Note**: This repository contains AI workflow definitions (markdown files), not traditional code requiring build/test commands. "Testing" refers to verifying workflow execution and symlink installation.
@@ -232,6 +245,7 @@ ai-workflows/
 ├── skill-reviewer/
 ├── prd/
 ├── design/
+├── implement/
 ├── install.sh                 # Installer with auto-discovery
 ├── uninstall.sh              # Removal script
 ├── .cursor-plugin/           # Cursor marketplace files
