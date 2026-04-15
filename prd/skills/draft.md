@@ -88,25 +88,13 @@ These IDs enable traceability — acceptance criteria, design decisions,
 and task breakdowns can reference specific requirements by ID rather
 than by description.
 
-Leave the Executive Summary blank for now — write it last, after all
-other sections are complete (see Step 7).
-
 Fill in the metadata table:
 - **Author(s):** The feature owner (ask if not known).
 - **Status:** Draft
 - **Jira:** Link to the source Feature issue (e.g., `https://redhat.atlassian.net/browse/EDM-1471`)
 - **Date:** Today's date
 
-### Step 5: Populate the Review Notes Appendix
-
-After writing all numbered sections, populate the Appendix: Review Notes:
-
-1. **Assumptions:** Collect every `[Assumption: ...]` marker from the document. List each with a section reference so reviewers can find the context.
-2. **Items Needing Resolution:** List open risks/questions from the Risks and Open Questions section that don't yet have owners or outcomes, plus any TBD markers from other sections.
-
-These items make assumptions and unresolved items visible to reviewers — not just the author. The same items should also appear in your conversation output (the "Present to User" step), but the appendix is what persists into the review.
-
-### Step 6: Verify Coverage
+### Step 5: Verify Coverage
 
 Before self-review, systematically verify that nothing was lost between
 source material and PRD:
@@ -135,15 +123,46 @@ source material and PRD:
    requirement should have at least one source marker. Flag any that
    don't.
 
-If this step discovers new gaps, assumptions, or TBD markers, update the
-Review Notes appendix (Step 5) to include them.
+If this step introduces new `[Assumption: ...]` markers or TBD items,
+Step 6 will collect and resolve them.
 
-### Step 7: Write Executive Summary
+### Step 6: Resolve Assumptions and Open Items
 
-Now that all numbered sections are complete, write the Executive Summary
-following the section guidance.
+Before the PRD can be saved, the author must validate every assumption
+and open item. Collect the following from the document:
 
-### Step 8: Self-Review
+1. Every `[Assumption: ...]` marker
+2. Every "To be determined" item
+3. Every risk or open question in Section 6 that lacks an owner or outcome
+
+If there are no items across all three categories, skip to Step 7.
+
+Present the items to the user in conversation:
+
+1. **Assumptions:** Collect every `[Assumption: ...]` marker from the
+   document. List each with its section reference and the assumption text.
+2. **TBD markers:** List any "To be determined" items with their section
+   references.
+3. **Unowned open items:** List any risks or open questions from Section 6
+   that lack an owner or outcome.
+
+Ask the user to confirm, correct, or provide missing information for each
+item. Then apply the resolutions:
+
+- **Confirmed assumptions:** Rewrite the statement in its final form and
+  remove the `[Assumption: ...]` marker.
+- **Corrected assumptions:** Rewrite with the corrected information and
+  remove the marker.
+- **Resolved TBDs:** Replace the "To be determined" text with the
+  provided content.
+- **Items the user cannot resolve now:** Leave TBD markers or open
+  questions in place — these are genuine gaps, not drafting artifacts.
+
+After this step, the document should contain no `[Assumption: ...]`
+markers. Any remaining TBD markers or open questions represent real
+unknowns, not unvalidated AI judgment calls.
+
+### Step 7: Self-Review
 
 Before presenting the PRD, verify:
 - [ ] Every functional requirement has a stable ID (FR-1, FR-2, ...) and a source marker — or traces to the primary Jira issue linked in the metadata table (per the consolidation rule)
@@ -153,9 +172,8 @@ Before presenting the PRD, verify:
 - [ ] Every included section has substantive content (use "TBD" markers for expected-but-unavailable content)
 - [ ] No optional sections filled with placeholder text — omit them instead
 - [ ] Terminology matches the source material
-- [ ] Assumptions are flagged inline and collected in the Review Notes appendix
+- [ ] No unresolved `[Assumption: ...]` markers remain in the document
 - [ ] All locked decisions from clarification are reflected
-- [ ] Executive Summary is present and accurately reflects the complete document
 - [ ] Success Metrics table is populated when the source material provides quantifiable targets (omit the subsection otherwise)
 - [ ] No narration of editorial history — requirements are stated in final form, not as changes from a prior position
 - [ ] No vague language ("appropriate", "efficient", "standard" without specifics)
@@ -163,21 +181,16 @@ Before presenting the PRD, verify:
 - [ ] The document is concise — no unnecessary repetition or filler
 - [ ] The document reads coherently end-to-end
 
-### Step 9: Write Artifact
+### Step 8: Write Artifact
 
 Save the PRD to `.artifacts/prd/{issue-number}/03-prd.md`.
 
-### Step 10: Present to User
+### Step 9: Present to User
 
 Show the user the complete PRD and highlight:
-- Any sections marked "TBD" that need further input
-- Any assumptions you flagged
+- Any sections still marked "TBD" that need further input
 - Any judgment calls you made in synthesizing requirements
 - Sections where the source material was particularly strong or weak
-
-These items should mirror what's in the Review Notes appendix — the
-conversation output is for the author's immediate attention, the appendix
-is for all reviewers.
 
 ## Output
 
@@ -187,7 +200,7 @@ is for all reviewers.
 
 Report your results:
 - The PRD has been written and saved
-- Highlight any TBD sections, assumptions, or areas needing review
+- Highlight any remaining TBD sections or areas needing review
 - Note the overall confidence level in the document's completeness
 
 Then **re-read the controller** (`controller.md`) for next-step guidance.
