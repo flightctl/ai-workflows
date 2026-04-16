@@ -7,6 +7,7 @@ This file provides guidance to AI coding assistants when working with this repos
 This repository contains reusable AI coding workflows that can be installed globally or per-project in any environment (Cursor, Claude Code, Gemini). Each workflow is a self-contained directory with structured markdown files that AI agents can read and execute.
 
 **Current workflows:**
+- **ai-ready** — Codebase scanning and AGENTS.md generation (update)
 - **bugfix** — Systematic bug resolution (assess, reproduce, diagnose, fix, test, review, document, pr)
 - **docs-writer** — Documentation creation workflow
 - **triage** — Bulk Jira bug triage with AI-driven categorization and HTML reports
@@ -49,6 +50,7 @@ Critical for symlink resolution:
 ### Artifact Management
 
 Workflows write outputs to `.artifacts/{workflow-name}/{context}/`:
+- **ai-ready**: No persistent artifacts (writes directly to the target project's AGENTS.md)
 - **bugfix**: `.artifacts/bugfix/{issue-number}/` (root-cause.md, reproduction.md, etc.)
 - **triage**: `.artifacts/triage/{project}/` (issues.json, analyzed.json, report.html)
 - **skill-reviewer**: `.artifacts/skill-reviewer/{skill-name}/` (review.md)
@@ -62,6 +64,7 @@ Workflows write outputs to `.artifacts/{workflow-name}/{context}/`:
 - Git (for version control operations)
 
 ### Workflow-Specific Dependencies
+- **ai-ready**: None (reads codebase, writes AGENTS.md)
 - **bugfix**: GitHub CLI (`gh`) — for PR queries and creation
 - **triage**: Jira MCP server — configured and authenticated for Jira API access
 - **docs-writer**: GitLab CLI — for merge request creation (or GitHub CLI for GitHub-hosted projects)
@@ -113,6 +116,12 @@ For detailed workflow development guidelines (structure, file conventions, testi
 - Test: `./install.sh cursor && ./uninstall.sh` for clean reinstall verification
 
 ## Workflow-Specific Notes
+
+### ai-ready
+
+- Single-phase workflow: `/update` scans the codebase and writes AGENTS.md
+- No external dependencies or artifacts
+- Safe for any project — reads only, writes one file
 
 ### bugfix
 
@@ -226,12 +235,14 @@ vale path/to/file.adoc    # Style/terminology validation
 
 ```text
 ai-workflows/
-├── bugfix/                    # Workflows (auto-discovered via SKILL.md)
-├── docs-writer/
-├── triage/
-├── skill-reviewer/
-├── prd/
+├── ai-ready/                  # Workflows (auto-discovered via SKILL.md)
+├── bugfix/
+├── cve-fix/
 ├── design/
+├── docs-writer/
+├── prd/
+├── skill-reviewer/
+├── triage/
 ├── install.sh                 # Installer with auto-discovery
 ├── uninstall.sh              # Removal script
 ├── .cursor-plugin/           # Cursor marketplace files

@@ -21,6 +21,12 @@ Reusable AI coding workflows a team member can install globally or per-project, 
 - **Design** -- Design-and-decompose workflow: take a PRD, draft a technical design document, break work into Jira-ready epics and stories, and manage review via GitHub PRs.
   See [design/README.md](design/README.md).
 
+- **CVE Fix** -- Automated CVE remediation: read vulnerability details from Jira, apply multi-strategy dependency fixes, validate, and create pull requests. Language-agnostic.
+  See [cve-fix/README.md](cve-fix/README.md).
+
+- **AI-Ready** -- Scans a codebase and creates or updates AGENTS.md with project-specific build commands, test patterns, and coding standards.
+  See [ai-ready/README.md](ai-ready/README.md).
+
 - **Skill Reviewer** -- Meta-workflow that audits AI skill directories against eight quality dimensions.
   See [skill-reviewer/README.md](skill-reviewer/README.md).
 
@@ -90,6 +96,8 @@ Each workflow is intended for a specific project or use case:
 - **docs-writer** -- the [edge-manager](https://gitlab.cee.redhat.com/red-hat-enterprise-openshift-documentation/edge-manager) downstream docs project
 - **prd** -- teams drafting Product Requirements Documents from Jira features
 - **design** -- teams creating technical design documents and Jira-ready epic/story breakdowns from PRDs
+- **cve-fix** -- teams patching CVEs and updating vulnerable dependencies from Jira vulnerability tickets
+- **ai-ready** -- onboarding any project for AI agents by generating AGENTS.md
 - **triage** -- teams that want bulk Jira triage, categorization, and HTML reports from this repo or a clone
 - **skill-reviewer** -- reviewing or standardizing Cursor/agent skills and skill packs (structure, clarity, completeness)
 
