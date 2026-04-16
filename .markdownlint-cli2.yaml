@@ -1,0 +1,48 @@
+config:
+  # Disable line-length — skill files are prose instructions for AI agents,
+  # not documentation with a strict column limit.
+  MD013: false
+
+  # Blanks-around-lists / headings / fences — the repo's existing style
+  # doesn't consistently follow these. Disabled to avoid a repo-wide reformat;
+  # can be tightened later.
+  MD022: false
+  MD031: false
+  MD032: false
+
+  # Indentation style varies across workflows (2-space vs 4-space nested lists).
+  MD007: false
+
+  # Allow multiple blank lines (used for visual separation in some files).
+  MD012: false
+
+  # Allow duplicate headings — README.md has repeated "Cursor" / "Claude Code"
+  # headings under different parent sections.
+  MD024: false
+
+  # Allow multiple top-level headings — SKILL.md files have YAML frontmatter
+  # followed by a heading, and some files legitimately use multiple H1s.
+  MD025: false
+
+  # Allow inline HTML — used in tables and occasional formatting.
+  MD033: false
+
+  # Allow bare URLs.
+  MD034: false
+
+  # Allow emphasis used as headings (e.g., **Workaround** as a section label).
+  MD036: false
+
+  # Don't require language on fenced code blocks — many blocks are
+  # plain-text examples (commands, output) without a specific language.
+  MD040: false
+
+  # Don't enforce table column alignment style.
+  MD060: false
+
+globs:
+  - "**/*.md"
+
+ignores:
+  - ".artifacts/**"
+  - "node_modules/**"
