@@ -68,11 +68,35 @@ Record the failure in the validation report under Branch Currency as
 git rev-list --count HEAD..origin/{base}
 ```
 
-If the branch is behind base, warn the user and recommend rebasing
-before validation. Offer to perform the rebase: follow the same
-procedure as Step 3g of `/implement` (rebase with conflict handling
-and user-approved resolution). If the user declines, continue but
-note the staleness in the validation report.
+If the branch is behind base, check whether a PR has already been
+created by looking for `.artifacts/implement/{jira-key}/publish-metadata.json`.
+
+**If no PR exists yet** (pre-publish), offer to rebase:
+
+```bash
+git rebase origin/{base}
+```
+
+Follow the same conflict handling as Step 3g of `/implement` (stop,
+show conflicts, offer to resolve, proceed only with user approval).
+
+**If a PR already exists** (post-publish), offer to merge instead:
+
+```bash
+git merge origin/{base}
+```
+
+Merging preserves the commit history that reviewers have already seen.
+Do not rebase a branch that has an open PR — rebasing rewrites commit
+SHAs, which requires a force-push, orphans review comments, and
+disrupts the reviewer's context.
+
+If the merge has conflicts, stop and report the conflicting files to
+the user. Show the conflict markers, offer to resolve, and proceed
+only with user approval.
+
+If the user declines either operation, continue but note the staleness
+in the validation report.
 
 Validation results against a stale base may not reflect the actual
 PR state.
