@@ -122,7 +122,7 @@ Write `.artifacts/implement/{jira-key}/02-plan.md` with this structure:
 - **Files:** {paths to create or modify}
 - **What:** {specific changes}
 - **Why:** {which acceptance criterion this serves, e.g., AC-1, AC-3}
-- **Commit message:** `{JIRA-KEY}: {message}`
+- **Commit message:** `{use commit format from 01-context.md}`
 - **Status:** Pending
 
 ### Task 2: {description}

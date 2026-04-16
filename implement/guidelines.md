@@ -29,7 +29,7 @@
 - Before `/implement`, confirm the feature branch name and starting point with the user.
 - Before `/publish`, confirm the PR target branch and description with the user.
 - **Read before writing.** Before modifying any file, read it first. Before writing tests for a package, read existing tests in that package to match patterns.
-- **Deviation transparency.** If during `/implement` you encounter something unexpected (a bug in adjacent code, a missing dependency, a design assumption that doesn't hold), report it. Apply deviation rules (see `implement.md`) but never silently change approach.
+- **Deviation transparency.** If during `/implement` you encounter something unexpected (a bug in adjacent code, a missing dependency, a design assumption that doesn't hold), report it. Apply deviation rules (see `skills/implement.md`) but never silently change approach.
 - Flag assumptions explicitly. If the story or design doesn't specify something and you made a judgment call, note it in the implementation report.
 
 ## Quality
