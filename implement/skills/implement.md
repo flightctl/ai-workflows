@@ -94,7 +94,6 @@ Depending on results:
 ```bash
 # If branch exists locally:
 git checkout {branch-name}
-git rebase origin/{base}
 
 # If branch does not exist locally but exists on remote:
 git checkout -b {branch-name} origin/{branch-name}
@@ -103,9 +102,27 @@ git checkout -b {branch-name} origin/{branch-name}
 git checkout -b {branch-name} origin/{base}
 ```
 
-If the rebase on an existing local branch has conflicts, follow the
-same conflict handling as Step 3g (stop, show conflicts, offer to
-resolve, proceed only with user approval).
+If the branch already existed (locally or on remote), sync it with
+the base branch. Check whether a PR has already been created by
+looking for `.artifacts/implement/{jira-key}/publish-metadata.json`.
+
+If no PR exists yet, rebase:
+
+```bash
+git rebase origin/{base}
+```
+
+If a PR already exists, merge instead — rebasing a branch with an
+open PR requires a force-push, which orphans review comments and
+disrupts reviewers:
+
+```bash
+git merge origin/{base}
+```
+
+If conflicts occur during either operation, follow the same conflict
+handling as Step 3g (stop, show conflicts, offer to resolve, proceed
+only with user approval).
 
 Verify the starting point:
 
@@ -264,25 +281,37 @@ git rev-list --count HEAD..origin/{base}
 If the count is 0, no new upstream commits exist — skip the rebase and
 test re-run, and proceed directly to Step 3h.
 
-If new commits exist, rebase:
+If new commits exist, sync the branch with the base. Check whether a
+PR has already been created by looking for
+`.artifacts/implement/{jira-key}/publish-metadata.json`.
+
+**If no PR exists yet** (pre-publish), rebase:
 
 ```bash
 git rebase origin/{base}
 ```
 
-If the rebase applies cleanly, re-run the task's tests to confirm the
-committed work still passes against the updated base. If tests fail,
-diagnose using the failure routing in Step 4.
+**If a PR already exists** (post-publish), merge instead — rebasing a
+branch with an open PR requires a force-push, which orphans review
+comments and disrupts reviewers:
 
-**If the rebase has conflicts:**
+```bash
+git merge origin/{base}
+```
+
+If the operation applies cleanly, re-run the task's tests to confirm
+the committed work still passes against the updated base. If tests
+fail, diagnose using the failure routing in Step 4.
+
+**If there are conflicts:**
 
 1. Stop and report the conflicting files to the user
 2. Show the conflict markers so the user can see what's colliding
 3. Offer to resolve the conflicts — describe what you would do
 4. Proceed only after the user approves the resolution (or resolves it
    themselves)
-5. After resolution, run `git rebase --continue` and re-run the task's
-   tests
+5. After resolution, run `git rebase --continue` or commit the merge
+   resolution as appropriate, then re-run the task's tests
 
 #### 3h: Update Plan
 
