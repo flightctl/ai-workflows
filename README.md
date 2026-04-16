@@ -21,6 +21,9 @@ Reusable AI coding workflows a team member can install globally or per-project, 
 - **Design** -- Design-and-decompose workflow: take a PRD, draft a technical design document, break work into Jira-ready epics and stories, and manage review via GitHub PRs.
   See [design/README.md](design/README.md).
 
+- **KCS** -- KCS Solution article workflow: gather bug context from Jira, draft a KCS article in markdown, validate against the KCS Content Standard, and produce a handoff message for the support engineer.
+  See [kcs/README.md](kcs/README.md).
+
 - **Skill Reviewer** -- Meta-workflow that audits AI skill directories against eight quality dimensions.
   See [skill-reviewer/README.md](skill-reviewer/README.md).
 
@@ -90,6 +93,7 @@ Each workflow is intended for a specific project or use case:
 - **docs-writer** -- the [edge-manager](https://gitlab.cee.redhat.com/red-hat-enterprise-openshift-documentation/edge-manager) downstream docs project
 - **prd** -- teams drafting Product Requirements Documents from Jira features
 - **design** -- teams creating technical design documents and Jira-ready epic/story breakdowns from PRDs
+- **kcs** -- teams writing KCS Solution articles for known issues with workarounds
 - **triage** -- teams that want bulk Jira triage, categorization, and HTML reports from this repo or a clone
 - **skill-reviewer** -- reviewing or standardizing Cursor/agent skills and skill packs (structure, clarity, completeness)
 
