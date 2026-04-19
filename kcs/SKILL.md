@@ -65,10 +65,10 @@ offer retry.
 {Technical mechanism. Link Jira ticket tracking permanent fix.}
 ```
 
-3. Style rules: present tense, no personal pronouns, backticks for paths /
+1. Style rules: present tense, no personal pronouns, backticks for paths /
    commands / config keys, fenced code blocks for commands and output, en-US
    spelling. See `templates/section-guidance.md` for full per-section rules.
-4. Write `02-kcs-draft.md`.
+2. Write `02-kcs-draft.md`.
 
 ## `/validate`
 
