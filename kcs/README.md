@@ -157,9 +157,19 @@ User: "I already wrote a draft at .artifacts/kcs/PROJ-789/02-kcs-draft.md"
 └── 03-handoff-message.md  # Ready-to-send message for the support engineer
 ```
 
-## References
+## KCS Content Standard
 
-These links are for human reference only (Red Hat SSO required). The skill itself does not access these at runtime — all rules are embedded in the `templates/` files.
+The mandatory style and structural rules from the KCS Solutions Content Standard
+are embedded in the files the skill reads at runtime:
+
+- `templates/section-guidance.md` — per-section writing rules
+- `templates/validation-checklist.md` — validation criteria for `/validate`
+
+The user is responsible for resolving access to the upstream standard if they
+need to cross-reference or update these embedded rules (Red Hat SSO required):
 
 - [KCS Solutions Content Standard v3.0](https://source.redhat.com/departments/products_and_global_engineering/cee_kcs_program/cee_kcs_program_wiki/kcs_solutions_content_standard_v20) (Red Hat internal)
+
+Optional background reading:
+
 - [Red Hat Customer Portal - Solutions](https://access.redhat.com/solutions)

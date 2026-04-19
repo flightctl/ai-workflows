@@ -54,8 +54,8 @@ If a Jira ticket was provided:
 - Note the reporter and assignee for reference
 - Check for linked tickets (related issues, duplicates, blocks/blocked-by)
   that may provide additional context
-- Only use read operations (get_issue, search). Never create, update, comment
-  on, or transition Jira issues.
+- Only use read operations (e.g. get_issue, search). Never create, update,
+  comment on, or transition Jira issues.
 
 If no Jira ticket was provided, skip to Step 3.
 
