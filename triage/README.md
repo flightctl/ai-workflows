@@ -37,30 +37,24 @@ AUTO_FIX and NEEDS_INFO are mutually exclusive — a bug without sufficient deta
 
 ## Usage
 
-### Cursor
-
 ```
-@triage/commands/run EDM
+/triage:run EDM
 ```
 
 Or step by step:
 
 ```
-@triage/commands/start EDM
-@triage/commands/scan
-@triage/commands/analyze
-@triage/commands/report
+/triage:start EDM
+/triage:scan
+/triage:analyze
+/triage:report
 ```
 
 Single-issue triage (issue URL or project + text):
 
 ```
-@triage/commands/assess
+/triage:assess
 ```
-
-### Claude Code
-
-> "Triage unresolved bugs in the EDM project"
 
 ## HTML Report Features
 

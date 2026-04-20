@@ -12,19 +12,8 @@ The `/update` command scans a codebase and:
 
 ## Usage
 
-### Cursor
-
-Reference the workflow or run the command directly:
-
 ```text
-@ai-ready                    # triggers the workflow
-@ai-ready/commands/update    # runs /update explicitly
-```
-
-### Claude Code
-
-```text
-@ai-ready/commands/update
+/ai-ready:update
 ```
 
 ## When to Run
