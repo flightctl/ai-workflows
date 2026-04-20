@@ -104,8 +104,18 @@ git checkout -b {branch-name} origin/{base}
 ```
 
 If the branch already existed (locally or on remote), sync it with
-the base branch. Check whether a PR has already been created by
-looking for `.artifacts/implement/{jira-key}/publish-metadata.json`.
+the base branch. Before syncing, verify the working tree is clean:
+
+```bash
+git status --porcelain
+```
+
+If output is non-empty, report the uncommitted files to the user and
+ask how to proceed (stash, commit, or abort) before any rebase/merge
+operation.
+
+Check whether a PR has already been created by looking for
+`.artifacts/implement/{jira-key}/publish-metadata.json`.
 
 If no PR exists yet, rebase:
 
@@ -130,9 +140,6 @@ Verify the starting point:
 ```bash
 git log --oneline -5
 ```
-
-If there's uncommitted work from a prior interrupted session, report it to
-the user and ask how to proceed.
 
 ### Step 3: Execute Tasks
 
