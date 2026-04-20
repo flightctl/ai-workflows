@@ -5,13 +5,13 @@ description: >-
   writes contract-based tests and production code via TDD, validates against
   the project's CI expectations, and manages review via GitHub PRs.
   Use when implementing Jira stories produced by the design workflow.
-  Activated by commands: /ingest, /plan, /revise, /implement, /validate, /publish, /respond.
+  Activated by commands: /ingest, /plan, /revise, /code, /validate, /publish, /respond.
 ---
 # Implement Workflow Orchestrator
 
 ## Quick Start
 
-1. If the user invoked a specific command (e.g., `/plan`, `/implement`), read
+1. If the user invoked a specific command (e.g., `/plan`, `/code`), read
    `commands/{command}.md` and follow it.
 2. Otherwise, read `skills/controller.md` to load the workflow controller:
    - If the user provided a Jira issue key or URL, execute the `/ingest` phase

@@ -1,9 +1,9 @@
 ---
-name: implement
+name: code
 description: Write tests and production code via TDD, committing incrementally.
 ---
 
-# Implement Code Skill
+# Code Skill
 
 You are a principal software engineer. Your job is to execute the implementation plan
 by writing tests and production code, following the project's conventions
@@ -42,6 +42,7 @@ If the plan doesn't exist, tell the user that `/plan` should be run first.
 Check the plan for task completion status:
 - Tasks with **Status:** `Done` are complete — skip them
 - The first task with **Status:** `Pending` is where to start
+- On first invocation, all tasks will be Pending — start with Task 1
 
 Read the `## Branch` section of `02-plan.md` to get the planned branch
 name and base. Then check the current branch:
@@ -121,7 +122,7 @@ git merge origin/{base}
 ```
 
 If conflicts occur during either operation, follow the same conflict
-handling as Step 3g (stop, show conflicts, offer to resolve, proceed
+handling as Step 3h (stop, show conflicts, offer to resolve, proceed
 only with user approval).
 
 Verify the starting point:
@@ -219,13 +220,64 @@ any remaining issues once all tasks are complete and the code compiles.
 Do not run the full validation suite here — save expensive checks
 (full test suite, coverage analysis, integration tests) for `/validate`.
 
-#### 3f: Commit
+#### 3f: Code Review
 
-Create an incremental commit:
+Stage the task's changes first — the review and commit steps both
+operate on the staged diff:
 
 ```bash
 git add {specific files}
 ```
+
+Then run a code review on the staged changes. The review method is
+discovered, not hardcoded — use the first tier that applies:
+
+**Tier 1: Project-defined review tooling.** Check the project's
+`AGENTS.md` or `CLAUDE.md` for automated code review tooling — CLI
+commands or scripts that run a review (e.g., a review CLI, a linter
+with review rules). General review checklists intended for human
+reviewers do not qualify — feed those into Tier 2 or 3 as supplementary
+context instead. If review tooling is found, run it. This is the
+extensibility point — when the project adds review tooling, it gets
+picked up automatically.
+
+**Tier 2: Independent review agent.** If no project-specific review
+tooling exists, spawn a code review subagent with a fresh context
+window. Give it:
+
+- The project's `AGENTS.md` / `CLAUDE.md` (for coding conventions)
+- The staged diff for this task (`git diff --cached`)
+- The surrounding files for context (files in the same package)
+- The behavioral contracts being implemented (from the plan task)
+
+Do **not** give it the implementing agent's reasoning or conversation
+history — the value comes from independent eyes, not rubber-stamping.
+
+The subagent should review as a senior engineer familiar with the
+project's conventions, focusing on: correctness, edge cases, error
+handling, naming, security (injection vectors, credential leaking),
+and adherence to project patterns.
+
+**Tier 3: Structured self-review.** If the runtime does not support
+spawning subagents, fall back to a structured self-review. Re-read the
+staged diff and check for:
+
+- Unused imports, dead code, debug artifacts
+- Missing error handling or nil/null checks
+- Hardcoded values that should be constants or configuration
+- Inconsistencies with surrounding code patterns
+- Security: input validation, credential exposure, injection vectors
+
+**Triage findings.** Evaluate each finding on its technical merit —
+the same pushback principle used in `/respond`. Fix findings that add
+value. Dismiss findings that don't with a brief rationale. If any
+fixes were applied, re-stage the affected files before proceeding to
+commit. Note any dismissed findings in the implementation report
+(Discoveries section) so there is a paper trail.
+
+#### 3g: Commit
+
+The changes are already staged from Step 3f. Create the commit:
 
 ```bash
 git commit -m "{JIRA-KEY}: {task description}"
@@ -244,7 +296,7 @@ message must:
 If the commit fails (e.g., rejected by pre-commit hooks), diagnose and
 fix the issue before proceeding to the sync step.
 
-#### 3g: Sync with Base
+#### 3h: Sync with Base
 
 After committing, rebase onto the latest base branch to keep subsequent
 tasks building against head-of-line.
@@ -279,7 +331,7 @@ git rev-list --count HEAD..origin/{base}
 ```
 
 If the count is 0, no new upstream commits exist — skip the rebase and
-test re-run, and proceed directly to Step 3h.
+test re-run, and proceed directly to Step 3i.
 
 If new commits exist, sync the branch with the base. Check whether a
 PR has already been created by looking for
@@ -313,7 +365,7 @@ fail, diagnose using the failure routing in Step 4.
 5. After resolution, run `git rebase --continue` or commit the merge
    resolution as appropriate, then re-run the task's tests
 
-#### 3h: Update Plan
+#### 3i: Update Plan
 
 Mark the task as completed in `02-plan.md`:
 - Change `Pending` to `Done`

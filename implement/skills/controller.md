@@ -21,7 +21,7 @@ workflow by executing phases and handling transitions between them.
 3. **Revise** (`/revise`) — `revise.md`
    Incorporate user feedback into the implementation plan. Repeatable.
 
-4. **Implement** (`/implement`) — `implement.md`
+4. **Code** (`/code`) — `code.md`
    Write tests and code via TDD, committing incrementally.
 
 5. **Validate** (`/validate`) — `validate.md`
@@ -47,9 +47,9 @@ the source repo:
 | Artifact | File | Written by |
 |----------|------|------------|
 | Story context | `01-context.md` | `/ingest` |
-| Implementation plan | `02-plan.md` | `/plan`, `/revise`, `/implement` |
-| Test report | `03-test-report.md` | `/implement` |
-| Implementation report | `04-impl-report.md` | `/implement` |
+| Implementation plan | `02-plan.md` | `/plan`, `/revise`, `/code` |
+| Test report | `03-test-report.md` | `/code` |
+| Implementation report | `04-impl-report.md` | `/code` |
 | Validation report | `05-validation-report.md` | `/validate` |
 | PR description | `06-pr-description.md` | `/publish` |
 | Publish metadata | `publish-metadata.json` | `/publish` |
@@ -75,7 +75,7 @@ happened.
 ### Typical Flow
 
 ```text
-ingest → plan → [revise loop] → implement → validate → publish → [respond loop]
+ingest → plan → [revise loop] → code → validate → publish → [respond loop]
 ```
 
 ### What to Recommend
@@ -83,9 +83,9 @@ ingest → plan → [revise loop] → implement → validate → publish → [re
 **Continuing forward:**
 
 - `/ingest` completed → recommend `/plan` (almost always the right next step)
-- `/plan` completed → recommend `/revise` for user review of the plan, or `/implement` if the user has already reviewed inline
-- `/revise` completed (user satisfied) → recommend `/implement`, or another `/revise` round
-- `/implement` completed → recommend `/validate` (always — never skip validation)
+- `/plan` completed → recommend `/revise` for user review of the plan, or `/code` if the user has already reviewed inline
+- `/revise` completed (user satisfied) → recommend `/code`, or another `/revise` round
+- `/code` completed → recommend `/validate` (always — never skip validation)
 - `/validate` completed (all passing) → recommend `/publish`
 - `/validate` completed (failures remain) → recommend fixing issues, then re-running `/validate`
 - `/publish` completed → recommend `/respond` when review comments arrive
@@ -94,13 +94,14 @@ ingest → plan → [revise loop] → implement → validate → publish → [re
 **Looping back:**
 
 - `/plan` reveals story gaps or contradictions → suggest the user clarify with the story author or update the story
-- `/implement` reveals plan gaps → the plan is updated inline during implementation; offer `/validate` when implementation is complete
+- `/code` reveals plan gaps → the plan is updated inline during implementation; offer `/validate` when implementation is complete
 - `/validate` reveals test failures → offer to diagnose and fix, then re-run `/validate`
+- `/validate` reveals a design concern (e.g., low public-API coverage signals a component needs decomposition) → present the concern to the user; user decides whether to loop back to `/plan` for redesign or accept an exception
 - `/respond` requires code changes → apply changes, re-run `/validate`, then continue responding
 
 **Skipping:**
 
-- If the user already has a plan or partial implementation, they may start at `/implement`
+- If the user already has a plan or partial implementation, they may start at `/code`
 - If the user wants to skip PR creation (e.g., working locally), `/publish` and `/respond` may be skipped
 
 ### How to Present Options
@@ -108,7 +109,7 @@ ingest → plan → [revise loop] → implement → validate → publish → [re
 Lead with your top recommendation, then list alternatives briefly:
 
 ```text
-Recommended next step: /implement — begin TDD implementation following the
+Recommended next step: /code — begin TDD implementation following the
 approved plan.
 
 Other options:
@@ -126,7 +127,7 @@ When the user provides a Jira issue key or URL:
 1. Execute the **ingest** phase
 2. After ingestion, present results and wait
 
-If the user invokes a specific command (e.g., `/implement`), execute that phase
+If the user invokes a specific command (e.g., `/code`), execute that phase
 directly — don't force them through earlier phases.
 
 ## Error Handling
@@ -143,9 +144,10 @@ past errors.
 
 ## Context Management
 
-When output quality appears to be degrading (e.g., the AI misses details,
-repeats itself, or loses track of earlier decisions), consider spawning the
-next phase as a subagent with a fresh context window. Load the subagent with
+When the AI detects that its own output quality is degrading (e.g., it
+misses details, repeats itself, or loses track of earlier decisions),
+consider spawning the next phase as a subagent with a fresh context window.
+This is self-monitoring by the AI, not something a human operator watches. Load the subagent with
 the skill file for the phase being executed, the relevant artifact files from
 `.artifacts/implement/{jira-key}/`, and the project's `AGENTS.md`/`CLAUDE.md`.
 
@@ -157,5 +159,5 @@ subagent spawning.
 - **Never auto-advance.** Always wait for the user between phases.
 - **Recommendations come from this file, not from skills.** Skills report findings; this controller decides what to recommend next.
 - **Jira is read-only.** The `/ingest` phase reads from Jira but never modifies it. No phase in this workflow writes to Jira.
-- **Plan evolves during implementation.** `/implement` updates `02-plan.md` as tasks are completed. This is expected, not a sign of plan failure.
+- **Plan evolves during implementation.** `/code` updates `02-plan.md` as tasks are completed. This is expected, not a sign of plan failure.
 - **Validation is mandatory before publishing.** Never recommend `/publish` unless `/validate` has passed.

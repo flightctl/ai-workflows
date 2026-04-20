@@ -77,7 +77,7 @@ created by looking for `.artifacts/implement/{jira-key}/publish-metadata.json`.
 git rebase origin/{base}
 ```
 
-Follow the same conflict handling as Step 3g of `/implement` (stop,
+Follow the same conflict handling as Step 3h of `/code` (stop,
 show conflicts, offer to resolve, proceed only with user approval).
 
 **If a PR already exists** (post-publish), offer to merge instead:
@@ -128,19 +128,46 @@ Typical checks (discovered, not hardcoded):
 Run coverage analysis on the packages affected by the story:
 
 1. Use the coverage command from the validation profile
-2. Focus on the **new and modified code** specifically
+2. Focus on the **new and modified code** specifically — compare the
+   coverage report's per-function or per-line breakdown against the
+   story's diff to isolate new-code coverage from pre-existing code
+   in the same package
 3. For each public function added or modified:
    - Are all behavioral paths exercised by tests?
    - Are error return paths tested?
    - Are edge cases covered?
 
-If coverage analysis reveals untested behavioral paths:
+If coverage analysis reveals untested behavioral paths in new code:
 
 1. Write additional tests for the missing behaviors
 2. Follow the same contract-based testing standards
 3. Run the tests to verify they pass
 4. Commit following the project's commit format
 5. Re-run coverage to confirm improvement
+
+Read the **Minimum new-code coverage** percentage from the Coverage
+Tooling section of `01-context.md` (discovered during `/ingest`,
+defaults to 90% if the project does not specify one).
+
+If new code coverage through public API tests remains below that
+threshold after filling behavioral gaps, **do not write tests that
+reach into internals to close the gap.** The default 90% threshold
+accommodates a margin for genuinely untestable paths — panic recovery,
+hardware error handlers, race condition guards — that exist for safety
+but cannot be reliably triggered through a public interface. Coverage
+below the threshold signals that the component is too coarse-grained —
+too much behavior is hidden behind a narrow API. Escalate to the user:
+
+- Report the current coverage and which code is unreachable through
+  public interfaces
+- Recommend decomposing the component into smaller units with more
+  testable public APIs
+- Note this in the validation report as a design concern, not a test
+  gap
+
+The user decides whether to decompose (which may require looping back
+to `/plan`) or to accept the coverage level as an exception (e.g., a
+thin wrapper over an external system).
 
 ### Step 5: Regression Check
 
@@ -155,7 +182,56 @@ If regressions are found:
 - Fix regressions caused by the story, commit separately
 - Note pre-existing failures in the validation report
 
-### Step 6: Write Validation Report
+### Step 6: Code Quality Review
+
+After automated checks pass, review the story's changes for issues that
+automated tooling does not catch. Read the base branch from the `## Branch`
+section of `02-plan.md`, then diff against it:
+
+```bash
+git diff {base}..HEAD
+```
+
+Evaluate each area below. Only flag concrete findings — do not pad with
+generic observations.
+
+**Security**
+
+- No hardcoded secrets, tokens, API keys, or credentials in the diff
+- Input validation on all external or user-facing data
+- Error messages don't leak sensitive information (stack traces, internal
+  paths, credentials)
+- No injection vectors (SQL, command, path traversal) introduced
+
+**Performance**
+
+- No unnecessary allocations in hot paths
+- Loops bounded — no unbounded iteration over external data
+- Resource cleanup: connections, file handles, channels properly closed
+- Concurrent work exits cleanly — no leaked goroutines, threads, or async tasks
+
+**Backward Compatibility**
+
+- Does the change modify any public APIs, error formats, configuration
+  options, or wire protocols?
+- If so, is it backward-compatible, or is the breaking change documented
+  and justified?
+- Could this change be reverted without leaving the system in an
+  inconsistent state?
+
+**Completeness Across Call Sites**
+
+- If the story introduces a guard, wrapper, or handling pattern in one
+  location, search the codebase for similar patterns that need the same
+  treatment
+- A pattern applied to 7 of 8 identical call sites is itself a bug
+
+If this review surfaces issues:
+
+1. Fix issues caused by the story's changes, commit each fix separately
+2. Note pre-existing issues in the validation report (do not fix them)
+
+### Step 7: Write Validation Report
 
 Write `.artifacts/implement/{jira-key}/05-validation-report.md`:
 
@@ -184,6 +260,20 @@ Write `.artifacts/implement/{jira-key}/05-validation-report.md`:
 {Qualitative description of what's covered and what's not. Focus on
  whether all behavioral contracts of public interfaces are tested.}
 
+### Design Concern — Decomposition Needed
+{If new code coverage through public API tests is below the minimum
+ threshold from the validation profile (default 90%):
+ - **Flagged:** Yes
+ - **Threshold:** {N}% (from validation profile)
+ - **Coverage:** {X}% of new code through public API tests
+ - **Unreachable code:** {description of what cannot be reached
+   through public interfaces}
+ - **Recommendation:** Decompose into smaller components with more
+   testable interfaces. Do not write tests that reach into internals.
+
+ If coverage meets or exceeds the threshold: "No decomposition
+ concern — public API coverage is sufficient."}
+
 ### Tests Added During Validation
 | Test File | Tests Added | Reason |
 |-----------|-------------|--------|
@@ -198,6 +288,14 @@ Write `.artifacts/implement/{jira-key}/05-validation-report.md`:
  - Caused by this story's changes (should be fixed)
  - Pre-existing (noted but not fixed)
  If none: "No regressions detected."}
+
+## Quality Review Findings
+
+{Findings from the security, performance, backward compatibility, and
+ completeness review. Distinguish between:
+ - Issues fixed during validation (with commit hashes)
+ - Pre-existing issues noted but not fixed
+ If none: "No quality review findings."}
 
 ## Pre-existing Issues
 
@@ -220,7 +318,7 @@ Write `.artifacts/implement/{jira-key}/05-validation-report.md`:
  FAIL — with explanation of what still needs fixing.}
 ```
 
-### Step 7: Present Results
+### Step 8: Present Results
 
 Summarize for the user:
 - Which checks passed and which failed

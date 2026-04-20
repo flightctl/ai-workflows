@@ -149,7 +149,9 @@ Based on the story's scope, explore the areas of the codebase that will be
 affected. Focus on:
 
 1. **Project configuration:**
-   - `AGENTS.md`, `CLAUDE.md` — project conventions and AI guidance
+   - `AGENTS.md`, `CLAUDE.md` — project conventions, AI guidance, and
+     any project-specific quality thresholds (e.g., minimum coverage
+     percentage for new code)
    - Makefile or equivalent — build, test, lint commands
    - CI/CD workflows (e.g., `.github/workflows/`) — what checks run on PRs
    - `CONTRIBUTING.md` — PR and commit message conventions
@@ -314,6 +316,10 @@ If this is a first invocation, write
 - **Command:** {how to generate coverage, e.g., go test -coverprofile=...}
 - **Report location:** {where reports are written}
 - **View command:** {how to view reports, if available}
+- **Minimum new-code coverage:** {percentage discovered from the project's
+  AGENTS.md or CLAUDE.md, e.g., "90%". If the project does not specify a
+  threshold, default to 90%. This is used by `/validate` as a design
+  decomposition signal — not a hard gate.}
 
 ### Discovered from
 {List of files read to build the validation profile}

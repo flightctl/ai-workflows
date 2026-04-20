@@ -26,10 +26,10 @@
 ## Safety
 
 - Show your work before finalizing. After `/plan`, present the task breakdown for review — do not assume it's ready.
-- Before `/implement`, confirm the feature branch name and starting point with the user.
+- Before `/code`, confirm the feature branch name and starting point with the user.
 - Before `/publish`, confirm the PR target branch and description with the user.
 - **Read before writing.** Before modifying any file, read it first. Before writing tests for a package, read existing tests in that package to match patterns.
-- **Deviation transparency.** If during `/implement` you encounter something unexpected (a bug in adjacent code, a missing dependency, a design assumption that doesn't hold), report it. Apply deviation rules (see `skills/implement.md`) but never silently change approach.
+- **Deviation transparency.** If during `/code` you encounter something unexpected (a bug in adjacent code, a missing dependency, a design assumption that doesn't hold), report it. Apply deviation rules (see `skills/code.md`) but never silently change approach.
 - Flag assumptions explicitly. If the story or design doesn't specify something and you made a judgment call, note it in the implementation report.
 
 ## Quality
@@ -37,6 +37,7 @@
 - Follow the project's `AGENTS.md` and `CLAUDE.md` for coding conventions, testing standards, and contribution guidelines.
 - **Contract-based test coverage.** Identify all behavioral contracts of each public function — every meaningful input class that produces distinct observable behavior. Write test cases that exercise each one. Don't test internal mechanics, but do ensure every behavior the public interface promises is verified through its observable effects.
 - Use code coverage tooling as a **signal, not a target.** If coverage shows an uncovered branch inside a public function, ask: "Is there a behavioral contract I missed?" Write a test for the *behavior*, not the uncovered line.
+- **Low coverage through public APIs is a design signal.** If new code cannot reach the project's minimum coverage threshold (discovered during `/ingest`, defaults to 90%) through tests that invoke public interfaces, the component is likely too coarse-grained — too much behavior is hidden behind a narrow API. The response is to decompose into smaller components with more testable interfaces, not to write tests that reach into internals.
 - Run the project's full validation suite (lint, unit tests, integration tests) before considering implementation complete.
 - Self-review code before presenting. Check for: unused imports, dead code, missing error handling, inconsistent naming, violations of project conventions.
 

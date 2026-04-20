@@ -1,11 +1,11 @@
 ---
-name: implement:implement
+name: implement:code
 description: "Write tests and production code via TDD, committing incrementally"
 ---
-# /implement
+# /code
 
 Read `../skills/controller.md` and follow it.
 
-Dispatch the **implement** phase. Context:
+Dispatch the **code** phase. Context:
 
 $ARGUMENTS

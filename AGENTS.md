@@ -15,7 +15,7 @@ This repository contains reusable AI coding workflows that can be installed glob
 - **cve-fix** — Automated CVE remediation from Jira tickets (start, patch, validate, pr, backport, close)
 - **prd** — Requirements-to-PRD workflow (ingest, clarify, draft, revise, publish, respond)
 - **design** — Design-and-decompose workflow (ingest, draft, decompose, revise, publish, respond, sync)
-- **implement** — Story-to-code workflow (ingest, plan, revise, implement, validate, publish, respond)
+- **implement** — Story-to-code workflow (ingest, plan, revise, code, validate, publish, respond)
 
 ## Architecture
 
