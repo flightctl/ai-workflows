@@ -245,8 +245,6 @@ ai-workflows/
 ├── triage/
 ├── install.sh                 # Installer with auto-discovery
 ├── uninstall.sh              # Removal script
-├── .cursor-plugin/           # Cursor marketplace files
-├── .claude-plugin/           # Claude Code marketplace files
 ├── AGENTS.md                 # AI assistant guidance (this file)
 ├── CLAUDE.md                 # Claude Code reference (points to AGENTS.md + install.sh appends here)
 ├── CONTRIBUTING.md           # Workflow development guide
