@@ -231,7 +231,39 @@ If this review surfaces issues:
 1. Fix issues caused by the story's changes, commit each fix separately
 2. Note pre-existing issues in the validation report (do not fix them)
 
-### Step 7: Write Validation Report
+### Step 7: Acceptance Criteria Verification
+
+After automated checks and code quality review, verify that every
+acceptance criterion from the story has been satisfied. This is the
+workflow's primary contract — the acceptance criteria are what the story
+promises to deliver, and this is the last gate before publishing.
+
+1. Read the **Acceptance Criteria** from `01-context.md`
+2. Read the **Acceptance Criteria Coverage** matrix from `02-plan.md`
+   to see which tasks were mapped to each criterion
+3. For each acceptance criterion:
+   - **Trace to implementation:** Is there code that implements this
+     criterion? Follow the task mapping — check that the task is marked
+     Done and that the corresponding code exists.
+   - **Trace to tests:** Is there at least one test that verifies this
+     criterion's behavior through a public interface? The test should
+     fail if the criterion were not implemented.
+   - **Assess satisfaction:** Based on the implementation and tests,
+     is the criterion fully satisfied, partially satisfied, or not
+     addressed?
+
+Record the result for each criterion. If any criterion is not fully
+satisfied:
+
+1. If it's a gap in implementation or tests — fix it, commit the fix,
+   and re-run the relevant checks
+2. If it's ambiguous whether the criterion is met — flag it to the
+   user with your assessment and let them decide
+3. If the criterion cannot be verified through automated means (e.g.,
+   it requires manual verification or describes a UX quality) — note
+   it as "requires manual verification" with an explanation of why
+
+### Step 8: Write Validation Report
 
 Write `.artifacts/implement/{jira-key}/05-validation-report.md`:
 
@@ -289,6 +321,16 @@ Write `.artifacts/implement/{jira-key}/05-validation-report.md`:
  - Pre-existing (noted but not fixed)
  If none: "No regressions detected."}
 
+## Acceptance Criteria Verification
+
+| AC | Description | Implementation | Tests | Status |
+|----|-------------|----------------|-------|--------|
+| AC-1 | {brief} | {file:line or commit} | {test file:test name} | {satisfied/partial/not addressed/manual verification} |
+
+{If all satisfied: "All acceptance criteria verified."
+ If any gaps: describe what's missing and what was done about it.
+ If any require manual verification: list them with rationale.}
+
 ## Quality Review Findings
 
 {Findings from the security, performance, backward compatibility, and
@@ -313,16 +355,18 @@ Write `.artifacts/implement/{jira-key}/05-validation-report.md`:
 
 ## Result
 
-{PASS — all checks pass, coverage is comprehensive, no regressions.
+{PASS — all checks pass, coverage is comprehensive, all acceptance
+ criteria satisfied, no regressions.
  OR
  FAIL — with explanation of what still needs fixing.}
 ```
 
-### Step 8: Present Results
+### Step 9: Present Results
 
 Summarize for the user:
 - Which checks passed and which failed
 - Coverage assessment (behavioral, not numeric)
+- Acceptance criteria status (all satisfied, or which ones have gaps)
 - Any tests added during validation
 - Any regressions found (and whether they were fixed)
 - Overall verdict: ready for `/publish` or not
@@ -338,6 +382,7 @@ Summarize for the user:
 Report your results:
 - Validation check results (all pass / some fail)
 - Coverage assessment
+- Acceptance criteria status
 - Regression status
 - Overall verdict
 

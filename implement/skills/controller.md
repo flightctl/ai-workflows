@@ -97,6 +97,7 @@ ingest → plan → [revise loop] → code → validate → publish → [respond
 - `/code` reveals plan gaps → the plan is updated inline during implementation; offer `/validate` when implementation is complete
 - `/validate` reveals test failures → offer to diagnose and fix, then re-run `/validate`
 - `/validate` reveals a design concern (e.g., low public-API coverage signals a component needs decomposition) → present the concern to the user; user decides whether to loop back to `/plan` for redesign or accept an exception
+- `/validate` reveals unsatisfied acceptance criteria → if fixable (missing tests or implementation gaps), fix during validation; if the criterion is ambiguous or requires re-scoping, escalate to the user
 - `/respond` requires code changes → apply changes, re-run `/validate`, then continue responding
 
 **Skipping:**
