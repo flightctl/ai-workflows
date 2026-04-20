@@ -24,6 +24,12 @@ Reusable AI coding workflows a team member can install globally or per-project, 
 - **Implement** -- Story-to-code workflow: take a Jira Story, plan the implementation, write contract-based tests and production code via TDD, validate against the project's CI expectations, and manage review via GitHub PRs.
   See [implement/README.md](implement/README.md).
 
+- **CVE Fix** -- Automated CVE remediation: read vulnerability details from Jira, apply multi-strategy dependency fixes, validate, and create pull requests. Language-agnostic.
+  See [cve-fix/README.md](cve-fix/README.md).
+
+- **AI-Ready** -- Scans a codebase and creates or updates AGENTS.md with project-specific build commands, test patterns, and coding standards.
+  See [ai-ready/README.md](ai-ready/README.md).
+
 - **Skill Reviewer** -- Meta-workflow that audits AI skill directories against eight quality dimensions.
   See [skill-reviewer/README.md](skill-reviewer/README.md).
 
@@ -94,6 +100,8 @@ Each workflow is intended for a specific project or use case:
 - **prd** -- teams drafting Product Requirements Documents from Jira features
 - **design** -- teams creating technical design documents and Jira-ready epic/story breakdowns from PRDs
 - **implement** -- teams implementing Jira stories produced by the design workflow
+- **cve-fix** -- teams patching CVEs and updating vulnerable dependencies from Jira vulnerability tickets
+- **ai-ready** -- onboarding any project for AI agents by generating AGENTS.md
 - **triage** -- teams that want bulk Jira triage, categorization, and HTML reports from this repo or a clone
 - **skill-reviewer** -- reviewing or standardizing Cursor/agent skills and skill packs (structure, clarity, completeness)
 

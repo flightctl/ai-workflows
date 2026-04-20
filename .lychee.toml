@@ -1,0 +1,5 @@
+# Lychee link checker configuration.
+
+# Exclude template placeholder URLs from link checking.
+# Curly braces in markdown links get URL-encoded to %7B / %7D.
+exclude = ['%7B.*%7D']

@@ -63,7 +63,6 @@ All artifacts are stored in `.artifacts/prd/{issue-number}/`.
 
 The PRD template (`templates/prd.md`) defines the document structure:
 
-- Executive Summary
 1. Problem Statement
 2. Goals and Non-Goals (including Success Metrics)
 3. Requirements (Functional and Non-Functional)
