@@ -82,17 +82,6 @@ All internal file references must be **relative to the file's own location**:
 
 This ensures symlinks resolve paths correctly regardless of where the workflow is installed.
 
-## IDE-Specific Files
-
-IDE integration files live at the repo root, not inside individual workflows:
-
-- `.cursor-plugin/plugin.json` -- Cursor marketplace manifest
-- `.claude-plugin/plugin.json` -- Claude Code marketplace manifest
-- `.cursor-plugin/INSTALL.md` -- Manual Cursor install instructions
-- `.claude-plugin/INSTALL.md` -- Manual Claude Code install instructions
-
-Update these when adding a workflow only if the install instructions need to change (they usually don't -- auto-discovery handles it).
-
 ## Testing Your Changes
 
 1. Install locally: `./install.sh cursor` (or `all`).

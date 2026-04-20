@@ -4,7 +4,7 @@ Keep a project AI-friendly by maintaining accurate `AGENTS.md` files and a clean
 
 ## What It Does
 
-The `/update` command scans a codebase and:
+The `/ai-ready:update` command scans a codebase and:
 
 1. **Creates or updates `AGENTS.md`** at the project root with project-specific instructions for AI coding agents — build commands, test procedures, code style, architecture, and conventions.
 2. **Audits AI convention files** (`.cursorrules`, `CLAUDE.md`, `.github/copilot-instructions.md`, etc.) — keeps tool-specific ones that are auto-loaded by their tools, merges redundant ones into `AGENTS.md`, updates stale ones, or creates missing ones.
@@ -12,19 +12,8 @@ The `/update` command scans a codebase and:
 
 ## Usage
 
-### Cursor
-
-Reference the workflow or run the command directly:
-
 ```text
-@ai-ready                    # triggers the workflow
-@ai-ready/commands/update    # runs /update explicitly
-```
-
-### Claude Code
-
-```text
-@ai-ready/commands/update
+/ai-ready:update
 ```
 
 ## When to Run

@@ -1,6 +1,6 @@
 # Design Workflow
 
-A design-and-decompose workflow that takes a PRD, drafts a technical design document, breaks work into Jira-ready epics and stories, and manages review via GitHub PRs.
+A design-and-decompose workflow that ingests a PRD, drafts a technical design document, decomposes into Jira-ready epics and stories, revises based on feedback, publishes as a GitHub PR, responds to reviewer comments, and syncs epics/stories to Jira.
 
 ## Prerequisites
 

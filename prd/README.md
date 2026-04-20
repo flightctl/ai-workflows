@@ -1,6 +1,6 @@
 # PRD Workflow
 
-A requirements-to-PRD workflow that ingests requirements from Jira, clarifies ambiguities through iterative Q&A, drafts a Product Requirements Document, and manages review via GitHub PRs.
+A requirements-to-PRD workflow that ingests requirements from Jira, clarifies ambiguities through iterative Q&A, drafts a Product Requirements Document, revises based on feedback, publishes as a GitHub PR, and responds to reviewer comments.
 
 ## Prerequisites
 
