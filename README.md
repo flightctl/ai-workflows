@@ -4,7 +4,7 @@ Reusable AI coding workflows a team member can install globally or per-project, 
 
 ## What's Included
 
-- **Bugfix** -- Systematic bug resolution: assess, reproduce, diagnose, fix, test, review, document, pr.
+- **Bugfix** -- Systematic bug resolution: assess the report, reproduce, diagnose root cause, fix, test, review, document, and submit a PR. Supports iterative PR feedback and an unattended mode.
   Used in the **Flight Control** projects ([flightctl](https://github.com/flightctl/flightctl), [flightctl-ui](https://github.com/flightctl/flightctl-ui)).
   See [bugfix/README.md](bugfix/README.md).
 
@@ -15,13 +15,13 @@ Reusable AI coding workflows a team member can install globally or per-project, 
 - **Triage** -- Bulk Jira bug triage with AI-driven categorization and interactive HTML reports.
   See [triage/README.md](triage/README.md).
 
-- **PRD** -- Requirements-to-PRD workflow: ingest requirements from Jira, clarify ambiguities through iterative Q&A, draft a Product Requirements Document, and manage review via GitHub PRs.
+- **PRD** -- Requirements-to-PRD workflow: ingest requirements from Jira, clarify ambiguities through iterative Q&A, draft a Product Requirements Document, revise based on feedback, publish as a GitHub PR, and respond to reviewer comments.
   See [prd/README.md](prd/README.md).
 
-- **Design** -- Design-and-decompose workflow: take a PRD, draft a technical design document, break work into Jira-ready epics and stories, and manage review via GitHub PRs.
+- **Design** -- Design-and-decompose workflow: ingest a PRD, draft a technical design document, decompose into Jira-ready epics and stories, revise based on feedback, publish as a GitHub PR, respond to reviewer comments, and sync epics/stories to Jira.
   See [design/README.md](design/README.md).
 
-- **CVE Fix** -- Automated CVE remediation: read vulnerability details from Jira, apply multi-strategy dependency fixes, validate, and create pull requests. Language-agnostic.
+- **CVE Fix** -- Automated CVE remediation: read vulnerability details from Jira, apply multi-strategy dependency fixes, validate, create pull requests, backport to release branches, and close Jira tickets. Language-agnostic.
   See [cve-fix/README.md](cve-fix/README.md).
 
 - **AI-Ready** -- Scans a codebase and creates or updates AGENTS.md with project-specific build commands, test patterns, and coding standards.
@@ -118,19 +118,10 @@ Use `--workflows` to install only the workflows relevant to a given project:
 
 ## Usage
 
-### Cursor
+Invoke a workflow command (works in both Cursor and Claude Code):
 
-Invoke a workflow command:
-
-- `@bugfix/commands/assess`, `@bugfix/commands/diagnose`, `@bugfix/commands/fix`, ...
-- `@docs-writer/commands/gather`, `@docs-writer/commands/plan`, `@docs-writer/commands/draft`, ...
-
-### Claude Code
-
-Ask the agent to run a command:
-
-> "Run the diagnose phase on this bug"
-> "Gather context for JIRA-1234"
+- `/bugfix:assess`, `/bugfix:diagnose`, `/bugfix:fix`, ...
+- `/docs-writer:gather`, `/docs-writer:plan`, `/docs-writer:draft`, ...
 
 ## Updating
 
