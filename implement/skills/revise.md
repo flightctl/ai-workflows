@@ -121,6 +121,6 @@ Summarize what changed:
 Report your results:
 - What was changed and why
 - Any consistency updates made as a side effect
-- Assessment of plan readiness for `/implement`
+- Assessment of plan readiness for `/code`
 
 Then **re-read the controller** (`controller.md`) for next-step guidance.

@@ -115,7 +115,7 @@ Write `.artifacts/implement/{jira-key}/02-plan.md` with this structure:
 
  Tasks must produce code or test changes. Do not include tasks for
  running linters, validation suites, or other checks — lint and format
- issues are caught by `/implement`'s per-task lint step (Step 3e) and
+ issues are caught by `/code`'s per-task lint step (Step 3e) and
  by `/validate`. They do not need their own plan tasks.}
 
 ### Task 1: {description}
@@ -159,10 +159,12 @@ Before presenting the plan, verify:
 - [ ] Task ordering respects dependencies (e.g., types defined before tests that use them)
 - [ ] New interfaces and types follow the project's naming conventions
 - [ ] Test strategy covers all public interface behavioral paths
+- [ ] Each proposed component exposes enough public surface area that its significant behavioral paths can be tested without reaching into internals — if a component has a single entry point that orchestrates complex multi-step logic, consider decomposing it into smaller components with more testable interfaces
 - [ ] Integration tests are included when the story touches component interactions
 - [ ] File paths are specific (not "somewhere in internal/")
 - [ ] Commit messages follow the project's format (from validation profile)
 - [ ] No tasks modify code outside the story's scope
+- [ ] Task count is reasonable — if you have more than 10 tasks, consider whether the story needs re-scoping
 - [ ] The plan is achievable — no tasks depend on unavailable infrastructure or unmerged code
 
 ### Step 5: Present to User

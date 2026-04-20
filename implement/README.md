@@ -19,7 +19,7 @@ A story-to-code workflow that takes a Jira Story, plans the implementation, writ
 | Ingest | `/ingest` | Fetch story, load context, explore codebase | `01-context.md` |
 | Plan | `/plan` | Design implementation approach and test strategy | `02-plan.md` |
 | Revise | `/revise` | Incorporate feedback into the plan | Updated `02-plan.md` |
-| Implement | `/implement` | Write tests and code via TDD | `03-test-report.md`, `04-impl-report.md` |
+| Code | `/code` | Write tests and code via TDD | `03-test-report.md`, `04-impl-report.md` |
 | Validate | `/validate` | Run tests, lint, coverage analysis | `05-validation-report.md` |
 | Publish | `/publish` | Push branch, create draft PR | `06-pr-description.md` |
 | Respond | `/respond` | Address reviewer comments | `07-review-responses.md` |
@@ -45,9 +45,9 @@ A story-to-code workflow that takes a Jira Story, plans the implementation, writ
   → user reviews plan, requests changes
   → plan updated, consistency maintained
 
-/implement
+/code
   → creates feature branch
-  → for each task: write tests → write code → run tests → commit
+  → for each task: write tests → write code → review → commit
   → updates 02-plan.md with task completion status
   → writes 03-test-report.md, 04-impl-report.md
 
@@ -93,7 +93,7 @@ Tests validate behavioral contracts through public interfaces:
 - Every behavioral path reachable through a public function gets its own test case
 - Tests should remain valid if the implementation were rewritten
 - Unit tests are always required; integration tests are required when the story touches component interactions
-- Coverage tooling is a signal ("is there a behavioral contract I missed?"), not a numeric target
+- Coverage tooling is a signal ("is there a behavioral contract I missed?"), not a numeric target. However, new code that cannot reach the project's coverage threshold (discovered during `/ingest`, default 90%) through public API tests signals a design problem — the component likely needs decomposition into smaller units, not tests that reach into internals
 
 ### Discovery-Based Validation
 
@@ -105,7 +105,7 @@ Each logical unit of work gets its own commit, following the project's commit fo
 
 ### Plan as Living Document
 
-`02-plan.md` is updated during `/implement` as tasks are completed. On re-invocation (e.g., after context limits or interruptions), the plan shows which tasks are done and which remain.
+`02-plan.md` is updated during `/code` as tasks are completed. On re-invocation (e.g., after context limits or interruptions), the plan shows which tasks are done and which remain.
 
 ## Directory Structure
 
@@ -119,7 +119,7 @@ implement/
 │   ├── ingest.md               # Fetch story, explore codebase
 │   ├── plan.md                 # Design implementation approach
 │   ├── revise.md               # Incorporate plan feedback
-│   ├── implement.md            # Write tests and code via TDD
+│   ├── code.md                 # Write tests and code via TDD
 │   ├── validate.md             # Run validation suite
 │   ├── publish.md              # Create GitHub PR
 │   └── respond.md              # Address review comments
@@ -127,7 +127,7 @@ implement/
     ├── ingest.md               # /ingest command
     ├── plan.md                 # /plan command
     ├── revise.md               # /revise command
-    ├── implement.md            # /implement command
+    ├── code.md                 # /code command
     ├── validate.md             # /validate command
     ├── publish.md              # /publish command
     └── respond.md              # /respond command

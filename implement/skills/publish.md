@@ -17,9 +17,10 @@ user before taking action.
 ## Critical Rules
 
 - **Confirm before pushing.** Verify the target branch, PR title, and PR details with the user.
+- **One story per PR.** Each pull request corresponds to exactly one Jira story. Do not combine multiple stories into a single PR.
 - **Draft PR.** Always create as a draft — the user decides when to mark it ready for review.
 - **No force-push.** No destructive git operations.
-- **No direct commits to main.** The feature branch must already exist from `/implement`.
+- **No direct commits to main.** The feature branch must already exist from `/code`.
 - **Validation must have passed.** Check for a passing validation report before proceeding.
 
 ## Process

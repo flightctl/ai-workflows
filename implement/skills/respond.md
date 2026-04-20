@@ -45,7 +45,9 @@ section of `01-context.md`:
 - If the repo is a direct clone, use the **Origin** field
 
 If `01-context.md` is also unavailable, derive `{owner}/{repo}` from
-the source repo remote:
+the source repo remote.
+
+Retrieve the remote URL to extract `{owner}/{repo}`:
 
 ```bash
 git remote get-url origin
@@ -60,11 +62,15 @@ If `.artifacts/implement/{jira-key}/07-review-responses.md` already exists,
 read it to identify previously addressed comments. Only categorize and
 propose responses for new or unaddressed comments in Step 2.
 
-Fetch both issue-level and review-level comments:
+Fetch both issue-level and review-level comments.
+
+Fetch PR metadata and top-level conversation comments:
 
 ```bash
 gh pr view {pr-number} --repo {owner}/{repo} --json comments,reviews,url
 ```
+
+Fetch line-level review comments with pagination:
 
 ```bash
 gh api repos/{owner}/{repo}/pulls/{pr-number}/comments --paginate
@@ -129,10 +135,10 @@ For comments requiring code changes:
 3. If the change affects behavior, update or add tests. Tests must
    validate behavioral contracts through public interfaces, not
    implementation details — the same standard as Step 3b of
-   `/implement`. Match existing test patterns in the affected package.
+   `/code`. Match existing test patterns in the affected package.
 4. Run the affected tests to verify
 5. Run lint and format checks on the changed files (same approach as
-   Step 3e of `/implement`). Fix any issues before committing.
+   Step 3e of `/code`). Fix any issues before committing.
 6. Commit using the project's commit format:
 
 ```bash
@@ -172,6 +178,8 @@ gh api repos/{owner}/{repo}/pulls/{pr-number}/comments/{comment-id}/replies --fi
 ```bash
 gh pr comment {pr-number} --repo {owner}/{repo} --body-file .artifacts/implement/{jira-key}/tmp-reply.md
 ```
+
+Clean up the temporary reply file:
 
 ```bash
 rm .artifacts/implement/{jira-key}/tmp-reply.md
