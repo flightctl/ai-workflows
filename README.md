@@ -4,7 +4,7 @@ Reusable AI coding workflows a team member can install globally or per-project, 
 
 ## What's Included
 
-- **Bugfix** -- Systematic bug resolution: start, assess, reproduce, diagnose, fix, test, review, document, pr, feedback. Includes an unattended mode that chains diagnose → fix → test → review automatically.
+- **Bugfix** -- Systematic bug resolution: assess the report, reproduce, diagnose root cause, fix, test, review, document, and submit a PR. Supports iterative PR feedback and an unattended mode.
   Used in the **Flight Control** projects ([flightctl](https://github.com/flightctl/flightctl), [flightctl-ui](https://github.com/flightctl/flightctl-ui)).
   See [bugfix/README.md](bugfix/README.md).
 
