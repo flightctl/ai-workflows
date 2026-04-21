@@ -21,6 +21,9 @@ Reusable AI coding workflows a team member can install globally or per-project, 
 - **Design** -- Design-and-decompose workflow: ingest a PRD, draft a technical design document, decompose into Jira-ready epics and stories, revise based on feedback, publish as a GitHub PR, respond to reviewer comments, and sync epics/stories to Jira.
   See [design/README.md](design/README.md).
 
+- **Implement** -- Story-to-code workflow: take a Jira Story, plan the implementation, write contract-based tests and production code via TDD, validate against the project's CI expectations, and manage review via GitHub PRs.
+  See [implement/README.md](implement/README.md).
+
 - **CVE Fix** -- Automated CVE remediation: read vulnerability details from Jira, apply multi-strategy dependency fixes, validate, create pull requests, backport to release branches, and close Jira tickets. Language-agnostic.
   See [cve-fix/README.md](cve-fix/README.md).
 
@@ -99,6 +102,7 @@ Each workflow is intended for a specific project or use case:
 - **docs-writer** -- the [edge-manager](https://gitlab.cee.redhat.com/red-hat-enterprise-openshift-documentation/edge-manager) downstream docs project
 - **prd** -- teams drafting Product Requirements Documents from Jira features
 - **design** -- teams creating technical design documents and Jira-ready epic/story breakdowns from PRDs
+- **implement** -- teams implementing Jira stories produced by the design workflow
 - **cve-fix** -- teams patching CVEs and updating vulnerable dependencies from Jira vulnerability tickets
 - **ai-ready** -- onboarding any project for AI agents by generating AGENTS.md
 - **kcs** -- teams writing KCS Solution articles for known issues with workarounds
