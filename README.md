@@ -30,6 +30,9 @@ Reusable AI coding workflows a team member can install globally or per-project, 
 - **AI-Ready** -- Scans a codebase and creates or updates AGENTS.md with project-specific build commands, test patterns, and coding standards.
   See [ai-ready/README.md](ai-ready/README.md).
 
+- **KCS** -- KCS Solution article workflow: gather bug context from Jira, draft a KCS article in markdown, validate against the KCS Content Standard, and produce a handoff message for the support engineer.
+  See [kcs/README.md](kcs/README.md).
+
 - **Skill Reviewer** -- Meta-workflow that audits AI skill directories against eight quality dimensions.
   See [skill-reviewer/README.md](skill-reviewer/README.md).
 
@@ -102,6 +105,7 @@ Each workflow is intended for a specific project or use case:
 - **implement** -- teams implementing Jira stories produced by the design workflow
 - **cve-fix** -- teams patching CVEs and updating vulnerable dependencies from Jira vulnerability tickets
 - **ai-ready** -- onboarding any project for AI agents by generating AGENTS.md
+- **kcs** -- teams writing KCS Solution articles for known issues with workarounds
 - **triage** -- teams that want bulk Jira triage, categorization, and HTML reports from this repo or a clone
 - **skill-reviewer** -- reviewing or standardizing Cursor/agent skills and skill packs (structure, clarity, completeness)
 

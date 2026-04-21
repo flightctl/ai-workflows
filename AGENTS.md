@@ -16,6 +16,7 @@ This repository contains reusable AI coding workflows that can be installed glob
 - **prd** — Requirements-to-PRD workflow (ingest, clarify, draft, revise, publish, respond)
 - **design** — Design-and-decompose workflow (ingest, draft, decompose, revise, publish, respond, sync)
 - **implement** — Story-to-code workflow (ingest, plan, revise, code, validate, publish, respond)
+- **kcs** — KCS Solution article workflow (gather, draft, validate, handoff)
 
 ## Architecture
 
@@ -59,6 +60,7 @@ Workflows write outputs to `.artifacts/{workflow-name}/{context}/`:
 - **prd**: `.artifacts/prd/{issue-number}/` (01-requirements.md, 02-clarifications.md, 03-prd.md, 04-pr-description.md, 05-review-responses.md)
 - **design**: `.artifacts/design/{issue-number}/` (01-context.md, 02-design.md, 03-epics.md, 04-stories/epic-{N}-{slug}.md, 04-stories/epic-{N}/story-{NN}-{slug}.md, 05-coverage.md, 06-pr-description.md, 07-review-responses.md, publish-metadata.json, sync-manifest.json)
 - **implement**: `.artifacts/implement/{jira-key}/` (01-context.md, 02-plan.md, 03-test-report.md, 04-impl-report.md, 05-validation-report.md, 06-pr-description.md, 07-review-responses.md, publish-metadata.json)
+- **kcs**: `.artifacts/kcs/{issue-key}/` (01-context.md, 02-kcs-draft.md, 03-handoff-message.md)
 
 ## Prerequisites
 
@@ -74,6 +76,7 @@ Workflows write outputs to `.artifacts/{workflow-name}/{context}/`:
 - **prd**: Jira MCP server — for requirements ingestion; GitHub CLI (`gh`) — for PR creation and review comment management
 - **design**: Jira MCP server or CLI — for `/ingest` (read-only) and `/sync` (creates epics/stories); GitHub CLI (`gh`) — for `/publish` and `/respond`
 - **implement**: Jira MCP server or CLI — for `/ingest` (read-only); GitHub CLI (`gh`) — for `/publish` and `/respond`; project build/test/lint tooling (discovered during `/ingest`); docs repo (local clone) — for `/ingest` (reads PRD and design document)
+- **kcs**: Jira MCP server — for `/gather` (read-only)
 
 ## Installation System
 
@@ -190,6 +193,15 @@ For detailed workflow development guidelines (structure, file conventions, testi
 - Plan evolves during implementation — `02-plan.md` is updated as tasks complete, enabling resumption after interruptions
 - Code changes happen in the source repo on a feature branch; `/publish` creates a PR in the source repo (not a separate docs repo)
 
+### kcs
+
+- Requires Jira MCP server for `/gather` (read-only — never modifies Jira)
+- Produces KCS Solution articles in markdown following the KCS Content Standard
+- Article template, section guidance, and validation checklist live in `templates/`
+- `/validate` checks the draft against a structured checklist and fixes violations inline
+- `/handoff` composes a channel-agnostic message for the support engineer
+- Must get user confirmation between phases; all `/validate` blockers must be resolved before `/handoff`
+
 ## Common Commands
 
 **Note**: This repository contains AI workflow definitions (markdown files), not traditional code requiring build/test commands. "Testing" refers to verifying workflow execution and symlink installation.
@@ -224,7 +236,7 @@ gh issue view <num> --repo <owner/repo>    # For docs-writer
 gh pr diff <num> --repo <owner/repo>       # For docs-writer
 ```
 
-### Jira MCP (for triage, docs-writer, prd, design)
+### Jira MCP (for triage, docs-writer, prd, design, kcs)
 ```bash
 # Invoked via MCP tools, not CLI directly
 # Example JQL: "project = EDM AND issuetype = Bug AND resolution = Unresolved"
@@ -254,6 +266,7 @@ ai-workflows/
 ├── design/
 ├── docs-writer/
 ├── implement/
+├── kcs/
 ├── prd/
 ├── skill-reviewer/
 ├── triage/
