@@ -36,31 +36,31 @@ Verify readiness:
 
 2. Verify the feature branch exists and has commits:
 
-```bash
-git branch --show-current
-```
+   ```bash
+   git branch --show-current
+   ```
 
-Read the `## Branch` section of `02-plan.md` to get the base branch.
+   Read the `## Branch` section of `02-plan.md` to get the base branch.
 
-```bash
-git log --oneline {base}..HEAD
-```
+   ```bash
+   git log --oneline {base}..HEAD
+   ```
 
-If there are no commits ahead of the base branch, there's nothing to publish.
+   If there are no commits ahead of the base branch, there's nothing to publish.
 
 3. Check for uncommitted changes:
 
-```bash
-git status
-```
+   ```bash
+   git status
+   ```
 
-If there are uncommitted changes, ask the user how to proceed.
+   If there are uncommitted changes, ask the user how to proceed.
 
 4. Verify GitHub CLI is authenticated:
 
-```bash
-gh auth status
-```
+   ```bash
+   gh auth status
+   ```
 
 ### Step 2: Confirm Details
 
