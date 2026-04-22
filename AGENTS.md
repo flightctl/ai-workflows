@@ -17,6 +17,7 @@ This repository contains reusable AI coding workflows that can be installed glob
 - **design** — Design-and-decompose workflow (ingest, draft, decompose, revise, publish, respond, sync)
 - **implement** — Story-to-code workflow (ingest, plan, revise, code, validate, publish, respond)
 - **e2e** — Story-to-tests workflow for [QE] stories (ingest, plan, revise, code, validate, publish, respond)
+- **code-review** — AI-driven code review with human-in-the-loop decisions (start, continue, clean)
 - **kcs** — KCS Solution article workflow (gather, draft, validate, handoff)
 
 ## Architecture
@@ -55,6 +56,7 @@ Critical for symlink resolution:
 Workflows write outputs to `.artifacts/{workflow-name}/{context}/`:
 - **ai-ready**: No persistent artifacts (writes directly to the target project's AGENTS.md)
 - **bugfix**: `.artifacts/bugfix/{issue-number}/` (root-cause.md, reproduction.md, etc.)
+- **code-review**: `.artifacts/code-review/{branch}/` (00-reviewer-profile.md, 01-change-summary.md, code-review-{NNN}.md, review-response-{NNN}.md, review-metadata.json, decisions-{NNN}.json)
 - **triage**: `.artifacts/triage/{project}/` (issues.json, analyzed.json, report.html)
 - **skill-reviewer**: `.artifacts/skill-reviewer/{skill-name}/` (review.md)
 - **cve-fix**: `.artifacts/cve-fix/{context}/` (context.md, patch-log.md, validation-results.md, pr-description.md, backport-log.md, close-report.md)
@@ -72,6 +74,7 @@ Workflows write outputs to `.artifacts/{workflow-name}/{context}/`:
 ### Workflow-Specific Dependencies
 - **ai-ready**: None (reads codebase, writes AGENTS.md)
 - **bugfix**: GitHub CLI (`gh`) — for PR queries and creation
+- **code-review**: None (operates on local uncommitted changes; optionally uses project's lint/test commands if discoverable)
 - **triage**: Jira MCP server — configured and authenticated for Jira API access
 - **docs-writer**: GitLab CLI — for merge request creation (or GitHub CLI for GitHub-hosted projects)
 - **cve-fix**: Jira MCP server or Jira CLI (`jira`), GitHub CLI (`gh`), optionally `skopeo` for container image verification
@@ -138,6 +141,18 @@ For detailed workflow development guidelines (structure, file conventions, testi
 - Uses git commands extensively (blame, log, status, diff)
 - Creates regression tests during `/test` phase
 - Integrates with GitHub CLI for PR creation
+
+### code-review
+
+- No external dependencies — operates entirely on local uncommitted changes
+- Discovery-based: reads AGENTS.md, CLAUDE.md, linting configs, CI workflows to build a reviewer profile automatically
+- Human-in-the-loop by default: every finding is presented for user decision before any code changes
+- Unattended mode available (`--unattended`): auto-implements, iterates until approved, presents summary at end
+- The implementor independently assesses each reviewer finding and may disagree
+- Supports optional focus guidance (e.g., `/start focus on error handling`)
+- When subagents are available, the reviewer runs in a separate context for independence; when not, uses sequential review with file-based handoff
+- Automatic cleanup on approval — no manual `/clean` needed for completed reviews
+- `/clean` exists only for abandoned reviews that were started but never finished
 
 ### triage
 
@@ -277,6 +292,7 @@ vale path/to/file.adoc    # Style/terminology validation
 ai-workflows/
 ├── ai-ready/                  # Workflows (auto-discovered via SKILL.md)
 ├── bugfix/
+├── code-review/
 ├── cve-fix/
 ├── design/
 ├── docs-writer/
