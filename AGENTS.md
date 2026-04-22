@@ -16,6 +16,7 @@ This repository contains reusable AI coding workflows that can be installed glob
 - **prd** — Requirements-to-PRD workflow (ingest, clarify, draft, revise, publish, respond)
 - **design** — Design-and-decompose workflow (ingest, draft, decompose, revise, publish, respond, sync)
 - **implement** — Story-to-code workflow (ingest, plan, revise, code, validate, publish, respond)
+- **e2e** — Story-to-tests workflow for [QE] stories (ingest, plan, revise, code, validate, publish, respond)
 - **kcs** — KCS Solution article workflow (gather, draft, validate, handoff)
 
 ## Architecture
@@ -60,6 +61,7 @@ Workflows write outputs to `.artifacts/{workflow-name}/{context}/`:
 - **prd**: `.artifacts/prd/{issue-number}/` (01-requirements.md, 02-clarifications.md, 03-prd.md, 04-pr-description.md, 05-review-responses.md)
 - **design**: `.artifacts/design/{issue-number}/` (01-context.md, 02-design.md, 03-epics.md, 04-stories/epic-{N}-{slug}.md, 04-stories/epic-{N}/story-{NN}-{slug}.md, 05-coverage.md, 06-pr-description.md, 07-review-responses.md, publish-metadata.json, sync-manifest.json)
 - **implement**: `.artifacts/implement/{jira-key}/` (01-context.md, 02-plan.md, 03-test-report.md, 04-impl-report.md, 05-validation-report.md, 06-pr-description.md, 07-review-responses.md, publish-metadata.json)
+- **e2e**: `.artifacts/e2e/{jira-key}/` (01-context.md, 02-plan.md, 03-test-report.md, 04-impl-report.md, 05-validation-report.md, 06-pr-description.md, 07-review-responses.md, publish-metadata.json)
 - **kcs**: `.artifacts/kcs/{issue-key}/` (01-context.md, 02-kcs-draft.md, 03-handoff-message.md)
 
 ## Prerequisites
@@ -76,6 +78,7 @@ Workflows write outputs to `.artifacts/{workflow-name}/{context}/`:
 - **prd**: Jira MCP server — for requirements ingestion; GitHub CLI (`gh`) — for PR creation and review comment management
 - **design**: Jira MCP server or CLI — for `/ingest` (read-only) and `/sync` (creates epics/stories); GitHub CLI (`gh`) — for `/publish` and `/respond`
 - **implement**: Jira MCP server or CLI — for `/ingest` (read-only); GitHub CLI (`gh`) — for `/publish` and `/respond`; project build/test/lint tooling (discovered during `/ingest`); docs repo (local clone) — for `/ingest` (reads PRD and design document)
+- **e2e**: Jira MCP server or CLI — for `/ingest` (read-only); GitHub CLI (`gh`) — for `/publish` and `/respond`; project e2e test tooling (discovered during `/ingest`); docs repo (local clone) — for `/ingest` (reads PRD and design document)
 - **kcs**: Jira MCP server — for `/gather` (read-only)
 
 ## Installation System
@@ -193,6 +196,18 @@ For detailed workflow development guidelines (structure, file conventions, testi
 - Plan evolves during implementation — `02-plan.md` is updated as tasks complete, enabling resumption after interruptions
 - Code changes happen in the source repo on a feature branch; `/publish` creates a PR in the source repo (not a separate docs repo)
 
+### e2e
+
+- Requires a Jira [QE] Story (typically created by the design workflow's `/decompose` phase) as input
+- Jira is read-only — no phase in this workflow writes to Jira
+- Discovery-based infrastructure: e2e test framework, harness, auxiliary services, execution commands, and conventions are discovered during `/ingest` — not hardcoded
+- Reference suite pattern: before writing tests, identifies the most similar existing e2e test suite and extracts its patterns (imports, setup/teardown, harness usage, assertions, labels)
+- Scenario-driven planning: each acceptance criterion maps to concrete test scenarios with Describe/Context/It nesting, steps, assertions, and labels
+- Anti-pattern detection during `/validate`: checks for hardcoded sleeps, brittle selectors, order-dependent tests, shared mutable state, missing cleanup, harness bypass, missing labels, hardcoded values, missing async polling, missing failure diagnostics
+- Feature defects are not test bugs — if tests reveal a defect in the [DEV] implementation, the test is adjusted (xfail/skip) and the defect is noted in the implementation report
+- Plan evolves during implementation — `02-plan.md` is updated as tasks complete, enabling resumption after interruptions
+- Code changes happen in the source repo on a feature branch; `/publish` creates a PR in the source repo
+
 ### kcs
 
 - Requires Jira MCP server for `/gather` (read-only — never modifies Jira)
@@ -265,6 +280,7 @@ ai-workflows/
 ├── cve-fix/
 ├── design/
 ├── docs-writer/
+├── e2e/
 ├── implement/
 ├── kcs/
 ├── prd/
