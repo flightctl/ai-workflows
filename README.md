@@ -27,6 +27,9 @@ Reusable AI coding workflows a team member can install globally or per-project, 
 - **E2E** -- Story-to-tests workflow for [QE] stories: discover the project's e2e testing infrastructure, map acceptance criteria to test scenarios, write e2e test code following the project's patterns and reference suite, validate against anti-patterns and scenario coverage, and manage review via GitHub PRs.
   See [e2e/README.md](e2e/README.md).
 
+- **Code Review** -- AI-driven code review for uncommitted changes: discover project conventions, review with an independent reviewer perspective, present findings with honest implementor assessments for human decision, iterate until approved. Supports unattended mode for fully automated review-fix-iterate cycles.
+  See [code-review/README.md](code-review/README.md).
+
 - **CVE Fix** -- Automated CVE remediation: read vulnerability details from Jira, apply multi-strategy dependency fixes, validate, create pull requests, backport to release branches, and close Jira tickets. Language-agnostic.
   See [cve-fix/README.md](cve-fix/README.md).
 
@@ -102,6 +105,7 @@ cd ai-workflows
 Each workflow is intended for a specific project or use case:
 
 - **bugfix** -- the **Flight Control** projects ([flightctl](https://github.com/flightctl/flightctl), [flightctl-ui](https://github.com/flightctl/flightctl-ui))
+- **code-review** -- any project; reviews uncommitted changes against discovered project conventions
 - **docs-writer** -- the [edge-manager](https://gitlab.cee.redhat.com/red-hat-enterprise-openshift-documentation/edge-manager) downstream docs project
 - **prd** -- teams drafting Product Requirements Documents from Jira features
 - **design** -- teams creating technical design documents and Jira-ready epic/story breakdowns from PRDs
@@ -133,6 +137,7 @@ Use `--workflows` to install only the workflows relevant to a given project:
 Invoke a workflow command (works in both Cursor and Claude Code):
 
 - `/bugfix:assess`, `/bugfix:diagnose`, `/bugfix:fix`, ...
+- `/code-review:start`, `/code-review:continue`, `/code-review:clean`
 - `/docs-writer:gather`, `/docs-writer:plan`, `/docs-writer:draft`, ...
 
 ## Updating
