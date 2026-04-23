@@ -146,7 +146,7 @@ Summarize what changed:
 - Section 2.3: Removed "UDP support" from non-goals
 
 ### Consistency Updates
-- Section 6: Added open question about UDP performance testing
+- Section 7: Added open question about UDP performance testing
 ```
 
 ## Output

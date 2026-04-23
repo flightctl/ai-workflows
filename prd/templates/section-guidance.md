@@ -83,10 +83,20 @@ This file is read during the `/draft` phase. It is not included in the final out
 - List teams, services, APIs, or external systems that this work depends on or that depend on this work.
 - Include ordering constraints: "API changes must land before agent changes."
 
-## 6. Risks and Open Questions
+## 6. Risks
 
-- Each risk or open question gets its own numbered subsection with **Owner**, **Status** (Open, Resolved, Deferred), and **Outcome** fields.
-- When a question is resolved during clarification, record the outcome in the Outcome field rather than deleting the entry — this preserves the decision trail.
-- Risks should describe what could go wrong and the mitigation strategy, if known.
-- **Product scope only.** This section contains product risks and open product questions. Process-level actions (e.g., "update Jira text to match this PRD") belong in the PR description or review discussion, not in the PRD itself.
-- This section is a living part of the document — it gets updated during review.
+- Each risk gets its own numbered subsection (6.1, 6.2, ...) with **Owner** and **Mitigation** fields.
+- Risks describe what could go wrong and the mitigation strategy, if known. If no mitigation is known yet, write "To be determined."
+- Risks are permanent — they stay in the document even after the PRD is approved, unless the risk no longer applies.
+- **Product scope only.** Process-level risks (e.g., "schedule might slip") belong in project management tools, not the PRD.
+- This section is **optional**. If no product risks were identified during drafting or clarification, omit it.
+
+## 7. Open Questions
+
+- Each open question gets its own numbered subsection (7.1, 7.2, ...) with **Owner** (person or team who should answer) and **Impact** (which section or decision the answer affects).
+- **Frame as clear, answerable questions.** Write "Should tenants be able to configure scan sources, or is this fixed at install time?" not "To be determined — how much tenants configure versus fixed at install." The reader should know exactly what they're being asked.
+- Open questions are things that could not be resolved during the clarify phase and need broader stakeholder input via PR review.
+- Questions resolved during clarification should **not** appear here — they are already incorporated into the PRD body via locked decisions.
+- **Transient by design.** When an open question is resolved during PR review (`/prd respond`), the answer is incorporated into the appropriate section of the PRD (e.g., a scope decision becomes a non-goal, a constraint goes into NFRs) and the entry is removed from Section 7. By the time the PRD is approved, this section should be empty and removed.
+- **Product scope only.** Process-level questions (e.g., "when should we update the Jira text?") belong in PR discussion, not in the PRD.
+- This section is **optional**. If no open questions remain after clarification, omit it entirely.
