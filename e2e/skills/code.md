@@ -184,8 +184,9 @@ exactly:
    document.
 
 For the suite file (typically Task 1):
-- Follow the reference suite's lifecycle hook structure exactly (use the
-  actual hook names discovered during `/ingest`)
+- Start from the **lifecycle skeleton** in the Reference Suite section of
+  `01-context.md` — it provides a sanitized copy of the reference suite's
+  hook structure as a starting point
 - Start only the auxiliary services the plan identified as needed (if any)
 - Use the same test infrastructure initialization pattern
 - Use the same login/auth pattern

@@ -137,8 +137,8 @@ and re-run the affected tests.
 | **Test infrastructure bypass** | Direct HTTP calls, CLI exec, or API client instantiation instead of using the project's test abstractions | Replace with the project's test infrastructure methods |
 | **Missing labels** | Test blocks without CI-filtering labels/tags | Add labels/tags following the project's convention |
 | **Hardcoded values** | Inline timeout durations, polling intervals, resource names instead of constants | Use the project's test utility constants |
-| **Missing async polling** | Direct assertions on results of async operations (no polling/retry) | Wrap in the project's async polling mechanism with appropriate timeout and polling interval |
-| **Missing failure diagnostics** | No log collection or diagnostic output when tests fail | Add diagnostic output in teardown hooks (matching reference suite pattern) |
+| **Missing async polling** | Direct assertions on results of async operations without polling/retry (e.g., bare `Expect` without `Eventually` in Ginkgo, bare `assert` without polling in pytest, bare `expect` without `toPass` in Playwright) | Wrap in the project's async polling mechanism with appropriate timeout and polling interval |
+| **Missing failure diagnostics** | No log collection or diagnostic output when tests fail (e.g., no diagnostic log capture in Go teardown, no screenshot capture in Playwright `afterEach`, no log dump in pytest teardown) | Add diagnostic output in teardown hooks (matching reference suite pattern) |
 
 If no anti-patterns are found, record "No anti-patterns detected" in the
 validation report.
