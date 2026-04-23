@@ -198,7 +198,7 @@ For detailed workflow development guidelines (structure, file conventions, testi
 
 ### e2e
 
-- Requires a Jira [QE] Story (typically created by the design workflow's `/decompose` phase) as input
+- Requires a Jira [QE] Story (typically created by the design workflow's `/sync` phase) as input
 - Jira is read-only — no phase in this workflow writes to Jira
 - Discovery-based infrastructure: e2e test framework, harness, auxiliary services, execution commands, and conventions are discovered during `/ingest` — not hardcoded
 - Reference suite pattern: before writing tests, identifies the most similar existing e2e test suite and extracts its patterns (imports, setup/teardown, harness usage, assertions, labels)

@@ -105,7 +105,12 @@ Typical checks for e2e test code (discovered, not hardcoded):
 1. Diagnose the failure — is it caused by the new test code or pre-existing?
 2. If caused by the new test code: fix it, commit the fix, re-run the check
 3. If pre-existing: note it in the validation report, do not fix it
-4. If unclear: report to the user
+4. If the test is correct but the feature behaves differently than the AC
+   describes: this is a feature defect, not a test bug. Mark the test as
+   xfail or skip with a reason referencing the AC, note the defect in the
+   validation report, and continue. Do not fix the feature implementation —
+   that is a [DEV] scope issue (see deviation rules in `/code`).
+5. If unclear: report to the user
 
 ### Step 4: Anti-Pattern Check
 
