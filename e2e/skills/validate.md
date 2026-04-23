@@ -67,8 +67,18 @@ report under Branch Currency as "Unable to verify — fetch failed."
 git rev-list --count HEAD..origin/{base}
 ```
 
-If the branch is behind base, check whether a PR has already been
-created by looking for `.artifacts/e2e/{jira-key}/publish-metadata.json`.
+If the branch is behind base, verify the working tree is clean before
+syncing:
+
+```bash
+git status --porcelain
+```
+
+If output is non-empty, stop and ask the user how to proceed (commit,
+stash, or abort) before continuing.
+
+Check whether a PR has already been created by looking for
+`.artifacts/e2e/{jira-key}/publish-metadata.json`.
 
 **If no PR exists yet**, offer to rebase:
 

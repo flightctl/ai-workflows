@@ -326,8 +326,17 @@ git rev-list --count HEAD..origin/{base}
 
 If the count is 0, skip the rebase/merge and proceed to Step 3h.
 
-If new commits exist, check whether a PR has already been created by
-looking for `.artifacts/e2e/{jira-key}/publish-metadata.json`.
+If new commits exist, verify the working tree is clean before syncing:
+
+```bash
+git status --porcelain
+```
+
+If output is non-empty, stop and ask the user how to proceed (commit,
+stash, or abort) before continuing.
+
+Check whether a PR has already been created by looking for
+`.artifacts/e2e/{jira-key}/publish-metadata.json`.
 
 **If no PR exists yet**, rebase:
 
