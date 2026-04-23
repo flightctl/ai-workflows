@@ -10,6 +10,9 @@ that the features under test have been implemented and merged, explore the
 project's e2e testing infrastructure in depth, and produce a structured
 context document that will inform the test planning phase.
 
+This workflow is exclusively for e2e tests. Unit and integration tests are
+handled by the implement workflow — do not consider them here.
+
 ## Your Role
 
 Build a complete picture of what needs to be tested, what e2e test
