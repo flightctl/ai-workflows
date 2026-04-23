@@ -200,10 +200,10 @@ For detailed workflow development guidelines (structure, file conventions, testi
 
 - Requires a Jira [QE] Story (typically created by the design workflow's `/sync` phase) as input
 - Jira is read-only — no phase in this workflow writes to Jira
-- Discovery-based infrastructure: e2e test framework, harness, auxiliary services, execution commands, and conventions are discovered during `/ingest` — not hardcoded
-- Reference suite pattern: before writing tests, identifies the most similar existing e2e test suite and extracts its patterns (imports, setup/teardown, harness usage, assertions, labels)
-- Scenario-driven planning: each acceptance criterion maps to concrete test scenarios with Describe/Context/It nesting, steps, assertions, and labels
-- Anti-pattern detection during `/validate`: checks for hardcoded sleeps, brittle selectors, order-dependent tests, shared mutable state, missing cleanup, harness bypass, missing labels, hardcoded values, missing async polling, missing failure diagnostics
+- Discovery-based infrastructure: e2e test framework, test infrastructure abstractions (harness, fixtures, page objects, helpers — whatever the project uses), auxiliary services (if any), execution commands, and conventions are discovered during `/ingest` — not hardcoded
+- Reference suite pattern: before writing tests, identifies the most similar existing e2e test suite and extracts its patterns (imports, lifecycle hooks, test infrastructure usage, assertions, labels)
+- Scenario-driven planning: each acceptance criterion maps to concrete test scenarios with specific test grouping, steps, assertions, and labels
+- Anti-pattern detection during `/validate`: checks for hardcoded sleeps, brittle selectors, order-dependent tests, shared mutable state, missing cleanup, test infrastructure bypass, missing labels, hardcoded values, missing async polling, missing failure diagnostics
 - Feature defects are not test bugs — if tests reveal a defect in the [DEV] implementation, the test is adjusted (xfail/skip) and the defect is noted in the implementation report
 - Plan evolves during implementation — `02-plan.md` is updated as tasks complete, enabling resumption after interruptions
 - Code changes happen in the source repo on a feature branch; `/publish` creates a PR in the source repo

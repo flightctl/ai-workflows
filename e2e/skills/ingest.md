@@ -233,8 +233,9 @@ For whatever the project uses:
 2. **Initialization:** How do tests obtain access? (global variable,
    dependency injection, fixture parameter, constructor, import)
 3. **Key methods:** Catalog the public methods relevant to the story's
-   scope. Focus on methods the test scenarios will need — don't catalog
-   the entire API.
+   scope — include their full signatures (parameters and return types),
+   not just names. Focus on methods the test scenarios will need — don't
+   catalog the entire API.
 4. **Domain-specific files:** Some projects split test infrastructure by
    domain. Identify which files are relevant to the story.
 
@@ -258,6 +259,20 @@ include:
 
 Record the actual hook names the project uses — downstream phases will
 use these names, not generic placeholders.
+
+Also discover the **parallelism model** — if tests can run in parallel:
+
+1. **Mechanism:** How is parallelism achieved? (framework-native workers,
+   test sharding, process-level parallelism)
+2. **Isolation strategy:** How do parallel workers avoid interfering?
+   (per-worker resources, shared resource pool allocation, unique naming
+   with worker IDs, separate databases, snapshot revert)
+3. **Lifecycle interaction:** How do lifecycle hooks relate to
+   parallelism? In particular: does suite-level setup run once
+   globally or once per worker? This affects how the suite file
+   must be structured.
+
+If tests run sequentially or parallelism is not documented, note that.
 
 #### 6g: Auxiliary Services
 
@@ -310,6 +325,23 @@ similar to what needs to be written:
    methods or tests similar interaction patterns
 3. Read the selected suite thoroughly: suite file + 1-2 test files
 4. Extract concrete patterns: imports, setup, assertions, labels, helpers
+5. **Extract a lifecycle skeleton:** Create a sanitized copy of the
+   reference suite's lifecycle structure. This skeleton goes into the
+   context document and gives `/code` a copy-paste starting point for
+   the new suite file.
+
+   **Keep:** hook declarations, framework registration calls,
+   infrastructure initialization calls (e.g., harness setup, fixture
+   creation), cleanup/teardown calls, worker or parallelism setup,
+   and the structural nesting of test blocks.
+
+   **Strip:** specific assertions, business-logic conditionals,
+   hardcoded resource names and test data, and inline comments that
+   reference story-specific details.
+
+   Replace stripped content with brief comments describing what
+   happens at that point (e.g., `// create test resources`,
+   `// verify expected state`).
 
 These suites become the "pattern source" for the `/code` phase.
 
@@ -403,7 +435,7 @@ If this is a first invocation, write
 - **Run specific suite:** `{command with scoping}`
 - **Filter by label/tag:** `{mechanism}`
 - **Filter by name/description:** `{mechanism}`
-- **Parallel execution:** `{mechanism, if supported}`
+- **Parallel execution:** `{command flag or mechanism, if supported}`
 - **Environment assumptions:** {what must be running before tests execute}
 
 ### Test Infrastructure
@@ -416,9 +448,9 @@ If this is a first invocation, write
 - **Initialization:** {how tests obtain access}
 - **Key methods for this story:**
 
-| Method | Purpose | Source File |
-|--------|---------|-------------|
-| `{method}` | {what it does} | {file} |
+| Method | Parameters / Return | Purpose | Source File |
+|--------|---------------------|---------|-------------|
+| `{method}` | `{params and return types}` | {what it does} | {file} |
 
 {If no dedicated test infrastructure: "Tests interact with the system
  directly — no harness, fixtures, or page objects."}
@@ -431,6 +463,21 @@ If this is a first invocation, write
 - **Per-test setup** ({discovered hook name}): {what happens}
 - **Per-test teardown** ({discovered hook name}): {what happens}
 - **Suite-level teardown** ({discovered hook name}): {what happens}
+
+### Parallelism Model
+
+{If the project supports parallel test execution:}
+
+- **Supported:** {yes/no}
+- **Mechanism:** {e.g., framework-native workers, test sharding, process-level}
+- **Isolation strategy:** {how parallel workers avoid interfering — e.g.,
+  per-worker resources, shared resource pool allocation, unique naming,
+  separate databases}
+- **Lifecycle interaction:** {how lifecycle hooks relate to parallelism —
+  e.g., "suite setup runs once per worker, not once globally"}
+
+{If parallelism is not supported or tests run sequentially: "Tests run
+ sequentially. No parallel execution model."}
 
 ### Auxiliary Services
 
@@ -470,6 +517,19 @@ If this is a first invocation, write
 - **Labels:** {how labels/tags are applied}
 - **Cleanup:** {teardown pattern}
 - **Key code pattern:** {any distinctive pattern worth replicating}
+
+**Lifecycle skeleton:**
+
+{Sanitized skeleton of the reference suite's lifecycle — hook ordering,
+ infrastructure initialization, parallelism integration, cleanup. Include
+ the suite entry point, all lifecycle hooks, and a representative test
+ block. Apply the keep/strip rules from Step 6j.}
+
+```{language — use the project's language, e.g., go, python, typescript}
+{skeleton code here — actual hook names, actual method calls,
+ with domain-specific logic replaced per the keep/strip rules
+ in Step 6j}
+```
 
 ## Repository Topology
 
