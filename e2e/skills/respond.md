@@ -31,7 +31,7 @@ repeatable as new comments arrive.
 
 ### Step 1: Read Context and Fetch PR Comments
 
-Read `.artifacts/implement/{jira-key}/publish-metadata.json` to get the
+Read `.artifacts/e2e/{jira-key}/publish-metadata.json` to get the
 PR number and `{owner}/{repo}` (the `repo` field). If metadata doesn't
 exist, tell the user that `/publish` should be run first. If the user
 provides a PR number directly, use that instead.
@@ -58,7 +58,7 @@ this will produce the fork's `{owner}/{repo}`, not the upstream's where
 the PR lives. If the resulting `gh pr view` command fails, this may be
 the cause — tell the user and ask for the correct upstream `{owner}/{repo}`.
 
-If `.artifacts/implement/{jira-key}/07-review-responses.md` already exists,
+If `.artifacts/e2e/{jira-key}/07-review-responses.md` already exists,
 read it to identify previously addressed comments. Only categorize and
 propose responses for new or unaddressed comments in Step 2.
 
@@ -86,11 +86,11 @@ Group comments into categories:
 |----------|--------|
 | **Code change request** | Propose specific code edits |
 | **Clarification request** | Draft a reply explaining the rationale |
-| **Bug/defect identified** | Propose a fix with tests |
+| **Bug/defect identified** | Propose a fix and re-run tests to verify |
 | **Style/convention issue** | Apply the fix, acknowledge in reply |
 | **Design alternative** | Evaluate, propose a response |
 | **Technically incorrect** | Draft a respectful rebuttal citing specific code behavior, test output, or design constraints that demonstrate the error |
-| **Would degrade quality** | Draft a response explaining what would be lost (correctness, performance, maintainability) and propose an alternative if one exists |
+| **Would degrade quality** | Draft a response explaining what would be lost (correctness, scenario coverage, test isolation) and propose an alternative if one exists |
 | **Approval / positive** | Acknowledge |
 | **Out of scope** | Draft a reply explaining why |
 
@@ -98,10 +98,10 @@ Group comments into categories:
 
 Evaluate each comment on its technical merit. Do not reflexively agree
 with every suggestion — assess whether the proposed change would
-actually improve the code. When a comment is technically incorrect,
-based on a misunderstanding of the code, or would degrade correctness,
-performance, or maintainability, recommend pushback with a clear
-technical rationale.
+actually improve the test code. When a comment is technically incorrect,
+based on a misunderstanding of the test code, or would degrade
+correctness, scenario coverage, or test isolation, recommend pushback
+with a clear technical rationale.
 
 Present each comment with a proposed response:
 
@@ -130,16 +130,13 @@ Wait for the user to approve, modify, or reject each response.
 
 For comments requiring code changes:
 
-1. Read the affected file(s)
+1. Read the affected test file(s)
 2. Apply the change
-3. If the change affects behavior, update or add tests. Tests must
-   validate behavioral contracts through public interfaces, not
-   implementation details — the same standard as the write-tests step of
-   `/code`. Match existing test patterns in the affected package.
-4. Run the affected tests to verify
-5. Run lint and format checks on the changed files (same approach as
+3. Run the affected e2e tests to verify the change doesn't break
+   existing scenarios
+4. Run lint and format checks on the changed files (same approach as
    the lint-and-format step of `/code`). Fix any issues before committing.
-6. Commit using the project's commit format:
+5. Commit using the project's commit format:
 
 ```bash
 git add {specific files}
@@ -164,30 +161,30 @@ Use the file-writing tool (Write) to create the file — do not use a
 shell heredoc, as reply content containing the delimiter string would
 break the heredoc.
 
-Write `{approved reply text}` to `.artifacts/implement/{jira-key}/tmp-reply.md`.
+Write `{approved reply text}` to `.artifacts/e2e/{jira-key}/tmp-reply.md`.
 
 **For line-level review comments** (attached to a specific file and line),
 reply in-thread:
 
 ```bash
-gh api repos/{owner}/{repo}/pulls/{pr-number}/comments/{comment-id}/replies --field body=@.artifacts/implement/{jira-key}/tmp-reply.md
+gh api repos/{owner}/{repo}/pulls/{pr-number}/comments/{comment-id}/replies --field body=@.artifacts/e2e/{jira-key}/tmp-reply.md
 ```
 
 **For top-level PR comments** (general conversation comments):
 
 ```bash
-gh pr comment {pr-number} --repo {owner}/{repo} --body-file .artifacts/implement/{jira-key}/tmp-reply.md
+gh pr comment {pr-number} --repo {owner}/{repo} --body-file .artifacts/e2e/{jira-key}/tmp-reply.md
 ```
 
 Clean up the temporary reply file:
 
 ```bash
-rm .artifacts/implement/{jira-key}/tmp-reply.md
+rm .artifacts/e2e/{jira-key}/tmp-reply.md
 ```
 
 ### Step 5: Update Response Log
 
-Write or update `.artifacts/implement/{jira-key}/07-review-responses.md`:
+Write or update `.artifacts/e2e/{jira-key}/07-review-responses.md`:
 
 ```markdown
 # Review Responses — {jira-key}
@@ -224,7 +221,7 @@ Summarize:
 
 - PR comments posted (with user approval)
 - Code changes committed and pushed (if applicable)
-- `.artifacts/implement/{jira-key}/07-review-responses.md`
+- `.artifacts/e2e/{jira-key}/07-review-responses.md`
 
 ## When This Phase Is Done
 

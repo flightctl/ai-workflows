@@ -77,8 +77,8 @@ created by looking for `.artifacts/implement/{jira-key}/publish-metadata.json`.
 git rebase origin/{base}
 ```
 
-Follow the same conflict handling as Step 3h of `/code` (stop,
-show conflicts, offer to resolve, proceed only with user approval).
+Follow the same conflict handling as the sync-with-base step of `/code`
+(stop, show conflicts, offer to resolve, proceed only with user approval).
 
 **If a PR already exists** (post-publish), offer to merge instead:
 

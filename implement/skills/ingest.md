@@ -85,6 +85,8 @@ design workflows. Fetch them from there.
 #### 5a: Resolve the Docs Repo
 
 Check for an existing docs repo configuration at `.artifacts/prd/config.json`.
+This config is project-level and shared across workflows (prd, design,
+implement, e2e) — a prior workflow run may have already created it.
 
 **If the config exists**, read it and validate:
 1. Verify the path exists on the local filesystem
