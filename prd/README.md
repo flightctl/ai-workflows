@@ -51,6 +51,7 @@ A requirements-to-PRD workflow that ingests requirements from Jira, clarifies am
 /respond
   → fetches PR review comments
   → proposes responses (user approves before posting)
+  → resolves open questions by incorporating answers into the relevant sections
   → updates PRD if needed
   → repeatable
 ```
@@ -68,7 +69,8 @@ The PRD template (`templates/prd.md`) defines the document structure:
 3. Requirements (Functional and Non-Functional)
 4. Acceptance Criteria
 5. Dependencies
-6. Risks and Open Questions
+6. Risks
+7. Open Questions
 
 Section-level guidance for the AI is in `templates/section-guidance.md`.
 

@@ -71,6 +71,7 @@ Group comments into categories:
 | **Factual correction** | Update the PRD and acknowledge |
 | **Scope question** | Draft a reply; may need `/revise` |
 | **New requirement** | Flag for user decision — add to PRD or defer |
+| **Open question resolution** | Resolve the open question (see Step 4) |
 | **Approval / positive** | Acknowledge |
 | **Out of scope** | Draft a reply explaining why |
 
@@ -95,6 +96,13 @@ Present each comment with a proposed response:
 **Proposed response:** {your suggested reply}
 **PRD change needed:** Yes — update Section 3.1, requirement 3
 
+### Comment 3 — {reviewer} on Section 7 (open question 7.2)
+> {quoted comment text, possibly spanning multiple replies in a thread}
+
+**Category:** Open question resolution
+**Proposed resolution:** {synthesized answer from the discussion}
+**PRD change needed:** Yes — incorporate into Section {N}, remove open question 7.2
+
 ...
 ```
 
@@ -102,7 +110,34 @@ Wait for the user to approve, modify, or reject each response.
 
 ### Step 4: Apply Approved Changes
 
-#### PRD changes
+#### Resolving open questions
+
+When reviewer comments relate to an open question from Section 7,
+synthesize the discussion into a proposed resolution:
+
+1. Identify which open question (7.1, 7.2, ...) the discussion relates to.
+2. Read the full thread — there may be multiple reviewers with differing
+   views. Synthesize the discussion into a single proposed resolution.
+   Do not assume a single comment is the final answer. If reviewers
+   disagree and no consensus is apparent, present the competing positions
+   to the user and ask them to decide rather than fabricating a
+   compromise that nobody advocated.
+3. Determine the appropriate target section based on the **Impact** field
+   of the open question — e.g., a scope decision becomes a non-goal in
+   Section 2.3, a constraint goes into NFRs in Section 3.2, a requirement
+   clarification updates the relevant FR in Section 3.1.
+4. Present the proposed resolution to the user: show which open question
+   is being resolved, the synthesized answer, where it will be placed in
+   the PRD, and the proposed text. The user may approve, correct, or
+   rewrite the synthesis.
+5. After user approval, incorporate the answer into the target section,
+   writing it in final form as if it was always the intent (do not
+   narrate the resolution).
+6. Remove the resolved entry from Section 7.
+7. If Section 7 is now empty, remove the entire section (heading and
+   introductory text) from the PRD.
+
+#### PRD changes (other than open question resolutions)
 
 For comments that require PRD changes:
 
@@ -232,6 +267,12 @@ Write or update `.artifacts/prd/{issue-number}/05-review-responses.md`:
 - **Category:** {category}
 - **Response:** {what was replied}
 - **PRD change:** {Yes/No — description if yes}
+
+### Open question 7.2 resolved — {reviewer} thread on Section 7
+- **Comment:** {summary of discussion thread}
+- **Category:** Open question resolution
+- **Response:** {what was replied}
+- **PRD change:** Yes — resolved open question 7.2, incorporated into Section 3.2 as NFR-3
 ```
 
 ### Step 6: Report to User

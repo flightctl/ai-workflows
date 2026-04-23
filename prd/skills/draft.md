@@ -90,7 +90,6 @@ than by description.
 
 Fill in the metadata table:
 - **Author(s):** The feature owner (ask if not known).
-- **Status:** Draft
 - **Jira:** Link to the source Feature issue (e.g., `https://redhat.atlassian.net/browse/EDM-1471`)
 - **Date:** Today's date
 
@@ -126,16 +125,17 @@ source material and PRD:
 If this step introduces new `[Assumption: ...]` markers or TBD items,
 Step 6 will collect and resolve them.
 
-### Step 6: Resolve Assumptions and Open Items
+### Step 6: Resolve Outstanding Items
 
 Before the PRD can be saved, the author must validate every assumption
-and open item. Collect the following from the document:
+and outstanding item. Collect the following from the document:
 
 1. Every `[Assumption: ...]` marker
 2. Every "To be determined" item
-3. Every risk or open question in Section 6 that lacks an owner or outcome
+3. Every risk in Section 6 that lacks an owner or mitigation
+4. Every open question in Section 7 that lacks an owner or impact
 
-If there are no items across all three categories, skip to Step 7.
+If there are no items across all four categories, skip to Step 7.
 
 Present the items to the user in conversation:
 
@@ -143,8 +143,10 @@ Present the items to the user in conversation:
    document. List each with its section reference and the assumption text.
 2. **TBD markers:** List any "To be determined" items with their section
    references.
-3. **Unowned open items:** List any risks or open questions from Section 6
-   that lack an owner or outcome.
+3. **Unowned risks:** List any risks from Section 6 that lack an owner
+   or mitigation.
+4. **Unowned open questions:** List any open questions from Section 7
+   that lack an owner or impact.
 
 Ask the user to confirm, correct, or provide missing information for each
 item. Then apply the resolutions:

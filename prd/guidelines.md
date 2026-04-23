@@ -33,7 +33,7 @@
 - Goals must be measurable outcomes, not activities.
 - Acceptance criteria must be written as **testable assertions**, not activities.
 - Requirements must be testable.
-- Open questions must have owners and statuses.
+- Open questions must have owners and impact statements.
 
 ## Escalation
 
