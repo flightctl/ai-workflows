@@ -12,15 +12,15 @@ suite's patterns, committing incrementally.
 ## Your Role
 
 Work through the plan's task breakdown, writing e2e test code for each
-task. Follow the reference suite's patterns exactly — imports, harness
-usage, assertion style, labels, setup/teardown. Commit each logical unit
-of work independently.
+task. Follow the reference suite's patterns exactly — imports, test
+infrastructure usage, assertion style, labels, lifecycle hooks. Commit
+each logical unit of work independently.
 
 ## Critical Rules
 
 - **Follow the plan.** Execute tasks in the order specified in `02-plan.md`. If you need to deviate, update the plan and note why.
 - **Read before writing.** Before writing any test code, read the reference suite files and existing tests in similar suites. Match their patterns.
-- **Use the project's harness.** Do not make ad-hoc API calls, CLI invocations, or direct infrastructure access. Use the harness methods and test utilities the project provides.
+- **Use the project's test infrastructure.** Do not make ad-hoc API calls, CLI invocations, or direct infrastructure access. Use the test abstractions (harness, fixtures, page objects, helpers) and utilities the project provides.
 - **One commit per plan task.** Each commit must follow the project's commit format (from the validation profile) and be independently meaningful.
 - **Update the plan.** Mark tasks as completed in `02-plan.md` as you go. On re-invocation, check the plan to see what's already done.
 - **No scope creep.** Do not write tests beyond the story's acceptance criteria, refactor existing test code, or improve test infrastructure. Note discoveries in the implementation report.
@@ -148,7 +148,7 @@ For each task in the plan, follow this cycle.
 
 Before making any changes, read:
 - The reference suite file(s) noted in the plan (re-read to reinforce patterns)
-- Any harness methods the task will use (verify signatures and behavior)
+- Any test infrastructure methods the task will use (verify signatures and behavior)
 - Existing test files in neighboring suites (to match patterns)
 - Any test utilities or constants the task will use
 
@@ -158,32 +158,36 @@ Write the test code for this task, following the reference suite's patterns
 exactly:
 
 1. **Match the import block:** Use the same imports as the reference suite.
-   Include framework imports (e.g., `. "github.com/onsi/ginkgo/v2"`),
-   harness imports, and utility imports.
-2. **Match the block structure:** Use the project's Describe/Context/It
-   nesting (or equivalent). Match indentation, block naming conventions,
-   and label placement.
-3. **Use `By()` step descriptions** (or the project's equivalent) for
-   human-readable test flow documentation.
-4. **Use the harness.** Call harness methods for all system interactions.
-   Do not create ad-hoc HTTP clients, CLI wrappers, or API calls.
+   Include framework imports, test infrastructure imports, and utility
+   imports.
+2. **Match the test grouping structure:** Use the project's test
+   organization blocks (e.g., Describe/Context/It in Ginkgo,
+   test classes/methods in pytest, describe/it in Playwright). Match
+   indentation, naming conventions, and label placement.
+3. **Use step annotations** (if the project uses them — e.g., By() in
+   Ginkgo, test step markers in BDD frameworks) for human-readable test
+   flow documentation.
+4. **Use the project's test infrastructure.** Call the project's test
+   abstractions for all system interactions. Do not create ad-hoc HTTP
+   clients, CLI wrappers, or API calls.
 5. **Use test utilities.** Use the project's constants (timeouts, polling
    intervals, resource type strings). Do not hardcode values.
-6. **Use async assertions.** Use `Eventually`/`Consistently` with
-   timeout and polling (or the project's equivalent) for any operation
-   that may not complete immediately. Never use `time.Sleep` or
-   equivalent fixed delays.
+6. **Use async polling.** Use the project's async waiting mechanism
+   (e.g., Eventually/Consistently in Ginkgo, polling helpers in pytest,
+   expect with toPass/polling in Playwright) for any operation that may
+   not complete immediately. Never use fixed delays (e.g., time.Sleep,
+   asyncio.sleep, page.waitForTimeout).
 7. **Follow test isolation patterns.** Generate unique test IDs using the
    project's mechanism. Use those IDs for resource names. Ensure cleanup
-   happens via AfterEach or deferred functions.
-8. **Apply labels.** Follow the label convention from the context document
-   (e.g., ticket ID, component tag).
+   happens via the project's teardown hooks or deferred functions.
+8. **Apply labels/tags.** Follow the label convention from the context
+   document.
 
 For the suite file (typically Task 1):
-- Follow the reference suite's BeforeSuite, BeforeEach, AfterEach,
-  AfterSuite structure exactly
-- Start only the auxiliary services the plan identified as needed
-- Use the same harness initialization pattern
+- Follow the reference suite's lifecycle hook structure exactly (use the
+  actual hook names discovered during `/ingest`)
+- Start only the auxiliary services the plan identified as needed (if any)
+- Use the same test infrastructure initialization pattern
 - Use the same login/auth pattern
 
 #### 3c: Run Tests
@@ -195,10 +199,10 @@ If tests fail, diagnose **where** the problem is before fixing:
 
 | Diagnosis | Symptom | Action |
 |-----------|---------|--------|
-| **Test code is wrong** | Wrong harness method, bad assertion, incorrect setup, wrong import | Fix the test code |
+| **Test code is wrong** | Wrong method call, bad assertion, incorrect setup, wrong import | Fix the test code |
 | **Test expectation is wrong** | Feature behaves differently than the AC implies | Verify against the AC — if the AC is ambiguous, note in report and escalate to user |
-| **Feature has a defect** | Feature doesn't match its own [DEV] story's AC — a genuine bug | Note as a discovery in the implementation report — do NOT fix the feature (out of scope). The test may need to be adjusted to skip or xfail if the defect blocks it. |
-| **Harness limitation** | Harness doesn't expose a method needed for the scenario | If a simple helper within the test file suffices, write it. If a harness change is needed, escalate — that's out of scope. |
+| **Feature has a defect** | Feature doesn't match its AC — a genuine bug | Note as a discovery in the implementation report — do NOT fix the feature (out of scope). The test may need to be adjusted to skip or xfail if the defect blocks it. |
+| **Test infrastructure limitation** | The project's test abstractions don't expose a method needed for the scenario | If a simple helper within the test file suffices, write it. If a test infrastructure change is needed, escalate — that's out of scope. |
 | **Environment issue** | Services not running, VM unavailable, network error | Report to user — this is not a test code problem |
 
 #### 3d: Lint and Format
@@ -251,8 +255,8 @@ Do **not** give it the implementing agent's reasoning or conversation
 history — the value comes from independent eyes.
 
 The subagent should review as a senior QE engineer familiar with the
-project's testing conventions, focusing on: correct harness usage,
-assertion completeness, anti-patterns (hardcoded sleeps, brittle
+project's testing conventions, focusing on: correct test infrastructure
+usage, assertion completeness, anti-patterns (hardcoded sleeps, brittle
 selectors, missing cleanup), label conventions, and test isolation.
 
 **Tier 3: Structured self-review.** If the runtime does not support
@@ -260,7 +264,7 @@ spawning subagents, fall back to a structured self-review. Re-read the
 staged diff and check for:
 
 - Anti-patterns: hardcoded sleeps, shared mutable state, missing cleanup
-- Harness bypass: direct API calls instead of harness methods
+- Test infrastructure bypass: direct API calls instead of project-provided abstractions
 - Missing async polling: synchronous assertions on async operations
 - Hardcoded values: inline strings/numbers instead of constants
 - Pattern drift: deviations from the reference suite's conventions
@@ -366,7 +370,7 @@ During test implementation, you may encounter unexpected situations:
 | Situation | Action | Approval |
 |-----------|--------|----------|
 | Feature defect found — test reveals a bug in the [DEV] implementation | Note in report as a discovery. Adjust test to document expected behavior (may xfail or skip with reason). Do NOT fix the feature. | Auto |
-| Harness doesn't expose needed method | Write a local helper within the test file if simple. If a harness change is needed, escalate. | Auto (local helper) / Required (harness change) |
+| Test infrastructure doesn't expose needed method | Write a local helper within the test file if simple. If a test infrastructure change is needed, escalate. | Auto (local helper) / Required (infrastructure change) |
 | Test scenario is significantly simpler than planned | Note in report, continue | Auto |
 | Test scenario is significantly more complex than planned | **Stop and ask the user** — the story may need re-scoping | Required |
 | Reference suite pattern doesn't apply to this scenario | Adapt minimally, note deviation in report | Auto |
@@ -393,16 +397,17 @@ After all tasks are complete (or if interrupted), write:
 |----------|-------------|--------|
 | {name} | {what it validates} | {labels} |
 
-## Harness Methods Used
+## Test Infrastructure Used
 
-| Method | Purpose |
-|--------|---------|
+| Method / Abstraction | Purpose |
+|---------------------|---------|
 | `{method}` | {what it does} |
 
-## Auxiliary Services Required
+## Auxiliary Services
 
-{Which services must be running for these tests. If the services are
- self-starting (testcontainers), note that.}
+{Which services must be running for these tests, if any. If the services
+ are self-starting, note that. If tests run against a pre-existing
+ environment: "Tests run against {environment}."}
 
 ## Notes
 
@@ -435,7 +440,7 @@ After all tasks are complete (or if interrupted), write:
 
 {Notable findings during test implementation:
  - Feature defects found (bugs in the [DEV] implementation)
- - Harness gaps (missing methods or capabilities)
+ - Test infrastructure gaps (missing methods or capabilities)
  - Missing test infrastructure
  - Pre-existing test issues in adjacent suites
  If none: "No notable discoveries."}

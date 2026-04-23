@@ -31,7 +31,7 @@ A story-to-tests workflow that takes a Jira [QE] Story, discovers the project's 
   -> fetches [QE] story from Jira
   -> verifies [DEV] dependencies are merged
   -> loads design document and PRD context
-  -> explores e2e test infrastructure (framework, harness, patterns)
+  -> explores e2e test infrastructure (framework, test abstractions, patterns)
   -> selects reference suite as pattern source
   -> discovers validation profile (test execution, lint commands)
   -> writes .artifacts/e2e/EDM-5678/01-context.md
@@ -40,7 +40,7 @@ A story-to-tests workflow that takes a Jira [QE] Story, discovers the project's 
   -> maps each acceptance criterion to test scenarios
   -> selects reference suite and documents patterns to follow
   -> designs test file structure (suite file + test files)
-  -> plans harness method usage and auxiliary services
+  -> plans test infrastructure usage and auxiliary services (if any)
   -> breaks work into ordered tasks (suite file first, then scenarios)
   -> writes 02-plan.md
 
@@ -81,7 +81,7 @@ All artifacts are stored in `.artifacts/e2e/{jira-key}/`.
 .artifacts/e2e/EDM-5678/
   01-context.md              (story context, e2e infrastructure, validation profile)
   02-plan.md                 (scenario breakdown, AC coverage -- updated as tasks complete)
-  03-test-report.md          (tests written, harness methods used)
+  03-test-report.md          (tests written, test infrastructure used)
   04-impl-report.md          (changes, commits, deviations, discoveries)
   05-validation-report.md    (check results, anti-patterns, regressions)
   06-pr-description.md       (PR body)
@@ -93,19 +93,19 @@ All artifacts are stored in `.artifacts/e2e/{jira-key}/`.
 
 ### Discovery-Based Infrastructure
 
-The workflow does not hardcode language-specific commands or framework assumptions. During `/ingest`, it discovers the project's e2e testing framework, harness, auxiliary services, execution commands, and conventions. This makes the workflow portable across projects using different testing stacks (Ginkgo, Playwright, pytest, Cypress, etc.).
+The workflow does not hardcode language-specific commands or framework assumptions. During `/ingest`, it discovers the project's e2e testing framework, test infrastructure abstractions (harness, fixtures, page objects, helpers — whatever the project uses), auxiliary services (if any), execution commands, and conventions. This makes the workflow portable across projects using different testing stacks (Ginkgo, Playwright, pytest, Cypress, Jest, etc.).
 
 ### Reference Suite Pattern
 
-Before writing any test code, the workflow identifies the most similar existing e2e test suite in the project and extracts its patterns: imports, setup/teardown, harness usage, assertion style, labels, and cleanup. New tests follow these patterns exactly, ensuring consistency with the project's existing test base.
+Before writing any test code, the workflow identifies the most similar existing e2e test suite in the project and extracts its patterns: imports, lifecycle hooks, test infrastructure usage, assertion style, labels, and cleanup. New tests follow these patterns exactly, ensuring consistency with the project's existing test base.
 
 ### Scenario-Driven Planning
 
-Unlike implementation planning (task-driven), e2e test planning is scenario-driven. Each acceptance criterion maps to one or more concrete test scenarios with specific Describe/Context/It nesting, steps, assertions, and labels. This ensures every AC is verifiably covered.
+Unlike implementation planning (task-driven), e2e test planning is scenario-driven. Each acceptance criterion maps to one or more concrete test scenarios with specific test grouping, steps, assertions, and labels. This ensures every AC is verifiably covered.
 
 ### Anti-Pattern Detection
 
-Validation checks for 10 common e2e test anti-patterns: hardcoded sleeps, brittle selectors, order-dependent tests, shared mutable state, missing cleanup, harness bypass, missing labels, hardcoded values, missing async polling, and missing failure diagnostics. Each detected anti-pattern is fixed during validation.
+Validation checks for 10 common e2e test anti-patterns: hardcoded sleeps, brittle selectors, order-dependent tests, shared mutable state, missing cleanup, test infrastructure bypass, missing labels, hardcoded values, missing async polling, and missing failure diagnostics. Each detected anti-pattern is fixed during validation.
 
 ### Feature Defects Are Not Test Bugs
 

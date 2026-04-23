@@ -18,7 +18,7 @@ multiple rounds of revision. This phase only modifies the plan, not code.
 
 - **Change only what's requested.** Do not "improve" parts of the plan the user didn't mention.
 - **Evaluate before applying.** Assess whether the requested change would create coverage gaps, introduce anti-patterns, or reduce scenario quality. If it would, say so before making the change — explain the concern, recommend an alternative if you have one, and let the user decide.
-- **Maintain consistency.** If a scenario change affects AC coverage or harness usage, update those sections too.
+- **Maintain consistency.** If a scenario change affects AC coverage or test infrastructure usage, update those sections too.
 - **Preserve traceability.** Every acceptance criterion must still have at least one test scenario after revision.
 - **Show your changes.** After revising, summarize what changed so the user can verify.
 - **No scope reduction.** Do not silently simplify, even when revising.
@@ -46,12 +46,12 @@ The user's feedback may target:
 
 **Test approach changes:**
 - Different reference suite ("Use the fleet_update suite as the pattern, not the agent suite")
-- Different harness methods ("Use harness.EnrollWithOptions instead of harness.Enroll")
-- Different assertions ("Use Eventually with a longer timeout for the rollback verification")
+- Different test infrastructure methods ("Use a different setup helper for enrollment")
+- Different assertions ("Use a longer timeout for the rollback verification")
 
 **Structure changes:**
 - Different file organization ("Put the error cases in a separate test file")
-- Different Describe/Context/It nesting ("Group the rollback scenarios under a Context block")
+- Different test grouping ("Group the rollback scenarios under a separate context block")
 - Label changes ("Add the 'slow' label to the VM-based scenarios")
 
 **Task changes:**
@@ -67,8 +67,8 @@ before applying it. For example:
 - Removing scenarios that are the only coverage for an acceptance criterion
 - Dropping cleanup or teardown that prevents test isolation
 - Changing an approach that would introduce anti-patterns (hardcoded
-  sleeps, brittle selectors, harness bypass)
-- Using harness methods that don't exist in the project
+  sleeps, brittle selectors, test infrastructure bypass)
+- Using test infrastructure methods that don't exist in the project
 
 Present the concern with specific reasoning, recommend an alternative
 if you have one, and apply the change only after the user has considered
@@ -87,8 +87,8 @@ Edit the plan:
 After applying changes, verify:
 - Does every acceptance criterion still have at least one test scenario?
 - Does the task ordering still respect dependencies (suite file first)?
-- Do the test scenarios still match the Describe/Context/It structure?
-- Do harness methods referenced actually exist in the project?
+- Do the test scenarios still match the project's test grouping structure?
+- Do test infrastructure methods referenced actually exist in the project?
 - Are labels consistent with the project's conventions?
 - Does the AC coverage matrix reflect the current scenario mapping?
 - Are commit messages still properly formatted?
@@ -111,11 +111,11 @@ Summarize what changed:
 
 ### Consistency Updates
 - AC coverage matrix updated to reflect new scenario mapping
-- Harness usage table updated with new method references
+- Test infrastructure table updated with new method references
 - Task count increased from 4 to 5
 
 ### Items to Note
-- The new error scenario requires harness.SimulateOffline() — verified it exists
+- The new error scenario requires SimulateOffline() — verified it exists in the test infrastructure
 ```
 
 ## Output

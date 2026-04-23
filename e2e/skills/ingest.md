@@ -21,7 +21,7 @@ scenarios and file structure.
 
 - **Read-only.** Jira access is read-only. Never create, update, or modify Jira issues.
 - **Capture, don't implement.** Record what you find — test scenario decisions happen in `/plan`.
-- **Deep infrastructure discovery.** Unlike implementation ingestion, e2e ingestion must thoroughly explore the test harness, auxiliary services, setup/teardown patterns, and test conventions. Shallow discovery leads to tests that don't follow project patterns.
+- **Deep infrastructure discovery.** Unlike implementation ingestion, e2e ingestion must thoroughly explore the project's test infrastructure — whatever abstractions it uses (harness, fixtures, page objects, helpers), lifecycle hooks, auxiliary services (if any), and test conventions. Shallow discovery leads to tests that don't follow project patterns.
 - **Note unknowns.** If you can't determine something from the codebase, say so explicitly.
 - **Re-invocation diffs before overwriting.** If `01-context.md` already exists, preserve it before exploring. After compiling new context, diff against the previous version and present changes to the user before overwriting (see Steps 2a and 7a).
 
@@ -213,42 +213,69 @@ Map the e2e test directory structure:
    (e.g., `*_suite_test.go` + `*_test.go` in Go/Ginkgo)
 4. **Naming conventions:** How are test files and directories named?
 
-#### 6e: Test Harness
+#### 6e: Test Infrastructure Abstractions
 
-Explore the test harness in depth — this is the API that test code uses:
+Discover what abstractions the project uses for test code to interact
+with the system under test. Projects vary widely — look for whichever
+of these the project uses (it may use one, several, or none):
 
-1. **Location:** Find harness source files (e.g., `test/harness/e2e/`)
-2. **Initialization:** How do tests obtain the harness? (global var,
-   per-worker function, constructor)
-3. **Key methods:** Read the harness files and catalog the public methods
-   relevant to the story's scope. Focus on methods the test scenarios
-   will need — don't catalog the entire harness.
-4. **Domain-specific harness files:** Many projects split the harness by
-   domain (e.g., `harness_device.go`, `harness_fleet.go`). Identify which
-   domain files are relevant to the story.
+- **Harness object:** A central test API object (e.g., `test/harness/`)
+- **Fixtures:** Framework-provided setup mechanisms (e.g., pytest
+  fixtures, Playwright fixtures)
+- **Page objects:** UI interaction abstractions (e.g., Playwright/Cypress
+  page object models)
+- **Helper modules:** Standalone utility functions or classes for test
+  setup and interaction
 
-#### 6f: Setup and Teardown Patterns
+For whatever the project uses:
 
-Read 2-3 existing suite files to understand lifecycle patterns:
+1. **Location:** Where do the test infrastructure source files live?
+2. **Initialization:** How do tests obtain access? (global variable,
+   dependency injection, fixture parameter, constructor, import)
+3. **Key methods:** Catalog the public methods relevant to the story's
+   scope. Focus on methods the test scenarios will need — don't catalog
+   the entire API.
+4. **Domain-specific files:** Some projects split test infrastructure by
+   domain. Identify which files are relevant to the story.
 
-1. **BeforeSuite / setup_module:** What happens once per suite?
-   (auxiliary services, providers, harness initialization)
-2. **BeforeEach / setup_method:** What happens before each test?
-   (login, environment reset, test context creation)
-3. **AfterEach / teardown_method:** What happens after each test?
-   (log collection on failure, resource cleanup)
-4. **AfterSuite / teardown_module:** What happens after all tests?
-   (auxiliary service cleanup)
+If the project has no dedicated test infrastructure abstractions (tests
+interact with the system directly), note that — this is a valid pattern.
+
+#### 6f: Test Lifecycle
+
+Read 2-3 existing suite/test files to understand lifecycle patterns.
+Use whatever terminology the project's framework uses — common patterns
+include:
+
+1. **Suite-level setup** (e.g., BeforeSuite, setup_module, beforeAll):
+   What happens once per suite? (services, providers, initialization)
+2. **Per-test setup** (e.g., BeforeEach, setup_method, beforeEach):
+   What happens before each test? (login, reset, context creation)
+3. **Per-test teardown** (e.g., AfterEach, teardown_method, afterEach):
+   What happens after each test? (log collection, resource cleanup)
+4. **Suite-level teardown** (e.g., AfterSuite, teardown_module, afterAll):
+   What happens after all tests? (service cleanup)
+
+Record the actual hook names the project uses — downstream phases will
+use these names, not generic placeholders.
 
 #### 6g: Auxiliary Services
 
-Discover what external services tests depend on:
+If the project manages external services for e2e tests, discover them.
+Not all projects do this — some test against pre-deployed environments
+or let the framework handle service lifecycle internally.
+
+If the project does manage test services:
 
 1. **Services used:** Registry, git server, database, identity provider,
    metrics collector, tracing, etc.
-2. **How started:** Testcontainers (self-starting), make targets, manual
-3. **How accessed:** Helper functions, environment variables, harness methods
+2. **How started:** Testcontainers, make targets, docker-compose, manual
+3. **How accessed:** Helper functions, environment variables, test
+   infrastructure methods
 4. **Singleton vs. per-suite:** Are services shared across suites?
+
+If no auxiliary service management is found, note "Tests run against a
+pre-existing environment" or whatever the actual pattern is.
 
 #### 6h: Test Utilities
 
@@ -279,8 +306,8 @@ similar to what needs to be written:
 
 1. Match by feature area (e.g., if the story tests rollout behavior, find
    the existing rollout suite)
-2. If no exact match, find a suite that uses similar harness methods or
-   tests similar interaction patterns
+2. If no exact match, find a suite that uses similar test infrastructure
+   methods or tests similar interaction patterns
 3. Read the selected suite thoroughly: suite file + 1-2 test files
 4. Extract concrete patterns: imports, setup, assertions, labels, helpers
 
@@ -291,14 +318,14 @@ Focus exploration on the test infrastructure files. Apply the convergence
 heuristic per discovery area (Steps 6c–6j), not across the entire
 exploration: within each area, if the last 5-7 files explored introduced
 no new patterns, that area is likely complete. E2e infrastructure spans
-a broad surface (harness files, auxiliary configs, suite files, utilities,
+a broad surface (test infrastructure files, auxiliary configs, suite files, utilities,
 CI workflows, test documentation), so premature convergence can miss
 critical patterns.
 
 ### Step 7: Compile Context
 
 > **Checkpoint:** Step 6 is the heaviest phase of ingestion (10 sub-steps
-> across harness, services, utilities, conventions, and reference suites).
+> across test infrastructure, services, utilities, conventions, and reference suites).
 > Before compiling, verify that all Step 6 sub-steps have been completed
 > and that key findings are captured. If working in a constrained context,
 > consider spawning a subagent for the compilation.
@@ -366,41 +393,56 @@ If this is a first invocation, write
 ## E2E Test Infrastructure
 
 ### Framework
-- **Framework:** {e.g., Ginkgo v2 + Gomega, Playwright, pytest}
-- **Runner:** {e.g., ginkgo CLI, playwright test, pytest}
+- **Framework:** {e.g., Ginkgo v2 + Gomega, Playwright, pytest, Cypress, Jest}
+- **Runner:** {e.g., ginkgo CLI, playwright test, pytest, npx cypress}
 - **Test location:** {e.g., test/e2e/}
-- **Suite organization:** {e.g., one directory per feature area}
+- **Suite organization:** {e.g., one directory per feature area, flat files}
 
 ### Test Execution
 - **Run all e2e tests:** `{command}`
 - **Run specific suite:** `{command with scoping}`
-- **Filter by label:** `{mechanism, e.g., GINKGO_LABEL_FILTER="label"}`
-- **Filter by description:** `{mechanism, e.g., GINKGO_FOCUS="pattern"}`
-- **Parallel execution:** `{mechanism, e.g., GINKGO_PROCS=N}`
+- **Filter by label/tag:** `{mechanism}`
+- **Filter by name/description:** `{mechanism}`
+- **Parallel execution:** `{mechanism, if supported}`
 - **Environment assumptions:** {what must be running before tests execute}
 
-### Harness
-- **Location:** {path(s) to harness files}
-- **Initialization:** {how tests obtain the harness}
+### Test Infrastructure
+
+{Describe what abstractions the project uses. Include whichever of the
+ following the project actually has — omit sections that don't apply:}
+
+- **Type:** {harness object / fixtures / page objects / helper modules / none}
+- **Location:** {path(s) to test infrastructure files}
+- **Initialization:** {how tests obtain access}
 - **Key methods for this story:**
 
 | Method | Purpose | Source File |
 |--------|---------|-------------|
 | `{method}` | {what it does} | {file} |
 
-### Setup/Teardown Patterns
-- **BeforeSuite:** {what happens}
-- **BeforeEach:** {what happens}
-- **AfterEach:** {what happens}
-- **AfterSuite:** {what happens}
+{If no dedicated test infrastructure: "Tests interact with the system
+ directly — no harness, fixtures, or page objects."}
+
+### Test Lifecycle
+
+{Use the actual hook names from the project's framework:}
+
+- **Suite-level setup** ({discovered hook name}): {what happens}
+- **Per-test setup** ({discovered hook name}): {what happens}
+- **Per-test teardown** ({discovered hook name}): {what happens}
+- **Suite-level teardown** ({discovered hook name}): {what happens}
 
 ### Auxiliary Services
 
+{If the project manages external services for tests:}
+
 | Service | How Started | How Accessed | Required By |
 |---------|-------------|-------------|-------------|
-| {name} | {testcontainer/make target/manual} | {helper/env var/harness method} | {which tests} |
+| {name} | {mechanism} | {how tests access it} | {which tests} |
 
-{If no auxiliary services: "No auxiliary services required for e2e tests."}
+{If tests run against a pre-existing environment or no auxiliary service
+ management exists: "Tests run against {describe environment}. No
+ test-managed auxiliary services."}
 
 ### Test Utilities
 - **Constants:** {path, key constants}
@@ -409,9 +451,9 @@ If this is a first invocation, write
 - **Test data:** {where fixtures live}
 
 ### Conventions
-- **Labels:** {convention, e.g., Label("ticket-id", "component-tag")}
+- **Labels/tags:** {convention for CI-filtering labels or tags}
 - **File naming:** {convention for test files}
-- **Test naming:** {convention for Describe/It blocks}
+- **Test naming:** {convention for test grouping and naming}
 - **Lint rules:** {test-specific lint rules, if any}
 - **Documentation:** {test docs locations}
 
@@ -423,9 +465,9 @@ If this is a first invocation, write
 
 **Patterns to follow:**
 - **Imports:** {import pattern from the suite file}
-- **Setup:** {BeforeSuite/BeforeEach pattern}
-- **Assertions:** {assertion style, e.g., Eventually/Expect}
-- **Labels:** {how labels are applied}
+- **Setup:** {lifecycle hook pattern, using the project's actual hook names}
+- **Assertions:** {assertion style, including any async/polling patterns}
+- **Labels:** {how labels/tags are applied}
 - **Cleanup:** {teardown pattern}
 - **Key code pattern:** {any distinctive pattern worth replicating}
 
@@ -466,14 +508,14 @@ If this is a first invocation, write
  must be a concrete question — not an observation, concern, or statement
  of fact. Ask what needs to be decided, not what you noticed.
 
- Good: "Should the fleet rollback e2e tests enroll a real VM via the
- harness, or use the device simulator? The existing rollout suite uses
- real VMs but the agent suite uses both patterns."
+ Good: "Should the fleet rollback e2e tests enroll a real VM, or use
+ the device simulator? The existing rollout suite uses real VMs but the
+ agent suite uses both patterns."
 
  Bad: "Need to figure out the VM approach." (too vague)
 
- Bad: "The harness supports both VMs and simulators." (observation, not
- a question)}
+ Bad: "The test infrastructure supports both VMs and simulators."
+ (observation, not a question)}
 ```
 
 ### Step 7a: Diff Against Prior Ingest (Re-invocation Only)
@@ -483,7 +525,7 @@ the newly compiled content. Focus the diff on:
 
 - Changes to acceptance criteria or testing approach
 - Changes to dependency status (have [DEV] stories been merged since last ingest?)
-- New harness methods or infrastructure discovered
+- New test infrastructure methods or patterns discovered
 - Changes to the validation profile or test execution commands
 - Changes to the reference suite selection
 
@@ -501,7 +543,7 @@ Present a brief summary:
 - Story scope and acceptance criteria
 - Design and PRD context loaded (or what was missing)
 - Dependency status — especially whether `[DEV]` stories are merged
-- E2E test infrastructure discovered (framework, harness, reference suite)
+- E2E test infrastructure discovered (framework, test abstractions, reference suite)
 - Validation profile discovered (how to run tests)
 - Open questions (if any) — frame these as items that `/plan` will
   investigate, not as blockers. The planner reads the actual code and
@@ -521,7 +563,7 @@ what changes were found and that the existing context was preserved.
 Report your findings:
 - Story scope and key acceptance criteria
 - Dependency status ([DEV] stories merged or not)
-- E2E infrastructure discovered (framework, harness, reference suite)
+- E2E infrastructure discovered (framework, test abstractions, reference suite)
 - Validation profile summary
 - Assessment of readiness for `/plan`
 

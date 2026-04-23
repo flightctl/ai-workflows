@@ -21,7 +21,7 @@ re-run checks, and repeat until everything passes.
 
 - **Run the project's actual commands.** Use the validation profile from `01-context.md`, not hardcoded commands.
 - **Fix issues, don't skip them.** If linting fails, fix the code. If tests fail, diagnose and fix. If the user asks to skip a failing check, evaluate the risk: explain what the failing check is testing, what would go unverified if skipped, and whether skipping could mask a real problem. Present this assessment so the user can make an informed decision.
-- **Anti-patterns are defects.** Hardcoded sleeps, brittle selectors, missing cleanup, and harness bypass are test quality issues that will cause flaky tests in CI. Fix them.
+- **Anti-patterns are defects.** Hardcoded sleeps, brittle selectors, missing cleanup, and test infrastructure bypass are test quality issues that will cause flaky tests in CI. Fix them.
 - **Commit fixes separately.** Validation fixes get their own commits following the project's commit format.
 - **Do not modify code outside the story's scope** to fix pre-existing lint or test issues. Note them in the validation report.
 
@@ -129,16 +129,16 @@ and re-run the affected tests.
 
 | Anti-Pattern | How to Detect | Fix |
 |---|---|---|
-| **Hardcoded sleeps** | `time.Sleep()`, `sleep()`, `setTimeout()` with fixed delay used to wait for system state | Replace with polling/retry: `Eventually(func, timeout, polling)` or the project's equivalent |
-| **Brittle selectors** | Hardcoded element IDs, CSS classes, XPath (UI tests) | Use semantic locators: roles, labels, text content, harness methods |
-| **Order-dependent tests** | Tests that reference state created by a prior test in the same file (not in BeforeEach). Detection heuristic: check whether any test case references a variable that is assigned in a prior test case rather than in setup/BeforeEach (or the framework's equivalent setup mechanism) | Make each test independent — create needed state in the test or BeforeEach |
-| **Shared mutable state** | Package-level variables mutated by tests, global state without per-test reset. Detection heuristic: look for variables declared outside test functions that are assigned inside test cases without per-test reinitialization in BeforeEach (or the framework's equivalent setup mechanism) | Use per-test state via harness, test context, or local variables |
-| **Missing cleanup** | Resources created in tests without corresponding cleanup in AfterEach or defer | Add cleanup matching the reference suite's pattern |
-| **Harness bypass** | Direct HTTP calls, CLI exec, or API client instantiation instead of harness methods | Replace with harness method calls |
-| **Missing labels** | Test blocks (It/Describe) without CI-filtering labels | Add labels following the project's convention |
+| **Hardcoded sleeps** | Fixed delay calls (e.g., `time.Sleep()` in Go, `asyncio.sleep()` in Python, `page.waitForTimeout()` in Playwright) used to wait for system state | Replace with the project's async polling/retry mechanism (e.g., Eventually in Ginkgo, polling helpers in pytest, expect with toPass in Playwright) |
+| **Brittle selectors** | Hardcoded element IDs, CSS classes, XPath (UI tests) | Use semantic locators: roles, labels, text content, test infrastructure methods |
+| **Order-dependent tests** | Tests that reference state created by a prior test in the same file (not in per-test setup). Detection heuristic: check whether any test case references a variable that is assigned in a prior test case rather than in the per-test setup hook | Make each test independent — create needed state in the test or per-test setup hook |
+| **Shared mutable state** | Package-level variables mutated by tests, global state without per-test reset. Detection heuristic: look for variables declared outside test functions that are assigned inside test cases without per-test reinitialization in the per-test setup hook | Use per-test state via test infrastructure, test context, or local variables |
+| **Missing cleanup** | Resources created in tests without corresponding cleanup in teardown hooks or defer | Add cleanup matching the reference suite's pattern |
+| **Test infrastructure bypass** | Direct HTTP calls, CLI exec, or API client instantiation instead of using the project's test abstractions | Replace with the project's test infrastructure methods |
+| **Missing labels** | Test blocks without CI-filtering labels/tags | Add labels/tags following the project's convention |
 | **Hardcoded values** | Inline timeout durations, polling intervals, resource names instead of constants | Use the project's test utility constants |
-| **Missing async polling** | Direct assertions on results of async operations (no Eventually/retry) | Wrap in Eventually with appropriate timeout and polling interval |
-| **Missing failure diagnostics** | No log collection or diagnostic output when tests fail | Add diagnostic output in AfterEach (matching reference suite pattern) |
+| **Missing async polling** | Direct assertions on results of async operations (no polling/retry) | Wrap in the project's async polling mechanism with appropriate timeout and polling interval |
+| **Missing failure diagnostics** | No log collection or diagnostic output when tests fail | Add diagnostic output in teardown hooks (matching reference suite pattern) |
 
 If no anti-patterns are found, record "No anti-patterns detected" in the
 validation report.
@@ -151,8 +151,8 @@ Verify that the new test suite doesn't interfere with existing tests:
    as a fast check
 2. If no fast subset exists, run the e2e tests for adjacent suites (suites
    in the same feature area) to check for interference
-3. Check for test isolation issues: verify that AfterSuite/teardown
-   cleans up all resources created by BeforeSuite/setup. Compare
+3. Check for test isolation issues: verify that the suite-level teardown
+   cleans up all resources created by suite-level setup. Compare
    against the reference suite's cleanup pattern. Ensure the new suite
    does not leave state (running services, created resources, modified
    configuration) that could affect other suites.
@@ -175,7 +175,7 @@ git diff {base}..HEAD
 **Test quality:**
 - Do tests actually verify what the AC describes? (not asserting something tangentially related)
 - Are assertions specific enough? (not just "no error" — verify the actual outcome)
-- Are `By()` step descriptions clear and meaningful?
+- Are step annotations (if the project uses them) clear and meaningful?
 - Will these tests break only when real behavior changes, not when unrelated details change?
 
 **Maintainability:**
@@ -202,8 +202,8 @@ This is the workflow's primary contract.
 1. Read the **Acceptance Criteria** from `01-context.md`
 2. Read the **Acceptance Criteria Coverage** matrix from `02-plan.md`
 3. For each acceptance criterion:
-   - **Trace to test scenario:** Is there a test (Describe/It block)
-     that exercises this criterion's behavior? Follow the task mapping —
+   - **Trace to test scenario:** Is there a test that exercises this
+     criterion's behavior? Follow the task mapping —
      check that the task is marked Done and that the corresponding test
      code exists.
    - **Verify the test runs:** Does the test pass when executed?
@@ -249,7 +249,7 @@ Write `.artifacts/e2e/{jira-key}/05-validation-report.md`:
 | Order-dependent tests | {yes/no} | {yes/n/a} | {details} |
 | Shared mutable state | {yes/no} | {yes/n/a} | {details} |
 | Missing cleanup | {yes/no} | {yes/n/a} | {details} |
-| Harness bypass | {yes/no} | {yes/n/a} | {details} |
+| Test infrastructure bypass | {yes/no} | {yes/n/a} | {details} |
 | Missing labels | {yes/no} | {yes/n/a} | {details} |
 | Hardcoded values | {yes/no} | {yes/n/a} | {details} |
 | Missing async polling | {yes/no} | {yes/n/a} | {details} |

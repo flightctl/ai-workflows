@@ -115,7 +115,7 @@ In either case, save the result to
 - **Suite location:** {path to the new test suite directory}
 - **Reference suite:** {which existing suite was used as the pattern}
 - **Auxiliary services:** {services required, or "None beyond suite defaults"}
-- **Harness methods used:** {key harness methods}
+- **Test infrastructure used:** {key methods from the project's test abstractions}
 
 ### Acceptance Criteria
 {Checklist of acceptance criteria from the story, each prefixed with a

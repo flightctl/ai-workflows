@@ -98,7 +98,7 @@ ingest → plan → [revise loop] → code → validate → publish → [respond
 - `/plan` reveals story gaps or contradictions → suggest the user clarify with the story author or update the story
 - `/code` reveals plan gaps → the plan is updated inline during implementation; offer `/validate` when implementation is complete
 - `/code` discovers a feature defect (test reveals a bug in the [DEV] implementation) → note it in the implementation report; the test may need to xfail or skip. Do NOT recommend fixing the feature — that is out of scope
-- `/code` discovers a missing harness method (plan referenced a method that doesn't exist) → see deviation rules in `code.md`; a local helper may suffice, or the user decides whether to adjust the plan or add harness support outside this workflow
+- `/code` discovers a missing test infrastructure method (plan referenced a method that doesn't exist) → see deviation rules in `code.md`; a local helper may suffice, or the user decides whether to adjust the plan or add test infrastructure support outside this workflow
 - `/validate` reveals test failures → offer to diagnose and fix, then re-run `/validate`
 - `/validate` reveals anti-patterns → fix them during validation, then re-run the affected checks
 - `/validate` reveals unsatisfied acceptance criteria → if fixable (missing test scenarios), write them during validation; if the criterion is ambiguous or not e2e-testable, escalate to the user
