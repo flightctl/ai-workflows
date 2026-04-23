@@ -3,7 +3,6 @@
 | Field       | Value   |
 |-------------|---------|
 | Author(s)   |         |
-| Status      | Draft   |
 | Jira        |         |
 | Date        |         |
 
@@ -47,10 +46,20 @@
 
 - {Teams, systems, or work that must coordinate with this effort.}
 
-## 6. Risks and Open Questions
+## 6. Risks
+<!-- Optional: omit if no product risks were identified -->
 
-### 1. {Unresolved decision or risk}
+### 6.1 {Risk description}
 
 - **Owner:** {person or team}
-- **Status:** Open
-- **Outcome:** {recorded when resolved}
+- **Mitigation:** {strategy, if known}
+
+## 7. Open Questions
+<!-- Optional: omit if no open questions remain after clarification -->
+
+Questions for reviewers to resolve during PR review. Once answered, the resolution will be incorporated into the relevant section above and the entry removed.
+
+### 7.1 {Clear, answerable question directed at reviewers}
+
+- **Owner:** {person or team who should answer}
+- **Impact:** {which section or decision this answer affects}
