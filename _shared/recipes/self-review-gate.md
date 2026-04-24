@@ -71,6 +71,10 @@ independence. Load it with:
 - The project's AGENTS.md/CLAUDE.md (if they exist)
 - Any CONTEXT_FILES provided by the calling workflow
 
+Retain the subagent's ID for use in Step 4 — resuming the same reviewer
+gives it memory of its previous findings and concerns, producing more
+coherent follow-up reviews.
+
 **If subagents are not available**, perform the review inline. Adopt the
 reviewer perspective: evaluate the code as if you did not write it.
 
@@ -99,7 +103,21 @@ preferences or subjective taste not grounded in project conventions.
 If Step 3 produced code changes:
 
 1. Re-run the diff to capture the updated state
-2. Re-review focusing on:
+2. Obtain a re-review of the updated diff:
+
+   **If a subagent was used in Step 2 and the runtime supports agent
+   resumption:** Resume the same reviewer agent. Send it the updated diff
+   and a summary of fixes applied. This gives the reviewer memory of its
+   original findings and lets it verify they were addressed correctly.
+
+   **If resumption is not available:** Spawn a new subagent loaded with the
+   review protocol, the updated diff, and a summary of the previous round's
+   findings and fixes so it has full context.
+
+   **If subagents are not available:** Re-review inline, focusing on the
+   current state of the diff (not just the delta from last round).
+
+   The re-review should focus on:
    - Whether fixes were applied correctly
    - Whether fixes introduced new issues
 3. If new issues are found, fix them and re-review
