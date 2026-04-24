@@ -124,10 +124,15 @@ ensure_repo_linked() {
 
 install_shared() {
   local target_dir="$1"
-  if [[ -d "${INSTALL_DIR}/_shared" ]]; then
-    ln -sfn "${INSTALL_DIR}/_shared" "${target_dir}/_shared"
-    echo "  Linked ${target_dir}/_shared -> ${INSTALL_DIR}/_shared  ($SCOPE)"
+  if [[ ! -d "${INSTALL_DIR}/_shared" ]]; then
+    return
   fi
+  if [[ -e "${target_dir}/_shared" && ! -L "${target_dir}/_shared" ]]; then
+    echo "  Warning: ${target_dir}/_shared exists and is not a symlink; skipping" >&2
+    return
+  fi
+  ln -sfn "${INSTALL_DIR}/_shared" "${target_dir}/_shared"
+  echo "  Linked ${target_dir}/_shared -> ${INSTALL_DIR}/_shared  ($SCOPE)"
 }
 
 install_cursor() {

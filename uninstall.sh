@@ -98,6 +98,15 @@ SELECTIVE=$([[ ${#SELECTED_WORKFLOWS[@]} -gt 0 ]] && echo true || echo false)
 
 # --- helpers ---
 
+uninstall_shared() {
+  local target_dir="$1"
+  local link="${target_dir}/_shared"
+  if [[ -L "$link" ]]; then
+    rm -f "$link"
+    echo "  Removed $link"
+  fi
+}
+
 uninstall_cursor() {
   if [[ "$SCOPE" == "project" ]]; then
     SKILLS_DIR="${PROJECT_ROOT}/.cursor/skills"
@@ -105,6 +114,9 @@ uninstall_cursor() {
     SKILLS_DIR="${HOME}/.cursor/skills"
   fi
 
+  if [[ "$SELECTIVE" == false ]]; then
+    uninstall_shared "$SKILLS_DIR"
+  fi
   for wf in "${WORKFLOWS[@]}"; do
     LINK="${SKILLS_DIR}/${wf}"
     if [[ -L "$LINK" ]]; then
@@ -148,6 +160,9 @@ uninstall_claude() {
 
   # Remove skill symlinks
   SKILLS_DIR="$(dirname "$CLAUDE_MD")/skills"
+  if [[ "$SELECTIVE" == false ]]; then
+    uninstall_shared "$SKILLS_DIR"
+  fi
   for wf in "${WORKFLOWS[@]}"; do
     LINK="${SKILLS_DIR}/${wf}"
     if [[ -L "$LINK" ]]; then
@@ -175,6 +190,9 @@ uninstall_gemini() {
     SKILLS_DIR="${HOME}/.gemini/skills"
   fi
 
+  if [[ "$SELECTIVE" == false ]]; then
+    uninstall_shared "$SKILLS_DIR"
+  fi
   for wf in "${WORKFLOWS[@]}"; do
     LINK="${SKILLS_DIR}/${wf}"
     if [[ -L "$LINK" ]]; then
