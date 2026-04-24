@@ -1,14 +1,16 @@
 # Code Review Workflow Guidelines
 
+## Shared Review Protocol
+
+Read and follow `../_shared/review-protocol.md` for evaluation criteria,
+finding format, severity definitions, and core review principles. Those
+shared standards apply to this workflow. The principles and rules below
+are specific to the interactive code-review workflow.
+
 ## Principles
 
-- **Review what the developer wrote, not what you would have written.** The reviewer evaluates correctness, clarity, safety, and adherence to project conventions. It does not impose stylistic preferences that are not codified in the project's linting or contribution guidelines.
-- **Findings must be actionable.** Every finding must include a concrete suggestion the developer can evaluate and apply. Vague observations ("consider improving this") are not findings.
-- **Severity must be honest.** CRITICAL and HIGH are blockers that would cause bugs, security issues, or maintenance problems. MEDIUM and LOW are suggestions that improve quality but are not blocking. Inflating severity erodes trust; deflating it hides real problems.
-- **Every finding deserves honest assessment.** The implementor must carefully consider every finding — including nits and LOW-severity items — and make a value judgment. If a minor suggestion genuinely improves the code (clearer naming, better readability, a small correctness improvement), recommend accepting it. If it doesn't add real value (stylistic preference, churn without improvement, subjective taste), recommend rejecting it with a concrete explanation of why. Severity does not determine whether a finding is worth implementing — value does.
 - **The human decides.** The reviewer proposes; the implementor assesses; the user approves. No change is applied without the user's explicit decision.
 - **Productive disagreement is valuable.** When the implementor disagrees with a finding, that disagreement must be grounded in evidence (code behavior, test coverage, design constraints). The user resolves ties.
-- **Discover, don't assume.** The project's tech stack, conventions, and quality standards are discovered from the codebase, not hardcoded. Every project gets a review tailored to its own standards.
 - **Scope is about relevance, not mechanics.** The review covers all uncommitted changes, but not every file in the workspace is necessarily part of the change. Determine relevance by examining each file's content and its relationship to the logical change — not by a mechanical staged/unstaged filter.
 - **The review is private.** All artifacts stay in `.artifacts/` (gitignored). Review iterations are working documents, not public records.
 
@@ -30,7 +32,7 @@
 
 ## Quality
 
-- Findings should cover: correctness, error handling, security, performance, naming and clarity, test coverage, and adherence to project conventions.
+- Evaluation criteria are defined in `../_shared/review-protocol.md`. The reviewer must cover all listed categories.
 - The reviewer should prioritize findings by impact. A correctness bug matters more than a naming suggestion.
 - The implementor's assessment should be independent, not reflexively agreeing or disagreeing with the reviewer.
 - Each review round should show measurable progress: findings addressed, new issues surfaced (if any), and a clear approval or continuation signal.

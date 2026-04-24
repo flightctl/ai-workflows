@@ -357,11 +357,39 @@ Branch naming conventions:
 If a branch already exists with the changes (from a prior `/fix` phase), use
 it instead of creating a new one.
 
-### Step 5: Stage and Commit
+### Step 5: Self-Review Gate
+
+Before committing, run a self-review of the changes to catch issues before
+they reach external reviewers.
+
+Read and follow `../../_shared/recipes/self-review-gate.md` with these
+parameters:
+
+| Parameter | Value |
+|-----------|-------|
+| DIFF_COMMAND | `git diff HEAD` |
+| MAX_ROUNDS | `3` |
+| CONTEXT_FILES | `.artifacts/bugfix/{issue}/root-cause.md`, `.artifacts/bugfix/{issue}/implementation-notes.md` (if they exist) |
+
+If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
+present the findings to the user. Do not proceed to commit until the user
+decides how to handle them.
+
+If the gate reports PASS, proceed to Step 6. Any code fixes made by the
+gate are uncommitted changes that will be included in the commit below.
+
+**Note:** The bugfix workflow also has an optional `/review` phase that
+provides a thorough, interactive review with findings and verdict. The
+self-review gate here is a different mechanism — an automated quality check
+that fixes obvious issues without user interaction, similar to running lint
+before pushing.
+
+### Step 6: Stage and Commit
 
 This is the **only** phase that creates git commits. All code changes from
-prior phases (`/fix`, `/test`, etc.) should be in the working tree as an
-uncommitted diff. This step consolidates them into a single commit.
+prior phases (`/fix`, `/test`, etc.) plus any fixes from the self-review
+gate should be in the working tree as an uncommitted diff. This step
+consolidates them into a single commit.
 
 **Stage changes selectively** — don't blindly `git add .`:
 
@@ -392,7 +420,7 @@ component. Reference the issue number if one exists.
 If prior artifacts exist (root cause analysis, implementation notes), use them
 to write an accurate commit message. Don't make up details.
 
-### Step 6: Push to Fork
+### Step 7: Push to Fork
 
 ```bash
 git push -u fork bugfix/BRANCH_NAME
@@ -409,7 +437,7 @@ git push -u fork bugfix/BRANCH_NAME
 If push requires sandbox permissions, tell the user: "The push needs network
 access. Please run: `git push -u fork BRANCH_NAME`"
 
-### Step 7: Create the Draft PR
+### Step 8: Create the Draft PR
 
 **PR title format:** Use **`[ISSUE_KEY]: short description in lowercase`**. If the artifact `.artifacts/bugfix/{issue}/pr-description.md` exists and has a `## Title` line in this format, use that title. Otherwise set `ISSUE_KEY` from the branch name or context (e.g. Jira EDM-1234, GitHub #47) and build the title as `[ISSUE_KEY]: short description`.
 
@@ -492,10 +520,10 @@ do NOT debug further, do NOT fall back to a patch file. Instead:
 4. **Remind the user** to check "Create draft pull request" if they want
    it as a draft.
 
-**If "branch not found"**: The push in Step 6 may have failed silently.
+**If "branch not found"**: The push in Step 7 may have failed silently.
 Verify with `git ls-remote fork bugfix/BRANCH_NAME`.
 
-### Step 8: Confirm and Report
+### Step 9: Confirm and Report
 
 After the PR is created (or the URL is provided), summarize:
 

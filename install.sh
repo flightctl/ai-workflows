@@ -122,6 +122,14 @@ ensure_repo_linked() {
   echo "  Linked $INSTALL_DIR -> $REPO_DIR"
 }
 
+install_shared() {
+  local target_dir="$1"
+  if [[ -d "${INSTALL_DIR}/_shared" ]]; then
+    ln -sfn "${INSTALL_DIR}/_shared" "${target_dir}/_shared"
+    echo "  Linked ${target_dir}/_shared -> ${INSTALL_DIR}/_shared  ($SCOPE)"
+  fi
+}
+
 install_cursor() {
   if [[ "$SCOPE" == "project" ]]; then
     SKILLS_DIR="${PROJECT_ROOT}/.cursor/skills"
@@ -130,6 +138,7 @@ install_cursor() {
   fi
 
   mkdir -p "$SKILLS_DIR"
+  install_shared "$SKILLS_DIR"
   for wf in "${WORKFLOWS[@]}"; do
     ln -sfn "${INSTALL_DIR}/${wf}" "${SKILLS_DIR}/${wf}"
     echo "  Linked ${SKILLS_DIR}/${wf} -> ${INSTALL_DIR}/${wf}  ($SCOPE)"
@@ -188,6 +197,7 @@ install_claude() {
   # are discovered as slash commands (Claude Code scans .claude/skills/).
   SKILLS_DIR="${CLAUDE_DIR}/skills"
   mkdir -p "$SKILLS_DIR"
+  install_shared "$SKILLS_DIR"
   for wf in "${WORKFLOWS[@]}"; do
     ln -sfn "${INSTALL_DIR}/${wf}" "${SKILLS_DIR}/${wf}"
     echo "  Linked ${SKILLS_DIR}/${wf} -> ${INSTALL_DIR}/${wf}  ($SCOPE)"
@@ -217,6 +227,7 @@ install_gemini() {
   fi
 
   mkdir -p "$SKILLS_DIR"
+  install_shared "$SKILLS_DIR"
   for wf in "${WORKFLOWS[@]}"; do
     ln -sfn "${INSTALL_DIR}/${wf}" "${SKILLS_DIR}/${wf}"
     echo "  Linked ${SKILLS_DIR}/${wf} -> ${INSTALL_DIR}/${wf}  ($SCOPE)"

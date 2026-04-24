@@ -245,22 +245,9 @@ error handling pattern consistent with the rest of the file? Does the
 change interact correctly with surrounding code? The diff shows what
 changed; the surrounding code reveals whether the change fits.
 
-The reviewer should evaluate:
-
-1. **Correctness** -- Does the code do what it intends? Are there logic
-   errors, off-by-one mistakes, or unhandled edge cases?
-2. **Error handling** -- Are errors caught, propagated, and reported
-   appropriately? Are failure modes handled?
-3. **Security** -- Are there injection risks, unsafe operations, exposed
-   secrets, or other OWASP-category concerns?
-4. **Performance** -- Are there unnecessary allocations, N+1 queries,
-   unbounded operations, or other efficiency concerns?
-5. **Naming and clarity** -- Are names descriptive? Is the intent clear
-   from reading the code?
-6. **Test coverage** -- Are the changes tested? Are edge cases covered?
-   Are tests testing contracts, not implementation?
-7. **Project conventions** -- Do the changes follow the conventions
-   discovered in the reviewer profile?
+The reviewer should evaluate all categories defined in
+`../../_shared/review-protocol.md` (Correctness, Error handling, Security,
+Performance, Naming and clarity, Test coverage, Project conventions).
 
 If the user provided focus guidance, prioritize those areas but still
 report CRITICAL and HIGH findings in other categories.
@@ -321,20 +308,11 @@ table).
 #### 7b: Assess on value
 
 For each validated finding — regardless of severity — form your own
-honest assessment. Do not dismiss findings just because they are LOW or
-nit-level. A well-placed rename or a small clarity improvement can add
-real value. Equally, do not accept findings reflexively just because the
-reviewer flagged them.
-
-For each finding, assess on its merits:
-
-- **Does this add real value?** Would the code be meaningfully better
-  (clearer, safer, more maintainable, more correct) if this change were
-  made? If yes, recommend accepting — even for nits.
-- **Does this not add real value?** Is this a stylistic preference not
-  grounded in project conventions? Would the change introduce churn
-  without meaningful improvement? Would it make the code harder to read
-  or maintain? If so, recommend rejecting — and explain why concretely.
+honest assessment, following the "Assess on value, not severity" principle
+in `../../_shared/review-protocol.md`. Do not dismiss findings just
+because they are LOW or nit-level. A well-placed rename or a small clarity
+improvement can add real value. Equally, do not accept findings reflexively
+just because the reviewer flagged them.
 
 Express your assessment as one of:
 

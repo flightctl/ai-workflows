@@ -1,0 +1,129 @@
+# Recipe: Self-Review Gate
+
+A quality gate that reviews code changes before they are pushed or submitted
+as a PR. Used by workflows that make code changes (bugfix, implement, cve-fix,
+e2e) to catch issues before external review.
+
+This gate is one peer in a defence-in-depth chain: self-review catches issues
+the author is best positioned to find (deviations from intent, missed edge
+cases, convention violations), while downstream reviewers (coderabbit, human
+reviewers) catch issues that benefit from independence.
+
+## Parameters
+
+| Parameter | Required | Description | Default |
+|-----------|----------|-------------|---------|
+| DIFF_COMMAND | No | Git command to produce the diff for review | `git diff HEAD` |
+| MAX_ROUNDS | No | Maximum fix-and-re-review iterations | `3` |
+| CONTEXT_FILES | No | Workflow artifacts providing review context (e.g., design docs, requirements, implementation notes) | None |
+
+## Procedure
+
+### Step 1: Discover Review Tool
+
+Check the project's AGENTS.md and CLAUDE.md for an explicit code review tool
+or process. Look for:
+
+- External CLI tools (e.g., `coderabbit`, `codeclimate`, `semgrep`)
+- Project-specific review commands or scripts
+- Explicit instructions about how code should be reviewed before PR submission
+
+**If an explicit review tool is specified:**
+
+1. Run the tool against the current changes
+2. If the tool reports findings, assess each on value (using the criteria in
+   `../review-protocol.md`) and fix issues that add real value
+3. Re-run the tool to confirm fixes pass
+4. Report results and return to the calling workflow
+
+**If no explicit review tool is specified**, continue to Step 2.
+
+### Step 2: Perform Self-Review
+
+Read `../review-protocol.md` for evaluation criteria and finding format.
+
+Produce the diff:
+
+```bash
+{DIFF_COMMAND}
+```
+
+Also get the file list for reference:
+
+```bash
+{DIFF_COMMAND} --name-status
+```
+
+Review the changes using all evaluation criteria from the review protocol.
+For each changed file, read the full file to understand context — not just
+the diff in isolation. Check whether:
+
+- New functions duplicate existing functionality
+- Error handling is consistent with the rest of the file
+- The change interacts correctly with surrounding code
+- Test coverage matches the project's testing conventions
+
+**If the AI runtime supports subagents**, spawn the review in a subagent for
+independence. Load it with:
+
+- The review protocol (`../review-protocol.md`)
+- The diff output
+- The project's AGENTS.md/CLAUDE.md (if they exist)
+- Any CONTEXT_FILES provided by the calling workflow
+
+**If subagents are not available**, perform the review inline. Adopt the
+reviewer perspective: evaluate the code as if you did not write it.
+
+### Step 3: Validate and Assess Findings
+
+For each finding from Step 2:
+
+1. **Validate the reference.** Confirm the cited file and location exist in
+   the diff. Discard any finding that references a file or location that does
+   not exist.
+
+2. **Assess on value.** Does this finding genuinely improve the code? Would
+   the code be meaningfully better (clearer, safer, more maintainable, more
+   correct) if this change were made?
+
+   - If yes: fix the issue immediately. Read the file before modifying it.
+     Verify the fix after applying it.
+   - If no: note why the finding was dismissed (stylistic preference, no
+     real improvement, would introduce churn).
+
+Only fix findings that add real value. Do not make changes for stylistic
+preferences or subjective taste not grounded in project conventions.
+
+### Step 4: Re-Review (if fixes were made)
+
+If Step 3 produced code changes:
+
+1. Re-run the diff to capture the updated state
+2. Re-review focusing on:
+   - Whether fixes were applied correctly
+   - Whether fixes introduced new issues
+3. If new issues are found, fix them and re-review
+4. Cap iterations at MAX_ROUNDS to prevent unbounded loops
+
+If no fixes were needed in Step 3, the gate passes immediately.
+
+### Step 5: Report
+
+Report a brief summary to the calling workflow:
+
+```markdown
+## Self-Review Summary
+
+- **Findings:** {total identified} ({N} after validation)
+- **Fixed:** {N} findings addressed
+- **Dismissed:** {N} findings ({brief rationale for each})
+- **Rounds:** {N} review-fix iterations
+- **Gate:** PASS | FLAG
+
+{If any CRITICAL or HIGH findings remain unfixed, set Gate to FLAG and list
+them. The calling workflow decides whether to proceed or stop.}
+```
+
+The calling workflow is responsible for any git operations needed after the
+gate (staging, committing review fixes, etc.). The gate only makes code
+changes — it does not commit or push.

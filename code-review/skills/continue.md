@@ -231,7 +231,8 @@ Store any new agent ID in the metadata.
 on the current state of the diff, not just the delta from last round.
 Re-evaluate previously flagged areas to confirm they were addressed.
 
-The reviewer should:
+The reviewer should evaluate all categories defined in
+`../../_shared/review-protocol.md` and additionally:
 - Verify that accepted findings were addressed correctly
 - Check whether the changes introduced new issues
 - Re-evaluate any previously rejected findings only if the code context
