@@ -318,7 +318,7 @@ vale path/to/file.adoc    # Style/terminology validation
 1. **No IDE-specific syntax**: All workflow content is plain markdown
 2. **Relative paths only**: For symlink compatibility across install scopes
 3. **Progressive disclosure**: SKILL.md stays under 30 lines
-4. **Never auto-advance**: Workflows wait for user input between phases
+4. **No auto-advance in attended mode**: Workflows wait for user input between phases unless an explicit unattended mode is documented for that workflow
 5. **Artifact persistence**: All significant outputs saved to .artifacts/
 6. **Read-only reviews**: skill-reviewer never modifies target skill files during review
 

@@ -72,9 +72,13 @@ already made their decisions in the previous step.
 
 ### Step 3: Create Response Skeleton
 
-Increment the iteration counter. Create the response file
-`.artifacts/code-review/{branch}/review-response-{NNN}.md` with the
-skeleton structure before making any code changes:
+Use the current iteration number (from metadata) for the response file
+`.artifacts/code-review/{branch}/review-response-{NNN}.md` — this pairs it
+with the review it answers (`code-review-{NNN}.md`). Increment the iteration
+counter after creating the response, before writing the next review file.
+
+Create the response file with the skeleton structure before making any code
+changes:
 
 ```markdown
 # Review Response -- Round {N}
@@ -239,8 +243,9 @@ The reviewer should evaluate all categories defined in
   changed in a way that affects them
 - Issue a verdict: APPROVED or CHANGES_REQUESTED
 
-Write `.artifacts/code-review/{branch}/code-review-{NNN}.md` using the
-same format as the initial review.
+Increment the iteration counter now. Write the new review to
+`.artifacts/code-review/{branch}/code-review-{NNN}.md` (using the
+incremented number) in the same format as the initial review.
 
 ### Step 8: Update Metadata
 
