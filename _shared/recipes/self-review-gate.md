@@ -24,11 +24,15 @@ reviewers) catch issues that benefit from independence.
 Check the project's AGENTS.md and CLAUDE.md for an explicit code review tool
 or process. Look for:
 
-- External CLI tools (e.g., `coderabbit`, `codeclimate`, `semgrep`)
-- Project-specific review commands or scripts
+- Non-interactive CLI tools (e.g., `coderabbit`, `codeclimate`, `semgrep`)
+- Project-specific review commands or scripts that can run without user input
 - Explicit instructions about how code should be reviewed before PR submission
 
-**If an explicit review tool is specified:**
+Only use tools that can run non-interactively. If the discovered tool is a
+workflow-style command that requires user interaction (e.g., multi-phase
+workflows with decision points), skip it and continue to Step 2.
+
+**If a non-interactive review tool is specified:**
 
 1. Run the tool against the current changes
 2. If the tool reports findings, assess each on value (using the criteria in
@@ -36,7 +40,7 @@ or process. Look for:
 3. Re-run the tool to confirm fixes pass
 4. Report results and return to the calling workflow
 
-**If no explicit review tool is specified**, continue to Step 2.
+**If no suitable review tool is found**, continue to Step 2.
 
 ### Step 2: Perform Self-Review
 

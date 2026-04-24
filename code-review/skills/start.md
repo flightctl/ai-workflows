@@ -18,8 +18,9 @@ the user.
 
 ## Critical Rules
 
-- **Read-only.** This phase does not modify any project files. No git
-  operations, no code edits.
+- **Read-only.** This phase does not modify any project files. No mutating
+  git operations (commit, push, checkout, reset), no code edits. Read-only
+  git commands (diff, log, status, branch, ls-files) are expected.
 - **Discover conventions from the project.** Read AGENTS.md, CLAUDE.md,
   linting configs, contribution guidelines, and CI workflows. Do not
   impose external standards.
