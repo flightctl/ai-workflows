@@ -99,8 +99,8 @@ reviewer perspective: evaluate the code as if you did not write it.
 For each finding from Step 2:
 
 1. **Validate the reference.** Confirm the cited file and location exist in
-   the diff. Discard any finding that references a file or location that does
-   not exist.
+   the diff or in the untracked files discovered in Step 2. Discard any
+   finding that references a file or location that does not exist in either.
 
 2. **Assess on value.** Does this finding genuinely improve the code? Would
    the code be meaningfully better (clearer, safer, more maintainable, more

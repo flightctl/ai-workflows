@@ -56,8 +56,10 @@ needed.
 
 If any accepted finding has ambiguity in how to implement it (e.g.,
 multiple valid approaches, a design choice the reviewer didn't specify,
-or the user's modification leaves room for interpretation), present
-those specific items for clarification before proceeding:
+or the user's modification leaves room for interpretation):
+
+**In attended mode**, present those specific items for clarification
+before proceeding:
 
 ```markdown
 Finding #{N} ({title}) — accepted, but implementation needs clarification:
@@ -65,6 +67,10 @@ Finding #{N} ({title}) — accepted, but implementation needs clarification:
 - Option B: {approach}
 Which do you prefer?
 ```
+
+**In unattended mode**, choose the most straightforward implementation
+using the implementor's best judgment. Do not prompt the user — unattended
+mode delegates these decisions. Note the choice made in the response file.
 
 Do not present a full change plan for confirmation when the implementation
 is straightforward. That adds friction without safety value — the user
@@ -259,7 +265,7 @@ Update `.artifacts/code-review/{branch}/review-metadata.json`:
   "started": "{original timestamp}",
   "last_updated": "{ISO 8601 timestamp}",
   "user_focus": "{focus guidance or null}",
-  "unattended": false,
+  "unattended": "{carry forward from existing metadata}",
   "reviewer_agent_id": "{current agent ID or null}"
 }
 ```
