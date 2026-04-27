@@ -16,7 +16,7 @@ Reusable AI coding workflows a team member can install globally or per-project, 
   See [triage/README.md](triage/README.md).
 
 - **PRD** -- Requirements-to-PRD workflow: ingest requirements from Jira, clarify ambiguities through iterative Q&A, draft a Product Requirements Document, revise based on feedback, publish as a GitHub PR, and respond to reviewer comments.
-  See [prd/README.md](prd/README.md) and the [PRD Guide](docs/prd-guide.md).
+  See [prd/README.md](prd/README.md) and the [PRD Guide](prd/GUIDE.md).
 
 - **Design** -- Design-and-decompose workflow: ingest a PRD, draft a technical design document, decompose into Jira-ready epics and stories, revise based on feedback, publish as a GitHub PR, respond to reviewer comments, and sync epics/stories to Jira.
   See [design/README.md](design/README.md).
