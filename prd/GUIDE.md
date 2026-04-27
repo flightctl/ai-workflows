@@ -2,7 +2,7 @@
 
 The PRD workflow turns Jira requirements into a structured, reviewable Product Requirements Document. It handles the mechanical work — gathering context, enforcing structure, maintaining traceability — so you can focus on the decisions that matter: what to build, what's out of scope, and what needs more thought.
 
-This guide explains how to drive the workflow. For the command reference and artifact layout, see [prd/README.md](../prd/README.md).
+This guide explains how to drive the workflow. For the command reference and artifact layout, see [README.md](README.md).
 
 ## Design Principles
 
