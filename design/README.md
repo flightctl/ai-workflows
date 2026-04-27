@@ -1,6 +1,6 @@
 # Design Workflow
 
-A design-and-decompose workflow that ingests a PRD, drafts a technical design document, decomposes into Jira-ready epics and stories, revises based on feedback, publishes as a GitHub PR, responds to reviewer comments, and syncs epics/stories to Jira.
+A design-and-decompose workflow that ingests a PRD, researches the external problem space, drafts a technical design document, decomposes into Jira-ready epics and stories, revises based on feedback, publishes as a GitHub PR, responds to reviewer comments, and syncs epics/stories to Jira.
 
 ## Prerequisites
 
@@ -8,6 +8,7 @@ A design-and-decompose workflow that ingests a PRD, drafts a technical design do
 |------|----------|---------|
 | Jira access (MCP or CLI) | For `/ingest`, `/sync` | Fetch Feature issue, create epics/stories |
 | GitHub CLI (`gh`) | For `/publish`, `/respond` | Create PRs, post review comments |
+| Web search and URL fetching | For `/research` | Investigate external problem space |
 | Git | Yes | Branch management, commits |
 
 ## Phases
@@ -15,11 +16,12 @@ A design-and-decompose workflow that ingests a PRD, drafts a technical design do
 | Phase | Command | Purpose | Artifact(s) |
 |-------|---------|---------|-------------|
 | Ingest | `/ingest` | Read PRD, explore codebase | `01-context.md` |
-| Design | `/draft` | Draft design document | `02-design.md` |
-| Decompose | `/decompose` | Break into epics and stories | `03-epics.md`, `04-stories/`, `05-coverage.md` |
+| Research | `/research` | Investigate problem space, solutions, standards | `02-research.md` |
+| Design | `/draft` | Draft design document | `03-design.md` |
+| Decompose | `/decompose` | Break into epics and stories | `04-epics.md`, `05-stories/`, `06-coverage.md` |
 | Revise | `/revise` | Incorporate feedback | Updated design and/or stories |
-| Publish | `/publish` | Post design doc as GitHub PR | `06-pr-description.md` |
-| Respond | `/respond` | Address reviewer comments | `07-review-responses.md` |
+| Publish | `/publish` | Post design doc as GitHub PR | `07-pr-description.md` |
+| Respond | `/respond` | Address reviewer comments | `08-review-responses.md` |
 | Sync | `/sync` | Create Jira epics and stories | `sync-manifest.json` |
 
 ## Typical Flow
@@ -30,15 +32,21 @@ A design-and-decompose workflow that ingests a PRD, drafts a technical design do
   → explores affected codebase areas
   → writes .artifacts/design/EDM-2324/01-context.md
 
+/research (conditional — when external integrations, standards, or unfamiliar domains are involved)
+  → presents research plan to user for confirmation
+  → iteratively searches, reads, and synthesizes external sources
+  → writes 02-research.md
+
 /draft
   → generates design document using templates/design.md structure
+  → incorporates research findings if 02-research.md exists
   → follows templates/section-guidance.md for content standards
-  → writes 02-design.md
+  → writes 03-design.md
 
 /decompose
   → breaks design into epics and stories
   → validates coverage against PRD requirements
-  → writes 03-epics.md, 04-stories/ (epics + stories), 05-coverage.md
+  → writes 04-epics.md, 05-stories/ (epics + stories), 06-coverage.md
 
 /revise
   → user reviews, requests changes to design and/or decomposition
@@ -48,7 +56,7 @@ A design-and-decompose workflow that ingests a PRD, drafts a technical design do
 /publish
   → commits design document to feature branch in docs repo
   → creates draft GitHub PR
-  → writes 06-pr-description.md
+  → writes 07-pr-description.md
 
 /respond
   → fetches PR review comments
@@ -66,15 +74,16 @@ A design-and-decompose workflow that ingests a PRD, drafts a technical design do
 
 All artifacts are stored in `.artifacts/design/{issue-number}/`.
 
-Epic and story files live under `04-stories/`. Each file maps 1:1 to a
+Epic and story files live under `05-stories/`. Each file maps 1:1 to a
 Jira issue:
 
 ```text
 .artifacts/design/EDM-2324/
   01-context.md
-  02-design.md
-  03-epics.md                          (metadata: ordering, dependencies)
-  04-stories/
+  02-research.md                       (if /research was run)
+  03-design.md
+  04-epics.md                          (metadata: ordering, dependencies)
+  05-stories/
     epic-1-image-building.md           (→ Jira Epic)
     epic-1/
       story-01-scaffold-pipeline.md    (→ Jira Story)
@@ -82,9 +91,9 @@ Jira issue:
     epic-2-deployment.md               (→ Jira Epic)
     epic-2/
       story-01-deploy-config.md        (→ Jira Story)
-  05-coverage.md
-  06-pr-description.md
-  07-review-responses.md
+  06-coverage.md
+  07-pr-description.md
+  08-review-responses.md
   publish-metadata.json
   sync-manifest.json
 ```
@@ -149,6 +158,7 @@ design/
 ├── skills/
 │   ├── controller.md           # Phase dispatcher and transitions
 │   ├── ingest.md               # Read PRD, explore codebase
+│   ├── research.md             # Investigate problem space and solutions
 │   ├── draft.md                # Draft design document
 │   ├── decompose.md            # Break into epics and stories
 │   ├── revise.md               # Incorporate feedback
@@ -157,6 +167,7 @@ design/
 │   └── sync.md                 # Create Jira issues
 └── commands/
     ├── ingest.md               # /ingest command
+    ├── research.md             # /research command
     ├── draft.md                # /draft command
     ├── decompose.md            # /decompose command
     ├── revise.md               # /revise command

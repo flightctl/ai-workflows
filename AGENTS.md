@@ -14,7 +14,7 @@ This repository contains reusable AI coding workflows that can be installed glob
 - **skill-reviewer** — Meta-workflow that audits AI skill directories
 - **cve-fix** — Automated CVE remediation from Jira tickets (start, patch, validate, pr, backport, close)
 - **prd** — Requirements-to-PRD workflow (ingest, clarify, draft, revise, publish, respond)
-- **design** — Design-and-decompose workflow (ingest, draft, decompose, revise, publish, respond, sync)
+- **design** — Design-and-decompose workflow (ingest, research, draft, decompose, revise, publish, respond, sync)
 - **implement** — Story-to-code workflow (ingest, plan, revise, code, validate, publish, respond)
 - **e2e** — Story-to-tests workflow for [QE] stories (ingest, plan, revise, code, validate, publish, respond)
 - **kcs** — KCS Solution article workflow (gather, draft, validate, handoff)
@@ -59,7 +59,7 @@ Workflows write outputs to `.artifacts/{workflow-name}/{context}/`:
 - **skill-reviewer**: `.artifacts/skill-reviewer/{skill-name}/` (review.md)
 - **cve-fix**: `.artifacts/cve-fix/{context}/` (context.md, patch-log.md, validation-results.md, pr-description.md, backport-log.md, close-report.md)
 - **prd**: `.artifacts/prd/{issue-number}/` (01-requirements.md, 02-clarifications.md, 03-prd.md, 04-pr-description.md, 05-review-responses.md)
-- **design**: `.artifacts/design/{issue-number}/` (01-context.md, 02-design.md, 03-epics.md, 04-stories/epic-{N}-{slug}.md, 04-stories/epic-{N}/story-{NN}-{slug}.md, 05-coverage.md, 06-pr-description.md, 07-review-responses.md, publish-metadata.json, sync-manifest.json)
+- **design**: `.artifacts/design/{issue-number}/` (01-context.md, 02-research.md, 03-design.md, 04-epics.md, 05-stories/epic-{N}-{slug}.md, 05-stories/epic-{N}/story-{NN}-{slug}.md, 06-coverage.md, 07-pr-description.md, 08-review-responses.md, publish-metadata.json, sync-manifest.json)
 - **implement**: `.artifacts/implement/{jira-key}/` (01-context.md, 02-plan.md, 03-test-report.md, 04-impl-report.md, 05-validation-report.md, 06-pr-description.md, 07-review-responses.md, publish-metadata.json)
 - **e2e**: `.artifacts/e2e/{jira-key}/` (01-context.md, 02-plan.md, 03-test-report.md, 04-impl-report.md, 05-validation-report.md, 06-pr-description.md, 07-review-responses.md, publish-metadata.json)
 - **kcs**: `.artifacts/kcs/{issue-key}/` (01-context.md, 02-kcs-draft.md, 03-handoff-message.md)
@@ -76,7 +76,7 @@ Workflows write outputs to `.artifacts/{workflow-name}/{context}/`:
 - **docs-writer**: GitLab CLI — for merge request creation (or GitHub CLI for GitHub-hosted projects)
 - **cve-fix**: Jira MCP server or Jira CLI (`jira`), GitHub CLI (`gh`), optionally `skopeo` for container image verification
 - **prd**: Jira MCP server — for requirements ingestion; GitHub CLI (`gh`) — for PR creation and review comment management
-- **design**: Jira MCP server or CLI — for `/ingest` (read-only) and `/sync` (creates epics/stories); GitHub CLI (`gh`) — for `/publish` and `/respond`
+- **design**: Jira MCP server or CLI — for `/ingest` (read-only) and `/sync` (creates epics/stories); GitHub CLI (`gh`) — for `/publish` and `/respond`; web search and URL fetching — for `/research` (conditional)
 - **implement**: Jira MCP server or CLI — for `/ingest` (read-only); GitHub CLI (`gh`) — for `/publish` and `/respond`; project build/test/lint tooling (discovered during `/ingest`); docs repo (local clone) — for `/ingest` (reads PRD and design document)
 - **e2e**: Jira MCP server or CLI — for `/ingest` (read-only); GitHub CLI (`gh`) — for `/publish` and `/respond`; project e2e test tooling (discovered during `/ingest`); docs repo (local clone) — for `/ingest` (reads PRD and design document)
 - **kcs**: Jira MCP server — for `/gather` (read-only)

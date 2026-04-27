@@ -101,7 +101,7 @@ Decisions" section of `.artifacts/prd/{issue-number}/02-clarifications.md`
 the conflict rather than applying the change.
 
 **Update the local artifact:** Update
-`.artifacts/design/{issue-number}/02-design.md`.
+`.artifacts/design/{issue-number}/03-design.md`.
 
 **Update the docs repo copy:** Read
 `.artifacts/design/{issue-number}/publish-metadata.json` to get the file
@@ -140,7 +140,7 @@ mkdir -p "{docs_repo_path}/$(dirname "{design_file_path}")"
 ```
 
 ```bash
-cp ".artifacts/design/{issue-number}/02-design.md" "{docs_repo_path}/{design_file_path}"
+cp ".artifacts/design/{issue-number}/03-design.md" "{docs_repo_path}/{design_file_path}"
 ```
 
 ```bash
@@ -193,7 +193,7 @@ rm .artifacts/design/{issue-number}/tmp-reply.md
 
 ### Step 5: Update Response Log
 
-Write or update `.artifacts/design/{issue-number}/07-review-responses.md`:
+Write or update `.artifacts/design/{issue-number}/08-review-responses.md`:
 
 ```markdown
 # Review Responses — {issue-number}
@@ -228,8 +228,8 @@ Summarize:
 ## Output
 
 - PR comments posted (with user approval)
-- `.artifacts/design/{issue-number}/02-design.md` (updated if needed)
-- `.artifacts/design/{issue-number}/07-review-responses.md`
+- `.artifacts/design/{issue-number}/03-design.md` (updated if needed)
+- `.artifacts/design/{issue-number}/08-review-responses.md`
 
 ## When This Phase Is Done
 

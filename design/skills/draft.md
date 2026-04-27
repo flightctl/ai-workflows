@@ -47,19 +47,26 @@ then fall back to `../templates/section-guidance.md`.
 
 Read these files in order:
 1. `.artifacts/design/{issue-number}/01-context.md` (architectural context)
-2. `.artifacts/prd/{issue-number}/03-prd.md` (PRD)
-3. `.artifacts/prd/{issue-number}/02-clarifications.md` (if exists — for locked decisions)
-4. The design document template (from Step 1)
-5. The section guidance (from Step 1)
+2. `.artifacts/design/{issue-number}/02-research.md` (if exists — design research findings)
+3. `.artifacts/prd/{issue-number}/03-prd.md` (PRD)
+4. `.artifacts/prd/{issue-number}/02-clarifications.md` (if exists — for locked decisions)
+5. The design document template (from Step 1)
+6. The section guidance (from Step 1)
 
 ### Step 3: Map Requirements to Design
 
 Before writing, create a mental map:
 - Which PRD requirements drive which design sections?
 - Which existing codebase patterns should the design follow?
+- If research was conducted (`02-research.md` exists): which research findings
+  inform which design sections? Where does the recommended approach apply?
+  What integration constraints must the design respect?
 - Which decisions have multiple viable approaches and need alternatives analysis?
+  If research produced a comparison matrix, use it as the starting point for
+  the Alternatives Considered section.
 - Where are the remaining unknowns (sections that will need open questions)?
-- Use the PRD's requirements and any architectural context from `/ingest` as the starting point for §4.1 Architecture.
+- Use the PRD's requirements, any architectural context from `/ingest`, and
+  any research findings from `/research` as the starting point for §4.1 Architecture.
 
 ### Step 4: Write the Design Document
 
@@ -69,7 +76,7 @@ Generate the design document following the template structure. For each section:
 2. Draw content from the context and PRD
 3. Apply specificity standards (no vague language)
 4. Flag assumptions with an inline note: `[Assumption: ...]`
-5. Use source markers (`[PRD: §4.1]`, `[PRD: FR-3]`, `[PRD: NFR-2]`, `[Locked: D{N}]`, `[User]`, `[Codebase: path/to/file]`), following the consolidation guidance in the section guidance General Rules
+5. Use source markers (`[PRD: §4.1]`, `[PRD: FR-3]`, `[PRD: NFR-2]`, `[Locked: D{N}]`, `[Research: §{section}]`, `[User]`, `[Codebase: path/to/file]`), following the consolidation guidance in the section guidance General Rules
 
 **Incorporating clarifications:** When a clarification or PRD revision
 changed the scope or corrected an assumption, write the design decision
@@ -133,10 +140,17 @@ source material and design document:
    reflected in the design (followed or explicitly overridden with
    rationale).
 
+4a. **Research incorporation:** If `02-research.md` exists, re-read it.
+   Confirm the recommended approach is reflected in the design. Confirm
+   integration constraints are respected. If a comparison matrix was
+   produced, confirm it informed the Alternatives Considered section.
+   If the design deviates from the research recommendation, explain why
+   in the relevant section.
+
 5. **Traceability completeness:** Every design decision should have a
    source marker (`[PRD: §3.1]`, `[PRD: FR-3]`, `[PRD: NFR-2]`, `[User]`,
-   `[Locked: D{N}]`, `[Codebase: path/to/file]`) or be flagged as
-   `[Assumption]`.
+   `[Locked: D{N}]`, `[Research: §{section}]`, `[Codebase: path/to/file]`)
+   or be flagged as `[Assumption]`.
 
 6. **Open risks and unresolved items:** Check the PRD's Risks and Open
    Questions section (§6). Import any with Status=Open into the design's
@@ -153,7 +167,7 @@ the Review Notes appendix (Step 5) to include them.
 
 Before presenting the design document, verify:
 
-- [ ] Every design decision traces to a PRD requirement, codebase pattern, or is flagged as `[Assumption]` — source markers follow the consolidation rule (no redundant tags for the primary PRD)
+- [ ] Every design decision traces to a PRD requirement, research finding, codebase pattern, or is flagged as `[Assumption]` — source markers follow the consolidation rule (no redundant tags for the primary PRD)
 - [ ] Goals are design-scoped (implementation constraints, not product outcomes)
 - [ ] No sections are empty — sections with no impact say so explicitly
 - [ ] Every Mermaid diagram has accompanying narrative explanation
@@ -171,7 +185,7 @@ Before presenting the design document, verify:
 
 ### Step 8: Write Artifact
 
-Save the design document to `.artifacts/design/{issue-number}/02-design.md`.
+Save the design document to `.artifacts/design/{issue-number}/03-design.md`.
 
 ### Step 9: Present to User
 
@@ -188,7 +202,7 @@ is for all reviewers.
 
 ## Output
 
-- `.artifacts/design/{issue-number}/02-design.md`
+- `.artifacts/design/{issue-number}/03-design.md`
 
 ## When This Phase Is Done
 

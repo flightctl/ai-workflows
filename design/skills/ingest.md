@@ -41,7 +41,7 @@ mkdir -p .artifacts/design/{issue-number}
 ```
 
 ```bash
-mkdir -p .artifacts/design/{issue-number}/04-stories
+mkdir -p .artifacts/design/{issue-number}/05-stories
 ```
 
 ### Step 2a: Check for Prior Ingest
@@ -198,9 +198,10 @@ note at a high level whether the exploration found material differences
 (e.g., "new component identified," "API endpoint removed") without a
 line-by-line comparison.
 
-Then check whether downstream artifacts exist (`02-design.md`,
-`03-epics.md`, `04-stories/`, `05-coverage.md`, `06-pr-description.md`,
-`07-review-responses.md`, `sync-manifest.json`). If they do, tell the
+Then check whether downstream artifacts exist (`02-research.md`,
+`03-design.md`, `04-epics.md`, `05-stories/`, `06-coverage.md`,
+`07-pr-description.md`, `08-review-responses.md`, `sync-manifest.json`).
+If they do, tell the
 user:
 
 - Which artifacts exist and may be affected
