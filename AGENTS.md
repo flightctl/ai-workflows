@@ -17,6 +17,7 @@ This repository contains reusable AI coding workflows that can be installed glob
 - **design** — Design-and-decompose workflow (ingest, research, draft, decompose, revise, publish, respond, sync)
 - **implement** — Story-to-code workflow (ingest, plan, revise, code, validate, publish, respond)
 - **e2e** — Story-to-tests workflow for [QE] stories (ingest, plan, revise, code, validate, publish, respond)
+- **code-review** — AI-driven code review with human-in-the-loop decisions (start, continue, clean)
 - **kcs** — KCS Solution article workflow (gather, draft, validate, handoff)
 
 ## Architecture
@@ -42,6 +43,39 @@ workflow-name/
 2. **Progressive disclosure**: SKILL.md is thin (under 30 lines), details live in guidelines.md and skills/
 3. **Relative paths**: All file references must be relative to the file's location (for symlink compatibility)
 4. **Phase-based execution**: Most workflows operate through discrete phases with explicit transitions
+5. **Shared resources**: Cross-cutting concerns live in `_shared/` and are referenced by relative path from workflow skills
+
+### Shared Resources (`_shared/`)
+
+Cross-cutting concerns that multiple workflows need are extracted into
+`_shared/` to avoid duplication and ensure consistency:
+
+```text
+_shared/
+  review-protocol.md              # Evaluation criteria, finding format, severity definitions
+  recipes/
+    self-review-gate.md           # Self-review quality gate for pre-PR code review
+```
+
+**Review protocol** (`review-protocol.md`): Defines the shared evaluation
+criteria (correctness, error handling, security, performance, naming, test
+coverage, conventions), finding format, severity definitions, and validation
+rules used by the standalone `code-review` workflow and the self-review gates
+embedded in all code-changing workflows.
+
+**Recipes** (`recipes/`): Self-contained, parameterized procedures that
+workflows reference at specific points. Each recipe has a Parameters section
+defining what the calling skill must provide, followed by the complete
+procedure. Recipes are referenced via relative path from the calling skill
+(e.g., `../../_shared/recipes/self-review-gate.md` from `workflow/skills/`).
+
+**Self-review gate** (`recipes/self-review-gate.md`): A quality gate that
+reviews code changes before they are pushed or submitted as a PR. Discovers
+the project's preferred non-interactive review tool from AGENTS.md/CLAUDE.md;
+if none is specified, performs a structured self-review using the shared review
+protocol. Strongest at catching mechanical issues (convention violations,
+obvious bugs, inconsistencies); not a substitute for independent review.
+Used by bugfix `/pr`, implement `/publish`, e2e `/publish`, and cve-fix `/pr`.
 
 ### File Reference Conventions
 
@@ -55,6 +89,7 @@ Critical for symlink resolution:
 Workflows write outputs to `.artifacts/{workflow-name}/{context}/`:
 - **ai-ready**: No persistent artifacts (writes directly to the target project's AGENTS.md)
 - **bugfix**: `.artifacts/bugfix/{issue-number}/` (root-cause.md, reproduction.md, etc.)
+- **code-review**: `.artifacts/code-review/{branch}/` (00-reviewer-profile.md, 01-change-summary.md, code-review-{NNN}.md, review-response-{NNN}.md, review-metadata.json, decisions-{NNN}.json)
 - **triage**: `.artifacts/triage/{project}/` (issues.json, analyzed.json, report.html)
 - **skill-reviewer**: `.artifacts/skill-reviewer/{skill-name}/` (review.md)
 - **cve-fix**: `.artifacts/cve-fix/{context}/` (context.md, patch-log.md, validation-results.md, pr-description.md, backport-log.md, close-report.md)
@@ -72,6 +107,7 @@ Workflows write outputs to `.artifacts/{workflow-name}/{context}/`:
 ### Workflow-Specific Dependencies
 - **ai-ready**: None (reads codebase, writes AGENTS.md)
 - **bugfix**: GitHub CLI (`gh`) — for PR queries and creation
+- **code-review**: None (operates on local uncommitted changes; optionally uses project's lint/test commands if discoverable)
 - **triage**: Jira MCP server — configured and authenticated for Jira API access
 - **docs-writer**: GitLab CLI — for merge request creation (or GitHub CLI for GitHub-hosted projects)
 - **cve-fix**: Jira MCP server or Jira CLI (`jira`), GitHub CLI (`gh`), optionally `skopeo` for container image verification
@@ -134,10 +170,24 @@ For detailed workflow development guidelines (structure, file conventions, testi
 
 ### bugfix
 
+- `/pr` includes a self-review gate (`_shared/recipes/self-review-gate.md`) that reviews uncommitted changes before committing — discovers the project's review tool or falls back to the shared review protocol
 - Unattended mode available: `skills/unattended.md` (chains diagnose → fix → test → review)
 - Uses git commands extensively (blame, log, status, diff)
 - Creates regression tests during `/test` phase
 - Integrates with GitHub CLI for PR creation
+
+### code-review
+
+- Review evaluation criteria are defined in `_shared/review-protocol.md` (shared with the self-review gates in other workflows)
+- No external dependencies — operates entirely on local uncommitted changes
+- Discovery-based: reads AGENTS.md, CLAUDE.md, linting configs, CI workflows to build a reviewer profile automatically
+- Human-in-the-loop by default: every finding is presented for user decision before any code changes
+- Unattended mode available (`--unattended`): auto-implements, iterates until approved, presents summary at end
+- The implementor independently assesses each reviewer finding and may disagree
+- Supports optional focus guidance (e.g., `/start focus on error handling`)
+- When subagents are available, the reviewer runs in a separate context for independence; when not, uses sequential review with file-based handoff
+- Automatic cleanup on approval — no manual `/clean` needed for completed reviews
+- `/clean` exists only for abandoned reviews that were started but never finished
 
 ### triage
 
@@ -162,6 +212,7 @@ For detailed workflow development guidelines (structure, file conventions, testi
 
 ### cve-fix
 
+- `/pr` includes a self-review gate (`_shared/recipes/self-review-gate.md`) that reviews dependency changes before committing — discovers the project's review tool or falls back to the shared review protocol
 - Requires Jira MCP server or CLI for ticket research
 - Only `/close` writes to Jira (all other phases are read-only)
 - `/backport` is optional and repeatable for multiple release branches
@@ -188,6 +239,7 @@ For detailed workflow development guidelines (structure, file conventions, testi
 
 ### implement
 
+- `/publish` includes a self-review gate (`_shared/recipes/self-review-gate.md`) that reviews branch changes before pushing — discovers the project's review tool or falls back to the shared review protocol
 - Requires a Jira Story (typically created by the design workflow's `/sync` phase) as input
 - Jira is read-only — no phase in this workflow writes to Jira
 - Discovery-based validation: build, test, lint, and coverage commands are discovered during `/ingest` from the project's AGENTS.md, Makefile, and CI workflows — not hardcoded
@@ -198,6 +250,7 @@ For detailed workflow development guidelines (structure, file conventions, testi
 
 ### e2e
 
+- `/publish` includes a self-review gate (`_shared/recipes/self-review-gate.md`) that reviews branch changes before pushing — discovers the project's review tool or falls back to the shared review protocol
 - Requires a Jira [QE] Story (typically created by the design workflow's `/sync` phase) as input
 - Jira is read-only — no phase in this workflow writes to Jira
 - Discovery-based infrastructure: e2e test framework, test infrastructure abstractions (harness, fixtures, page objects, helpers — whatever the project uses), auxiliary services (if any), execution commands, and conventions are discovered during `/ingest` — not hardcoded
@@ -267,7 +320,7 @@ vale path/to/file.adoc    # Style/terminology validation
 1. **No IDE-specific syntax**: All workflow content is plain markdown
 2. **Relative paths only**: For symlink compatibility across install scopes
 3. **Progressive disclosure**: SKILL.md stays under 30 lines
-4. **Never auto-advance**: Workflows wait for user input between phases
+4. **No auto-advance in attended mode**: Workflows wait for user input between phases unless an explicit unattended mode is documented for that workflow
 5. **Artifact persistence**: All significant outputs saved to .artifacts/
 6. **Read-only reviews**: skill-reviewer never modifies target skill files during review
 
@@ -275,8 +328,13 @@ vale path/to/file.adoc    # Style/terminology validation
 
 ```text
 ai-workflows/
+├── _shared/                   # Cross-cutting shared resources
+│   ├── review-protocol.md     # Shared code review criteria and finding format
+│   └── recipes/
+│       └── self-review-gate.md  # Pre-PR self-review quality gate
 ├── ai-ready/                  # Workflows (auto-discovered via SKILL.md)
 ├── bugfix/
+├── code-review/
 ├── cve-fix/
 ├── design/
 ├── docs-writer/

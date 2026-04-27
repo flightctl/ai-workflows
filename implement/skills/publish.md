@@ -62,7 +62,36 @@ Verify readiness:
    gh auth status
    ```
 
-### Step 2: Confirm Details
+### Step 2: Self-Review Gate
+
+Before pushing, run a self-review of the branch changes to catch issues
+before they reach external reviewers.
+
+Read the `## Branch` section of `02-plan.md` to get the base branch, then
+read and follow `../../_shared/recipes/self-review-gate.md` with these
+parameters:
+
+| Parameter | Value |
+|-----------|-------|
+| DIFF_COMMAND | `git diff {base}...HEAD` |
+| MAX_ROUNDS | `3` |
+| CONTEXT_FILES | `.artifacts/implement/{jira-key}/01-context.md`, `.artifacts/implement/{jira-key}/02-plan.md` (if they exist) |
+
+If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
+present the findings to the user. Do not proceed until the user decides
+how to handle them.
+
+If the gate made code fixes, commit them before proceeding:
+
+```bash
+git add {fixed files}
+```
+
+```bash
+git commit -m "{jira-key}: address self-review findings"
+```
+
+### Step 3: Confirm Details
 
 Present the PR details to the user for confirmation:
 
@@ -79,13 +108,13 @@ git log --oneline {base}..HEAD
 
 Confirm with the user before proceeding.
 
-### Step 3: Push Branch
+### Step 4: Push Branch
 
 ```bash
 git push -u origin {branch-name}
 ```
 
-### Step 4: Create PR Description
+### Step 5: Create PR Description
 
 Check the **PR Conventions** section of `01-context.md`:
 
@@ -123,7 +152,7 @@ In either case, save the result to
 - [ ] AC-2: {description}
 ```
 
-### Step 5: Create Draft PR
+### Step 6: Create Draft PR
 
 Check the **Repository Topology** section of `01-context.md` to determine
 whether this is a fork-based workflow.
@@ -149,7 +178,7 @@ Parse the PR number and URL from the `gh pr create` output. The command
 prints a URL like `https://github.com/owner/repo/pull/42` — extract the
 number from the URL path.
 
-### Step 6: Save Publish Metadata
+### Step 7: Save Publish Metadata
 
 Read `{owner}/{repo}` from the **Origin** field of the Repository
 Topology section of `01-context.md`. If the repo is a fork, also read
@@ -188,7 +217,7 @@ records the repo that was pushed to.
 }
 ```
 
-### Step 7: Report to User
+### Step 8: Report to User
 
 Present:
 - PR URL (the full `https://github.com/...` link, not just `owner/repo#number`)
