@@ -72,10 +72,11 @@ After user confirmation:
 rm -rf .artifacts/code-review/{branch}
 ```
 
-If `.artifacts/code-review/` is now empty:
+Clean up any empty parent directories left behind (handles branch names
+with slashes, e.g., `feature/foo`):
 
 ```bash
-rmdir .artifacts/code-review 2>/dev/null
+find .artifacts/code-review -type d -empty -delete 2>/dev/null
 ```
 
 Tell the user the artifacts have been removed.

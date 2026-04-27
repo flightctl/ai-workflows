@@ -16,7 +16,7 @@ over inline review but does not replace independent review.
 
 | Parameter | Required | Description | Default |
 |-----------|----------|-------------|---------|
-| DIFF_COMMAND | No | Git command to produce the diff for review. Note: `git diff` only shows tracked file changes — if the workflow creates new untracked files, the calling workflow should stage them first or use a DIFF_COMMAND that captures them. | `git diff HEAD` |
+| DIFF_COMMAND | No | Must be a `git diff` invocation (the gate appends `--name-status` to it). Note: `git diff` only shows tracked file changes — if the workflow creates new untracked files, the calling workflow should stage them first or use a DIFF_COMMAND that captures them. | `git diff HEAD` |
 | MAX_ROUNDS | No | Maximum fix-and-re-review iterations | `3` |
 | CONTEXT_FILES | No | Workflow artifacts providing review context (e.g., design docs, requirements, implementation notes) | None |
 

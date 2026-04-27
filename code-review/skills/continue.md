@@ -393,10 +393,11 @@ no findings):
 rm -rf .artifacts/code-review/{branch}
 ```
 
-If the `.artifacts/code-review/` directory is now empty, remove it too:
+Clean up any empty parent directories left behind (handles branch names
+with slashes, e.g., `feature/foo`):
 
 ```bash
-rmdir .artifacts/code-review 2>/dev/null
+find .artifacts/code-review -type d -empty -delete 2>/dev/null
 ```
 
 Tell the user the review is complete and artifacts have been cleaned up.
