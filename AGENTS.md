@@ -71,8 +71,10 @@ procedure. Recipes are referenced via relative path from the calling skill
 
 **Self-review gate** (`recipes/self-review-gate.md`): A quality gate that
 reviews code changes before they are pushed or submitted as a PR. Discovers
-the project's preferred review tool from AGENTS.md/CLAUDE.md; if none is
-specified, performs a structured self-review using the shared review protocol.
+the project's preferred non-interactive review tool from AGENTS.md/CLAUDE.md;
+if none is specified, performs a structured self-review using the shared review
+protocol. Strongest at catching mechanical issues (convention violations,
+obvious bugs, inconsistencies); not a substitute for independent review.
 Used by bugfix `/pr`, implement `/publish`, e2e `/publish`, and cve-fix `/pr`.
 
 ### File Reference Conventions

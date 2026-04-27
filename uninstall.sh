@@ -107,6 +107,15 @@ uninstall_shared() {
   fi
 }
 
+has_remaining_workflows() {
+  local target_dir="$1"
+  [[ -d "$target_dir" ]] || return 1
+  for item in "$target_dir"/*/; do
+    [[ -L "${item%/}" ]] && return 0
+  done
+  return 1
+}
+
 uninstall_cursor() {
   if [[ "$SCOPE" == "project" ]]; then
     SKILLS_DIR="${PROJECT_ROOT}/.cursor/skills"
@@ -126,6 +135,9 @@ uninstall_cursor() {
       echo "  Warning: $LINK exists but is not a symlink; skipping" >&2
     fi
   done
+  if [[ "$SELECTIVE" == true ]] && ! has_remaining_workflows "$SKILLS_DIR"; then
+    uninstall_shared "$SKILLS_DIR"
+  fi
 }
 
 uninstall_claude() {
@@ -172,6 +184,9 @@ uninstall_claude() {
       echo "  Warning: $LINK exists but is not a symlink; skipping" >&2
     fi
   done
+  if [[ "$SELECTIVE" == true ]] && ! has_remaining_workflows "$SKILLS_DIR"; then
+    uninstall_shared "$SKILLS_DIR"
+  fi
 
   # Remove the marker if no workflow references remain
   if grep -qF "$MARKER" "$CLAUDE_MD" && ! grep -q "^For .* workflows, read and follow" "$CLAUDE_MD"; then
@@ -202,6 +217,9 @@ uninstall_gemini() {
       echo "  Warning: $LINK exists but is not a symlink; skipping" >&2
     fi
   done
+  if [[ "$SELECTIVE" == true ]] && ! has_remaining_workflows "$SKILLS_DIR"; then
+    uninstall_shared "$SKILLS_DIR"
+  fi
 }
 
 uninstall_link() {

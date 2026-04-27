@@ -4,16 +4,19 @@ A quality gate that reviews code changes before they are pushed or submitted
 as a PR. Used by workflows that make code changes (bugfix, implement, cve-fix,
 e2e) to catch issues before external review.
 
-This gate is one peer in a defence-in-depth chain: self-review catches issues
-the author is best positioned to find (deviations from intent, missed edge
-cases, convention violations), while downstream reviewers (coderabbit, human
-reviewers) catch issues that benefit from independence.
+This gate is one peer in a defence-in-depth chain: self-review catches
+mechanical issues that automated checks are good at finding (convention
+violations, obvious bugs, missing error handling, inconsistencies with
+surrounding code), while downstream reviewers (coderabbit, human reviewers)
+provide genuinely independent perspectives on design, architecture, and
+subtle correctness issues. A same-model subagent improves review quality
+over inline review but does not replace independent review.
 
 ## Parameters
 
 | Parameter | Required | Description | Default |
 |-----------|----------|-------------|---------|
-| DIFF_COMMAND | No | Git command to produce the diff for review | `git diff HEAD` |
+| DIFF_COMMAND | No | Git command to produce the diff for review. Note: `git diff` only shows tracked file changes — if the workflow creates new untracked files, the calling workflow should stage them first or use a DIFF_COMMAND that captures them. | `git diff HEAD` |
 | MAX_ROUNDS | No | Maximum fix-and-re-review iterations | `3` |
 | CONTEXT_FILES | No | Workflow artifacts providing review context (e.g., design docs, requirements, implementation notes) | None |
 
@@ -57,6 +60,15 @@ Also get the file list for reference:
 ```bash
 {DIFF_COMMAND} --name-status
 ```
+
+Check for untracked files that may be part of the change:
+
+```bash
+git ls-files --others --exclude-standard
+```
+
+If untracked files exist, read them and include them in the review scope.
+The diff alone won't show new files unless they've been staged.
 
 Review the changes using all evaluation criteria from the review protocol.
 For each changed file, read the full file to understand context — not just

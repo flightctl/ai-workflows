@@ -73,7 +73,7 @@ parameters:
 
 | Parameter | Value |
 |-----------|-------|
-| DIFF_COMMAND | `git diff {base}..HEAD` |
+| DIFF_COMMAND | `git diff {base}...HEAD` |
 | MAX_ROUNDS | `3` |
 | CONTEXT_FILES | `.artifacts/implement/{jira-key}/01-context.md`, `.artifacts/implement/{jira-key}/02-plan.md` (if they exist) |
 

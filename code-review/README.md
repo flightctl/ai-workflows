@@ -65,9 +65,11 @@ The user makes the final call on every finding.
 
 ### Reviewer Independence
 
-When the AI runtime supports subagents, the review is performed by a separate agent with its own context -- ensuring the reviewer evaluates the code independently rather than rationalizing decisions made during implementation.
+When the AI runtime supports subagents, the review is performed by a separate agent with its own context. This reduces the tendency to rationalize decisions made during implementation, though a same-model subagent shares the same weights and training biases — it is not equivalent to an independent human reviewer or a different tool. The subagent is strongest at catching mechanical issues: convention violations, obvious bugs, inconsistencies with surrounding code, and missed edge cases.
 
 When subagents are not available, the review is performed sequentially within the same context. The file-based protocol is the same either way.
+
+For genuinely independent review, pair this workflow with external tools (e.g., coderabbit) and human reviewers.
 
 ### Automatic Cleanup
 
