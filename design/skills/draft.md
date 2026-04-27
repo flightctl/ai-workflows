@@ -140,7 +140,7 @@ source material and design document:
    reflected in the design (followed or explicitly overridden with
    rationale).
 
-4a. **Research incorporation:** If `02-research.md` exists, re-read it.
+   **4a. Research incorporation:** If `02-research.md` exists, re-read it.
    Confirm the recommended approach is reflected in the design. Confirm
    integration constraints are respected. If a comparison matrix was
    produced, confirm it informed the Alternatives Considered section.
