@@ -1,12 +1,13 @@
 ---
 name: design
 description: >-
-  Design-and-decompose workflow that takes a PRD, drafts a technical design
-  document, decomposes work into Jira-ready epics and stories, and manages
-  review via GitHub PRs.
-  Use when creating design documents, breaking features into epics/stories,
-  or syncing task breakdowns to Jira.
-  Activated by commands: /ingest, /draft, /decompose, /revise, /publish, /respond, /sync.
+  Design-and-decompose workflow that takes a PRD, researches the problem space,
+  drafts a technical design document, decomposes work into Jira-ready epics and
+  stories, and manages review via GitHub PRs.
+  Use when creating design documents, researching external integrations or
+  standards, breaking features into epics/stories, or syncing task breakdowns
+  to Jira.
+  Activated by commands: /ingest, /research, /draft, /decompose, /revise, /publish, /respond, /sync.
 ---
 # Design Workflow Orchestrator
 

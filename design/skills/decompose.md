@@ -31,9 +31,10 @@ must leave the system in a stable state.
 ### Step 1: Read Source Material
 
 Read these files:
-1. `.artifacts/design/{issue-number}/02-design.md` (design document)
+1. `.artifacts/design/{issue-number}/03-design.md` (design document)
 2. `.artifacts/design/{issue-number}/01-context.md` (architectural context)
-3. `.artifacts/prd/{issue-number}/03-prd.md` (PRD — for requirement traceability)
+3. `.artifacts/design/{issue-number}/02-research.md` (if exists — research findings and integration constraints)
+4. `.artifacts/prd/{issue-number}/03-prd.md` (PRD — for requirement traceability)
 
 If the design document doesn't exist, tell the user that `/draft` should be
 run first.
@@ -78,13 +79,13 @@ Before writing, plan:
 
 ### Step 4: Write Epics
 
-This step produces two things: a metadata index (`03-epics.md`) and one file
+This step produces two things: a metadata index (`04-epics.md`) and one file
 per epic. Each epic file has a 1:1 correspondence with a Jira Epic issue —
 its content is what `/sync` will push to Jira.
 
 #### 4a: Write Epic Metadata
 
-Write `.artifacts/design/{issue-number}/03-epics.md`:
+Write `.artifacts/design/{issue-number}/04-epics.md`:
 
 ```markdown
 # Epic Breakdown — {issue-number}
@@ -98,8 +99,8 @@ Write `.artifacts/design/{issue-number}/03-epics.md`:
 
 | # | Epic | T-Shirt Size | Stories | PRD Requirements | Dependencies |
 |---|------|-------------|---------|-----------------|--------------|
-| 1 | [{title}](04-stories/epic-1-{slug}.md) | {size} | [{N} stories](04-stories/epic-1/) | FR-1, FR-2, NFR-1 | None |
-| 2 | [{title}](04-stories/epic-2-{slug}.md) | {size} | [{N} stories](04-stories/epic-2/) | FR-3, NFR-2 | Epic 1 |
+| 1 | [{title}](05-stories/epic-1-{slug}.md) | {size} | [{N} stories](05-stories/epic-1/) | FR-1, FR-2, NFR-1 | None |
+| 2 | [{title}](05-stories/epic-2-{slug}.md) | {size} | [{N} stories](05-stories/epic-2/) | FR-3, NFR-2 | Epic 1 |
 
 {PRD Requirements column: list the primary requirements for quick reference.
  If an epic maps to more than ~8 requirements, list the most significant
@@ -122,7 +123,7 @@ Write `.artifacts/design/{issue-number}/03-epics.md`:
 #### 4b: Write Epic Files
 
 For each epic, write
-`.artifacts/design/{issue-number}/04-stories/epic-{N}-{slug}.md`:
+`.artifacts/design/{issue-number}/05-stories/epic-{N}-{slug}.md`:
 
 ```markdown
 # Epic {N}: {title}
@@ -158,11 +159,11 @@ story file has a 1:1 correspondence with a Jira Story issue — its content
 is what `/sync` will push to Jira.
 
 ```bash
-mkdir -p .artifacts/design/{issue-number}/04-stories/epic-{N}
+mkdir -p .artifacts/design/{issue-number}/05-stories/epic-{N}
 ```
 
 Write each story to
-`.artifacts/design/{issue-number}/04-stories/epic-{N}/story-{NN}-{slug}.md`:
+`.artifacts/design/{issue-number}/05-stories/epic-{N}/story-{NN}-{slug}.md`:
 
 ```markdown
 # Story {N}.{NN}: [{prefix}] {title}
@@ -277,7 +278,7 @@ renumbering existing ones.
 
 ### Step 6: Write Coverage Matrix
 
-Write `.artifacts/design/{issue-number}/05-coverage.md`:
+Write `.artifacts/design/{issue-number}/06-coverage.md`:
 
 ```markdown
 # Coverage Matrix — {issue-number}
@@ -337,10 +338,10 @@ Present the decomposition and highlight:
 
 ## Output
 
-- `.artifacts/design/{issue-number}/03-epics.md` (epic metadata and ordering)
-- `.artifacts/design/{issue-number}/04-stories/epic-{N}-{slug}.md` (one per epic)
-- `.artifacts/design/{issue-number}/04-stories/epic-{N}/story-{NN}-{slug}.md` (one per story)
-- `.artifacts/design/{issue-number}/05-coverage.md`
+- `.artifacts/design/{issue-number}/04-epics.md` (epic metadata and ordering)
+- `.artifacts/design/{issue-number}/05-stories/epic-{N}-{slug}.md` (one per epic)
+- `.artifacts/design/{issue-number}/05-stories/epic-{N}/story-{NN}-{slug}.md` (one per story)
+- `.artifacts/design/{issue-number}/06-coverage.md`
 
 ## When This Phase Is Done
 

@@ -25,7 +25,7 @@ the user before taking action.
 
 ### Step 1: Read the Design Document
 
-Read `.artifacts/design/{issue-number}/02-design.md`.
+Read `.artifacts/design/{issue-number}/03-design.md`.
 
 If the file doesn't exist, tell the user that `/draft` should be run first.
 
@@ -135,7 +135,7 @@ mkdir -p "{docs_repo_path}/{release}/{feature}"
 ```
 
 ```bash
-cp ".artifacts/design/{issue-number}/02-design.md" "{docs_repo_path}/{release}/{feature}/design.md"
+cp ".artifacts/design/{issue-number}/03-design.md" "{docs_repo_path}/{release}/{feature}/design.md"
 ```
 
 ```bash
@@ -153,7 +153,7 @@ git -C "{docs_repo_path}" push -u origin design/{issue-number}
 ```
 
 Prepare the PR description and save it to
-`.artifacts/design/{issue-number}/06-pr-description.md`:
+`.artifacts/design/{issue-number}/07-pr-description.md`:
 
 ```markdown
 ## Design: {title}
@@ -179,7 +179,7 @@ Prepare the PR description and save it to
 Determine `{owner}/{repo}` from `docs_repo_remote`, then create the draft PR:
 
 ```bash
-gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head design/{issue-number} --title "Design: {title}" --body-file .artifacts/design/{issue-number}/06-pr-description.md
+gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head design/{issue-number} --title "Design: {title}" --body-file .artifacts/design/{issue-number}/07-pr-description.md
 ```
 
 ### Step 6: Save Publish Metadata
@@ -210,7 +210,7 @@ Present:
 - `.artifacts/design/{issue-number}/publish-metadata.json`
 - Design document committed and pushed to feature branch in the docs repo
 - Draft PR created against the docs repo
-- `.artifacts/design/{issue-number}/06-pr-description.md`
+- `.artifacts/design/{issue-number}/07-pr-description.md`
 
 ## When This Phase Is Done
 

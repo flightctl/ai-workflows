@@ -13,6 +13,8 @@
 - Every `[DEV]` story includes **functionality AND testing**. Tests should validate the software's contract, not its implementation. `[DEV]` stories must include comprehensive unit tests; integration tests should be included when natural, but may be split into a separate `[DEV]` story when the integration test surface warrants it. Use the test types appropriate to what the story changes — unit tests for isolated logic, integration tests for component interactions, and e2e tests for user-facing workflows. Match the project's existing test infrastructure.
 - `[QE]` stories are appropriate for **standalone e2e test automation** owned by the QE team. These are not "just tests" stories — they represent dedicated QE work (e2e automation, manual test execution, negative test coverage) that tracks separately from unit/integration tests embedded in `[DEV]` stories.
 - Stories should be **right-sized** — neither too small (excessive process overhead) nor too large (hard to review accurately).
+- **Research is evidence-based.** When `/research` is used, every claim must be verified via web search and cite its source. Training data is hypothesis, not fact — verify before asserting. Use the source confidence hierarchy (HIGH/MEDIUM/LOW) defined in the research skill.
+- **Research is conditional.** Not every design needs a research phase. `/research` is recommended when the PRD involves external integrations, standards, unfamiliar domains, or third-party solution evaluation. Purely internal features skip directly to `/draft`.
 
 ## Hard Limits
 
