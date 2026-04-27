@@ -30,11 +30,12 @@ multiple rounds of revision.
 
 Determine which artifacts exist and read them:
 - `.artifacts/design/{issue-number}/01-context.md` (requirements context with FR/NFR IDs)
+- `.artifacts/design/{issue-number}/02-research.md` (if exists — research findings)
 - `.artifacts/prd/{issue-number}/02-clarifications.md` (if exists — locked decisions)
-- `.artifacts/design/{issue-number}/02-design.md` (design document)
-- `.artifacts/design/{issue-number}/03-epics.md` (epic metadata, if exists)
-- `.artifacts/design/{issue-number}/04-stories/` (epic and story files, if exist)
-- `.artifacts/design/{issue-number}/05-coverage.md` (coverage matrix, if exists)
+- `.artifacts/design/{issue-number}/03-design.md` (design document)
+- `.artifacts/design/{issue-number}/04-epics.md` (epic metadata, if exists)
+- `.artifacts/design/{issue-number}/05-stories/` (epic and story files, if exist)
+- `.artifacts/design/{issue-number}/06-coverage.md` (coverage matrix, if exists)
 - `.artifacts/design/{issue-number}/sync-manifest.json` (if exists — means
   epics/stories have been synced to Jira and filenames are locked)
 
@@ -72,7 +73,7 @@ If `sync-manifest.json` **exists** (post-sync), filenames are locked:
 - **Splitting stories:** Keep the original story file. Add new stories
   with the next available number (e.g., if story-03 is the last, add
   story-04 and story-05).
-- **Reordering:** Update `03-epics.md` implementation notes to reflect
+- **Reordering:** Update `04-epics.md` implementation notes to reflect
   the new order. Do not rename files — the numbering no longer implies order.
 
 Clarify with the user if the feedback is ambiguous before making changes.
@@ -95,6 +96,9 @@ After applying changes, verify:
 - Are alternatives still relevant, or do they need updating?
 - Do any changes contradict a locked decision from `02-clarifications.md`?
   If so, flag the conflict — locked decisions are binding.
+- If `02-research.md` exists, do any changes contradict research findings
+  or integration constraints? If the revision switches to an approach the
+  research evaluated unfavorably, flag the conflict and explain the tradeoff.
 - **Does the decomposition need updating?** If the design changed in ways
   that affect the epic/story breakdown (e.g., new components, changed APIs,
   different data model), flag this to the user and recommend re-running
@@ -161,7 +165,7 @@ mkdir -p "{docs_repo_path}/$(dirname "{design_file_path}")"
 ```
 
 ```bash
-cp ".artifacts/design/{issue-number}/02-design.md" "{docs_repo_path}/{design_file_path}"
+cp ".artifacts/design/{issue-number}/03-design.md" "{docs_repo_path}/{design_file_path}"
 ```
 
 ```bash
@@ -212,17 +216,17 @@ manually:
 
 | Artifact | Jira Issue | What Changed |
 |----------|------------|--------------|
-| `04-stories/epic-1-image-building.md` | [EDM-6789]({browse-url}) | Acceptance criteria updated |
-| `04-stories/epic-1/story-02-add-validation.md` | [EDM-6842]({browse-url}) | Description revised |
+| `05-stories/epic-1-image-building.md` | [EDM-6789]({browse-url}) | Acceptance criteria updated |
+| `05-stories/epic-1/story-02-add-validation.md` | [EDM-6842]({browse-url}) | Description revised |
 ```
 
 ## Output
 
-- `.artifacts/design/{issue-number}/02-design.md` (updated, if design changed)
-- `.artifacts/design/{issue-number}/03-epics.md` (updated, if decomposition changed)
-- `.artifacts/design/{issue-number}/04-stories/epic-*.md` (updated, if epics changed)
-- `.artifacts/design/{issue-number}/04-stories/epic-*/story-*.md` (updated, if stories changed)
-- `.artifacts/design/{issue-number}/05-coverage.md` (updated, if coverage changed)
+- `.artifacts/design/{issue-number}/03-design.md` (updated, if design changed)
+- `.artifacts/design/{issue-number}/04-epics.md` (updated, if decomposition changed)
+- `.artifacts/design/{issue-number}/05-stories/epic-*.md` (updated, if epics changed)
+- `.artifacts/design/{issue-number}/05-stories/epic-*/story-*.md` (updated, if stories changed)
+- `.artifacts/design/{issue-number}/06-coverage.md` (updated, if coverage changed)
 
 ## When This Phase Is Done
 

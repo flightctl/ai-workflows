@@ -13,22 +13,27 @@ executing phases and handling transitions between them.
 1. **Ingest** (`/ingest`) — `ingest.md`
    Read the PRD, explore the codebase, and capture architectural context.
 
-2. **Draft** (`/draft`) — `draft.md`
+2. **Research** (`/research`) — `research.md`
+   Investigate the external problem space — existing solutions, standards,
+   integration constraints, and architecture patterns. Conditional: recommended
+   when the PRD involves external integrations, standards, or unfamiliar domains.
+
+3. **Draft** (`/draft`) — `draft.md`
    Draft the design/architecture document using the template and section guidance.
 
-3. **Decompose** (`/decompose`) — `decompose.md`
+4. **Decompose** (`/decompose`) — `decompose.md`
    Break the design into Jira-ready epics and stories with a coverage matrix.
 
-4. **Revise** (`/revise`) — `revise.md`
+5. **Revise** (`/revise`) — `revise.md`
    Incorporate user feedback into the design document and/or task breakdown. Repeatable.
 
-5. **Publish** (`/publish`) — `publish.md`
+6. **Publish** (`/publish`) — `publish.md`
    Post the design document as a GitHub PR for external review.
 
-6. **Respond** (`/respond`) — `respond.md`
+7. **Respond** (`/respond`) — `respond.md`
    Fetch and address reviewer comments on the PR. Repeatable.
 
-7. **Sync** (`/sync`) — `sync.md`
+8. **Sync** (`/sync`) — `sync.md`
    Create Jira epics and stories from the approved task breakdown.
 
 ## Workspace
@@ -45,14 +50,15 @@ the source repo (this directory should be gitignored in the source repo):
 | Artifact | File | Written by |
 |----------|------|------------|
 | Architectural context | `01-context.md` | `/ingest` |
-| Design document | `02-design.md` | `/draft`, `/revise` |
-| Epic metadata | `03-epics.md` | `/decompose`, `/revise` |
-| Epic files | `04-stories/epic-{N}-{slug}.md` | `/decompose`, `/revise` |
-| Story files | `04-stories/epic-{N}/story-{NN}-{slug}.md` | `/decompose`, `/revise` |
-| Coverage matrix | `05-coverage.md` | `/decompose`, `/revise` |
-| PR description | `06-pr-description.md` | `/publish` |
+| Design research | `02-research.md` | `/research` |
+| Design document | `03-design.md` | `/draft`, `/revise` |
+| Epic metadata | `04-epics.md` | `/decompose`, `/revise` |
+| Epic files | `05-stories/epic-{N}-{slug}.md` | `/decompose`, `/revise` |
+| Story files | `05-stories/epic-{N}/story-{NN}-{slug}.md` | `/decompose`, `/revise` |
+| Coverage matrix | `06-coverage.md` | `/decompose`, `/revise` |
+| PR description | `07-pr-description.md` | `/publish` |
 | Publish metadata | `publish-metadata.json` | `/publish` |
-| Review responses | `07-review-responses.md` | `/respond` |
+| Review responses | `08-review-responses.md` | `/respond` |
 | Jira sync manifest | `sync-manifest.json` | `/sync` |
 
 ### Docs repo configuration
@@ -94,14 +100,17 @@ happened.
 ### Typical Flow
 
 ```text
-ingest → draft → decompose → [revise loop] → publish → [respond loop] → sync
+ingest → [research] → draft → decompose → [revise loop] → publish → [respond loop] → sync
 ```
+
+Research is in brackets because it is conditional — not every design needs it.
 
 ### What to Recommend
 
 **Continuing forward:**
 
-- `/ingest` completed → recommend `/draft` (almost always the right next step)
+- `/ingest` completed → recommend `/research` or `/draft` (see "When to Recommend Research" below)
+- `/research` completed → recommend `/draft`
 - `/draft` completed → recommend `/decompose` (decomposition validates the design)
 - `/decompose` completed → recommend `/revise` for user review of both documents
 - `/revise` completed (user satisfied) → recommend `/publish`, or another `/revise` round
@@ -109,9 +118,33 @@ ingest → draft → decompose → [revise loop] → publish → [respond loop] 
 - `/respond` completed → recommend another `/respond` round, or `/sync` if approved
 - `/sync` completed → workflow is done
 
+**When to recommend `/research`:**
+
+After `/ingest` completes, analyze the PRD context and recommend `/research`
+when any of these signals are present:
+- The PRD references external tools, services, or platforms to integrate with
+- The PRD references industry standards, specifications, or data formats
+- The feature involves a problem domain the codebase hasn't addressed before
+- The PRD mentions evaluating or selecting from multiple third-party solutions
+
+When none of these signals are present (purely internal refactors, straightforward
+features building on existing patterns), recommend `/draft` directly.
+
+When recommending `/research`, briefly explain which signals you detected:
+
+```text
+Recommended next step: /research — the PRD references integrating with
+vulnerability scanners (Trivy, Grype) and CSAF/VEX data formats. Investigating
+these before drafting will produce better architectural decisions.
+
+Other options:
+- /draft — if you already have sufficient domain knowledge to draft the design
+```
+
 **Looping back:**
 
 - `/draft` reveals PRD gaps → suggest the user switch to the **prd** workflow and run its `/clarify` phase to resolve them
+- `/draft` reveals research gaps (e.g., an integration approach turns out to be more complex than assumed) → offer `/research` to investigate before continuing
 - `/decompose` reveals design gaps → offer `/revise` to fix the design before continuing
 - `/revise` changes the design → offer `/decompose` to regenerate the task breakdown
 - `/respond` reveals the need for significant design changes → offer `/revise`
@@ -119,6 +152,7 @@ ingest → draft → decompose → [revise loop] → publish → [respond loop] 
 **Skipping:**
 
 - If the user already has a design document, they may start at `/decompose`
+- `/research` is always skippable — the user can go directly to `/draft` if they have sufficient domain knowledge
 - If the design is for internal use only, `/publish` and `/respond` may be skipped
 - If Jira sync isn't needed, `/sync` may be skipped
 
