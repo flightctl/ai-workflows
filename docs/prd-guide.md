@@ -56,19 +56,17 @@ The workflow generates a PRD following a structured template with seven sections
 
 1. **Problem Statement** — why this work is needed and who's affected
 2. **Goals and Non-Goals** — measurable outcomes, what's explicitly out of scope, optional success metrics
-3. **Functional Requirements** — what the system must do (FR-1, FR-2, ...)
-4. **Non-Functional Requirements** — performance, security, compatibility constraints (NFR-1, NFR-2, ...)
-5. **Acceptance Criteria** — testable assertions defining "done"
-6. **Dependencies** — teams or systems this depends on (optional, omitted if none)
-7. **Risks** — product risks with owners and mitigations (optional, omitted if none)
-
-A section for **Open Questions** (see below) is included when there are unresolved questions that need reviewer input.
+3. **Requirements** — functional requirements (FR-1, FR-2, ...) and non-functional requirements (NFR-1, NFR-2, ...) under a single section
+4. **Acceptance Criteria** — testable assertions defining "done"
+5. **Dependencies** — teams or systems this depends on (optional, omitted if none)
+6. **Risks** — product risks with owners and mitigations (optional, omitted if none)
+7. **Open Questions** — unresolved questions for reviewers to decide during PR review (optional, see below)
 
 Every requirement gets a stable ID (FR-1, NFR-1) and a source marker indicating where it came from: `[Jira: EDM-2324]`, `[Clarify: R1.Q3]`, or `[User]`.
 
 Before presenting the draft, the workflow runs a coverage check (did anything from the source material get dropped?) and resolves outstanding assumptions with you.
 
-**Template overrides:** Projects can provide their own PRD template. The workflow checks for a project-specific template before falling back to the default. See [prd/README.md](../prd/README.md) for override locations.
+**Template overrides:** Projects can provide their own PRD template. The workflow checks these locations in order: a path specified in the project's `CLAUDE.md` or `AGENTS.md`, then `.prd/templates/prd.md` at the project root, then the built-in default.
 
 ### Revise
 
@@ -86,7 +84,7 @@ You can run `/prd:revise` as many times as needed. Each round updates the same a
 
 The workflow copies the PRD to a docs repository and creates a **draft** GitHub PR. It asks you to confirm the details first: base branch, release name, feature slug, and branch name.
 
-On first use, it asks for your docs repo location and saves the configuration for future PRDs.
+On first use, it asks for your docs repo location and saves the configuration to `.artifacts/prd/config.json`. Subsequent PRDs reuse this configuration without asking again.
 
 The PR is always created as a draft. It includes a description with a link to the Jira issue, a summary of what the PRD covers, and guidance for reviewers on what to focus on.
 
@@ -114,8 +112,13 @@ These are plain markdown files. You can inspect any of them, hand them to a coll
 
 ## How Phases Connect
 
-The typical path is linear, but the workflow supports going back when needed:
+The typical path is linear, but the workflow supports both skipping ahead and going back:
 
+**Skipping forward:**
+- **Skip clarify** — if your Jira issue already has tight, unambiguous requirements, go straight from `/prd:ingest` to `/prd:draft`.
+- **Skip publish and respond** — for internal-only PRDs that don't need external review, stop after `/prd:revise`.
+
+**Going back:**
 - **Draft reveals gaps** — if `/prd:draft` uncovers ambiguities that weren't caught during clarify, go back to `/prd:clarify` before continuing.
 - **Review feedback is substantial** — if PR reviewers surface significant changes, use `/prd:revise` to update the PRD, then push the update.
 - **Respond surfaces new requirements** — if a reviewer's comment amounts to a new requirement, the workflow flags it for your decision. You can accept it (revise the PRD) or explain why it's out of scope.
