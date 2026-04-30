@@ -614,7 +614,7 @@ or network access is completely blocked:
   Run `/fix` and `/test` first.
 - If `/document` was run, the PR description artifact exists at
   `.artifacts/bugfix/{issue}/pr-description.md`. Use its `## Title` line
-  for the PR title if it follows `[ISSUE_KEY]: description`.
+  for the PR title if it follows `[ISSUE_KEY]: short description in lowercase`.
 - If `/document` was skipped, this skill creates a minimal PR body from
   session context (conversation history, prior artifacts). Build the title as
   `[ISSUE_KEY]: short description`.
