@@ -77,7 +77,7 @@ Create `.artifacts/bugfix/{issue}/user-announcement.md` with:
 - Apology if appropriate for impact
 - Link to detailed release notes
 
-### Step 7: Create PR Description (optional but recommended)
+### Step 7: Create PR Description
 
 Create `.artifacts/bugfix/{issue}/pr-description.md` with:
 
@@ -98,7 +98,7 @@ All files created in `.artifacts/bugfix/{issue}/`:
 3. **`changelog-entry.md`** — CHANGELOG addition
 4. **`team-announcement.md`** — Internal team communication
 5. **`user-announcement.md`** (optional) — Customer communication
-6. **`pr-description.md`** (optional) — Pull request description (read by `/pr` phase)
+6. **`pr-description.md`** — Pull request description (read by `/pr` phase)
 
 ## Documentation Templates
 
