@@ -612,10 +612,10 @@ or network access is completely blocked:
 
 - This skill assumes the bug fix work (code changes, tests) is already done.
   Run `/fix` and `/test` first.
-- If `/document` was run, the PR description artifact should already exist at
+- If `/document` was run, the PR description artifact exists at
   `.artifacts/bugfix/{issue}/pr-description.md`. Use its `## Title` line
   for the PR title if it follows `[ISSUE_KEY]: description`.
-- If `/document` was NOT run, this skill creates a minimal PR body from
+- If `/document` was skipped, this skill creates a minimal PR body from
   session context (conversation history, prior artifacts). Build the title as
   `[ISSUE_KEY]: short description`.
 - The fork workflow is the standard for open source contributions. Even if the
