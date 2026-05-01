@@ -14,14 +14,18 @@ All intermediate artifacts must be saved to `.artifacts/${ticket_id}/`. Create t
 
 ### Artifacts
 
-| Phase  | Artifact               |
-|--------|------------------------|
-| Gather | `01-context.md`        |
-| Plan   | `02-plan.md`           |
-| Draft  | `03-final-docs.adoc`   |
-| Apply  | `04-mr-description.md` |
-
 Each skill reads the previous phase's artifact and writes its own. Save output to the artifact path listed above. Do not output to the chat.
+
+| Phase       | Artifact               | Required input                         |
+|-------------|------------------------|----------------------------------------|
+| `/gather`   | `01-context.md`        | *(none)*                               |
+| `/plan`     | `02-plan.md`           | `01-context.md`                        |
+| `/draft`    | `03-final-docs.adoc`   | `02-plan.md` (approved)                |
+| `/validate` | *(updates in place)*   | `03-final-docs.adoc`                   |
+| `/apply`    | `04-mr-description.md` | `03-final-docs.adoc` (validated)       |
+| `/mr`       | *(merge request)*      | Applied changes in working tree        |
+
+If a required input is missing, tell the user which phase to run first — do not proceed without it.
 
 ### Artifact Format
 
@@ -41,6 +45,22 @@ From `/draft` onward, the artifact (`03-final-docs.adoc`) uses a multi-file form
 - `// File: <path>` comment lines indicate each target `.adoc` path (relative to repo root)
 - `----` on its own line separates multiple file segments
 - Content between each `// File:` and the next `// File:` or `----` is the full AsciiDoc body for that file
+
+## Resuming Work
+
+Artifacts are the long-term memory of the workflow. A new agent instance must be able to continue from the last completed phase without the user re-explaining prior work.
+
+Before executing any phase, check `.artifacts/${ticket_id}/` for existing artifacts. Each artifact present indicates its phase is complete (see the Artifacts table above).
+
+**When artifacts exist at workflow start:** report the detected state and recommend the next incomplete phase. Do not re-run completed phases unless the user explicitly asks.
+
+Example:
+```text
+Found prior work for JIRA-456: /gather (done), /plan (done), /draft (not started).
+Recommended next step: /draft — write the AsciiDoc content from the approved plan.
+```
+
+**When a phase is re-invoked:** if the current phase's artifact already exists, warn before overwriting — downstream artifacts may become stale. Wait for confirmation before proceeding.
 
 ## Phases
 
@@ -67,10 +87,11 @@ Phases can be skipped or reordered at the user's discretion.
 ## How to Execute a Phase
 
 1. **Announce** the phase to the user before doing anything else, e.g., "Starting the /gather phase." This is important so the user knows the workflow is working and learns the commands.
-2. **Read** the skill file from the list above.
-3. **Execute** the skill's steps directly — the user should see your progress.
-4. When the skill is done, follow "When This Phase Is Done" below.
-5. **Stop and wait** for the user to tell you what to do next.
+2. **Check prerequisites** — verify the required input artifacts exist (see the Artifacts table). If any are missing, tell the user which phase to run first and stop. If this phase's output artifact already exists, warn that re-running will overwrite it and downstream artifacts may become stale — wait for confirmation before proceeding.
+3. **Read** the skill file from the list above.
+4. **Execute** the skill's steps directly — the user should see your progress.
+5. When the skill is done, follow "When This Phase Is Done" below.
+6. **Stop and wait** for the user to tell you what to do next.
 
 ## When The Phase Is Done
 
@@ -170,10 +191,12 @@ Other options:
 
 When the user first provides a Jira ticket (URL or key), GitHub issue URL, or text description:
 
-1. Execute the **gather** phase.
-2. After gathering, present results and wait.
+1. Derive the `ticket_id` and check if `.artifacts/${ticket_id}/` exists.
+2. If artifacts exist, run **artifact state detection** (see "Resuming Work") — report which phases are complete and recommend the next incomplete phase. Do not re-run `/gather` unless the user says context is stale or explicitly requests it.
+3. If no artifacts exist, execute the **gather** phase.
+4. After gathering or reporting state, present results and wait.
 
-If the user invokes a specific command (e.g., `/draft`), execute that phase directly — don't force them through earlier phases.
+If the user invokes a specific command (e.g., `/draft`), execute that phase directly — don't force them through earlier phases, but do check prerequisites.
 
 ## Rules
 
