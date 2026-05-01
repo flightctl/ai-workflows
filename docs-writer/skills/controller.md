@@ -21,8 +21,8 @@ Each skill reads the previous phase's artifact and writes its own. Save output t
 | `/gather`   | `01-context.md`        | *(none)*                               |
 | `/plan`     | `02-plan.md`           | `01-context.md`                        |
 | `/draft`    | `03-final-docs.adoc`   | `02-plan.md` (approved)                |
-| `/validate` | *(updates in place)*   | `03-final-docs.adoc`                   |
-| `/apply`    | `04-mr-description.md` | `03-final-docs.adoc` (validated)       |
+| `/validate` | `03-validated`         | `03-final-docs.adoc`                   |
+| `/apply`    | `04-mr-description.md` | `03-final-docs.adoc` + `03-validated`  |
 | `/mr`       | *(merge request)*      | Applied changes in working tree        |
 
 If a required input is missing, tell the user which phase to run first — do not proceed without it.
