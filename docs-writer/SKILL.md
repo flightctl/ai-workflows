@@ -7,14 +7,9 @@ description: Documentation workflow that converts requirements into structured A
 ## Quick Start
 
 1. Read `skills/controller.md` to load the workflow controller
-2. If the user provided a Jira ticket, GitHub issue URL, or feature description, execute the `/gather` phase
-3. Otherwise, execute the first phase the user requests (e.g. `/plan` if they already have context)
-
-Each phase skill (e.g. `skills/gather-context.md`) follows this pattern:
-
-1. Announce the phase: *"Starting /gather."*
-2. Execute the skill's steps — fetch requirements, synthesize context, write artifact
-3. Write output to the artifact directory and return to the controller
+2. If a `ticket_id` is known, check `.artifacts/${ticket_id}/` for existing artifacts. If artifacts exist, report which phases are complete and recommend the next incomplete phase — do not re-run completed phases unless the user explicitly requests it
+3. If no artifacts exist and the user provided a Jira ticket, GitHub issue URL, or feature description, execute the `/gather` phase
+4. Otherwise, execute the first phase the user requests (e.g. `/plan` if they already have context)
 
 ```bash
 # Artifact directory and example validation
@@ -22,63 +17,82 @@ mkdir -p .artifacts/JIRA-123
 vale .artifacts/JIRA-123/03-final-docs.adoc
 ```
 
-## Example: Running /gather
-
-To execute the gather phase without opening external files:
-
-1. `mkdir -p .artifacts/JIRA-123`
-2. Fetch the ticket (Jira MCP) or issue (`gh issue view <num> --repo <owner/repo>`); capture description, acceptance criteria, comments
-3. Find linked PRs (e.g. titles with `[JIRA-123]`), fetch diffs with `gh pr diff <num> --repo <owner/repo>`
-4. Synthesize Why, What, and technical changes; write `.artifacts/JIRA-123/01-context.md`
-
-## Example: Running /validate
-
-Fully executable without opening other files:
-
-1. Parse `.artifacts/${ticket_id}/03-final-docs.adoc` for `// File: path/to/file.adoc` lines to get target paths
-2. From repo root: `vale .artifacts/${ticket_id}/03-final-docs.adoc` (or run Vale on each path if you wrote temp `.adoc` files under `.artifacts/${ticket_id}/`)
-3. If Vale reports errors: edit the draft to fix style/terminology, overwrite `03-final-docs.adoc`, run `vale` again; repeat until clean
-4. Optional: from the guide directory run `./template_build.sh` or `./buildGuide.sh`; on build errors, fix draft and re-run Vale and build
-
-## Example Session
-
-```text
-User: "Document feature from JIRA-456"
-/gather   → .artifacts/JIRA-456/01-context.md
-/plan     → .artifacts/JIRA-456/02-plan.md   [user must approve before /draft]
-/draft    → .artifacts/JIRA-456/03-final-docs.adoc
-/validate → vale; if fail → /draft then re-run /validate
-/apply    → repo .adoc files updated
-/mr       → merge request created
-```
-
 ## Phases
 
-Systematic documentation creation through these phases:
+| Phase | Exit Criteria |
+|---|---|
+| **`/gather`** — Research the feature from Jira, GitHub, or a description | `01-context.md` saved |
+| **`/plan`** — Determine where content belongs in the repository | `02-plan.md` saved; **user approval** required before `/draft` |
+| **`/draft`** — Write style-compliant AsciiDoc content | `03-final-docs.adoc` written |
+| **`/validate`** — Run Vale (and optionally AsciiDoctor); loop until clean | Vale passes |
+| **`/apply`** — Write validated content to repository files | Repository files updated |
+| **`/mr`** — Create a GitLab merge request | Merge request created |
 
-1. **Gather Context** (`/gather`) — Research the feature from Jira, GitHub, or a description
-2. **Plan Structure** (`/plan`) — Determine where content belongs in the repository
-3. **Draft Content** (`/draft`) — Write style-compliant AsciiDoc content
-4. **Validate** (`/validate`) — Run Vale and optionally AsciiDoctor
-5. **Apply Changes** (`/apply`) — Write validated content to repository files
-6. **Create Merge Request** (`/mr`) — Create a GitLab merge request for the changes
+## Example: /gather Phase
 
-## Phase Transitions
+For a Jira ticket:
+```bash
+# Fetch ticket via Jira MCP, then find and diff any linked PRs
+gh issue view 456 --repo owner/repo
+gh pr diff 78 --repo owner/repo
+```
 
-Each phase must meet its exit criteria before the next. If validation fails or the user requests changes, loop back:
+Expected output written to `.artifacts/JIRA-456/01-context.md`:
+```markdown
+## Why
+<problem statement from ticket description>
 
-- `/gather` → proceed when context is saved to `01-context.md`
-- `/plan` → proceed when plan is saved to `02-plan.md`; **stop for user approval** before `/draft`
-- `/draft` → proceed when `03-final-docs.adoc` is written
-- `/validate` → proceed when Vale (and optional AsciiDoctor) pass; if they fail, return to `/draft` and re-run `/validate`
-- `/apply` → proceed when repository files are updated
-- `/mr` → create merge request from the applied changes
+## What
+<feature summary from acceptance criteria>
+
+## Technical Changes
+<key diffs: new flags, changed configs, added modules>
+```
+
+## Example: /draft Phase
+
+A section written to `03-final-docs.adoc` follows AsciiDoc conventions:
+```asciidoc
+== Configuring the Cache TTL
+
+Use the `cache.ttl` parameter to control how long entries remain valid.
+
+.Procedure
+. Open `config/settings.yaml`.
+. Set `cache.ttl` to the desired duration in seconds:
++
+[source,yaml]
+----
+cache:
+  ttl: 300
+----
+. Restart the service to apply the change.
+```
+
+## Example: /validate Phase
+
+```bash
+vale .artifacts/JIRA-456/03-final-docs.adoc
+```
+
+Example Vale output with errors:
+```
+.artifacts/JIRA-456/03-final-docs.adoc:12:1  error  Use 'select' instead of 'click'.  Vale.Terms
+.artifacts/JIRA-456/03-final-docs.adoc:18:5  warning  Avoid passive voice.             Vale.Passive
+```
+
+Fix each flagged line in `03-final-docs.adoc`, overwrite the file, and re-run `vale` until output is clean:
+```
+✔ 0 errors, 0 warnings and 0 suggestions in 1 file.
+```
+
+Then optionally verify the build:
+```bash
+./template_build.sh   # or ./buildGuide.sh from the guide directory
+```
 
 ## File Layout
 
-The workflow controller lives at `skills/controller.md`.
-It defines how to execute phases, recommend next steps, and handle transitions.
-Phase skills are at `skills/{name}.md`.
-Artifacts go in `.artifacts/${ticket_id}/`.
-
-For principles, hard limits, safety, quality, and escalation rules, see `guidelines.md`.
+- `skills/controller.md` — workflow controller (phase execution, resumption, transitions)
+- `skills/{name}.md` — individual phase skills
+- `guidelines.md` — principles, hard limits, safety, quality, and escalation rules
