@@ -96,12 +96,12 @@ Present each comment with a proposed response:
 **Proposed response:** {your suggested reply}
 **PRD change needed:** Yes — update Section 3.1, requirement 3
 
-### Comment 3 — {reviewer} on Section 7 (open question 7.2)
+### Comment 3 — {reviewer} on Open Questions (question 8.2)
 > {quoted comment text, possibly spanning multiple replies in a thread}
 
 **Category:** Open question resolution
 **Proposed resolution:** {synthesized answer from the discussion}
-**PRD change needed:** Yes — incorporate into Section {N}, remove open question 7.2
+**PRD change needed:** Yes — incorporate into Section {N}, remove open question 8.2
 
 ...
 ```
@@ -112,10 +112,10 @@ Wait for the user to approve, modify, or reject each response.
 
 #### Resolving open questions
 
-When reviewer comments relate to an open question from Section 7,
+When reviewer comments relate to an open question from the Open Questions section,
 synthesize the discussion into a proposed resolution:
 
-1. Identify which open question (7.1, 7.2, ...) the discussion relates to.
+1. Identify which open question (8.1, 8.2, ...) the discussion relates to.
 2. Read the full thread — there may be multiple reviewers with differing
    views. Synthesize the discussion into a single proposed resolution.
    Do not assume a single comment is the final answer. If reviewers
@@ -133,8 +133,8 @@ synthesize the discussion into a proposed resolution:
 5. After user approval, incorporate the answer into the target section,
    writing it in final form as if it was always the intent (do not
    narrate the resolution).
-6. Remove the resolved entry from Section 7.
-7. If Section 7 is now empty, remove the entire section (heading and
+6. Remove the resolved entry from the Open Questions section.
+7. If the Open Questions section is now empty, remove the entire section (heading and
    introductory text) from the PRD.
 
 #### PRD changes (other than open question resolutions)
@@ -268,11 +268,11 @@ Write or update `.artifacts/prd/{issue-number}/05-review-responses.md`:
 - **Response:** {what was replied}
 - **PRD change:** {Yes/No — description if yes}
 
-### Open question 7.2 resolved — {reviewer} thread on Section 7
+### Open question 8.2 resolved — {reviewer} thread on Open Questions
 - **Comment:** {summary of discussion thread}
 - **Category:** Open question resolution
 - **Response:** {what was replied}
-- **PRD change:** Yes — resolved open question 7.2, incorporated into Section 3.2 as NFR-3
+- **PRD change:** Yes — resolved open question 8.2, incorporated into Section 3.2 as NFR-3
 ```
 
 ### Step 6: Report to User
