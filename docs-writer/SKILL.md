@@ -7,7 +7,7 @@ description: Documentation workflow that converts requirements into structured A
 ## Quick Start
 
 1. Read `skills/controller.md` to load the workflow controller
-2. If a `ticket_id` is known, check `.artifacts/${ticket_id}/` for existing artifacts. If artifacts exist, report which phases are complete and recommend the next incomplete phase — do not re-run completed phases unless the user explicitly requests it
+2. If a `ticket_id` is known, check `.artifacts/${ticket_id}/` for existing artifacts and resume from the next incomplete phase (see "Resuming Work" in the controller)
 3. If no artifacts exist and the user provided a Jira ticket, GitHub issue URL, or feature description, execute the `/gather` phase
 4. Otherwise, execute the first phase the user requests (e.g. `/plan` if they already have context)
 

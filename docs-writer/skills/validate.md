@@ -44,8 +44,6 @@ When all checks pass, create the marker file `.artifacts/${ticket_id}/03-validat
 touch .artifacts/${ticket_id}/03-validated
 ```
 
-If `/draft` is re-run after validation, delete `03-validated` — it is no longer valid.
-
 ## Error Handling
 
 If Vale or AsciiDoctor fails and the issues require style or structural changes:

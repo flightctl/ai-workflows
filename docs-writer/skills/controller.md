@@ -22,7 +22,7 @@ Each skill reads the previous phase's artifact and writes its own. Save output t
 | `/plan`     | `02-plan.md`           | `01-context.md`                        |
 | `/draft`    | `03-final-docs.adoc`   | `02-plan.md` (approved)                |
 | `/validate` | `03-validated`         | `03-final-docs.adoc`                   |
-| `/apply`    | `04-mr-description.md` | `03-final-docs.adoc` + `03-validated`  |
+| `/apply`    | `04-mr-description.md` | `03-final-docs.adoc`, `03-validated`   |
 | `/mr`       | *(merge request)*      | Applied changes in working tree        |
 
 If a required input is missing, tell the user which phase to run first — do not proceed without it.
@@ -60,7 +60,7 @@ Found prior work for JIRA-456: /gather (done), /plan (done), /draft (not started
 Recommended next step: /draft — write the AsciiDoc content from the approved plan.
 ```
 
-**When a phase is re-invoked:** if the current phase's artifact already exists, warn before overwriting — downstream artifacts may become stale. Wait for confirmation before proceeding.
+**When a phase is re-invoked:** if the current phase's artifact already exists, warn before overwriting. On confirmation, delete all artifacts from this phase onward before proceeding — this prevents stale downstream artifacts from misleading the resume logic.
 
 ## Phases
 
@@ -87,7 +87,7 @@ Phases can be skipped or reordered at the user's discretion.
 ## How to Execute a Phase
 
 1. **Announce** the phase to the user before doing anything else, e.g., "Starting the /gather phase." This is important so the user knows the workflow is working and learns the commands.
-2. **Check prerequisites** — verify the required input artifacts exist (see the Artifacts table). If any are missing, tell the user which phase to run first and stop. If this phase's output artifact already exists, warn that re-running will overwrite it and downstream artifacts may become stale — wait for confirmation before proceeding.
+2. **Check prerequisites** — verify the required input artifacts exist (see the Artifacts table). If any are missing, tell the user which phase to run first and stop. If this phase's output artifact already exists, warn that re-running will overwrite it — wait for confirmation, then delete all artifacts from this phase and later phases before proceeding.
 3. **Read** the skill file from the list above.
 4. **Execute** the skill's steps directly — the user should see your progress.
 5. When the skill is done, follow "When This Phase Is Done" below.
