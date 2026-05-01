@@ -77,26 +77,35 @@ This file is read during the `/draft` phase. It is not included in the final out
 - Acceptance criteria are the bridge between requirements and implementation. If a requirement says "must support port mappings," the acceptance criterion says "A user can specify port mappings in the format host:container and the system correctly exposes the mapped ports."
 - Cover the primary use cases. Edge cases belong in a test plan, not here.
 
-## 5. Dependencies
+## 5. Assumptions
+
+- This section is **optional**. If the requirements rest on no unverified assumptions, omit this section rather than writing "None."
+- An assumption is a statement the PRD treats as true but that has not been confirmed. If it turns out to be false, one or more requirements may need to change.
+- Good assumptions surface hidden preconditions: "The existing auth service supports OIDC," "Operators have cluster-admin privileges," "The upstream API is stable and versioned."
+- Do not list things that are verifiable right now — verify them and state them as requirements or constraints instead.
+- Assumptions are valuable specifically because they invite challenge. Reviewers should be able to look at this list and say "that one isn't true" before implementation begins.
+- **Not the same as `[Assumption: ...]` markers.** Inline `[Assumption: ...]` markers flag AI judgment calls during drafting — they are transient artifacts resolved with the user in Step 6 and never appear in the final document. This section captures product-level preconditions that the user has acknowledged but that remain unverified.
+
+## 6. Dependencies
 
 - This section is **optional**. If the source material identifies no external dependencies, omit this section rather than writing "None."
 - List teams, services, APIs, or external systems that this work depends on or that depend on this work.
 - Include ordering constraints: "API changes must land before agent changes."
 
-## 6. Risks
+## 7. Risks
 
-- Each risk gets its own numbered subsection (6.1, 6.2, ...) with **Owner** and **Mitigation** fields.
+- Each risk gets its own numbered subsection (7.1, 7.2, ...) with **Owner** and **Mitigation** fields.
 - Risks describe what could go wrong and the mitigation strategy, if known. If no mitigation is known yet, write "To be determined."
 - Risks are permanent — they stay in the document even after the PRD is approved, unless the risk no longer applies.
 - **Product scope only.** Process-level risks (e.g., "schedule might slip") belong in project management tools, not the PRD.
 - This section is **optional**. If no product risks were identified during drafting or clarification, omit it.
 
-## 7. Open Questions
+## 8. Open Questions
 
-- Each open question gets its own numbered subsection (7.1, 7.2, ...) with **Owner** (person or team who should answer) and **Impact** (which section or decision the answer affects).
+- Each open question gets its own numbered subsection (8.1, 8.2, ...) with **Owner** (person or team who should answer) and **Impact** (which section or decision the answer affects).
 - **Frame as clear, answerable questions.** Write "Should tenants be able to configure scan sources, or is this fixed at install time?" not "To be determined — how much tenants configure versus fixed at install." The reader should know exactly what they're being asked.
 - Open questions are things that could not be resolved during the clarify phase and need broader stakeholder input via PR review.
 - Questions resolved during clarification should **not** appear here — they are already incorporated into the PRD body via locked decisions.
-- **Transient by design.** When an open question is resolved during PR review (`/prd respond`), the answer is incorporated into the appropriate section of the PRD (e.g., a scope decision becomes a non-goal, a constraint goes into NFRs) and the entry is removed from Section 7. By the time the PRD is approved, this section should be empty and removed.
+- **Transient by design.** When an open question is resolved during PR review (`/prd respond`), the answer is incorporated into the appropriate section of the PRD (e.g., a scope decision becomes a non-goal, a constraint goes into NFRs) and the entry is removed from this section. By the time the PRD is approved, this section should be empty and removed.
 - **Product scope only.** Process-level questions (e.g., "when should we update the Jira text?") belong in PR discussion, not in the PRD.
 - This section is **optional**. If no open questions remain after clarification, omit it entirely.
