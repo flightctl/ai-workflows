@@ -65,3 +65,19 @@ Stop and request human guidance when:
 - The scan returns zero **unresolved** bugs (possibly wrong project key or issue type)
 - More than 30% of issues lack descriptions (data quality problem, not a triage problem)
 - The user asks to modify Jira issues (out of scope for this workflow)
+
+## Example Session
+
+```text
+User: "Triage unresolved bugs in EDM"
+
+/start   → validates Jira access for project EDM
+/scan    → fetches unresolved bugs + recently resolved bugs (90d window)
+           → writes .artifacts/triage/EDM/issues.json and resolved.json
+/analyze → categorizes each bug; error signatures, duplicate confidence, regressionOf
+           → reads resolved.json for regression hints; writes analyzed.json
+/report  → generates interactive HTML dashboard
+           → writes .artifacts/triage/EDM/report.html
+
+/assess  → (separate) full triage of one issue in chat — read skills/assess.md
+```

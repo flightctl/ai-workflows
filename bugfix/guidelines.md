@@ -64,6 +64,22 @@ Note: retry-limit exhaustion in unattended mode degrades gracefully
 rather than triggering escalation — see `skills/unattended.md` for
 details.
 
+## Example Session
+
+```text
+User: "Fix issue #421 — NullPointerException on login"
+
+/assess    → reads bug report, proposes plan (inline; no artifact)
+/reproduce → confirms the failure with a test
+             → writes .artifacts/bugfix/421/reproduction.md
+/diagnose  → traces root cause to AuthService.java:87
+             → writes .artifacts/bugfix/421/root-cause.md
+/fix       → adds null-check, minimal diff
+/test      → regression test passes ✓
+             → if tests fail → return to /fix
+/pr        → pushes branch, creates draft PR
+```
+
 ## Working With the Project
 
 This workflow gets deployed into different projects. Respect the target project:
