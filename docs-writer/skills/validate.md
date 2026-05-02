@@ -36,6 +36,14 @@ Run validation checks on the styled artifact and ensure nothing proceeds until a
 - Use `./template_build.sh` or `./buildGuide.sh` (see AGENTS.md for details)
 - If the build fails, fix the reported errors
 
+### Step 4: Write Validation Marker
+
+When all checks pass, create the marker file `.artifacts/${ticket_id}/03-validated` (empty file). This signals to downstream phases and the resume logic that validation is complete.
+
+```bash
+touch .artifacts/${ticket_id}/03-validated
+```
+
 ## Error Handling
 
 If Vale or AsciiDoctor fails and the issues require style or structural changes:
