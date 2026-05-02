@@ -11,9 +11,10 @@ description: >-
 ## Quick Start
 
 1. If the user invoked `/review`, read `commands/review.md` and follow it.
-2. Otherwise, the user must specify which skill directory to review (e.g. `bugfix/`, `docs-writer/`). Read `skills/review.md` to execute the review.
+2. Otherwise, if no skill directory was specified, ask the user which directory to review (e.g. `bugfix/`, `docs-writer/`). Then read `skills/review.md` to execute the review.
 
 If a step fails or produces unexpected output, stop and report the error to the
-user.
+user. Do not advance to the next phase. Offer to retry the failed step or
+escalate.
 
 For principles, hard limits, safety, quality, and escalation rules, see `guidelines.md`.
