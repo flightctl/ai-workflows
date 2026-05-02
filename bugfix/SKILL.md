@@ -13,7 +13,7 @@ description: >-
 ## Quick Start
 
 1. If the user invoked a specific command (e.g. `/unattended`, `/diagnose`, `/fix`), read `commands/{command}.md` and follow it.
-2. If the user invoked `/unattended`, read `skills/unattended.md` — this runs diagnose → fix → test → review to completion without human input.
+2. If the user invoked `/unattended`, read `skills/unattended.md` — this runs the unattended bugfix workflow to completion without human input.
 3. Otherwise, read `skills/controller.md` to load the workflow controller:
    - If the user provided a bug report or issue URL, execute the `/assess` phase
    - Otherwise, execute `/start` to present available phases

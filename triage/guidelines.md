@@ -80,4 +80,6 @@ User: "Triage unresolved bugs in EDM"
            → writes .artifacts/triage/EDM/report.html
 
 /assess  → (separate) full triage of one issue in chat — read skills/assess.md
+
+If any step fails or produces unexpected output: stop, report the error, and offer retry or escalation.
 ```

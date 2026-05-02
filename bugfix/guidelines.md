@@ -76,7 +76,7 @@ User: "Fix issue #421 — NullPointerException on login"
              → writes .artifacts/bugfix/421/root-cause.md
 /fix       → adds null-check, minimal diff
 /test      → regression test passes ✓
-             → if tests fail → return to /fix
+             → if tests fail: stop and report; offer retry of /fix or escalation
 /pr        → pushes branch, creates draft PR
 ```
 
