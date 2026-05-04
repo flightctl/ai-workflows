@@ -21,7 +21,9 @@ You perform **full triage on one bug** — the same analytical dimensions as bul
 - **Priority mismatch** — compare Jira priority to severity implied by summary/description (same logic as bulk `priorityMismatch`)
 - **Staleness / activity** — created/updated dates; whether CLOSE-style staleness applies (vague + inactive), without needing other issues for comparison
 - **Duplicates** — multi-angle `jira_search` + **duplicateConfidence** (0–100) for candidates; if mode A, exclude self-key when comparing
-- **Regression hint** — search resolved bugs (e.g. last 90 days) for same signature/symptoms; describe possible **regressionOf**-style relationship in prose (no `resolved.json` required if you query Jira). A regression signals functionality that was broken, fixed, and is now broken again — focus on the insight: what area keeps failing and whether the prior fix was incomplete or reintroduced. **Chronological constraint:** only flag a regression when the resolved bug was created *before* the open bug — an older bug cannot be a regression of a newer fix
+- **Regression hint** — search resolved bugs (e.g. last 90 days) for same signature/symptoms; describe possible **regressionOf**-style relationship in prose (no `resolved.json` required if you query Jira)
+  - A regression signals functionality that was broken, fixed, and is now broken again — focus on the insight: what area keeps failing and whether the prior fix was incomplete or reintroduced
+  - **Chronological constraint:** the resolved bug's *resolution date* must be before the open bug's *creation date* — if the fix landed after the new bug was filed, it cannot be a regression
 - **ESCALATE / WONT_FIX** — when the text clearly warrants it (cross-team, security, out of scope)
 
 **Skip only what inherently needs multiple open bugs:**

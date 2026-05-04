@@ -198,7 +198,7 @@ A regression signals that functionality was broken, fixed, and is now broken aga
 
 Populate `regressionOf` from the schema above. Compare each unresolved issue’s **error signature** and **symptoms** to **recently resolved** bugs in `resolved.json` (same project, from `/scan`).
 
-**Chronological constraint:** the resolved bug must have been **created before** the open bug. An older unresolved bug cannot be a regression of a newer resolved bug.
+**Chronological constraint:** the resolved bug's **resolution date** must be before the open bug's **creation date**. If the fix landed after the new bug was filed, it cannot be a regression.
 
 When a resolved issue likely fixed the **same area** and the open bug reads like a **reappearance** (same stack line, same API error, same workflow break), set `regressionOf` on the open issue:
 
@@ -207,14 +207,14 @@ When a resolved issue likely fixed the **same area** and the open bug reads like
   "key": "EDM-900",
   "summary": "Fixed null dereference in checkout totals",
   "resolved": "2026-02-01T10:00:00.000+0000",
-  "reason": "Same NPE in OrderTotals.java as EDM-900; original fix in release 3.1 did not hold — reappeared after release 3.2, suggesting the root cause was not fully addressed or was reintroduced"
+  "reason": "Same NPE in OrderTotals.java as EDM-900; fix in 3.1 did not hold — reappeared in 3.2, likely incomplete root cause"
 }
 ```
 
 - `key` — resolved issue key (required)
 - `summary` — short summary of the resolved bug (required)
 - `resolved` — resolution date ISO string if known, else null
-- `reason` — explain what broke again and why the previous fix may not have held (required). Focus on the insight: what area keeps failing, whether the root cause was likely incomplete, or whether a later change reintroduced the problem
+- `reason` — one sentence: what broke again and why the previous fix may not have held (required)
 
 Set `regressionOf` to **null** when no plausible resolved match exists. This feeds the report **Regression** column and **Possible Regressions** section.
 
