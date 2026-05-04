@@ -81,7 +81,7 @@ This file is read during the `/draft` phase. It is not included in the final out
 
 - This section is **optional**. If the requirements rest on no unverified assumptions, omit this section rather than writing "None."
 - An assumption is a statement the PRD treats as true but that has not been confirmed. If it turns out to be false, one or more requirements may need to change.
-- Good assumptions surface hidden preconditions: "The existing auth service supports OIDC," "Operators have cluster-admin privileges," "The upstream API is stable and versioned."
+- Good assumptions surface hidden preconditions. These may be technical ("The existing auth service supports OIDC," "Operators have cluster-admin privileges," "The upstream API is stable and versioned") or scope-related ("This feature assumes no UX/UI changes are needed," "Only validation and documentation work is required"). Scope assumptions often represent the reasoning behind release planning — if they turn out to be false, the work may need to be re-scoped or re-prioritized.
 - Do not list things that are verifiable right now — verify them and state them as requirements or constraints instead.
 - Assumptions are valuable specifically because they invite challenge. Reviewers should be able to look at this list and say "that one isn't true" before implementation begins.
 - **Not the same as `[Assumption: ...]` markers.** Inline `[Assumption: ...]` markers flag AI judgment calls during drafting — they are transient artifacts resolved with the user in Step 6 and never appear in the final document. This section captures product-level preconditions that the user has acknowledged but that remain unverified.
