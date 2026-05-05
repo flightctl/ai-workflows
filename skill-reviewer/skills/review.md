@@ -91,6 +91,9 @@ The script performs mechanical checks that can be verified deterministically:
 - **Frontmatter**: YAML validity, required fields, colon notation in commands
 - **References**: orphaned files (exist but never referenced) and dangling references (referenced but don't exist)
 - **Step sequencing**: sequential numbering, gaps, duplicates, sub-step notation, step count > 10
+- **Change detection**: which files changed, were added, or removed since the last review (based on SHA-256 hashes stored in `.artifacts/skill-reviewer/{skill-name}/file-hashes.json`)
+
+The script writes current file hashes to `.artifacts/` for future comparisons.
 
 Review the script output:
 
@@ -110,6 +113,10 @@ the `scripts/` directory), skip this step and perform all checks manually in Ste
 If you produced or received a skill map in Step 2 (Path B), use it as your
 primary reference for each dimension. Drill into specific files only when a
 dimension requires verification that the skill map's summary cannot provide.
+
+If the automated checks in Step 3 reported changed files since a previous
+review, prioritize those files and their cross-references. For unchanged files,
+verify that previous findings still apply rather than re-evaluating from scratch.
 
 Work through each dimension systematically. For each, note any findings.
 

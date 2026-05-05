@@ -9,8 +9,11 @@ Usage: pre-review-checks.py <skill-directory-path>
 Exit code: always 0 (findings are informational, not CI blockers)
 """
 
+import hashlib
+import json
 import re
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 KNOWN_ENTRIES = {"SKILL.md", "guidelines.md", "README.md", "GUIDE.md",
@@ -36,6 +39,62 @@ class Checker:
     def passed(self, msg: str): self._emit("PASS", msg)
     def warn(self, msg: str): self._emit("WARN", msg)
     def fail(self, msg: str): self._emit("FAIL", msg)
+
+    def _compute_hashes(self) -> dict[str, str]:
+        """Compute SHA-256 hashes for all .md files in the skill directory."""
+        hashes = {}
+        for f in sorted(self.md_files):
+            try:
+                digest = hashlib.sha256(f.read_bytes()).hexdigest()[:12]
+                rel = str(f.relative_to(self.skill_dir))
+                hashes[rel] = digest
+            except OSError:
+                continue
+        return hashes
+
+    def check_changes(self):
+        print("--- Changes Since Last Review ---")
+
+        hashes_file = Path(f".artifacts/skill-reviewer/{self.skill_name}/file-hashes.json")
+        current_hashes = self._compute_hashes()
+
+        if hashes_file.is_file():
+            try:
+                prev = json.loads(hashes_file.read_text())
+                prev_hashes = prev.get("files", {})
+                prev_time = prev.get("timestamp", "unknown")
+            except (json.JSONDecodeError, OSError):
+                prev_hashes = {}
+                prev_time = "unknown"
+
+            print(f"INFO: Previous review: {prev_time}")
+
+            changed = [f for f in current_hashes if f in prev_hashes and current_hashes[f] != prev_hashes[f]]
+            added = [f for f in current_hashes if f not in prev_hashes]
+            removed = [f for f in prev_hashes if f not in current_hashes]
+            unchanged = len(current_hashes) - len(changed) - len(added)
+
+            for f in sorted(changed):
+                self.warn(f"Changed: {f}")
+            for f in sorted(added):
+                print(f"INFO: New file: {f}")
+            for f in sorted(removed):
+                print(f"INFO: Removed: {f}")
+            if unchanged > 0:
+                print(f"INFO: Unchanged: {unchanged} file(s)")
+            if not changed and not added and not removed:
+                print("INFO: No changes detected since last review")
+        else:
+            print("INFO: No previous review found — full review")
+
+        # Write current hashes for next comparison
+        hashes_file.parent.mkdir(parents=True, exist_ok=True)
+        hashes_file.write_text(json.dumps({
+            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
+            "files": current_hashes,
+        }, indent=2) + "\n")
+
+        print()
 
     def check_structure(self):
         print("--- Structure ---")
@@ -268,6 +327,7 @@ class Checker:
     def run(self):
         print(f"=== Pre-Review Automated Checks: {self.skill_name} ===")
         print()
+        self.check_changes()
         self.check_structure()
         self.check_frontmatter()
         self.check_references()

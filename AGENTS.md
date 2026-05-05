@@ -93,7 +93,7 @@ Workflows write outputs to `.artifacts/{workflow-name}/{context}/`:
 - **bugfix**: `.artifacts/bugfix/{issue-number}/` (root-cause.md, reproduction.md, etc.)
 - **code-review**: `.artifacts/code-review/{branch}/` (00-reviewer-profile.md, 01-change-summary.md, code-review-{NNN}.md, review-response-{NNN}.md, review-metadata.json, decisions-{NNN}.json)
 - **triage**: `.artifacts/triage/{project}/` (issues.json, analyzed.json, report.html)
-- **skill-reviewer**: `.artifacts/skill-reviewer/{skill-name}/` (skill-map.md, review.md)
+- **skill-reviewer**: `.artifacts/skill-reviewer/{skill-name}/` (file-hashes.json, skill-map.md, review.md)
 - **cve-fix**: `.artifacts/cve-fix/{context}/` (context.md, patch-log.md, validation-results.md, pr-description.md, backport-log.md, close-report.md)
 - **prd**: `.artifacts/prd/{issue-number}/` (01-requirements.md, 02-clarifications.md, 03-prd.md, 04-pr-description.md, 05-review-responses.md)
 - **design**: `.artifacts/design/{issue-number}/` (01-context.md, 02-research.md, 03-design.md, 04-epics.md, 05-stories/epic-{N}-{slug}.md, 05-stories/epic-{N}/story-{NN}-{slug}.md, 06-coverage.md, 07-pr-description.md, 08-review-responses.md, publish-metadata.json, sync-manifest.json)
