@@ -30,15 +30,16 @@ Optional directories (`commands/`, `templates/`, etc.) and files (`guidelines.md
 `README.md`) are reviewed when present but not required to proceed. If you find
 non-standard directories, read their contents — they may be relevant findings.
 
-### Step 2: Read All Files
+### Step 2: Read All Files and Produce Skill Map
 
-Count the `.md` files in the target skill directory (including subdirectories)
-to determine which reading path to follow.
+Read every file in the skill directory and produce a structured **skill map** —
+an intermediate artifact that captures your understanding before evaluation
+begins. The skill map makes the review auditable and catches comprehension
+errors before they become wrong findings.
 
-#### Path A: Direct reading (fewer than 15 files)
+#### How to read
 
-Read **every file** in the skill directory before forming any opinion. Read in
-this order to build understanding progressively:
+Read files in this order to build understanding progressively:
 
 1. `SKILL.md` (orchestrator — tells you the overall structure and routing)
 2. `guidelines.md` (principles and constraints)
@@ -49,29 +50,31 @@ this order to build understanding progressively:
 Read each file in full. If any expected file is missing, note it — gaps in the
 structure are themselves a finding.
 
-#### Path B: Sub-agent delegation (15 or more files)
+**Large skill directories (15+ files):** Delegate reading to a sub-agent to
+protect your context window. Read `../prompts/analyze-skill.md`, fill in
+`{target-skill-directory}` and `{skill-name}`, then:
+- **If the AI runtime supports subagents:** Spawn an Explore sub-agent with
+  the filled-in prompt.
+- **If subagents are not available:** Follow the prompt yourself.
 
-Delegate reading to an Explore sub-agent to protect your context window for
-evaluation.
+#### How to produce the skill map
 
-1. Read `../prompts/analyze-skill.md` — this is the prompt template for the
-   sub-agent.
-2. Replace `{target-skill-directory}` with the full path to the target skill
-   directory, and `{skill-name}` with the skill name.
-3. **If the AI runtime supports subagents:** Spawn an Explore sub-agent with
-   the filled-in prompt. The sub-agent will read all files and write a skill
-   map to `.artifacts/skill-reviewer/{skill-name}/skill-map.md`.
-4. **If subagents are not available:** Follow the prompt yourself — read all
-   files in the canonical order and produce the skill map. This still protects
-   evaluation quality by creating a structured intermediate summary before
-   you proceed to Step 4.
-5. After the skill map is written, read it back from
-   `.artifacts/skill-reviewer/{skill-name}/skill-map.md`. This is your
-   primary input for Step 4.
+Whether you read directly or via sub-agent, write a skill map to
+`.artifacts/skill-reviewer/{skill-name}/skill-map.md` following the structure
+defined in `../prompts/analyze-skill.md`. The skill map contains:
 
-**In either path**, you retain the ability to read individual files during
-Step 4 for deeper inspection. The skill map is a comprehension aid, not a
-replacement for targeted file reads when a finding requires verification.
+- **File Inventory** — all files with type, line count, and purpose
+- **Routing Graph** — which file references which
+- **Phase Pipeline** — ordered phases with inputs and outputs
+- **Schema Fields** — where introduced, where consumed
+- **Step Sequences** — per-file step numbers, cross-references, counts
+- **Command Names** — each command with frontmatter name and routing target
+- **Key Constraints** — principles, hard limits, safety, quality, escalation
+
+After writing the skill map, read it back. This is your primary input for
+Step 4. You retain the ability to read individual files during evaluation for
+deeper inspection — the skill map is a comprehension aid, not a replacement
+for targeted file reads when a finding requires verification.
 
 ### Step 3: Run Automated Checks
 
@@ -110,9 +113,9 @@ the `scripts/` directory), skip this step and perform all checks manually in Ste
 
 ### Step 4: Evaluate Review Dimensions
 
-If you produced or received a skill map in Step 2 (Path B), use it as your
-primary reference for each dimension. Drill into specific files only when a
-dimension requires verification that the skill map's summary cannot provide.
+Use the skill map from Step 2 as your primary reference for each dimension.
+Drill into specific files only when a dimension requires verification that
+the skill map's summary cannot provide.
 
 If the automated checks in Step 3 reported changed files since a previous
 review, prioritize those files and their cross-references. For unchanged files,
@@ -196,9 +199,8 @@ overall verdict:
 ### Step 7: Report to the User
 
 Persist the review report to `.artifacts/skill-reviewer/{skill-name}/review.md`,
-then present the same findings inline to the user. If a skill map was produced
-in Step 2, it remains at `.artifacts/skill-reviewer/{skill-name}/skill-map.md`
-alongside the review.
+then present the same findings inline to the user. The skill map remains at
+`.artifacts/skill-reviewer/{skill-name}/skill-map.md` alongside the review.
 
 Use this structure:
 

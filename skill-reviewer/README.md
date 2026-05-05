@@ -101,7 +101,7 @@ Agent works through findings from highest severity to lowest.
 ```text
 .artifacts/skill-reviewer/{skill-name}/
 ├── file-hashes.json    # SHA-256 hashes for change detection between reviews
-├── skill-map.md        # Skill map (large skills only — produced by Explore sub-agent)
+├── skill-map.md        # Structured skill map (comprehension artifact before evaluation)
 └── review.md           # Full review report with findings table
 ```
 
