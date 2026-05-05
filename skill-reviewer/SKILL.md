@@ -13,7 +13,7 @@ description: >-
 Run `/review` to execute the full workflow. The user must specify which skill directory to review (e.g. `bugfix/`, `docs-writer/`). Executable without opening other files:
 
 1. Read every file in the target skill directory: `SKILL.md`, `skills/*.md`, `commands/*.md`, `guidelines.md`, `README.md`. If the directory doesn't exist or has no skill files, report the error and stop. Note any missing files — gaps are themselves a finding.
-2. Run automated pre-review checks: `python3 scripts/pre-review-checks.py {target-dir}` — captures structural, frontmatter, reference, and sequencing issues deterministically. Treat `FAIL` results as pre-validated findings; apply judgment to `WARN` results. If the script is not present, skip and check manually.
+2. Run automated pre-review checks: `python3 {skill-reviewer-dir}/scripts/pre-review-checks.py {target-dir}` — captures structural, frontmatter, reference, and sequencing issues deterministically. Treat `FAIL` results as pre-validated findings; apply judgment to `WARN` results. If the script is not present, skip and check manually.
 3. Evaluate against 8 dimensions (use automated check results as pre-validated evidence where available):
    - **Orchestration & Routing** — correct routing, no orphaned/dangling references, executable Quick Start
    - **Step Sequencing** — sequential numbering, correct cross-references, logical order

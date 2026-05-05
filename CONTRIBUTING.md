@@ -101,7 +101,7 @@ This ensures symlinks resolve paths correctly regardless of where the workflow i
 Some workflows include a `scripts/` directory for scripts that offload deterministic work from the LLM — validation, data transformation, file discovery, or any operation better handled by code than by prompt. The `scripts/` directory is optional and follows these conventions:
 
 - Scripts are invoked by the workflow's skill files, not by users directly
-- Scripts must work when the workflow is installed via symlink (`~/.ai-workflows/workflow-name/scripts/`)
+- Scripts must work when the workflow is installed via symlink (`scripts/` under the workflow root)
 - Use Python 3 or bash — whichever fits the task
 
 Currently, only `skill-reviewer/scripts/` uses this pattern.
@@ -112,7 +112,7 @@ Some workflows include a `prompts/` directory for prompt templates given to sub-
 
 - Prompt templates are self-contained — the sub-agent receives only the prompt, not the caller's context
 - Templates use `{placeholder}` syntax for values the caller fills in before spawning the sub-agent
-- Prompts must work when the workflow is installed via symlink (`~/.ai-workflows/workflow-name/prompts/`)
+- Prompts must work when the workflow is installed via symlink (`prompts/` under the workflow root)
 - Prompts instruct the sub-agent to write output to `.artifacts/`, not to return it in conversation
 
 Currently, only `skill-reviewer/prompts/` uses this pattern.

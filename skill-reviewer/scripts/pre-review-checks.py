@@ -21,7 +21,7 @@ KNOWN_ENTRIES = {"SKILL.md", "guidelines.md", "README.md", "GUIDE.md",
 EXEMPT_FILES = {"SKILL.md", "guidelines.md", "README.md", "GUIDE.md"}
 EXEMPT_DIRS = {"prompts"}  # contain example content, not real references
 STEP_THRESHOLD = 10
-REF_PATTERN = re.compile(r'(?:\.\./)*(?:skills|commands|templates)/[a-zA-Z0-9_-]+\.md')
+REF_PATTERN = re.compile(r'(?:\.\./)*(?:skills|commands|templates|prompts|scripts)/[a-zA-Z0-9_-]+\.md')
 STEP_HEADING = re.compile(r'^#{2,3} Step (\d+)([a-zA-Z])?')
 
 
@@ -226,11 +226,17 @@ class Checker:
         for f in self.md_files:
             if f.name in EXEMPT_FILES:
                 continue
-            referenced = any(
-                f.name in content
-                for other, content in file_contents.items()
-                if other != f
-            )
+            target_rel = str(f.relative_to(self.skill_dir)).replace("\\", "/")
+            target_name = f.name
+            referenced = False
+            for other, content in file_contents.items():
+                if other == f:
+                    continue
+                stripped = self._strip_code_blocks(content)
+                refs = set(REF_PATTERN.findall(stripped))
+                if target_rel in refs or any(r.endswith(f"/{target_name}") or r == target_name for r in refs):
+                    referenced = True
+                    break
             if not referenced:
                 rel = f.relative_to(self.skill_dir)
                 self.fail(f"Orphaned file: {rel} (not referenced by any other file)")
@@ -253,7 +259,12 @@ class Checker:
                 # Try relative to the file's directory, then to the skill root
                 candidates = [f.parent / ref_path, self.skill_dir / ref_path]
                 if ref.startswith("../"):
-                    candidates = [(f.parent / ref_path).resolve()]
+                    resolved = (f.parent / ref_path).resolve()
+                    try:
+                        resolved.relative_to(self.skill_dir.resolve())
+                        candidates = [resolved]
+                    except ValueError:
+                        candidates = []
 
                 if not any(c.is_file() for c in candidates):
                     f_rel = f.relative_to(self.skill_dir)

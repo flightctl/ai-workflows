@@ -347,6 +347,7 @@ ai-workflows/
 ├── kcs/
 ├── prd/
 ├── skill-reviewer/
+│   ├── prompts/
 │   └── scripts/
 ├── triage/
 ├── install.sh                 # Installer with auto-discovery
