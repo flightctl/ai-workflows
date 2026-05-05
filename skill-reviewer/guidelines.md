@@ -14,6 +14,7 @@ Artifacts go in `.artifacts/skill-reviewer/{skill-name}/`.
 - Be constructive — every finding should include a concrete suggestion.
 - If something is broken, say so — don't minimize or hedge.
 - Distinguish between blockers (must fix) and suggestions (nice to have).
+- Offload mechanical checks to `scripts/pre-review-checks.py` when available — focus reviewer attention on judgment calls that require reading comprehension and context.
 
 ## Hard Limits
 
@@ -34,6 +35,8 @@ Artifacts go in `.artifacts/skill-reviewer/{skill-name}/`.
 - Findings must be classified by severity (CRITICAL / HIGH / MEDIUM / LOW)
 - The report must follow the structured output format defined in the review skill
 - Blocker and suggestion counts must be accurate
+- Script `FAIL` results are pre-validated (verified against the filesystem) and can be cited directly as findings without re-verification
+- Script `WARN` results require reviewer judgment — not all warnings are findings
 
 ## Escalation
 

@@ -36,6 +36,7 @@ workflow-name/
     phase-name.md       # Implementation for each phase
   commands/
     phase-name.md       # Thin wrappers that invoke controller or SKILL.md
+  scripts/              # Optional — deterministic operations invoked by skills
 ```
 
 **Key architectural principles:**
@@ -202,6 +203,7 @@ For detailed workflow development guidelines (structure, file conventions, testi
 - Single-phase workflow (no controller)
 - Read-only review (fixing findings is separate from review phase)
 - Must read all files in target skill before forming opinions
+- Runs `scripts/pre-review-checks.py` for automated structural, frontmatter, reference, and sequencing checks before LLM evaluation
 
 ### docs-writer
 
@@ -343,6 +345,7 @@ ai-workflows/
 ├── kcs/
 ├── prd/
 ├── skill-reviewer/
+│   └── scripts/
 ├── triage/
 ├── install.sh                 # Installer with auto-discovery
 ├── uninstall.sh              # Removal script

@@ -95,3 +95,13 @@ This ensures symlinks resolve paths correctly regardless of where the workflow i
 - Keep `SKILL.md` under 30 lines. Use progressive disclosure (`guidelines.md`, `README.md`) for details.
 - Use consistent terminology within a workflow. Pick one term and stick with it.
 - Don't duplicate content between `SKILL.md`, `guidelines.md`, and `controller.md` (when present). Each file has a distinct role.
+
+## Scripts
+
+Some workflows include a `scripts/` directory for scripts that offload deterministic work from the LLM — validation, data transformation, file discovery, or any operation better handled by code than by prompt. The `scripts/` directory is optional and follows these conventions:
+
+- Scripts are invoked by the workflow's skill files, not by users directly
+- Scripts must work when the workflow is installed via symlink (`~/.ai-workflows/workflow-name/scripts/`)
+- Use Python 3 or bash — whichever fits the task
+
+Currently, only `skill-reviewer/scripts/` uses this pattern.

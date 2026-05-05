@@ -49,7 +49,39 @@ the order above). After each batch, note preliminary observations but defer
 judgment until all files are read. This prevents context overload while
 preserving the "no opinions before all files" principle.
 
-### Step 3: Evaluate Review Dimensions
+### Step 3: Run Automated Checks
+
+Run the pre-review validation script against the target skill directory:
+
+```bash
+python3 {skill-reviewer-dir}/scripts/pre-review-checks.py {target-skill-directory}
+```
+
+Where `{skill-reviewer-dir}` is the directory this workflow was loaded from (e.g.,
+`~/.ai-workflows/skill-reviewer`), and `{target-skill-directory}` is the path you
+used to read the skill files in Step 2.
+
+The script performs mechanical checks that can be verified deterministically:
+
+- **Structure**: required/optional/unexpected files against canonical layout
+- **Frontmatter**: YAML validity, required fields, colon notation in commands
+- **References**: orphaned files (exist but never referenced) and dangling references (referenced but don't exist)
+- **Step sequencing**: sequential numbering, gaps, duplicates, sub-step notation, step count > 10
+
+Review the script output:
+
+- **FAIL** results are pre-validated against the filesystem. Incorporate them
+  directly as findings in Step 5 — you do not need to re-verify these.
+- **WARN** results need your judgment. Some warnings are genuine findings, others
+  are acceptable for the skill being reviewed.
+- **PASS** results confirm that specific mechanical checks passed. Reference them
+  as evidence when evaluating the corresponding dimension (e.g., "Automated checks
+  confirmed no orphaned or dangling references").
+
+If the script is not available (e.g., the skill-reviewer was installed without
+the `scripts/` directory), skip this step and perform all checks manually in Step 4.
+
+### Step 4: Evaluate Review Dimensions
 
 Work through each dimension systematically. For each, note any findings.
 
@@ -108,7 +140,7 @@ Work through each dimension systematically. For each, note any findings.
 - Are failure modes documented (e.g., "If zero results, stop and report")?
 - Are escalation paths clear?
 
-### Step 4: Classify Findings
+### Step 5: Classify Findings
 
 Assign a severity to each finding:
 
@@ -117,7 +149,7 @@ Assign a severity to each finding:
 - **MEDIUM**: Quality issue. Documentation drift, naming inconsistency, missing edge case.
 - **LOW**: Polish. Readability, minor wording, suggestions for improvement.
 
-### Step 5: Form a Verdict
+### Step 6: Form a Verdict
 
 Count blockers (CRITICAL + HIGH) and suggestions (MEDIUM + LOW). Determine the
 overall verdict:
@@ -126,7 +158,7 @@ overall verdict:
 - **Suggestions only** → Skill works but could be improved
 - **Clean** → Skill is well-structured and ready for use
 
-### Step 6: Report to the User
+### Step 7: Report to the User
 
 Persist the review report to `.artifacts/skill-reviewer/{skill-name}/review.md`,
 then present the same findings inline to the user.
@@ -186,7 +218,7 @@ when there's an actual problem. If a skill is broken, say so.
 
 ## When This Phase Is Done
 
-Your verdict and recommendations (from Step 6) serve as the phase summary. Tell
+Your verdict and recommendations (from Step 7) serve as the phase summary. Tell
 the user where the review was written (`.artifacts/skill-reviewer/{skill-name}/review.md`).
 
 The review itself is complete. If the user subsequently asks to fix findings,
