@@ -14,8 +14,9 @@ import sys
 from pathlib import Path
 
 KNOWN_ENTRIES = {"SKILL.md", "guidelines.md", "README.md", "GUIDE.md",
-                 "skills", "commands", "templates", "scripts"}
+                 "skills", "commands", "templates", "scripts", "prompts"}
 EXEMPT_FILES = {"SKILL.md", "guidelines.md", "README.md", "GUIDE.md"}
+EXEMPT_DIRS = {"prompts"}  # contain example content, not real references
 STEP_THRESHOLD = 10
 REF_PATTERN = re.compile(r'(?:\.\./)*(?:skills|commands|templates)/[a-zA-Z0-9_-]+\.md')
 STEP_HEADING = re.compile(r'^#{2,3} Step (\d+)([a-zA-Z])?')
@@ -179,11 +180,13 @@ class Checker:
         if not orphan_found:
             self.passed("No orphaned files found")
 
-        # Dangling references
+        # Dangling references (skip files in exempt dirs — they contain example content)
         dangle_found = False
         seen_dangles = set()
 
         for f, content in file_contents.items():
+            if any(part in EXEMPT_DIRS for part in f.relative_to(self.skill_dir).parts[:-1]):
+                continue
             stripped = self._strip_code_blocks(content)
             refs = set(REF_PATTERN.findall(stripped))
             for ref in sorted(refs):

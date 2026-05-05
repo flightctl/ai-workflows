@@ -17,6 +17,8 @@ This workflow provides a skeptical, structured review of any AI skill directory:
 skill-reviewer/
 ├── commands/
 │   └── review.md
+├── prompts/
+│   └── analyze-skill.md
 ├── scripts/
 │   └── pre-review-checks.py
 ├── skills/
@@ -28,7 +30,7 @@ skill-reviewer/
 
 ### How Commands and Skills Work Together
 
-The **command** (`commands/review.md`) is a thin wrapper that routes directly to the **review skill** (`skills/review.md`), which contains the full review process. The **scripts** directory contains `pre-review-checks.py`, which runs automated structural checks before the LLM evaluation. No controller is needed — this is a single-phase workflow.
+The **command** (`commands/review.md`) is a thin wrapper that routes directly to the **review skill** (`skills/review.md`), which contains the full review process. The **prompts** directory contains `analyze-skill.md`, a prompt template given to an Explore sub-agent when reviewing large skills (15+ files) to produce a structured skill map before evaluation. The **scripts** directory contains `pre-review-checks.py`, which runs automated structural checks before the LLM evaluation. No controller is needed — this is a single-phase workflow.
 
 ## Workflow Phase
 
@@ -98,6 +100,7 @@ Agent works through findings from highest severity to lowest.
 
 ```text
 .artifacts/skill-reviewer/{skill-name}/
+├── skill-map.md        # Skill map (large skills only — produced by Explore sub-agent)
 └── review.md           # Full review report with findings table
 ```
 

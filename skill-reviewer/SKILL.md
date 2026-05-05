@@ -57,6 +57,8 @@ skill-reviewer/
   README.md             # User-facing documentation
   commands/
     review.md           # /review command — loads guidelines + skill
+  prompts/
+    analyze-skill.md    # Prompt template for Explore sub-agent (large skill reading)
   skills/
     review.md           # The review skill (detailed steps and output format)
   scripts/

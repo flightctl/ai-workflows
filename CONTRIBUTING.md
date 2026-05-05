@@ -105,3 +105,14 @@ Some workflows include a `scripts/` directory for scripts that offload determini
 - Use Python 3 or bash — whichever fits the task
 
 Currently, only `skill-reviewer/scripts/` uses this pattern.
+
+## Prompts
+
+Some workflows include a `prompts/` directory for prompt templates given to sub-agents that perform delegated work — structured reading, analysis, or exploration that benefits from a fresh context window. The `prompts/` directory is optional and follows these conventions:
+
+- Prompt templates are self-contained — the sub-agent receives only the prompt, not the caller's context
+- Templates use `{placeholder}` syntax for values the caller fills in before spawning the sub-agent
+- Prompts must work when the workflow is installed via symlink (`~/.ai-workflows/workflow-name/prompts/`)
+- Prompts instruct the sub-agent to write output to `.artifacts/`, not to return it in conversation
+
+Currently, only `skill-reviewer/prompts/` uses this pattern.
