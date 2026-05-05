@@ -52,15 +52,16 @@ The workflow tracks exit criteria and tells you when it thinks clarification is 
 
 **Command:** `/prd:draft`
 
-The workflow generates a PRD following a structured template with seven sections:
+The workflow generates a PRD following a structured template with eight sections:
 
 1. **Problem Statement** — why this work is needed and who's affected
 2. **Goals and Non-Goals** — measurable outcomes, what's explicitly out of scope, optional success metrics
 3. **Requirements** — functional requirements (FR-1, FR-2, ...) and non-functional requirements (NFR-1, NFR-2, ...) under a single section
 4. **Acceptance Criteria** — testable assertions defining "done"
-5. **Dependencies** — teams or systems this depends on (optional, omitted if none)
-6. **Risks** — product risks with owners and mitigations (optional, omitted if none)
-7. **Open Questions** — unresolved questions for reviewers to decide during PR review (optional, see below)
+5. **Assumptions** — statements believed true but not yet verified (optional, omitted if none)
+6. **Dependencies** — teams or systems this depends on (optional, omitted if none)
+7. **Risks** — product risks with owners and mitigations (optional, omitted if none)
+8. **Open Questions** — unresolved questions for reviewers to decide during PR review (optional, see below)
 
 Every requirement gets a stable ID (FR-1, NFR-1) and a source marker indicating where it came from: `[Jira: EDM-2324]`, `[Clarify: R1.Q3]`, or `[User]`.
 
@@ -136,7 +137,7 @@ Once you've published, the review cycle works like this:
    - **Factual correction** — update the PRD, acknowledge in reply
    - **Scope question** — reply explaining scope; may trigger a revision
    - **New requirement** — flagged for your decision
-   - **Open question resolution** — a reviewer answered one of your Section 7 questions
+   - **Open question resolution** — a reviewer answered one of your open questions
    - **Approval / positive** — acknowledge
    - **Out of scope** — explain why
 
@@ -148,7 +149,7 @@ Once you've published, the review cycle works like this:
 
 ## Open Questions as a Decision Tool
 
-Section 7 of the PRD — Open Questions — is not a dumping ground for "things we haven't figured out." It's a structured way to get specific decisions from specific people during PR review.
+The Open Questions section of the PRD is not a dumping ground for "things we haven't figured out." It's a structured way to get specific decisions from specific people during PR review.
 
 Each open question has three parts:
 - **The question itself** — clear and answerable
@@ -156,17 +157,17 @@ Each open question has three parts:
 - **An impact statement** — which part of the PRD changes depending on the answer
 
 **Example:**
-> **7.1** Should port mapping support UDP in addition to TCP?
+> **8.1** Should port mapping support UDP in addition to TCP?
 > *Owner: networking team. Impact: FR-4 scope, NFR-2 performance targets.*
 
 When a reviewer answers an open question during PR review, `/prd:respond` handles the resolution:
 
-1. It identifies which Section 7 question the discussion addresses.
+1. It identifies which open question the discussion addresses.
 2. It synthesizes the review thread into a proposed answer.
 3. It determines the target section based on the question's impact field.
 4. It presents the resolution to you for approval.
 5. On approval, it incorporates the answer into the target section in final form — not as a narrative of the discussion, but as a proper requirement or constraint.
-6. It removes the resolved question from Section 7.
+6. It removes the resolved question from the Open Questions section.
 7. If all open questions are resolved, the entire section is removed.
 
 This turns PR review into a structured decision-making process. Instead of "LGTM" or vague "needs changes" comments, reviewers know exactly what you need from them.

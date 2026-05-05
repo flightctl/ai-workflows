@@ -164,11 +164,11 @@ Prepare the PR description and save it to `.artifacts/prd/{issue-number}/04-pr-d
 - Requirements completeness and accuracy
 - Scope (goals and non-goals)
 - Acceptance criteria clarity
-- Open questions (Section 7) that need resolution
+- Open questions that need resolution
 
 ### How to Review
 - Comment inline on specific sections
-- Review the open questions in Section 7 — these need your input
+- Review the open questions — these need your input
 - Approve when the PRD accurately reflects the agreed requirements
 ```
 

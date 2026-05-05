@@ -122,6 +122,11 @@ source material and PRD:
    requirement should have at least one source marker. Flag any that
    don't.
 
+5. **Assumptions coverage:** Confirm that any unverified preconditions
+   surfaced during clarification or implicit in the source material are
+   captured in the Assumptions section. If no unverified preconditions
+   exist, the section should be omitted.
+
 If this step introduces new `[Assumption: ...]` markers or TBD items,
 Step 6 will collect and resolve them.
 
@@ -132,8 +137,8 @@ and outstanding item. Collect the following from the document:
 
 1. Every `[Assumption: ...]` marker
 2. Every "To be determined" item
-3. Every risk in Section 6 that lacks an owner or mitigation
-4. Every open question in Section 7 that lacks an owner or impact
+3. Every risk in the Risks section that lacks an owner or mitigation
+4. Every open question in the Open Questions section that lacks an owner or impact
 
 If there are no items across all four categories, skip to Step 7.
 
@@ -143,9 +148,9 @@ Present the items to the user in conversation:
    document. List each with its section reference and the assumption text.
 2. **TBD markers:** List any "To be determined" items with their section
    references.
-3. **Unowned risks:** List any risks from Section 6 that lack an owner
+3. **Unowned risks:** List any risks from the Risks section that lack an owner
    or mitigation.
-4. **Unowned open questions:** List any open questions from Section 7
+4. **Unowned open questions:** List any open questions from the Open Questions section
    that lack an owner or impact.
 
 Ask the user to confirm, correct, or provide missing information for each
