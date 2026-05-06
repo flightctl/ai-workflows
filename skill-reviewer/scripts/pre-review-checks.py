@@ -6,7 +6,7 @@ checks before the LLM review. Outputs structured findings with PASS/FAIL/WARN
 status prefixes.
 
 Usage: pre-review-checks.py <skill-directory-path>
-Exit code: always 0 (findings are informational, not CI blockers)
+Exit code: always 0 — informational only (see CONTRIBUTING.md § Scripts for exit-code convention)
 """
 
 import hashlib
