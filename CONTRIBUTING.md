@@ -95,3 +95,25 @@ This ensures symlinks resolve paths correctly regardless of where the workflow i
 - Keep `SKILL.md` under 30 lines. Use progressive disclosure (`guidelines.md`, `README.md`) for details.
 - Use consistent terminology within a workflow. Pick one term and stick with it.
 - Don't duplicate content between `SKILL.md`, `guidelines.md`, and `controller.md` (when present). Each file has a distinct role.
+
+## Scripts
+
+Some workflows include a `scripts/` directory for scripts that offload deterministic work from the LLM — validation, data transformation, file discovery, or any operation better handled by code than by prompt. The `scripts/` directory is optional and follows these conventions:
+
+- Scripts are invoked by the workflow's skill files, not by users directly
+- Scripts must work when the workflow is installed via symlink (`scripts/` under the workflow root)
+- Exit codes: `exit 0` = informational (findings reported but workflow continues), `exit 1` = halt (workflow should stop and surface the failure). Scripts that only report findings (like pre-review checks) should always exit 0.
+- Use Python 3 or bash — whichever fits the task
+
+Currently, only `skill-reviewer/scripts/` uses this pattern.
+
+## Prompts
+
+Some workflows include a `prompts/` directory for prompt templates given to sub-agents that perform delegated work — structured reading, analysis, or exploration that benefits from a fresh context window. The `prompts/` directory is optional and follows these conventions:
+
+- Prompt templates are self-contained — the sub-agent receives only the prompt, not the caller's context
+- Templates use `{placeholder}` syntax for values the caller fills in before spawning the sub-agent
+- Prompts must work when the workflow is installed via symlink (`prompts/` under the workflow root)
+- Prompts instruct the sub-agent to write output to `.artifacts/`, not to return it in conversation
+
+Currently, only `skill-reviewer/prompts/` uses this pattern.

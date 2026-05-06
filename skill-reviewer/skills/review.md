@@ -30,10 +30,16 @@ Optional directories (`commands/`, `templates/`, etc.) and files (`guidelines.md
 `README.md`) are reviewed when present but not required to proceed. If you find
 non-standard directories, read their contents — they may be relevant findings.
 
-### Step 2: Read All Files
+### Step 2: Read All Files and Produce Skill Map
 
-Read **every file** in the skill directory before forming any opinion. Read in
-this order to build understanding progressively:
+Read every file in the skill directory and produce a structured **skill map** —
+an intermediate artifact that captures your understanding before evaluation
+begins. The skill map makes the review auditable and catches comprehension
+errors before they become wrong findings.
+
+#### How to read
+
+Read files in this order to build understanding progressively:
 
 1. `SKILL.md` (orchestrator — tells you the overall structure and routing)
 2. `guidelines.md` (principles and constraints)
@@ -44,12 +50,76 @@ this order to build understanding progressively:
 Read each file in full. If any expected file is missing, note it — gaps in the
 structure are themselves a finding.
 
-**Large skill directories (15+ files):** Read in batches by file type (following
-the order above). After each batch, note preliminary observations but defer
-judgment until all files are read. This prevents context overload while
-preserving the "no opinions before all files" principle.
+**Large skill directories (15+ files):** Delegate reading to a sub-agent to
+protect your context window. Read `../prompts/analyze-skill.md`, fill in
+`{target-skill-directory}` and `{skill-name}`, then:
+- **If the AI runtime supports subagents:** Spawn an Explore sub-agent with
+  the filled-in prompt.
+- **If subagents are not available:** Follow the prompt yourself.
 
-### Step 3: Evaluate Review Dimensions
+#### How to produce the skill map
+
+Whether you read directly or via sub-agent, write a skill map to
+`.artifacts/skill-reviewer/{skill-name}/skill-map.md` following the structure
+defined in `../prompts/analyze-skill.md`. The skill map contains:
+
+- **File Inventory** — all files with type, line count, and purpose
+- **Routing Graph** — which file references which
+- **Phase Pipeline** — ordered phases with inputs and outputs
+- **Schema Fields** — where introduced, where consumed
+- **Step Sequences** — per-file step numbers, cross-references, counts
+- **Command Names** — each command with frontmatter name and routing target
+- **Key Constraints** — principles, hard limits, safety, quality, escalation
+
+After writing the skill map, read it back. This is your primary input for
+Step 4. You retain the ability to read individual files during evaluation for
+deeper inspection — the skill map is a comprehension aid, not a replacement
+for targeted file reads when a finding requires verification.
+
+### Step 3: Run Automated Checks
+
+Run the pre-review validation script against the target skill directory:
+
+```bash
+python3 {skill-reviewer-dir}/scripts/pre-review-checks.py {target-skill-directory}
+```
+
+Where `{skill-reviewer-dir}` is the directory this workflow was loaded from (e.g.,
+`~/.ai-workflows/skill-reviewer`), and `{target-skill-directory}` is the path you
+used to read the skill files in Step 2.
+
+The script performs mechanical checks that can be verified deterministically:
+
+- **Structure**: required/optional/unexpected files against canonical layout
+- **Frontmatter**: YAML validity, required fields, colon notation in commands
+- **References**: orphaned files (exist but never referenced) and dangling references (referenced but don't exist)
+- **Step sequencing**: sequential numbering, gaps, duplicates, sub-step notation, step count > 10
+- **Change detection**: which files changed, were added, or removed since the last review (based on SHA-256 hashes stored in `.artifacts/skill-reviewer/{skill-name}/file-hashes.json`)
+
+The script writes current file hashes to `.artifacts/` for future comparisons.
+
+Review the script output:
+
+- **FAIL** results are pre-validated against the filesystem. Incorporate them
+  directly as findings in Step 5 — you do not need to re-verify these.
+- **WARN** results need your judgment. Some warnings are genuine findings, others
+  are acceptable for the skill being reviewed.
+- **PASS** results confirm that specific mechanical checks passed. Reference them
+  as evidence when evaluating the corresponding dimension (e.g., "Automated checks
+  confirmed no orphaned or dangling references").
+
+If the script is not available (e.g., the skill-reviewer was installed without
+the `scripts/` directory), skip this step and perform all checks manually in Step 4.
+
+### Step 4: Evaluate Review Dimensions
+
+Use the skill map from Step 2 as your primary reference for each dimension.
+Drill into specific files only when a dimension requires verification that
+the skill map's summary cannot provide.
+
+If the automated checks in Step 3 reported changed files since a previous
+review, prioritize those files and their cross-references. For unchanged files,
+verify that previous findings still apply rather than re-evaluating from scratch.
 
 Work through each dimension systematically. For each, note any findings.
 
@@ -108,7 +178,7 @@ Work through each dimension systematically. For each, note any findings.
 - Are failure modes documented (e.g., "If zero results, stop and report")?
 - Are escalation paths clear?
 
-### Step 4: Classify Findings
+### Step 5: Classify Findings
 
 Assign a severity to each finding:
 
@@ -117,7 +187,7 @@ Assign a severity to each finding:
 - **MEDIUM**: Quality issue. Documentation drift, naming inconsistency, missing edge case.
 - **LOW**: Polish. Readability, minor wording, suggestions for improvement.
 
-### Step 5: Form a Verdict
+### Step 6: Form a Verdict
 
 Count blockers (CRITICAL + HIGH) and suggestions (MEDIUM + LOW). Determine the
 overall verdict:
@@ -126,10 +196,11 @@ overall verdict:
 - **Suggestions only** → Skill works but could be improved
 - **Clean** → Skill is well-structured and ready for use
 
-### Step 6: Report to the User
+### Step 7: Report to the User
 
 Persist the review report to `.artifacts/skill-reviewer/{skill-name}/review.md`,
-then present the same findings inline to the user.
+then present the same findings inline to the user. The skill map remains at
+`.artifacts/skill-reviewer/{skill-name}/skill-map.md` alongside the review.
 
 Use this structure:
 
@@ -186,7 +257,7 @@ when there's an actual problem. If a skill is broken, say so.
 
 ## When This Phase Is Done
 
-Your verdict and recommendations (from Step 6) serve as the phase summary. Tell
+Your verdict and recommendations (from Step 7) serve as the phase summary. Tell
 the user where the review was written (`.artifacts/skill-reviewer/{skill-name}/review.md`).
 
 The review itself is complete. If the user subsequently asks to fix findings,
