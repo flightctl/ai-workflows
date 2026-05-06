@@ -17,6 +17,10 @@ This workflow provides a skeptical, structured review of any AI skill directory:
 skill-reviewer/
 ├── commands/
 │   └── review.md
+├── prompts/
+│   └── analyze-skill.md
+├── scripts/
+│   └── pre-review-checks.py
 ├── skills/
 │   └── review.md
 ├── guidelines.md
@@ -26,7 +30,7 @@ skill-reviewer/
 
 ### How Commands and Skills Work Together
 
-The **command** (`commands/review.md`) is a thin wrapper that routes directly to the **review skill** (`skills/review.md`), which contains the full review process. No controller is needed — this is a single-phase workflow.
+The **command** (`commands/review.md`) is a thin wrapper that routes directly to the **review skill** (`skills/review.md`), which contains the full review process. The **prompts** directory contains `analyze-skill.md`, a prompt template given to an Explore sub-agent when reviewing large skills (15+ files) to produce a structured skill map before evaluation. The **scripts** directory contains `pre-review-checks.py`, which runs automated structural checks before the LLM evaluation. No controller is needed — this is a single-phase workflow.
 
 ## Workflow Phase
 
@@ -35,7 +39,8 @@ The **command** (`commands/review.md`) is a thin wrapper that routes directly to
 **Purpose**: Perform a deep, skeptical review of an AI skill directory.
 
 1. Read all files in the target skill directory (`SKILL.md`, `skills/*.md`, `commands/*.md`, `guidelines.md`, `README.md`)
-2. Evaluate against 8 review dimensions:
+2. Run automated pre-review checks (`scripts/pre-review-checks.py`) — structural validation, frontmatter, orphaned/dangling references, step sequencing
+3. Evaluate against 8 review dimensions (using automated check results as pre-validated evidence):
    - **Orchestration & Routing** — correct routing, no orphaned or dangling references
    - **Step Sequencing & Numbering** — sequential numbering, correct cross-references
    - **Schema Consistency** — matching field names/types across files
@@ -44,7 +49,7 @@ The **command** (`commands/review.md`) is a thin wrapper that routes directly to
    - **Documentation & Project Alignment** — README matches implementation, consistent with sibling skills and project conventions
    - **Command Naming** — consistent, self-explanatory names
    - **Error Handling & Edge Cases** — failure modes documented, escalation clear
-3. Classify findings by severity and produce a structured report
+4. Classify findings by severity and produce a structured report
 
 **Output**: `.artifacts/skill-reviewer/{skill-name}/review.md` + findings presented inline.
 
@@ -95,6 +100,8 @@ Agent works through findings from highest severity to lowest.
 
 ```text
 .artifacts/skill-reviewer/{skill-name}/
+├── file-hashes.json    # SHA-256 hashes for change detection between reviews
+├── skill-map.md        # Structured skill map (comprehension artifact before evaluation)
 └── review.md           # Full review report with findings table
 ```
 

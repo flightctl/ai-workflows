@@ -36,6 +36,8 @@ workflow-name/
     phase-name.md       # Implementation for each phase
   commands/
     phase-name.md       # Thin wrappers that invoke controller or SKILL.md
+  scripts/              # Optional — deterministic operations invoked by skills
+  prompts/              # Optional — prompt templates for sub-agent delegation
 ```
 
 **Key architectural principles:**
@@ -91,7 +93,7 @@ Workflows write outputs to `.artifacts/{workflow-name}/{context}/`:
 - **bugfix**: `.artifacts/bugfix/{issue-number}/` (root-cause.md, reproduction.md, etc.)
 - **code-review**: `.artifacts/code-review/{branch}/` (00-reviewer-profile.md, 01-change-summary.md, code-review-{NNN}.md, review-response-{NNN}.md, review-metadata.json, decisions-{NNN}.json)
 - **triage**: `.artifacts/triage/{project}/` (issues.json, analyzed.json, report.html)
-- **skill-reviewer**: `.artifacts/skill-reviewer/{skill-name}/` (review.md)
+- **skill-reviewer**: `.artifacts/skill-reviewer/{skill-name}/` (file-hashes.json, skill-map.md, review.md)
 - **cve-fix**: `.artifacts/cve-fix/{context}/` (context.md, patch-log.md, validation-results.md, pr-description.md, backport-log.md, close-report.md)
 - **prd**: `.artifacts/prd/{issue-number}/` (01-requirements.md, 02-clarifications.md, 03-prd.md, 04-pr-description.md, 05-review-responses.md)
 - **design**: `.artifacts/design/{issue-number}/` (01-context.md, 02-research.md, 03-design.md, 04-epics.md, 05-stories/epic-{N}-{slug}.md, 05-stories/epic-{N}/story-{NN}-{slug}.md, 06-coverage.md, 07-pr-description.md, 08-review-responses.md, publish-metadata.json, sync-manifest.json)
@@ -202,6 +204,8 @@ For detailed workflow development guidelines (structure, file conventions, testi
 - Single-phase workflow (no controller)
 - Read-only review (fixing findings is separate from review phase)
 - Must read all files in target skill before forming opinions
+- Runs `scripts/pre-review-checks.py` for automated structural, frontmatter, reference, and sequencing checks before LLM evaluation
+- For large skills (15+ files), delegates initial reading to an Explore sub-agent using `prompts/analyze-skill.md`, which produces a skill map at `.artifacts/skill-reviewer/{skill-name}/skill-map.md`
 
 ### docs-writer
 
@@ -343,6 +347,8 @@ ai-workflows/
 ├── kcs/
 ├── prd/
 ├── skill-reviewer/
+│   ├── prompts/
+│   └── scripts/
 ├── triage/
 ├── install.sh                 # Installer with auto-discovery
 ├── uninstall.sh              # Removal script

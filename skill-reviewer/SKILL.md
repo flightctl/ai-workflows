@@ -13,7 +13,8 @@ description: >-
 Run `/review` to execute the full workflow. The user must specify which skill directory to review (e.g. `bugfix/`, `docs-writer/`). Executable without opening other files:
 
 1. Read every file in the target skill directory: `SKILL.md`, `skills/*.md`, `commands/*.md`, `guidelines.md`, `README.md`. If the directory doesn't exist or has no skill files, report the error and stop. Note any missing files — gaps are themselves a finding.
-2. Evaluate against 8 dimensions:
+2. Run automated pre-review checks: `python3 {skill-reviewer-dir}/scripts/pre-review-checks.py {target-dir}` — captures structural, frontmatter, reference, and sequencing issues deterministically. Treat `FAIL` results as pre-validated findings; apply judgment to `WARN` results. If the script is not present, skip and check manually.
+3. Evaluate against 8 dimensions (use automated check results as pre-validated evidence where available):
    - **Orchestration & Routing** — correct routing, no orphaned/dangling references, executable Quick Start
    - **Step Sequencing** — sequential numbering, correct cross-references, logical order
    - **Schema Consistency** — matching field names/types across files, schema visible before first use
@@ -22,9 +23,9 @@ Run `/review` to execute the full workflow. The user must specify which skill di
    - **Documentation & Project Alignment** — README matches implementation, consistent with sibling skills and project conventions
    - **Command Naming** — consistent pattern (verbs vs nouns), self-explanatory
    - **Error Handling** — failure modes documented, escalation paths clear
-3. Classify each finding by severity — **CRITICAL** / **HIGH** (blockers) or **MEDIUM** / **LOW** (suggestions).
-4. Validate findings: verify each finding cites a specific file, includes a concrete suggestion, and that blocker/suggestion counts are accurate. Drop any finding you cannot substantiate from the files you read.
-5. Produce a structured report and write it to `.artifacts/skill-reviewer/{skill-name}/review.md`:
+4. Classify each finding by severity — **CRITICAL** / **HIGH** (blockers) or **MEDIUM** / **LOW** (suggestions).
+5. Validate findings: verify each finding cites a specific file, includes a concrete suggestion, and that blocker/suggestion counts are accurate. Drop any finding you cannot substantiate from the files you read.
+6. Produce a structured report and write it to `.artifacts/skill-reviewer/{skill-name}/review.md`:
 
 ```
 ## Skill Review: {skill-name}
@@ -56,6 +57,10 @@ skill-reviewer/
   README.md             # User-facing documentation
   commands/
     review.md           # /review command — loads guidelines + skill
+  prompts/
+    analyze-skill.md    # Prompt template for Explore sub-agent (large skill reading)
   skills/
     review.md           # The review skill (detailed steps and output format)
+  scripts/
+    pre-review-checks.py  # Automated structural/reference/sequencing checks
 ```
