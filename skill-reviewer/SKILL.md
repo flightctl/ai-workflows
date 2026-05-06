@@ -13,7 +13,6 @@ description: >-
 1. If the user invoked `/review`, read `commands/review.md` and follow it.
 2. Otherwise, if no skill directory was specified, ask the user which directory to review (e.g. `bugfix/`, `docs-writer/`). Then read `skills/review.md` to execute the review.
 
-<<<<<<< skill-updates
 If a step fails or produces unexpected output, stop and report the error to the
 user. Do not advance to the next phase. Offer to retry the failed step or
 escalate.
@@ -72,4 +71,3 @@ skill-reviewer/
   scripts/
     pre-review-checks.py  # Automated structural/reference/sequencing checks
 ```
->>>>>>> main
