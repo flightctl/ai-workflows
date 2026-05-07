@@ -88,7 +88,7 @@ The installer (`install.sh`) auto-discovers workflows by scanning for `*/SKILL.m
 
 **Claude Code integration**: The installer:
 1. Appends workflow references to `CLAUDE.md` (or `.claude/CLAUDE.md` for project-level) beneath the `# ai-workflows` marker
-2. Symlinks workflows into `~/.claude/skills/` (or `.claude/skills/` for project-level) for slash command discovery
+2. Symlinks workflows into the user-level Claude skills directory (or `.claude/skills/` for project-level) for slash command discovery
 3. Removes stale references (old controller.md paths) to avoid duplicates
 
 **Uninstall** (`uninstall.sh`) mirrors the install logic with removal.

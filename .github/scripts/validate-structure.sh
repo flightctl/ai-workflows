@@ -111,17 +111,7 @@ for wf in "${workflows[@]}"; do
     fail "AGENTS.md: workflow list missing entry for '$wf'"
   fi
 
-  # 5b. Artifact management (lines like: - **workflow**: `.artifacts/...)
-  if ! grep -qF -- "- **${wf}**:" "$agents"; then
-    fail "AGENTS.md: artifact management missing entry for '$wf'"
-  fi
-
-  # 5c. Workflow-Specific Notes (### heading)
-  if ! grep -qF -- "### ${wf}" "$agents"; then
-    fail "AGENTS.md: workflow-specific notes missing '### $wf' section"
-  fi
-
-  # 5d. File organization tree (line containing the workflow dir name)
+  # 5b. File organization tree (line containing the workflow dir name)
   if ! sed -n '/^```text/,/^```/p' "$agents" | grep -qF -- "${wf}/"; then
     fail "AGENTS.md: file organization tree missing '$wf/'"
   fi
@@ -143,7 +133,20 @@ done
 echo
 
 # ---------------------------------------------------------------------------
-# 7. No absolute paths in skill files
+# 7. Per-workflow README.md artifact documentation
+# ---------------------------------------------------------------------------
+echo "--- Workflow README artifact docs ---"
+for wf in "${workflows[@]}"; do
+  readme_wf="$wf/README.md"
+  [ -f "$readme_wf" ] || continue
+  if ! grep -qF '.artifacts/' "$readme_wf"; then
+    fail "$readme_wf: missing artifact path documentation (.artifacts/ reference)"
+  fi
+done
+echo
+
+# ---------------------------------------------------------------------------
+# 8. No absolute paths in skill files
 # ---------------------------------------------------------------------------
 echo "--- Absolute path check ---"
 for wf in "${workflows[@]}"; do

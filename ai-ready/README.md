@@ -35,6 +35,10 @@ ai-ready/
     update.md           # The scan and update skill
 ```
 
+## Artifacts
+
+No `.artifacts/` output — this workflow writes directly to the target project's `AGENTS.md`.
+
 ## How It Works
 
 1. Checks for an existing `AGENTS.md` (reads it as the baseline if found) and scans for all AI convention files in the project
