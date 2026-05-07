@@ -10,7 +10,14 @@ description: >-
 
 ## Quick Start
 
-Run `/review` to execute the full workflow. The user must specify which skill directory to review (e.g. `bugfix/`, `docs-writer/`). Executable without opening other files:
+1. If the user invoked `/review`, read `commands/review.md` and follow it.
+2. Otherwise, if no skill directory was specified, ask the user which directory to review (e.g. `bugfix/`, `docs-writer/`). Then read `skills/review.md` to execute the review.
+
+If a step fails or produces unexpected output, stop and report the error to the
+user. Do not advance to the next phase. Offer to retry the failed step or
+escalate.
+
+For principles, hard limits, safety, quality, and escalation rules, see `guidelines.md`.
 
 1. Read every file in the target skill directory: `SKILL.md`, `skills/*.md`, `commands/*.md`, `guidelines.md`, `README.md`. If the directory doesn't exist or has no skill files, report the error and stop. Note any missing files — gaps are themselves a finding.
 2. Run automated pre-review checks: `python3 {skill-reviewer-dir}/scripts/pre-review-checks.py {target-dir}` — captures structural, frontmatter, reference, and sequencing issues deterministically. Treat `FAIL` results as pre-validated findings; apply judgment to `WARN` results. If the script is not present, skip and check manually.
@@ -27,7 +34,7 @@ Run `/review` to execute the full workflow. The user must specify which skill di
 5. Validate findings: verify each finding cites a specific file, includes a concrete suggestion, and that blocker/suggestion counts are accurate. Drop any finding you cannot substantiate from the files you read.
 6. Produce a structured report and write it to `.artifacts/skill-reviewer/{skill-name}/review.md`:
 
-```
+```text
 ## Skill Review: {skill-name}
 
 [2-3 sentence overall assessment]
