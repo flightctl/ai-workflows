@@ -29,8 +29,8 @@ These apply across all sections:
 ### Metadata Header
 
 - **Author(s):** The feature owner.
-- **Status:** One of Draft, In Review, Final.
 - **Jira:** Link to the Feature issue.
+- **PRD:** Relative link to the PRD (`prd.md`) — co-located in the same docs repo directory.
 - **Date:** Date of last significant update.
 
 ### 1. Overview
@@ -128,15 +128,9 @@ This is the core section. All subsections (4.1–4.8) are required. If a subsect
 
 ### 8. Open Questions
 
-- Number each question.
-- Track outcomes alongside original questions — do not delete resolved questions.
-- Format: question text, then "Outcome:" with resolution or "Open".
+- Each open question gets its own numbered subsection with **Owner** (person or team who should answer) and **Impact** (which section or decision the answer affects).
+- **Frame as clear, answerable questions.** Write "Should the backup archive include a file manifest, or is a SHA256 checksum sufficient?" not "To be determined — archive validation approach."
+- Open questions are things that could not be resolved during drafting and need broader stakeholder input via PR review.
+- **Transient by design.** When an open question is resolved during PR review (`/respond`), the answer is incorporated into the appropriate section of the design document (e.g., an architecture decision updates §4.1, a security constraint updates §4.5) and the entry is removed from this section. By the time the design PR is approved, this section should be empty and removed.
 - **Design scope only.** This section contains technical design questions and risks. Process-level actions (e.g., "update Jira ticket text," "schedule a meeting to discuss") belong in the PR description or review discussion, not in the design document.
-- Open questions with significant design impact should be resolved before the document moves to "Final" status.
-
-## Appendix: Review Notes
-
-- This appendix collects items that reviewers should pay attention to. It makes assumptions and unresolved items visible to all reviewers, not just the author.
-- **Assumptions:** List every assumption flagged during drafting with `[Assumption: ...]` markers. Include the section reference so reviewers can find the context. These are judgment calls the AI made where the source material (PRD, codebase) was ambiguous — reviewers should confirm or correct them.
-- **Items Needing Resolution:** List open questions from Section 8 that don't yet have outcomes, plus any areas where confidence is lower (e.g., scalability estimates, security analysis). Cross-reference the section so reviewers can navigate directly.
-- Populate this appendix during `/draft`. The items listed here should match those presented in the conversation output (the "Present to User" step of draft.md) — the conversation output is ephemeral, the appendix persists into review.
+- This section is **optional**. If no open questions remain after drafting, omit it entirely.

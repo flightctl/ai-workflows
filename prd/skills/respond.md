@@ -110,12 +110,19 @@ Wait for the user to approve, modify, or reject each response.
 
 ### Step 4: Apply Approved Changes
 
+**Check locked decisions:** Before applying any PRD change — whether a
+direct edit or an open question resolution — read the "Locked Decisions"
+section of `.artifacts/prd/{issue-number}/02-clarifications.md` (if it
+exists). If a requested change contradicts a locked decision, flag the
+conflict to the user rather than applying the change — locked decisions
+are binding and cannot be overridden without explicit user approval.
+
 #### Resolving open questions
 
 When reviewer comments relate to an open question from the Open Questions section,
 synthesize the discussion into a proposed resolution:
 
-1. Identify which open question (8.1, 8.2, ...) the discussion relates to.
+1. Identify which open question subsection the discussion relates to.
 2. Read the full thread — there may be multiple reviewers with differing
    views. Synthesize the discussion into a single proposed resolution.
    Do not assume a single comment is the final answer. If reviewers
@@ -136,16 +143,6 @@ synthesize the discussion into a proposed resolution:
 6. Remove the resolved entry from the Open Questions section.
 7. If the Open Questions section is now empty, remove the entire section (heading and
    introductory text) from the PRD.
-
-#### PRD changes (other than open question resolutions)
-
-For comments that require PRD changes:
-
-**Check locked decisions:** Before applying any PRD change, read the
-"Locked Decisions" section of `.artifacts/prd/{issue-number}/02-clarifications.md`
-(if it exists). If a requested change contradicts a locked decision, flag the
-conflict to the user rather than applying the change — locked decisions are
-binding and cannot be overridden without explicit user approval.
 
 **Update the local artifact:** Update `.artifacts/prd/{issue-number}/03-prd.md`
 in the source repo.

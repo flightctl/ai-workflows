@@ -40,7 +40,7 @@
 - Follow the section guidance (`templates/section-guidance.md`) for content standards.
 - Design-scoped goals are **implementation constraints**, not product outcomes. They complement — not duplicate — the PRD's goals.
 - Acceptance criteria must be **behavioral outcomes** (what the system does, testable from outside), not activities or implementation specifications. Implementation details belong in Implementation Guidance.
-- Open questions must track outcomes as decisions are made.
+- Open questions must have owners and impact statements.
 
 ## Escalation
 
