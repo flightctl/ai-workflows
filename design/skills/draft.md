@@ -126,8 +126,11 @@ item. Then apply the resolutions:
   remove the marker.
 - **Resolved TBDs:** Replace the "To be determined" text with the
   provided content.
-- **Items the user cannot resolve now:** Leave TBD markers or open
-  questions in place — these are genuine gaps, not drafting artifacts.
+- **Items the user cannot resolve now:** Convert each unresolved
+  `[Assumption: ...]` into either an Open Question entry (with Owner and
+  Impact) or a concrete "To be determined" statement, then remove the
+  assumption marker. Leave the resulting TBD/open-question items in
+  place — these are genuine gaps, not drafting artifacts.
 
 After this step, the document should contain no `[Assumption: ...]`
 markers. Any remaining TBD markers or open questions represent real

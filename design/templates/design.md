@@ -4,7 +4,7 @@
 |-------------|---------------------------------------|
 | Author(s)   | {user}                                |
 | Jira        | [{issue-key}]({issue-url})            |
-| PRD         | [prd.md](prd.md)                      |
+| PRD         | [prd.md]({prd-relative-link})         |
 | Date        | {today}                               |
 
 # 1. Overview
