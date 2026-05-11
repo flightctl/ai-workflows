@@ -10,7 +10,7 @@ This repository contains reusable AI coding workflows that can be installed glob
 - **ai-ready** — Codebase scanning and AGENTS.md generation (update)
 - **bugfix** — Systematic bug resolution (assess, reproduce, diagnose, fix, test, review, document, pr)
 - **code-review** — AI-driven code review with human-in-the-loop decisions (start, continue, clean)
-- **cve-fix** — Automated CVE remediation from Jira tickets (start, patch, validate, pr, backport, close)
+- **cve-fix** — Automated CVE remediation from Jira tickets (start, scan, patch, validate, pr, backport, close)
 - **design** — Design-and-decompose workflow (ingest, research, draft, decompose, revise, publish, respond, sync)
 - **docs-writer** — Documentation creation workflow (gather, plan, draft, validate, apply, mr)
 - **e2e** — Story-to-tests workflow for [QE] stories (ingest, plan, revise, code, validate, publish, respond)
