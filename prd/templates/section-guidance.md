@@ -102,7 +102,7 @@ This file is read during the `/draft` phase. It is not included in the final out
 
 ## 8. Open Questions
 
-- Each open question gets its own numbered subsection (8.1, 8.2, ...) with **Owner** (person or team who should answer) and **Impact** (which section or decision the answer affects).
+- Each open question gets its own numbered subsection with **Owner** (person or team who should answer) and **Impact** (which section or decision the answer affects).
 - **Frame as clear, answerable questions.** Write "Should tenants be able to configure scan sources, or is this fixed at install time?" not "To be determined — how much tenants configure versus fixed at install." The reader should know exactly what they're being asked.
 - Open questions are things that could not be resolved during the clarify phase and need broader stakeholder input via PR review.
 - Questions resolved during clarification should **not** appear here — they are already incorporated into the PRD body via locked decisions.

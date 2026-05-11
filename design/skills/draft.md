@@ -87,8 +87,8 @@ document states the current position as if it was always the intent.
 
 Fill in the metadata header:
 - **Author(s):** The feature owner (ask if not known).
-- **Status:** Draft
 - **Jira:** Link to the source Feature issue
+- **PRD:** `[prd.md](prd.md)` — relative link to the co-located PRD
 - **Date:** Today's date
 
 **Mermaid diagrams:** Use them where they add clarity — especially for
@@ -96,21 +96,45 @@ architecture (section 4.1) and data flow. Any Mermaid diagram type is
 allowed; choose the one that best communicates the concept. Always follow
 a diagram with a paragraph explaining what it illustrates.
 
-### Step 5: Populate the Review Notes Appendix
+### Step 5: Resolve Outstanding Items
 
-After writing all numbered sections, populate the Appendix: Review Notes:
+Before the design document can be saved, the author must validate every
+assumption and outstanding item. Collect the following from the document:
 
-1. **Assumptions:** Collect every `[Assumption: ...]` marker from the
-   document. List each with a section reference so reviewers can find the
-   context.
-2. **Items Needing Resolution:** List open questions from the Open Questions
-   section that don't yet have outcomes, plus any areas where confidence is
-   lower (e.g., scalability estimates, security analysis).
+1. Every `[Assumption: ...]` marker
+2. Every "To be determined" item
+3. Every open question in the Open Questions section that lacks an owner
+   or impact
 
-These items make assumptions and unresolved items visible to reviewers —
-not just the author. The same items should also appear in your conversation
-output (the "Present to User" step), but the appendix is what persists
-into the review.
+If there are no items across all three categories, skip to Step 6.
+
+Present the items to the user in conversation:
+
+1. **Assumptions:** List each with its section reference and the
+   assumption text.
+2. **TBD markers:** List any "To be determined" items with their section
+   references.
+3. **Incomplete open questions:** List any open questions missing an owner
+   or impact field.
+
+Ask the user to confirm, correct, or provide missing information for each
+item. Then apply the resolutions:
+
+- **Confirmed assumptions:** Rewrite the statement in its final form and
+  remove the `[Assumption: ...]` marker.
+- **Corrected assumptions:** Rewrite with the corrected information and
+  remove the marker.
+- **Resolved TBDs:** Replace the "To be determined" text with the
+  provided content.
+- **Items the user cannot resolve now:** Convert each unresolved
+  `[Assumption: ...]` into either an Open Question entry (with Owner and
+  Impact) or a concrete "To be determined" statement, then remove the
+  assumption marker. Leave the resulting TBD/open-question items in
+  place — these are genuine gaps, not drafting artifacts.
+
+After this step, the document should contain no `[Assumption: ...]`
+markers. Any remaining TBD markers or open questions represent real
+unknowns, not unvalidated AI judgment calls.
 
 ### Step 6: Verify Coverage
 
@@ -157,11 +181,10 @@ source material and design document:
    Open Questions — these are unresolved issues that may affect design
    decisions. Also check for any remaining TBD markers in the PRD, which
    represent genuine unknowns that may affect design choices. Import
-   relevant items into the design's Review Notes appendix or Open
-   Questions section.
+   relevant items into the design's Open Questions section.
 
-If this step discovers new gaps, assumptions, or open questions, update
-the Review Notes appendix (Step 5) to include them.
+If this step discovers new gaps, assumptions, or open questions, return
+to Step 5 to resolve them with the user.
 
 ### Step 7: Self-Review
 
@@ -174,13 +197,13 @@ Before presenting the design document, verify:
 - [ ] API changes include validation rules and concrete examples where helpful
 - [ ] Data model changes show field names, types, and constraints
 - [ ] Alternatives Considered includes at least one alternative for each non-trivial decision
-- [ ] Open Questions are numbered, clearly stated, and limited to design scope (no process-level actions)
+- [ ] Open Questions use numbered subsections, are clearly stated, include Owner and Impact fields, and are limited to design scope (no process-level actions)
 - [ ] No narration of editorial history — decisions are stated in final form, not as changes from a prior position
 - [ ] No vague language ("appropriate", "efficient", "standard" without specifics)
 - [ ] No scope reduction language ("v2", "simplified", "placeholder", "future enhancement")
 - [ ] Locked decisions from PRD clarification are respected
 - [ ] Terminology matches the PRD and codebase conventions
-- [ ] Assumptions are flagged inline and collected in the Review Notes appendix
+- [ ] No unresolved `[Assumption: ...]` markers remain in the document
 - [ ] The document is concise — no redundant paragraphs, no unnecessary repetition
 
 ### Step 8: Write Artifact
@@ -191,14 +214,10 @@ Save the design document to `.artifacts/design/{issue-number}/03-design.md`.
 
 Show the user the complete design document and highlight:
 - Key architectural decisions and their rationale
-- Any assumptions flagged
 - Open questions that need resolution
 - Areas where multiple approaches were viable and why you chose the one you did
-- Sections where confidence is lower (e.g., scalability estimates, security analysis)
-
-These items should mirror what's in the Review Notes appendix — the
-conversation output is for the author's immediate attention, the appendix
-is for all reviewers.
+- Sections where confidence is lower — suggest the user capture these as
+  open questions or TBD markers if they warrant reviewer attention
 
 ## Output
 

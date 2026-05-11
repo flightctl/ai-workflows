@@ -70,6 +70,7 @@ Group comments into categories:
 | **Scope question** | Draft a reply; may need `/revise` |
 | **New requirement** | Flag for user decision — update design or defer |
 | **Approval / positive** | Acknowledge |
+| **Open question resolution** | Resolve the open question (see Step 4) |
 | **Out of scope** | Draft a reply explaining why |
 
 ### Step 3: Propose Responses
@@ -85,20 +86,51 @@ Present each comment with a proposed response:
 **Category:** Design alternative
 **Proposed response:** {your suggested reply}
 **Design change needed:** Yes — update Section 4.1 architecture
+
+### Comment 2 — {reviewer} on Open Questions (question 8.2)
+> {quoted comment text}
+
+**Category:** Open question resolution
+**Proposed resolution:** {synthesized answer from reviewer discussion}
+**Design change needed:** Yes — incorporate into Section {N}, remove open question 8.2
 ```
 
 Wait for the user to approve, modify, or reject each response.
 
 ### Step 4: Apply Approved Changes
 
-#### Design document changes
-
-For comments that require design doc changes:
-
-**Check locked decisions:** Before applying any change, read the "Locked
+**Check locked decisions:** Before applying any design document change —
+whether a direct edit or an open question resolution — read the "Locked
 Decisions" section of `.artifacts/prd/{issue-number}/02-clarifications.md`
 (if it exists). If a requested change contradicts a locked decision, flag
 the conflict rather than applying the change.
+
+#### Resolving open questions
+
+When reviewer comments relate to an open question from the Open Questions
+section, synthesize the discussion into a proposed resolution:
+
+1. Identify which open question subsection the discussion relates to.
+2. Read the full thread — there may be multiple reviewers with differing
+   views. Synthesize the discussion into a single proposed resolution.
+   Do not assume a single comment is the final answer. If reviewers
+   disagree and no consensus is apparent, present the competing positions
+   to the user and ask them to decide rather than fabricating a
+   compromise that nobody advocated.
+3. Determine the appropriate target section based on the **Impact** field
+   of the open question — e.g., an architecture decision updates §4.1,
+   a data model constraint updates §4.2, a security requirement updates
+   §4.5.
+4. Present the proposed resolution to the user: show which open question
+   is being resolved, the synthesized answer, where it will be placed in
+   the design document, and the proposed text. The user may approve,
+   correct, or rewrite the synthesis.
+5. After user approval, incorporate the answer into the target section,
+   writing it in final form as if it was always the intent (do not
+   narrate the resolution).
+6. Remove the resolved entry from the Open Questions section.
+7. If the Open Questions section is now empty, remove the entire section
+   (heading and introductory text) from the design document.
 
 **Update the local artifact:** Update
 `.artifacts/design/{issue-number}/03-design.md`.

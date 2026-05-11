@@ -3,8 +3,8 @@
 | Field       | Value                                 |
 |-------------|---------------------------------------|
 | Author(s)   | {user}                                |
-| Status      | Draft                                 |
 | Jira        | [{issue-key}]({issue-url})            |
+| PRD         | [prd.md]({prd-relative-link})         |
 | Date        | {today}                               |
 
 # 1. Overview
@@ -109,20 +109,13 @@ Note any:
 - Version compatibility considerations
 
 # 8. Open Questions
+<!-- Optional: omit if no open questions remain after drafting -->
 
-{Numbered list. Track outcomes as decisions are made — preserve the original
-question alongside the resolution.}
+Questions for reviewers to resolve during PR review. Once answered, the
+resolution will be incorporated into the relevant section above and the
+entry removed.
 
-1. **{Question}**
+## 8.1 {Clear, answerable question directed at reviewers}
 
-   Outcome: {Resolution, or "Open"}
-
-# Appendix: Review Notes
-
-## Assumptions
-
-- [{Section reference}] {Assumption made and rationale}
-
-## Items Needing Resolution
-
-- [{Section reference}] {Item that needs reviewer attention}
+- **Owner:** {person or team who should answer}
+- **Impact:** {which section or decision this answer affects}
