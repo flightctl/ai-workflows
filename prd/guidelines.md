@@ -31,7 +31,7 @@
 - Follow the PRD template structure (`templates/prd.md`). Do not invent new sections without user approval. Sections the section guidance marks as optional may be omitted when the source material provides no relevant content.
 - Follow the section guidance (`templates/section-guidance.md`) for content standards in each section.
 - Goals must be measurable outcomes, not activities.
-- Acceptance criteria must be written as **testable assertions**, not activities.
+- Acceptance criteria must be **behavioral outcomes** (what the system does, testable from outside), not activities or implementation specifications.
 - Requirements must be testable.
 - Open questions must have owners and impact statements.
 

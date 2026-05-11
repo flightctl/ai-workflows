@@ -152,6 +152,12 @@ git -C "{docs_repo_path}" commit -m "Add design document for {issue-number}: {ti
 git -C "{docs_repo_path}" push -u origin design/{issue-number}
 ```
 
+Read the design document and identify specific areas that warrant reviewer
+attention:
+- Open questions from Section 8 (list each by title)
+- Sections with remaining TBD markers
+- Key architectural decisions that have significant trade-offs
+
 Prepare the PR description and save it to
 `.artifacts/design/{issue-number}/07-pr-description.md`:
 
@@ -165,14 +171,12 @@ Prepare the PR description and save it to
 {2-3 sentence summary of the design approach}
 
 ### Requesting Review On
-- Architecture and component design
-- Data model and API changes
-- Scalability, performance, and failure handling assessment
-- Open questions that need resolution
+{Populate from the design document. If there are open questions, TBD
+markers, or significant trade-offs, list each as a bullet. If none
+exist, write "General review — no specific items flagged."}
 
 ### How to Review
 - Comment inline on specific sections
-- Use the Open Questions section (Section 8) to flag new concerns
 - Approve when the design accurately reflects a viable implementation approach
 ```
 
