@@ -113,10 +113,12 @@ Some workflows include a `scripts/` directory for scripts that offload determini
 
 - Scripts are invoked by the workflow's skill files, not by users directly
 - Scripts must work when the workflow is installed via symlink (`scripts/` under the workflow root)
-- Exit codes: `exit 0` = informational (findings reported but workflow continues), `exit 1` = halt (workflow should stop and surface the failure). Scripts that only report findings (like pre-review checks) should always exit 0.
+- Exit codes follow two conventions depending on the script's purpose:
+  - **Report scripts** (e.g., pre-review checks): `exit 0` = informational (findings reported but workflow continues), `exit 1` = halt (workflow should stop and surface the failure). Scripts that only report findings should always exit 0.
+  - **Search/query scripts** (e.g., checking for existing PRs): May define their own exit code semantics in their docstrings (e.g., 0 = match found, 1 = no match, 2 = error). The docstring is the source of truth for these scripts.
 - Use Python 3 or bash — whichever fits the task
 
-Currently, only `skill-reviewer/scripts/` uses this pattern.
+Currently, `skill-reviewer/scripts/` and `cve-fix/scripts/` use this pattern.
 
 ## Prompts
 
