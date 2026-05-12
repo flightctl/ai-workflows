@@ -22,7 +22,7 @@ creating, and always get explicit user approval.
 - **Idempotent.** Track what was created in a manifest. If re-run, only create new items.
 - **Create only — never update or delete.** Once Jira issues are created, they evolve independently — developers add implementation notes, QA adds test details, PMs adjust criteria. Pushing file content back to Jira would clobber those additions. If the decomposition is revised after sync, `/revise` will tell the user exactly which Jira issues need manual updates.
 - **Link to source.** Every Jira issue description references the design document.
-- **Jira-native references.** Local identifiers (`Story 1.01`, `Epic 1`) have meaning only within the `.artifacts/` directory. When constructing Jira issue descriptions, resolve all local references (in Dependencies, Design Reference, and any other cross-references) to Jira issue keys using the sync manifest. Jira is the source of truth — readers of a Jira issue should never need to decode a local artifact numbering scheme.
+- **Jira-native references.** Local identifiers (`Story 1.01`, `Epic 1`) have meaning only within the `.artifacts/` directory. When constructing Jira issue descriptions, resolve all local references (in Dependencies, Documentation Inputs, Design Reference, and any other cross-references) to Jira issue keys using the sync manifest. Jira is the source of truth — readers of a Jira issue should never need to decode a local artifact numbering scheme.
 
 ## Reference Resolution
 
@@ -210,6 +210,8 @@ For each story under each epic, create a Jira issue:
 - **Summary:** `[{prefix}] {story title}`
 - **Description:**
 
+**For `[DEV]`, `[UI]`, `[UX]`, `[QE]`, and `[CI]` stories:**
+
 ```markdown
 ## User Story
 
@@ -242,15 +244,45 @@ PRD Requirements: {requirement IDs}
 Design section: {§reference}
 ```
 
-**`[DOCS]` stories:** For stories with a `[DOCS]` prefix, include a
-`## Documentation Inputs` section (between Testing Approach and
-Dependencies) containing the documentation inputs from the story file.
-Resolve story references in the documentation inputs to Jira keys
-(`**Story 1.01 — {title}:**` → `**EDM-XXXX — {title}:**`).
+**For `[DOCS]` stories:**
+
+```markdown
+## User Story
+
+**As a** {role},
+**I want to** {capability},
+**So that** {benefit}.
+
+## Acceptance Criteria
+
+{acceptance criteria from story file}
+
+## Documentation Scope
+
+{documentation scope from story file}
+
+## Documentation Inputs
+
+{documentation inputs from story file, with story references resolved to
+ Jira keys: "**Story 1.01 — {title}:**" → "**EDM-XXXX — {title}:**"}
+
+## Dependencies
+
+{dependencies from story file, with local references resolved to Jira keys
+ per the Reference Resolution section}
+
+## Design Reference
+
+Design document: {link to design doc PR or file}
+Epic: {epic jira key}
+PRD Requirements: {requirement IDs}
+Design section: {§reference}
+```
 
 **Reference resolution:** Before submitting the description, resolve all
 local identifiers to Jira keys (see Reference Resolution). This applies to
-Dependencies (`Story 1.01` → `EDM-XXXX`) and Design Reference
+Dependencies (`Story 1.01` → `EDM-XXXX`), Documentation Inputs
+(`Story 1.01` → `EDM-XXXX`), and Design Reference
 (`Epic 1` → `EDM-YYYY`).
 
 After creating each story, verify the created issue has `parent.key`

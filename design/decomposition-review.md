@@ -51,7 +51,10 @@ expected and should not be flagged as a clarity problem.
   design document" are intentional and expected. Flag instead: acceptance
   criteria that require the design document to understand, or
   Implementation Guidance that lacks enough direction for an implementor
-  to start work.
+  to start work. Note: `[DOCS]` stories use `Documentation Scope`
+  instead of `Implementation Guidance` — evaluate those sections on
+  whether they describe what the reader needs to understand, not on
+  implementation direction.
 
 ## Evaluation Criteria
 
@@ -79,7 +82,8 @@ impact:
    `[QE]`, `[UI]`, `[CI]`, `[DOCS]`)? Is the story implementation order
    within each epic documented? Are stories right-sized — not so small
    they add process overhead, not so large they resist meaningful review?
-   Does the Implementation Guidance give enough direction to start work?
+   For non-`[DOCS]` stories, does the Implementation Guidance give
+   enough direction to start work?
    If a story has more than approximately 8 acceptance criteria, should
    it be split?
 
@@ -98,11 +102,15 @@ impact:
    complete? Does each story leave the system in a stable state (all
    tests passing after merge)?
 
-6. **Documentation** — Do `[DOCS]` stories include a Documentation
-   Inputs section? Does that section inventory all user-facing artifacts
-   from the implementation stories it references? Is the inventory
-   detailed enough for a documentation author to know what to cover
-   without reverse-engineering from code diffs?
+6. **Documentation** — Do `[DOCS]` stories use the `[DOCS]` template
+   (Documentation Scope and Documentation Inputs instead of
+   Implementation Guidance and Testing Approach)? Does the Documentation
+   Scope describe what the reader needs to understand without prescribing
+   how to write or organize the documentation? Does the Documentation
+   Inputs section inventory all user-facing artifacts from the
+   implementation stories it references? Is the inventory detailed enough
+   for a documentation author to know what to look for in the
+   implementation?
 
 ## Finding Format
 
@@ -111,7 +119,7 @@ Each finding must include:
 - **File:** artifact file path (e.g.,
   `05-stories/epic-1/story-02-add-validation.md`)
 - **Section:** section within the artifact (e.g., "Acceptance Criteria",
-  "Dependencies", "Testing Approach")
+  "Dependencies", "Testing Approach", "Documentation Scope")
 - **Severity:** CRITICAL | HIGH | MEDIUM | LOW
 - **Category:** one of the evaluation criteria above
 - **Issue:** what the problem is
@@ -128,7 +136,7 @@ row or gap.
 |----------|---------|--------|
 | CRITICAL | Would cause incorrect implementation — missing requirements, contradictory acceptance criteria, broken dependency chain, scope reduction | Must fix before presenting |
 | HIGH | Would cause rework — story too large to review in a single PR, missing testing commitment, integration gap between stories, `[QE]` story duplicating `[DEV]` test scope | Should fix before presenting |
-| MEDIUM | Would reduce clarity — vague acceptance criteria, imprecise implementation guidance, sizing concerns, minor coverage matrix inconsistencies | Fix if it adds value |
+| MEDIUM | Would reduce clarity — vague acceptance criteria, imprecise implementation guidance or documentation scope, sizing concerns, minor coverage matrix inconsistencies | Fix if it adds value |
 | LOW | Structural improvements — naming consistency, ordering suggestions, documentation clarity | Fix only if clearly valuable |
 
 ## Validation Rules

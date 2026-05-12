@@ -165,6 +165,8 @@ mkdir -p .artifacts/design/{issue-number}/05-stories/epic-{N}
 Write each story to
 `.artifacts/design/{issue-number}/05-stories/epic-{N}/story-{NN}-{slug}.md`:
 
+**For `[DEV]`, `[UI]`, `[UX]`, `[QE]`, and `[CI]` stories:**
+
 ```markdown
 # Story {N}.{NN}: [{prefix}] {title}
 
@@ -207,6 +209,51 @@ PRD Requirements: {FR-1, NFR-1}
 Design section: {§4.3 API Changes, or specific subsection}
 ```
 
+**For `[DOCS]` stories** (see `[DOCS]` story requirements below for the
+Documentation Inputs section):
+
+```markdown
+# Story {N}.{NN}: [DOCS] {title}
+
+**As a** {role},
+**I want to** {capability},
+**So that** {benefit}.
+
+## Acceptance Criteria
+
+- [ ] {documentation outcome — what the reader can learn or do, verifiable by reading the documentation}
+- [ ] {documentation outcome}
+
+## Documentation Scope
+
+{Which documentation surfaces this story affects and why. Focus on what
+ the reader needs to understand — not how to write it or where to put it.
+ Those decisions belong to the documentation workflow or author who picks
+ up the ticket.
+
+ Example: "This feature introduces a new CLI command for managing device
+ rollbacks. Users need to understand when to use rollback vs. revert,
+ the required preconditions, and how to verify success."}
+
+## Documentation Inputs
+
+{Inventories every user-facing artifact introduced or changed by the
+ feature, grouped by the implementation story that delivers it.
+ See the Documentation Inputs requirements below for format details.}
+
+## Dependencies
+
+{Comma-separated list using the canonical format: "Story 1.01, Story 1.02"
+ — always "Story" + space + epic.story number. Or "None" if no dependencies.
+ This format is required for reliable reference resolution during /sync.}
+
+## Design Reference
+
+Epic: Epic {N} — {epic title}
+PRD Requirements: {FR-1, NFR-1}
+Design section: {§4.3 API Changes, or specific subsection}
+```
+
 **Naming conventions:**
 - Story number is zero-padded: `story-01`, `story-02`
 - Slug is kebab-case derived from the story title:
@@ -220,20 +267,29 @@ the work:
 - `[UX]` — user experience design work
 - `[QE]` — standalone e2e test automation, manual test execution, or negative test coverage owned by the QE team
 - `[CI]` — CI/CD infrastructure and pipeline work
-- `[DOCS]` — documentation; requires a **Documentation Inputs** section (see below)
+- `[DOCS]` — documentation; uses a dedicated template (see above) with **Documentation Scope** and **Documentation Inputs** sections
 
 If unsure of the correct prefix, use `[DEV]` as the default and note it for
 user review.
 
-**`[DOCS]` story requirements:** `[DOCS]` stories must include a
-**Documentation Inputs** section (added between Testing Approach and
-Dependencies) that inventories every user-facing artifact introduced or
-changed by the feature, grouped by the implementation story that delivers it.
+**`[DOCS]` story requirements:** `[DOCS]` stories use a different template
+than other story types (see above). They replace `Implementation Guidance`
+and `Testing Approach` with `Documentation Scope` and `Documentation Inputs`.
 
-At design time you have the complete picture of what's new and what changed.
-Capture it so the documentation author (human or AI) gets a concrete
-checklist of what to cover — rather than reverse-engineering the user-visible
-surface from code diffs after implementation.
+The **Documentation Scope** section describes what the reader needs to
+understand about the feature — not how to write the docs or where to put
+them. Those decisions belong to the documentation author or workflow that
+picks up the ticket. See the template example above for illustration.
+
+The **Documentation Inputs** section inventories every user-facing artifact
+introduced or changed by the feature, grouped by the implementation story
+that delivers it. At design time you have the complete picture of what's
+new and what changed. Capture it so the documentation author (human or AI)
+gets a concrete starting point — rather than reverse-engineering the
+user-visible surface from code diffs after implementation. Note that
+implementation may diverge from the design, so these inputs are guidance,
+not authority. The documentation author should verify against the actual
+implementation.
 
 Group items under bold story headers (e.g., **Story 1.01 — {title}:**)
 followed by bullet points listing each user-facing artifact: new or changed
@@ -256,19 +312,24 @@ the last epic.
   combining it with an adjacent story.
 - Are the acceptance criteria behavioral outcomes (what the system does),
   not implementation specifications (method names, internal structure)?
-  Implementation details belong in Implementation Guidance.
-- Does the Implementation Guidance give enough direction for an AI agent
-  or developer to build the right thing without cross-referencing the
-  design document for every decision?
-- Does the Implementation Guidance reference code by identifier (function
-  names, type names, struct names), not by line number? Line numbers
-  shift as the codebase evolves between design time and implementation
-  time. Identifiers are robust.
+  For non-`[DOCS]` stories, implementation details belong in
+  Implementation Guidance. For `[DOCS]` stories, implementation details
+  belong in Documentation Scope.
+- For non-`[DOCS]` stories: does the Implementation Guidance give enough
+  direction for an AI agent or developer to build the right thing without
+  cross-referencing the design document for every decision?
+- For non-`[DOCS]` stories: does the Implementation Guidance reference
+  code by identifier (function names, type names, struct names), not by
+  line number? Line numbers shift as the codebase evolves between design
+  time and implementation time. Identifiers are robust.
 - If a story has more than ~8 acceptance criteria, examine whether it can
   be split along a natural boundary.
+- For `[DOCS]` stories: does the Documentation Scope describe what the
+  reader needs to understand without prescribing how to write or organize
+  the documentation?
 - For `[DOCS]` stories: does the Documentation Inputs section list every
   user-facing artifact from the implementation stories, with enough detail
-  for a documentation author to know what to cover?
+  for a documentation author to know what to look for in the implementation?
 
 **Filename stability:** Story filenames (e.g., `story-01-scaffold-build-pipeline.md`)
 serve as idempotency keys in the sync manifest. Once stories have been synced
