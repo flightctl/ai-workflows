@@ -148,7 +148,7 @@ For each epic, create a Jira issue:
 
 - **Type:** Epic
 - **Project:** {project key}
-- **Parent:** {feature-key}
+- **Parent:** {feature-key} — **mandatory; set via the `fields` parameter: `{"parent": {"key": "{feature-key}"}}`**
 - **Summary:** {epic title}
 - **Description:**
 
@@ -173,8 +173,14 @@ Feature: {feature-key}
 
 - **T-Shirt Size:** {size} (set via the appropriate Jira field)
 
-After creating each epic, record the Jira key in the sync manifest
-immediately (before creating the next epic).
+After creating each epic, verify the created issue has `parent.key`
+equal to `{feature-key}` by reading the issue back. If the parent is
+missing, stop and report the error — **do not silently defer parent
+linking to a "Next Steps" section.** The Feature→Epic hierarchy is a
+required outcome of this step, not an optional follow-up.
+
+Record the Jira key in the sync manifest immediately (before creating
+the next epic).
 
 **If creation fails:** Stop immediately. Report which epics were created
 successfully (they are already recorded in the manifest) and which one
@@ -200,7 +206,7 @@ For each story under each epic, create a Jira issue:
 
 - **Type:** Story
 - **Project:** {project key}
-- **Parent:** {epic jira key} (from Step 4)
+- **Parent:** {epic jira key} (from Step 4) — **set via the `fields` parameter: `{"parent": {"key": "{epic jira key}"}}`**
 - **Summary:** `[{prefix}] {story title}`
 - **Description:**
 
@@ -247,8 +253,13 @@ local identifiers to Jira keys (see Reference Resolution). This applies to
 Dependencies (`Story 1.01` → `EDM-XXXX`) and Design Reference
 (`Epic 1` → `EDM-YYYY`).
 
-After creating each story, record the Jira key in the sync manifest
-immediately (before creating the next story).
+After creating each story, verify the created issue has `parent.key`
+equal to the epic's Jira key by reading the issue back. If the parent
+is missing, stop and report the error — **do not silently defer parent
+linking.** The Epic→Story hierarchy is a required outcome of this step.
+
+Record the Jira key in the sync manifest immediately (before creating
+the next story).
 
 **Issue links:** After creating the story, create Jira issue links for each
 dependency listed in the story. Resolve dependency references to Jira keys
@@ -311,7 +322,12 @@ should be:
 Summarize:
 - How many epics and stories were created
 - Any issues that were skipped (already existed from previous sync)
+- Confirm the hierarchy was verified: every epic has parent = Feature (verified in Step 4), every story has parent = its epic (verified in Step 5)
 - Link to the Feature issue in Jira (which now shows the full hierarchy)
+
+**Do not suggest manual parent linking as a next step.** If any parent
+link was not set during creation, that is a failure that should have been
+caught in Steps 4-5.
 
 Present a translation table mapping all local artifact identifiers to Jira
 keys. This table is the definitive reference for anyone working with the
