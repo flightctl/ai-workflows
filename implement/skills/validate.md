@@ -201,7 +201,9 @@ parameters:
 If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
 present the findings to the user before proceeding.
 
-If the gate made code fixes, commit them before continuing:
+If the gate made code fixes, re-run the affected pre-PR checks from
+Step 3 (and Step 4 coverage analysis if the fixes touch covered
+packages) to verify the post-fix state. Once checks pass, commit:
 
 ```bash
 git add {fixed files}
