@@ -236,44 +236,22 @@ operate on the staged diff:
 git add {specific files}
 ```
 
-Then run a code review on the staged changes. The review method is
-discovered, not hardcoded — use the first tier that applies:
+Run the self-review gate on the staged changes.
 
-**Tier 1: Project-defined review tooling.** Check the project's
-`AGENTS.md` or `CLAUDE.md` for automated code review tooling — CLI
-commands or scripts that run a review. If review tooling is found, run it.
+Read and follow `../../_shared/recipes/self-review-gate.md` with these
+parameters:
 
-**Tier 2: Independent review agent.** If no project-specific review
-tooling exists, spawn a code review subagent with a fresh context
-window. Give it:
+| Parameter | Value |
+|-----------|-------|
+| DIFF_COMMAND | `git diff --cached` |
+| MAX_ROUNDS | `1` |
+| CONTEXT_FILES | `.artifacts/e2e/{jira-key}/01-context.md`, `.artifacts/e2e/{jira-key}/02-plan.md` (if they exist) |
+| SUPPLEMENTARY_CRITERIA | Check for e2e-specific issues: (1) Anti-patterns: hardcoded sleeps, shared mutable state, missing cleanup. (2) Test infrastructure bypass: direct API calls instead of project abstractions. (3) Missing async polling: synchronous assertions on async operations. (4) Hardcoded values: inline strings/numbers instead of project-defined constants. (5) Pattern drift: deviations from the reference suite's conventions. (6) Missing labels: tests without CI-filtering labels. |
 
-- The project's `AGENTS.md` / `CLAUDE.md` and test documentation
-- The staged diff for this task (`git diff --cached`)
-- The reference suite files for pattern comparison
-- The test scenarios being implemented (from the plan task)
+If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
+present the findings to the user before committing.
 
-Do **not** give it the implementing agent's reasoning or conversation
-history — the value comes from independent eyes.
-
-The subagent should review as a senior QE engineer familiar with the
-project's testing conventions, focusing on: correct test infrastructure
-usage, assertion completeness, anti-patterns (hardcoded sleeps, brittle
-selectors, missing cleanup), label conventions, and test isolation.
-
-**Tier 3: Structured self-review.** If the runtime does not support
-spawning subagents, fall back to a structured self-review. Re-read the
-staged diff and check for:
-
-- Anti-patterns: hardcoded sleeps, shared mutable state, missing cleanup
-- Test infrastructure bypass: direct API calls instead of project-provided abstractions
-- Missing async polling: synchronous assertions on async operations
-- Hardcoded values: inline strings/numbers instead of constants
-- Pattern drift: deviations from the reference suite's conventions
-- Missing labels: tests without CI-filtering labels
-
-**Triage findings.** Evaluate each finding on its technical merit.
-Fix findings that add value. Dismiss findings that don't with a brief
-rationale. If any fixes were applied, re-stage the affected files before
+If the gate made code fixes, re-stage the affected files before
 proceeding to commit. Note any dismissed findings in the implementation
 report (Discoveries section).
 
