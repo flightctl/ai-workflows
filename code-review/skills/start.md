@@ -247,8 +247,7 @@ change interact correctly with surrounding code? The diff shows what
 changed; the surrounding code reveals whether the change fits.
 
 The reviewer should evaluate all categories defined in
-`../../_shared/review-protocol.md` (Correctness, Error handling, Security,
-Performance, Naming and clarity, Test coverage, Project conventions).
+`../../_shared/review-protocol.md`.
 
 If the user provided focus guidance, prioritize those areas but still
 report CRITICAL and HIGH findings in other categories.
