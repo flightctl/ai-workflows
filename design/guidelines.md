@@ -39,7 +39,7 @@
 - Follow the design document template (`templates/design.md`). Do not invent new sections or omit existing ones without user approval. Sections with no impact should say so explicitly (e.g., "No schema changes required") rather than being omitted.
 - Follow the section guidance (`templates/section-guidance.md`) for content standards.
 - Design-scoped goals are **implementation constraints**, not product outcomes. They complement — not duplicate — the PRD's goals.
-- Acceptance criteria must be **behavioral outcomes** (what the system does, testable from outside), not activities or implementation specifications. Implementation details belong in Implementation Guidance.
+- Acceptance criteria must be **behavioral outcomes** (what the system does, testable from outside), not activities or implementation specifications. For non-`[DOCS]` stories, implementation details belong in Implementation Guidance. For `[DOCS]` stories, implementation details belong in Documentation Scope.
 - Open questions must have owners and impact statements.
 
 ## Escalation
