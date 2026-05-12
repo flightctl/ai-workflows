@@ -236,51 +236,24 @@ operate on the staged diff:
 git add {specific files}
 ```
 
-Then run a code review on the staged changes. The review method is
-discovered, not hardcoded — use the first tier that applies:
+Run the self-review gate on the staged changes.
 
-**Tier 1: Project-defined review tooling.** Check the project's
-`AGENTS.md` or `CLAUDE.md` for automated code review tooling — CLI
-commands or scripts that run a review (e.g., a review CLI, a linter
-with review rules). General review checklists intended for human
-reviewers do not qualify — feed those into Tier 2 or 3 as supplementary
-context instead. If review tooling is found, run it. This is the
-extensibility point — when the project adds review tooling, it gets
-picked up automatically.
+Read and follow `../../_shared/recipes/self-review-gate.md` with these
+parameters:
 
-**Tier 2: Independent review agent.** If no project-specific review
-tooling exists, spawn a code review subagent with a fresh context
-window. Give it:
+| Parameter | Value |
+|-----------|-------|
+| DIFF_COMMAND | `git diff --cached` |
+| MAX_ROUNDS | `1` |
+| CONTEXT_FILES | `.artifacts/implement/{jira-key}/01-context.md`, `.artifacts/implement/{jira-key}/02-plan.md` (if they exist) |
+| SUPPLEMENTARY_CRITERIA | None |
 
-- The project's `AGENTS.md` / `CLAUDE.md` (for coding conventions)
-- The staged diff for this task (`git diff --cached`)
-- The surrounding files for context (files in the same package)
-- The behavioral contracts being implemented (from the plan task)
+If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
+present the findings to the user before committing.
 
-Do **not** give it the implementing agent's reasoning or conversation
-history — the value comes from independent eyes, not rubber-stamping.
-
-The subagent should review as a senior engineer familiar with the
-project's conventions, focusing on: correctness, edge cases, error
-handling, naming, security (injection vectors, credential leaking),
-and adherence to project patterns.
-
-**Tier 3: Structured self-review.** If the runtime does not support
-spawning subagents, fall back to a structured self-review. Re-read the
-staged diff and check for:
-
-- Unused imports, dead code, debug artifacts
-- Missing error handling or nil/null checks
-- Hardcoded values that should be constants or configuration
-- Inconsistencies with surrounding code patterns
-- Security: input validation, credential exposure, injection vectors
-
-**Triage findings.** Evaluate each finding on its technical merit —
-the same pushback principle used in `/respond`. Fix findings that add
-value. Dismiss findings that don't with a brief rationale. If any
-fixes were applied, re-stage the affected files before proceeding to
-commit. Note any dismissed findings in the implementation report
-(Discoveries section) so there is a paper trail.
+If the gate made code fixes, re-stage the affected files before
+proceeding to commit. Note any dismissed findings in the implementation
+report (Discoveries section) so there is a paper trail.
 
 #### 3g: Commit
 

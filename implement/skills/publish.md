@@ -62,10 +62,11 @@ Verify readiness:
    gh auth status
    ```
 
-### Step 2: Self-Review Gate
+### Step 2: Cross-Cutting Review
 
-Before pushing, run a self-review of the branch changes to catch issues
-before they reach external reviewers.
+Each sub-task was already reviewed individually during `/code`. This
+review focuses on issues that only emerge when looking at the branch
+as a whole — problems that span tasks or arise from their interaction.
 
 Read the `## Branch` section of `02-plan.md` to get the base branch, then
 read and follow `../../_shared/recipes/self-review-gate.md` with these
@@ -76,6 +77,7 @@ parameters:
 | DIFF_COMMAND | `git diff {base}...HEAD` |
 | MAX_ROUNDS | `3` |
 | CONTEXT_FILES | `.artifacts/implement/{jira-key}/01-context.md`, `.artifacts/implement/{jira-key}/02-plan.md` (if they exist) |
+| SUPPLEMENTARY_CRITERIA | This is a cross-cutting review. Each sub-task was already reviewed individually. Focus on inter-task issues: (1) Inconsistencies across files or tasks (error handling style, naming conventions, logging patterns). (2) Duplicated logic that emerged across separate tasks. (3) Integration gaps between components implemented in different tasks. (4) API surface coherence (public interfaces make sense together). Skip issues already caught per-task: individual function correctness, per-file error handling completeness, single-task test coverage. |
 
 If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
 present the findings to the user. Do not proceed until the user decides
@@ -88,7 +90,7 @@ git add {fixed files}
 ```
 
 ```bash
-git commit -m "{jira-key}: address self-review findings"
+git commit -m "{JIRA-KEY}: address cross-cutting review findings"
 ```
 
 ### Step 3: Confirm Details

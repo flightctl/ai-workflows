@@ -19,6 +19,7 @@ over inline review but does not replace independent review.
 | DIFF_COMMAND | No | Must be a `git diff` invocation (the gate appends `--name-status` to it). Note: `git diff` only shows tracked file changes — if the workflow creates new untracked files, the calling workflow should stage them first or use a DIFF_COMMAND that captures them. | `git diff HEAD` |
 | MAX_ROUNDS | No | Maximum fix-and-re-review iterations | `3` |
 | CONTEXT_FILES | No | Workflow artifacts providing review context (e.g., design docs, requirements, implementation notes) | None |
+| SUPPLEMENTARY_CRITERIA | No | Additional evaluation criteria beyond the review protocol. Passed to the reviewer alongside the standard criteria. Use for domain-specific checks (e.g., e2e anti-patterns) or review focus directives (e.g., cross-cutting concerns to prioritize, issues to skip). | None |
 
 ## Procedure
 
@@ -86,13 +87,18 @@ independence. Load it with:
 - The diff output
 - The project's AGENTS.md/CLAUDE.md (if they exist)
 - Any CONTEXT_FILES provided by the calling workflow
+- Any SUPPLEMENTARY_CRITERIA provided by the calling workflow
 
 Retain the subagent's ID for use in Step 4 — resuming the same reviewer
 gives it memory of its previous findings and concerns, producing more
 coherent follow-up reviews.
 
-**If subagents are not available**, perform the review inline. Adopt the
-reviewer perspective: evaluate the code as if you did not write it.
+**If subagents are not available**, perform the review inline. Apply
+any SUPPLEMENTARY_CRITERIA alongside the standard evaluation criteria.
+Adopt the reviewer perspective: evaluate the code as if you did not
+write it. Do not let your knowledge of the implementation rationale
+excuse issues that a fresh reviewer would flag — review the diff on
+its own merits.
 
 ### Step 3: Validate and Assess Findings
 
