@@ -4,13 +4,15 @@ A quality gate that reviews code changes before they are pushed or submitted
 as a PR. Used by workflows that make code changes (bugfix, implement, cve-fix,
 e2e) to catch issues before external review.
 
-This gate is one peer in a defence-in-depth chain: self-review catches
-mechanical issues that automated checks are good at finding (convention
-violations, obvious bugs, missing error handling, inconsistencies with
-surrounding code), while downstream reviewers (coderabbit, human reviewers)
-provide genuinely independent perspectives on design, architecture, and
-subtle correctness issues. A same-model subagent improves review quality
-over inline review but does not replace independent review.
+This gate is one peer in a defence-in-depth chain. It evaluates all
+criteria in the review protocol using a same-model subagent for
+isolation. A subagent reviewing only the diff, without the
+implementation rationale loaded, can catch issues visible from the code
+that the implementor is too close to see. It will not catch everything
+a human reviewer would — subtle correctness issues and cross-system
+design concerns benefit from genuinely independent review by downstream
+reviewers (CodeRabbit, human reviewers). The goal is to catch what can
+be caught early, not to replace independent review.
 
 ## Parameters
 

@@ -176,32 +176,30 @@ If regressions are found:
 
 After automated checks pass, review the new test code for issues that
 automated tooling does not catch. Read the base branch from the `## Branch`
-section of `02-plan.md`, then diff against it:
+section of `02-plan.md`, then run the self-review gate.
+
+Read and follow `../../_shared/recipes/self-review-gate.md` with these
+parameters:
+
+| Parameter | Value |
+|-----------|-------|
+| DIFF_COMMAND | `git diff {base}..HEAD` |
+| MAX_ROUNDS | `3` |
+| CONTEXT_FILES | `.artifacts/e2e/{jira-key}/01-context.md`, `.artifacts/e2e/{jira-key}/02-plan.md` (if they exist) |
+| SUPPLEMENTARY_CRITERIA | This is the full-branch validation review for e2e test code. Anti-pattern detection is already complete (Step 4) — skip those checks. Focus on test design depth: (1) **Assertion specificity** — do tests verify the actual behavioral outcome the AC describes, or just assert "no error"? (2) **Brittleness** — will tests break only when real behavior changes, or will they break when unrelated implementation details change? (3) **Test isolation** — could any test leak state (credentials, resources, configuration) that affects other suites or environments? (4) **Reference suite consistency** — does the test structure match the project's reference suite, or does it introduce divergent patterns that will confuse future contributors? |
+
+If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
+present the findings to the user before proceeding.
+
+If the gate made code fixes, commit them before continuing:
 
 ```bash
-git diff {base}..HEAD
+git add {fixed files}
 ```
 
-**Test quality:**
-- Do tests actually verify what the AC describes? (not asserting something tangentially related)
-- Are assertions specific enough? (not just "no error" — verify the actual outcome)
-- Are step annotations (if the project uses them) clear and meaningful?
-- Will these tests break only when real behavior changes, not when unrelated details change?
-
-**Maintainability:**
-- Are test names descriptive of what they verify?
-- Is the test structure consistent with the reference suite?
-- Are helper functions used appropriately (not duplicating existing utilities)?
-
-**Safety:**
-- No test code that could leak credentials or modify production state
-- No test code that creates resources without cleanup
-- No test code that could interfere with other test suites
-
-If this review surfaces issues:
-
-1. Fix issues in the new test code, commit each fix separately
-2. Note pre-existing issues in the validation report (do not fix them)
+```bash
+git commit -m "{JIRA-KEY}: address validation review findings"
+```
 
 ### Step 7: Acceptance Criteria Verification
 
@@ -286,8 +284,8 @@ Write `.artifacts/e2e/{jira-key}/05-validation-report.md`:
 
 ## Quality Review Findings
 
-{Findings from the test quality, maintainability, and safety review.
- Distinguish between:
+{Findings from the code quality review gate (protocol criteria plus
+ e2e-specific supplementary criteria). Distinguish between:
  - Issues fixed during validation (with commit hashes)
  - Pre-existing issues noted but not fixed
  If none: "No quality review findings."}

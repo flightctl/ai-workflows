@@ -184,52 +184,32 @@ If regressions are found:
 
 ### Step 6: Code Quality Review
 
-After automated checks pass, review the story's changes for issues that
-automated tooling does not catch. Read the base branch from the `## Branch`
-section of `02-plan.md`, then diff against it:
+After automated checks pass, review the story's full diff for issues
+that automated tooling does not catch. Read the base branch from the
+`## Branch` section of `02-plan.md`, then run the self-review gate.
+
+Read and follow `../../_shared/recipes/self-review-gate.md` with these
+parameters:
+
+| Parameter | Value |
+|-----------|-------|
+| DIFF_COMMAND | `git diff {base}..HEAD` |
+| MAX_ROUNDS | `3` |
+| CONTEXT_FILES | `.artifacts/implement/{jira-key}/01-context.md`, `.artifacts/implement/{jira-key}/02-plan.md` (if they exist) |
+| SUPPLEMENTARY_CRITERIA | This is the full-branch validation review — the last quality gate before PR creation. The reviewer has the complete diff, not a per-task slice. In addition to the standard protocol criteria, evaluate: (1) **Backward compatibility** — does the change modify public APIs, error formats, configuration, or wire protocols? If so, is it backward-compatible or is the break documented and justified? (2) **Completeness across call sites** — if the story introduces a guard, wrapper, or handling pattern in one location, search the codebase for similar patterns needing the same treatment. A pattern applied to 7 of 8 identical call sites is itself a bug. |
+
+If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
+present the findings to the user before proceeding.
+
+If the gate made code fixes, commit them before continuing:
 
 ```bash
-git diff {base}..HEAD
+git add {fixed files}
 ```
 
-Evaluate each area below. Only flag concrete findings — do not pad with
-generic observations.
-
-**Security**
-
-- No hardcoded secrets, tokens, API keys, or credentials in the diff
-- Input validation on all external or user-facing data
-- Error messages don't leak sensitive information (stack traces, internal
-  paths, credentials)
-- No injection vectors (SQL, command, path traversal) introduced
-
-**Performance**
-
-- No unnecessary allocations in hot paths
-- Loops bounded — no unbounded iteration over external data
-- Resource cleanup: connections, file handles, channels properly closed
-- Concurrent work exits cleanly — no leaked goroutines, threads, or async tasks
-
-**Backward Compatibility**
-
-- Does the change modify any public APIs, error formats, configuration
-  options, or wire protocols?
-- If so, is it backward-compatible, or is the breaking change documented
-  and justified?
-- Could this change be reverted without leaving the system in an
-  inconsistent state?
-
-**Completeness Across Call Sites**
-
-- If the story introduces a guard, wrapper, or handling pattern in one
-  location, search the codebase for similar patterns that need the same
-  treatment
-- A pattern applied to 7 of 8 identical call sites is itself a bug
-
-If this review surfaces issues:
-
-1. Fix issues caused by the story's changes, commit each fix separately
-2. Note pre-existing issues in the validation report (do not fix them)
+```bash
+git commit -m "{JIRA-KEY}: address validation review findings"
+```
 
 ### Step 7: Acceptance Criteria Verification
 
@@ -333,8 +313,8 @@ Write `.artifacts/implement/{jira-key}/05-validation-report.md`:
 
 ## Quality Review Findings
 
-{Findings from the security, performance, backward compatibility, and
- completeness review. Distinguish between:
+{Findings from the code quality review gate (protocol criteria plus
+ validate-specific supplementary criteria). Distinguish between:
  - Issues fixed during validation (with commit hashes)
  - Pre-existing issues noted but not fixed
  If none: "No quality review findings."}
