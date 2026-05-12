@@ -251,9 +251,10 @@ parameters:
 If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
 present the findings to the user before committing.
 
-If the gate made code fixes, re-stage the affected files before
-proceeding to commit. Note any dismissed findings in the implementation
-report (Discoveries section).
+If the gate made code fixes, re-stage the affected files, then re-run
+the task-scoped tests (Step 3c) and fast quality checks (Step 3d) to
+verify the fixes. Only proceed to commit once checks pass. Note any
+dismissed findings in the implementation report (Discoveries section).
 
 #### 3f: Commit
 
