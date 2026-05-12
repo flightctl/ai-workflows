@@ -4,6 +4,7 @@
 
 - The e2e tests must validate the **user-facing behaviors** described in the story's acceptance criteria. Each AC maps to one or more concrete test scenarios.
 - **E2e tests exercise the system from the outside.** They validate observable outcomes through the project's test infrastructure, not internal component contracts. Write tests that a QE engineer would write — scenario-driven, using the project's actual tools and infrastructure.
+- **Consolidate scenarios that share expensive setup and actions.** E2e setup (provisioning, navigation, waiting for state) and actions (API calls, UI interactions) dominate test execution time. When multiple scenarios share the same given+when, merge their validations into a single test. Repeating expensive setup+action just to check one more assertion is the single largest contributor to avoidable e2e suite bloat. **Cap consolidated scenarios at 8 validations** — beyond this, failure output becomes difficult to triage. If merging would exceed the cap, split by validation category into separate tests.
 - **Scope is e2e only.** Do not consider, plan, or write unit or integration tests. Every test this workflow produces must exercise the system end-to-end.
 - **Follow the project's existing e2e test patterns.** Read the most similar existing test suite before writing new tests. Match the test infrastructure usage, lifecycle hooks, naming conventions, labels, and assertion style.
 - Follow the **project's commit format** as discovered during `/ingest` and recorded in the validation profile. Commit one logical unit of work per commit — typically one commit per plan task. Don't batch everything into a single commit, but don't create a commit per file either.
@@ -43,6 +44,7 @@
   - Order-dependent tests (each test must be independently runnable)
   - Shared mutable state between tests (use per-test isolation)
   - Missing cleanup (follow the project's teardown patterns)
+  - Duplicated setup+action across scenarios (consolidate scenarios that share the same given+when — see Principles)
   - Test infrastructure bypass (use the project's test abstractions, not ad-hoc API calls or direct infrastructure access)
 - Run the project's e2e test suite (scoped to the new tests) before considering the work complete.
 - Self-review test code before presenting. Check for: unused imports, dead code, debug artifacts, hardcoded values that should be constants, inconsistencies with the reference suite's patterns.

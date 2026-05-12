@@ -138,7 +138,8 @@ In either case, save the result to
  behaviors they validate.}
 
 ### E2E Test Scenarios
-{Bulleted list of test scenarios, grouped by acceptance criterion.}
+{Bulleted list of test scenarios — consolidated and standalone — with
+ their AC coverage noted (e.g., "[AC-1, AC-3]").}
 
 ### Test Infrastructure
 - **Suite location:** {path to the new test suite directory}
