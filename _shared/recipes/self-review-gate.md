@@ -135,8 +135,9 @@ If Step 3 produced code changes:
    original findings and lets it verify they were addressed correctly.
 
    **If resumption is not available:** Spawn a new subagent loaded with the
-   review protocol, the updated diff, and a summary of the previous round's
-   findings and fixes so it has full context.
+   review protocol, the updated diff, the project's AGENTS.md/CLAUDE.md,
+   any CONTEXT_FILES, any SUPPLEMENTARY_CRITERIA, and a summary of the
+   previous round's findings and fixes so it has full context.
 
    **If subagents are not available:** Re-review inline, focusing on the
    current state of the diff (not just the delta from last round).

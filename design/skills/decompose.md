@@ -305,29 +305,128 @@ Write `.artifacts/design/{issue-number}/06-coverage.md`:
  If none: "All stories trace to PRD requirements."}
 ```
 
-### Step 7: Self-Review
+### Step 7: Verify Artifact Structure
 
-Before presenting, verify:
+Quick sanity check before invoking the decomposition review. Verify:
 
-- [ ] Every epic is organized around user value, not technical layers
-- [ ] Each epic is standalone — delivers complete functionality independently
-- [ ] Every `[DEV]` story includes functionality AND testing (at minimum, comprehensive unit tests)
-- [ ] `[QE]` stories define concrete e2e test scenarios — they are not duplicating unit/integration tests from `[DEV]` stories
-- [ ] Each epic with e2e-testable surface includes at least one `[QE]` story
-- [ ] Story acceptance criteria are behavioral outcomes, not implementation specifications — implementation details are in Implementation Guidance
-- [ ] Epic T-shirt sizes are assigned and reasonable
-- [ ] Story title prefixes are assigned
-- [ ] Coverage matrix shows all PRD requirements mapped
-- [ ] No coverage gaps (or gaps are flagged explicitly)
-- [ ] Story ACs collectively cover the PRD's acceptance criteria (§5), not just the FR/NFR descriptions
-- [ ] Implementing all stories in dependency order would produce a working feature end-to-end — no integration work falls between stories
-- [ ] No story falls back to "manual validation" or "document procedure for QE" where an automated test could be written — if the barrier is infrastructure availability (a dependency), the story includes the automated test; the dependency is on where it runs, not whether it exists
-- [ ] Epic dependency order is documented
-- [ ] Story implementation order within each epic is documented
-- [ ] `[DOCS]` stories include a Documentation Inputs section inventorying all user-facing artifacts from implementation stories
-- [ ] No scope reduction — every PRD requirement is represented
+1. `04-epics.md` exists and references all epic files
+2. Each epic file referenced in `04-epics.md` exists (e.g.,
+   `05-stories/epic-1-{slug}.md`)
+3. Each epic has a corresponding story directory with story files
+4. `06-coverage.md` exists and contains at least one mapping row
 
-### Step 8: Present to User
+If structural issues are found, fix them before proceeding. Do not
+invoke a review on incomplete artifacts.
+
+### Step 8: Review Decomposition
+
+Review the decomposition for structural quality and requirement
+coverage. This review operates independently from the design document —
+the reviewer evaluates what the artifacts actually say, not what the
+decomposer intended.
+
+Read `../decomposition-review.md` for evaluation criteria, finding
+format, and severity definitions.
+
+**If the AI runtime supports subagents**, spawn the review in a
+subagent for independence. Load it with:
+
+- The decomposition review protocol (`../decomposition-review.md`)
+- The PRD (`.artifacts/prd/{issue-number}/03-prd.md`)
+- All decomposition artifacts: `04-epics.md`, all
+  `05-stories/epic-{N}-{slug}.md` files, all
+  `05-stories/epic-{N}/story-{NN}-{slug}.md` files, `06-coverage.md`
+- NOT the design document (`03-design.md`) — the reviewer evaluates
+  the artifacts on their own merits
+
+Retain the subagent's ID for use in Step 10 — resuming the same
+reviewer gives it memory of its previous findings and concerns,
+producing more coherent follow-up reviews.
+
+**If subagents are not available**, perform the review inline. Read the
+decomposition review protocol and apply all evaluation criteria. Adopt
+the reviewer perspective: evaluate the artifacts as if you did not write
+them. Do not let your knowledge of the design document excuse issues
+that a reviewer seeing only the PRD and artifacts would flag.
+
+Both paths use the same evaluation criteria, finding format, and
+severity definitions from the protocol. The subagent path provides
+stronger independence; the inline path still catches issues by forcing
+a perspective shift.
+
+### Step 9: Validate and Assess Findings
+
+For each finding from Step 8:
+
+1. **Validate the reference.** Confirm the cited artifact file and
+   section exist. Discard any finding that references a file or section
+   that does not exist.
+
+2. **Cross-check PRD claims.** For findings that assert a missing
+   requirement or inadequate coverage, verify the claim against the
+   actual PRD. Discard findings based on misidentified requirements.
+
+3. **Assess on value.** Does this finding genuinely improve the
+   decomposition? Would the artifacts be meaningfully better (clearer
+   acceptance criteria, more complete coverage, better dependency
+   ordering, more appropriate sizing) if the change were made?
+
+   - If yes: fix the issue immediately. Re-read the affected artifact
+     file before modifying it. Verify the fix after applying it.
+   - If no: note why the finding was dismissed (structural preference,
+     no real improvement, would add churn without value).
+
+Only fix findings that add real value. Do not make changes for
+structural preferences not grounded in the evaluation criteria.
+
+### Step 10: Re-Review (if fixes were made)
+
+If Step 9 produced changes to the decomposition artifacts:
+
+1. Obtain a re-review of the updated artifacts:
+
+   **If a subagent was used in Step 8 and the runtime supports agent
+   resumption:** Resume the same reviewer agent. Send it the updated
+   artifacts and a summary of fixes applied. This gives the reviewer
+   memory of its original findings and lets it verify they were
+   addressed correctly.
+
+   **If resumption is not available:** Spawn a new subagent loaded with
+   the decomposition review protocol, the updated artifacts, the PRD
+   (but NOT the design document), and a summary of the previous round's
+   findings and fixes so it has full context.
+
+   **If subagents are not available:** Re-read all decomposition artifact
+   files before re-reviewing — do not rely on your cached understanding
+   from the previous round. Evaluate the full artifact set (not just the
+   delta from the last round).
+
+   The re-review should focus on:
+   - Whether fixes were applied correctly
+   - Whether fixes introduced new issues
+2. If new issues are found, fix them following the same validate-and-
+   assess procedure from Step 9
+3. Cap at 2 review-fix rounds total. Decomposition fixes are structural
+   and less likely than code fixes to need multiple iterations.
+
+If no fixes were needed in Step 9, the review passes immediately.
+
+### Step 11: Report Review Summary
+
+```markdown
+## Decomposition Review Summary
+
+- **Findings:** {total identified} ({N} after validation)
+- **Fixed:** {N} findings addressed
+- **Dismissed:** {N} findings ({brief rationale for each})
+- **Rounds:** {N} review-fix iterations
+- **Gate:** PASS | FLAG
+
+{If any CRITICAL or HIGH findings remain unfixed, set Gate to FLAG and
+list them with their file, section, and issue description.}
+```
+
+### Step 12: Present to User
 
 Present the decomposition and highlight:
 - Number of epics and stories
@@ -335,6 +434,12 @@ Present the decomposition and highlight:
 - Any coverage gaps
 - Stories that might need size adjustment (too large or too small)
 - Any assumptions or judgment calls in the decomposition
+- Decomposition review summary (from Step 11)
+
+If the decomposition review gate reported FLAG, present the unfixed
+CRITICAL/HIGH findings and ask the user to decide how to handle them.
+These may indicate genuine gaps requiring user judgment — the decomposer
+should not resolve them unilaterally.
 
 ## Output
 
