@@ -83,7 +83,8 @@ If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
 present the findings to the user. Do not proceed until the user decides
 how to handle them.
 
-If the gate made code fixes, commit them before proceeding:
+If the gate made code fixes, re-run the validation profile's required
+checks to verify the post-fix state. Once checks pass, commit:
 
 ```bash
 git add {fixed files}

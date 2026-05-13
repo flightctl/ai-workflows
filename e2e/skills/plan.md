@@ -164,7 +164,7 @@ Write `.artifacts/e2e/{jira-key}/02-plan.md` with this structure:
  For each consolidated scenario, note which raw scenarios were merged,
  why (shared setup+action), and the validation count. Also note any
  scenarios intentionally kept separate despite similar setup (e.g.,
- merging would exceed the 8-validation cap).}
+ merging would exceed the 15-validation cap).}
 
 | Consolidated Scenario | Merged From | Validation Count | Rationale |
 |-----------------------|-------------|------------------|-----------|
@@ -269,8 +269,9 @@ Before presenting the plan, verify:
 - [ ] No scenarios require environment capabilities not present in the project
 - [ ] Task count is reasonable — if you have more than 8 tasks, consider whether the story needs re-scoping
 - [ ] Scenarios sharing setup+action are consolidated, not duplicated as separate tests
-- [ ] No consolidated scenario exceeds 8 validations
+- [ ] No consolidated scenario exceeds 15 validations
 - [ ] Each validation in a consolidated scenario is tagged with its source AC
+- [ ] Scenario identifiers and titles are unique across the plan (no duplicate C#/S# or repeated names)
 - [ ] The plan is achievable — no scenarios depend on unmerged features or unavailable test infrastructure methods
 
 ### Step 6: Present to User

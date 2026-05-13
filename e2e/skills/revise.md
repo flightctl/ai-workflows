@@ -92,7 +92,8 @@ After applying changes, verify:
 - Are labels consistent with the project's conventions?
 - Does the AC coverage matrix reflect the current scenario mapping?
 - Are there new consolidation opportunities (added scenarios sharing setup+action with existing ones)?
-- Do consolidated scenarios still respect the 8-validation cap after changes?
+- Do consolidated scenarios still respect the 15-validation cap after changes?
+- Are scenario identifiers and titles unique across the plan (no duplicate C#/S# or repeated names)?
 - Does the Scenario Consolidation table still match the current scenario list?
 - Are commit messages still properly formatted?
 
