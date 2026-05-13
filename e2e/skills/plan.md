@@ -61,7 +61,7 @@ plan, consolidate:
 2. **Merge validations.** For each group, combine the validation blocks
    into a single consolidated scenario. Tag each validation with its
    source AC (e.g., `[AC-1]`, `[AC-3]`) to preserve traceability.
-3. **Apply the cap.** A consolidated scenario must not exceed **8
+3. **Apply the cap.** A consolidated scenario must not exceed **15
    validations** — beyond this, failure output becomes difficult to
    triage. If merging would exceed this, split by validation category
    (e.g., state correctness vs. side effects vs. error conditions).
@@ -136,8 +136,9 @@ Write `.artifacts/e2e/{jira-key}/02-plan.md` with this structure:
 - **Labels/tags:** {using the project's label convention}
 - **Setup (given):** {shared setup — what the test needs beyond suite-level per-test setup}
 - **Action (when):**
-  1. {first action using test infrastructure methods}
-  2. {subsequent action — multi-step sequences are common in e2e}
+  1. {action using test infrastructure methods — prefer a single
+     state-changing action; use multiple only when the desired state
+     cannot be reached in fewer steps}
 - **Validations (then):**
   1. [AC-1] {assertion — use the project's assertion/polling style}
   2. [AC-1] {assertion}
