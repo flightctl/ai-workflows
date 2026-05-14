@@ -49,7 +49,35 @@ Before writing the plan, create a mental map:
 - How should scenarios be organized into the project's test grouping blocks?
 - What labels/tags should each scenario have (for CI filtering)?
 
-### Step 3: Write the Test Plan
+### Step 3: Consolidate Scenarios
+
+E2e setup and actions are expensive — repeating them across scenarios that
+only differ in what they validate wastes execution time. Before writing the
+plan, consolidate:
+
+1. **Identify shared setup+action pairs.** Scan the scenarios from Step 2
+   for groups that have identical setup (given) and action (when) but
+   different validations (then).
+2. **Merge validations.** For each group, combine the validation blocks
+   into a single consolidated scenario. Tag each validation with its
+   source AC (e.g., `[AC-1]`, `[AC-3]`) to preserve traceability.
+3. **Apply the cap.** A consolidated scenario must not exceed **15
+   validations** — beyond this, failure output becomes difficult to
+   triage. If merging would exceed this, split by validation category
+   (e.g., state correctness vs. side effects vs. error conditions).
+   This means the setup+action runs more than once, which is a
+   deliberate tradeoff: the cost of repeating setup is acceptable when
+   the alternative is a single test too large to debug.
+4. **Keep independent scenarios separate.** If a scenario has unique setup
+   or action that no other scenario shares, leave it as-is. Consolidation
+   is not forced — it applies only when there's a genuine shared
+   given+when.
+5. **Record consolidation decisions.** Note which raw scenarios were merged,
+   why, and any that were intentionally kept separate. These decisions are
+   recorded in the Scenario Consolidation section of the plan (see the
+   Step 4 template).
+
+### Step 4: Write the Test Plan
 
 Write `.artifacts/e2e/{jira-key}/02-plan.md` with this structure:
 
@@ -96,27 +124,51 @@ Write `.artifacts/e2e/{jira-key}/02-plan.md` with this structure:
  the project's terminology (e.g., Describe/Context/It for Ginkgo,
  test classes/methods for pytest, describe/it for Playwright).}
 
-### AC-1: {description}
+{Scenarios come in two forms: consolidated (shared setup+action, multiple
+ validations) and standalone (unique setup or action). Use consolidated
+ form whenever multiple scenarios share the same given+when — this avoids
+ repeating expensive e2e setup.}
 
-#### Scenario 1.1: {description — what the test verifies}
+### Consolidated Scenario C1: {description — shared context}
 
+- **Covers:** AC-1, AC-3
 - **Block structure:** {test grouping/nesting using the project's vocabulary}
 - **Labels/tags:** {using the project's label convention}
-- **Setup:** {what the test needs beyond suite-level per-test setup}
-- **Steps:**
-  1. {action using test infrastructure method}
-  2. {action}
-  3. {verification using the project's assertion/polling style}
-- **Assertions:** {what to verify — use the project's assertion style}
+- **Setup (given):** {shared setup — what the test needs beyond suite-level per-test setup}
+- **Action (when):**
+  1. {action using test infrastructure methods — prefer a single
+     state-changing action; use multiple only when the desired state
+     cannot be reached in fewer steps}
+- **Validations (then):**
+  1. [AC-1] {assertion — use the project's assertion/polling style}
+  2. [AC-1] {assertion}
+  3. [AC-3] {assertion}
 - **Cleanup:** {what teardown hooks handle vs. test-specific cleanup}
 
-#### Scenario 1.2: {error or edge case}
-...
+### Standalone Scenario S1: {description — what the test verifies}
 
-### AC-2: {description}
+- **Covers:** AC-2
+- **Block structure:** {test grouping/nesting using the project's vocabulary}
+- **Labels/tags:** {using the project's label convention}
+- **Setup (given):** {what the test needs beyond suite-level per-test setup}
+- **Action (when):** {action using test infrastructure methods}
+- **Validations (then):**
+  1. [AC-2] {assertion — use the project's assertion/polling style}
+  2. [AC-2] {second assertion for the same AC}
+- **Cleanup:** {what teardown hooks handle vs. test-specific cleanup}
 
-#### Scenario 2.1: {description}
-...
+## Scenario Consolidation
+
+{Explain consolidation decisions. Only consolidated scenarios appear in
+ this table — standalone scenarios do not need consolidation rationale.
+ For each consolidated scenario, note which raw scenarios were merged,
+ why (shared setup+action), and the validation count. Also note any
+ scenarios intentionally kept separate despite similar setup (e.g.,
+ merging would exceed the 15-validation cap).}
+
+| Consolidated Scenario | Merged From | Validation Count | Rationale |
+|-----------------------|-------------|------------------|-----------|
+| C1 | AC-1 happy path, AC-3 status verification | {N} | {shared setup+action description} |
 
 ## Test Infrastructure Usage
 
@@ -162,25 +214,32 @@ Write `.artifacts/e2e/{jira-key}/02-plan.md` with this structure:
 - **Commit message:** `{use commit format from 01-context.md}`
 - **Status:** Pending
 
-### Task 2: Implement AC-1 scenarios
+### Task 2: Implement consolidated scenario C1
 
 - **Files:** `{test file path}`
-- **What:** Scenarios 1.1, 1.2 — {brief description of what they test}
-- **Why:** AC-1
+- **What:** Consolidated scenario C1 — {brief description of shared context and validations}
+- **Why:** AC-1, AC-3
 - **Commit message:** `{format}`
 - **Status:** Pending
 
-### Task 3: Implement AC-2 scenarios
-...
+### Task 3: Implement standalone scenario S1
+
+- **Files:** `{test file path}`
+- **What:** Standalone scenario S1 — {brief description}
+- **Why:** AC-2
+- **Commit message:** `{format}`
+- **Status:** Pending
 
 ## Acceptance Criteria Coverage
 
 | AC | Description | Scenarios | Task |
 |----|-------------|-----------|------|
-| AC-1 | {brief} | 1.1, 1.2 | Task 2 |
-| AC-2 | {brief} | 2.1 | Task 3 |
+| AC-1 | {brief} | C1 | Task 2 |
+| AC-2 | {brief} | S1 | Task 3 |
+| AC-3 | {brief} | C1 | Task 2 |
 
-{Every AC must appear in at least one scenario. Flag any gaps.}
+{Every AC must appear in at least one scenario. Consolidated scenarios
+ will appear in multiple AC rows — this is expected. Flag any gaps.}
 
 ## Risk Assessment
 
@@ -194,7 +253,7 @@ Write `.artifacts/e2e/{jira-key}/02-plan.md` with this structure:
  These may be carried forward from the ingest phase's open questions.}
 ```
 
-### Step 4: Self-Review
+### Step 5: Self-Review
 
 Before presenting the plan, verify:
 
@@ -209,9 +268,13 @@ Before presenting the plan, verify:
 - [ ] Commit messages follow the project's format (from validation profile)
 - [ ] No scenarios require environment capabilities not present in the project
 - [ ] Task count is reasonable — if you have more than 8 tasks, consider whether the story needs re-scoping
+- [ ] Scenarios sharing setup+action are consolidated, not duplicated as separate tests
+- [ ] No consolidated scenario exceeds 15 validations
+- [ ] Each validation in a consolidated scenario is tagged with its source AC
+- [ ] Scenario identifiers and titles are unique across the plan (no duplicate C#/S# or repeated names)
 - [ ] The plan is achievable — no scenarios depend on unmerged features or unavailable test infrastructure methods
 
-### Step 5: Present to User
+### Step 6: Present to User
 
 Show the user the complete plan and highlight:
 - Test approach and reference suite selection

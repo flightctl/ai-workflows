@@ -127,12 +127,13 @@ The decomposition follows the team's Jira hierarchy:
 
 - **Feature** (exists in Jira — input to this workflow)
   - **Epic** — user-value oriented, standalone, T-shirt sized
-    - **Story** — right-sized, includes functionality + testing, prefixed with `[DEV]`/`[UI]`/`[UX]`/`[QE]`/`[DOCS]`/`[CI]`
+    - **Story** — right-sized, prefixed with `[DEV]`/`[UI]`/`[UX]`/`[QE]`/`[DOCS]`/`[CI]`
 
 Key constraints:
 - Each epic delivers complete functionality independently
 - Each story leaves the system in a stable state (CI/CD to main)
-- Every story includes both functionality and testing (no deferred test stories)
+- Every `[DEV]` story includes both functionality and testing (no deferred test stories)
+- `[DOCS]` stories use a dedicated template with Documentation Scope and Documentation Inputs instead of Implementation Guidance and Testing Approach
 - Tests validate the software's contract, not its implementation — use test types appropriate to the change (unit, integration, e2e)
 - A coverage matrix ensures all PRD requirements are addressed
 

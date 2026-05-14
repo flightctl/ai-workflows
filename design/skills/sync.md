@@ -22,7 +22,7 @@ creating, and always get explicit user approval.
 - **Idempotent.** Track what was created in a manifest. If re-run, only create new items.
 - **Create only — never update or delete.** Once Jira issues are created, they evolve independently — developers add implementation notes, QA adds test details, PMs adjust criteria. Pushing file content back to Jira would clobber those additions. If the decomposition is revised after sync, `/revise` will tell the user exactly which Jira issues need manual updates.
 - **Link to source.** Every Jira issue description references the design document.
-- **Jira-native references.** Local identifiers (`Story 1.01`, `Epic 1`) have meaning only within the `.artifacts/` directory. When constructing Jira issue descriptions, resolve all local references (in Dependencies, Design Reference, and any other cross-references) to Jira issue keys using the sync manifest. Jira is the source of truth — readers of a Jira issue should never need to decode a local artifact numbering scheme.
+- **Jira-native references.** Local identifiers (`Story 1.01`, `Epic 1`) have meaning only within the `.artifacts/` directory. When constructing Jira issue descriptions, resolve all local references (in Dependencies, Documentation Inputs, Design Reference, and any other cross-references) to Jira issue keys using the sync manifest. Jira is the source of truth — readers of a Jira issue should never need to decode a local artifact numbering scheme.
 
 ## Reference Resolution
 
@@ -148,7 +148,7 @@ For each epic, create a Jira issue:
 
 - **Type:** Epic
 - **Project:** {project key}
-- **Parent:** {feature-key}
+- **Parent:** {feature-key} — **mandatory; set via the `fields` parameter: `{"parent": {"key": "{feature-key}"}}`**
 - **Summary:** {epic title}
 - **Description:**
 
@@ -173,8 +173,14 @@ Feature: {feature-key}
 
 - **T-Shirt Size:** {size} (set via the appropriate Jira field)
 
-After creating each epic, record the Jira key in the sync manifest
-immediately (before creating the next epic).
+After creating each epic, verify the created issue has `parent.key`
+equal to `{feature-key}` by reading the issue back. If the parent is
+missing, stop and report the error — **do not silently defer parent
+linking to a "Next Steps" section.** The Feature→Epic hierarchy is a
+required outcome of this step, not an optional follow-up.
+
+Record the Jira key in the sync manifest immediately (before creating
+the next epic).
 
 **If creation fails:** Stop immediately. Report which epics were created
 successfully (they are already recorded in the manifest) and which one
@@ -200,9 +206,11 @@ For each story under each epic, create a Jira issue:
 
 - **Type:** Story
 - **Project:** {project key}
-- **Parent:** {epic jira key} (from Step 4)
+- **Parent:** {epic jira key} (from Step 4) — **set via the `fields` parameter: `{"parent": {"key": "{epic jira key}"}}`**
 - **Summary:** `[{prefix}] {story title}`
 - **Description:**
+
+**For `[DEV]`, `[UI]`, `[UX]`, `[QE]`, and `[CI]` stories:**
 
 ```markdown
 ## User Story
@@ -236,19 +244,54 @@ PRD Requirements: {requirement IDs}
 Design section: {§reference}
 ```
 
-**`[DOCS]` stories:** For stories with a `[DOCS]` prefix, include a
-`## Documentation Inputs` section (between Testing Approach and
-Dependencies) containing the documentation inputs from the story file.
-Resolve story references in the documentation inputs to Jira keys
-(`**Story 1.01 — {title}:**` → `**EDM-XXXX — {title}:**`).
+**For `[DOCS]` stories:**
+
+```markdown
+## User Story
+
+**As a** {role},
+**I want to** {capability},
+**So that** {benefit}.
+
+## Acceptance Criteria
+
+{acceptance criteria from story file}
+
+## Documentation Scope
+
+{documentation scope from story file}
+
+## Documentation Inputs
+
+{documentation inputs from story file, with story references resolved to
+ Jira keys: "**Story 1.01 — {title}:**" → "**EDM-XXXX — {title}:**"}
+
+## Dependencies
+
+{dependencies from story file, with local references resolved to Jira keys
+ per the Reference Resolution section}
+
+## Design Reference
+
+Design document: {link to design doc PR or file}
+Epic: {epic jira key}
+PRD Requirements: {requirement IDs}
+Design section: {§reference}
+```
 
 **Reference resolution:** Before submitting the description, resolve all
 local identifiers to Jira keys (see Reference Resolution). This applies to
-Dependencies (`Story 1.01` → `EDM-XXXX`) and Design Reference
+Dependencies (`Story 1.01` → `EDM-XXXX`), Documentation Inputs
+(`Story 1.01` → `EDM-XXXX`), and Design Reference
 (`Epic 1` → `EDM-YYYY`).
 
-After creating each story, record the Jira key in the sync manifest
-immediately (before creating the next story).
+After creating each story, verify the created issue has `parent.key`
+equal to the epic's Jira key by reading the issue back. If the parent
+is missing, stop and report the error — **do not silently defer parent
+linking.** The Epic→Story hierarchy is a required outcome of this step.
+
+Record the Jira key in the sync manifest immediately (before creating
+the next story).
 
 **Issue links:** After creating the story, create Jira issue links for each
 dependency listed in the story. Resolve dependency references to Jira keys
@@ -311,7 +354,12 @@ should be:
 Summarize:
 - How many epics and stories were created
 - Any issues that were skipped (already existed from previous sync)
+- Confirm the hierarchy was verified: every epic has parent = Feature (verified in Step 4), every story has parent = its epic (verified in Step 5)
 - Link to the Feature issue in Jira (which now shows the full hierarchy)
+
+**Do not suggest manual parent linking as a next step.** If any parent
+link was not set during creation, that is a failure that should have been
+caught in Steps 4-5.
 
 Present a translation table mapping all local artifact identifiers to Jira
 keys. This table is the definitive reference for anyone working with the

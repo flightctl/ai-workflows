@@ -42,7 +42,7 @@ The user's feedback may target:
 - Different scenarios ("Add an error path for when the device is offline during rollback")
 - Scenario removal ("We don't need to test the concurrent update edge case — the [DEV] integration tests cover it")
 - Scenario reordering ("Test the happy path before the error cases")
-- Scenario splitting ("Scenario 1.1 is testing too many things, split it")
+- Scenario splitting ("Consolidated scenario C1 has too many validations, split it")
 
 **Test approach changes:**
 - Different reference suite ("Use the fleet_update suite as the pattern, not the agent suite")
@@ -91,6 +91,10 @@ After applying changes, verify:
 - Do test infrastructure methods referenced actually exist in the project?
 - Are labels consistent with the project's conventions?
 - Does the AC coverage matrix reflect the current scenario mapping?
+- Are there new consolidation opportunities (added scenarios sharing setup+action with existing ones)?
+- Do consolidated scenarios still respect the 15-validation cap after changes?
+- Are scenario identifiers and titles unique across the plan (no duplicate C#/S# or repeated names)?
+- Does the Scenario Consolidation table still match the current scenario list?
 - Are commit messages still properly formatted?
 
 ### Step 5: Update Artifact
@@ -105,7 +109,7 @@ Summarize what changed:
 ## Revision Summary
 
 ### Changes Applied
-- Scenario 1.2: Added error path for offline device during rollback
+- Standalone scenario S2: Added error path for offline device during rollback
 - Task 2: Split into Task 2a (happy path) and Task 2b (error cases)
 - Reference suite: Changed from agent suite to fleet_update suite
 

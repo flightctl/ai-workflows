@@ -6,10 +6,16 @@ workflow and the self-review gates embedded in other workflows.
 
 ## Core Principles
 
-- **Review what the developer wrote, not what you would have written.** Evaluate
-  correctness, clarity, safety, and adherence to project conventions. Do not
-  impose stylistic preferences that are not codified in the project's linting
-  or contribution guidelines.
+- **Challenge decisions, not just implementation.** Don't just verify that
+  the code does what it intends — question whether the intent is right.
+  Should this abstraction exist? Is this the right boundary between
+  components? Would a different approach avoid the complexity being managed
+  here? A review that only checks correctness is a linter with extra steps.
+- **Review what the developer wrote, not what you would have written.** The
+  above principle challenges decisions; this one constrains how. Evaluate
+  the approach on its merits — does it work, is it clear, is it safe? Do
+  not impose stylistic preferences or rewrite working code in your preferred
+  idiom. Challenge the design, not the taste.
 - **Findings must be actionable.** Every finding must include a concrete
   suggestion the developer can evaluate and apply. Vague observations
   ("consider improving this") are not findings.
@@ -36,13 +42,23 @@ Evaluate changes against these categories, prioritized by impact:
    appropriately? Are failure modes handled?
 3. **Security** — Are there injection risks, unsafe operations, exposed secrets,
    or other OWASP-category concerns?
-4. **Performance** — Are there unnecessary allocations, N+1 queries, unbounded
+4. **Design** — Does each new abstraction earn its complexity? Are
+   responsibilities clearly divided — no god functions, no single type
+   accumulating unrelated concerns? Do interfaces hide implementation details
+   and expose coherent contracts? Are there implicit assumptions between
+   components that should be explicit (shared constants, expected call order,
+   assumed preconditions)? Signals: a function taking many parameters
+   (missing intermediate type), a type importing from several unrelated
+   packages (mixed concerns), identical error-handling blocks repeated
+   across call sites (missing shared helper), a new interface that exposes
+   internal types to callers.
+5. **Performance** — Are there unnecessary allocations, N+1 queries, unbounded
    operations, or other efficiency concerns?
-5. **Naming and clarity** — Are names descriptive? Is the intent clear from
+6. **Naming and clarity** — Are names descriptive? Is the intent clear from
    reading the code?
-6. **Test coverage** — Are the changes tested? Are edge cases covered? Are
+7. **Test coverage** — Are the changes tested? Are edge cases covered? Are
    tests testing contracts, not implementation?
-7. **Project conventions** — Do the changes follow the conventions discovered
+8. **Project conventions** — Do the changes follow the conventions discovered
    from the project's AGENTS.md, CLAUDE.md, linting configs, and contribution
    guidelines?
 
