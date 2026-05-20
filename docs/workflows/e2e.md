@@ -1,7 +1,7 @@
 <!-- Edited by Claude Code -->
 # E2E Testing
 
-A story-to-tests workflow that takes a Jira [QE] Story, discovers the project's e2e testing infrastructure, plans test scenarios mapped to acceptance criteria, writes e2e test code, and manages review via GitHub PRs.
+A story-to-tests workflow that takes a Jira \[QE\] Story, discovers the project's e2e testing infrastructure, plans test scenarios mapped to acceptance criteria, writes e2e test code, and manages review via GitHub PRs.
 
 ## Phase Flow
 
@@ -22,7 +22,7 @@ graph TD
 
 | Tool | Required | Purpose |
 |------|----------|---------|
-| Jira access (MCP or CLI) | For `/ingest` | Fetch [QE] Story issue details |
+| Jira access (MCP or CLI) | For `/ingest` | Fetch \[QE\] Story issue details |
 | GitHub CLI (`gh`) | For `/publish`, `/respond` | Create PRs, post review comments |
 | Git | Yes | Branch management, commits |
 | Project e2e test tooling | Yes | Discovered during `/ingest` |
@@ -31,7 +31,7 @@ graph TD
 
 | Phase | Command | Purpose | Artifact(s) |
 |-------|---------|---------|-------------|
-| Ingest | `/ingest` | Fetch [QE] story, explore e2e infrastructure | `01-context.md` |
+| Ingest | `/ingest` | Fetch \[QE\] story, explore e2e infrastructure | `01-context.md` |
 | Plan | `/plan` | Map ACs to test scenarios | `02-plan.md` |
 | Revise | `/revise` | Incorporate feedback into test plan | Updated `02-plan.md` |
 | Code | `/code` | Write e2e test code | `03-test-report.md`, `04-impl-report.md` |

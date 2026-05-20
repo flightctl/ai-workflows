@@ -6,7 +6,7 @@ The AI Workflows documentation site is built with [Zensical](https://zensical.or
 ## Setup
 
 ```bash
-uv sync --extra docs
+uv sync --extra docs --no-install-project
 ```
 
 ## Local Preview
