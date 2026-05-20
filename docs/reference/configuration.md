@@ -3,7 +3,7 @@
 
 ## Workflow Configuration
 
-Workflows are configured through their file structure, not through external configuration files. Each workflow's behavior is defined by:
+Workflows are configured through their own files, not through external configuration. Each workflow's behavior is defined by:
 
 - **SKILL.md** — Entry point with YAML frontmatter (`name`, `description`)
 - **guidelines.md** — Behavioral rules, principles, hard limits
@@ -11,7 +11,7 @@ Workflows are configured through their file structure, not through external conf
 
 ## Project-Level Overrides
 
-Some workflows support project-level template overrides:
+Some workflows allow you to override the default templates at the project level:
 
 ### PRD Templates
 
@@ -47,11 +47,11 @@ All workflows store their artifacts in `.artifacts/<workflow-name>/<context>/`:
 └── triage/{project}/        # Triage artifacts
 ```
 
-The `.artifacts/` directory should be added to `.gitignore`.
+Add `.artifacts/` to your project's `.gitignore` to keep these working files out of version control.
 
 ## AI Convention Files
 
-The AI-Ready workflow manages these convention files:
+The AI-Ready workflow generates and maintains these convention files, which are auto-loaded by their respective tools:
 
 | File | Tool | Auto-loaded? |
 |------|------|-------------|
@@ -62,9 +62,9 @@ The AI-Ready workflow manages these convention files:
 
 ## Environment Requirements
 
-All workflows require:
+Every workflow requires:
 
 - **Git** — for branch management and commit operations
-- **An AI coding environment** — Cursor, Claude Code, or compatible
+- **An AI coding environment** — Cursor, Claude Code, or any compatible tool
 
-Workflow-specific requirements are documented in each workflow's README.
+Individual workflows may have additional requirements (e.g., Jira access, specific language toolchains). See each workflow's README for details.

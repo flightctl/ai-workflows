@@ -10,14 +10,14 @@
 
 ## Style
 
-- Workflow content is plain markdown — no IDE-specific syntax.
-- Keep `SKILL.md` under 30 lines. Use progressive disclosure (`guidelines.md`, `README.md`) for details.
-- Use consistent terminology within a workflow.
-- Don't duplicate content between `SKILL.md`, `guidelines.md`, and `controller.md`.
+- All workflow content is plain markdown — no IDE-specific syntax or plugins.
+- Keep `SKILL.md` under 30 lines. Put details in `guidelines.md` and `README.md` instead.
+- Use consistent terminology within each workflow.
+- Avoid duplicating content across `SKILL.md`, `guidelines.md`, and `controller.md`.
 
 ## Scripts
 
-Some workflows include a `scripts/` directory for scripts that offload deterministic work from the LLM — validation, data transformation, file discovery.
+Some workflows include a `scripts/` directory with helper scripts that handle deterministic work (validation, data transformation, file discovery) so the LLM does not have to.
 
 Conventions:
 

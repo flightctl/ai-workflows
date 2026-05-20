@@ -68,7 +68,7 @@
 
 ## How It Works
 
-The installer auto-discovers workflows by scanning for `*/SKILL.md` at the repo root. No script changes are needed when adding a workflow.
+The installer auto-discovers workflows by scanning for any directory at the repo root that contains a `SKILL.md`. No script changes are needed when a new workflow is added.
 
 ### Claude Code Integration
 
@@ -82,4 +82,4 @@ The installer auto-discovers workflows by scanning for `*/SKILL.md` at the repo 
 cd ~/.ai-workflows && git pull
 ```
 
-The symlink architecture means `git pull` updates all installed workflows instantly.
+Because the install uses symlinks, running `git pull` updates every installed workflow instantly.
