@@ -1,11 +1,11 @@
 <!-- Edited by Claude Code -->
 # Quick Start
 
-After [installation](installation.md), invoke any workflow command in your AI coding environment.
+Once you have [installed](installation.md) the workflows, you can invoke any command from your AI coding environment.
 
 ## Running a Workflow
 
-Workflow commands follow the pattern `/<workflow>:<phase>`:
+Every command follows the pattern `/<workflow>:<phase>`:
 
 ```
 /bugfix:assess JIRA-123
@@ -45,7 +45,7 @@ Workflow commands follow the pattern `/<workflow>:<phase>`:
 
 ## Selective Installation
 
-Each workflow targets specific projects and use cases:
+Each workflow is designed for a specific project type or use case:
 
 | Workflow | Best for |
 |----------|----------|

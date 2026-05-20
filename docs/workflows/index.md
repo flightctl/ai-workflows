@@ -1,7 +1,7 @@
 <!-- Edited by Claude Code -->
 # Workflows Overview
 
-AI Workflows provides 12 production-ready workflows covering the full software development lifecycle.
+This project provides 12 production-ready workflows that together cover the full software development lifecycle. The diagram below shows how they connect.
 
 ## SDLC Coverage
 
@@ -62,7 +62,7 @@ graph TD
 
 ## Architecture
 
-Every workflow follows a canonical structure:
+Every workflow follows the same directory structure:
 
 ```text
 workflow-name/
@@ -76,10 +76,10 @@ workflow-name/
     phase-name.md       # Thin wrappers for slash commands
 ```
 
-Key principles:
+Design principles:
 
-- **Auto-discovery**: Any directory with `SKILL.md` is discovered by the installer
-- **Progressive disclosure**: `SKILL.md` is thin (under 30 lines), details live in `guidelines.md` and `skills/`
-- **Relative paths**: All file references are relative for symlink compatibility
-- **Phase-based execution**: Discrete phases with explicit transitions
-- **No auto-advance**: Workflows wait for user input between phases
+- **Auto-discovery** — the installer finds any directory that contains a `SKILL.md`
+- **Progressive disclosure** — `SKILL.md` stays under 30 lines; details live in `guidelines.md` and `skills/`
+- **Relative paths** — all file references are relative, so symlinks resolve correctly regardless of install location
+- **Phase-based execution** — each workflow is split into discrete phases with explicit transitions
+- **No auto-advance** — the workflow always pauses and waits for user input between phases

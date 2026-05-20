@@ -1,7 +1,7 @@
 <!-- Edited by Claude Code -->
 # Installation
 
-Clone the repo and run the install script:
+Start by cloning the repository:
 
 ```bash
 git clone https://github.com/flightctl/ai-workflows.git
@@ -10,13 +10,13 @@ cd ai-workflows
 
 ## Cursor
 
-**User-level** — available in all your projects:
+**User-level** — makes workflows available in every project you open:
 
 ```bash
 ./install.sh cursor
 ```
 
-**Project-level** — shared with anyone who clones the repo:
+**Project-level** — scoped to a single project and shared with anyone who clones it:
 
 ```bash
 ./install.sh cursor --project /path/to/project

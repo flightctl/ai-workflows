@@ -3,7 +3,7 @@
 
 ## Testing a Workflow
 
-Workflow testing is manual — there are no automated test suites for the markdown-based skill files. The validation process:
+Because workflows are markdown-based skill files, testing is manual. Follow these steps to validate a workflow:
 
 1. **Install locally**: `./install.sh cursor` (or `all`)
 2. **Verify discovery**: Open a project and confirm the workflow appears in your AI environment
@@ -12,7 +12,7 @@ Workflow testing is manual — there are no automated test suites for the markdo
 
 ## CI Checks
 
-The repository runs these checks on every pull request:
+The following checks run automatically on every pull request:
 
 ### Structure Validation
 

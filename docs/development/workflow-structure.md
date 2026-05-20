@@ -1,7 +1,7 @@
 <!-- Edited by Claude Code -->
 # Workflow Structure
 
-Every workflow follows a canonical directory structure:
+Every workflow follows the same directory layout:
 
 ```text
 workflow-name/
@@ -17,7 +17,7 @@ workflow-name/
 
 ## SKILL.md
 
-The entry point. Keep it thin — phase overview and a reference to `guidelines.md`.
+The mandatory entry point. Keep it short — a phase overview and a pointer to `guidelines.md`.
 
 ```yaml
 ---
@@ -31,11 +31,11 @@ description: Brief description. Include trigger terms so the agent knows when to
 
 ## guidelines.md
 
-Contains principles, hard limits, safety, quality standards, escalation criteria, and project-respect rules. Not auto-discovered by Cursor — only loads when the workflow explicitly references it.
+Defines the behavioral rules for the workflow: principles, hard limits, safety checks, quality standards, and escalation criteria. This file is not auto-discovered — it only loads when the workflow's `SKILL.md` explicitly references it.
 
 ## skills/controller.md (optional)
 
-Manages phase execution and transitions. When present, it should:
+An optional dispatcher that manages phase execution and transitions. When present, it should:
 
 - List all phases with references to sibling skill files (e.g. `assess.md`, not `skills/assess.md`)
 - Define how to execute a phase (announce, read, execute, report, wait)
@@ -44,7 +44,7 @@ Manages phase execution and transitions. When present, it should:
 
 ## skills/phase-name.md
 
-Detailed steps for a phase. At the end, instructs the agent to report findings and re-read the controller.
+Contains the detailed steps for a single phase. Each file ends by instructing the agent to report its findings and re-read the controller for next-step guidance.
 
 ## commands/phase-name.md
 
@@ -62,13 +62,13 @@ $ARGUMENTS
 
 ## Path Conventions
 
-All internal file references must be **relative to the file's own location**:
+All internal file references must be **relative to the referencing file's own location**:
 
 - `commands/*.md` reference the controller as `../skills/controller.md` (or `../SKILL.md` if no controller)
 - `skills/controller.md` references sibling skills as `assess.md`, `fix.md`, etc.
 - `SKILL.md` references `guidelines.md` and optionally `skills/controller.md`
 
-This ensures symlinks resolve paths correctly regardless of install location.
+Relative paths ensure that symlinks resolve correctly regardless of where the workflows are installed.
 
 ## Shared Resources
 
