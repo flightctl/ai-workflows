@@ -156,6 +156,18 @@ cd ~/.ai-workflows && git pull
 ./uninstall.sh all --project /path/to/proj              # project-level everything
 ```
 
+## Documentation Site
+
+The project includes a [Zensical](https://zensical.org) documentation site with searchable workflow guides, Mermaid phase-flow diagrams, and dark/light mode. Live at <https://flightctl.github.io/ai-workflows/>.
+
+```bash
+uv sync --extra docs --no-install-project   # install dependencies
+uv run zensical serve                        # local preview at localhost:8000
+uv run zensical build                        # build static site to site/
+```
+
+CI auto-deploys on every push to `main` that touches `docs/` or `zensical.toml`. See [DOCS.md](DOCS.md) for full setup, build, and deploy instructions.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add or modify workflows.
