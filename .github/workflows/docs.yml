@@ -1,0 +1,37 @@
+# Edited by Claude Code
+name: Deploy Documentation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - 'zensical.toml'
+      - 'CONTRIBUTING.md'
+      - 'README.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Install docs dependencies
+        run: uv sync --extra docs
+
+      - name: Build documentation
+        run: uv run zensical build
+
+      - name: Deploy to GitHub Pages
+        run: uv run ghp-import -n -p -f site
