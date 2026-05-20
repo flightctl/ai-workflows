@@ -49,15 +49,15 @@ Each workflow is designed for a specific project type or use case:
 
 | Workflow | Best for |
 |----------|----------|
-| **bugfix** | Flight Control projects ([flightctl](https://github.com/flightctl/flightctl), [flightctl-ui](https://github.com/flightctl/flightctl-ui)) |
-| **code-review** | Any project — reviews uncommitted changes |
-| **docs-writer** | Downstream docs projects (e.g., edge-manager) |
-| **prd** | Teams drafting Product Requirements Documents from Jira |
-| **design** | Teams creating technical designs and Jira-ready epic/story breakdowns |
-| **implement** | Teams implementing Jira stories produced by the design workflow |
-| **e2e** | Teams writing e2e tests for QE stories |
-| **cve-fix** | Teams patching CVEs from Jira vulnerability tickets |
-| **ai-ready** | Onboarding any project for AI agents by generating AGENTS.md |
-| **kcs** | Teams writing KCS Solution articles for known issues |
-| **triage** | Teams wanting bulk Jira triage and HTML reports |
-| **skill-reviewer** | Reviewing or standardizing AI skills and skill packs |
+| [**bugfix**](../workflows/bugfix.md) | Flight Control projects ([flightctl](https://github.com/flightctl/flightctl), [flightctl-ui](https://github.com/flightctl/flightctl-ui)) |
+| [**code-review**](../workflows/code-review.md) | Any project — reviews uncommitted changes |
+| [**docs-writer**](../workflows/docs-writer.md) | Downstream docs projects (e.g., edge-manager) |
+| [**prd**](../workflows/prd.md) | Teams drafting Product Requirements Documents from Jira |
+| [**design**](../workflows/design.md) | Teams creating technical designs and Jira-ready epic/story breakdowns |
+| [**implement**](../workflows/implement.md) | Teams implementing Jira stories produced by the design workflow |
+| [**e2e**](../workflows/e2e.md) | Teams writing e2e tests for QE stories |
+| [**cve-fix**](../workflows/cve-fix.md) | Teams patching CVEs from Jira vulnerability tickets |
+| [**ai-ready**](../workflows/ai-ready.md) | Onboarding any project for AI agents by generating AGENTS.md |
+| [**kcs**](../workflows/kcs.md) | Teams writing KCS Solution articles for known issues |
+| [**triage**](../workflows/triage.md) | Teams wanting bulk Jira triage and HTML reports |
+| [**skill-reviewer**](../workflows/skill-reviewer.md) | Reviewing or standardizing AI skills and skill packs |
