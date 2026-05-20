@@ -28,7 +28,7 @@ jobs:
           version: "latest"
 
       - name: Install docs dependencies
-        run: uv sync --extra docs
+        run: uv sync --extra docs --no-install-project
 
       - name: Build documentation
         run: uv run zensical build
