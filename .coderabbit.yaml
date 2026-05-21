@@ -145,8 +145,10 @@ reviews:
         Phase skill review (ai-workflows conventions):
         - Maximum 10 steps per skill invocation — flag if exceeded
           (cognitive load / context window risk for AI agents)
-        - Steps must be numbered sequentially: no gaps, no sub-steps
-          (no "Step 2.5" or "Step 1b"), no duplicates
+        - Main steps must be numbered sequentially: no gaps, no
+          duplicates. Sub-steps (e.g., Step 1a) are allowed ONLY for
+          conditional branches off a parent step — never as a way to
+          insert a new main step without renumbering
         - Internal cross-references (e.g., "see Step 4") must point to
           correct step numbers
         - No step should depend on output from a later step
@@ -662,12 +664,16 @@ reviews:
 
       - name: "step-sequencing"
         instructions: |
-          For any changed skills/*.md file, verify that numbered steps
-          are sequential (Step 1, Step 2, Step 3... or ## Step 1,
+          For any changed skills/*.md file, verify that main steps are
+          numbered sequentially (Step 1, Step 2, Step 3... or ## Step 1,
           ## Step 2...). Flag: gaps in numbering (1, 2, 4), duplicate
-          numbers (two Step 3s), sub-step notation (Step 2.5, Step 1b,
-          Step 3a), and any skill with more than 10 steps (cognitive
-          load risk for AI agents with limited context windows).
+          numbers (two Step 3s), and any skill with more than 10 main
+          steps (cognitive load risk for AI agents). Sub-steps (Step 1a,
+          Step 3b) are acceptable ONLY when they represent conditional
+          branches off the parent step (e.g., "Step 1a: If <condition>,
+          do X"). Flag sub-steps that are actually new main steps
+          inserted to avoid renumbering — those should be promoted to
+          full steps with the sequence renumbered.
         mode: "warning"
 
 # ── Knowledge base ──────────────────────────────────────────
