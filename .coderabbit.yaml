@@ -256,8 +256,10 @@ reviews:
         - Schema field names and types must match between producer and
           consumer files (e.g., if a field is defined in one phase skill
           and consumed in another, names and types must agree)
-        - No content duplication across SKILL.md, guidelines.md, and
-          controller.md — each has a distinct role
+        - No verbatim duplication of multi-line instruction blocks
+          across SKILL.md, guidelines.md, and controller.md — each has
+          a distinct role (shared phase names and brief references are
+          expected cross-referencing, not duplication)
 
     # ── CI/CD configuration ─────────────────────────────────────
     - path: ".github/**"
@@ -646,12 +648,15 @@ reviews:
       - name: "no-content-duplication"
         instructions: |
           When SKILL.md, guidelines.md, and controller.md are all present
-          in a workflow and any of them are changed, check for substantial
-          content duplication across these three files. Each has a distinct
-          role: SKILL.md is the thin entry point, guidelines.md holds
-          principles/limits/safety/quality/escalation, controller.md
-          manages phase dispatch. Flag paragraphs or instruction blocks
-          that appear in more than one of these files.
+          in a workflow and any of them are changed, check for verbatim
+          duplication of multi-line instruction blocks or paragraphs
+          across these three files. Each has a distinct role: SKILL.md is
+          the thin entry point, guidelines.md holds principles/limits/
+          safety/quality/escalation, controller.md manages phase dispatch.
+          Phase names and brief one-line descriptions appearing in
+          multiple files is EXPECTED (cross-referencing, not duplication)
+          — only flag substantial blocks of identical prose or
+          step-by-step instructions that are copied between files.
         mode: "warning"
 
       - name: "step-sequencing"
