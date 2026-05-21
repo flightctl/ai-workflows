@@ -20,7 +20,7 @@ tone_instructions: >-
   Review AI workflow skill files for structural correctness, instruction
   clarity, and cross-file consistency. For scripts and CI configs, also
   apply a security lens. Flag ambiguity that would cause an AI agent to
-  produce wrong output on first execution.
+  produce wrong output on first try.
 early_access: true
 
 reviews:
