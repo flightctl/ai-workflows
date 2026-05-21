@@ -1,0 +1,726 @@
+# CodeRabbit configuration for ai-workflows
+#
+# This repo contains structured markdown workflows that AI agents read and
+# execute. The configuration has two layers:
+#
+#   1. Domain-specific rules — enforce the project's own quality standards
+#      (skill-reviewer dimensions, CONTRIBUTING.md conventions, AGENTS.md
+#      architecture). These are the primary value-add for this repo.
+#
+#   2. Inherited security rules (prodsec-skills) — retained for future-
+#      proofing. They activate only when matching file patterns exist.
+#      Currently most patterns (*.go, Dockerfile, etc.) match few or no
+#      files in this markdown-centric repository.
+#
+# Schema:   https://coderabbit.ai/integrations/schema.v2.json
+# Validate: comment "@coderabbitai configuration" on any PR
+#
+language: "en-US"
+tone_instructions: >-
+  Review AI workflow skill files for structural correctness, instruction
+  clarity, and cross-file consistency. For scripts and CI configs, also
+  apply a security lens. Flag ambiguity that would cause an AI agent to
+  produce wrong output on first execution.
+early_access: true
+
+reviews:
+  profile: "assertive"
+  request_changes_workflow: true
+  high_level_summary: true
+  high_level_summary_instructions: >-
+    Summarize changes in terms of which workflows are affected, what
+    structural or behavioral changes were made to skills/commands/guidelines,
+    and whether the changes affect shared resources (_shared/) or
+    cross-workflow conventions.
+  collapse_walkthrough: false
+  sequence_diagrams: false
+  review_details: true
+  suggested_labels: true
+  auto_apply_labels: false
+
+  path_filters:
+    - "!vendor/**"
+    - "!node_modules/**"
+    - "!dist/**"
+    - "!*.min.js"
+    - "!yarn.lock"
+    - "!.artifacts/**"
+
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    drafts: false
+    base_branches:
+      - "main"
+      - "release/.*"
+    ignore_title_keywords:
+      - "[skip-review]"
+      - "WIP"
+
+  labeling_instructions:
+    - label: "workflow-structure"
+      instructions: >-
+        Apply when the PR changes SKILL.md, guidelines.md, controller.md,
+        or adds/removes/renames files in skills/ or commands/ directories.
+        Structural changes affect how AI agents discover and execute workflows.
+
+    - label: "new-workflow"
+      instructions: >-
+        Apply when the PR adds a new top-level directory containing a SKILL.md.
+        New workflows require AGENTS.md and README.md cross-reference updates.
+
+    - label: "shared-resources"
+      instructions: >-
+        Apply when the PR modifies files in _shared/. Changes here affect
+        multiple workflows — review for cross-cutting impact.
+
+    - label: "ci-validation"
+      instructions: >-
+        Apply when the PR modifies .github/ files (workflows, scripts, configs)
+        or linter/checker configuration files (.markdownlint-cli2.yaml,
+        .lychee.toml, .coderabbit.yaml).
+
+    - label: "documentation"
+      instructions: >-
+        Apply when the PR primarily modifies README.md files, AGENTS.md,
+        CONTRIBUTING.md, or other human-facing documentation without changing
+        skill logic.
+
+    - label: "scripts"
+      instructions: >-
+        Apply when the PR modifies Python or shell scripts in scripts/
+        directories, install.sh, or uninstall.sh.
+
+    - label: "templates"
+      instructions: >-
+        Apply when the PR modifies files in templates/ or prompts/ directories.
+        Template changes affect generated artifacts and sub-agent behavior.
+
+  path_instructions:
+
+    # ══════════════════════════════════════════════════════════════
+    # Domain-specific rules (ai-workflows)
+    #
+    # These enforce the project's own quality standards derived from
+    # the skill-reviewer's 8 evaluation dimensions, CONTRIBUTING.md
+    # conventions, and AGENTS.md architecture.
+    # ══════════════════════════════════════════════════════════════
+
+    # ── SKILL.md entry points ───────────────────────────────────
+    - path: "**/SKILL.md"
+      instructions: |
+        SKILL.md review (ai-workflows conventions):
+        - YAML frontmatter required: opening/closing --- delimiters
+        - Required fields: name (lowercase, hyphens only, max 64 chars),
+          description (third person, includes trigger terms and
+          activated-by commands)
+        - Total file length must be under 30 lines (progressive
+          disclosure rule — details belong in guidelines.md or skills/)
+        - Must reference guidelines.md for principles/limits/safety/quality
+        - Must NOT duplicate content from guidelines.md or controller.md
+        - Should list all phases with references to skills/ or commands/
+        - No IDE-specific syntax — plain markdown only
+        - Verify every file path reference resolves to an existing file
+
+    # ── Command wrappers ────────────────────────────────────────
+    - path: "**/commands/*.md"
+      instructions: |
+        Command file review (ai-workflows conventions):
+        - YAML frontmatter required with name and description fields
+        - name field must use colon notation: {workflow-name}:{phase-name}
+          (e.g., bugfix:assess, design:ingest)
+        - Commands must be thin wrappers — they dispatch to a skill,
+          not implement logic themselves. Flag commands that contain
+          step-by-step instructions or decision logic
+        - Must include $ARGUMENTS placeholder to pass user context
+        - Path references must be relative to the command file's location:
+          use ../skills/controller.md or ../SKILL.md, not absolute paths
+          and not skills/controller.md (missing ../ prefix)
+        - Every command must have a corresponding skill file it routes to
+        - No IDE-specific syntax
+
+    # ── Phase skill files ───────────────────────────────────────
+    - path: "**/skills/*.md"
+      instructions: |
+        Phase skill review (ai-workflows conventions):
+        - Maximum 10 steps per skill invocation — flag if exceeded
+          (cognitive load / context window risk for AI agents)
+        - Steps must be numbered sequentially: no gaps, no sub-steps
+          (no "Step 2.5" or "Step 1b"), no duplicates
+        - Internal cross-references (e.g., "see Step 4") must point to
+          correct step numbers
+        - No step should depend on output from a later step
+        - Synthesis tasks (summarization, assessment, verdict) must NOT
+          be buried after heavy per-item processing — they degrade in
+          long contexts
+        - controller.md must reference sibling skills as phase-name.md
+          (not skills/phase-name.md) — relative to its own directory
+        - Skills referencing _shared/ resources must use the correct
+          relative path depth (e.g., ../../_shared/recipes/self-review-gate.md
+          from skills/)
+        - Failure modes must be documented: what to do when prerequisites
+          are missing, when zero results are returned, when tools are
+          unavailable
+        - Escalation criteria must be clear: when to stop and ask the user
+        - Instructions must be unambiguous — an AI agent reading
+          top-to-bottom should produce correct output on the first try
+        - If the file has YAML frontmatter, name and description are required
+
+    # ── Guidelines files ────────────────────────────────────────
+    - path: "**/guidelines.md"
+      instructions: |
+        Guidelines review (ai-workflows conventions):
+        - Must contain: Principles, Hard Limits, Safety, Quality, and
+          Escalation sections (or equivalent coverage)
+        - Content must NOT duplicate SKILL.md or controller.md — each
+          file has a distinct role
+        - Escalation criteria must be specific and actionable (not vague
+          "when things go wrong")
+        - Hard limits must be concrete prohibitions, not suggestions
+        - All phase references should use consistent naming matching
+          the workflow's actual phase names
+
+    # ── Workflow README files ───────────────────────────────────
+    - path: "*/README.md"
+      instructions: |
+        Workflow README review (ai-workflows conventions):
+        - Must document .artifacts/ output path for the workflow
+        - Phase descriptions must match what SKILL.md and skills/
+          actually implement — flag any documentation drift
+        - Features mentioned in README must exist in the skill files;
+          features implemented in skills must be documented in README
+        - Prerequisites (required tools, environment, integrations)
+          must be listed
+        - Usage examples should show actual command invocations
+          (e.g., /workflow:phase)
+
+    # ── Shared resources (_shared/) ─────────────────────────────
+    - path: "_shared/**"
+      instructions: |
+        Shared resource review (ai-workflows conventions):
+        - Shared resources are referenced by multiple workflows —
+          changes here have cross-cutting impact. Verify that all
+          consuming workflows are identified
+        - Recipes must be self-contained and parameterized (using
+          uppercase PLACEHOLDER names for caller-provided values)
+        - References TO shared resources from workflow skills must use
+          correct relative depth (../../_shared/ from skills/ directories)
+        - No workflow-specific logic — shared resources must be generic
+          enough for all consumers
+
+    # ── Templates and prompts ───────────────────────────────────
+    - path: "**/{templates,prompts}/*.md"
+      instructions: |
+        Template/prompt review (ai-workflows conventions):
+        - Templates use {placeholder} syntax for caller-filled values —
+          verify all placeholders are documented
+        - Prompt templates must be self-contained: the sub-agent receives
+          only the prompt, not the caller's context
+        - Prompts must instruct output to .artifacts/, not inline return
+        - Templates must work when the workflow is installed via symlink
+        - No absolute paths in templates
+
+    # ── Workflow scripts ────────────────────────────────────────
+    - path: "**/scripts/*.py"
+      instructions: |
+        Workflow script review (ai-workflows conventions):
+        - Scripts must be invoked by skill files, not by users directly
+        - Must work when the workflow is installed via symlink
+        - Exit code conventions must be documented in docstring:
+          Report scripts: 0 = informational, 1 = halt
+          Search/query scripts: define semantics in docstring
+        - Python 3 required; no Python 2 compatibility needed
+        - No hardcoded absolute paths — derive paths relative to
+          script location
+
+    # ── Shell scripts ───────────────────────────────────────────
+    - path: "**/*.sh"
+      instructions: |
+        Shell script review (ai-workflows conventions):
+        - Must use set -euo pipefail for safety
+        - install.sh and uninstall.sh: verify auto-discovery logic
+          (scanning for */SKILL.md) is correct
+        - validate-structure.sh: verify checks match current
+          CONTRIBUTING.md conventions
+        - No hardcoded workflow lists — rely on SKILL.md auto-discovery
+
+    # ── Cross-workflow markdown consistency ──────────────────────
+    - path: "**/*.md"
+      instructions: |
+        Cross-workflow consistency (ai-workflows conventions):
+        - All file references must be relative paths (never absolute) —
+          this is critical for symlink compatibility
+        - No IDE-specific syntax (Cursor-specific, VS Code-specific, etc.)
+        - Consistent terminology within a workflow: pick one term, stick
+          with it
+        - Schema field names and types must match between producer and
+          consumer files (e.g., if a field is defined in one phase skill
+          and consumed in another, names and types must agree)
+        - No content duplication across SKILL.md, guidelines.md, and
+          controller.md — each has a distinct role
+
+    # ── CI/CD configuration ─────────────────────────────────────
+    - path: ".github/**"
+      instructions: |
+        CI configuration review (ai-workflows conventions):
+        - validate-structure.sh must stay in sync with CONTRIBUTING.md
+          conventions — if a convention changes, the validation script
+          must be updated to match
+        - markdownlint config (.markdownlint-cli2.yaml) disabled rules
+          must have comments explaining why
+        - lychee config must exclude {placeholder} template URLs
+        - New validation checks should complement, not duplicate, what
+          CodeRabbit already checks via path_instructions
+
+    # ══════════════════════════════════════════════════════════════
+    # Inherited security rules (prodsec-skills)
+    #
+    # These blocks are retained for future-proofing. They activate
+    # only when files matching their path patterns exist in the repo.
+    # Currently, most patterns (*.go, Dockerfile, K8s manifests, etc.)
+    # match few or no files in this markdown-centric repository.
+    # ══════════════════════════════════════════════════════════════
+
+    # ── Injection & input validation (inherited — prodsec-skills) ─
+    # Skills: input-validation-injection, web-application-security
+    - path: "**/*.{py,js,ts,go,rs,java,rb,php,kt,swift,cs}"
+      instructions: |
+        Injection prevention (prodsec-skills):
+        - SQL: parameterized queries only; no string concatenation
+        - Command: no shell=True, os.system, or backtick exec with user input
+        - LDAP/XPath: escape special characters in filters
+        - Path traversal: canonicalize paths, reject ../
+        - Deserialization: no pickle/yaml.load()/eval on untrusted data
+        - Prototype pollution: no recursive merge of untrusted objects
+        - Validate at trust boundaries with allow-lists, not deny-lists
+        - Normalize Unicode and anchor regexes (^$); watch for ReDoS
+
+    # ── Web & frontend security (inherited — prodsec-skills) ─────
+    # Skills: react-security, client-side-security, http-security-headers,
+    #         graphql-security, session-management-cookies, file-handling-uploads,
+    #         xml-serialization-security
+    - path: "**/*.{html,jsx,tsx,vue,svelte}"
+      instructions: |
+        Web security (prodsec-skills):
+        - No dangerouslySetInnerHTML or v-html with user data
+        - CSP: no unsafe-inline, no unsafe-eval
+        - CSRF tokens on state-changing requests
+        - Cookies: Secure, HttpOnly, SameSite=Strict
+        - No document.write, eval, new Function with user input
+        - GraphQL: depth/complexity limits, disable introspection in prod
+        - File uploads: validate by content magic, cap size, server-generate names
+        - XML: disable external entities (XXE), reject DTDs from untrusted sources
+
+    # ── Cryptography (inherited — prodsec-skills) ────────────────
+    # Skills: algorithm-selection, constant-time-analysis, zeroize-audit,
+    #         wycheproof, crypto-protocol-diagram, mermaid-to-proverif,
+    #         constant-time-testing
+    - path: "**/*{crypt,cipher,sign,hash,tls,ssl,cert,key,token}*"
+      instructions: |
+        Cryptographic security (prodsec-skills):
+        - Banned: MD5, SHA1, DES, RC4, 3DES, Blowfish, ECB mode
+        - Symmetric: AES-256-GCM or ChaCha20-Poly1305
+        - Passwords: Argon2id (not bcrypt/scrypt for new code)
+        - Signing: Ed25519 or ECDSA P-256+
+        - Key exchange: X25519 or ECDH P-256+
+        - Constant-time comparison for all secret/token data
+        - Zeroize key material after use (no garbage-collector reliance)
+        - No custom crypto; use vetted libraries only
+        - Post-quantum: flag if protecting long-lived secrets
+
+    # ── Container & image hardening (inherited — prodsec-skills) ──
+    # Skills: container-hardening, isolation-sandboxing
+    - path: "**/{Dockerfile,Containerfile}*"
+      instructions: |
+        Container security (prodsec-skills):
+        - Base image: UBI minimal or distroless from catalog.redhat.com
+        - Red Hat images: use floating tags (Red Hat manages updates);
+          non-RH images: pin by digest
+        - Multi-stage builds; no build tools in final image
+        - USER non-root; never run as root
+        - COPY specific files, not entire context
+        - No secrets in ENV, ARG, or COPY
+        - Read-only rootfs where possible
+        - No package manager cache in final layer
+        - HEALTHCHECK defined
+
+    # ── Kubernetes & OpenShift (inherited — prodsec-skills) ──────
+    # Skills: scc-security, operator-security, helm-chart-security,
+    #         container-hardening, health-probes
+    - path: "**/*.{yaml,yml}"
+      instructions: |
+        If this is a Kubernetes/OpenShift manifest or Helm template:
+        - securityContext: runAsNonRoot, readOnlyRootFilesystem,
+          allowPrivilegeEscalation: false
+        - Drop ALL capabilities, add only what is required
+        - Resource limits (cpu, memory) on every container
+        - No hostPID, hostNetwork, hostIPC, privileged: true
+        - NetworkPolicy defined for the namespace
+        - OpenShift: SCC must be restricted or custom-scoped
+        - Liveness + readiness probes defined
+        - automountServiceAccountToken: false unless needed
+        - RBAC: least privilege; no cluster-admin for workloads
+        - Helm: no .Values interpolation in shell commands
+
+    # ── MCP server security (inherited — prodsec-skills) ─────────
+    # Skills: hardening-local, hardening-remote, oauth21-resource-server,
+    #         rbac, input-output-sanitization, secure-token-handling,
+    #         containerization, tool-server-injection-prevention,
+    #         no-credential-forwarding, roots-support, sampling-controls,
+    #         logging-and-observability, runtime-restrictions, os-tool-security,
+    #         reject-api-keys, token-exchange-for-tools
+    - path: "**/{mcp,tool_server,toolserver}/**/*"
+      instructions: |
+        MCP server review (prodsec-skills):
+        - OAuth 2.1 resource server: validate tokens per RFC 9068
+        - Enforce scope-based access per tool; no default-allow
+        - RBAC: per-tool permissions mapped to token scopes/roles
+        - Sanitize all tool inputs against declared schemas
+        - Reject path traversal in file-accessing tools
+        - No credential forwarding to downstream services
+        - Tool injection: validate registry integrity, reject dynamic
+          tool loading from untrusted sources
+        - Container isolation: unprivileged, read-only rootfs
+        - Audit log all tool invocations with caller identity
+        - Rate limiting per client/scope
+        - Reject API keys; require IdP-issued tokens
+
+    # ── MCP client (inherited — prodsec-skills) ──────────────────
+    # Skills: mcp-client-client-metadata-support,
+    #         mcp-client-dynamic-client-registration,
+    #         mcp-client-protected-resource-metadata,
+    #         consent-and-scoping, discovery-mechanisms
+    - path: "**/{mcp_client,mcp-client}/**/*"
+      instructions: |
+        MCP client review (prodsec-skills):
+        - OAuth client metadata: register with minimal scopes
+        - Dynamic registration: validate server response, store
+          client_id/secret securely
+        - Protected resource metadata: discover before token request
+        - Consent: prompt user before granting tool access
+        - Discovery: validate .well-known endpoints over HTTPS only
+
+    # ── Inference engine & model serving (inherited — prodsec-skills)
+    # Skills: isolation-sandboxing, jwt-token-enforcement,
+    #         model-security-scanning, model-signature-verification,
+    #         oidc-integration, token-lifecycle, external-idp-integration
+    - path: "**/{inference,model,serving,predict}/**/*"
+      instructions: |
+        Inference engine review (prodsec-skills):
+        - Process isolation: container or microVM per model
+        - JWT/OIDC on all inference endpoints; no unauthenticated access
+        - Model provenance: verify signatures before loading
+        - Scan models for embedded payloads (pickle, arbitrary code)
+        - Token lifecycle: short-lived, secure storage, revocation
+        - No direct filesystem access from inference process
+        - Resource limits to prevent DoS via large inputs
+
+    # ── Agent security (inherited — prodsec-skills) ──────────────
+    # Skills: agent-identity, agent-to-agent-auth, agent-to-mcp-server-auth
+    - path: "**/{agent,agents,agentic}/**/*"
+      instructions: |
+        Agent security (prodsec-skills):
+        - Unique, verifiable identity per agent instance
+        - Agent-to-agent auth: SPIFFE/mTLS, not shared secrets
+        - Agent-to-MCP auth: OAuth 2.1 client credentials flow
+        - No ambient authority; agents present credentials per call
+        - Audit trail for all inter-agent communication
+
+    # ── LLM interaction (inherited — prodsec-skills) ─────────────
+    # Skills: prompt-injection-mitigation, file-protection,
+    #         third-party-model-security, bidirectional-filtering,
+    #         output-validation-sandbox
+    - path: "**/{llm,prompt,chat,completion}/**/*"
+      instructions: |
+        LLM security (prodsec-skills):
+        - Prompt injection: separate system/user content; never
+          interpolate untrusted input into system prompts
+        - Output filtering: validate LLM output before execution
+        - File protection: restrict file access to declared paths
+        - Third-party models: evaluate trust, scan artifacts
+        - Guardrails: bidirectional filtering on prompts and responses
+
+    # ── Supply chain & dependencies (inherited — prodsec-skills) ──
+    # Skills: supply-chain-risk-auditor, sbom-provenance,
+    #         software-signing, secure-pipeline, vulnerability-management
+    - path: "**/{requirements*.txt,Pipfile*,pyproject.toml,package*.json,package-lock.json,go.mod,go.sum,Cargo.toml,Cargo.lock,Gemfile*,Gemfile.lock,pom.xml,build.gradle*}"
+      instructions: |
+        Supply chain security (prodsec-skills):
+        - New deps: justify need, check license compatibility
+        - Pin exact versions; verify hashes where supported
+        - Flag known CVEs (cross-ref osv.dev)
+        - No pre-release or yanked versions in production
+        - SBOM: ensure build produces provenance attestations
+        - Signing: artifacts signed with Sigstore/cosign
+
+    # ── CI/CD & GitHub Actions (inherited — prodsec-skills) ──────
+    # Skills: secure-pipeline, build-yaml-misconfiguration,
+    #         agentic-actions-auditor
+    - path: ".github/workflows/**/*"
+      instructions: |
+        CI/CD security (prodsec-skills):
+        - Pin actions by full SHA, not tag
+        - No secrets in logs; mask sensitive outputs
+        - Least privilege: minimize GITHUB_TOKEN permissions
+        - No pull_request_target with checkout of PR head
+        - SAST/SCA steps in pipeline
+        - Sign artifacts with Sigstore/cosign
+        - Agentic CI actions: audit for prompt injection via
+          issue/PR title/body flowing into LLM prompts
+
+    # ── Authentication & OAuth (inherited — prodsec-skills) ──────
+    # Skills: oauth21-implementation, authentication, authorization,
+    #         session-management-cookies, avoid-api-keys,
+    #         service-to-service-mtls
+    - path: "**/{auth,oauth,oidc,login,session,saml}/**/*"
+      instructions: |
+        Authentication review (prodsec-skills):
+        - OAuth 2.1: PKCE required; no implicit grant
+        - JWT: verify signature, issuer, audience, expiry, nbf
+        - Sessions: secure cookie flags, regenerate ID on login
+        - Passwords: Argon2id; never plaintext or weak hashes
+        - Rate limit login attempts; account lockout policy
+        - MFA: support and encourage; never bypass silently
+        - Service-to-service: SPIFFE/mTLS, not shared secrets
+        - Avoid API keys; prefer IdP-issued short-lived tokens
+
+    # ── API gateway & rate limiting (inherited — prodsec-skills) ──
+    # Skills: authentication-enforcement, internal-application-routing,
+    #         rate-limiting, request-validation
+    - path: "**/{gateway,proxy,ingress,route}/**/*"
+      instructions: |
+        API gateway review (prodsec-skills):
+        - Auth enforcement at gateway, not just downstream
+        - Rate limiting per client/endpoint; fail closed
+        - Request validation: size limits, content-type checks
+        - No internal-only routes exposed externally
+        - TLS termination with strong cipher suites
+
+    # ── Go (inherited — prodsec-skills) ──────────────────────────
+    # Skills: go-security
+    - path: "**/*.go"
+      instructions: |
+        Go security (prodsec-skills):
+        - Never ignore error returns
+        - database/sql with placeholders; no fmt.Sprintf in queries
+        - Use stdlib crypto/* and golang.org/x/crypto (Go team maintained);
+          avoid third-party crypto libraries
+        - Integer overflow: bounds-check user-supplied sizes
+        - context.Context for cancellation and timeouts
+
+    # ── C/C++ (inherited — prodsec-skills) ───────────────────────
+    # Skills: safe-c-functions, compiler-hardening
+    - path: "**/*.{c,cpp,cc,h,hpp}"
+      instructions: |
+        C/C++ security (prodsec-skills):
+        - Banned: gets, sprintf, strcpy, strcat, strtok
+        - Use strlcpy, snprintf, bounded APIs
+        - Compile: -fstack-protector-strong -fPIE -pie
+          -D_FORTIFY_SOURCE=2 -Wformat-security
+        - Nullify pointers after free; no use-after-free
+        - Integer overflow: check arithmetic on untrusted sizes
+
+    # ── Database & external data (inherited — prodsec-skills) ────
+    # Skills: database-security, authentication (external-data-source),
+    #         encrypted-communication, redis-elasticache-security
+    - path: "**/{db,database,redis,cache,storage}/**/*"
+      instructions: |
+        Data store security (prodsec-skills):
+        - Auth: no default credentials; use IAM or IdP tokens
+        - Encryption: TLS in transit, encryption at rest
+        - Least privilege: app user has minimal grants
+        - Redis/ElastiCache: AUTH required, no KEYS in prod,
+          rename dangerous commands (FLUSHALL, CONFIG)
+        - Connection strings: no embedded credentials
+
+    # ── Messaging (inherited — prodsec-skills) ───────────────────
+    # Skills: kafka-amq-security, mqtt-security
+    - path: "**/{kafka,amq,mqtt,messaging,broker}/**/*"
+      instructions: |
+        Messaging security (prodsec-skills):
+        - Kafka/AMQ: TLS, SASL auth, per-topic ACLs
+        - MQTT: auth required, topic ACLs, payload encryption
+        - No anonymous access in production
+
+    # ── Model registry (inherited — prodsec-skills) ──────────────
+    # Skills: model-registry-*, admin-interface-security,
+    #         model-registry-secure-storage
+    - path: "**/{model_registry,model-registry,registry}/**/*"
+      instructions: |
+        Model registry review (prodsec-skills):
+        - Admin interface: auth + RBAC, no public exposure
+        - Model scanning: check for malicious payloads before publish
+        - Model signing: verify signatures on pull
+        - Audit logging: who uploaded/downloaded/deleted what
+        - Secure storage: encrypted at rest, access-controlled
+
+  # ── Tools ─────────────────────────────────────────────────────
+  tools:
+    # Markdown & prose
+    markdownlint:
+      enabled: true
+    languagetool:
+      enabled: true
+      level: "picky"
+      disabled_categories:
+        - "TYPOS"
+        - "CASING"
+    yamllint:
+      enabled: true
+
+    # Security scanners (inherited — prodsec-skills)
+    gitleaks:
+      enabled: true
+    semgrep:
+      enabled: true
+    checkov:
+      enabled: true
+    hadolint:
+      enabled: true
+    trivy:
+      enabled: true
+    osvScanner:
+      enabled: true
+    actionlint:
+      enabled: true
+    ast-grep:
+      essential_rules: true
+
+  # ── Pre-merge checks ─────────────────────────────────────────
+  pre_merge_checks:
+    description:
+      mode: "warning"
+    custom_checks:
+
+      # ── Inherited security gates (prodsec-skills) ─────────────
+      # Retained for future-proofing. They fire on all files but
+      # primarily target code, not markdown.
+
+      - name: "no-hardcoded-secrets"
+        instructions: |
+          Flag hardcoded secrets: API keys, tokens, passwords, private
+          keys, credentials. Also flag base64 strings >32 chars in config,
+          URLs with embedded credentials, variables named api_key/secret/
+          token/password assigned string literals.
+        mode: "error"
+
+      - name: "no-weak-crypto"
+        instructions: |
+          Flag MD5, SHA1, DES, RC4, 3DES, Blowfish, ECB mode usage.
+          Flag custom crypto implementations. Flag non-constant-time
+          comparison of secrets or tokens.
+        mode: "error"
+
+      - name: "no-injection-vectors"
+        instructions: |
+          Flag SQL string concatenation, shell=True with user input,
+          eval/exec on untrusted data, pickle.loads on untrusted input,
+          yaml.load without SafeLoader, os.system with variables,
+          dangerouslySetInnerHTML with user data.
+        mode: "error"
+
+      - name: "container-privileges"
+        instructions: |
+          Flag privileged: true, hostPID, hostNetwork, hostIPC,
+          SYS_ADMIN capability, running as root without justification,
+          allowPrivilegeEscalation: true in container/K8s manifests.
+        mode: "error"
+
+      - name: "no-sensitive-data-in-logs"
+        instructions: |
+          Flag logging that may expose passwords, tokens, API keys,
+          PII (email, SSN, credit card), session IDs, internal
+          hostnames, or customer data.
+        mode: "error"
+
+      - name: "ai-attribution"
+        instructions: |
+          If AI tools were used (mentioned in PR or commits), verify
+          Red Hat attribution: Assisted-by or Generated-by trailers.
+          Flag use of Co-Authored-By for AI tools.
+        mode: "warning"
+
+      # ── Domain-specific gates (ai-workflows) ──────────────────
+
+      - name: "no-absolute-paths-in-skills"
+        instructions: |
+          Flag any absolute filesystem path in markdown files within
+          workflow directories (*/SKILL.md, */skills/*.md, */commands/*.md,
+          */guidelines.md). Paths like /home/, /Users/, /tmp/, /var/,
+          /opt/ are prohibited because workflows are installed via symlink
+          and must use relative paths only. Paths inside fenced code
+          blocks that are clearly examples (containing "example", "e.g.",
+          or placeholder usernames like /home/user/) are exempt.
+        mode: "error"
+
+      - name: "skill-md-under-30-lines"
+        instructions: |
+          For any SKILL.md file changed in this PR, verify it is under
+          30 lines total (including frontmatter). SKILL.md must be thin
+          entry points using progressive disclosure. If a SKILL.md
+          exceeds 30 lines, flag it with the count and suggest moving
+          content to guidelines.md or skills/ files.
+        mode: "warning"
+
+      - name: "command-colon-notation"
+        instructions: |
+          For any file in a commands/ directory, verify the YAML
+          frontmatter name field uses colon notation matching the
+          pattern {workflow-name}:{phase-name} (e.g., bugfix:assess,
+          design:ingest). The workflow-name must match the parent
+          workflow directory name. Flag any command whose name field
+          is missing, does not contain a colon, or has a prefix that
+          doesn't match its workflow directory.
+        mode: "error"
+
+      - name: "no-orphaned-references"
+        instructions: |
+          For any changed markdown file in a workflow directory, verify
+          that file path references (backtick-quoted paths like
+          `../skills/controller.md` or `guidelines.md`) point to files
+          that exist. Flag references to files that don't exist (dangling
+          references). Also flag skill or command files that exist but
+          are never referenced from SKILL.md, controller.md, or any
+          command file (orphaned files).
+        mode: "warning"
+
+      - name: "no-content-duplication"
+        instructions: |
+          When SKILL.md, guidelines.md, and controller.md are all present
+          in a workflow and any of them are changed, check for substantial
+          content duplication across these three files. Each has a distinct
+          role: SKILL.md is the thin entry point, guidelines.md holds
+          principles/limits/safety/quality/escalation, controller.md
+          manages phase dispatch. Flag paragraphs or instruction blocks
+          that appear in more than one of these files.
+        mode: "warning"
+
+      - name: "step-sequencing"
+        instructions: |
+          For any changed skills/*.md file, verify that numbered steps
+          are sequential (Step 1, Step 2, Step 3... or ## Step 1,
+          ## Step 2...). Flag: gaps in numbering (1, 2, 4), duplicate
+          numbers (two Step 3s), sub-step notation (Step 2.5, Step 1b,
+          Step 3a), and any skill with more than 10 steps (cognitive
+          load risk for AI agents with limited context windows).
+        mode: "warning"
+
+# ── Knowledge base ──────────────────────────────────────────
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "**/AGENTS.md"
+      - "**/REDHAT.md"
+      - "**/CLAUDE.md"
+      - "**/CONTRIBUTING.md"
+      - "_shared/review-protocol.md"
+      - "_shared/recipes/self-review-gate.md"
+      - "skill-reviewer/skills/review.md"
+
+  issues:
+    scope: "auto"
+  pull_requests:
+    scope: "auto"
+  learnings:
+    scope: "auto"
