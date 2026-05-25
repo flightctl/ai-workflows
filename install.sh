@@ -135,9 +135,8 @@ install_shared() {
   echo "  Linked ${target_dir}/_shared -> ${INSTALL_DIR}/_shared  ($SCOPE)"
 }
 
-generate_cursor_command_wrappers() {
-  local skills_dir="$1"
-  local manifest="${skills_dir}/.generated-wrappers"
+generate_cursor_commands() {
+  local cmds_dir="$1"
   local generated=0
 
   for wf in "${WORKFLOWS[@]}"; do
@@ -148,8 +147,7 @@ generate_cursor_command_wrappers() {
       [[ -f "$cmd_file" ]] || continue
       local phase
       phase="$(basename "$cmd_file" .md)"
-      local wrapper_name="${wf}-${phase}"
-      local wrapper_dir="${skills_dir}/${wrapper_name}"
+      local cmd_name="${wf}-${phase}"
 
       local description=""
       if head -1 "$cmd_file" | grep -q "^---"; then
@@ -159,46 +157,43 @@ generate_cursor_command_wrappers() {
         description="$(awk '/^---/{n++; next} n==1 && /^description:/{sub(/^description:[[:space:]]*"?/, ""); sub(/"[[:space:]]*$/, ""); print; exit}' "${wf_dir}/skills/${phase}.md")"
       fi
       [[ -z "$description" ]] && description="Run the ${phase} phase of the ${wf} workflow."
+      description="${description//\"/\\\"}"
 
-      mkdir -p "$wrapper_dir"
-      cat > "${wrapper_dir}/SKILL.md" <<WRAPPER_EOF
+      cat > "${cmds_dir}/${cmd_name}.md" <<CMD_EOF
 ---
-name: ${wrapper_name}
 description: "${description}"
 ---
 # /${phase} (${wf})
 
-Read the file \`../${wf}/skills/controller.md\` and follow it.
+Read \`${INSTALL_DIR}/${wf}/skills/controller.md\` and follow it.
 
 Dispatch the **${phase}** phase. Context:
 
 \$ARGUMENTS
-WRAPPER_EOF
-      echo "$wrapper_name" >> "$manifest"
+CMD_EOF
       generated=$((generated + 1))
     done
   done
 
-  if [[ $generated -gt 0 ]]; then
-    sort -u -o "$manifest" "$manifest"
-    echo "  Generated ${generated} command wrapper(s) for Cursor  ($SCOPE)"
-  fi
+  [[ $generated -gt 0 ]] && echo "  Generated ${generated} command(s) in ${cmds_dir}  ($SCOPE)"
 }
 
 install_cursor() {
   if [[ "$SCOPE" == "project" ]]; then
     SKILLS_DIR="${PROJECT_ROOT}/.cursor/skills"
+    CMDS_DIR="${PROJECT_ROOT}/.cursor/commands"
   else
     SKILLS_DIR="${HOME}/.cursor/skills"
+    CMDS_DIR="${HOME}/.cursor/commands"
   fi
 
-  mkdir -p "$SKILLS_DIR"
+  mkdir -p "$SKILLS_DIR" "$CMDS_DIR"
   install_shared "$SKILLS_DIR"
   for wf in "${WORKFLOWS[@]}"; do
     ln -sfn "${INSTALL_DIR}/${wf}" "${SKILLS_DIR}/${wf}"
     echo "  Linked ${SKILLS_DIR}/${wf} -> ${INSTALL_DIR}/${wf}  ($SCOPE)"
   done
-  generate_cursor_command_wrappers "$SKILLS_DIR"
+  generate_cursor_commands "$CMDS_DIR"
 }
 
 install_claude() {
