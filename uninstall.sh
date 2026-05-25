@@ -116,6 +116,55 @@ has_remaining_workflows() {
   return 1
 }
 
+remove_cursor_command_wrappers() {
+  local skills_dir="$1"
+  local manifest="${skills_dir}/.generated-wrappers"
+  local removed=0
+
+  [[ -f "$manifest" ]] || return 0
+
+  while IFS= read -r wrapper_name; do
+    [[ -z "$wrapper_name" ]] && continue
+    local match=false
+    for wf in "${WORKFLOWS[@]}"; do
+      if [[ "$wrapper_name" == "${wf}-"* ]]; then
+        match=true
+        break
+      fi
+    done
+    $match || continue
+
+    if [[ -d "${skills_dir}/${wrapper_name}" ]]; then
+      rm -rf "${skills_dir}/${wrapper_name}"
+      removed=$((removed + 1))
+    fi
+  done < "$manifest"
+
+  if [[ "$SELECTIVE" == true ]]; then
+    local tmp="${manifest}.tmp"
+    while IFS= read -r wrapper_name; do
+      [[ -z "$wrapper_name" ]] && continue
+      local match=false
+      for wf in "${WORKFLOWS[@]}"; do
+        if [[ "$wrapper_name" == "${wf}-"* ]]; then
+          match=true
+          break
+        fi
+      done
+      $match || echo "$wrapper_name"
+    done < "$manifest" > "$tmp"
+    if [[ -s "$tmp" ]]; then
+      mv "$tmp" "$manifest"
+    else
+      rm -f "$tmp" "$manifest"
+    fi
+  else
+    rm -f "$manifest"
+  fi
+
+  [[ $removed -gt 0 ]] && echo "  Removed ${removed} command wrapper(s)  ($SCOPE)"
+}
+
 uninstall_cursor() {
   if [[ "$SCOPE" == "project" ]]; then
     SKILLS_DIR="${PROJECT_ROOT}/.cursor/skills"
@@ -123,6 +172,7 @@ uninstall_cursor() {
     SKILLS_DIR="${HOME}/.cursor/skills"
   fi
 
+  remove_cursor_command_wrappers "$SKILLS_DIR"
   if [[ "$SELECTIVE" == false ]]; then
     uninstall_shared "$SKILLS_DIR"
   fi

@@ -134,11 +134,23 @@ Use `--workflows` to install only the workflows relevant to a given project:
 
 ## Usage
 
-Invoke a workflow command (works in both Cursor and Claude Code):
+### Claude Code
+
+Invoke a workflow command using the colon-namespaced format:
 
 - `/bugfix:assess`, `/bugfix:diagnose`, `/bugfix:fix`, ...
 - `/code-review:start`, `/code-review:continue`, `/code-review:clean`
 - `/docs-writer:gather`, `/docs-writer:plan`, `/docs-writer:draft`, ...
+
+### Cursor
+
+The installer generates flat command wrappers so each phase appears as its own skill in the Cursor command picker:
+
+- `/bugfix-assess`, `/bugfix-diagnose`, `/bugfix-fix`, ...
+- `/code-review-start`, `/code-review-continue`, `/code-review-clean`
+- `/docs-writer-gather`, `/docs-writer-plan`, `/docs-writer-draft`, ...
+
+These wrappers are created automatically by `install.sh` and cleaned up by `uninstall.sh`. A single `.generated-wrappers` manifest in the skills directory tracks which directories were generated.
 
 ## Updating
 

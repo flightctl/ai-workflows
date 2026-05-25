@@ -89,9 +89,18 @@ The installer (`install.sh`) auto-discovers workflows by scanning for `*/SKILL.m
 **Claude Code integration**: The installer:
 1. Appends workflow references to `CLAUDE.md` (or `.claude/CLAUDE.md` for project-level) beneath the `# ai-workflows` marker
 2. Symlinks workflows into the user-level Claude skills directory (or `.claude/skills/` for project-level) for slash command discovery
-3. Removes stale references (old controller.md paths) to avoid duplicates
+3. Symlinks each workflow's `commands/` directory into `.claude/commands/` so phases are discoverable as `/{workflow}:{command}` slash commands
+4. Removes stale references (old controller.md paths) to avoid duplicates
 
-**Uninstall** (`uninstall.sh`) mirrors the install logic with removal.
+**Cursor integration**: Cursor discovers skills by scanning for `SKILL.md` files in `.cursor/skills/*/` directories — one directory = one skill entry. Since Cursor does not have Claude Code's `commands/` discovery system, the installer generates flat wrapper directories for each phase:
+
+1. Symlinks each workflow directory into `.cursor/skills/{workflow}/`
+2. For each `commands/{phase}.md` file in a workflow, generates a wrapper directory `.cursor/skills/{workflow}-{phase}/` containing:
+   - `SKILL.md` — a thin entry point with frontmatter (`name`, `description`) that reads the workflow's controller and dispatches the phase
+
+A single manifest file (`.cursor/skills/.generated-wrappers`) tracks all generated wrapper directory names. This makes each phase appear as a first-class entry in the Cursor command picker (e.g., `/bugfix-assess`, `/code-review-start`). The wrappers are regenerated on every `install.sh` run and are safe to delete — re-running `install.sh` recreates them.
+
+**Uninstall** (`uninstall.sh`) mirrors the install logic with removal. For Cursor, it reads the `.generated-wrappers` manifest to identify and remove generated command wrappers before removing workflow symlinks. Selective uninstall (`--workflows`) only removes wrappers belonging to the specified workflows and updates the manifest accordingly.
 
 ## Testing Your Changes
 
