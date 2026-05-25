@@ -10,6 +10,8 @@ workflow by executing phases and handling transitions between them.
 
 ## Phases
 
+### Local Review (uncommitted changes)
+
 1. **Start** (`/start`) -- `start.md`
    Discover the project context, build a reviewer profile, analyze
    uncommitted changes, run the initial review, and present findings
@@ -20,16 +22,35 @@ workflow by executing phases and handling transitions between them.
    present new findings. Repeatable until approved. Cleans up artifacts
    automatically on final approval.
 
-3. **Clean** (`/clean`) -- `clean.md`
-   Remove review artifacts from an abandoned review. Only needed when
-   the user wants to discard a review without completing it.
+### PR Review (GitHub Pull Requests)
+
+1. **PR** (`/pr`) -- `pr.md`
+   Review a GitHub Pull Request. Fetches PR contents via `gh`, reads
+   full files for deep cross-file analysis, and presents findings in a
+   conversational format. Optionally posts findings as GitHub review
+   comments.
+
+2. **PR Continue** (`/pr-continue`) -- `pr-continue.md`
+   Re-review a PR after the author pushes fixes. Fetches the interdiff,
+   checks what was fixed, identifies remaining and new issues, and
+   presents an updated assessment. Optionally posts a follow-up review.
+
+### Shared
+
+1. **Clean** (`/clean`) -- `clean.md`
+   Remove review artifacts from an abandoned review. Works for both
+   local review and PR review artifacts.
 
 ## Workspace
 
-All review artifacts live in `.artifacts/code-review/{branch}/` (gitignored).
-Code changes happen directly in the working tree during `/continue`.
+**Local review** artifacts live in `.artifacts/code-review/{branch}/`
+(gitignored). Code changes happen directly in the working tree during
+`/continue`.
 
-### Artifact Directory
+**PR review** artifacts live in `.artifacts/code-review/pr-{number}/`
+(gitignored). No local code changes -- the author fixes their own branch.
+
+### Local Review Artifacts
 
 | Artifact | File | Written by |
 |----------|------|------------|
@@ -39,6 +60,13 @@ Code changes happen directly in the working tree during `/continue`.
 | Review (round N) | `code-review-{NNN}.md` | `/start`, `/continue` |
 | Response (round N) | `review-response-{NNN}.md` | `/continue` |
 | Decisions (round N) | `decisions-{NNN}.json` | `/start`, `/continue` |
+
+### PR Review Artifacts
+
+| Artifact | File | Written by |
+|----------|------|------------|
+| PR review metadata | `pr-review-metadata.json` | `/pr`, `/pr-continue` |
+| PR review (round N) | `pr-review-{NNN}.md` | `/pr`, `/pr-continue` |
 
 ## How to Execute a Phase
 
@@ -57,13 +85,13 @@ After each phase completes, present the user with **options** -- not just one
 next step. Use the typical flow as a baseline, but adapt to what actually
 happened.
 
-### Typical Flow (Attended)
+### Typical Flow -- Local Review (Attended)
 
 ```text
 start --> user decisions --> [continue loop] --> approved (auto-cleanup)
 ```
 
-### Typical Flow (Unattended)
+### Typical Flow -- Local Review (Unattended)
 
 ```text
 start --unattended --> [auto continue loop] --> approved (auto-cleanup) --> summary
@@ -74,9 +102,19 @@ The implementor's value-based recommendations are used as decisions, and
 the loop continues until the reviewer approves. The only exception is a
 disagreement on a CRITICAL finding, which escalates to the user.
 
+### Typical Flow -- PR Review
+
+```text
+/pr {URL or number} --> findings --> [optional: post to GitHub]
+  --> author pushes fixes --> /pr-continue --> updated findings --> [optional: post]
+  --> repeat until satisfied --> [optional: cleanup]
+```
+
+PR review does not have an unattended mode. The user drives each round.
+
 ### What to Recommend
 
-**In attended mode:**
+**Local review (attended mode):**
 
 - `/start` completed --> recommend the user review the findings table and
   decide which to accept, reject, or modify. Once decided, `/continue` to
@@ -88,11 +126,21 @@ disagreement on a CRITICAL finding, which escalates to the user.
 - `/continue` completed (not approved) --> present the new findings for
   user decision, then another `/continue` round.
 
-**In unattended mode:**
+**Local review (unattended mode):**
 
 Next-step recommendations are not needed — the workflow auto-advances.
 The controller only intervenes if a CRITICAL disagreement escalates to
 the user.
+
+**PR review:**
+
+- `/pr` completed --> offer to post findings to GitHub. Mention
+  `/pr-continue` for re-reviewing after the author pushes fixes.
+  Mention `/clean` to discard artifacts if the review is done.
+- `/pr-continue` completed (issues remain) --> offer to post findings.
+  Mention `/pr-continue` again for the next round after the author pushes.
+- `/pr-continue` completed (all clear) --> suggest posting an `APPROVE`
+  review. Offer to clean up artifacts.
 
 ### How to Present Options
 
@@ -113,6 +161,8 @@ Before dispatching any phase, check if the project has its own `AGENTS.md`
 or `CLAUDE.md`. If so, read it -- it may contain project-specific conventions,
 testing standards, or other guidance that affects how the review operates.
 
+**Local review:**
+
 When the user runs `/start`, execute the start phase. If the user runs
 `/start` and artifacts already exist for the current branch, warn that a
 review is already in progress and ask whether to continue or restart.
@@ -121,6 +171,16 @@ When invoked without a specific command (e.g., just "run code-review"),
 check whether review artifacts exist for the current branch. If they do,
 default to `/continue` instead of `/start` — the most common intent when
 artifacts exist is to resume, not restart.
+
+**PR review:**
+
+When the user runs `/pr`, execute the pr phase. The `$ARGUMENTS` must
+contain a PR URL or number. If the user runs `/pr` and artifacts already
+exist for that PR number, warn that a review is in progress and ask
+whether to run `/pr-continue` instead or restart.
+
+When the user runs `/pr-continue`, execute the pr-continue phase. If no
+artifacts exist for the PR, tell the user to run `/pr` first.
 
 ## Error Handling
 
@@ -154,6 +214,10 @@ There are two distinct uses of subagents in this workflow:
 Both are recommendations, not requirements -- not all AI runtimes support
 subagent spawning.
 
+PR review (`/pr`, `/pr-continue`) does not use the reviewer subagent
+pattern. It operates as a single reviewer perspective by design -- there
+is no implementor role to separate from.
+
 ## Rules
 
 - **Never auto-advance in attended mode.** Always wait for the user
@@ -161,8 +225,9 @@ subagent spawning.
   is the point of the mode.
 - **Recommendations come from this file, not from skills.** Skills report
   findings; this controller decides what to recommend next.
-- **No project file changes during /start or /clean.** Both phases
-  operate only on artifacts. Code changes happen only in `/continue`.
+- **No project file changes during /start, /pr, /pr-continue, or /clean.**
+  `/start`, `/pr`, `/pr-continue`, and `/clean` operate only on artifacts
+  and read-only commands. Code changes happen only in `/continue`.
 - **Cleanup is automatic on approval.** When the reviewer approves and the
   user confirms (or approves in unattended mode), `/continue` removes
   all artifacts. No separate cleanup needed.
