@@ -46,6 +46,7 @@ the IDE), skip this step — you're already in it.
 Otherwise (sandboxed environments, CI pipelines), check if the repo is accessible:
 
 ```bash
+# e.g., check a common sandboxed mount point
 ls /workspace/repos/ 2>/dev/null
 ```
 
@@ -53,6 +54,7 @@ ls /workspace/repos/ 2>/dev/null
 - If not, clone it:
 
 ```bash
+# e.g., clone to a sandboxed workspace
 gh repo clone OWNER/REPO /workspace/repos/REPO
 ```
 

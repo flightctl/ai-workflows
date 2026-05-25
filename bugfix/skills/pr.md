@@ -58,6 +58,7 @@ the IDE), skip this step — you're already in it.
 Otherwise (sandboxed environments, CI pipelines), locate the project repo:
 
 ```bash
+# e.g., check a common sandboxed mount point
 ls /workspace/repos/ 2>/dev/null
 ```
 
