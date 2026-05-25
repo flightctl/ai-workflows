@@ -116,63 +116,38 @@ has_remaining_workflows() {
   return 1
 }
 
-remove_cursor_command_wrappers() {
-  local skills_dir="$1"
-  local manifest="${skills_dir}/.generated-wrappers"
+remove_cursor_commands() {
+  local cmds_dir="$1"
   local removed=0
 
-  [[ -f "$manifest" ]] || return 0
+  [[ -d "$cmds_dir" ]] || return 0
 
-  while IFS= read -r wrapper_name; do
-    [[ -z "$wrapper_name" ]] && continue
-    local match=false
-    for wf in "${WORKFLOWS[@]}"; do
-      if [[ "$wrapper_name" == "${wf}-"* ]]; then
-        match=true
-        break
+  for wf in "${WORKFLOWS[@]}"; do
+    for cmd_file in "${cmds_dir}/${wf}"-*.md; do
+      [[ -f "$cmd_file" ]] || continue
+      local base
+      base="$(basename "$cmd_file" .md)"
+      local suffix="${base#"${wf}-"}"
+      if [[ -f "${INSTALL_DIR}/${wf}/commands/${suffix}.md" ]]; then
+        rm -f "$cmd_file"
+        removed=$((removed + 1))
       fi
     done
-    $match || continue
+  done
 
-    if [[ -d "${skills_dir}/${wrapper_name}" ]]; then
-      rm -rf "${skills_dir}/${wrapper_name}"
-      removed=$((removed + 1))
-    fi
-  done < "$manifest"
-
-  if [[ "$SELECTIVE" == true ]]; then
-    local tmp="${manifest}.tmp"
-    while IFS= read -r wrapper_name; do
-      [[ -z "$wrapper_name" ]] && continue
-      local match=false
-      for wf in "${WORKFLOWS[@]}"; do
-        if [[ "$wrapper_name" == "${wf}-"* ]]; then
-          match=true
-          break
-        fi
-      done
-      $match || echo "$wrapper_name"
-    done < "$manifest" > "$tmp"
-    if [[ -s "$tmp" ]]; then
-      mv "$tmp" "$manifest"
-    else
-      rm -f "$tmp" "$manifest"
-    fi
-  else
-    rm -f "$manifest"
-  fi
-
-  [[ $removed -gt 0 ]] && echo "  Removed ${removed} command wrapper(s)  ($SCOPE)"
+  [[ $removed -gt 0 ]] && echo "  Removed ${removed} command(s) from ${cmds_dir}  ($SCOPE)"
 }
 
 uninstall_cursor() {
   if [[ "$SCOPE" == "project" ]]; then
     SKILLS_DIR="${PROJECT_ROOT}/.cursor/skills"
+    CMDS_DIR="${PROJECT_ROOT}/.cursor/commands"
   else
     SKILLS_DIR="${HOME}/.cursor/skills"
+    CMDS_DIR="${HOME}/.cursor/commands"
   fi
 
-  remove_cursor_command_wrappers "$SKILLS_DIR"
+  remove_cursor_commands "$CMDS_DIR"
   if [[ "$SELECTIVE" == false ]]; then
     uninstall_shared "$SKILLS_DIR"
   fi
