@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 # CodeRabbit configuration for ai-workflows
 #
 # This repo contains structured markdown workflows that AI agents read and
@@ -25,7 +26,7 @@ early_access: true
 
 reviews:
   profile: "assertive"
-  request_changes_workflow: true
+  request_changes_workflow: false
   high_level_summary: true
   high_level_summary_instructions: >-
     Summarize changes in terms of which workflows are affected, what
