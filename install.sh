@@ -135,19 +135,65 @@ install_shared() {
   echo "  Linked ${target_dir}/_shared -> ${INSTALL_DIR}/_shared  ($SCOPE)"
 }
 
+generate_cursor_commands() {
+  local cmds_dir="$1"
+  local generated=0
+
+  for wf in "${WORKFLOWS[@]}"; do
+    local wf_dir="${INSTALL_DIR}/${wf}"
+    [[ -d "${wf_dir}/commands" ]] || continue
+
+    for cmd_file in "${wf_dir}"/commands/*.md; do
+      [[ -f "$cmd_file" ]] || continue
+      local phase
+      phase="$(basename "$cmd_file" .md)"
+      local cmd_name="${wf}-${phase}"
+
+      local description=""
+      if head -1 "$cmd_file" | grep -q "^---"; then
+        description="$(awk '/^---/{n++; next} n==1 && /^description:/{sub(/^description:[[:space:]]*"?/, ""); sub(/"[[:space:]]*$/, ""); print; exit}' "$cmd_file")"
+      fi
+      if [[ -z "$description" ]] && [[ -f "${wf_dir}/skills/${phase}.md" ]]; then
+        description="$(awk '/^---/{n++; next} n==1 && /^description:/{sub(/^description:[[:space:]]*"?/, ""); sub(/"[[:space:]]*$/, ""); print; exit}' "${wf_dir}/skills/${phase}.md")"
+      fi
+      [[ -z "$description" ]] && description="Run the ${phase} phase of the ${wf} workflow."
+      description="${description//\"/\\\"}"
+
+      cat > "${cmds_dir}/${cmd_name}.md" <<CMD_EOF
+---
+description: "${description}"
+---
+# /${phase} (${wf})
+
+Read \`${INSTALL_DIR}/${wf}/skills/controller.md\` and follow it.
+
+Dispatch the **${phase}** phase. Context:
+
+\$ARGUMENTS
+CMD_EOF
+      generated=$((generated + 1))
+    done
+  done
+
+  [[ $generated -gt 0 ]] && echo "  Generated ${generated} command(s) in ${cmds_dir}  ($SCOPE)"
+}
+
 install_cursor() {
   if [[ "$SCOPE" == "project" ]]; then
     SKILLS_DIR="${PROJECT_ROOT}/.cursor/skills"
+    CMDS_DIR="${PROJECT_ROOT}/.cursor/commands"
   else
     SKILLS_DIR="${HOME}/.cursor/skills"
+    CMDS_DIR="${HOME}/.cursor/commands"
   fi
 
-  mkdir -p "$SKILLS_DIR"
+  mkdir -p "$SKILLS_DIR" "$CMDS_DIR"
   install_shared "$SKILLS_DIR"
   for wf in "${WORKFLOWS[@]}"; do
     ln -sfn "${INSTALL_DIR}/${wf}" "${SKILLS_DIR}/${wf}"
     echo "  Linked ${SKILLS_DIR}/${wf} -> ${INSTALL_DIR}/${wf}  ($SCOPE)"
   done
+  generate_cursor_commands "$CMDS_DIR"
 }
 
 install_claude() {

@@ -125,20 +125,40 @@ Use `--workflows` to install only the workflows relevant to a given project:
 ./install.sh --list                       # show available workflows
 ```
 
+For project-level Cursor installs, add the generated commands directory to `.gitignore`:
+
+```gitignore
+.cursor/commands/
+```
+
+The skill symlinks under `.cursor/skills/` may also need ignoring depending on your project's conventions.
+
 ## Scopes
 
 | Scope | Cursor | Claude Code |
 |-------|--------|-------------|
-| **User** (default) | `~/.cursor/skills/<workflow>` | `~/.claude/CLAUDE.md` |
-| **Project** (`--project`) | `.cursor/skills/<workflow>` | `.claude/CLAUDE.md` |
+| **User** (default) | `~/.cursor/skills/<workflow>` + `~/.cursor/commands/` | `~/.claude/CLAUDE.md` |
+| **Project** (`--project`) | `.cursor/skills/<workflow>` + `.cursor/commands/` | `.claude/CLAUDE.md` |
 
 ## Usage
 
-Invoke a workflow command (works in both Cursor and Claude Code):
+### Claude Code
+
+Invoke a workflow command using the colon-namespaced format:
 
 - `/bugfix:assess`, `/bugfix:diagnose`, `/bugfix:fix`, ...
 - `/code-review:start`, `/code-review:continue`, `/code-review:clean`
 - `/docs-writer:gather`, `/docs-writer:plan`, `/docs-writer:draft`, ...
+
+### Cursor
+
+The installer generates flat command files in `.cursor/commands/` so each phase appears in the Cursor slash menu:
+
+- `/bugfix-assess`, `/bugfix-diagnose`, `/bugfix-fix`, ...
+- `/code-review-start`, `/code-review-continue`, `/code-review-clean`
+- `/docs-writer-gather`, `/docs-writer-plan`, `/docs-writer-draft`, ...
+
+Cursor scans both project-level (`.cursor/commands/`) and user-level (`~/.cursor/commands/`) directories. Commands are plain `.md` files — no manifest or wrapper directories needed. They are created by `install.sh` and cleaned up by `uninstall.sh`.
 
 ## Updating
 

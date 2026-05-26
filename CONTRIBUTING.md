@@ -88,10 +88,20 @@ The installer (`install.sh`) auto-discovers workflows by scanning for `*/SKILL.m
 
 **Claude Code integration**: The installer:
 1. Appends workflow references to `CLAUDE.md` (or `.claude/CLAUDE.md` for project-level) beneath the `# ai-workflows` marker
-2. Symlinks workflows into the user-level Claude skills directory (or `.claude/skills/` for project-level) for slash command discovery
-3. Removes stale references (old controller.md paths) to avoid duplicates
+2. Symlinks workflows into the Claude skills directory (or `.claude/skills/` for project-level) for slash command discovery
+3. Symlinks each workflow's `commands/` directory into `.claude/commands/` so phases are discoverable as `/{workflow}:{command}` slash commands (e.g., `/bugfix:assess`, `/cve-fix:patch`)
+4. Removes stale references (old controller.md paths) to avoid duplicates
 
-**Uninstall** (`uninstall.sh`) mirrors the install logic with removal.
+**Cursor integration**: Cursor uses two discovery mechanisms — skills (`SKILL.md` in `.cursor/skills/*/`) and commands (`.md` files in `.cursor/commands/`). The installer uses both:
+
+1. Symlinks each workflow directory into `.cursor/skills/{workflow}/` for top-level skill discovery
+2. For each `commands/{phase}.md` in a workflow, generates a command file `.cursor/commands/{workflow}-{phase}.md` — a thin dispatch prompt that reads the workflow's controller and dispatches the phase
+
+Cursor scans both project-level (`.cursor/commands/`) and user-level (`~/.cursor/commands/`) directories, so commands work at either scope. No manifest file is needed — uninstall identifies generated commands by matching `{workflow}-*.md` filenames against existing `commands/*.md` source files.
+
+**Note on symlinks**: The skill symlinks (`.cursor/skills/{workflow}/` -> `~/.ai-workflows/{workflow}`) depend on Cursor following symlinks for top-level skill discovery. There are [reported issues](https://forum.cursor.com/t/cursor-doesnt-follow-symlinks-to-discover-skills/149693) with this in some Cursor versions. The generated command files avoid this problem by using absolute paths to `$INSTALL_DIR`, so the slash commands work independently of symlink resolution.
+
+**Uninstall** (`uninstall.sh`) mirrors the install logic with removal. For Cursor, it removes generated command files by matching `{workflow}-{phase}.md` against the source workflow's `commands/` directory to avoid removing unrelated files. Selective uninstall (`--workflows`) only removes commands belonging to the specified workflows.
 
 ## Testing Your Changes
 

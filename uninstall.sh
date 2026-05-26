@@ -116,13 +116,38 @@ has_remaining_workflows() {
   return 1
 }
 
+remove_cursor_commands() {
+  local cmds_dir="$1"
+  local removed=0
+
+  [[ -d "$cmds_dir" ]] || return 0
+
+  for wf in "${WORKFLOWS[@]}"; do
+    for cmd_file in "${cmds_dir}/${wf}"-*.md; do
+      [[ -f "$cmd_file" ]] || continue
+      local base
+      base="$(basename "$cmd_file" .md)"
+      local suffix="${base#"${wf}-"}"
+      if [[ -f "${INSTALL_DIR}/${wf}/commands/${suffix}.md" ]]; then
+        rm -f "$cmd_file"
+        removed=$((removed + 1))
+      fi
+    done
+  done
+
+  [[ $removed -gt 0 ]] && echo "  Removed ${removed} command(s) from ${cmds_dir}  ($SCOPE)"
+}
+
 uninstall_cursor() {
   if [[ "$SCOPE" == "project" ]]; then
     SKILLS_DIR="${PROJECT_ROOT}/.cursor/skills"
+    CMDS_DIR="${PROJECT_ROOT}/.cursor/commands"
   else
     SKILLS_DIR="${HOME}/.cursor/skills"
+    CMDS_DIR="${HOME}/.cursor/commands"
   fi
 
+  remove_cursor_commands "$CMDS_DIR"
   if [[ "$SELECTIVE" == false ]]; then
     uninstall_shared "$SKILLS_DIR"
   fi
