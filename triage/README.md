@@ -6,13 +6,12 @@ Bulk-triage unresolved Jira bugs with AI-driven recommendations. Fetches all ope
 
 ```mermaid
 graph TD
-    start([start]) --> scan
-    scan --> analyze
-    analyze --> report
     run([run]) --> start
-    run --> scan
-    run --> analyze
-    run --> report
+    subgraph Bulk Pipeline
+        start([start]) --> scan
+        scan --> analyze
+        analyze --> report
+    end
     assess([assess]) --> single[Single-issue triage]
 ```
 
