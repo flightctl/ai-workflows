@@ -122,6 +122,35 @@ If tests fail unexpectedly:
 - Document all failures with details for investigation
 - Consider if the fix approach needs revision
 
+## Infrastructure Error Cap
+
+Infrastructure errors are test failures caused by the test environment, not
+by your code change. Examples: resource version conflicts, kubebuilder/envtest
+asset download failures, connection timeouts, port binding conflicts, Docker
+daemon errors, flaky network calls to external services.
+
+**Rules:**
+
+1. **Classify each failure.** Before retrying, determine whether the failure
+   is a code bug (your fix is wrong) or an infrastructure error (the
+   environment is broken). Check the error message, stack trace, and whether
+   the same test passes locally or in CI without your changes.
+
+2. **Cap infrastructure retries at 3.** If the same test fails 3 or more
+   times with infrastructure errors unrelated to your fix, stop retrying.
+   Document the limitation in `.artifacts/bugfix/{issue}/verification.md`
+   and proceed to the next phase.
+
+3. **Cap total test invocations at 5.** Do not spend more than 5 test
+   invocations on infrastructure issues unrelated to the fix. A 1-line
+   fix should not trigger 17 test runs because envtest has
+   resource-version conflicts.
+
+4. **Document, don't loop.** When hitting either cap, write a clear note:
+   what failed, why it's infrastructure (not your code), how many times
+   you retried, and what a human needs to do to unblock it (e.g., "envtest
+   binary assets need rebuilding," "kind cluster needs restart").
+
 ## When This Phase Is Done
 
 Report your results:

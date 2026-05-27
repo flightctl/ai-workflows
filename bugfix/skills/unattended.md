@@ -209,9 +209,15 @@ If the review was clean, say so.]
 Even in unattended mode, phase failures trigger retries before continuing.
 Each retry loop is capped at `max_retries` (default: 3):
 
-- `/test` fails → return to `/fix`, rework the implementation, re-run
-  `/test`. Repeat up to `max_retries` times; if still failing, document
-  failures and continue to `/review`.
+- `/test` fails → first classify the failure as a **code bug** or an
+  **infrastructure error** (see `test.md` → Infrastructure Error Cap).
+  - **Code bug**: return to `/fix`, rework, re-run `/test`. Repeat up to
+    `max_retries` times; if still failing, document and continue to `/review`.
+  - **Infrastructure error**: do NOT return to `/fix`. Retry the test up
+    to 3 times. If the same infrastructure error persists after 3+
+    attempts, or total test invocations on infrastructure issues exceed
+    5, document the limitation and continue to `/review`. Do not loop
+    endlessly on environment problems unrelated to the fix.
 - `/review` verdict is "fix is inadequate" or finds CRITICAL/HIGH severity
   issues → return to `/fix`, revise, re-run `/test` and `/review` (both
   phases must pass on retry, since the review triggered the rework).
