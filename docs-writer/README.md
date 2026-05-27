@@ -12,6 +12,19 @@ This workflow provides a systematic approach to writing documentation for Red Ha
 - **Validated Output**: Runs Vale linting (and optionally AsciiDoctor builds) before applying changes
 - **IDE-Native**: All work happens in the IDE workspace with file artifacts passed between phases
 
+## Phase Flow
+
+```mermaid
+graph TD
+    gather([gather]) --> plan
+    plan --> approve{Approve plan}
+    approve --> draft
+    draft --> validate
+    validate -->|pass| apply
+    validate -->|fail| draft
+    apply --> mr
+```
+
 ## Prerequisites
 
 The workflow depends on external tools and integrations. Not all are needed for every phase — install what you need based on which phases you plan to use.

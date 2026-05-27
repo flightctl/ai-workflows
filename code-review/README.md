@@ -2,6 +2,18 @@
 
 An AI-driven code review workflow that reviews uncommitted changes, presents findings for human decision, and iterates until approved or the user declares done.
 
+## Phase Flow
+
+```mermaid
+graph TD
+    start([start]) --> decision{User decisions}
+    decision -->|accept/reject findings| continue
+    continue --> review{Re-review}
+    review -->|new findings| decision
+    review -->|approved| done([done + cleanup])
+    clean([clean]) --> removed([artifacts removed])
+```
+
 ## Prerequisites
 
 | Tool | Required | Purpose |

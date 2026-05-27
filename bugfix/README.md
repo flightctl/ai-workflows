@@ -11,6 +11,24 @@ This workflow provides a structured approach to fixing software bugs:
 - **Comprehensive Testing**: Ensures fixes work and prevents regression
 - **Complete Documentation**: Creates all artifacts needed for release and future reference
 
+## Phase Flow
+
+```mermaid
+graph TD
+    start([start]) --> assess
+    assess --> reproduce
+    reproduce --> diagnose
+    diagnose --> fix
+    fix --> test
+    test --> review
+    review -->|fix inadequate| fix
+    review -->|tests incomplete| test
+    review -->|solid| document
+    document --> pr
+    pr --> feedback
+    feedback --> feedback
+```
+
 ## Directory Structure
 
 ```text

@@ -2,6 +2,20 @@
 
 A requirements-to-PRD workflow that ingests requirements from Jira, clarifies ambiguities through iterative Q&A, drafts a Product Requirements Document, revises based on feedback, publishes as a GitHub PR, and responds to reviewer comments.
 
+## Phase Flow
+
+```mermaid
+graph TD
+    ingest([ingest]) --> clarify
+    clarify --> clarify
+    clarify --> draft
+    draft --> revise
+    revise --> revise
+    revise --> publish
+    publish --> respond
+    respond --> respond
+```
+
 ## Prerequisites
 
 | Tool | Required | Purpose |

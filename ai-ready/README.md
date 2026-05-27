@@ -10,6 +10,16 @@ The `/ai-ready:update` command scans a codebase and:
 2. **Audits AI convention files** (`.cursorrules`, `CLAUDE.md`, `.github/copilot-instructions.md`, etc.) — keeps tool-specific ones that are auto-loaded by their tools, merges redundant ones into `AGENTS.md`, updates stale ones, or creates missing ones.
 3. **Detects monorepos** and recommends nested `AGENTS.md` files for subprojects.
 
+## Phase Flow
+
+```mermaid
+graph TD
+    update([update]) --> scan[Scan codebase]
+    scan --> create[Create/update AGENTS.md]
+    create --> audit[Audit AI convention files]
+    audit --> summary[Present summary]
+```
+
 ## Usage
 
 ```text
