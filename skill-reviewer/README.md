@@ -11,6 +11,16 @@ This workflow provides a skeptical, structured review of any AI skill directory:
 - **Actionable Output**: Every finding includes a concrete suggestion for improvement
 - **Artifact Persistence**: Review reports saved to `.artifacts/skill-reviewer/{skill-name}/review.md`
 
+## Phase Flow
+
+```mermaid
+graph TD
+    review([review]) --> read[Read all files]
+    read --> checks[Run pre-review checks]
+    checks --> evaluate[Evaluate 8 dimensions]
+    evaluate --> report[Produce findings report]
+```
+
 ## Directory Structure
 
 ```text

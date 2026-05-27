@@ -2,6 +2,22 @@
 
 A story-to-tests workflow that takes a Jira [QE] Story, discovers the project's e2e testing infrastructure, plans test scenarios mapped to acceptance criteria, writes e2e test code following the project's patterns, validates against anti-patterns and scenario coverage, and manages review via GitHub PRs.
 
+## Phase Flow
+
+```mermaid
+graph TD
+    ingest([ingest]) --> plan
+    plan --> revise
+    revise --> revise
+    plan --> code
+    revise --> code
+    code --> validate
+    validate -->|pass| publish
+    validate -->|fail| code
+    publish --> respond
+    respond --> respond
+```
+
 ## Prerequisites
 
 | Tool | Required | Purpose |

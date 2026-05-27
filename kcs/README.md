@@ -10,6 +10,16 @@ A structured workflow for creating KCS (Knowledge-Centered Service) Solution art
 - **Portable**: No hardcoded product names, contacts, or project references — works for any team
 - **IDE-Native**: All work happens in the IDE workspace with file artifacts passed between phases
 
+## Phase Flow
+
+```mermaid
+graph TD
+    gather([gather]) --> draft
+    draft --> validate
+    validate -->|pass| handoff
+    validate -->|fail| draft
+```
+
 ## Prerequisites
 
 | Tool | Used By | Required? | Install |

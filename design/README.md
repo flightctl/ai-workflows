@@ -2,6 +2,23 @@
 
 A design-and-decompose workflow that ingests a PRD, researches the external problem space, drafts a technical design document, decomposes into Jira-ready epics and stories, revises based on feedback, publishes as a GitHub PR, responds to reviewer comments, and syncs epics/stories to Jira.
 
+## Phase Flow
+
+```mermaid
+graph TD
+    ingest([ingest]) --> research
+    research --> draft
+    ingest --> draft
+    draft --> decompose
+    decompose --> revise
+    revise --> revise
+    revise --> decompose
+    revise --> publish
+    publish --> respond
+    respond --> respond
+    respond --> sync
+```
+
 ## Prerequisites
 
 | Tool | Required | Purpose |
