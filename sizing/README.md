@@ -9,6 +9,13 @@ A pre-cycle Feature sizing workflow that assesses Jira Features using T-shirt si
 | Jira access (MCP or CLI) | Yes | Fetch Features, write Size field, add comments |
 | Git | Yes | Codebase exploration |
 
+## Command Syntax
+
+Examples in this document use bare phase names (`/ingest`, `/assess`, `/apply`).
+The actual invocation syntax depends on your AI tool — e.g., `/sizing:ingest`
+in Claude Code, `/sizing-ingest` in Cursor. See your tool's documentation for
+the exact command format.
+
 ## Phases
 
 | Phase | Command | Purpose | Artifact(s) |
