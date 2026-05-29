@@ -74,8 +74,12 @@ Before writing, plan:
    infrastructure; the dependency is on *where* tests run, not *whether*
    tests exist.
 
-5. **Size epics.** Each epic should be larger than a single sprint but fit
-   within a release. Use T-shirt sizes (XS, S, M, L, XL).
+5. **Size epics.** Read `../../_shared/sizing-rubric.md` for the size
+   definitions and heuristics. Epic sizes map to dev-weeks within the
+   cycle. Use T-shirt sizes (XS, S, M, L, XL). **XXL is not allowed
+   in the final decomposition** — if an epic sizes to XXL, it must be
+   split into smaller epics before proceeding. Split by user-value
+   slice, not technical layer.
 
 ### Step 4: Write Epics
 
@@ -336,6 +340,26 @@ serve as idempotency keys in the sync manifest. Once stories have been synced
 to Jira, their filenames must not change. When revising a decomposition,
 append new stories with the next available number rather than inserting or
 renumbering existing ones.
+
+### Step 5b: Sizing Consistency Check
+
+After sizing all epics, verify plausibility:
+
+1. Read the Feature's Size from `.artifacts/prd/{issue-number}/01-requirements.md`
+   (the Size field captured during PRD ingest) or from
+   `.artifacts/sizing/{issue-number}/02-assessment.md` (if the sizing
+   workflow was run in single-Feature mode). If neither exists, skip this
+   check. Note: batch-mode sizing stores assessments under a version slug
+   (e.g., `.artifacts/sizing/1-3-0/`), not per-Feature — batch assessments
+   are not automatically found by this lookup.
+
+2. Verify that the epic sizes are collectively plausible given the
+   Feature's overall size.
+   For example, a Feature sized M should not decompose into three L
+   epics. Flag any mismatch to the user.
+
+3. Verify no epic is sized XXL. If any is, stop and require a split
+   before proceeding to Step 6.
 
 ### Step 6: Write Coverage Matrix
 

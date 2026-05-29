@@ -59,6 +59,8 @@ Capture:
 - Description (full text, preserving any section structure)
 - Acceptance criteria / Definition of Done (if present)
 - Status, priority, labels, fix version
+- Size (`customfield_10795`, if set — include this field explicitly in the
+  Jira fetch request since custom fields are not returned by default)
 - Comments (all)
 - Attachments (note their names and descriptions)
 
@@ -105,6 +107,7 @@ If this is a first invocation, write
 - **Priority:** {priority}
 - **Labels:** {labels}
 - **Fix Version:** {version}
+- **Size:** {value or "Not set"}
 
 ## Description
 

@@ -171,7 +171,8 @@ Feature: {feature-key}
 {list of story titles for this epic}
 ```
 
-- **T-Shirt Size:** {size} (set via the appropriate Jira field)
+- **T-Shirt Size:** {size} — set via `additional_fields`:
+  `{"customfield_10795": {"value": "{size}"}}`
 
 After creating each epic, verify the created issue has `parent.key`
 equal to `{feature-key}` by reading the issue back. If the parent is
@@ -337,6 +338,7 @@ should be:
       "file": "epic-1-image-building.md",
       "jira_key": "EDM-XXXX",
       "title": "{title}",
+      "size": "{size}",
       "stories": [
         {
           "file": "story-01-scaffold-build-pipeline.md",

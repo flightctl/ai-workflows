@@ -17,6 +17,7 @@ This repository contains reusable AI coding workflows that can be installed glob
 - **implement** — Story-to-code workflow (ingest, plan, revise, code, validate, publish, respond)
 - **kcs** — KCS Solution article workflow (gather, draft, validate, handoff)
 - **prd** — Requirements-to-PRD workflow (ingest, clarify, draft, revise, publish, respond)
+- **sizing** — Pre-cycle Feature sizing with T-shirt sizes and team effort breakdowns (ingest, assess, apply)
 - **skill-reviewer** — Meta-workflow that audits AI skill directories
 - **triage** — Bulk Jira bug triage with AI-driven categorization and HTML reports
 
@@ -52,6 +53,7 @@ workflow-name/
 ```text
 _shared/
   review-protocol.md              # Shared code review criteria, finding format, severity definitions
+  sizing-rubric.md                # Shared sizing definitions (T-shirt sizes, heuristics, team effort guidance)
   recipes/
     self-review-gate.md           # Pre-PR self-review quality gate (used by bugfix, implement, e2e, cve-fix)
 ```
@@ -88,6 +90,7 @@ See CONTRIBUTING.md for workflow structure conventions, path rules, testing, and
 ai-workflows/
 ├── _shared/                   # Cross-cutting shared resources
 │   ├── review-protocol.md     # Shared code review criteria and finding format
+│   ├── sizing-rubric.md       # Shared sizing definitions and heuristics
 │   └── recipes/
 │       └── self-review-gate.md  # Pre-PR self-review quality gate
 ├── ai-ready/                  # Workflows (auto-discovered via SKILL.md)
@@ -100,6 +103,7 @@ ai-workflows/
 ├── implement/
 ├── kcs/
 ├── prd/
+├── sizing/
 ├── skill-reviewer/
 │   ├── prompts/
 │   └── scripts/
@@ -118,5 +122,5 @@ ai-workflows/
 When a workflow invokes commands that could affect shared systems:
 - **Git operations**: Always verify with `git status` before destructive operations
 - **PR/MR creation**: Confirm branch and base before pushing
-- **Jira writes**: Only cve-fix `/close` and design `/sync` write to Jira; both require explicit approval
+- **Jira writes**: Only cve-fix `/close`, design `/sync`, and sizing `/apply` write to Jira; all require explicit approval
 - **Documentation changes**: Run Vale validation before applying changes to repository files
