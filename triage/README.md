@@ -2,6 +2,19 @@
 
 Bulk-triage unresolved Jira bugs with AI-driven recommendations. Fetches all open bugs and **recently resolved** bugs (for regression matching), analyzes each open bug (including error signatures, duplicate confidence, and possible regressions), and generates a self-contained interactive HTML report. For **one issue** in depth without bulk artifacts, use **`/assess`** (see `skills/assess.md`).
 
+## Phase Flow
+
+```mermaid
+graph TD
+    run([run]) --> start
+    subgraph Bulk Pipeline
+        start([start]) --> scan
+        scan --> analyze
+        analyze --> report
+    end
+    assess([assess]) --> single[Single-issue triage]
+```
+
 ## Prerequisites
 
 - **Jira MCP server** — the `user-mcp-jira` MCP server must be configured and authenticated

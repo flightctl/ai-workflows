@@ -2,6 +2,22 @@
 
 A story-to-code workflow that takes a Jira Story, plans the implementation, writes contract-based tests and production code via TDD, validates against the project's CI expectations, and manages review via GitHub PRs.
 
+## Phase Flow
+
+```mermaid
+graph TD
+    ingest([ingest]) --> plan
+    plan --> revise
+    revise --> revise
+    plan --> code
+    revise --> code
+    code --> validate
+    validate -->|pass| publish
+    validate -->|fail| code
+    publish --> respond
+    respond --> respond
+```
+
 ## Prerequisites
 
 | Tool | Required | Purpose |
