@@ -39,6 +39,9 @@ Reusable AI coding workflows a team member can install globally or per-project, 
 - **KCS** -- KCS Solution article workflow: gather bug context from Jira, draft a KCS article in markdown, validate against the KCS Content Standard, and produce a handoff message for the support engineer.
   See [kcs/README.md](kcs/README.md).
 
+- **Sizing** -- Pre-cycle Feature sizing: ingest Features from Jira (single or batch by Fix Version), assess against a T-shirt size rubric (XS–XXL) with per-team effort breakdowns (DEV, QE, UX, UI, DOCS), and write results back to Jira.
+  See [sizing/README.md](sizing/README.md).
+
 - **Skill Reviewer** -- Meta-workflow that audits AI skill directories against eight quality dimensions.
   See [skill-reviewer/README.md](skill-reviewer/README.md).
 
@@ -115,6 +118,7 @@ Each workflow is intended for a specific project or use case:
 - **ai-ready** -- onboarding any project for AI agents by generating AGENTS.md
 - **kcs** -- teams writing KCS Solution articles for known issues with workarounds
 - **triage** -- teams that want bulk Jira triage, categorization, and HTML reports from this repo or a clone
+- **sizing** -- teams sizing Features for cycle planning using T-shirt sizes with per-team effort breakdowns
 - **skill-reviewer** -- reviewing or standardizing Cursor/agent skills and skill packs (structure, clarity, completeness)
 
 Use `--workflows` to install only the workflows relevant to a given project:

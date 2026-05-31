@@ -74,8 +74,12 @@ Before writing, plan:
    infrastructure; the dependency is on *where* tests run, not *whether*
    tests exist.
 
-5. **Size epics.** Each epic should be larger than a single sprint but fit
-   within a release. Use T-shirt sizes (XS, S, M, L, XL).
+5. **Size epics.** Read `../../_shared/sizing-rubric.md` for the size
+   definitions and heuristics. Epic sizes map to dev-weeks within the
+   cycle. Use T-shirt sizes (XS, S, M, L, XL). **XXL is not allowed
+   in the final decomposition** — if an epic sizes to XXL, it must be
+   split into smaller epics before proceeding. Split by user-value
+   slice, not technical layer.
 
 ### Step 4: Write Epics
 
@@ -105,7 +109,7 @@ Write `.artifacts/design/{issue-number}/04-epics.md`:
 {PRD Requirements column: list the primary requirements for quick reference.
  If an epic maps to more than ~8 requirements, list the most significant
  and add "See coverage matrix for full mapping." The coverage matrix
- (Step 6) is the authoritative source for requirement-to-story traceability.}
+ (Step 7) is the authoritative source for requirement-to-story traceability.}
 
 ## Dependency Order
 
@@ -337,7 +341,27 @@ to Jira, their filenames must not change. When revising a decomposition,
 append new stories with the next available number rather than inserting or
 renumbering existing ones.
 
-### Step 6: Write Coverage Matrix
+### Step 6: Sizing Consistency Check
+
+After sizing all epics, verify plausibility:
+
+1. Read the Feature's Size from `.artifacts/prd/{issue-number}/01-requirements.md`
+   (the Size field captured during PRD ingest) or from
+   `.artifacts/sizing/{issue-number}/02-assessment.md` (if the sizing
+   workflow was run in single-Feature mode). If neither exists, skip this
+   check. Note: batch-mode sizing stores assessments under a version slug
+   (e.g., `.artifacts/sizing/1-3-0/`), not per-Feature — batch assessments
+   are not automatically found by this lookup.
+
+2. Verify that the epic sizes are collectively plausible given the
+   Feature's overall size.
+   For example, a Feature sized M should not decompose into three L
+   epics. Flag any mismatch to the user.
+
+3. Verify no epic is sized XXL. If any is, stop and require a split
+   before proceeding to Step 7.
+
+### Step 7: Write Coverage Matrix
 
 Write `.artifacts/design/{issue-number}/06-coverage.md`:
 
@@ -366,7 +390,7 @@ Write `.artifacts/design/{issue-number}/06-coverage.md`:
  If none: "All stories trace to PRD requirements."}
 ```
 
-### Step 7: Verify Artifact Structure
+### Step 8: Verify Artifact Structure
 
 Quick sanity check before invoking the decomposition review. Verify:
 
@@ -379,7 +403,7 @@ Quick sanity check before invoking the decomposition review. Verify:
 If structural issues are found, fix them before proceeding. Do not
 invoke a review on incomplete artifacts.
 
-### Step 8: Review Decomposition
+### Step 9: Review Decomposition
 
 Review the decomposition for structural quality and requirement
 coverage. This review operates independently from the design document —
@@ -400,7 +424,7 @@ subagent for independence. Load it with:
 - NOT the design document (`03-design.md`) — the reviewer evaluates
   the artifacts on their own merits
 
-Retain the subagent's ID for use in Step 10 — resuming the same
+Retain the subagent's ID for use in Step 11 — resuming the same
 reviewer gives it memory of its previous findings and concerns,
 producing more coherent follow-up reviews.
 
@@ -415,9 +439,9 @@ severity definitions from the protocol. The subagent path provides
 stronger independence; the inline path still catches issues by forcing
 a perspective shift.
 
-### Step 9: Validate and Assess Findings
+### Step 10: Validate and Assess Findings
 
-For each finding from Step 8:
+For each finding from Step 9:
 
 1. **Validate the reference.** Confirm the cited artifact file and
    section exist. Discard any finding that references a file or section
@@ -440,13 +464,13 @@ For each finding from Step 8:
 Only fix findings that add real value. Do not make changes for
 structural preferences not grounded in the evaluation criteria.
 
-### Step 10: Re-Review (if fixes were made)
+### Step 11: Re-Review (if fixes were made)
 
-If Step 9 produced changes to the decomposition artifacts:
+If Step 10 produced changes to the decomposition artifacts:
 
 1. Obtain a re-review of the updated artifacts:
 
-   **If a subagent was used in Step 8 and the runtime supports agent
+   **If a subagent was used in Step 9 and the runtime supports agent
    resumption:** Resume the same reviewer agent. Send it the updated
    artifacts and a summary of fixes applied. This gives the reviewer
    memory of its original findings and lets it verify they were
@@ -466,13 +490,13 @@ If Step 9 produced changes to the decomposition artifacts:
    - Whether fixes were applied correctly
    - Whether fixes introduced new issues
 2. If new issues are found, fix them following the same validate-and-
-   assess procedure from Step 9
+   assess procedure from Step 10
 3. Cap at 2 review-fix rounds total. Decomposition fixes are structural
    and less likely than code fixes to need multiple iterations.
 
-If no fixes were needed in Step 9, the review passes immediately.
+If no fixes were needed in Step 10, the review passes immediately.
 
-### Step 11: Report Review Summary
+### Step 12: Report Review Summary
 
 ```markdown
 ## Decomposition Review Summary
@@ -487,7 +511,7 @@ If no fixes were needed in Step 9, the review passes immediately.
 list them with their file, section, and issue description.}
 ```
 
-### Step 12: Present to User
+### Step 13: Present to User
 
 Present the decomposition and highlight:
 - Number of epics and stories
@@ -495,7 +519,7 @@ Present the decomposition and highlight:
 - Any coverage gaps
 - Stories that might need size adjustment (too large or too small)
 - Any assumptions or judgment calls in the decomposition
-- Decomposition review summary (from Step 11)
+- Decomposition review summary (from Step 12)
 
 If the decomposition review gate reported FLAG, present the unfixed
 CRITICAL/HIGH findings and ask the user to decide how to handle them.

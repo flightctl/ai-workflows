@@ -71,7 +71,11 @@ impact:
 
 2. **Epic Structure** — Is each epic organized around user value, not
    technical layers? Does each epic deliver complete functionality
-   independently? Are T-shirt sizes assigned and reasonable? Is the epic
+   independently? Are T-shirt sizes assigned and consistent with the sizing rubric
+   (`../_shared/sizing-rubric.md`)? Does each epic's size match its scope
+   — story count, component breadth, integration surface? Are any epics
+   suspiciously uniform in size when their scope clearly varies? No epic
+   should be sized XXL — that indicates it must be split. Is the epic
    dependency order documented and logical? Could implementing the epics
    in the documented order actually work, or are there hidden
    dependencies?
