@@ -8,13 +8,17 @@ A pre-cycle Feature sizing workflow that assesses Jira Features using T-shirt si
 graph TD
     subgraph Single Feature
         ingest_s([ingest KEY]) --> assess_s[assess]
+        assess_s -->|XXL → must split| assess_s
         assess_s --> apply_s[apply]
+        apply_s -->|preview + approval| apply_s
     end
     subgraph Batch by Release
         ingest_b([ingest release:P:V]) --> assess_b[assess]
         assess_b -->|calibrate| assess_b
+        assess_b -->|XXL → must split| assess_b
         assess_b --> apply_b[apply]
         apply_b -->|exclude Features| apply_b
+        apply_b -->|preview + approval| apply_b
     end
 ```
 
