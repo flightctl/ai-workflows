@@ -207,7 +207,8 @@ If the review was clean, say so.]
 ## Feedback Loops
 
 Even in unattended mode, phase failures trigger retries before continuing.
-Each retry loop is capped at `max_retries` (default: 3):
+Code bug retries are capped at `max_retries` (default: 3); infrastructure
+errors use fixed caps (see below):
 
 - `/test` fails → classify as **code bug** or **infrastructure error**
   (see `test.md` Error Handling).
