@@ -125,8 +125,9 @@ If tests fail unexpectedly:
   timeouts)
 - Code bug: revise the fix and retry
 - Infrastructure error: retry up to 3 more times without returning to
-  `/fix`. If it persists, document what failed, why it's environmental,
-  and what a human needs to do to unblock it, then proceed to the next phase
+  `/fix` (max 5 total infra-related invocations). If either limit is hit,
+  document what failed, why it's environmental, and what a human needs to
+  do to unblock it, then proceed to the next phase.
 
 ## When This Phase Is Done
 
