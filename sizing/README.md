@@ -2,6 +2,22 @@
 
 A pre-cycle Feature sizing workflow that assesses Jira Features using T-shirt sizes (XS–XXL), produces per-team effort breakdowns (DEV, QE, UX, UI, DOCS), classifies each Feature on an impact-vs-effort quadrant for prioritization, and writes results back to Jira. Supports single-Feature and batch (Fix Version) modes.
 
+## Phase Flow
+
+```mermaid
+graph TD
+    subgraph Single Feature
+        ingest_s([ingest KEY]) --> assess_s[assess]
+        assess_s --> apply_s[apply]
+    end
+    subgraph Batch by Release
+        ingest_b([ingest release:P:V]) --> assess_b[assess]
+        assess_b -->|calibrate| assess_b
+        assess_b --> apply_b[apply]
+        apply_b -->|exclude Features| apply_b
+    end
+```
+
 ## Prerequisites
 
 | Tool | Required | Purpose |
