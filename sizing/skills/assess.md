@@ -149,6 +149,8 @@ quadrantChart
     quadrant-4 Reconsider
     {For each Feature, add a point. Normalize effort score to 0–1
      (effort_score / 10) and impact score to 0–1 ((impact_score - 4) / 16).
+     Clamp results to [0.05, 0.95] — Mermaid quadrant values must be
+     strictly between 0 and 1 (exclusive).
      Use only the issue key as the label — no title, priority score,
      or other text.
      Example:
