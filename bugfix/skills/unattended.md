@@ -215,7 +215,7 @@ errors use fixed caps (see below):
   - **Code bug**: return to `/fix`, rework, re-run `/test`. Repeat up to
     `max_retries` times; if still failing, document and continue to `/review`.
   - **Infrastructure error**: do NOT return to `/fix`. Retry `/test` up to
-    3 more times (max 5 total infra-related invocations). If still failing,
+    3 more times (max 5 total across all infra errors). If still failing,
     document and continue to `/review`.
 - `/review` verdict is "fix is inadequate" or finds CRITICAL/HIGH severity
   issues → return to `/fix`, revise, re-run `/test` and `/review` (both
