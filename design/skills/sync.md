@@ -299,10 +299,6 @@ For each new epic, create a Jira issue:
 
 Design document: {link to design doc PR or file}
 Feature: {feature-key}
-
-## Stories
-
-{list of story titles for this epic}
 ```
 
 - **T-Shirt Size:** {size} — set via `additional_fields`:
