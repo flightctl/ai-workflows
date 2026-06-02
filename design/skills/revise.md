@@ -23,6 +23,7 @@ multiple rounds of revision.
 - **Show your changes.** After revising, summarize what changed so the user can verify.
 - **No scope reduction.** Do not silently simplify, even when revising.
 - **Filename stability after sync.** If `sync-manifest.json` exists, epic and story filenames are locked — they serve as idempotency keys in Jira. Do not rename, renumber, or delete synced files. New stories must use the next available number. New epics must use the next available number (gaps are fine).
+- **Logical deletion via marker.** When the user wants to remove a synced story or epic, do not delete the file. Instead, add `status: removed` to the file's YAML frontmatter. The file stays on disk so `/sync` can detect the removal and close the corresponding Jira issue.
 
 ## Process
 
@@ -65,11 +66,16 @@ If `sync-manifest.json` **exists** (post-sync), filenames are locked:
   to different directories. Keep synced story files at their original
   paths — `/sync` uses filenames as idempotency keys and path changes
   cause duplicate Jira creation. Instead, update the surviving epic's
-  content to reflect the combined scope and mark the absorbed epic as
-  deprecated in its content. Add any net-new work as new story files
-  using the next available number in the target epic. If the user wants
-  to reorganize epics and stories in Jira, that is a manual Jira
-  operation (move stories between epics in Jira's UI).
+  content to reflect the combined scope and add `status: removed` to
+  the absorbed epic's YAML frontmatter so `/sync` will close it in
+  Jira. Add any net-new work as new story files using the next
+  available number in the target epic. If the user wants to reorganize
+  epics and stories in Jira, that is a manual Jira operation (move
+  stories between epics in Jira's UI). Note: stories under the absorbed
+  epic remain tracked in the manifest under their original epic.
+  `/sync` will continue to update them if their content changes, but
+  their Jira parent link still points to the now-closed epic. Move
+  them to the surviving epic in Jira's UI.
 - **Splitting stories:** Keep the original story file. Add new stories
   with the next available number (e.g., if story-03 is the last, add
   story-04 and story-05).
@@ -203,16 +209,15 @@ Summarize what changed:
 ```
 
 **If `sync-manifest.json` exists and any synced decomposition files were
-modified**, append a Jira update section to the revision summary. For each
+modified**, append a Jira sync section to the revision summary. For each
 modified file that appears in the manifest, look up its Jira key and
 construct a browse URL using the Jira integration:
 
 ```markdown
-### Jira Issues Needing Manual Update
+### Jira Issues Pending Sync
 
-The following artifacts were modified but have already been synced to
-Jira. `/sync` will not update existing issues — please update them
-manually:
+The following artifacts were modified since the last sync. Re-run
+`/sync` to push these changes to Jira:
 
 | Artifact | Jira Issue | What Changed |
 |----------|------------|--------------|

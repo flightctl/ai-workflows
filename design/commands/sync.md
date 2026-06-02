@@ -1,6 +1,6 @@
 ---
 name: design:sync
-description: "Create Jira epics and stories from the approved task breakdown"
+description: "Sync Jira epics and stories with the approved task breakdown — create, update, and close"
 ---
 # /sync
 

@@ -34,7 +34,8 @@ executing phases and handling transitions between them.
    Fetch and address reviewer comments on the PR. Repeatable.
 
 8. **Sync** (`/sync`) — `sync.md`
-   Create Jira epics and stories from the approved task breakdown.
+   Sync Jira epics and stories with the approved task breakdown — create,
+   update, and close.
 
 ## Workspace
 
@@ -215,5 +216,5 @@ subagent spawning.
 - **Never auto-advance.** Always wait for the user between phases.
 - **Recommendations come from this file, not from skills.** Skills report findings; this controller decides what to recommend next.
 - **Template loading is handled by the `/draft` skill.** It checks for project-level overrides before falling back to the workflow default. See `draft.md` Step 1.
-- **Jira is read-only until `/sync`.** The `/ingest` phase reads from Jira but never modifies it. Only `/sync` creates Jira issues, and only with explicit user approval.
+- **Jira is read-only until `/sync`.** The `/ingest` phase reads from Jira but never modifies it. Only `/sync` modifies Jira issues, and only with explicit user approval.
 - **Design and decomposition co-evolve.** If `/revise` changes the design, recommend re-running `/decompose`. If `/decompose` reveals design gaps, recommend `/revise`.
