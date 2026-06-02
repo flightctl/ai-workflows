@@ -124,7 +124,7 @@ If tests fail unexpectedly:
   reproduces without your changes (e.g., envtest conflicts, connection
   timeouts)
 - Code bug: document the failure, revise the fix, and retry
-- Infrastructure error: retry up to 3 more times without returning to
+- Infrastructure error: retry up to `max_retries` more times without returning to
   `/fix`. If still failing, document what failed and why it's environmental,
   then proceed to the next phase.
 
