@@ -70,10 +70,12 @@ Check for an existing sync manifest at
 
 #### If no manifest exists
 
-This is a fresh sync. All items will be created. Present:
+This is a fresh sync. Create all items except those already marked
+`status: removed` — those have never been synced and should be skipped
+(not created, not closed). Present:
 
-*"No sync manifest found — this is a fresh sync. All {N} epics and {M}
-stories will be created."*
+*"No sync manifest found — this is a fresh sync. {N} epics and {M}
+stories will be created; {R} removed-marked items will be skipped."*
 
 Proceed to Step 2.
 
