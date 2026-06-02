@@ -119,8 +119,14 @@ If tests fail unexpectedly:
 
 - Determine if the failure is in the new test or an existing test
 - Check if the fix introduced a regression
-- Document all failures with details for investigation
-- Consider if the fix approach needs revision
+- **Classify before retrying**: is this a code bug (your fix is wrong) or
+  an infrastructure error — a failure outside your test assertions that
+  reproduces without your changes (e.g., envtest conflicts, connection
+  timeouts)
+- Code bug: document the failure, revise the fix, and retry
+- Infrastructure error: retry up to `max_retries` more times without returning to
+  `/fix`. If still failing, document what failed and why it's environmental,
+  then proceed to the next phase.
 
 ## When This Phase Is Done
 
