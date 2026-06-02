@@ -39,7 +39,7 @@ graph TD
 | Revise | `/revise` | Incorporate feedback | Updated design and/or stories |
 | Publish | `/publish` | Post design doc as GitHub PR | `07-pr-description.md` |
 | Respond | `/respond` | Address reviewer comments | `08-review-responses.md` |
-| Sync | `/sync` | Create Jira epics and stories | `sync-manifest.json` |
+| Sync | `/sync` | Sync Jira epics and stories | `sync-manifest.json` |
 
 ## Typical Flow
 
@@ -82,9 +82,9 @@ graph TD
   → repeatable
 
 /sync
-  → previews Jira issues to be created (dry run)
-  → creates epics under the Feature, stories under epics
-  → records created issues in sync-manifest.json
+  → previews all Jira operations (dry run)
+  → syncs epics and stories — creates new, updates changed, closes removed
+  → maintains sync-manifest.json with content hashes
 ```
 
 ## Artifacts
@@ -156,12 +156,13 @@ Key constraints:
 
 ## Jira Sync
 
-The `/sync` phase creates Jira issues from the approved decomposition:
+The `/sync` phase keeps Jira in sync with the approved decomposition:
 
-- **Dry-run first** — always previews what would be created
-- **Batch creation** — epics first (confirm), then stories per epic (confirm)
-- **Idempotent** — tracks created issues in `sync-manifest.json`; re-running creates only new items
-- **Create-only behavior** — never modifies or deletes existing Jira issues
+- **Dry-run first** — always previews what would be created, updated, or closed
+- **Batch operations** — epics first (confirm), then stories per epic (confirm)
+- **Idempotent** — tracks synced items with content hashes in `sync-manifest.json`; re-running only acts on changes
+- **Full CRUD** — creates new items, updates changed items (sync-owned fields only), closes items marked `status: removed`
+- **Duplicate detection** — queries Jira before each creation to prevent duplicates, independent of the manifest
 
 ## Directory Structure
 
@@ -182,7 +183,7 @@ design/
 │   ├── revise.md               # Incorporate feedback
 │   ├── publish.md              # Create GitHub PR
 │   ├── respond.md              # Address review comments
-│   └── sync.md                 # Create Jira issues
+│   └── sync.md                 # Sync Jira issues
 └── commands/
     ├── ingest.md               # /ingest command
     ├── research.md             # /research command
