@@ -94,6 +94,10 @@ The script performs mechanical checks that can be verified deterministically:
 - **Frontmatter**: YAML validity, required fields, colon notation in commands
 - **References**: orphaned files (exist but never referenced) and dangling references (referenced but don't exist)
 - **Step sequencing**: sequential numbering, gaps, duplicates, sub-step notation, step count > 10
+- **Content quality**: weak/hedging language, placeholder text (TODO/FIXME/TBD),
+  absolute filesystem paths, context budget (per-file token estimates),
+  kebab-case command naming, tautological instructions, contradiction detection,
+  section length warnings, cognitive chunking, negative-only prohibitions
 - **Change detection**: which files changed, were added, or removed since the last review (based on SHA-256 hashes stored in `.artifacts/skill-reviewer/{skill-name}/file-hashes.json`)
 
 The script writes current file hashes to `.artifacts/` for future comparisons.

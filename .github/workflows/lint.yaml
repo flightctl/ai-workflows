@@ -12,7 +12,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: bash .github/scripts/validate-structure.sh
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 skill-reviewer/scripts/pre-review-checks.py --all --repo-root .
+
+  skillsaw:
+    name: Skillsaw Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: stbenjam/skillsaw-action@v1
 
   markdownlint:
     name: Markdown Lint
