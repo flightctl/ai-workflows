@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# Structural validation for ai-workflows.
+# DEPRECATED: This script is superseded by pre-review-checks.py --all.
+# Remove after pre-review-checks.py --all has run successfully in CI
+# for at least 2 weeks. See: https://github.com/flightctl/ai-workflows/issues/53
+#
+# Original purpose: Structural validation for ai-workflows.
 # Ensures documentation (AGENTS.md, README.md) stays in sync with the
 # actual workflow directories and that every workflow follows the
 # canonical file structure.

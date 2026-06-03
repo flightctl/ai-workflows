@@ -1,0 +1,128 @@
+# Pin to installed version — bump deliberately when upgrading skillsaw
+version: "0.11.4"
+
+exclude:
+  # Generated review/analysis output, not skill instructions
+  - ".artifacts/**"
+  # Shared resources have different conventions than per-skill files
+  - "_shared/**"
+  # CI scripts and workflow configs, not skill content
+  - ".github/**"
+
+rules:
+  # Plugin rules — not applicable (skill collection, not a plugin)
+  plugin-json-required:
+    enabled: false
+  plugin-json-valid:
+    enabled: false
+  plugin-naming:
+    enabled: false
+  plugin-readme:
+    enabled: false
+
+  # Marketplace — not applicable
+  marketplace-json-valid:
+    enabled: false
+  marketplace-registration:
+    enabled: false
+
+  # APM — not applicable
+  apm-yaml-valid:
+    enabled: false
+  apm-structure-valid:
+    enabled: false
+
+  # Promptfoo — not applicable
+  promptfoo-valid:
+    enabled: false
+  promptfoo-assertions:
+    enabled: false
+  promptfoo-metadata:
+    enabled: false
+
+  # Command rules
+  command-naming:
+    enabled: true
+    severity: warning
+  command-frontmatter:
+    enabled: true
+    severity: error
+  command-sections:
+    enabled: false
+  command-name-format:
+    enabled: false
+
+  # agentskills.io rules
+  agentskill-valid:
+    enabled: true
+    severity: error
+  agentskill-name:
+    enabled: true
+    severity: error
+  agentskill-structure:
+    enabled: false
+
+  # Instruction file validation — catches broken @path imports after renames
+  instruction-file-valid:
+    enabled: true
+    severity: error
+  instruction-imports-valid:
+    enabled: true
+    severity: error
+
+  # Context budget
+  context-budget:
+    enabled: true
+    severity: warning
+
+  # Content intelligence
+  content-weak-language:
+    enabled: true
+    severity: warning
+  content-tautological:
+    enabled: true
+    severity: warning
+  content-critical-position:
+    enabled: true
+    severity: warning
+  content-instruction-budget:
+    enabled: true
+    severity: warning
+  content-negative-only:
+    enabled: true
+    severity: warning
+  content-section-length:
+    enabled: true
+    severity: warning
+  content-contradiction:
+    enabled: true
+    severity: warning
+  content-cognitive-chunks:
+    enabled: true
+    severity: warning
+  content-embedded-secrets:
+    enabled: true
+    severity: error
+  content-placeholder-text:
+    enabled: true
+    severity: warning
+  content-broken-internal-reference:
+    enabled: true
+    severity: warning
+  content-unlinked-internal-reference:
+    enabled: true
+    severity: warning
+  content-inconsistent-terminology:
+    enabled: true
+    severity: warning
+  content-redundant-with-tooling:
+    enabled: true
+    severity: warning
+  content-hook-candidate:
+    enabled: false
+  content-actionability-score:
+    enabled: true
+    severity: warning
+  content-banned-references:
+    enabled: true
+    severity: warning
