@@ -1,9 +1,12 @@
-# Set high to opt into all rules regardless of when they were introduced
-version: "99.0.0"
+# Pin to installed version — bump deliberately when upgrading skillsaw
+version: "0.11.4"
 
 exclude:
+  # Generated review/analysis output, not skill instructions
   - ".artifacts/**"
+  # Shared resources have different conventions than per-skill files
   - "_shared/**"
+  # CI scripts and workflow configs, not skill content
   - ".github/**"
 
 rules:
@@ -59,6 +62,14 @@ rules:
   agentskill-structure:
     enabled: false
 
+  # Instruction file validation — catches broken @path imports after renames
+  instruction-file-valid:
+    enabled: true
+    severity: error
+  instruction-imports-valid:
+    enabled: true
+    severity: error
+
   # Context budget
   context-budget:
     enabled: true
@@ -72,6 +83,9 @@ rules:
     enabled: true
     severity: warning
   content-critical-position:
+    enabled: true
+    severity: warning
+  content-instruction-budget:
     enabled: true
     severity: warning
   content-negative-only:
@@ -102,7 +116,8 @@ rules:
     enabled: true
     severity: warning
   content-redundant-with-tooling:
-    enabled: false
+    enabled: true
+    severity: warning
   content-hook-candidate:
     enabled: false
   content-actionability-score:
