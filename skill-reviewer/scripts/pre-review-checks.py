@@ -752,9 +752,10 @@ class Checker:
             self.check_changes()
         self.check_structure()
         self.check_frontmatter()
-        self.check_references()
-        self.check_steps()
-        self.check_content()
+        if not self.ci_mode:
+            self.check_references()
+            self.check_steps()
+            self.check_content()
         total = sum(self.counts.values())
         print("--- Summary ---")
         print(

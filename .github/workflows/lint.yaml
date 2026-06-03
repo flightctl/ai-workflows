@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: stbenjam/skillsaw-action@v1
+      - uses: stbenjam/skillsaw@v0.11.4
 
   markdownlint:
     name: Markdown Lint
