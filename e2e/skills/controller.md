@@ -74,7 +74,7 @@ the source repo:
    re-read this controller. Do that — then use "Recommending Next Steps"
    below to offer options.
 6. Present the skill's results and your recommendations to the user
-7. **Stop and wait** for the user to tell you what to do next
+7. **Stop and wait** for the user to tell you what to do next.
 
 ## Recommending Next Steps
 
