@@ -47,6 +47,7 @@ workflow-name/
 3. **Relative paths**: All file references must be relative to the file's location (for symlink compatibility)
 4. **Phase-based execution**: Most workflows operate through discrete phases with explicit transitions
 5. **Shared resources**: Cross-cutting concerns live in `_shared/` and are referenced by relative path
+6. **Phase overrides**: Projects can override individual phases by placing a replacement skill file at `.workflows/{workflow}/skills/{phase}.md` in their repo root. The controller checks for this override before falling back to the built-in default. See CONTRIBUTING.md for details.
 
 ### Shared Resources (`_shared/`)
 

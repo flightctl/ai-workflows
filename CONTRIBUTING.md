@@ -14,6 +14,13 @@ workflow-name/
     phase-name.md       # One file per phase
   commands/
     phase-name.md       # Thin wrappers that invoke the controller or SKILL.md for a specific phase
+
+Project-level phase overrides (in the consuming repo):
+
+.workflows/
+  workflow-name/
+    skills/
+      phase-name.md     # Overrides the built-in phase skill (see "Phase Overrides" below)
 ```
 
 The installer auto-discovers any directory with a `SKILL.md`. No script changes are needed when adding a workflow.
@@ -81,6 +88,39 @@ All internal file references must be **relative to the file's own location**:
 - `SKILL.md` references `guidelines.md` and optionally `skills/controller.md` (both in the same directory)
 
 This ensures symlinks resolve paths correctly regardless of where the workflow is installed.
+
+**Exception:** Phase override paths (`.workflows/{workflow}/skills/{phase}.md`) are relative to the consuming project's repo root, not to the controller file's location. This is intentional — overrides live outside the workflow directory tree.
+
+## Phase Overrides
+
+Projects can override individual phase skills without forking the workflow. When a controller dispatches a phase, it checks for a project-level override before falling back to the built-in default:
+
+1. **`.workflows/{workflow}/skills/{phase}.md`** — project-level override at the repo root
+2. **`{phase}.md`** — workflow's built-in default (sibling file in `skills/`)
+
+For example, a team that needs a custom `/sync` phase for the design workflow drops a file at `.workflows/design/skills/sync.md` in their repo. The controller picks it up automatically and announces the override to the user.
+
+### Rules for Override Files
+
+- **Full replacement.** An override replaces the entire phase — it is not merged with the built-in. The override file must be self-contained.
+- **Same contract.** The override must read the same input artifacts and write the same output artifacts as the built-in phase. Downstream phases and the controller depend on this contract (see the Artifacts table in each controller).
+- **Same exit behavior.** End the override file with the same "report findings and re-read the controller" instruction so the controller can recommend next steps.
+- **No cross-references to built-in internals.** The override should not reference sibling files in the workflow's `skills/` directory — it lives in the project repo and should be self-contained.
+
+### Example Project Layout
+
+```
+my-project/
+├── .workflows/
+│   ├── design/
+│   │   └── skills/
+│   │       └── sync.md      ← custom sync, all other phases use the built-in
+│   └── bugfix/
+│       └── skills/
+│           └── fix.md       ← custom fix phase
+├── src/
+└── ...
+```
 
 ## Installation Internals
 

@@ -51,10 +51,18 @@ Phases can be skipped or reordered at the user's discretion.
 1. **Announce** the phase to the user before doing anything else, e.g.,
    "Starting the /gather phase." This is important so the user knows the
    workflow is working and learns the commands.
-2. **Read** the skill file from the list above (e.g., `gather.md`).
-3. **Execute** the skill's steps directly — the user should see your progress.
-4. When the skill is done, follow "When This Phase Is Done" below.
-5. **Stop and wait** for the user to tell you what to do next.
+2. **Locate** the skill file — check for a project-level override before
+   falling back to the workflow default. Use the first match found:
+   1. **`.workflows/kcs/skills/{phase}.md`** — project-level override at the
+      repo root (e.g., `.workflows/kcs/skills/gather.md`)
+   2. **`{phase}.md`** — workflow's built-in default (sibling file)
+
+   If using a project override, announce it: *"Using project override
+   for /{phase}."*
+3. **Read** the resolved skill file.
+4. **Execute** the skill's steps directly — the user should see your progress.
+5. When the skill is done, follow "When This Phase Is Done" below.
+6. **Stop and wait** for the user to tell you what to do next.
 
 ## When This Phase Is Done
 
