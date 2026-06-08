@@ -48,7 +48,8 @@ then fall back to `../templates/section-guidance.md`.
 Read these files in order:
 1. `.artifacts/design/{issue-number}/01-context.md` (architectural context)
 2. `.artifacts/design/{issue-number}/02-research.md` (if exists — design research findings)
-3. `.artifacts/prd/{issue-number}/03-prd.md` (PRD)
+3. The PRD — use the path recorded in `01-context.md`'s PRD Summary section.
+   If not recorded there, fall back to `.artifacts/prd/{issue-number}/03-prd.md`
 4. `.artifacts/prd/{issue-number}/02-clarifications.md` (if exists — for locked decisions)
 5. The design document template (from Step 1)
 6. The section guidance (from Step 1)
@@ -141,8 +142,9 @@ unknowns, not unvalidated AI judgment calls.
 Before self-review, systematically verify that nothing was lost between
 source material and design document:
 
-1. **Requirements coverage:** Re-read the PRD
-   (`.artifacts/prd/{issue-number}/03-prd.md`). For each functional
+1. **Requirements coverage:** Re-read the PRD (use the path from
+   `01-context.md`'s PRD Summary, falling back to
+   `.artifacts/prd/{issue-number}/03-prd.md`). For each functional
    requirement (FR-1, FR-2, ...) and non-functional requirement (NFR-1,
    NFR-2, ...), confirm it is addressed in the design document. If a
    requirement has no corresponding design element, either add it or
