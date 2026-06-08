@@ -82,7 +82,7 @@ or `AGENTS.md` specifies a docs repo path and search there for the PRD.
 
 Once the PRD is found, record its resolved path in
 `.artifacts/design/{issue-number}/01-context.md` (in the PRD Summary section)
-so that downstream phases (`/draft`, `/decompose`) can read it directly from
+so that downstream phases (`/draft`, `/research`, `/decompose`) can read it directly from
 the authoritative location rather than relying on a local copy that could
 diverge.
 
