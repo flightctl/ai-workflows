@@ -174,7 +174,23 @@ for file in "${CHANGED_FILES[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
-# 8. Cascade: shared file changes require consuming workflow bumps
+# 8. Shared files themselves must have version bumps when changed
+# ---------------------------------------------------------------------------
+for shared_file in "${!shared_changed[@]}"; do
+  new_ver=$(sed -n 's/^version: *//p' "$shared_file")
+  old_ver=$(git show "$MERGE_BASE:$shared_file" 2>/dev/null \
+    | sed -n 's/^version: *//p' || echo "")
+  if [ -n "$new_ver" ] && [ -n "$old_ver" ] && [ "$new_ver" = "$old_ver" ]; then
+    fail "$shared_file: behavioral content changed but version not bumped (still $old_ver)"
+  elif [ -n "$old_ver" ] && [ -n "$new_ver" ] && [ "$new_ver" != "$old_ver" ]; then
+    if ! semver_lt "$old_ver" "$new_ver"; then
+      fail "$shared_file: version $new_ver is not greater than $old_ver"
+    fi
+  fi
+done
+
+# ---------------------------------------------------------------------------
+# 9. Cascade: shared file changes require consuming workflow bumps
 # ---------------------------------------------------------------------------
 for shared_file in "${!shared_changed[@]}"; do
   base=$(basename "$shared_file" .md)
@@ -228,7 +244,7 @@ for shared_file in "${!shared_changed[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
-# 9. Static: all SKILL.md files must have valid semver
+# 10. Static: all SKILL.md files must have valid semver
 # ---------------------------------------------------------------------------
 for skill in */SKILL.md; do
   [ -f "$skill" ] || continue
@@ -242,7 +258,7 @@ for skill in */SKILL.md; do
 done
 
 # ---------------------------------------------------------------------------
-# 10. Static: all _shared/*.md files must have valid frontmatter with version
+# 11. Static: all _shared/*.md files must have valid frontmatter with version
 # ---------------------------------------------------------------------------
 while IFS= read -r -d '' shared; do
   if ! head -1 "$shared" | grep -q '^---$'; then
