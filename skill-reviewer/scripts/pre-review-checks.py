@@ -319,11 +319,19 @@ class Checker:
                 if "name" not in fm:
                     self.fail("SKILL.md frontmatter missing 'name' field")
                     ok = False
+                if "version" not in fm:
+                    self.fail("SKILL.md frontmatter missing 'version' field")
+                    ok = False
+                elif not re.match(r'^\d+\.\d+\.\d+$', fm["version"]):
+                    self.fail(
+                        f"SKILL.md version '{fm['version']}' is not valid "
+                        "semver (expected X.Y.Z)")
+                    ok = False
                 if "description" not in fm:
                     self.fail("SKILL.md frontmatter missing 'description' field")
                     ok = False
                 if ok:
-                    self.passed("SKILL.md has valid frontmatter (name, description)")
+                    self.passed("SKILL.md has valid frontmatter (name, version, description)")
 
         cmds = d / "commands"
         if cmds.is_dir():
@@ -856,6 +864,43 @@ class RepoChecker:
                     "documentation (.artifacts/ reference)")
         print()
 
+    def check_shared_frontmatter(self):
+        print("--- Shared File Frontmatter ---")
+        shared_dir = self.repo_root / "_shared"
+        if not shared_dir.is_dir():
+            self._warn("No _shared/ directory found")
+            print()
+            return
+        for md_file in sorted(shared_dir.rglob("*.md")):
+            rel = str(md_file.relative_to(self.repo_root))
+            text = md_file.read_text()
+            lines = text.split("\n")
+            if not lines or lines[0].strip() != "---":
+                self._fail(f"{rel}: missing YAML frontmatter")
+                continue
+            fields = {}
+            for line in lines[1:]:
+                if line.strip() == "---":
+                    break
+                if ":" in line:
+                    key = line.split(":", 1)[0].strip()
+                    val = line.split(":", 1)[1].strip()
+                    fields[key] = val
+            ok = True
+            if "name" not in fields:
+                self._fail(f"{rel}: frontmatter missing 'name' field")
+                ok = False
+            if "version" not in fields:
+                self._fail(f"{rel}: frontmatter missing 'version' field")
+                ok = False
+            elif not re.match(r'^\d+\.\d+\.\d+$', fields["version"]):
+                self._fail(
+                    f"{rel}: version '{fields['version']}' is not valid semver")
+                ok = False
+            if ok:
+                self._pass(f"{rel}: valid frontmatter (name, version)")
+        print()
+
     def run(self) -> int:
         skills = self.discover_skills()
         if not skills:
@@ -872,6 +917,7 @@ class RepoChecker:
                 self.total_counts[level] += count
             print()
 
+        self.check_shared_frontmatter()
         self.check_agents_md(skills)
         self.check_readme_md(skills)
         self.check_readme_artifacts(skills)
