@@ -6,7 +6,7 @@ Every workflow is a directory at the repo root containing:
 
 ```
 workflow-name/
-  SKILL.md              # Required -- YAML frontmatter (name, description) + entry point
+  SKILL.md              # Required -- YAML frontmatter (name, version, description) + entry point
   guidelines.md         # Behavioral rules: principles, hard limits, safety, quality, escalation
   README.md             # Human-readable documentation
   skills/
@@ -32,11 +32,13 @@ The `SKILL.md` is the entry point. Keep it thin -- phase overview and a referenc
 ```yaml
 ---
 name: workflow-name
+version: 0.1.0
 description: Brief description. Include trigger terms so the agent knows when to use it.
 ---
 ```
 
 - `name`: lowercase, hyphens only, max 64 chars.
+- `version`: semantic version (X.Y.Z). New workflows start at `0.1.0`. See [Versioning](#versioning).
 - `description`: what the workflow does and when to use it. Write in third person.
 
 ### guidelines.md
@@ -116,6 +118,42 @@ Cursor scans both project-level (`.cursor/commands/`) and user-level (`~/.cursor
 - Keep `SKILL.md` under 30 lines. Use progressive disclosure (`guidelines.md`, `README.md`) for details.
 - Use consistent terminology within a workflow. Pick one term and stick with it.
 - Don't duplicate content between `SKILL.md`, `guidelines.md`, and `controller.md` (when present). Each file has a distinct role.
+
+## Versioning
+
+Every workflow has a semantic version in its `SKILL.md` frontmatter.
+Shared files in `_shared/` also carry versions in their frontmatter.
+See `versioning.md` for the full rationale and scheme.
+
+### When to bump
+
+| Change type | Bump | Examples |
+|---|---|---|
+| Non-behavioral | None | README.md edits |
+| Typo fix, wording clarification | PATCH | Fix spelling in step instructions |
+| Behavioral change | MINOR | Add/change/reorder steps, modify rules, change templates |
+| Breaking change | MAJOR | Remove/rename phases or commands |
+
+Behavioral files: `SKILL.md` body, `guidelines.md`, `skills/*.md`,
+`commands/*.md`, `templates/*`, `prompts/*`, `scripts/*`,
+`_shared/**/*.md`, and root-level `.md` files read during execution
+(e.g., `design/decomposition-review.md`).
+
+### Shared file cascade
+
+When a file in `_shared/` changes, PATCH-bump every workflow that
+references it:
+
+    grep -rl "_shared/<filename>" */skills/*.md */commands/*.md \
+      */guidelines.md | sed 's|/.*||' | sort -u
+
+### Git tags
+
+Tags are created automatically when version bumps merge to main via
+the `tag-versions.yaml` workflow. Manual fallback:
+
+    git tag design/v1.3.0
+    git push origin design/v1.3.0
 
 ## Scripts
 
