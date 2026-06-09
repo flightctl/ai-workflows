@@ -1,0 +1,73 @@
+name: Tag Versions
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    name: Auto-Tag Version Bumps
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Detect and tag version bumps
+        run: |
+          # Merge commits have >2 words in parent list; use first parent (main before merge)
+          if [ "$(git rev-list --parents -1 HEAD | wc -w)" -gt 2 ]; then
+            PARENT=$(git rev-parse HEAD^1)
+          else
+            PARENT=$(git rev-parse HEAD~1)
+          fi
+
+          TAGS_CREATED=0
+
+          # Tag workflow version bumps
+          for skill in */SKILL.md; do
+            [ -f "$skill" ] || continue
+            wf=$(dirname "$skill")
+            new_ver=$(sed -n 's/^version: *//p' "$skill")
+            old_ver=$(git show "$PARENT:$skill" 2>/dev/null \
+              | sed -n 's/^version: *//p' || echo "")
+            if [ -n "$new_ver" ] && [ "$new_ver" != "$old_ver" ]; then
+              tag="${wf}/v${new_ver}"
+              if git rev-parse "$tag" >/dev/null 2>&1; then
+                echo "Tag $tag already exists, skipping"
+              else
+                echo "Tagging $tag"
+                git tag "$tag"
+                TAGS_CREATED=$((TAGS_CREATED + 1))
+              fi
+            fi
+          done
+
+          # Tag shared file version bumps
+          while IFS= read -r -d '' shared; do
+            [ -f "$shared" ] || continue
+            new_ver=$(sed -n 's/^version: *//p' "$shared")
+            [ -n "$new_ver" ] || continue
+            old_ver=$(git show "$PARENT:$shared" 2>/dev/null \
+              | sed -n 's/^version: *//p' || echo "")
+            if [ "$new_ver" != "$old_ver" ]; then
+              base=$(basename "$shared" .md)
+              tag="_shared/${base}/v${new_ver}"
+              if git rev-parse "$tag" >/dev/null 2>&1; then
+                echo "Tag $tag already exists, skipping"
+              else
+                echo "Tagging $tag"
+                git tag "$tag"
+                TAGS_CREATED=$((TAGS_CREATED + 1))
+              fi
+            fi
+          done < <(find _shared -name '*.md' -print0 2>/dev/null)
+
+          if [ "$TAGS_CREATED" -gt 0 ]; then
+            echo "Pushing $TAGS_CREATED new tag(s)"
+            git push origin --tags
+          else
+            echo "No new tags to push"
+          fi
