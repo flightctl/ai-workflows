@@ -108,6 +108,14 @@ For example, a team that needs a custom `/sync` phase for the design workflow dr
 - **Same exit behavior.** End the override file with the same "report findings and re-read the controller" instruction so the controller can recommend next steps.
 - **No cross-references to built-in internals.** The override should not reference sibling files in the workflow's `skills/` directory — it lives in the project repo and should be self-contained.
 
+### Version Control
+
+Commit `.workflows/` to the consuming repo. Overrides are team-level decisions — not personal preferences — and should be reviewed and shared like any other project configuration.
+
+### Discoverability
+
+When a project uses overrides, document them in the project's `CLAUDE.md` or `AGENTS.md` so newcomers know which phases behave differently from the built-in defaults. The controller announces overrides at runtime, but a static list prevents surprises when reading workflow documentation.
+
 ### Example Project Layout
 
 ```
