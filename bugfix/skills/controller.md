@@ -46,13 +46,9 @@ Phases can be skipped or reordered at the user's discretion.
 
 1. **Announce** the phase to the user before doing anything else, e.g., "Starting the /fix phase."
    This is very important so the user knows that the workflow is working and learns about the commands.
-2. **Locate** the skill file — check for a project-level override before
-   falling back to the workflow default. Use the first match found:
-   1. **`.workflows/bugfix/skills/{phase}.md`** — project-level override at the
-      repo root (e.g., `.workflows/bugfix/skills/fix.md`)
-   2. **`{phase}.md`** — workflow's built-in default (sibling file)
-
-   If using a project override, announce it: *"Using project override for /{phase}."*
+2. **Locate** the skill file — read and follow
+   `../../_shared/recipes/phase-override-resolution.md` with
+   WORKFLOW=`bugfix`, PHASE_FILE=`{phase}.md`.
 3. **Read** the resolved skill file
 4. **Execute** the skill's steps directly — the user should see your progress
 5. When the skill is done, it will tell you to report your findings and

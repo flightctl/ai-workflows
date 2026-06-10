@@ -60,14 +60,9 @@ the source repo:
 ## How to Execute a Phase
 
 1. **Announce** the phase to the user: *"Starting /plan."*
-2. **Locate** the skill file — check for a project-level override before
-   falling back to the workflow default. Use the first match found:
-   1. **`.workflows/e2e/skills/{phase}.md`** — project-level override at the
-      repo root (e.g., `.workflows/e2e/skills/plan.md`)
-   2. **`{phase}.md`** — workflow's built-in default (sibling file)
-
-   If using a project override, announce it: *"Using project override
-   for /{phase}."*
+2. **Locate** the skill file — read and follow
+   `../../_shared/recipes/phase-override-resolution.md` with
+   WORKFLOW=`e2e`, PHASE_FILE=`{phase}.md`.
 3. **Read** the resolved skill file
 4. **Execute** the skill's steps — the user should see your progress
 5. When the skill is done, it will tell you to report findings and
