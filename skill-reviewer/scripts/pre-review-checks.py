@@ -103,6 +103,28 @@ CHUNKING_GAP_WARN = 1000  # chars between headings
 
 
 # ===========================================================================
+# Shared helpers
+# ===========================================================================
+def parse_frontmatter(path: Path) -> dict | None:
+    try:
+        text = path.read_text()
+    except OSError:
+        return None
+    lines = text.split("\n")
+    if not lines or lines[0].strip() != "---":
+        return None
+    fields = {}
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        if ":" in line:
+            key = line.split(":", 1)[0].strip()
+            val = line.split(":", 1)[1].strip()
+            fields[key] = val
+    return fields
+
+
+# ===========================================================================
 # Checker — per-skill checks
 # ===========================================================================
 class Checker:
@@ -135,22 +157,7 @@ class Checker:
         return hashes
 
     def _parse_frontmatter(self, path: Path) -> dict | None:
-        try:
-            text = path.read_text()
-        except OSError:
-            return None
-        lines = text.split("\n")
-        if not lines or lines[0].strip() != "---":
-            return None
-        fields = {}
-        for line in lines[1:]:
-            if line.strip() == "---":
-                break
-            if ":" in line:
-                key = line.split(":", 1)[0].strip()
-                val = line.split(":", 1)[1].strip()
-                fields[key] = val
-        return fields
+        return parse_frontmatter(path)
 
     def _strip_code_blocks(self, text: str) -> str:
         result = []
@@ -873,19 +880,10 @@ class RepoChecker:
             return
         for md_file in sorted(shared_dir.rglob("*.md")):
             rel = str(md_file.relative_to(self.repo_root))
-            text = md_file.read_text()
-            lines = text.split("\n")
-            if not lines or lines[0].strip() != "---":
+            fields = parse_frontmatter(md_file)
+            if fields is None:
                 self._fail(f"{rel}: missing YAML frontmatter")
                 continue
-            fields = {}
-            for line in lines[1:]:
-                if line.strip() == "---":
-                    break
-                if ":" in line:
-                    key = line.split(":", 1)[0].strip()
-                    val = line.split(":", 1)[1].strip()
-                    fields[key] = val
             ok = True
             if "name" not in fields:
                 self._fail(f"{rel}: frontmatter missing 'name' field")
