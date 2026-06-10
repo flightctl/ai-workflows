@@ -30,7 +30,7 @@ jobs:
             PARENT=$(git rev-parse HEAD~1)
           fi
 
-          TAGS_CREATED=0
+          NEW_TAGS=()
 
           # Tag workflow version bumps
           for skill in */SKILL.md; do
@@ -46,7 +46,7 @@ jobs:
               else
                 echo "Tagging $tag"
                 git tag "$tag"
-                TAGS_CREATED=$((TAGS_CREATED + 1))
+                NEW_TAGS+=("$tag")
               fi
             fi
           done
@@ -66,14 +66,14 @@ jobs:
               else
                 echo "Tagging $tag"
                 git tag "$tag"
-                TAGS_CREATED=$((TAGS_CREATED + 1))
+                NEW_TAGS+=("$tag")
               fi
             fi
           done < <(find _shared -name '*.md' -print0 2>/dev/null)
 
-          if [ "$TAGS_CREATED" -gt 0 ]; then
-            echo "Pushing $TAGS_CREATED new tag(s)"
-            git push origin --tags
+          if [ ${#NEW_TAGS[@]} -gt 0 ]; then
+            echo "Pushing ${#NEW_TAGS[@]} new tag(s)"
+            git push origin "${NEW_TAGS[@]}"
           else
             echo "No new tags to push"
           fi

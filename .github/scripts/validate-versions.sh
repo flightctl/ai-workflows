@@ -107,7 +107,40 @@ is_behavioral() {
 }
 
 # ---------------------------------------------------------------------------
-# 5. Detect behavioral changes and version bumps per workflow
+# 5. Static: all SKILL.md files must have valid semver
+# ---------------------------------------------------------------------------
+for skill in */SKILL.md; do
+  [ -f "$skill" ] || continue
+  wf=$(dirname "$skill")
+  ver=$(sed -n 's/^version: *//p' "$skill")
+  if [ -z "$ver" ]; then
+    fail "$wf: SKILL.md missing version field"
+  elif ! echo "$ver" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+    fail "$wf: version '$ver' is not valid semver (expected X.Y.Z)"
+  fi
+done
+
+# ---------------------------------------------------------------------------
+# 6. Static: all _shared/*.md files must have valid frontmatter with version
+# ---------------------------------------------------------------------------
+while IFS= read -r -d '' shared; do
+  if ! head -1 "$shared" | grep -q '^---$'; then
+    fail "$shared: missing YAML frontmatter"
+    continue
+  fi
+  fm=$(sed -n '2,/^---$/p' "$shared" | head -n -1)
+  if ! echo "$fm" | grep -q '^version:'; then
+    fail "$shared: frontmatter missing version field"
+  else
+    ver=$(echo "$fm" | grep '^version:' | sed 's/^version: *//')
+    if ! echo "$ver" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+      fail "$shared: version '$ver' is not valid semver"
+    fi
+  fi
+done < <(find _shared -name '*.md' -print0 2>/dev/null)
+
+# ---------------------------------------------------------------------------
+# 7. Detect behavioral changes and version bumps per workflow
 # ---------------------------------------------------------------------------
 declare -A workflow_behavioral_changed
 declare -A workflow_version_bumped
@@ -141,7 +174,7 @@ for file in "${CHANGED_FILES[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
-# 6. Workflows with behavioral changes must have version bumps
+# 8. Workflows with behavioral changes must have version bumps
 # ---------------------------------------------------------------------------
 for wf in "${!workflow_behavioral_changed[@]}"; do
   if [ -z "${workflow_version_bumped[$wf]:-}" ]; then
@@ -159,7 +192,7 @@ for wf in "${!workflow_behavioral_changed[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
-# 7. Advisory: signals that suggest MAJOR bump
+# 9. Advisory: signals that suggest MAJOR bump
 # ---------------------------------------------------------------------------
 for file in "${CHANGED_FILES[@]}"; do
   wf="${file%%/*}"
@@ -174,7 +207,7 @@ for file in "${CHANGED_FILES[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
-# 8. Shared files themselves must have version bumps when changed
+# 10. Shared files themselves must have version bumps when changed
 # ---------------------------------------------------------------------------
 for shared_file in "${!shared_changed[@]}"; do
   new_ver=$(sed -n 's/^version: *//p' "$shared_file")
@@ -190,7 +223,7 @@ for shared_file in "${!shared_changed[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
-# 9. Cascade: shared file changes require consuming workflow bumps
+# 11. Cascade: shared file changes require consuming workflow bumps
 # ---------------------------------------------------------------------------
 for shared_file in "${!shared_changed[@]}"; do
   base=$(basename "$shared_file" .md)
@@ -242,39 +275,6 @@ for shared_file in "${!shared_changed[@]}"; do
     done
   done
 done
-
-# ---------------------------------------------------------------------------
-# 10. Static: all SKILL.md files must have valid semver
-# ---------------------------------------------------------------------------
-for skill in */SKILL.md; do
-  [ -f "$skill" ] || continue
-  wf=$(dirname "$skill")
-  ver=$(sed -n 's/^version: *//p' "$skill")
-  if [ -z "$ver" ]; then
-    fail "$wf: SKILL.md missing version field"
-  elif ! echo "$ver" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-    fail "$wf: version '$ver' is not valid semver (expected X.Y.Z)"
-  fi
-done
-
-# ---------------------------------------------------------------------------
-# 11. Static: all _shared/*.md files must have valid frontmatter with version
-# ---------------------------------------------------------------------------
-while IFS= read -r -d '' shared; do
-  if ! head -1 "$shared" | grep -q '^---$'; then
-    fail "$shared: missing YAML frontmatter"
-    continue
-  fi
-  fm=$(sed -n '2,/^---$/p' "$shared" | head -n -1)
-  if ! echo "$fm" | grep -q '^version:'; then
-    fail "$shared: frontmatter missing version field"
-  else
-    ver=$(echo "$fm" | grep '^version:' | sed 's/^version: *//')
-    if ! echo "$ver" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-      fail "$shared: version '$ver' is not valid semver"
-    fi
-  fi
-done < <(find _shared -name '*.md' -print0 2>/dev/null)
 
 # ---------------------------------------------------------------------------
 # Summary

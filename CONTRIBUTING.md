@@ -123,7 +123,10 @@ Cursor scans both project-level (`.cursor/commands/`) and user-level (`~/.cursor
 
 Every workflow has a semantic version in its `SKILL.md` frontmatter.
 Shared files in `_shared/` also carry versions in their frontmatter.
-See `versioning.md` for the full rationale and scheme.
+Versions enable the observability system to segment telemetry at
+version boundaries and measure whether instruction rewrites improve
+confusion rates. New workflows start at `0.1.0` and graduate to
+`1.0.0` once their phase structure stabilizes.
 
 ### When to bump
 
