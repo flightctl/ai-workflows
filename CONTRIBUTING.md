@@ -100,6 +100,8 @@ Projects can override individual phase skills without forking the workflow. When
 
 For example, a team that needs a custom `/sync` phase for the design workflow drops a file at `.workflows/design/skills/sync.md` in their repo. The controller picks it up automatically and announces the override to the user.
 
+**Filename mapping.** Most workflows map `/phase` to `{phase}.md`, but some use different filenames. For example, docs-writer maps `/gather` to `gather-context.md` and `/plan` to `plan-structure.md`. Check the Phases list in the workflow's controller to find the correct filename for the override.
+
 ### Rules for Override Files
 
 - **Start from a copy.** Copy the built-in phase file and modify it rather than writing from scratch. This avoids accidentally omitting contract scaffolding such as artifact paths, exit behavior, or the controller re-read instruction.
