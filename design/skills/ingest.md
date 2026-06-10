@@ -77,8 +77,18 @@ by someone else — look for the published PRD in the docs repo:
    to find `prd_file_path` (the relative path within the docs repo)
 3. Read the PRD from `{docs_repo_path}/{prd_file_path}`
 
-If no config or publish metadata exists, check if the project's `CLAUDE.md`
-or `AGENTS.md` specifies a docs repo path and search there for the PRD.
+If the resolved path does not exist on disk (e.g., the docs repo is not
+cloned locally), or if no config or publish metadata exists, fall through
+to the next option in Step 3 (a path provided by the user).
+
+**Note on clarification logs:** The clarification log
+(`.artifacts/prd/{issue-number}/02-clarifications.md`) is not published to
+the docs repo and only exists locally. If the PRD was created in a prior
+session and `.artifacts/` was cleaned up, locked decisions from the
+clarification log will not be available. The PRD itself should reflect all
+locked decisions in its final form, but if the user knows locked decisions
+exist that aren't captured in the PRD, ask them to provide the
+clarification log path.
 
 Once the PRD is found, record its resolved path in
 `.artifacts/design/{issue-number}/01-context.md` (in the PRD Summary section)
@@ -142,7 +152,7 @@ If this is a first invocation, write
 
 - **Feature:** {title}
 - **Jira:** {issue-key}
-- **PRD:** {path where the PRD was found — local artifact or docs repo}
+- **PRD:** {resolved PRD path}
 
 ### Key Requirements
 
