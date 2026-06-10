@@ -114,14 +114,16 @@ def parse_frontmatter(path: Path) -> dict | None:
     if not lines or lines[0].strip() != "---":
         return None
     fields = {}
+    closed = False
     for line in lines[1:]:
         if line.strip() == "---":
+            closed = True
             break
         if ":" in line:
             key = line.split(":", 1)[0].strip()
             val = line.split(":", 1)[1].strip()
             fields[key] = val
-    return fields
+    return fields if closed else None
 
 
 # ===========================================================================
