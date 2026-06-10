@@ -102,6 +102,7 @@ For example, a team that needs a custom `/sync` phase for the design workflow dr
 
 ### Rules for Override Files
 
+- **Start from a copy.** Copy the built-in phase file and modify it rather than writing from scratch. This avoids accidentally omitting contract scaffolding such as artifact paths, exit behavior, or the controller re-read instruction.
 - **Full replacement.** An override replaces the entire phase — it is not merged with the built-in. The override file must be self-contained.
 - **Same contract.** The override must read the same input artifacts and write the same output artifacts as the built-in phase. Downstream phases and the controller depend on this contract (see the Artifacts table in each controller).
 - **Same exit behavior.** End the override file with the same "report findings and re-read the controller" instruction so the controller can recommend next steps.
