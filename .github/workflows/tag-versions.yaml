@@ -4,17 +4,23 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: write
+concurrency:
+  group: tag-versions
+  cancel-in-progress: false
+
+permissions: {}
 
 jobs:
   tag:
     name: Auto-Tag Version Bumps
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # required to create and push git tags
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
+          persist-credentials: true  # required for git push of tags
       - name: Detect and tag version bumps
         run: |
           # Merge commits have >2 words in parent list; use first parent (main before merge)

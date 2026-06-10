@@ -79,7 +79,7 @@ is_behavioral() {
       return 0 ;;
     */templates/*|*/prompts/*|*/scripts/*)
       return 0 ;;
-    _shared/*.md|_shared/**/*.md)
+    _shared/**/*.md)
       return 0 ;;
     */SKILL.md)
       local body_diff

@@ -101,10 +101,13 @@ Non-behavioral files (no bump needed): `README.md`, `GUIDE.md`
 ### Shared file cascade
 
 When you modify a file in `_shared/`, also PATCH-bump every workflow
-that references it. Find affected workflows:
+that references it. Find affected workflows by searching for the
+basename (e.g., `self-review-gate` for `_shared/recipes/self-review-gate.md`):
 
-    grep -rl "_shared/<changed-filename>" */skills/*.md \
-      */commands/*.md */guidelines.md | sed 's|/.*||' | sort -u
+```bash
+grep -rl "<basename-without-extension>" */skills/*.md \
+  */commands/*.md */guidelines.md | sed 's|/.*||' | sort -u
+```
 
 Bump each discovered workflow's `SKILL.md` version (PATCH increment).
 

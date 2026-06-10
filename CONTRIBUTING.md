@@ -142,18 +142,33 @@ Behavioral files: `SKILL.md` body, `guidelines.md`, `skills/*.md`,
 ### Shared file cascade
 
 When a file in `_shared/` changes, PATCH-bump every workflow that
-references it:
+references it. Search by basename (e.g., `self-review-gate` for
+`_shared/recipes/self-review-gate.md`):
 
-    grep -rl "_shared/<filename>" */skills/*.md */commands/*.md \
-      */guidelines.md | sed 's|/.*||' | sort -u
+```bash
+grep -rl "<basename-without-extension>" */skills/*.md */commands/*.md \
+  */guidelines.md | sed 's|/.*||' | sort -u
+```
+
+### Commit convention
+
+Include the version bump in the same commit as the behavioral change.
+Do not make a separate commit for the version bump.
 
 ### Git tags
 
 Tags are created automatically when version bumps merge to main via
-the `tag-versions.yaml` workflow. Manual fallback:
+the `tag-versions.yaml` workflow. Tag formats:
 
-    git tag design/v1.3.0
-    git push origin design/v1.3.0
+- Workflows: `{workflow}/v{version}` (e.g., `design/v1.3.0`)
+- Shared files: `_shared/{name}/v{version}` (e.g., `_shared/self-review-gate/v0.1.1`)
+
+Manual fallback:
+
+```bash
+git tag design/v1.3.0
+git push origin design/v1.3.0
+```
 
 ## Scripts
 
