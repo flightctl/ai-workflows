@@ -34,7 +34,8 @@ Read these files:
 1. `.artifacts/design/{issue-number}/03-design.md` (design document)
 2. `.artifacts/design/{issue-number}/01-context.md` (architectural context)
 3. `.artifacts/design/{issue-number}/02-research.md` (if exists — research findings and integration constraints)
-4. `.artifacts/prd/{issue-number}/03-prd.md` (PRD — for requirement traceability)
+4. The PRD — use the path recorded in `01-context.md`'s PRD Summary section,
+   falling back to `.artifacts/prd/{issue-number}/03-prd.md`
 
 If the design document doesn't exist, tell the user that `/draft` should be
 run first.
@@ -417,7 +418,8 @@ format, and severity definitions.
 subagent for independence. Load it with:
 
 - The decomposition review protocol (`../decomposition-review.md`)
-- The PRD (`.artifacts/prd/{issue-number}/03-prd.md`)
+- The PRD (use the path from `01-context.md`'s PRD Summary, falling back to
+  `.artifacts/prd/{issue-number}/03-prd.md`)
 - All decomposition artifacts: `04-epics.md`, all
   `05-stories/epic-{N}-{slug}.md` files, all
   `05-stories/epic-{N}/story-{NN}-{slug}.md` files, `06-coverage.md`
