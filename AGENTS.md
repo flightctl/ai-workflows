@@ -56,6 +56,7 @@ _shared/
   review-protocol.md              # Shared code review criteria, finding format, severity definitions
   sizing-rubric.md                # Shared sizing definitions (T-shirt sizes, heuristics, team effort guidance)
   recipes/
+    phase-override-resolution.md  # Project-level phase override lookup and activation
     self-review-gate.md           # Pre-PR self-review quality gate (used by bugfix, implement, e2e, cve-fix)
 ```
 
@@ -93,6 +94,7 @@ ai-workflows/
 │   ├── review-protocol.md     # Shared code review criteria and finding format
 │   ├── sizing-rubric.md       # Shared sizing definitions and heuristics
 │   └── recipes/
+│       ├── phase-override-resolution.md  # Project-level phase override lookup
 │       └── self-review-gate.md  # Pre-PR self-review quality gate
 ├── ai-ready/                  # Workflows (auto-discovered via SKILL.md)
 ├── bugfix/
