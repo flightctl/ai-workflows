@@ -47,6 +47,7 @@ workflow-name/
 3. **Relative paths**: All file references must be relative to the file's location (for symlink compatibility)
 4. **Phase-based execution**: Most workflows operate through discrete phases with explicit transitions
 5. **Shared resources**: Cross-cutting concerns live in `_shared/` and are referenced by relative path
+6. **Phase overrides**: Projects can override individual phases by placing a replacement skill file at `.workflows/{workflow}/skills/{phase}.md` in their repo root. The controller checks for this override before falling back to the built-in default. See CONTRIBUTING.md for details.
 
 ### Shared Resources (`_shared/`)
 
@@ -55,6 +56,7 @@ _shared/
   review-protocol.md              # Shared code review criteria, finding format, severity definitions
   sizing-rubric.md                # Shared sizing definitions (T-shirt sizes, heuristics, team effort guidance)
   recipes/
+    phase-override-resolution.md  # Project-level phase override lookup and activation
     self-review-gate.md           # Pre-PR self-review quality gate (used by bugfix, implement, e2e, cve-fix)
 ```
 
@@ -132,6 +134,7 @@ ai-workflows/
 │   ├── review-protocol.md     # Shared code review criteria and finding format
 │   ├── sizing-rubric.md       # Shared sizing definitions and heuristics
 │   └── recipes/
+│       ├── phase-override-resolution.md  # Project-level phase override lookup
 │       └── self-review-gate.md  # Pre-PR self-review quality gate
 ├── ai-ready/                  # Workflows (auto-discovered via SKILL.md)
 ├── bugfix/

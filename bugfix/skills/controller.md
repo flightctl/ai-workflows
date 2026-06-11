@@ -46,13 +46,16 @@ Phases can be skipped or reordered at the user's discretion.
 
 1. **Announce** the phase to the user before doing anything else, e.g., "Starting the /fix phase."
    This is very important so the user knows that the workflow is working and learns about the commands.
-2. **Read** the skill file from the list above
-3. **Execute** the skill's steps directly — the user should see your progress
-4. When the skill is done, it will tell you to report your findings and
+2. **Locate** the skill file — read and follow
+   `../../_shared/recipes/phase-override-resolution.md` with
+   WORKFLOW=`bugfix`, PHASE_FILE=`{phase}.md`.
+3. **Read** the resolved skill file
+4. **Execute** the skill's steps directly — the user should see your progress
+5. When the skill is done, it will tell you to report your findings and
    re-read this controller. Do that — then use "Recommending Next Steps"
    below to offer options.
-5. Present the skill's results and your recommendations to the user
-6. **Stop and wait** for the user to tell you what to do next
+6. Present the skill's results and your recommendations to the user
+7. **Stop and wait** for the user to tell you what to do next.
 
 ## Recommending Next Steps
 

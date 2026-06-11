@@ -43,13 +43,16 @@ Code changes happen directly in the working tree during `/continue`.
 ## How to Execute a Phase
 
 1. **Announce** the phase to the user: *"Starting /start."*
-2. **Read** the skill file from the list above (e.g., `start.md`)
-3. **Execute** the skill's steps -- the user should see your progress
-4. When the skill is done, it will tell you to report findings and
+2. **Locate** the skill file — read and follow
+   `../../_shared/recipes/phase-override-resolution.md` with
+   WORKFLOW=`code-review`, PHASE_FILE=`{phase}.md`.
+3. **Read** the resolved skill file
+4. **Execute** the skill's steps -- the user should see your progress
+5. When the skill is done, it will tell you to report findings and
    re-read this controller. Do that -- then use "Recommending Next Steps"
    below to offer options.
-5. Present the skill's results and your recommendations to the user
-6. **Stop and wait** for the user to tell you what to do next
+6. Present the skill's results and your recommendations to the user
+7. **Stop and wait** for the user to tell you what to do next.
 
 ## Recommending Next Steps
 
