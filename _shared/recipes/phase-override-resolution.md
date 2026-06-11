@@ -1,3 +1,7 @@
+---
+name: phase-override-resolution
+version: 0.1.0
+---
 # Recipe: Phase Override Resolution
 
 Resolves the skill file for a phase, checking for a project-level override
