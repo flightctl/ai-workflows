@@ -54,8 +54,9 @@ for the diff in Step 6a.
 ### Step 3: Read the PRD
 
 Locate and read the PRD. Check in this order:
-1. `.artifacts/prd/{issue-number}/03-prd.md` (PRD workflow artifact)
-2. A path provided by the user
+1. `.artifacts/prd/{issue-number}/03-prd.md` (local PRD artifact from same session)
+2. Published PRD in the docs repo (see Step 3a below)
+3. A path provided by the user
 
 If no PRD is found, tell the user and ask for the location. A PRD is the
 primary input to the design workflow.
@@ -64,6 +65,36 @@ Also read the clarification log if it exists:
 `.artifacts/prd/{issue-number}/02-clarifications.md`
 
 Note any locked decisions — these are binding constraints for the design.
+
+### Step 3a: Locate Published PRD (Fallback)
+
+If the local artifact (`.artifacts/prd/{issue-number}/03-prd.md`) does not
+exist — e.g., the PRD was created in a prior session, on another machine, or
+by someone else — look for the published PRD in the docs repo:
+
+1. Read `.artifacts/prd/config.json` to find `docs_repo_path`
+2. If config exists, read `.artifacts/prd/{issue-number}/publish-metadata.json`
+   to find `prd_file_path` (the relative path within the docs repo)
+3. Read the PRD from `{docs_repo_path}/{prd_file_path}`
+
+If the resolved path does not exist on disk (e.g., the docs repo is not
+cloned locally), or if no config or publish metadata exists, fall through
+to the next option in Step 3 (a path provided by the user).
+
+**Note on clarification logs:** The clarification log
+(`.artifacts/prd/{issue-number}/02-clarifications.md`) is not published to
+the docs repo and only exists locally. If the PRD was created in a prior
+session and `.artifacts/` was cleaned up, locked decisions from the
+clarification log will not be available. The PRD itself should reflect all
+locked decisions in its final form, but if the user knows locked decisions
+exist that aren't captured in the PRD, ask them to provide the
+clarification log path.
+
+Once the PRD is found, record its resolved path in
+`.artifacts/design/{issue-number}/01-context.md` (in the PRD Summary section)
+so that downstream phases (`/draft`, `/research`, `/decompose`) can read it directly from
+the authoritative location rather than relying on a local copy that could
+diverge.
 
 ### Step 4: Read Project Configuration
 
@@ -121,7 +152,7 @@ If this is a first invocation, write
 
 - **Feature:** {title}
 - **Jira:** {issue-key}
-- **PRD:** `.artifacts/prd/{issue-number}/03-prd.md`
+- **PRD:** {resolved PRD path}
 
 ### Key Requirements
 

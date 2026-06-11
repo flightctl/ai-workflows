@@ -65,8 +65,10 @@ Read `.artifacts/design/{issue-number}/01-context.md` to understand:
 If `01-context.md` does not exist, tell the user that `/ingest` should be
 run first and stop.
 
-Also read `.artifacts/prd/{issue-number}/03-prd.md` for the full requirements
-and `.artifacts/prd/{issue-number}/02-clarifications.md` for any locked decisions.
+Also read the PRD for the full requirements — use the path recorded in
+`01-context.md`'s PRD Summary section, falling back to
+`.artifacts/prd/{issue-number}/03-prd.md`. Read
+`.artifacts/prd/{issue-number}/02-clarifications.md` for any locked decisions.
 
 #### Step 1a: Check for Prior Research (Re-invocation)
 
