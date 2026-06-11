@@ -40,6 +40,16 @@ jobs:
           persist-credentials: false
       - uses: DavidAnson/markdownlint-cli2-action@05f32210e84442804257b2a6f20b273450ec8265 # v19
 
+  validate-versions:
+    name: Validate Versions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - run: bash .github/scripts/validate-versions.sh
+
   link-check:
     name: Link Check
     runs-on: ubuntu-latest

@@ -1,3 +1,7 @@
+---
+name: self-review-gate
+version: 0.1.0
+---
 # Recipe: Self-Review Gate
 
 A quality gate that reviews code changes before they are pushed or submitted
