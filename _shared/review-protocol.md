@@ -1,3 +1,7 @@
+---
+name: review-protocol
+version: 0.1.0
+---
 # Code Review Protocol
 
 Shared evaluation criteria, finding format, and assessment model used by all

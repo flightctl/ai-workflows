@@ -29,7 +29,7 @@ Every workflow follows this canonical structure:
 
 ```text
 workflow-name/
-  SKILL.md              # Entry point with YAML frontmatter (name, description)
+  SKILL.md              # Entry point with YAML frontmatter (name, version, description)
   guidelines.md         # Behavioral rules: principles, hard limits, safety, quality
   README.md             # Human-readable documentation (prerequisites, artifacts, usage)
   skills/
@@ -75,6 +75,46 @@ Critical for symlink resolution:
 4. **No auto-advance in attended mode**: Workflows wait for user input between phases unless an explicit unattended mode is documented for that workflow
 5. **Artifact persistence**: All significant outputs saved to `.artifacts/{workflow-name}/{context}/`
 6. **Read-only reviews**: skill-reviewer never modifies target skill files during review
+
+## Workflow Versioning
+
+When modifying workflow files in this repository, update the version
+in the workflow's `SKILL.md` frontmatter following semver:
+
+- **PATCH** (0.1.0 → 0.1.1): Typo fixes, wording clarification
+  without behavioral change, formatting
+- **MINOR** (0.1.0 → 0.2.0): Adding/changing/reordering steps,
+  modifying rules in guidelines.md, changing templates, adding phases
+- **MAJOR** (0.1.0 → 1.0.0): Removing phases, renaming phases or
+  commands, restructuring the workflow
+
+### Which files require a version bump
+
+Behavioral files (the AI reads and executes these):
+`SKILL.md` body, `guidelines.md`, `skills/*.md`, `commands/*.md`,
+`templates/*`, `prompts/*`, `scripts/*`, `_shared/**/*.md`, and
+root-level `.md` files in workflow directories that are read during
+execution (e.g., `design/decomposition-review.md`).
+
+Non-behavioral files (no bump needed): `README.md`, `GUIDE.md`
+
+### Shared file cascade
+
+When you modify a file in `_shared/`, also PATCH-bump every workflow
+that references it. Find affected workflows by searching for the
+basename (e.g., `self-review-gate` for `_shared/recipes/self-review-gate.md`):
+
+```bash
+grep -rl "<basename-without-extension>" */skills/*.md \
+  */commands/*.md */guidelines.md | sed 's|/.*||' | sort -u
+```
+
+Bump each discovered workflow's `SKILL.md` version (PATCH increment).
+
+### Commit convention
+
+Include the version bump in the same commit as the behavioral change.
+Do not make a separate commit for the version bump.
 
 ## Installation
 

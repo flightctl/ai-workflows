@@ -1,3 +1,7 @@
+---
+name: sizing-rubric
+version: 0.1.0
+---
 # Sizing Rubric
 
 Shared sizing definitions used by the sizing workflow (for Features) and the

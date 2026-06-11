@@ -1,5 +1,6 @@
 ---
 name: skill-reviewer
+version: 0.1.0
 description: >-
   Deep review of an AI skill directory. Critically evaluates structure, clarity,
   completeness, and consistency of SKILL.md, skills/*.md, commands/*.md, and
