@@ -45,7 +45,7 @@ correct values.
 **If the config does not exist**, ask the user:
 
 - **Docs repo local path:** Where is the planning docs repo checked out?
-  (e.g., `/home/user/src/planning-docs`)
+  (e.g., `~/src/planning-docs`)
 - **Docs repo remote:** Run `git -C "{docs_repo_path}" remote get-url origin`
   and confirm the result with the user before proceeding
 
