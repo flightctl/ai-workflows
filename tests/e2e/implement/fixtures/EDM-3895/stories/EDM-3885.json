@@ -1,0 +1,34 @@
+{
+  "key": "EDM-3885",
+  "fields": {
+    "summary": "Restore Command Enhancement",
+    "issuetype": {
+      "name": "Epic"
+    },
+    "status": {
+      "name": "In Progress"
+    },
+    "description": {
+      "type": "doc",
+      "version": 1,
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "Epic: Enhance the flightctl-restore command to support backup archive ingestion and improved restore workflows."
+            }
+          ]
+        }
+      ]
+    },
+    "parent": {
+      "key": "EDM-3213",
+      "fields": {
+        "summary": "Backup and Restore",
+        "issuetype": {"name": "Feature"}
+      }
+    }
+  }
+}

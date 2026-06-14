@@ -1,0 +1,27 @@
+name: E2E Skill Tests
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * 1'  # Mondays at 04:00 UTC
+
+jobs:
+  e2e-implement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/e2e-repos
+            ~/.cache/e2e-fixture-images
+          key: e2e-${{ hashFiles('tests/e2e/implement/scenarios_test.go', 'tests/e2e/implement/fixtures/**/Containerfile') }}
+          restore-keys: e2e-
+
+      - name: Run e2e tests
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: tests/e2e/implement/run-e2e.sh --timeout 90m

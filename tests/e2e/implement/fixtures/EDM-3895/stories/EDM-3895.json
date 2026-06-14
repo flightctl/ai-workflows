@@ -1,0 +1,71 @@
+{
+  "key": "EDM-3895",
+  "fields": {
+    "summary": "[DEV] Enhance flightctl-restore to accept backup archive argument",
+    "issuetype": {
+      "name": "Story"
+    },
+    "status": {
+      "name": "In Progress"
+    },
+    "priority": {
+      "name": "Major"
+    },
+    "assignee": null,
+    "description": {
+      "type": "doc",
+      "version": 1,
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "As a FlightCtl administrator, I want to invoke `flightctl-restore <archive-path>` to restore from a backup archive, so that I can restore FlightCtl state after a disaster."
+            }
+          ]
+        },
+        {
+          "type": "heading",
+          "attrs": {"level": 2},
+          "content": [{"type": "text", "text": "Acceptance Criteria"}]
+        },
+        {
+          "type": "bulletList",
+          "content": [
+            {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "`flightctl-restore <archive-path>` accepts archive path as first positional argument"}]}]},
+            {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Restore command logs archive path when provided"}]}]},
+            {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Restore command extracts archive to temporary directory"}]}]},
+            {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Restore command reads `metadata.json` from extracted archive"}]}]},
+            {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Restore command validates deployment type matches current environment"}]}]},
+            {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Restore fails with clear error if deployment type mismatch"}]}]},
+            {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Restore fails with clear error if archive path does not exist or is not readable"}]}]},
+            {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Temporary extraction directory cleaned up on success or failure"}]}]},
+            {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Unit tests cover argument parsing, extraction, metadata validation"}]}]}
+          ]
+        },
+        {
+          "type": "heading",
+          "attrs": {"level": 2},
+          "content": [{"type": "text", "text": "Implementation Guidance"}]
+        },
+        {
+          "type": "paragraph",
+          "content": [{"type": "text", "text": "Modify `cmd/flightctl-restore/main.go` to accept the archive path as a required positional argument (no backwards compatibility). Create `internal/restore/archive.go` with archive extraction and metadata validation functions."}]
+        }
+      ]
+    },
+    "parent": {
+      "key": "EDM-3885",
+      "fields": {
+        "summary": "Restore Command Enhancement",
+        "issuetype": {"name": "Epic"}
+      }
+    },
+    "labels": ["DEV"],
+    "components": [],
+    "fixVersions": [],
+    "customfield_10014": "EDM-3885",
+    "customfield_10020": null
+  }
+}

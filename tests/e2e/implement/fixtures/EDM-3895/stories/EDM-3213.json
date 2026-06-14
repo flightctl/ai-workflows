@@ -1,0 +1,27 @@
+{
+  "key": "EDM-3213",
+  "fields": {
+    "summary": "Backup and Restore",
+    "issuetype": {
+      "name": "Feature"
+    },
+    "status": {
+      "name": "In Progress"
+    },
+    "description": {
+      "type": "doc",
+      "version": 1,
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "Feature: Implement comprehensive backup and restore functionality for FlightCtl, enabling administrators to create and restore from backup archives."
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

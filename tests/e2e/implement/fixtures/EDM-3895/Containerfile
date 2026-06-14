@@ -1,0 +1,45 @@
+FROM quay.io/fedora/fedora:44
+
+# Build dependencies required by flightctl's make build and make unit-test targets.
+# Mirrors what flightctl's .github/actions/setup-dependencies installs.
+RUN dnf install -y \
+    golang \
+    make \
+    curl \
+    unzip \
+    git \
+    libvirt-devel \
+    pam-devel \
+    bubblewrap \
+    && dnf clean all
+
+# protoc — same version as flightctl CI (v3.14.0)
+RUN curl -Lo /tmp/protoc.zip \
+      https://github.com/protocolbuffers/protobuf/releases/download/v3.14.0/protoc-3.14.0-linux-x86_64.zip \
+    && unzip -q /tmp/protoc.zip bin/protoc -d /usr/local \
+    && chmod a+x /usr/local/bin/protoc \
+    && rm /tmp/protoc.zip
+
+# Install the mock Jira MCP server used by E2E tests.
+# The script speaks MCP JSON-RPC over stdio and fetches story data from the
+# JIRA_MCP_URL HTTP server started by the Go test harness.
+COPY --chown=root:root mock-jira-mcp.py /usr/local/bin/mock-jira-mcp
+RUN chmod +x /usr/local/bin/mock-jira-mcp
+
+# Create the e2e user (uid 1000) that claude CLI runs as.
+RUN useradd -m -u 1000 e2e
+
+# Install claude CLI as the e2e user so all support files land under /home/e2e/.local/.
+# Make the install world-readable/executable so podman exec as any UID can find it.
+USER e2e
+ENV HOME=/home/e2e
+RUN curl -fsSL https://claude.ai/install.sh | sh \
+    && chmod a+rx /home/e2e /home/e2e/.local \
+    && chmod -R a+rX /home/e2e/.local
+
+ENV GOPATH=/home/e2e/go \
+    PATH=/home/e2e/.local/bin:/home/e2e/go/bin:/usr/local/bin:$PATH \
+    DISABLE_AUTOUPDATER=1 \
+    CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS=1
+
+WORKDIR /src
