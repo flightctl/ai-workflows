@@ -1,6 +1,7 @@
 ---
 name: design
-version: 0.1.1
+version: 0.2.0
+model: claude-4.6-sonnet-medium-thinking
 description: >-
   Design-and-decompose workflow that takes a PRD, researches the problem space,
   drafts a technical design document, decomposes work into Jira-ready epics and

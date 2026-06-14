@@ -84,16 +84,18 @@ published copy in the docs repo.
 ## How to Execute a Phase
 
 1. **Announce** the phase to the user: *"Starting /draft."*
-2. **Locate** the skill file — read and follow
-   `../../_shared/recipes/phase-override-resolution.md` with
-   WORKFLOW=`design`, PHASE_FILE=`{phase}.md`.
-3. **Read** the resolved skill file
-4. **Execute** the skill's steps — the user should see your progress
-5. When the skill is done, it will tell you to report findings and
-   re-read this controller. Do that — then use "Recommending Next Steps"
-   below to offer options.
-6. Present the skill's results and your recommendations to the user
-7. **Stop and wait** for the user to tell you what to do next.
+2. **Locate** the skill file — follow `../../_shared/recipes/phase-override-resolution.md` with
+   WORKFLOW=`design`, PHASE_FILE=`{phase}.md` to resolve the path.
+   **Do not read the skill file yourself.**
+3. **Spawn a sub-agent** for this phase using the Task tool with `model: claude-4.6-sonnet-medium-thinking`. The prompt must instruct it to:
+   - Read and execute the resolved skill file
+   - Load all existing artifact files from `.artifacts/design/{issue-number}/`
+   - Load any template files the skill references (e.g., `section-guidance.md` for `/draft`)
+   - Load the project's `AGENTS.md` or `CLAUDE.md` (if present)
+   - Return its findings when done — **do not re-read the controller**
+4. When the sub-agent completes, re-read this controller and use "Recommending Next Steps" below to offer options.
+5. Present the sub-agent's results and your recommendations to the user.
+6. **Stop and wait** for the user to tell you what to do next.
 
 ## Recommending Next Steps
 
@@ -201,18 +203,6 @@ exploration failures):
 
 Do not fabricate results when a tool call fails. Do not silently continue
 past errors.
-
-## Context Management
-
-When output quality appears to be degrading (e.g., the AI misses details,
-repeats itself, or loses track of earlier decisions), consider spawning the
-next phase as a subagent with a fresh context window. Load the subagent with
-the skill file for the phase being executed, the relevant artifact files from
-`.artifacts/design/{issue-number}/`, and any template files referenced by that
-skill (e.g., `draft.md` and `section-guidance.md` for `/draft`).
-
-This is a recommendation, not a requirement — not all AI runtimes support
-subagent spawning.
 
 ## Rules
 

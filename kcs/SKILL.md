@@ -1,6 +1,7 @@
 ---
 name: kcs
-version: 0.1.1
+version: 0.2.0
+model: claude-4.6-sonnet-medium-thinking
 description: >-
   KCS article workflow that gathers bug context from Jira and user input,
   drafts a KCS Solution article in markdown, validates it against the KCS

@@ -1,6 +1,7 @@
 ---
 name: prd
-version: 0.1.1
+version: 0.2.0
+model: claude-4.6-sonnet-medium-thinking
 description: >-
   Requirements-to-PRD workflow that ingests requirements from Jira, clarifies
   ambiguities through iterative Q&A, drafts a Product Requirements Document,

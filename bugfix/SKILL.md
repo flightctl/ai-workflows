@@ -1,6 +1,7 @@
 ---
 name: bugfix
-version: 0.1.1
+version: 0.2.0
+model: claude-4.6-sonnet-medium-thinking
 description: >-
   Diagnostic and repair workflow that analyzes error logs, traces root causes,
   implements fixes, and verifies with regression tests.

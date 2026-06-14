@@ -51,13 +51,16 @@ Phases can be skipped or reordered at the user's discretion.
 1. **Announce** the phase to the user before doing anything else, e.g.,
    "Starting the /gather phase." This is important so the user knows the
    workflow is working and learns the commands.
-2. **Locate** the skill file — read and follow
-   `../../_shared/recipes/phase-override-resolution.md` with
-   WORKFLOW=`kcs`, PHASE_FILE=`{phase}.md`.
-3. **Read** the resolved skill file.
-4. **Execute** the skill's steps directly — the user should see your progress.
-5. When the skill is done, follow "When This Phase Is Done" below.
-6. **Stop and wait** for the user to tell you what to do next.
+2. **Locate** the skill file — follow `../../_shared/recipes/phase-override-resolution.md` with
+   WORKFLOW=`kcs`, PHASE_FILE=`{phase}.md` to resolve the path.
+   **Do not read the skill file yourself.**
+3. **Spawn a sub-agent** for this phase using the Task tool with `model: claude-4.6-sonnet-medium-thinking`. The prompt must instruct it to:
+   - Read and execute the resolved skill file
+   - Load all existing artifact files from `.artifacts/kcs/{issue-key}/`
+   - Load the project's `AGENTS.md` or `CLAUDE.md` (if present)
+   - Return its findings when done — **do not re-read the controller**
+4. When the sub-agent completes, follow "When This Phase Is Done" below.
+5. **Stop and wait** for the user to tell you what to do next.
 
 ## When This Phase Is Done
 

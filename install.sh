@@ -182,17 +182,24 @@ install_cursor() {
   if [[ "$SCOPE" == "project" ]]; then
     SKILLS_DIR="${PROJECT_ROOT}/.cursor/skills"
     CMDS_DIR="${PROJECT_ROOT}/.cursor/commands"
+    AGENTS_DIR="${PROJECT_ROOT}/.cursor/agents"
   else
     SKILLS_DIR="${HOME}/.cursor/skills"
     CMDS_DIR="${HOME}/.cursor/commands"
+    AGENTS_DIR="${HOME}/.cursor/agents"
   fi
 
-  mkdir -p "$SKILLS_DIR" "$CMDS_DIR"
+  mkdir -p "$SKILLS_DIR" "$CMDS_DIR" "$AGENTS_DIR"
   install_shared "$SKILLS_DIR"
   for wf in "${WORKFLOWS[@]}"; do
     ln -sfn "${INSTALL_DIR}/${wf}" "${SKILLS_DIR}/${wf}"
     echo "  Linked ${SKILLS_DIR}/${wf} -> ${INSTALL_DIR}/${wf}  ($SCOPE)"
   done
+  # Deploy workflow-phase subagent for model inheritance
+  if [[ -f "${REPO_DIR}/agents/workflow-phase.md" ]]; then
+    cp "${REPO_DIR}/agents/workflow-phase.md" "${AGENTS_DIR}/workflow-phase.md"
+    echo "  Deployed ${AGENTS_DIR}/workflow-phase.md  ($SCOPE)"
+  fi
   generate_cursor_commands "$CMDS_DIR"
 }
 

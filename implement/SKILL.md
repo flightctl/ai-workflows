@@ -1,6 +1,7 @@
 ---
 name: implement
-version: 0.1.1
+version: 0.2.0
+model: claude-4.6-sonnet-medium-thinking
 description: >-
   Story-to-code workflow that takes a Jira Story, plans the implementation,
   writes contract-based tests and production code via TDD, validates against

@@ -88,15 +88,18 @@ Phases can be skipped or reordered at the user's discretion.
 
 1. **Announce** the phase to the user before doing anything else, e.g., "Starting the /gather phase." This is important so the user knows the workflow is working and learns the commands.
 2. **Check prerequisites** — verify the required input artifacts exist (see the Artifacts table). If any are missing, tell the user which phase to run first and stop. If this phase's output artifact already exists, warn that re-running will overwrite it — wait for confirmation, then delete all artifacts from this phase and later phases before proceeding.
-3. **Locate** the skill file — read and follow
-   `../../_shared/recipes/phase-override-resolution.md` with
+3. **Locate** the skill file — follow `../../_shared/recipes/phase-override-resolution.md` with
    WORKFLOW=`docs-writer`, PHASE_FILE=`{skill-file}` where `{skill-file}`
    is the filename from the Phases list above (e.g., `gather-context.md`
-   for `/gather`, `plan-structure.md` for `/plan`).
-4. **Read** the resolved skill file.
-5. **Execute** the skill's steps directly — the user should see your progress.
-6. When the skill is done, follow "When This Phase Is Done" below.
-7. **Stop and wait** for the user to tell you what to do next.
+   for `/gather`, `plan-structure.md` for `/plan`) to resolve the path.
+   **Do not read the skill file yourself.**
+4. **Spawn a sub-agent** for this phase using the Task tool with `model: claude-4.6-sonnet-medium-thinking`. The prompt must instruct it to:
+   - Read and execute the resolved skill file
+   - Load all existing artifact files from `.artifacts/${ticket_id}/`
+   - Load the project's `AGENTS.md` or `CLAUDE.md` (if present)
+   - Return its findings when done — **do not re-read the controller**
+5. When the sub-agent completes, follow "When This Phase Is Done" below.
+6. **Stop and wait** for the user to tell you what to do next.
 
 ## When The Phase Is Done
 
