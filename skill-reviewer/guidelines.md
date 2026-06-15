@@ -22,6 +22,7 @@ Artifacts go in `.artifacts/skill-reviewer/{skill-name}/`.
 - No skipping files — every file in the skill directory must be read
 - No forming opinions before reading all files
 - No rubber-stamping — if there are real problems, report them
+- **No personal names in generated content.** Replace references to individuals with role-based descriptions or drop the attribution and state the finding directly.
 
 ## Safety
 

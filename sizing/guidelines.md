@@ -15,6 +15,7 @@
 - No Jira writes without explicit user approval and a dry-run preview first.
 - **XXL is never committed.** If a Feature is assessed as XXL, it must be split. Do not write XXL to Jira — recommend the user split first.
 - No scope reduction. If a Feature doesn't fit, flag it as XXL and recommend splitting — don't silently reduce its scope to make it fit a smaller size.
+- **No personal names in generated content.** Replace references to individuals from Jira tickets or comments with role-based descriptions (e.g., "the feature owner noted…", "the team lead identified…") or drop the attribution and state the finding directly.
 
 ## Safety
 
