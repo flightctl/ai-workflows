@@ -1,6 +1,6 @@
 ---
 name: design
-version: 0.1.2
+version: 0.2.0
 description: >-
   Design-and-decompose workflow that takes a PRD, researches the problem space,
   drafts a technical design document, decomposes work into Jira-ready epics and

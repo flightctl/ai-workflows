@@ -28,6 +28,7 @@ Artifacts go in `.artifacts/${ticket_id}/`.
 - No content without a source — every statement must trace back to Jira, code diffs, or user input
 - No modifying files outside the plan — only change files listed in the artifact
 - No skipping the approval gate — the plan must be approved before drafting
+- **No personal names in generated content.** Replace references to individuals from Jira tickets, comments, or other source material with role-based descriptions (e.g., "the security reviewer noted…", "the reporter described…"). When the person's role is unknown, use a generic attribution ("a reviewer noted…", "feedback identified…") or drop the attribution and state the finding directly.
 
 ## Safety
 
