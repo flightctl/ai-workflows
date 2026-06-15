@@ -22,6 +22,7 @@
 - **No test shortcuts.** Do not write tests that test implementation details, mock internal logic, or exist solely to increase coverage numbers. Every test must validate a behavioral contract through a public interface.
 - No committing to `main` directly. Use a feature branch.
 - No force-push or destructive git operations.
+- **No personal names in generated content.** Replace references to individuals from Jira tickets, comments, or other source material with role-based descriptions (e.g., "the reviewer noted…", "the reporter described…") or drop the attribution and state the finding directly. This applies to code comments, commit messages, PR descriptions, and any other generated artifacts.
 
 ## Safety
 

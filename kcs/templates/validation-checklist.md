@@ -59,6 +59,7 @@ Each item must pass. Failures are reported with the section and specific issue.
 
 - [ ] Present tense throughout ("The device shows..." not "The device showed...")
 - [ ] No personal pronouns ("I", "me", "we", "myself")
+- [ ] No personal names — individuals are referenced by role ("the reporter", "the security reviewer"), not by name
 - [ ] Backticks used for file paths, command names, configuration keys, and technical terms
 - [ ] Fenced code blocks used for full commands and example output
 - [ ] Numbered steps for sequential actions, bullet points for non-sequential items

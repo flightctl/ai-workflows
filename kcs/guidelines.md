@@ -25,6 +25,7 @@ Artifacts go in `.artifacts/kcs/{issue-key}/`.
 - No personal pronouns ("I", "me", "we", "myself") anywhere in the article.
 - No content without a source — every claim must trace to the Jira ticket, logs, or user input.
 - No fabricated diagnostic steps or resolution procedures. If you do not have the exact commands or steps, ask the user.
+- **No personal names in generated content.** Replace references to individuals from Jira tickets, comments, or other source material with role-based descriptions (e.g., "the security reviewer noted…", "the reporter described…"). When the person's role is unknown, use a generic attribution ("a reviewer noted…", "feedback identified…") or drop the attribution and state the finding directly.
 - No auto-advancing between phases. Always wait for the user.
 
 ## Safety

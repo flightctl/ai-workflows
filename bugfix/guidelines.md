@@ -33,6 +33,7 @@ Artifacts go in `.artifacts/bugfix/{issue}`.
 - No force-push, hard reset, or destructive git operations
 - No modifying security-critical code without human review
 - No skipping CI checks (`--no-verify`, `--no-gpg-sign`)
+- **No personal names in generated content.** Replace references to individuals from Jira tickets, comments, or other source material with role-based descriptions (e.g., "the reporter noted…", "the reviewer identified…") or drop the attribution and state the finding directly. This applies to code comments, commit messages, PR descriptions, release notes, and any other generated artifacts.
 
 ## Safety
 

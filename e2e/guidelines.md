@@ -25,6 +25,7 @@
 - **No duplicate coverage.** E2e tests validate user-facing workflows. Do not re-test unit-level or integration-level behavior that is already covered by the `[DEV]` story's tests. E2e tests exercise the full system from end to end — they are complementary to, not replacements for, lower-level tests.
 - No committing to `main` directly. Use a feature branch.
 - No force-push or destructive git operations.
+- **No personal names in generated content.** Replace references to individuals from Jira tickets, comments, or other source material with role-based descriptions (e.g., "the reviewer noted…", "the reporter described…") or drop the attribution and state the finding directly. This applies to code comments, commit messages, PR descriptions, and any other generated artifacts.
 
 ## Safety
 
