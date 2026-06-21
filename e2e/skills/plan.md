@@ -38,7 +38,41 @@ Read these files in order:
 If `01-context.md` doesn't exist, tell the user that `/ingest` should be
 run first.
 
-### Step 2: Map Acceptance Criteria to Test Scenarios
+### Step 2: Determine Local Base and PR Target
+
+Before writing the plan, determine two distinct branches:
+
+**Local Base** — the branch this story's commits are stacked on locally.
+Used by `/code` and `/validate` for all `git rebase` and sync operations.
+
+Run:
+
+```bash
+git branch --show-current
+```
+
+Evaluate the result:
+
+- **If the current branch is a trunk branch** (`main`, `master`, `develop`, or similar) — use it as the Local Base.
+- **If the current branch is a feature branch** (e.g., a prior story branch) — the user is likely stacking stories. Present both options and ask which to use:
+  - Use the current branch (e.g., `EDM-1233-prior-story`) as the Local Base — correct for stacked stories
+  - Use `main` (or the project default) as the Local Base — correct if the user has already switched to the wrong branch by mistake
+
+**PR Target** — the branch the pull request will target (`--base` in `gh pr create`).
+This is almost always the repository's default trunk branch (`main`, `master`, etc.),
+regardless of how the story is stacked locally.
+
+Read the **Repository Topology** section of `01-context.md`:
+
+- **If the repo is a fork**: PR Target = the upstream default branch. Confirm by running:
+  ```bash
+  gh repo view {upstream-owner}/{upstream-repo} --json defaultBranchRef --jq '.defaultBranchRef.name'
+  ```
+- **If the repo is a direct clone**: PR Target = `main` (or the project default) unless the user explicitly wants PR-based stacking against a prior story's branch.
+
+Do not conflate Local Base with PR Target. A stacked story rebases locally onto a prior story's branch, but its PR still targets `main` on the upstream repo.
+
+### Step 3: Map Acceptance Criteria to Test Scenarios
 
 Before writing the plan, create a mental map:
 - Which acceptance criteria describe user-facing behaviors that can be verified through e2e tests?
@@ -49,7 +83,7 @@ Before writing the plan, create a mental map:
 - How should scenarios be organized into the project's test grouping blocks?
 - What labels/tags should each scenario have (for CI filtering)?
 
-### Step 3: Consolidate Scenarios
+### Step 4: Consolidate Scenarios
 
 E2e setup and actions are expensive — repeating them across scenarios that
 only differ in what they validate wastes execution time. Before writing the
@@ -77,7 +111,7 @@ plan, consolidate:
    recorded in the Scenario Consolidation section of the plan (see the
    Step 4 template).
 
-### Step 4: Write the Test Plan
+### Step 5: Write the Test Plan
 
 Write `.artifacts/e2e/{jira-key}/02-plan.md` with this structure:
 
@@ -91,7 +125,8 @@ Write `.artifacts/e2e/{jira-key}/02-plan.md` with this structure:
 ## Branch
 
 - **Name:** {jira-key}-{short-slug} (e.g., EDM-5678-fleet-rollback-e2e)
-- **Base:** {target branch, usually main}
+- **Local Base:** {branch confirmed in Step 2 — used for rebasing during /code and /validate}
+- **PR Target:** {branch confirmed in Step 2 — used as --base in gh pr create; typically `main`}
 
 ## Reference Suite
 
@@ -253,7 +288,7 @@ Write `.artifacts/e2e/{jira-key}/02-plan.md` with this structure:
  These may be carried forward from the ingest phase's open questions.}
 ```
 
-### Step 5: Self-Review
+### Step 6: Self-Review
 
 Before presenting the plan, verify:
 
@@ -274,7 +309,7 @@ Before presenting the plan, verify:
 - [ ] Scenario identifiers and titles are unique across the plan (no duplicate C#/S# or repeated names)
 - [ ] The plan is achievable — no scenarios depend on unmerged features or unavailable test infrastructure methods
 
-### Step 6: Present to User
+### Step 7: Present to User
 
 Show the user the complete plan and highlight:
 - Test approach and reference suite selection

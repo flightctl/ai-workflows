@@ -46,7 +46,7 @@ Check the **Repository Topology** section of `01-context.md`. Read
 If the repo is a fork, sync the fork with upstream first:
 
 ```bash
-gh repo sync {owner}/{repo} --branch {base}
+gh repo sync {owner}/{repo} --branch {local-base}
 ```
 
 If `gh repo sync` fails (permissions error, upstream deleted, auth
@@ -65,7 +65,7 @@ Record the failure in the validation report under Branch Currency as
 "Unable to verify — fetch failed."
 
 ```bash
-git rev-list --count HEAD..origin/{base}
+git rev-list --count HEAD..origin/{local-base}
 ```
 
 If the branch is behind base, check whether a PR has already been
@@ -74,7 +74,7 @@ created by looking for `.artifacts/implement/{jira-key}/publish-metadata.json`.
 **If no PR exists yet** (pre-publish), offer to rebase:
 
 ```bash
-git rebase origin/{base}
+git rebase origin/{local-base}
 ```
 
 Follow the same conflict handling as the sync-with-base step of `/code`
@@ -83,7 +83,7 @@ Follow the same conflict handling as the sync-with-base step of `/code`
 **If a PR already exists** (post-publish), offer to merge instead:
 
 ```bash
-git merge origin/{base}
+git merge origin/{local-base}
 ```
 
 Merging preserves the commit history that reviewers have already seen.
@@ -185,7 +185,7 @@ If regressions are found:
 ### Step 6: Code Quality Review
 
 After automated checks pass, review the story's full diff for issues
-that automated tooling does not catch. Read the base branch from the
+that automated tooling does not catch. Read the Local Base from the
 `## Branch` section of `02-plan.md`, then run the self-review gate.
 
 Read and follow `../../_shared/recipes/self-review-gate.md` with these
@@ -193,7 +193,7 @@ parameters:
 
 | Parameter | Value |
 |-----------|-------|
-| DIFF_COMMAND | `git diff {base}..HEAD` |
+| DIFF_COMMAND | `git diff {local-base}...HEAD` |
 | MAX_ROUNDS | `3` |
 | CONTEXT_FILES | `.artifacts/implement/{jira-key}/01-context.md`, `.artifacts/implement/{jira-key}/02-plan.md` (if they exist) |
 | SUPPLEMENTARY_CRITERIA | This is the full-branch validation review — the last quality gate before PR creation. The reviewer has the complete diff, not a per-task slice. In addition to the standard protocol criteria, evaluate: (1) **Backward compatibility** — does the change modify public APIs, error formats, configuration, or wire protocols? If so, is it backward-compatible or is the break documented and justified? (2) **Completeness across call sites** — if the story introduces a guard, wrapper, or handling pattern in one location, search the codebase for similar patterns needing the same treatment. A pattern applied to 7 of 8 identical call sites is itself a bug. |
@@ -254,8 +254,8 @@ Write `.artifacts/implement/{jira-key}/05-validation-report.md`:
 
 ## Branch Currency
 
-{Current with base / N commits behind {base} — rebased before validation
- / N commits behind {base} — user chose to continue without rebasing}
+{Current with base / N commits behind {local-base} — rebased before validation
+ / N commits behind {local-base} — user chose to continue without rebasing}
 
 ## Check Results
 

@@ -35,7 +35,41 @@ Read these files in order:
 If `01-context.md` doesn't exist, tell the user that `/ingest` should be
 run first.
 
-### Step 2: Map Acceptance Criteria to Changes
+### Step 2: Determine Local Base and PR Target
+
+Before writing the plan, determine two distinct branches:
+
+**Local Base** — the branch this story's commits are stacked on locally.
+Used by `/code` and `/validate` for all `git rebase` and sync operations.
+
+Run:
+
+```bash
+git branch --show-current
+```
+
+Evaluate the result:
+
+- **If the current branch is a trunk branch** (`main`, `master`, `develop`, or similar) — use it as the Local Base.
+- **If the current branch is a feature branch** (e.g., a prior story branch) — the user is likely stacking stories. Present both options and ask which to use:
+  - Use the current branch (e.g., `EDM-1233-prior-story`) as the Local Base — correct for stacked stories
+  - Use `main` (or the project default) as the Local Base — correct if the user has already switched to the wrong branch by mistake
+
+**PR Target** — the branch the pull request will target (`--base` in `gh pr create`).
+This is almost always the repository's default trunk branch (`main`, `master`, etc.),
+regardless of how the story is stacked locally.
+
+Read the **Repository Topology** section of `01-context.md`:
+
+- **If the repo is a fork**: PR Target = the upstream default branch. Confirm by running:
+  ```bash
+  gh repo view {upstream-owner}/{upstream-repo} --json defaultBranchRef --jq '.defaultBranchRef.name'
+  ```
+- **If the repo is a direct clone**: PR Target = `main` (or the project default) unless the user explicitly wants PR-based stacking against a prior story's branch.
+
+Do not conflate Local Base with PR Target. A stacked story rebases locally onto a prior story's branch, but its PR still targets `main` on the upstream repo.
+
+### Step 3: Map Acceptance Criteria to Changes
 
 Before writing the plan, create a mental map:
 - Which acceptance criteria require new code vs. modifications to existing code?
@@ -45,7 +79,7 @@ Before writing the plan, create a mental map:
 - Where will tests live? What test patterns from neighboring code should be followed?
 - Are integration tests needed? (Yes, if the story touches component interactions like API-to-service, service-to-store, agent-to-server.)
 
-### Step 3: Write the Implementation Plan
+### Step 4: Write the Implementation Plan
 
 Write `.artifacts/implement/{jira-key}/02-plan.md` with this structure:
 
@@ -59,7 +93,8 @@ Write `.artifacts/implement/{jira-key}/02-plan.md` with this structure:
 ## Branch
 
 - **Name:** {jira-key}-{short-slug} (e.g., EDM-1234-fleet-rollback)
-- **Base:** {target branch, usually main}
+- **Local Base:** {branch confirmed in Step 2 — used for rebasing during /code and /validate}
+- **PR Target:** {branch confirmed in Step 2 — used as --base in gh pr create; typically `main`}
 
 ## Interface Definitions
 
@@ -151,7 +186,7 @@ Write `.artifacts/implement/{jira-key}/02-plan.md` with this structure:
  may be carried forward from the ingest phase's open questions.}
 ```
 
-### Step 4: Self-Review
+### Step 5: Self-Review
 
 Before presenting the plan, verify:
 
@@ -167,7 +202,7 @@ Before presenting the plan, verify:
 - [ ] Task count is reasonable — if you have more than 10 tasks, consider whether the story needs re-scoping
 - [ ] The plan is achievable — no tasks depend on unavailable infrastructure or unmerged code
 
-### Step 5: Present to User
+### Step 6: Present to User
 
 Show the user the complete plan and highlight:
 - Implementation approach and key decisions

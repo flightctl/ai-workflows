@@ -45,14 +45,14 @@ Check the plan for task completion status:
 - On first invocation, all tasks will be Pending — start with Task 1
 
 Read the `## Branch` section of `02-plan.md` to get the planned branch
-name and base. Then check the current branch:
+name and Local Base. Then check the current branch:
 
 ```bash
 git branch --show-current
 ```
 
 If the user is already on a feature branch (not `main`, `master`, or the
-plan's base branch), ask whether to use the current branch or create the
+plan's Local Base branch), ask whether to use the current branch or create the
 planned branch. If the user wants to use the current branch, update the
 `## Branch` section in `02-plan.md` to reflect the actual branch name.
 
@@ -64,7 +64,7 @@ Check the **Repository Topology** section of `01-context.md`. Read
 the fork's base branch with upstream first:
 
 ```bash
-gh repo sync {owner}/{repo} --branch {base}
+gh repo sync {owner}/{repo} --branch {local-base}
 ```
 
 If `gh repo sync` fails, warn the user that the fork may be behind
@@ -100,7 +100,7 @@ git checkout {branch-name}
 git checkout -b {branch-name} origin/{branch-name}
 
 # If branch doesn't exist at all — create from the fetched base:
-git checkout -b {branch-name} origin/{base}
+git checkout -b {branch-name} origin/{local-base}
 ```
 
 If the branch already existed (locally or on remote), sync it with
@@ -120,7 +120,7 @@ Check whether a PR has already been created by looking for
 If no PR exists yet, rebase:
 
 ```bash
-git rebase origin/{base}
+git rebase origin/{local-base}
 ```
 
 If a PR already exists, merge instead — rebasing a branch with an
@@ -128,7 +128,7 @@ open PR requires a force-push, which orphans review comments and
 disrupts reviewers:
 
 ```bash
-git merge origin/{base}
+git merge origin/{local-base}
 ```
 
 If conflicts occur during either operation, follow the same conflict
@@ -288,7 +288,7 @@ Check the **Repository Topology** section of `01-context.md`. Read
 upstream). If the repo is a fork, sync the fork with upstream first:
 
 ```bash
-gh repo sync {owner}/{repo} --branch {base}
+gh repo sync {owner}/{repo} --branch {local-base}
 ```
 
 `gh repo sync` is called on the **origin** (fork) repo — it syncs the
@@ -309,7 +309,7 @@ sync is best-effort during development. Staleness will be caught during
 Check whether new commits exist on the base branch:
 
 ```bash
-git rev-list --count HEAD..origin/{base}
+git rev-list --count HEAD..origin/{local-base}
 ```
 
 If the count is 0, no new upstream commits exist — skip the rebase and
@@ -322,7 +322,7 @@ PR has already been created by looking for
 **If no PR exists yet** (pre-publish), rebase:
 
 ```bash
-git rebase origin/{base}
+git rebase origin/{local-base}
 ```
 
 **If a PR already exists** (post-publish), merge instead — rebasing a
@@ -330,7 +330,7 @@ branch with an open PR requires a force-push, which orphans review
 comments and disrupts reviewers:
 
 ```bash
-git merge origin/{base}
+git merge origin/{local-base}
 ```
 
 If the operation applies cleanly, re-run the task's tests to confirm
