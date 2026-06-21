@@ -70,7 +70,7 @@ Read the **Repository Topology** section of `01-context.md`:
   ```
 - **If the repo is a direct clone**: PR Target = `main` (or the project default) unless the user explicitly wants PR-based stacking against a prior story's branch.
 
-Do not conflate Local Base with PR Target. A stacked story rebases locally onto a prior story's branch, but its PR still targets `main` on the upstream repo.
+Do not conflate Local Base with PR Target. A stacked story rebases locally onto a prior story's branch, but its PR still targets the selected PR Target.
 
 ### Step 3: Map Acceptance Criteria to Test Scenarios
 
