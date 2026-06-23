@@ -47,7 +47,7 @@ Check the **Repository Topology** section of `01-context.md`. Read
 If the repo is a fork, sync the fork with upstream first:
 
 ```bash
-gh repo sync {owner}/{repo} --branch {base}
+gh repo sync {owner}/{repo} --branch {pr-target}
 ```
 
 If `gh repo sync` fails, warn the user and record the failure in the
@@ -64,7 +64,7 @@ If `git fetch` fails, warn the user. Record the failure in the validation
 report under Branch Currency as "Unable to verify — fetch failed."
 
 ```bash
-git rev-list --count HEAD..origin/{base}
+git rev-list --count HEAD..origin/{local-base}
 ```
 
 If the branch is behind base, verify the working tree is clean before
@@ -83,7 +83,7 @@ Check whether a PR has already been created by looking for
 **If no PR exists yet**, offer to rebase:
 
 ```bash
-git rebase origin/{base}
+git rebase origin/{local-base}
 ```
 
 Follow the same conflict handling as the sync-with-base step of `/code`
@@ -92,7 +92,7 @@ Follow the same conflict handling as the sync-with-base step of `/code`
 **If a PR already exists**, offer to merge instead:
 
 ```bash
-git merge origin/{base}
+git merge origin/{local-base}
 ```
 
 If the user declines either operation, continue but note the staleness
@@ -124,11 +124,11 @@ Typical checks for e2e test code (discovered, not hardcoded):
 
 ### Step 4: Anti-Pattern Check
 
-Read the base branch from the `## Branch` section of `02-plan.md`.
+Read the Local Base from the `## Branch` section of `02-plan.md`.
 Then read the diff of all new test files:
 
 ```bash
-git diff {base}..HEAD -- {test file paths from the plan}
+git diff {local-base}...HEAD -- {test file paths from the plan}
 ```
 
 Focus on the test files created or modified by this story — ignore
@@ -175,7 +175,7 @@ If regressions are found:
 ### Step 6: Code Quality Review
 
 After automated checks pass, review the new test code for issues that
-automated tooling does not catch. Read the base branch from the `## Branch`
+automated tooling does not catch. Read the Local Base from the `## Branch`
 section of `02-plan.md`, then run the self-review gate.
 
 Read and follow `../../_shared/recipes/self-review-gate.md` with these
@@ -183,7 +183,7 @@ parameters:
 
 | Parameter | Value |
 |-----------|-------|
-| DIFF_COMMAND | `git diff {base}..HEAD` |
+| DIFF_COMMAND | `git diff {local-base}...HEAD` |
 | MAX_ROUNDS | `3` |
 | CONTEXT_FILES | `.artifacts/e2e/{jira-key}/01-context.md`, `.artifacts/e2e/{jira-key}/02-plan.md` (if they exist) |
 | SUPPLEMENTARY_CRITERIA | This is the full-branch validation review for e2e test code. Anti-pattern detection is already complete (Step 4) — skip those checks. Focus on test design depth: (1) **Assertion specificity** — do tests verify the actual behavioral outcome the AC describes, or just assert "no error"? (2) **Brittleness** — will tests break only when real behavior changes, or will they break when unrelated implementation details change? (3) **Test isolation** — could any test leak state (credentials, resources, configuration) that affects other suites or environments? (4) **Reference suite consistency** — does the test structure match the project's reference suite, or does it introduce divergent patterns that will confuse future contributors? |
@@ -239,8 +239,8 @@ Write `.artifacts/e2e/{jira-key}/05-validation-report.md`:
 
 ## Branch Currency
 
-{Current with base / N commits behind {base} — rebased before validation
- / N commits behind {base} — user chose to continue without rebasing}
+{Current with base / N commits behind {local-base} — rebased before validation
+ / N commits behind {local-base} — user chose to continue without rebasing}
 
 ## Check Results
 

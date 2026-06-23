@@ -40,13 +40,13 @@ Verify readiness:
    git branch --show-current
    ```
 
-   Read the `## Branch` section of `02-plan.md` to get the base branch.
+   Read the `## Branch` section of `02-plan.md` to get the Local Base and PR Target.
 
    ```bash
-   git log --oneline {base}..HEAD
+   git log --oneline {local-base}..HEAD
    ```
 
-   If there are no commits ahead of the base branch, there's nothing to publish.
+   If there are no commits ahead of the Local Base, there's nothing to publish.
 
 3. Check for uncommitted changes:
 
@@ -68,13 +68,13 @@ Each sub-task was already reviewed individually during `/code`. This
 review focuses on issues that only emerge when looking at the branch
 as a whole — problems that span tasks or arise from their interaction.
 
-Read the `## Branch` section of `02-plan.md` to get the base branch, then
+Read the `## Branch` section of `02-plan.md` to get the Local Base, then
 read and follow `../../_shared/recipes/self-review-gate.md` with these
 parameters:
 
 | Parameter | Value |
 |-----------|-------|
-| DIFF_COMMAND | `git diff {base}...HEAD` |
+| DIFF_COMMAND | `git diff {local-base}...HEAD` |
 | MAX_ROUNDS | `3` |
 | CONTEXT_FILES | `.artifacts/implement/{jira-key}/01-context.md`, `.artifacts/implement/{jira-key}/02-plan.md` (if they exist) |
 | SUPPLEMENTARY_CRITERIA | This is a cross-cutting review. Each sub-task was already reviewed individually. Focus on inter-task issues: (1) Inconsistencies across files or tasks (error handling style, naming conventions, logging patterns). (2) Duplicated logic that emerged across separate tasks. (3) Integration gaps between components implemented in different tasks. (4) API surface coherence (public interfaces make sense together). Skip issues already caught per-task: individual function correctness, per-file error handling completeness, single-task test coverage. |
@@ -98,11 +98,12 @@ git commit -m "{JIRA-KEY}: address cross-cutting review findings"
 Present the PR details to the user for confirmation:
 
 - **Branch:** `{branch-name}` (from the plan)
-- **Base:** `{base-branch}` (usually `main`)
-- **Commits:** List the commits that will be included
+- **Local Base:** `{local-base}` (branch this story is stacked on — from `## Branch` in `02-plan.md`)
+- **PR Target:** `{pr-target}` (upstream branch the PR will target — from `## Branch` in `02-plan.md`)
+- **Commits:** List the commits that will be included (only this story's commits)
 
 ```bash
-git log --oneline {base}..HEAD
+git log --oneline {local-base}..HEAD
 ```
 
 - **PR title:** Use the title format from the **PR Conventions** section of
@@ -163,7 +164,7 @@ whether this is a fork-based workflow.
 `{upstream-owner}/{repo}`):
 
 ```bash
-gh pr create --draft --repo {upstream-owner}/{repo} --base {base-branch} --head {fork-owner}:{branch-name} --title "{JIRA-KEY}: {story title}" --body-file .artifacts/implement/{jira-key}/06-pr-description.md
+gh pr create --draft --repo {upstream-owner}/{repo} --base {pr-target} --head {fork-owner}:{branch-name} --title "{JIRA-KEY}: {story title}" --body-file .artifacts/implement/{jira-key}/06-pr-description.md
 ```
 
 The `--repo` flag targets the upstream repository (where the PR lives),
@@ -173,7 +174,7 @@ branch (on the fork).
 **If the repo is a direct clone** (not a fork):
 
 ```bash
-gh pr create --draft --base {base-branch} --head {branch-name} --title "{JIRA-KEY}: {story title}" --body-file .artifacts/implement/{jira-key}/06-pr-description.md
+gh pr create --draft --base {pr-target} --head {branch-name} --title "{JIRA-KEY}: {story title}" --body-file .artifacts/implement/{jira-key}/06-pr-description.md
 ```
 
 Parse the PR number and URL from the `gh pr create` output. The command
@@ -198,7 +199,7 @@ records the repo that was pushed to.
   "repo": "{upstream-owner}/{repo}",
   "origin": "{fork-owner}/{repo}",
   "branch": "{branch-name}",
-  "base": "{base-branch}",
+  "base": "{pr-target}",
   "pr_number": {pr-number},
   "pr_url": "{url from gh pr create output}",
   "jira_key": "{jira-key}"
@@ -212,7 +213,7 @@ records the repo that was pushed to.
   "repo": "{owner}/{repo}",
   "origin": "{owner}/{repo}",
   "branch": "{branch-name}",
-  "base": "{base-branch}",
+  "base": "{pr-target}",
   "pr_number": {pr-number},
   "pr_url": "{url from gh pr create output}",
   "jira_key": "{jira-key}"
