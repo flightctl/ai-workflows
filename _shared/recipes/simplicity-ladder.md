@@ -23,8 +23,8 @@ Stop at the first rung that holds:
 6. **Minimum code that works.** Write the smallest correct implementation.
    No speculative abstractions, no premature generalization.
 
-The ladder is a reflex, not a research project. Two rungs work — take the
-higher one and move on.
+The ladder is a reflex, not a research project. If multiple rungs work,
+take the first one that holds and move on.
 
 ## When NOT to Simplify
 
