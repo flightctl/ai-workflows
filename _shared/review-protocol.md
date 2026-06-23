@@ -1,6 +1,6 @@
 ---
 name: review-protocol
-version: 0.1.0
+version: 0.2.0
 ---
 # Code Review Protocol
 
@@ -55,14 +55,21 @@ Evaluate changes against these categories, prioritized by impact:
    (missing intermediate type), a type importing from several unrelated
    packages (mixed concerns), identical error-handling blocks repeated
    across call sites (missing shared helper), a new interface that exposes
-   internal types to callers.
-5. **Performance** — Are there unnecessary allocations, N+1 queries, unbounded
+   internal types to callers. (For stdlib/platform/dependency preference,
+   see Simplicity.)
+5. **Simplicity** — Does the code use stdlib or platform features where they
+   suffice? Are there unnecessary dependencies or hand-rolled implementations
+   of things the standard library already provides? Could the code be shorter
+   without losing clarity? Signals: a new dependency for something the standard
+   library handles, a wrapper that only delegates, verbose code where a
+   one-liner would be equally clear.
+6. **Performance** — Are there unnecessary allocations, N+1 queries, unbounded
    operations, or other efficiency concerns?
-6. **Naming and clarity** — Are names descriptive? Is the intent clear from
+7. **Naming and clarity** — Are names descriptive? Is the intent clear from
    reading the code?
-7. **Test coverage** — Are the changes tested? Are edge cases covered? Are
+8. **Test coverage** — Are the changes tested? Are edge cases covered? Are
    tests testing contracts, not implementation?
-8. **Project conventions** — Do the changes follow the conventions discovered
+9. **Project conventions** — Do the changes follow the conventions discovered
    from the project's AGENTS.md, CLAUDE.md, linting configs, and contribution
    guidelines?
 

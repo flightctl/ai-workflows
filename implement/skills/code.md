@@ -184,10 +184,11 @@ Write the production code that makes the tests from 3b pass:
 
 1. Follow existing code patterns in the package
 2. Match naming conventions, error handling style, and documentation patterns
-3. If the task involves modifying generated code (e.g., OpenAPI specs),
+3. Apply the simplicity ladder (`../../_shared/recipes/simplicity-ladder.md`): prefer stdlib, platform features, and existing deps over new code
+4. If the task involves modifying generated code (e.g., OpenAPI specs),
    modify the source specification and run the generation command
-4. Keep changes focused on what the task describes
-5. Code comments describe what the code does and why — not the process
+5. Keep changes focused on what the task describes
+6. Code comments describe what the code does and why — not the process
    of arriving there. Do not reference abandoned approaches or prior
    states that no longer exist
 

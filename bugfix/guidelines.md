@@ -25,6 +25,7 @@ Artifacts go in `.artifacts/bugfix/{issue}`.
 - When you're wrong, admit it quickly and course-correct.
 - Don't assume tools are missing. Check for version managers (e.g. `uv`, `pyenv`, `nvm`) before concluding a runtime isn't available.
 - **Be thorough and complete**: When fixing bugs involving states, phases, or conditions, search the codebase to identify the complete set of possible values. Don't assume you know all variants. When features interact (e.g., polling + pagination), research and understand their interactions before implementing.
+- **Prefer the simplest viable fix.** Before writing new code, run through the simplicity ladder (`../_shared/recipes/simplicity-ladder.md`). Use stdlib, platform features, and existing dependencies before adding new code or new dependencies. A minimal fix that uses what's already available is safer than one that introduces new abstractions.
 
 ## Hard Limits
 

@@ -58,6 +58,7 @@ _shared/
   recipes/
     phase-override-resolution.md  # Project-level phase override lookup and activation
     self-review-gate.md           # Pre-PR self-review quality gate (used by bugfix, implement, e2e, cve-fix)
+    simplicity-ladder.md          # Simplest-viable-implementation decision checklist (used by bugfix, implement)
 ```
 
 Recipes are self-contained, parameterized procedures that workflows reference via relative path (e.g., `../../_shared/recipes/self-review-gate.md` from `skills/`).
@@ -135,7 +136,8 @@ ai-workflows/
 │   ├── sizing-rubric.md       # Shared sizing definitions and heuristics
 │   └── recipes/
 │       ├── phase-override-resolution.md  # Project-level phase override lookup
-│       └── self-review-gate.md  # Pre-PR self-review quality gate
+│       ├── self-review-gate.md  # Pre-PR self-review quality gate
+│       └── simplicity-ladder.md  # Simplicity decision ladder
 ├── ai-ready/                  # Workflows (auto-discovered via SKILL.md)
 ├── bugfix/
 ├── code-review/

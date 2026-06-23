@@ -267,7 +267,7 @@ Write `.artifacts/code-review/{branch}/code-review-001.md`:
 - **Location:** {line range or function name, as applicable}
 - **Severity:** {CRITICAL | HIGH | MEDIUM | LOW}
 - **Category:** {Correctness | Error Handling | Security | Design |
-  Performance | Naming/Clarity | Test Coverage | Conventions}
+  Simplicity | Performance | Naming/Clarity | Test Coverage | Conventions}
 - **Issue:** {what the problem is}
 - **Suggestion:** {concrete, actionable fix}
 

@@ -44,6 +44,7 @@ Before writing the plan, create a mental map:
 - Which changes have dependencies on each other (ordering constraints)?
 - Where will tests live? What test patterns from neighboring code should be followed?
 - Are integration tests needed? (Yes, if the story touches component interactions like API-to-service, service-to-store, agent-to-server.)
+- Does any proposed new type, interface, or function duplicate what stdlib, the platform, or an already-installed dependency provides? Apply the simplicity ladder (`../../_shared/recipes/simplicity-ladder.md`) to each planned component.
 
 ### Step 3: Write the Implementation Plan
 

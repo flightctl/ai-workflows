@@ -36,6 +36,7 @@ Implement targeted bug fixes that resolve the underlying issue without introduci
 ### Step 3: Implement Core Fix
 
 - Write the minimal code necessary to fix the bug
+- Apply the simplicity ladder (`../../_shared/recipes/simplicity-ladder.md`): prefer stdlib, platform features, and existing deps over new code or new dependencies
 - Follow project coding standards and conventions
 - Add appropriate error handling and validation
 - Include inline comments explaining **why** the fix works, not just **what** it does

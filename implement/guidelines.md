@@ -6,6 +6,7 @@
 - **Tests validate contracts, not implementations.** Test through public interfaces. Every behavioral path reachable through a public interface is a distinct contract that needs its own test case. Tests should remain valid if the implementation were rewritten.
 - **Unit tests are always required. Integration tests are required when the story touches component interactions** (API-to-service, service-to-store, agent-to-server). Unit and integration tests are complementary, not alternatives.
 - Follow the **project's existing patterns.** Read neighboring code and tests before writing new code. Match naming conventions, package organization, test style, and error handling patterns.
+- **Prefer the simplest viable implementation.** Before writing new code, run through the simplicity ladder (`../_shared/recipes/simplicity-ladder.md`). Use stdlib, platform features, and existing dependencies before adding new code or new dependencies.
 - **Follow the project's commit format** as discovered during `/ingest` and recorded in the validation profile. Commit one logical unit of work per commit — typically one commit per plan task. Don't batch everything into a single commit, but don't create a commit per file either.
 - Each completed story must leave the system in a **stable state**. All tests pass, linter is clean, no regressions.
 - The implementation plan is a **living document**. Update `02-plan.md` as tasks are completed so it reflects current progress.
