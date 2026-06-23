@@ -47,7 +47,7 @@ Check the **Repository Topology** section of `01-context.md`. Read
 If the repo is a fork, sync the fork with upstream first:
 
 ```bash
-gh repo sync {owner}/{repo} --branch {local-base}
+gh repo sync {owner}/{repo} --branch {pr-target}
 ```
 
 If `gh repo sync` fails, warn the user and record the failure in the
