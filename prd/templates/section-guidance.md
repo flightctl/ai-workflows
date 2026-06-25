@@ -70,7 +70,7 @@ This file is read during the `/draft` phase. It is not included in the final out
 
 - **Assign a stable ID** to each requirement (NFR-1, NFR-2, ...). These IDs are referenced by design documents and task breakdowns.
 - Include only constraints that are stated or clearly implied by the source material.
-- Frame NFRs as **user-observable qualities**: responsiveness, reliability, scalability, security, accessibility, compatibility, observability. For example, "Users experience page load times under 2 seconds" not "API response time under 200ms at p95" — the latter is an implementation target that belongs in a design document.
+- Frame NFRs as **user-observable qualities**: responsiveness, reliability, scalability, security, accessibility, compatibility, observability. For example, "Users experience page load times under 2 seconds" not "the system should be fast." When the API is the user's interface, API-level targets like "Users receive API responses within 200ms at p95" are valid user-observable NFRs.
 - Be concrete about user impact: "Users can complete a deployment in under 30 seconds" not "the system should be fast."
 
 ## 4. Acceptance Criteria

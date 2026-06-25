@@ -121,7 +121,7 @@ are binding and cannot be overridden without explicit user approval.
 introduces design details (specific API fields, internal architecture,
 code-level mechanisms, or non-user-observable behavior), flag them and
 elevate to user-facing capabilities per the "No design details" hard
-limit in `guidelines.md`. Do not incorporate design details into the PRD.
+limit in `../guidelines.md`. Do not incorporate design details into the PRD.
 
 #### Resolving open questions
 
