@@ -57,9 +57,8 @@ capability they support — not about the design itself. Design decisions
 are resolved in design documents, not during PRD clarification.
 
 **Cover all interfaces.** When the source material describes a capability
-only in terms of the API, ask which other interfaces (UI, CLI) also
-expose it. PRD requirements should mention the UI and CLI first, with the
-API as an additional option — not default to API-only.
+only in terms of the API, ask whether a UI or CLI also exposes it before
+adding them. When multiple interfaces exist, list UI and CLI first.
 
 For each gap found, note:
 - What's missing or unclear
