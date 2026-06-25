@@ -23,7 +23,7 @@ This file is read during the `/draft` phase. It is not included in the final out
 - If information for a section is genuinely unavailable after clarification, write "To be determined — [what's needed]" rather than fabricating content.
 - **Formatting restraint.** Use bold sparingly for genuine emphasis — terms the reader must not miss or that distinguish this requirement from a similar one. When every noun phrase is bold, nothing stands out and the document becomes harder to scan.
 - **User-facing focus.** PRDs are written from a Product Manager's perspective. Every requirement should describe something a user can do, see, or experience. Signs that a requirement has strayed into design: it describes specific API fields, it references where in the code something will happen, or it describes something the user wouldn't be able to observe. Those details belong in design documents or enhancement proposals, not the PRD.
-- **Cover all user interfaces.** Requirements should mention the UI and CLI alongside the API — not just the API. For example, "Users can create a device via the console, CLI, or API" not just "Users can create a device via the API." When the source material only mentions the API, ask during clarification which other interfaces expose the capability, and list UI and CLI first.
+- **Cover all user interfaces.** Requirements should mention whichever interfaces actually expose the capability (UI, CLI, API). When the source material only mentions the API, ask during clarification whether a UI or CLI also exists before adding them. When multiple interfaces exist, list UI and CLI first.
 - **Diagrams.** When a visual clarifies user flows, interaction sequences, or system boundaries in any section, use Mermaid diagrams. Only include a diagram when it adds clarity that prose alone cannot.
   - Use only `flowchart` or `sequenceDiagram` types (these render reliably on GitHub).
   - Keep diagrams simple: labeled nodes, clear edge labels, no styling directives (`style`, `classDef`, color codes).
@@ -77,7 +77,7 @@ This file is read during the `/draft` phase. It is not included in the final out
 
 - These define **done**. They drive the testing strategy.
 - Write as checkboxes — each should be independently verifiable.
-- Acceptance criteria describe what a user can verify. If a requirement says "must support port mappings," the acceptance criterion says "A user can specify port mappings in the format host:container and the system correctly exposes the mapped ports." Do not include criteria that require inspecting internal state, database records, or API responses — those belong in a test plan or design document.
+- Acceptance criteria describe what a user can verify. If a requirement says "must support port mappings," the acceptance criterion says "A user can specify port mappings in the format host:container and the system correctly exposes the mapped ports." Do not include criteria that require inspecting internal state or database records. When the API is the user's interface, API responses and status codes are valid user-observable evidence.
 - Cover the primary use cases. Edge cases belong in a test plan, not here.
 
 ## 5. Assumptions
