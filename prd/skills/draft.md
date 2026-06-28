@@ -72,9 +72,10 @@ Generate the PRD following the template structure. For each section:
 
 1. Read the section guidance for that section
 2. Draw content from the source material
-3. Apply the quality standards (measurable goals, testable requirements, user-verifiable acceptance criteria). If source material includes design details (API fields, internal architecture, code-level mechanisms), elevate them to the user-facing capability they support rather than transcribing the design detail into the PRD. Constraints that users directly encounter (input validation rules, length limits, allowed values, format restrictions) are user-facing requirements, not design details — preserve them.
-4. Tag each requirement with its source marker(s) (`[Jira: EDM-2324]`, `[Clarify: R1.Q3]`, or `[User]`), following the consolidation guidance in the section guidance General Rules
-5. Flag any assumptions or judgment calls with an inline note: `[Assumption: ...]`
+3. Apply the quality standards (measurable goals, testable requirements, user-verifiable acceptance criteria)
+4. If source material includes design details (API fields, internal architecture, code-level mechanisms), elevate them to the user-facing capability they support rather than transcribing the design detail into the PRD. Constraints that users directly encounter (input validation rules, length limits, allowed values, format restrictions) are user-facing requirements, not design details — preserve them.
+5. Tag each requirement with its source marker(s) (`[Jira: EDM-2324]`, `[Clarify: R1.Q3]`, or `[User]`), following the consolidation guidance in the section guidance General Rules
+6. Flag any assumptions or judgment calls with an inline note: `[Assumption: ...]`
 
 **Incorporating clarifications:** When a clarification changed the scope
 or corrected an assumption from the source material, write the
