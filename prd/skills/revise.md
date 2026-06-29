@@ -56,6 +56,7 @@ After applying changes, verify:
 - If dependencies changed, are risks updated?
 - Do any changes contradict a locked decision in `02-clarifications.md`? If so, flag the conflict to the user — locked decisions are binding and cannot be overridden without explicit user approval.
 - If requirements were removed or simplified, verify this was explicitly requested by the user. Flag any silent scope reduction.
+- If any revision introduces design details (specific API fields, internal architecture, code-level mechanisms, or non-user-observable behavior), flag them and elevate to user-facing capabilities per the "No design details" hard limit in `../guidelines.md`.
 - If any `[Assumption: ...]` markers were introduced during this revision, resolve them with the user before saving — the published PRD should contain no assumption markers.
 
 ### Step 5: Update Artifact

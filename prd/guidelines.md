@@ -17,6 +17,7 @@
 - No modifying Jira issues. This workflow is read-only with respect to Jira.
 - No committing to `main` directly. Use feature branches for `/publish`.
 - **No scope reduction.** Never silently simplify, defer to "v2", use "placeholder", or say "future enhancement" to reduce scope. If scope won't fit, flag it explicitly and propose a split — don't reduce.
+- **No design details.** PRDs describe what users need to do and experience, not how the system is built. Do not include specific API fields, internal system architecture, code-level implementation details, or anything the user wouldn't be able to observe. If it describes how something works rather than what a user can do, it belongs in a design document or enhancement proposal, not the PRD.
 - Locked decisions from `/clarify` are binding. No phase may contradict a locked decision without explicit user override.
 - **No personal names in generated content.** Replace references to individuals from Jira tickets, comments, or other source material with role-based descriptions (e.g., "the security reviewer noted…", "the reporter described…"). When the person's role is unknown, use a generic attribution ("a reviewer noted…", "feedback identified…") or drop the attribution and state the finding directly. Author metadata fields are exempt — they identify the document author, not referenced individuals.
 
@@ -32,7 +33,8 @@
 - Follow the PRD template structure (`templates/prd.md`). Do not invent new sections without user approval. Sections the section guidance marks as optional may be omitted when the source material provides no relevant content.
 - Follow the section guidance (`templates/section-guidance.md`) for content standards in each section.
 - Goals must be measurable outcomes, not activities.
-- Acceptance criteria must be **behavioral outcomes** (what the system does, testable from outside), not activities or implementation specifications.
+- Acceptance criteria must be **user-observable behavioral outcomes**, not activities, implementation specifications, or internal system states.
+- Requirements must mention the UI and CLI alongside the API where applicable — not default to API-only.
 - Requirements must be testable.
 - Open questions must have owners and impact statements.
 

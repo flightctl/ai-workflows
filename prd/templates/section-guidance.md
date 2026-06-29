@@ -22,7 +22,9 @@ This file is read during the `/draft` phase. It is not included in the final out
 - Do not invent features, constraints, or details not supported by the ingested requirements or clarification responses.
 - If information for a section is genuinely unavailable after clarification, write "To be determined — [what's needed]" rather than fabricating content.
 - **Formatting restraint.** Use bold sparingly for genuine emphasis — terms the reader must not miss or that distinguish this requirement from a similar one. When every noun phrase is bold, nothing stands out and the document becomes harder to scan.
-- **Diagrams.** When a visual clarifies architecture, data flow, or component relationships in any section, use Mermaid diagrams. Only include a diagram when it adds clarity that prose alone cannot.
+- **User-facing focus.** PRDs are written from a Product Manager's perspective. Every requirement should describe something a user can do, see, or experience. Signs that a requirement has strayed into design: it describes specific API fields, it references where in the code something will happen, or it describes something the user wouldn't be able to observe. Those details belong in design documents or enhancement proposals, not the PRD.
+- **Cover all user interfaces.** Requirements should mention whichever interfaces actually expose the capability (UI, CLI, API). When the source material only mentions the API, ask during clarification whether a UI or CLI also exists before adding them. When multiple interfaces exist, list UI and CLI first.
+- **Diagrams.** When a visual clarifies user flows, interaction sequences, or system boundaries in any section, use Mermaid diagrams. Only include a diagram when it adds clarity that prose alone cannot.
   - Use only `flowchart` or `sequenceDiagram` types (these render reliably on GitHub).
   - Keep diagrams simple: labeled nodes, clear edge labels, no styling directives (`style`, `classDef`, color codes).
   - Always introduce a diagram with a sentence explaining what it shows and why it's relevant.
@@ -58,7 +60,8 @@ This file is read during the `/draft` phase. It is not included in the final out
 ### 3.1 Functional Requirements
 
 - **Assign a stable ID** to each requirement (FR-1, FR-2, ...). These IDs are referenced by acceptance criteria, design documents, and task breakdowns.
-- Each requirement should be **testable**. If you can't describe how to verify it, it isn't specific enough.
+- Each requirement should describe a **user-facing capability** — what a user can do, see, or experience. If a requirement describes an API field, internal data structure, or code-level mechanism, elevate it to the user behavior it enables. For example, "the API accepts a `protocol` field" is design; "Users can specify whether a port mapping uses TCP or UDP" is a requirement.
+- Each requirement should be **testable**. If you can't describe how to verify it from a user's perspective, it isn't specific enough.
 - Use "must" for mandatory requirements, "should" for important but negotiable, "may" for optional.
 - Group related requirements under subheadings if the list exceeds 8 items.
 - Trace each requirement back to the source (e.g., "From Jira acceptance criteria," "Per clarification Q3").
@@ -67,21 +70,21 @@ This file is read during the `/draft` phase. It is not included in the final out
 
 - **Assign a stable ID** to each requirement (NFR-1, NFR-2, ...). These IDs are referenced by design documents and task breakdowns.
 - Include only constraints that are stated or clearly implied by the source material.
-- Common categories: performance, scalability, security, compatibility, availability, observability.
-- Be concrete: "API response time under 200ms at p95" not "the system should be fast."
+- Frame NFRs as **user-observable qualities**: responsiveness, reliability, scalability, security, accessibility, compatibility, observability. For example, "Users experience page load times under 2 seconds" not "the system should be fast." When the API is the user's interface, API-level targets like "Users receive API responses within 200ms at p95" are valid user-observable NFRs.
+- Be concrete about user impact: "Users can complete a deployment in under 30 seconds" not "the system should be fast."
 
 ## 4. Acceptance Criteria
 
 - These define **done**. They drive the testing strategy.
 - Write as checkboxes — each should be independently verifiable.
-- Acceptance criteria are the bridge between requirements and implementation. If a requirement says "must support port mappings," the acceptance criterion says "A user can specify port mappings in the format host:container and the system correctly exposes the mapped ports."
+- Acceptance criteria describe what a user can verify. If a requirement says "must support port mappings," the acceptance criterion says "A user can specify port mappings in the format host:container and the system correctly exposes the mapped ports." Do not include criteria that require inspecting internal state or database records. When the API is the user's interface, API responses and status codes are valid user-observable evidence.
 - Cover the primary use cases. Edge cases belong in a test plan, not here.
 
 ## 5. Assumptions
 
 - This section is **optional**. If the requirements rest on no unverified assumptions, omit this section rather than writing "None."
 - An assumption is a statement the PRD treats as true but that has not been confirmed. If it turns out to be false, one or more requirements may need to change.
-- Good assumptions surface hidden preconditions. These may be technical ("The existing auth service supports OIDC," "Operators have cluster-admin privileges," "The upstream API is stable and versioned") or scope-related ("This feature assumes no UX/UI changes are needed," "Only validation and documentation work is required"). Scope assumptions often represent the reasoning behind release planning — if they turn out to be false, the work may need to be re-scoped or re-prioritized.
+- Good assumptions surface hidden preconditions. These may be about the environment ("Users have cluster-admin privileges," "The upstream service is stable and versioned") or scope-related ("This feature assumes no UX/UI changes are needed," "Only validation and documentation work is required"). Scope assumptions often represent the reasoning behind release planning — if they turn out to be false, the work may need to be re-scoped or re-prioritized.
 - Do not list things that are verifiable right now — verify them and state them as requirements or constraints instead.
 - Assumptions are valuable specifically because they invite challenge. Reviewers should be able to look at this list and say "that one isn't true" before implementation begins.
 - **Not the same as `[Assumption: ...]` markers.** Inline `[Assumption: ...]` markers flag AI judgment calls during drafting — they are transient artifacts resolved with the user in Step 6 and never appear in the final document. This section captures product-level preconditions that the user has acknowledged but that remain unverified.

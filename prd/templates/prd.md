@@ -31,15 +31,15 @@
 
 ### 3.1 Functional Requirements
 
-- **FR-1:** {What the system must do. Each requirement should be testable.} [source]
+- **FR-1:** {What the user must be able to do or experience. Each requirement should be testable from the user's perspective.} [source]
 
 ### 3.2 Non-Functional Requirements
 
-- **NFR-1:** {Performance, scalability, security, compatibility constraints.} [source]
+- **NFR-1:** {User-observable quality attributes: responsiveness, reliability, security, accessibility, compatibility.} [source]
 
 ## 4. Acceptance Criteria
 
-- [ ] {Concrete, verifiable condition that defines "done."}
+- [ ] {Concrete, user-verifiable condition that defines "done."}
 
 ## 5. Assumptions
 <!-- Optional: omit if no unverified assumptions underpin the requirements -->

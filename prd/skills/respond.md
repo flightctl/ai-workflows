@@ -117,6 +117,12 @@ exists). If a requested change contradicts a locked decision, flag the
 conflict to the user rather than applying the change — locked decisions
 are binding and cannot be overridden without explicit user approval.
 
+**Check for design details:** If a reviewer comment or proposed change
+introduces design details (specific API fields, internal architecture,
+code-level mechanisms, or non-user-observable behavior), flag them and
+elevate to user-facing capabilities per the "No design details" hard
+limit in `../guidelines.md`. Do not incorporate design details into the PRD.
+
 #### Resolving open questions
 
 When reviewer comments relate to an open question from the Open Questions section,

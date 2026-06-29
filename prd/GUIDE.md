@@ -8,6 +8,8 @@ This guide explains how to drive the workflow. For the command reference and art
 
 These principles shaped every phase of the workflow. Understanding them will help you predict how the workflow behaves and why.
 
+**User-facing focus.** A PRD describes what users need to be able to do and experience — capabilities and outcomes, not design or implementation. If a requirement describes specific API fields, references where in the code something will happen, or describes something a user wouldn't observe, it belongs in a design document or enhancement proposal, not the PRD. The workflow enforces this boundary at every phase.
+
 **Fidelity to source material.** Every requirement in the PRD traces back to a Jira issue, a clarification you gave, or a direct instruction. The workflow does not invent requirements or fill gaps with assumptions.
 
 **User agency.** The PRD represents *your* understanding of the problem, not the AI's interpretation. The workflow never auto-advances between phases — you decide when to move on, go back, or skip ahead.
