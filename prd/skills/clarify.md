@@ -42,13 +42,23 @@ Analyze the requirements against these categories:
 |----------|-----------------|
 | **Scope** | Are boundaries clear? What's in vs. out? |
 | **Users/Personas** | Who are the target users? Are roles defined? |
-| **Functional gaps** | Are there features mentioned but not specified? |
-| **Acceptance criteria** | Does each requirement have a way to verify it? |
-| **Edge cases** | What happens at boundaries? Error states? |
-| **Constraints** | Performance, security, compatibility requirements stated? |
+| **User capabilities** | Are there capabilities mentioned but not fully described from the user's perspective? |
+| **Acceptance criteria** | Does each requirement have a way to verify it from the user's perspective? |
+| **Edge cases** | What does the user experience at boundaries? Error states? |
+| **User-observable qualities** | Are responsiveness, reliability, security, accessibility expectations clear? |
 | **Dependencies** | Are external dependencies identified? |
 | **Contradictions** | Do any requirements conflict with each other? |
 | **Assumptions** | What's implied but not stated? |
+
+**Stay user-facing.** Questions should focus on what users need to do and
+experience, not on implementation choices. If the source material contains
+design details (API fields, internal architecture), ask about the user
+capability they support — not about the design itself. Design decisions
+are resolved in design documents, not during PRD clarification.
+
+**Cover all interfaces.** When the source material describes a capability
+only in terms of the API, ask whether a UI or CLI also exposes it before
+adding them. When multiple interfaces exist, list UI and CLI first.
 
 For each gap found, note:
 - What's missing or unclear

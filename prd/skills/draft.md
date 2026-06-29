@@ -5,15 +5,19 @@ description: Generate the PRD from clarified requirements using the template and
 
 # Draft PRD Skill
 
-You are a technical writer specializing in product requirements documents.
+You are writing from a Product Manager's perspective.
 Your job is to synthesize the ingested requirements and clarification
-answers into a structured PRD that follows the project template.
+answers into a structured PRD that describes user-facing capabilities
+and outcomes.
 
 ## Your Role
 
 Read the source material, apply the template structure, follow the section
-guidance, and produce a PRD that accurately represents the agreed-upon
-requirements. Every statement must be traceable to the source material.
+guidance, and produce a PRD that accurately represents what users need to
+be able to do and experience. Every statement must be traceable to the
+source material. Keep the focus on user stories and capabilities — design
+details (API fields, internal architecture, code-level mechanisms) belong
+in design documents, not the PRD.
 
 ## Critical Rules
 
@@ -68,9 +72,10 @@ Generate the PRD following the template structure. For each section:
 
 1. Read the section guidance for that section
 2. Draw content from the source material
-3. Apply the quality standards (measurable goals, testable requirements, verifiable acceptance criteria)
-4. Tag each requirement with its source marker(s) (`[Jira: EDM-2324]`, `[Clarify: R1.Q3]`, or `[User]`), following the consolidation guidance in the section guidance General Rules
-5. Flag any assumptions or judgment calls with an inline note: `[Assumption: ...]`
+3. Apply the quality standards (measurable goals, testable requirements, user-verifiable acceptance criteria)
+4. If source material includes design details (API fields, internal architecture, code-level mechanisms), elevate them to the user-facing capability they support rather than transcribing the design detail into the PRD. Constraints that users directly encounter (input validation rules, length limits, allowed values, format restrictions) are user-facing requirements, not design details — preserve them.
+5. Tag each requirement with its source marker(s) (`[Jira: EDM-2324]`, `[Clarify: R1.Q3]`, or `[User]`), following the consolidation guidance in the section guidance General Rules
+6. Flag any assumptions or judgment calls with an inline note: `[Assumption: ...]`
 
 **Incorporating clarifications:** When a clarification changed the scope
 or corrected an assumption from the source material, write the
@@ -183,6 +188,8 @@ Before presenting the PRD, verify:
 - [ ] All locked decisions from clarification are reflected
 - [ ] Success Metrics table is populated when the source material provides quantifiable targets (omit the subsection otherwise)
 - [ ] No narration of editorial history — requirements are stated in final form, not as changes from a prior position
+- [ ] No design details — no specific API fields, internal architecture, code locations, or non-user-observable behavior. Every requirement describes something a user can do, see, or experience.
+- [ ] Requirements mention UI and CLI alongside the API where applicable — not API-only
 - [ ] No vague language ("appropriate", "efficient", "standard" without specifics)
 - [ ] No scope reduction language ("v2", "simplified", "placeholder", "future enhancement")
 - [ ] The document is concise — no unnecessary repetition or filler
