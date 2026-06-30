@@ -97,7 +97,7 @@ The Bug Fix Workflow follows this approach:
 - Explore source code: trace error paths, identify affected files, check recent changes
 - Assign recommendation (CLOSE, FIX_NOW, AUTO_FIX, BACKLOG, NEEDS_INFO, DUPLICATE, ESCALATE, WONT_FIX)
 - Search for duplicates and regressions
-- Identify gaps and propose a plan
+- Identify gaps and open questions
 
 **Output**: `.artifacts/bugfix/{issue}/assessment.md` + inline presentation.
 

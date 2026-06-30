@@ -25,7 +25,7 @@ Present the bugfix workflow phases to the user. Use the table below exactly:
 
 | Command       | Purpose                                              | Start here if…                                           |
 |---------------|------------------------------------------------------|----------------------------------------------------------|
-| `/assess`     | Analytical assessment: error signature, recommendation, source-code context, duplicates | You have a bug report, issue URL, or vague description   |
+| `/assess`     | Analytical assessment: error signature, recommendation, source-code context, duplicates, regressions | You have a bug report, issue URL, or vague description   |
 | `/reproduce`  | Confirm the bug exists with minimal reproduction     | You already understand the bug and want to reproduce it  |
 | `/diagnose`   | Trace root cause through code and history            | You can reproduce it and need to find the cause          |
 | `/fix`        | Implement the minimal code change                    | You already know the root cause                          |

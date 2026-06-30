@@ -41,9 +41,8 @@ local working directory.
 - Jira keys match `[A-Z][A-Z0-9]+-\d+` from `/browse/` or `/issues/` URL
   paths. The project prefix is the part before the hyphen.
 - GitHub URLs match `github.com/{owner}/{repo}/issues/{number}`.
-- Unrecognized URLs (e.g., Bugzilla, GitLab): treat the URL content as free
-  text — fetch the page if possible, otherwise ask the user to paste the bug
-  description.
+- Unrecognized URLs (e.g., Bugzilla, GitLab): treat as free text and ask
+  the user to paste the bug description.
 
 ## Process
 
