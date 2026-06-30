@@ -2,7 +2,7 @@
 
 Systematic bug resolution through these phases:
 
-1. **Assess** (`/assess`) — Read the bug report, explain understanding, propose a plan
+1. **Assess** (`/assess`) — Analytical assessment: error signature, recommendation, source-code context, duplicates, regressions
 2. **Reproduce** (`/reproduce`) — Confirm and document the bug
 3. **Diagnose** (`/diagnose`) — Identify root cause and impact
 4. **Fix** (`/fix`) — Implement the solution
@@ -70,7 +70,8 @@ details.
 ```text
 User: "Fix issue #421 — NullPointerException on login"
 
-/assess    → reads bug report, proposes plan (inline; no artifact)
+/assess    → analytical assessment with source-code context
+             → writes .artifacts/bugfix/421/assessment.md
 /reproduce → confirms the failure with a test
              → writes .artifacts/bugfix/421/reproduction.md
 /diagnose  → traces root cause to AuthService.java:87

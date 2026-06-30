@@ -90,16 +90,18 @@ The Bug Fix Workflow follows this approach:
 
 ### Phase 1: Assess (`/assess`)
 
-**Purpose**: Read the bug report, build understanding, and propose a plan before any work begins.
+**Purpose**: Analytical bug assessment combining error signature extraction, recommendation taxonomy, source-code exploration, and duplicate/regression search.
 
-- Gather the bug report (issue URL, conversation context, attachments)
-- Summarize understanding: what the bug is, where it occurs, severity
-- Identify gaps and assumptions
-- Propose a reproduction plan
+- Gather the bug report (Jira URL, GitHub URL, or free text)
+- Extract error signature (error type, code, message, component, symptoms, environment)
+- Explore source code: trace error paths, identify affected files, check recent changes
+- Assign recommendation (CLOSE, FIX_NOW, AUTO_FIX, BACKLOG, NEEDS_INFO, DUPLICATE, ESCALATE, WONT_FIX)
+- Search for duplicates and regressions
+- Identify gaps and propose a plan
 
-**Output**: Assessment presented inline to the user (no file artifact).
+**Output**: `.artifacts/bugfix/{issue}/assessment.md` + inline presentation.
 
-**When to use**: When you have a bug report or issue URL and want to align understanding before diving in.
+**When to use**: When you have a bug report or issue URL and want a structured assessment before diving in.
 
 ### Phase 2: Reproduce (`/reproduce`)
 
@@ -249,7 +251,8 @@ The Bug Fix Workflow follows this approach:
 ```text
 User: "Fix bug https://github.com/org/repo/issues/425 - session status updates failing"
 
-Workflow: Starts with /reproduce to confirm the bug
+Workflow: Starts with /assess for analytical assessment
+→ /reproduce to confirm the bug
 → /diagnose to find root cause
 → /fix to implement solution
 → /test to verify fix
@@ -292,6 +295,7 @@ All workflow artifacts are organized in the `.artifacts/bugfix/{issue}/` directo
 
 ```text
 .artifacts/bugfix/{issue}/
+├── assessment.md             # Analytical bug assessment
 ├── reproduction.md           # Bug reproduction report
 ├── root-cause.md             # Root cause analysis
 ├── implementation-notes.md   # Implementation notes

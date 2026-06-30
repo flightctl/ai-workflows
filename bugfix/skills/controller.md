@@ -14,7 +14,7 @@ executing phases and handling transitions between them.
    Present available phases, gather context, and help the user choose where to begin.
 
 1. **Assess** (`/assess`) — `assess.md`
-   Read the bug report, summarize your understanding, identify gaps, propose a plan.
+   Analytical bug assessment: error signature, recommendation, source-code exploration, duplicate/regression search. Writes `.artifacts/bugfix/{issue}/assessment.md`.
 
 2. **Reproduce** (`/reproduce`) — `reproduce.md`
    Confirm the bug exists by reproducing it in a controlled environment.
