@@ -17,6 +17,7 @@ This repository contains reusable AI coding workflows that can be installed glob
 - **implement** — Story-to-code workflow (ingest, plan, revise, code, validate, publish, respond)
 - **kcs** — KCS Solution article workflow (gather, draft, validate, handoff)
 - **prd** — Requirements-to-PRD workflow (ingest, clarify, draft, revise, publish, respond)
+- **rebase-stack** — Rebase a stacked-branch chain with conflict guidance, per-branch validation, and push (start, continue, validate, push)
 - **sizing** — Pre-cycle Feature sizing with T-shirt sizes and team effort breakdowns (ingest, assess, apply)
 - **skill-reviewer** — Meta-workflow that audits AI skill directories
 - **triage** — Bulk Jira bug triage with AI-driven categorization and HTML reports
@@ -146,6 +147,7 @@ ai-workflows/
 ├── implement/
 ├── kcs/
 ├── prd/
+├── rebase-stack/
 ├── sizing/
 ├── skill-reviewer/
 │   ├── prompts/
