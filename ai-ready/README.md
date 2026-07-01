@@ -15,7 +15,10 @@ The `/ai-ready:update` command scans a codebase and:
 ```mermaid
 graph TD
     update([update]) --> scan[Scan codebase]
-    scan --> create[Create/update AGENTS.md]
+    scan --> domain{Frontend framework?}
+    domain -- Yes --> frontend[Frontend-specific scan]
+    domain -- No --> create[Create/update AGENTS.md]
+    frontend --> create
     create --> audit[Audit AI convention files]
     audit --> summary[Present summary]
 ```
@@ -43,6 +46,7 @@ ai-ready/
     update.md           # /update command — loads guidelines + skill
   skills/
     update.md           # The scan and update skill
+    frontend-scan.md    # Frontend-specific constraint and pattern detection
 ```
 
 ## Artifacts
@@ -53,10 +57,11 @@ No `.artifacts/` output — this workflow writes directly to the target project'
 
 1. Checks for an existing `AGENTS.md` (reads it as the baseline if found) and scans for all AI convention files in the project
 2. Analyzes the codebase: package manifests, CI configs, linting, tests, build scripts, directory structure
-3. Creates `AGENTS.md` from scratch or applies surgical updates to the existing one
-4. Audits other AI convention files — keeps tool-specific ones (e.g., `CLAUDE.md`, `.cursor/rules/`), merges redundant ones into `AGENTS.md`, flags stale ones
-5. Validates all file paths and commands referenced in `AGENTS.md`
-6. Presents a summary of all changes
+3. Runs domain-specific scans when applicable (e.g., frontend constraint and pattern detection for projects using React, Vue, Angular, or Svelte)
+4. Creates `AGENTS.md` from scratch or applies surgical updates to the existing one, incorporating domain-specific findings
+5. Audits other AI convention files — keeps tool-specific ones (e.g., `CLAUDE.md`, `.cursor/rules/`), merges redundant ones into `AGENTS.md`, flags stale ones
+6. Validates all file paths and commands referenced in `AGENTS.md`
+7. Presents a summary of all changes
 
 ## AGENTS.md Spec
 

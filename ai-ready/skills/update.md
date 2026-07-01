@@ -44,6 +44,12 @@ Only collect information that is **concrete and verifiable**. Do not infer or as
 
 If analysis yields fewer than 2 concrete sections worth of content, report that the project has insufficient signals for a useful AGENTS.md and ask the user for guidance before proceeding.
 
+### Step 2a: Run Domain-Specific Scans
+
+If the codebase analysis in Step 2 detected a frontend framework in package dependencies (react, @angular/core, vue, svelte, next, nuxt, @sveltejs/kit), read and follow `./frontend-scan.md`. Incorporate its findings when writing AGENTS.md in Step 3.
+
+If no frontend framework is detected, skip this step.
+
 ### Step 3: Create or Update AGENTS.md
 
 #### If creating from scratch
@@ -84,6 +90,8 @@ Branch naming, commit message format, review process.
 Areas where AI agents should exercise caution (e.g., "auth logic lives in `src/auth/` — changes here require manual review"). Do NOT document internal mechanisms, credentials, token formats, or implementation details of security controls.
 ```
 
+If domain-specific scans (Step 2a) produced findings, incorporate them into the Architecture section. Place constraint tables (restricted imports, generated files) before pattern documentation. If the scan recommended a supplementary file, create it and add a reference from AGENTS.md's Architecture section.
+
 #### If updating an existing AGENTS.md
 
 Compare what you found in Step 2 against the current content. Focus on what has **changed** or is **missing**. Apply minimal, surgical updates:
@@ -93,6 +101,7 @@ Compare what you found in Step 2 against the current content. Focus on what has 
 - Place new content in the most logical existing section rather than creating new sections
 - Remove or update references to files, directories, commands, or dependencies that no longer exist
 - Verify every file path mentioned in the existing AGENTS.md still resolves
+- If domain-specific scans (Step 2a) produced findings and the existing Architecture section does not already contain them, add them to the Architecture section. Place constraint tables (restricted imports, generated files) before pattern documentation. If the scan recommended a supplementary file, create it and add a reference from the Architecture section.
 
 #### Writing rules
 
