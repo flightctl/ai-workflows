@@ -90,7 +90,7 @@ Branch naming, commit message format, review process.
 Areas where AI agents should exercise caution (e.g., "auth logic lives in `src/auth/` — changes here require manual review"). Do NOT document internal mechanisms, credentials, token formats, or implementation details of security controls.
 ```
 
-If domain-specific scans (Step 2a) produced findings, incorporate them into the Architecture section. Place constraint tables (restricted imports, generated files) before pattern documentation. If the scan recommended a supplementary file, create it and add a reference from AGENTS.md's Architecture section.
+If domain-specific scans (Step 2a) produced findings, incorporate them into the Architecture section. Place all Step 1 findings (restricted patterns, generated files, testing philosophy, and i18n rules) before pattern documentation. If the scan recommended a supplementary file, create it and add a reference from AGENTS.md's Architecture section.
 
 #### If updating an existing AGENTS.md
 
@@ -101,7 +101,7 @@ Compare what you found in Step 2 against the current content. Focus on what has 
 - Place new content in the most logical existing section rather than creating new sections
 - Remove or update references to files, directories, commands, or dependencies that no longer exist
 - Verify every file path mentioned in the existing AGENTS.md still resolves
-- If domain-specific scans (Step 2a) produced findings and the existing Architecture section does not already contain them, add them to the Architecture section. Place constraint tables (restricted imports, generated files) before pattern documentation. If the scan recommended a supplementary file, create it and add a reference from the Architecture section.
+- If domain-specific scans (Step 2a) produced findings and the existing Architecture section does not already contain them, add them to the Architecture section. Place all Step 1 findings (restricted patterns, generated files, testing philosophy, and i18n rules) before pattern documentation. If the scan recommended a supplementary file, create it and add a reference from the Architecture section.
 
 #### Writing rules
 

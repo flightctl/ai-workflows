@@ -57,7 +57,7 @@ No `.artifacts/` output — this workflow writes directly to the target project'
 
 1. Checks for an existing `AGENTS.md` (reads it as the baseline if found) and scans for all AI convention files in the project
 2. Analyzes the codebase: package manifests, CI configs, linting, tests, build scripts, directory structure
-3. Runs domain-specific scans when applicable (e.g., frontend constraint and pattern detection for projects using React, Vue, Angular, or Svelte)
+3. Runs domain-specific scans when applicable (e.g., frontend constraint and pattern detection for projects using React, Vue, Angular, Svelte, Next.js, or Nuxt)
 4. Creates `AGENTS.md` from scratch or applies surgical updates to the existing one, incorporating domain-specific findings
 5. Audits other AI convention files — keeps tool-specific ones (e.g., `CLAUDE.md`, `.cursor/rules/`), merges redundant ones into `AGENTS.md`, flags stale ones
 6. Validates all file paths and commands referenced in `AGENTS.md`

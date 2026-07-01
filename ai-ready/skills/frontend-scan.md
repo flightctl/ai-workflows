@@ -41,7 +41,7 @@ Cross-reference with the restricted imports table: for each wrapper file found, 
 
 #### Generated files
 
-Check package.json `scripts` for codegen indicators — script names or commands containing `gen`, `generate`, `codegen`, `openapi`, `graphql-codegen`, `proto`, `swagger`, or `typegen`.
+Check package.json `scripts` for codegen indicators — script names or commands containing whole-word tokens such as `generate`, `codegen`, `openapi`, `graphql-codegen`, `proto`, `swagger`, or `typegen`.
 
 Also search for generated-file headers in source files:
 - `/* generated */` or `/** generated */`
@@ -134,8 +134,8 @@ Emit the library name. If `@tanstack/react-query` (or similar data-fetching-as-s
 
 Check `dependencies` for routing:
 
-- `react-router-dom`, `@tanstack/router`, `next/navigation`, `wouter`
-- `vue-router`, `@nuxt/router`
+- `react-router-dom`, `@tanstack/react-router`, `next`, `wouter`
+- `vue-router`
 - `@angular/router`
 - SvelteKit's file-based routing (check for `@sveltejs/kit` in dependencies)
 
