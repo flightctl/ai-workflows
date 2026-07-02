@@ -92,7 +92,7 @@ Emit a brief i18n section with the key format, extraction command, and the prop 
 This step has two kinds of checks:
 
 - **Dependency-presence checks** (design system, form library, state management, routing): If the package is in `dependencies`, emit it. No usage counting needed — presence in the manifest is sufficient signal.
-- **Usage-frequency checks** (data fetching, URL-as-state, pagination, permissions): These detect conventions that could be one-offs or standards. Count usages across distinct feature directories (not total import count — a single file importing something 5 times does not make it a standard pattern). Only emit as a documented pattern if it meets the confidence threshold from the Critical Rules (5+ distinct feature directories).
+- **Usage-frequency checks** (data fetching, URL-as-state, pagination, permissions): These detect conventions that could be one-offs or standards. Count usages across distinct feature directories (not total import count — a single file importing something 5 times does not make it a standard pattern). Only emit as a documented pattern if it meets the confidence threshold from the Critical Rules (5+ distinct feature directories). Where these checks list framework-specific branches, run only the branch matching the detected framework — skip the others.
 
 #### Design system / component library
 
@@ -137,6 +137,7 @@ Check `dependencies` for routing:
 - `react-router-dom`, `@tanstack/react-router`, `next`, `wouter`
 - `vue-router`
 - `@angular/router`
+- Nuxt's file-based routing (check for `nuxt` in dependencies — Nuxt bundles `vue-router` internally, so it won't appear as a direct dependency)
 - SvelteKit's file-based routing (check for `@sveltejs/kit` in dependencies)
 
 Emit the router and note whether route definitions are centralized (a routes file) or file-based.
@@ -198,11 +199,11 @@ Structure all findings as content blocks ready for insertion into AGENTS.md's Ar
 5. Detected Patterns with code examples (from Step 2, only those meeting the confidence threshold)
 6. Reference implementations — for each documented pattern, include the file path of the best example to imitate
 
-**Supplementary file decision:** If the total frontend content exceeds approximately 150 lines, recommend splitting:
+**Supplementary file decision:** If Step 2 produced 3 or more documented patterns (those meeting the confidence threshold), split into:
 - Core constraints (all Step 1 findings) stay inline in AGENTS.md's Architecture section
 - Pattern documentation (Step 2 findings + reference implementations) go in a separate file (e.g., `UI-ARCHITECTURE.md`) referenced from AGENTS.md with a brief note: `For frontend patterns and reference implementations, see [UI-ARCHITECTURE.md](UI-ARCHITECTURE.md).`
 
-If the content fits within ~150 lines, keep everything inline in the Architecture section.
+If Step 2 produced fewer than 3 documented patterns, keep everything inline in the Architecture section.
 
 ## Output
 
