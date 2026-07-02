@@ -21,7 +21,8 @@ exploration that only a repo-local workflow can provide.
 
 - **Do not start reproducing, diagnosing, or fixing.** This phase is analysis
   and planning only.
-- **Do not run the project's code or tests.** Read code, don't execute it.
+- **Do not build, run, or test the project's code.** Read-only exploration
+  (grep, git log, git blame, file reading) is expected.
 - **Be honest about uncertainty.** If the report is vague, say so.
 - **No issue-tracker writes.** Read-only access to Jira and GitHub.
 
@@ -32,7 +33,7 @@ local working directory.
 
 | Source | Input | Issue-tracker search |
 |--------|-------|----------------------|
-| Jira URL | `https://{jira-host}/browse/KEY-NUM` | Jira MCP (read-only) for duplicates, regressions, priority mismatch |
+| Jira URL | `https://{jira-host}/browse/KEY-NUM` | Jira MCP or Jira CLI (`jira`) — whichever is available (read-only) — for duplicates, regressions, priority mismatch |
 | GitHub URL | `https://github.com/owner/repo/issues/NUM` | `gh issue list --search` for duplicates |
 | Free text | Error text, stack trace, or description | Jira if a project key is provided; otherwise git-only |
 
@@ -50,9 +51,10 @@ local working directory.
 
 Collect all available information about the bug:
 
-- **Jira URL:** Fetch the issue via the Jira MCP (e.g., by key lookup or
-  JQL `key = {KEY}`). Load summary, description, status, priority, components,
-  labels, created, updated, and comments.
+- **Jira URL:** Fetch the issue via the Jira MCP or Jira CLI (`jira`) —
+  whichever is available (e.g., by key lookup or JQL `key = {KEY}`). Load
+  summary, description, status, priority, components, labels, created,
+  updated, and comments.
 - **GitHub URL:** Fetch via:
 
 ```bash
@@ -71,7 +73,8 @@ Determine the issue identifier and create the artifact directory:
 - Jira: use the full key (e.g., `EDM-1234`)
 - GitHub: use the issue number (e.g., `421`)
 - Free text: in interactive mode, ask the user for an identifier. In
-  unattended/bot mode, derive one from the bug summary (e.g., `npe-on-login`)
+  unattended/bot mode, derive one from the bug summary (lowercase kebab-case,
+  max 40 chars, e.g., `npe-on-login`)
 
 ```bash
 mkdir -p .artifacts/bugfix/{issue}
@@ -79,17 +82,17 @@ mkdir -p .artifacts/bugfix/{issue}
 
 ### Step 3: Extract Error Signature
 
-Derive these six fields from the bug report. Use `null` when a value cannot
+Derive these six fields from the bug report. Use `—` when a value cannot
 be determined.
 
 | Field | Meaning |
 |-------|---------|
-| `errorType` | Class of failure (e.g., `NullPointerException`, `HTTP 500`, `ValidationError`) |
-| `errorCode` | Vendor or application code if present (e.g., `ORA-00001`, exit code) |
-| `errorMessageExcerpt` | Short verbatim or paraphrased snippet (first line or key phrase) |
-| `affectedComponent` | Logical component or module — refine using source code in Step 4 |
-| `symptoms` | One-line user-visible symptom (e.g., "Save returns 500") |
-| `environmentHint` | OS, browser, version, cluster — only if stated |
+| Error type | Class of failure (e.g., `NullPointerException`, `HTTP 500`, `ValidationError`) |
+| Error code | Vendor or application code if present (e.g., `ORA-00001`, exit code) |
+| Message excerpt | Short verbatim or paraphrased snippet (first line or key phrase) |
+| Affected component | Logical component or module — refine using source code in Step 4 |
+| Symptoms | One-line user-visible symptom (e.g., "Save returns 500") |
+| Environment | OS, browser, version, cluster — only if stated |
 
 ### Step 4: Source-Code Exploration
 
@@ -131,8 +134,8 @@ For AUTO_FIX calibration, note:
 
 #### 4e: Refine error signature
 
-If source-code exploration reveals a more specific `affectedComponent` or
-`errorType` than the bug report alone provided, update those fields.
+If source-code exploration reveals a more specific affected component or
+error type than the bug report alone provided, update those fields.
 
 ### Step 5: Single-Issue Assessment
 
@@ -182,8 +185,8 @@ Medium/Low.
 Signals for over-prioritization: description mentions cosmetic issue, typo,
 or minor UI glitch but priority is Critical/Blocker.
 
-Set to `null` when the assigned priority reasonably matches the description,
-or when the source is not Jira.
+Omit this section when the assigned priority reasonably matches the
+description, or when the source is not Jira.
 
 This recommendation is preliminary. Steps 6 and 7 may override it based on
 duplicate or regression findings.
@@ -196,13 +199,13 @@ tracker is accessible.
 **Jira (project key available):** Search Jira via JQL using up to three
 angles, limit ~20 results each:
 
-1. **Error-focused:** match `errorType`, `errorCode`, or error message
+1. **Error-focused:** match error type, error code, or error message
    keywords in summary/description
 2. **Component-focused:** same Jira components with similar summary phrases
 3. **Symptom-focused:** match the user-visible symptom description
 
 Exclude the current issue key when comparing. For each strong candidate,
-assign a `duplicateConfidence`:
+assign a duplicate confidence:
 
 | Band | When to use |
 |------|-------------|
