@@ -210,5 +210,5 @@ If Step 2 produced fewer than 3 documented patterns, keep everything inline in t
 One or more Markdown sections for `update.md` to incorporate into AGENTS.md's `## Architecture` section. Each section starts with a `###` heading (to nest correctly under `## Architecture`) and is valid Markdown ready for direct insertion — no wrapping or reformatting needed.
 
 If the supplementary file threshold is exceeded, output two artifacts:
-1. A brief `###` section for AGENTS.md containing the constraint tables and a reference link to the supplementary file
+1. A brief `###` section for AGENTS.md containing all Step 1 findings (restricted patterns, generated files, testing philosophy, and i18n rules) and a reference link to the supplementary file
 2. The full supplementary file content (e.g., `UI-ARCHITECTURE.md`) as a standalone document with its own `#` heading
