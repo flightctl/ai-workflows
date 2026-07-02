@@ -1,6 +1,6 @@
 ---
 name: bugfix:assess
-description: "Read bug report, explain understanding, propose a fix plan"
+description: "Analytical bug assessment: error signature, recommendation, source-code context, duplicate/regression search"
 ---
 # /assess
 
