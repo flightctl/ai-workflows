@@ -24,6 +24,7 @@ in design documents, not the PRD.
 - **Do not invent requirements.** Every claim in the PRD must come from `01-requirements.md`, `02-clarifications.md`, or direct user instruction.
 - **Follow the template.** Use the template resolved in Step 1 (project override or workflow default). Do not add sections without user approval.
 - **Omit optional sections.** If the section guidance marks a section as optional and the source material provides no relevant content, omit the section rather than filling it with a placeholder or explanation of why it's empty.
+- **Keep numbering sequential.** When optional sections or subsections are omitted, renumber the remaining sections so there are no gaps. For example, if subsection 2.2 (Success Metrics) is omitted, Non-Goals becomes 2.2 instead of 2.3. If section 5 (Assumptions) is omitted, Dependencies becomes 5, Risks becomes 6, and so on.
 - **Follow the section guidance.** Use the section guidance resolved in Step 1 for content standards.
 - **Mark gaps.** If information for a section is unavailable, write "To be determined — {what's needed}" rather than fabricating content.
 - **Preserve terminology.** Use the user's domain language, not generic product management jargon.

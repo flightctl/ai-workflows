@@ -82,9 +82,10 @@ The PRD template (`templates/prd.md`) defines the document structure:
 2. Goals and Non-Goals (including Success Metrics)
 3. Requirements (Functional and Non-Functional)
 4. Acceptance Criteria
-5. Dependencies
-6. Risks
-7. Open Questions
+5. Assumptions
+6. Dependencies
+7. Risks
+8. Open Questions
 
 Section-level guidance for the AI is in `templates/section-guidance.md`.
 
