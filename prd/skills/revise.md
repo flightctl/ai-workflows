@@ -45,7 +45,7 @@ Edit the PRD to incorporate the feedback:
 - For specific edits: apply them directly
 - For directional feedback: propose concrete changes and confirm with the user before applying
 - For new information: add it to the appropriate sections, maintaining document structure
-- For deletions: remove the content cleanly, checking for orphaned references
+- For deletions: remove the content cleanly, checking for orphaned references. If an entire section or subsection is removed, renumber the remaining sections to close the gap.
 
 ### Step 4: Consistency Check
 
