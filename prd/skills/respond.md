@@ -148,7 +148,7 @@ synthesize the discussion into a proposed resolution:
    narrate the resolution).
 6. Remove the resolved entry from the Open Questions section.
 7. If the Open Questions section is now empty, remove the entire section (heading and
-   introductory text) from the PRD.
+   introductory text) from the PRD. Renumber any subsequent sections to close the gap.
 
 **Update the local artifact:** Update `.artifacts/prd/{issue-number}/03-prd.md`
 in the source repo.
