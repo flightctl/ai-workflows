@@ -5,7 +5,7 @@ version: 0.1.0
 # Recipe: Render Provenance Footer
 
 Render the durable `## Provenance` footer into a docs-repo markdown file before
-`git add`. See `_shared/provenance-schema.md` for format.
+`git add`. See `../provenance-schema.md` for format.
 
 ## Parameters
 

@@ -5,7 +5,7 @@ version: 0.1.0
 # Provenance Schema
 
 Tracks environment context when PRD and design workflow phases mutate planning
-documents. See `_shared/scripts/provenance.py` for capture and render logic.
+documents. See `scripts/provenance.py` for capture and render logic.
 
 ## Published vs session-local
 

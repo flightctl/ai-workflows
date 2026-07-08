@@ -117,7 +117,7 @@ Jira issue:
 ```
 
 `/publish` renders a durable `## Provenance` footer into the docs-repo
-`design.md`. See `_shared/provenance-schema.md`.
+`design.md`. See `../_shared/provenance-schema.md`.
 
 ## Design Document Template
 

@@ -476,6 +476,10 @@ class ProvenanceTests(unittest.TestCase):
             self.assertNotIn("stale", content)
             self.assertIn('"provenance_kind":"declined"', content)
 
+    def test_provenance_path_rejects_traversal(self) -> None:
+        with self.assertRaises(ValueError):
+            provenance.provenance_path("prd", "../../tmp")
+
     def test_workspace_root_walks_up_to_git_root(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

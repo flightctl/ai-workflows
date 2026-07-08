@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Capture and render provenance for prd/design planning document workflows."""
+"""Capture and render provenance for prd/design planning document workflows.
+
+Exit codes:
+    0: Success (capture or render completed)
+    1: Target file missing or invalid issue key (render/capture)
+    2: Provenance log is empty (render only)
+"""
 
 from __future__ import annotations
 
@@ -11,6 +17,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+GIT_TIMEOUT_SEC = 30
 
 WORKFLOW_DOCS = {
     "prd": "03-prd.md",
@@ -56,9 +64,10 @@ def repo_root(start: Path) -> Path | None:
             check=True,
             capture_output=True,
             text=True,
+            timeout=GIT_TIMEOUT_SEC,
         )
         return Path(result.stdout.strip())
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
         return None
 
 
@@ -77,9 +86,10 @@ def git_describe(root: Path) -> str:
             check=True,
             capture_output=True,
             text=True,
+            timeout=GIT_TIMEOUT_SEC,
         )
         return result.stdout.strip()
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
         return "unknown (not a git repository)"
 
 
@@ -90,9 +100,10 @@ def git_branch(root: Path) -> str:
             check=True,
             capture_output=True,
             text=True,
+            timeout=GIT_TIMEOUT_SEC,
         )
         return result.stdout.strip()
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
         return "unknown"
 
 
@@ -105,6 +116,7 @@ def resolve_main_ref(root: Path) -> str | None:
                 check=True,
                 capture_output=True,
                 text=True,
+                timeout=GIT_TIMEOUT_SEC,
             )
             if ref == "origin/HEAD":
                 result = subprocess.run(
@@ -118,10 +130,11 @@ def resolve_main_ref(root: Path) -> str | None:
                     check=True,
                     capture_output=True,
                     text=True,
+                    timeout=GIT_TIMEOUT_SEC,
                 )
                 return result.stdout.strip().removeprefix("refs/remotes/")
             return ref.removeprefix("origin/")
-        except (subprocess.CalledProcessError, FileNotFoundError):
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
             continue
     return None
 
@@ -145,11 +158,17 @@ def main_distance(root: Path) -> tuple[int | None, int | None, str | None]:
             check=True,
             capture_output=True,
             text=True,
+            timeout=GIT_TIMEOUT_SEC,
         )
         behind, ahead = result.stdout.strip().split()
         display_ref = remote_ref.removeprefix("origin/")
         return int(behind), int(ahead), display_ref
-    except (subprocess.CalledProcessError, FileNotFoundError, ValueError):
+    except (
+        subprocess.CalledProcessError,
+        FileNotFoundError,
+        subprocess.TimeoutExpired,
+        ValueError,
+    ):
         return None, None, main_ref.removeprefix("origin/")
 
 
@@ -182,6 +201,8 @@ def workspace_root() -> Path:
 
 
 def provenance_path(workflow: str, issue: str) -> Path:
+    if "/" in issue or "\\" in issue or ".." in issue:
+        raise ValueError(f"Invalid issue key: {issue!r}")
     return workspace_root() / ".artifacts" / workflow / issue / "provenance.json"
 
 
@@ -479,16 +500,20 @@ def main() -> int:
     )
 
     args = parser.parse_args()
-    if args.command == "capture":
-        capture_event(args.workflow, args.issue, args.phase, args.authoring_mode)
-        return 0
-    if args.command == "render":
-        return render_footer(
-            args.workflow,
-            args.issue,
-            args.target,
-            allow_missing=args.allow_missing,
-        )
+    try:
+        if args.command == "capture":
+            capture_event(args.workflow, args.issue, args.phase, args.authoring_mode)
+            return 0
+        if args.command == "render":
+            return render_footer(
+                args.workflow,
+                args.issue,
+                args.target,
+                allow_missing=args.allow_missing,
+            )
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
     return 1
 
 

@@ -5,7 +5,7 @@ version: 0.1.0
 # Recipe: Capture Provenance Event
 
 Append an environment snapshot to the session-local provenance log after a
-phase mutates the planning document. See `_shared/provenance-schema.md`.
+phase mutates the planning document. See `../provenance-schema.md`.
 
 ## Parameters
 
