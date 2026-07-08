@@ -52,7 +52,8 @@ the source repo (this directory should be gitignored in the source repo):
 |----------|------|------------|
 | Architectural context | `01-context.md` | `/ingest` |
 | Design research | `02-research.md` | `/research` |
-| Design document | `03-design.md` | `/draft`, `/revise` |
+| Design document | `03-design.md` | `/draft`, `/revise`, `/respond` |
+| Provenance log | `provenance.json` | `/draft`, `/revise`, `/respond` |
 | Epic metadata | `04-epics.md` | `/decompose`, `/revise` |
 | Epic files | `05-stories/epic-{N}-{slug}.md` | `/decompose`, `/revise` |
 | Story files | `05-stories/epic-{N}/story-{NN}-{slug}.md` | `/decompose`, `/revise` |

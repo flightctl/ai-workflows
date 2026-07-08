@@ -112,8 +112,12 @@ Jira issue:
   07-pr-description.md
   08-review-responses.md
   publish-metadata.json
+  provenance.json                      (session-local; gitignored)
   sync-manifest.json
 ```
+
+`/publish` renders a durable `## Provenance` footer into the docs-repo
+`design.md`. See `_shared/provenance-schema.md`.
 
 ## Design Document Template
 

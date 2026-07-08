@@ -74,6 +74,12 @@ graph TD
 
 All artifacts are stored in `.artifacts/prd/{issue-number}/`.
 
+Session-local `provenance.json` records environment snapshots from `/draft`,
+`/revise`, and `/respond`. `/publish` renders a durable `## Provenance` footer
+into the docs-repo `prd.md` (workflow version + git hash, workspace context, and
+a machine-readable HTML comment for future metrics). See
+`_shared/provenance-schema.md`.
+
 ## PRD Template
 
 The PRD template (`templates/prd.md`) defines the document structure:

@@ -54,14 +54,20 @@ workflow-name/
 
 ```text
 _shared/
+  provenance-schema.md            # Provenance contract for planning docs (footer + session log)
   review-protocol.md              # Shared code review criteria, finding format, severity definitions
   sizing-rubric.md                # Shared sizing definitions (T-shirt sizes, heuristics, team effort guidance)
+  scripts/
+    provenance.py                 # Capture/render CLI (used by prd and design provenance recipes)
   recipes/
+    capture-provenance-event.md   # Append session-local provenance on doc-mutating phases
     phase-override-resolution.md  # Project-level phase override lookup and activation
+    record-manual-edit.md         # Tier 3 manual-edit attribution (wraps capture recipe)
+    render-provenance-footer.md   # Render durable footer into docs-repo markdown before commit
     self-review-gate.md           # Pre-PR self-review quality gate (used by bugfix, implement, e2e, cve-fix)
 ```
 
-Recipes are self-contained, parameterized procedures that workflows reference via relative path (e.g., `../../_shared/recipes/self-review-gate.md` from `skills/`).
+Recipes are self-contained, parameterized procedures that workflows reference via relative path (e.g., `../../_shared/recipes/self-review-gate.md` from `skills/`). The **prd** and **design** workflows use the provenance recipes on `/draft`, `/revise`, `/respond` (capture) and `/publish` plus docs-sync paths (render). See `provenance-schema.md` for the published footer format.
 
 ### File Reference Conventions
 
@@ -132,10 +138,16 @@ See CONTRIBUTING.md for workflow structure conventions, path rules, testing, and
 ```text
 ai-workflows/
 ├── _shared/                   # Cross-cutting shared resources
+│   ├── provenance-schema.md   # Planning-doc provenance contract (footer + session log)
 │   ├── review-protocol.md     # Shared code review criteria and finding format
 │   ├── sizing-rubric.md       # Shared sizing definitions and heuristics
+│   ├── scripts/
+│   │   └── provenance.py      # Capture/render CLI for prd/design provenance
 │   └── recipes/
+│       ├── capture-provenance-event.md
 │       ├── phase-override-resolution.md  # Project-level phase override lookup
+│       ├── record-manual-edit.md
+│       ├── render-provenance-footer.md
 │       └── self-review-gate.md  # Pre-PR self-review quality gate
 ├── ai-ready/                  # Workflows (auto-discovered via SKILL.md)
 ├── bugfix/

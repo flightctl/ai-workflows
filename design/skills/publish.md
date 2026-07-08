@@ -76,6 +76,16 @@ git -C "{docs_repo_path}" remote -v
 git -C "{docs_repo_path}" status
 ```
 
+Provenance at publish time:
+- If `.artifacts/design/{issue-number}/provenance.json` exists from `/draft`, `/revise`,
+  or `/respond`, the footer reflects the full authoring session (`provenance_kind:
+  session`).
+- If the log is missing, the render recipe **auto-captures a commit-time snapshot**
+  (`phase=commit`, `provenance_kind: commit_only`) so stale footers are replaced
+  instead of copied forward.
+- Only if the user explicitly declines provenance, pass `ALLOW_MISSING=yes` to strip
+  the footer and record `provenance_kind: declined` (no human-readable block).
+
 Check for PRD publish metadata at
 `.artifacts/prd/{issue-number}/publish-metadata.json`. If it exists, read
 the `release` and `feature` values and propose them as defaults below.
@@ -137,6 +147,10 @@ mkdir -p "{docs_repo_path}/{release}/{feature}"
 ```bash
 cp ".artifacts/design/{issue-number}/03-design.md" "{docs_repo_path}/{release}/{feature}/design.md"
 ```
+
+Read and follow `../../_shared/recipes/render-provenance-footer.md` with
+`WORKFLOW=design`, `ISSUE_NUMBER={issue-number}`,
+`TARGET_FILE="{docs_repo_path}/{release}/{feature}/design.md"`.
 
 ```bash
 git -C "{docs_repo_path}" add "{release}/{feature}/design.md"

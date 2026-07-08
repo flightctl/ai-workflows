@@ -43,7 +43,8 @@ source repo (this directory should be gitignored in the source repo):
 |----------|------|------------|
 | Raw requirements | `01-requirements.md` | `/ingest` |
 | Clarification log | `02-clarifications.md` | `/clarify` |
-| PRD document | `03-prd.md` | `/draft`, `/revise` |
+| PRD document | `03-prd.md` | `/draft`, `/revise`, `/respond` |
+| Provenance log | `provenance.json` | `/draft`, `/revise`, `/respond` |
 | PR description | `04-pr-description.md` | `/publish` |
 | Publish metadata | `publish-metadata.json` | `/publish` |
 | Review responses | `05-review-responses.md` | `/respond` |

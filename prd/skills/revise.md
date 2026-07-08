@@ -29,6 +29,12 @@ user may request multiple rounds of revision.
 
 Read `.artifacts/prd/{issue-number}/03-prd.md`.
 
+If the user edited the document manually since the last workflow phase, or a
+re-ingest diff shows unsynchronized manual changes, read and follow
+`../../_shared/recipes/record-manual-edit.md` with `WORKFLOW=prd` and
+`ISSUE_NUMBER={issue-number}` before applying revisions. Otherwise ask whether
+manual edits occurred when uncertain.
+
 ### Step 2: Understand the Feedback
 
 The user's feedback may come as:
@@ -62,6 +68,10 @@ After applying changes, verify:
 ### Step 5: Update Artifact
 
 Overwrite `.artifacts/prd/{issue-number}/03-prd.md` with the revised PRD.
+
+Read and follow `../../_shared/recipes/capture-provenance-event.md` with
+`WORKFLOW=prd`, `ISSUE_NUMBER={issue-number}`, `PHASE=revise`,
+`AUTHORING_MODE=skill`.
 
 Read `.artifacts/prd/config.json` to get the docs repo path and
 `.artifacts/prd/{issue-number}/publish-metadata.json` to get `{prd-file-path}`.
@@ -121,6 +131,10 @@ mkdir -p "{docs_repo_path}/$(dirname "{prd-file-path}")"
 ```bash
 cp ".artifacts/prd/{issue-number}/03-prd.md" "{docs_repo_path}/{prd-file-path}"
 ```
+
+Read and follow `../../_shared/recipes/render-provenance-footer.md` with
+`WORKFLOW=prd`, `ISSUE_NUMBER={issue-number}`,
+`TARGET_FILE="{docs_repo_path}/{prd-file-path}"`.
 
 ```bash
 git -C "{docs_repo_path}" add "{prd-file-path}"

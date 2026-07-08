@@ -200,6 +200,17 @@ Before presenting the PRD, verify:
 
 Save the PRD to `.artifacts/prd/{issue-number}/03-prd.md`.
 
+### Step 8a: Capture Provenance
+
+Read and follow `../../_shared/recipes/capture-provenance-event.md` with:
+
+| Parameter | Value |
+|-----------|-------|
+| WORKFLOW | `prd` |
+| ISSUE_NUMBER | `{issue-number}` |
+| PHASE | `draft` |
+| AUTHORING_MODE | `skill` |
+
 ### Step 9: Present to User
 
 Show the user the complete PRD and highlight:
@@ -210,6 +221,7 @@ Show the user the complete PRD and highlight:
 ## Output
 
 - `.artifacts/prd/{issue-number}/03-prd.md`
+- `.artifacts/prd/{issue-number}/provenance.json`
 
 ## When This Phase Is Done
 
