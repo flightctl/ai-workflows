@@ -112,7 +112,7 @@ Jira issue:
   07-pr-description.md
   08-review-responses.md
   publish-metadata.json
-  provenance.json                      (session-local; gitignored)
+  provenance.json
   sync-manifest.json
 ```
 
