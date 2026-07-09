@@ -69,7 +69,7 @@ class ProvenanceTests(unittest.TestCase):
         self.assertIn("Authored: draft @ prd 0.5.0 - adfad68", footer)
         self.assertIn("workspace main @ 00e78b8f", footer)
         self.assertIn('"provenance_kind":"session"', footer)
-        self.assertIn("<!-- osac-provenance:", footer)
+        self.assertIn("<!-- ai-workflow-provenance:", footer)
         self.assertNotIn("Final:", footer)
         self.assertNotIn("Phases:", footer)
 
@@ -178,7 +178,7 @@ class ProvenanceTests(unittest.TestCase):
         content = (
             "# PRD\n\nBody text.\n\n---\n\n## Provenance\n\n"
             "Authored: draft @ prd 0.5.0 - abc\n\n"
-            '<!-- osac-provenance:{"schema_version":1} -->\n'
+            '<!-- ai-workflow-provenance:{"schema_version":1} -->\n'
         )
         stripped = provenance.strip_provenance_section(content)
         self.assertEqual(stripped, "# PRD\n\nBody text.\n")
@@ -349,7 +349,7 @@ class ProvenanceTests(unittest.TestCase):
             content = target.read_text(encoding="utf-8")
             self.assertNotIn("Old footer", content)
             self.assertIn("draft @ prd 0.5.0 - abc", content)
-            self.assertIn("<!-- osac-provenance:", content)
+            self.assertIn("<!-- ai-workflow-provenance:", content)
 
     def test_render_footer_auto_captures_commit_when_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -454,7 +454,7 @@ class ProvenanceTests(unittest.TestCase):
             target.write_text(
                 "# PRD\n\n---\n\n## Provenance\n\n"
                 "Authored: draft @ prd 0.5.0 - stale\n\n"
-                '<!-- osac-provenance:{"schema_version":1,"provenance_kind":"session"} -->\n',
+                '<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session"} -->\n',
                 encoding="utf-8",
             )
 

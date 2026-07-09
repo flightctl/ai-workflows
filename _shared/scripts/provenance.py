@@ -36,9 +36,10 @@ DRIFT_FIELDS = (
     "commits_ahead_main",
 )
 
+PROVENANCE_COMMENT_TAG = "ai-workflow-provenance"
 PROVENANCE_HEADING = "## Provenance"
 PROVENANCE_COMMENT_RE = re.compile(
-    r"<!--\s*osac-provenance:(?P<payload>\{.*?\})\s*-->",
+    rf"<!--\s*{re.escape(PROVENANCE_COMMENT_TAG)}:(?P<payload>\{{.*?\}})\s*-->",
     re.DOTALL,
 )
 LEGACY_FOOTER_RE = re.compile(
@@ -50,7 +51,7 @@ HEADING_ONLY_FOOTER_RE = re.compile(
     re.MULTILINE,
 )
 DECLINED_MARKER = (
-    '<!-- osac-provenance:{"schema_version":1,"provenance_kind":"declined"} -->'
+    f'<!-- {PROVENANCE_COMMENT_TAG}:{{"schema_version":1,"provenance_kind":"declined"}} -->'
 )
 COMMIT_ONLY_NOTE = (
     "> Authoring phases not recorded this session (commit-time snapshot only)."
@@ -367,7 +368,8 @@ def build_footer(data: dict[str, Any]) -> str:
     kind = provenance_kind(events)
     metrics = build_metrics_payload(data)
     metrics_comment = (
-        f"<!-- osac-provenance:{json.dumps(metrics, separators=(',', ':'))} -->"
+        f"<!-- {PROVENANCE_COMMENT_TAG}:"
+        f"{json.dumps(metrics, separators=(',', ':'))} -->"
     )
     lines = ["---", "", PROVENANCE_HEADING, ""]
 

@@ -28,8 +28,8 @@ supports same-session drift analysis only.
   `origin/master` — repos with nonstandard default branches may omit the count.
 - Tier 3 manual-edit detection is heuristic (`record-manual-edit` recipe); undeclared
   edits between skill phases may be missed.
-- The machine-readable `<!-- osac-provenance:{...} -->` comment is the stable hook
-  for future metrics pipelines (e.g., OSAC-959). Human-readable lines above it are
+- The machine-readable `<!-- ai-workflow-provenance:{...} -->` comment is the stable hook
+  for future metrics pipelines. Human-readable lines above it are
   for reviewer triage, not programmatic parsing.
 
 ## `provenance.json` (schema_version 1)
@@ -102,7 +102,7 @@ Recomputed after every capture. Compares the first and last events on:
 
 Authored: draft @ prd 0.5.0 - adfad68, workspace main @ 00e78b8f
 
-<!-- osac-provenance:{"schema_version":1,"workflow":"prd",...} -->
+<!-- ai-workflow-provenance:{"schema_version":1,"workflow":"prd",...} -->
 ```
 
 **Session — multiple phases, no environment drift:**
@@ -128,17 +128,17 @@ Committed: commit @ prd 0.5.0 - adfad68, workspace main @ 00e78b8f
 
 > Authoring phases not recorded this session (commit-time snapshot only).
 
-<!-- osac-provenance:{"schema_version":1,"provenance_kind":"commit_only","phases":["commit"],...} -->
+<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"commit_only","phases":["commit"],...} -->
 ```
 
 **Declined** (`--allow-missing` only — no `## Provenance` heading):
 
 ```markdown
-<!-- osac-provenance:{"schema_version":1,"provenance_kind":"declined"} -->
+<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"declined"} -->
 ```
 
 Format rules:
-- Workflow: `{workflow} {version} - {hash}` (Andy/Eran triage: semver + exact commit)
+- Workflow: `{workflow} {version} - {hash}` (semver for version segmentation, hash for exact commit)
 - Workspace: `workspace {branch} @ {hash} ({N behind origin/{main_ref}}{, dirty})`
 - Omit behind-main when zero; omit `dirty` when clean
 - Manual-edit events show `[manual]` after the phase label

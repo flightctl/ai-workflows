@@ -34,7 +34,7 @@ any existing provenance section and records `provenance_kind: declined`.
 Resolve `{AI_WORKFLOWS_ROOT}` as in `capture-provenance-event.md`.
 
 The footer is the **published** provenance contract — workflow version and hash,
-workspace hash, behind-main counts, and a machine-readable `<!-- osac-provenance:... -->`
+workspace hash, behind-main counts, and a machine-readable `<!-- ai-workflow-provenance:... -->`
 comment for future metrics ingestion.
 
 **Missing log:** When `provenance.json` is absent, the script auto-captures a

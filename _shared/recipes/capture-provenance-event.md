@@ -12,7 +12,7 @@ phase mutates the planning document. See `../provenance-schema.md`.
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | WORKFLOW | Yes | `prd` or `design` |
-| ISSUE_NUMBER | Yes | Jira issue key (e.g., `OSAC-1234`) |
+| ISSUE_NUMBER | Yes | Jira issue key (e.g., `PROJ-1234`) |
 | PHASE | Yes | `draft`, `revise`, or `respond` |
 | AUTHORING_MODE | Yes | `skill` (default for phase skills) or `manual` |
 
