@@ -40,6 +40,10 @@ Determine which artifacts exist and read them:
 - `.artifacts/design/{issue-number}/sync-manifest.json` (if exists — means
   epics/stories have been synced to Jira and filenames are locked)
 
+If the user edited `03-design.md` manually since the last workflow phase, read
+and follow `../../_shared/recipes/record-manual-edit.md` with `WORKFLOW=design`
+and `ISSUE_NUMBER={issue-number}` before applying revisions.
+
 ### Step 2: Understand the Feedback
 
 The user's feedback may target:
@@ -122,6 +126,10 @@ After applying changes, verify:
 
 Overwrite the affected artifact files.
 
+If `03-design.md` was updated, read and follow
+`../../_shared/recipes/capture-provenance-event.md` with `WORKFLOW=design`,
+`ISSUE_NUMBER={issue-number}`, `PHASE=revise`, `AUTHORING_MODE=skill`.
+
 If the design document was published, also update the docs repo copy.
 Check for `.artifacts/design/{issue-number}/publish-metadata.json` and
 `.artifacts/prd/config.json`. If either file does not exist, skip the
@@ -173,6 +181,10 @@ mkdir -p "{docs_repo_path}/$(dirname "{design_file_path}")"
 ```bash
 cp ".artifacts/design/{issue-number}/03-design.md" "{docs_repo_path}/{design_file_path}"
 ```
+
+Read and follow `../../_shared/recipes/render-provenance-footer.md` with
+`WORKFLOW=design`, `ISSUE_NUMBER={issue-number}`,
+`TARGET_FILE="{docs_repo_path}/{design_file_path}"`.
 
 ```bash
 git -C "{docs_repo_path}" add "{design_file_path}"

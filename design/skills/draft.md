@@ -212,6 +212,10 @@ Before presenting the design document, verify:
 
 Save the design document to `.artifacts/design/{issue-number}/03-design.md`.
 
+Read and follow `../../_shared/recipes/capture-provenance-event.md` with
+`WORKFLOW=design`, `ISSUE_NUMBER={issue-number}`, `PHASE=draft`,
+`AUTHORING_MODE=skill`.
+
 ### Step 9: Present to User
 
 Show the user the complete design document and highlight:
@@ -224,6 +228,7 @@ Show the user the complete design document and highlight:
 ## Output
 
 - `.artifacts/design/{issue-number}/03-design.md`
+- `.artifacts/design/{issue-number}/provenance.json`
 
 ## When This Phase Is Done
 

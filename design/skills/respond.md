@@ -99,6 +99,11 @@ Wait for the user to approve, modify, or reject each response.
 
 ### Step 4: Apply Approved Changes
 
+If the user edited `.artifacts/design/{issue-number}/03-design.md` manually
+since the last workflow phase, read and follow
+`../../_shared/recipes/record-manual-edit.md` with `WORKFLOW=design` and
+`ISSUE_NUMBER={issue-number}` before applying changes.
+
 **Check locked decisions:** Before applying any design document change —
 whether a direct edit or an open question resolution — read the "Locked
 Decisions" section of `.artifacts/prd/{issue-number}/02-clarifications.md`
@@ -134,6 +139,10 @@ section, synthesize the discussion into a proposed resolution:
 
 **Update the local artifact:** Update
 `.artifacts/design/{issue-number}/03-design.md`.
+
+Read and follow `../../_shared/recipes/capture-provenance-event.md` with
+`WORKFLOW=design`, `ISSUE_NUMBER={issue-number}`, `PHASE=respond`,
+`AUTHORING_MODE=skill`.
 
 **Update the docs repo copy:** Read
 `.artifacts/design/{issue-number}/publish-metadata.json` to get the file
@@ -174,6 +183,10 @@ mkdir -p "{docs_repo_path}/$(dirname "{design_file_path}")"
 ```bash
 cp ".artifacts/design/{issue-number}/03-design.md" "{docs_repo_path}/{design_file_path}"
 ```
+
+Read and follow `../../_shared/recipes/render-provenance-footer.md` with
+`WORKFLOW=design`, `ISSUE_NUMBER={issue-number}`,
+`TARGET_FILE="{docs_repo_path}/{design_file_path}"`.
 
 ```bash
 git -C "{docs_repo_path}" add "{design_file_path}"

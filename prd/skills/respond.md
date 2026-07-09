@@ -110,6 +110,11 @@ Wait for the user to approve, modify, or reject each response.
 
 ### Step 4: Apply Approved Changes
 
+If the user edited `.artifacts/prd/{issue-number}/03-prd.md` manually since the
+last workflow phase, read and follow
+`../../_shared/recipes/record-manual-edit.md` with `WORKFLOW=prd` and
+`ISSUE_NUMBER={issue-number}` before applying changes.
+
 **Check locked decisions:** Before applying any PRD change — whether a
 direct edit or an open question resolution — read the "Locked Decisions"
 section of `.artifacts/prd/{issue-number}/02-clarifications.md` (if it
@@ -152,6 +157,10 @@ synthesize the discussion into a proposed resolution:
 
 **Update the local artifact:** Update `.artifacts/prd/{issue-number}/03-prd.md`
 in the source repo.
+
+Read and follow `../../_shared/recipes/capture-provenance-event.md` with
+`WORKFLOW=prd`, `ISSUE_NUMBER={issue-number}`, `PHASE=respond`,
+`AUTHORING_MODE=skill`.
 
 **Update the docs repo copy:** Read `.artifacts/prd/{issue-number}/publish-metadata.json`
 to get `{prd-file-path}` (the PRD's location within the docs repo). If the
@@ -205,6 +214,10 @@ mkdir -p "{docs_repo_path}/$(dirname "{prd-file-path}")"
 ```bash
 cp ".artifacts/prd/{issue-number}/03-prd.md" "{docs_repo_path}/{prd-file-path}"
 ```
+
+Read and follow `../../_shared/recipes/render-provenance-footer.md` with
+`WORKFLOW=prd`, `ISSUE_NUMBER={issue-number}`,
+`TARGET_FILE="{docs_repo_path}/{prd-file-path}"`.
 
 ```bash
 git -C "{docs_repo_path}" add "{prd-file-path}"
