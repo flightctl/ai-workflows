@@ -38,7 +38,7 @@ Ensure a project has accurate, up-to-date AGENTS.md files and a clean set of AI 
 - Highly optimized projects can stay under 60 lines by keeping only commands,
   boundaries, project geography, and high-signal examples in root AGENTS.md
 - When root AGENTS.md would exceed 150 lines, preserve or create hierarchy:
-  nested AGENTS.md files for monorepos, `.claude/rules/*.md` for specialized
+  nested AGENTS.md files for monorepos, `.claude/rules/**` for specialized
   single-repo concerns, and tool-specific rule directories when they provide
   scoped loading that AGENTS.md cannot express
 - Prefer references to existing docs over copying long explanations into

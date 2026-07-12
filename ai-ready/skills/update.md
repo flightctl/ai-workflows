@@ -114,9 +114,11 @@ These apply to both creation and updates:
 - Reference key files and directories that exemplify important patterns
 - Keep it concise: prefer a command over a paragraph
 - Include specific examples from the codebase when describing patterns
-- Target root AGENTS.md under 150 lines; treat 300 lines as the absolute maximum for any single AGENTS.md file
+- Measure current and final line counts for every AGENTS.md file; target root AGENTS.md under 150 lines and treat 300 lines as the absolute maximum for any single AGENTS.md file
 - For monorepos, split project-wide concerns into the root file and package-specific details into nested AGENTS.md files
-- For single repos approaching 150 lines, preserve or create hierarchical files such as `.claude/rules/*.md` for specialized concerns instead of expanding root AGENTS.md
+- For single repos approaching 150 lines, preserve or create hierarchical files such as `.claude/rules/**` for specialized concerns instead of expanding root AGENTS.md
+- If any root or nested AGENTS.md already exceeds 300 lines, move scoped guidance into appropriate hierarchical files or referenced documentation, then remeasure
+- Do not report completion while any AGENTS.md remains over the 300-line maximum
 - Prefer references to detailed docs over copying long explanations into AGENTS.md
 
 #### AGENTS.md format reference
@@ -150,7 +152,8 @@ Before choosing **Merge**, check size and hierarchy:
 
 - Estimate the resulting AGENTS.md line count after consolidation
 - If merging would push root AGENTS.md over 150 lines, choose **Keep** or **Update** instead of **Merge**
-- Preserve clear hierarchical organizations such as `.claude/rules/*.md`, `.cursor/rules/**`, `.windsurf/rules/**`, `.clinerules/**`, or nested AGENTS.md files when they keep context focused
+- If no suitable hierarchy exists and root AGENTS.md would exceed 150 lines, choose **Create** and add a scoped hierarchical file instead of merging into the oversized root file
+- Preserve clear hierarchical organizations such as `.claude/rules/**`, `.cursor/rules/**`, `.windsurf/rules/**`, `.clinerules/**`, or nested AGENTS.md files when they keep context focused
 - If a hierarchical file is stale, update it in place rather than flattening it into root AGENTS.md
 - In the audit report, explain preserved hierarchy with a note such as: "Kept hierarchical structure to maintain AGENTS.md size limits"
 
@@ -168,6 +171,7 @@ Accuracy:
 - No contradictions between AGENTS.md and kept convention files (e.g., `CLAUDE.md`, `.github/copilot-instructions.md`). If a kept file conflicts with AGENTS.md, update the kept file to align — AGENTS.md is the source of truth
 - No content duplicated across sections
 - Running this skill again would produce no further changes (idempotency check)
+- Final AGENTS.md size gate: remeasure every AGENTS.md after Step 3 and all Step 4 changes. Do not report success if root AGENTS.md exceeds 150 lines; create or preserve scoped hierarchy and move lower-priority details out of root. Do not report completion while any AGENTS.md exceeds 300 lines.
 
 Completeness — cross-reference Step 2 findings against the final AGENTS.md:
 
