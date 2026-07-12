@@ -15,7 +15,7 @@ Ensure a project has accurate, up-to-date AGENTS.md files and a clean set of AI 
 - Never delete a file without first consolidating its unique content into AGENTS.md
 - Never fabricate file paths, commands, or conventions that don't exist in the codebase
 - Never add generic or aspirational advice — if it's not discoverable, don't document it
-- Never modify source code, tests, or non-AI configuration — this workflow only touches documentation and AI convention files (AGENTS.md, CLAUDE.md, .cursorrules, .github/copilot-instructions.md, etc.)
+- Never modify source code, tests, or non-AI configuration — this workflow only touches documentation and AI convention files (AGENTS.md, CLAUDE.md, .cursorrules, GitHub Copilot instructions, etc.)
 - **No personal names in generated content.** Replace references to individuals from commit history or other source material with role-based descriptions or drop the attribution and state the finding directly.
 
 ## Safety
