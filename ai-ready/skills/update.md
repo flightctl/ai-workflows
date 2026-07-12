@@ -114,7 +114,10 @@ These apply to both creation and updates:
 - Reference key files and directories that exemplify important patterns
 - Keep it concise: prefer a command over a paragraph
 - Include specific examples from the codebase when describing patterns
-- Aim for under 500 lines per AGENTS.md file. For monorepos, split project-wide concerns into the root file and package-specific details into nested files rather than writing one large file
+- Target root AGENTS.md under 150 lines; treat 300 lines as the absolute maximum for any single AGENTS.md file
+- For monorepos, split project-wide concerns into the root file and package-specific details into nested AGENTS.md files
+- For single repos approaching 150 lines, preserve or create hierarchical files such as `.claude/rules/*.md` for specialized concerns instead of expanding root AGENTS.md
+- Prefer references to detailed docs over copying long explanations into AGENTS.md
 
 #### AGENTS.md format reference
 
@@ -142,6 +145,14 @@ When merging:
 - Before deleting any file, ensure all its unique content is captured in AGENTS.md
 - When sources conflict, prefer the most recently modified file
 - Deduplicate — do not repeat the same instruction in AGENTS.md and another file
+
+Before choosing **Merge**, check size and hierarchy:
+
+- Estimate the resulting AGENTS.md line count after consolidation
+- If merging would push root AGENTS.md over 150 lines, choose **Keep** or **Update** instead of **Merge**
+- Preserve clear hierarchical organizations such as `.claude/rules/*.md`, `.cursor/rules/**`, `.windsurf/rules/**`, `.clinerules/**`, or nested AGENTS.md files when they keep context focused
+- If a hierarchical file is stale, update it in place rather than flattening it into root AGENTS.md
+- In the audit report, explain preserved hierarchy with a note such as: "Kept hierarchical structure to maintain AGENTS.md size limits"
 
 **Monorepo awareness:** If the project uses workspaces (package.json workspaces, pnpm-workspace.yaml, Cargo `[workspace]`, multiple go.mod files), check whether subprojects have their own AGENTS.md. Root AGENTS.md covers project-wide concerns; nested files cover package-specific details. For existing nested AGENTS.md files, apply the same create-or-update logic from Step 3 scoped to the subproject. Recommend creating nested files where they're missing.
 
