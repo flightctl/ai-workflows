@@ -358,7 +358,28 @@ Branch naming conventions:
 If a branch already exists with the changes (from a prior `/fix` phase), use
 it instead of creating a new one.
 
-### Step 5: Self-Review Gate
+### Step 5: Pre-Commit Gates
+
+Run these gates in order before staging or committing. The **`feedback`**
+skill reuses Step 5a for verification and Steps 5–7 for submission on
+existing PRs (it skips Step 8 — the PR already exists).
+
+#### Step 5a: Run Validation
+
+**Gate: do not commit or push until all checks pass.**
+
+Discover the project's validation commands from `AGENTS.md`, `CLAUDE.md`, or
+the `Makefile` (per `guidelines.md`). Run the full CI-equivalent sequence
+the project documents — build, tests, lint/format, and codegen when inputs
+changed — not partial or file-scoped tool invocations.
+
+If none of those sources document the commands, ask the user before
+proceeding.
+
+**If any check fails:** Stop. Fix the failure and re-run. Do not proceed to
+Step 5b or commit.
+
+#### Step 5b: Self-Review Gate
 
 Before committing, run a self-review of the changes to catch issues before
 they reach external reviewers.
@@ -380,10 +401,9 @@ If the gate reports PASS, proceed to Step 6. Any code fixes made by the
 gate are uncommitted changes that will be included in the commit below.
 
 **Note:** The bugfix workflow also has an optional `/review` phase that
-provides a thorough, interactive review with findings and verdict. The
-self-review gate here is a different mechanism — an automated quality check
-that fixes obvious issues without user interaction, similar to running lint
-before pushing.
+provides a thorough, interactive review with findings and verdict. Step 5b
+here is an automated pre-commit check — not a substitute for `/test` or the
+validation commands in Step 5a.
 
 ### Step 6: Stage and Commit
 
