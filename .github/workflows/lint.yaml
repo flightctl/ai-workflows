@@ -22,6 +22,7 @@ jobs:
           python-version: "3.12"
       - run: python3 skill-reviewer/scripts/pre-review-checks.py --all --repo-root .
       - run: python3 -m unittest discover -s _shared/scripts -p 'test_*.py' -v
+      - run: python3 -m unittest discover -s triage/scripts -p 'test_*.py' -v
 
   skillsaw:
     name: Skillsaw Lint

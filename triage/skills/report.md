@@ -7,10 +7,15 @@ description: Generate a self-contained interactive HTML report from analyzed tri
 
 You are generating an interactive HTML report from the analyzed triage data. Your goal is to produce a **single HTML file** that can be opened in any browser — emailed or shared as-is with no additional data files. The template uses optional **Google Fonts** when online; offline, browsers fall back to system fonts. All CSS, JS, and issue data are inline or embedded.
 
+Template rendering (placeholder replacement, validation) is handled by
+`../scripts/render_report.py`. Your role is to locate the inputs,
+synthesize the executive summary and release risk assessment, then invoke
+the script to produce the final HTML.
+
 ## Allowed Tools
 
 - **Jira MCP:** none — this phase works entirely from local artifact data
-- **Local:** read `analyzed.json`, read `templates/report.html`, write `report.html`
+- **Local:** read `analyzed.json`, write `ai-synthesis.json`, run `render_report.py`, read script output
 - **Prohibited:** all Jira tools (no MCP calls in this phase)
 
 ## Prerequisites
@@ -23,25 +28,19 @@ If the file is missing, tell the user to run `/analyze` first.
 
 ## Process
 
-### Step 1: Load Analyzed Data
+### Step 1: Locate Inputs and Determine Jira Base URL
 
 Read the analyzed issues from `.artifacts/triage/{PROJECT}/analyzed.json`.
-
-### Step 2: Read the HTML Template
-
-Read the template from `templates/report.html` (relative to the triage workflow root directory). CSS and JavaScript are inline; **Roboto** fonts may load from Google Fonts (optional). The data is embedded directly into the HTML as a JSON literal.
-
-### Step 3: Determine the Jira Base URL
 
 The report links each issue key to its Jira page. To build these links, you need the Jira instance base URL (e.g. `https://mycompany.atlassian.net`).
 
 The base URL should already be known from the `/scan` phase (extracted from `self` links in the `jira_search` response). Check if it was saved in `issues.json`. If not available, ask the user for their Jira instance URL. Do **not** call any Jira MCP tools in this phase.
 
-### Step 4: Synthesize Executive Summary & Release Risk Assessment
+### Step 2: Synthesize Executive Summary & Release Risk Assessment
 
 Using the complete `analyzed.json` data (issues, clusters, key recommendations, summary counts), generate two synthesis artifacts. These are produced here — during report generation — rather than during `/analyze`, because `/report` has the finalized dataset without context-window pressure.
 
-#### 4a. Executive Summary
+#### 2a. Executive Summary
 
 Produce an `executiveSummary` array — 3–5 bullet-point strings giving stakeholders a 30-second health assessment.
 
@@ -67,9 +66,9 @@ Example:
 ]
 ```
 
-#### 4b. Release Risk Assessment
+#### 2b. Release Risk Assessment
 
-Produce a `releaseRiskAssessment` object that answers: "Based on the bug backlog alone, what is the risk of shipping now?"
+Produce a `releaseRisk` object that answers: "Based on the bug backlog alone, what is the risk of shipping now?"
 
 **Important:** This covers **bug-backlog risk only** — not test coverage, feature completeness, or deployment readiness.
 
@@ -120,47 +119,58 @@ Risk factor signals to evaluate (include only those present and material):
 
 Set to **null** when there is insufficient data (e.g. < 5 issues).
 
-### Step 5: Populate the Template
+### Step 3: Write AI Synthesis and Render the Report
 
-Replace the following placeholders in the template (the executive summary and release risk come from Step 4; all other data from `analyzed.json`):
-
-| Placeholder | Value |
-|---|---|
-| `{PROJECT_KEY}` | The Jira project key (e.g. `EDM`) |
-| `{REPORT_DATE}` | Current date/time in ISO 8601 format |
-| `{TOTAL_ISSUES}` | Total number of analyzed issues |
-| `{JIRA_BASE_URL}` | The Jira instance base URL, without trailing slash |
-| `{ISSUES_JSON}` | The full analyzed issues array serialized as JSON |
-| `{CLUSTERS_JSON}` | The clusters array serialized as JSON |
-| `{KEY_RECOMMENDATIONS_JSON}` | The key recommendations array serialized as JSON |
-| `{EXECUTIVE_SUMMARY_JSON}` | The executive summary bullets array serialized as JSON |
-| `{RELEASE_RISK_JSON}` | The release risk assessment object serialized as JSON (or literal `null`) |
-
-The `{ISSUES_JSON}` placeholder is replaced with the literal JSON array from `analyzed.json` (the `issues` field). The `{CLUSTERS_JSON}` placeholder is replaced with the `clusters` array. The `{EXECUTIVE_SUMMARY_JSON}` and `{RELEASE_RISK_JSON}` placeholders are replaced with the data generated in Step 4. This embeds all data directly in the HTML so the file is a single shareable artifact (no separate JSON files needed).
-
-Each issue object in the `issues` array must conform to the per-issue output schema defined in `analyze.md` (Per-Issue Output Schema section).
-
-Each cluster object should include: `id`, `theme`, `issues` (array of keys), `suggestedLinkType`, `nextSteps` (array of strings). The report computes an **urgency score** per cluster at render time (sum of priority weights across member issues, using the best of Jira priority / `suggestedPriority` / `priorityMismatch.suggested`). Clusters are sorted from highest to lowest urgency score and the score is displayed on each card.
-
-The key recommendations array is a list of strings — actionable items for the team.
-
-The executive summary and release risk assessment are generated in Step 4 during report generation — not stored in `analyzed.json`. If either is empty or null, the corresponding report section hides automatically.
-
-### Step 6: Write the Report
-
-Write the populated HTML to:
+Write the executive summary and release risk assessment to:
 
 ```
-.artifacts/triage/{PROJECT}/report.html
+.artifacts/triage/{PROJECT}/ai-synthesis.json
 ```
 
-Verify the output file is valid HTML by checking that:
+Format:
 
-- The `{ISSUES_JSON}` placeholder was replaced with actual JSON (not the literal string)
-- The `{JIRA_BASE_URL}` placeholder was replaced with a real URL
-- No other `{...}` placeholders remain in the output
+```json
+{
+  "executiveSummary": [...],
+  "releaseRisk": { ... } or null
+}
+```
 
-### Step 7: Present Result
+**Data shape notes** (for understanding what the template JS expects):
+
+- Each issue object in `analyzed.json`'s `issues` array must conform to
+  the per-issue output schema defined in `analyze.md`.
+- Each cluster object should include: `id`, `theme`, `issues` (array of
+  keys), `suggestedLinkType`, `nextSteps` (array of strings). The template
+  JS computes an urgency score per cluster at render time.
+- If `executiveSummary` is empty or `releaseRisk` is `null`, the
+  corresponding report section hides automatically — these are valid
+  values, not errors.
+
+Then run the rendering script (`../scripts/render_report.py` relative to
+this skill file). The script replaces all template placeholders, validates
+the output, and writes the final HTML file. Resolve the script and
+template paths relative to the triage workflow directory — the `--analyzed`,
+`--ai-input`, and `--output` paths are relative to the project root (CWD).
+
+```bash
+python3 {triage_workflow_dir}/scripts/render_report.py \
+  --analyzed .artifacts/triage/{PROJECT}/analyzed.json \
+  --template {triage_workflow_dir}/templates/report.html \
+  --jira-url {JIRA_BASE_URL} \
+  --ai-input .artifacts/triage/{PROJECT}/ai-synthesis.json \
+  --output .artifacts/triage/{PROJECT}/report.html
+```
+
+Where `{triage_workflow_dir}` is the triage workflow's installed location
+(e.g., resolve the `triage` symlink under the workflows install directory).
+
+If the script exits with a non-zero code, report the error to the user:
+- Exit 1: a required input file is missing or contains invalid JSON
+- Exit 2: unreplaced placeholders remain in the output (indicates a
+  template/script mismatch)
+
+### Step 4: Present Result
 
 Tell the user where to find the report and what it contains:
 
@@ -191,6 +201,7 @@ Features:
 
 ## Output
 
+- `.artifacts/triage/{PROJECT}/ai-synthesis.json` — AI-generated executive summary and release risk
 - `.artifacts/triage/{PROJECT}/report.html` — single file with all data embedded (optional Google Fonts)
 - File path presented to the user
 
