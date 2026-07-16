@@ -40,7 +40,7 @@ The base URL should already be known from the `/scan` phase (extracted from `sel
 
 Using the complete `analyzed.json` data (issues, clusters, key recommendations, summary counts), generate two synthesis artifacts. These are produced here — during report generation — rather than during `/analyze`, because `/report` has the finalized dataset without context-window pressure.
 
-#### 2a. Executive Summary
+#### Executive Summary
 
 Produce an `executiveSummary` array — 3–5 bullet-point strings giving stakeholders a 30-second health assessment.
 
@@ -66,7 +66,7 @@ Example:
 ]
 ```
 
-#### 2b. Release Risk Assessment
+#### Release Risk Assessment
 
 Produce a `releaseRisk` object that answers: "Based on the bug backlog alone, what is the risk of shipping now?"
 
@@ -165,7 +165,9 @@ python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/render_report.py" \
   --output .artifacts/triage/{PROJECT}/report.html
 ```
 
-If the script exits with a non-zero code, report the error to the user:
+If the script exits with a non-zero code, report the error to the user
+and **stop** — do not proceed to Step 4:
+
 - Exit 1: a required input file is missing or contains invalid JSON
 - Exit 2: unreplaced placeholders remain in the output (indicates a
   template/script mismatch)
