@@ -183,8 +183,8 @@ def render(template: str, replacements: dict[str, str]) -> tuple[str, list[str]]
         missing.append(name)
         return match.group(0)
 
-    html = _PLACEHOLDER_RE.sub(_sub, template)
-    return html, missing
+    rendered = _PLACEHOLDER_RE.sub(_sub, template)
+    return rendered, missing
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -248,7 +248,7 @@ def main(argv: list[str] | None = None) -> int:
         project_key=args.project_key,
     )
 
-    html, missing = render(template, replacements)
+    rendered, missing = render(template, replacements)
 
     if missing:
         print(
@@ -259,7 +259,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(html, encoding="utf-8")
+    args.output.write_text(rendered, encoding="utf-8")
 
     project_key = replacements["PROJECT_KEY"]
     total = replacements["TOTAL_ISSUES"]
