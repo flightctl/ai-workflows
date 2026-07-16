@@ -8,7 +8,7 @@ description: Generate a self-contained interactive HTML report from analyzed tri
 You are generating an interactive HTML report from the analyzed triage data. Your goal is to produce a **single HTML file** that can be opened in any browser — emailed or shared as-is with no additional data files. The template uses optional **Google Fonts** when online; offline, browsers fall back to system fonts. All CSS, JS, and issue data are inline or embedded.
 
 Template rendering (placeholder replacement, validation) is handled by
-`../scripts/render_report.py`. Your role is to locate the inputs,
+`triage/scripts/render_report.py`. Your role is to locate the inputs,
 synthesize the executive summary and release risk assessment, then invoke
 the script to produce the final HTML.
 
@@ -147,23 +147,23 @@ Format:
   corresponding report section hides automatically — these are valid
   values, not errors.
 
-Then run the rendering script (`../scripts/render_report.py` relative to
-this skill file). The script replaces all template placeholders, validates
-the output, and writes the final HTML file. Resolve the script and
-template paths relative to the triage workflow directory — the `--analyzed`,
-`--ai-input`, and `--output` paths are relative to the project root (CWD).
+Then run the rendering script (`triage/scripts/render_report.py`). The
+script replaces all template placeholders, validates the output, and
+writes the final HTML file.
+
+Resolve `{AI_WORKFLOWS_ROOT}` as the git root of the ai-workflows
+install (see `_shared/recipes/capture-provenance-event.md` for the
+canonical resolution instructions). The `--analyzed`, `--ai-input`, and
+`--output` paths are relative to the project root (CWD).
 
 ```bash
-python3 {triage_workflow_dir}/scripts/render_report.py \
+python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/render_report.py" \
   --analyzed .artifacts/triage/{PROJECT}/analyzed.json \
-  --template {triage_workflow_dir}/templates/report.html \
+  --template "{AI_WORKFLOWS_ROOT}/triage/templates/report.html" \
   --jira-url {JIRA_BASE_URL} \
   --ai-input .artifacts/triage/{PROJECT}/ai-synthesis.json \
   --output .artifacts/triage/{PROJECT}/report.html
 ```
-
-Where `{triage_workflow_dir}` is the triage workflow's installed location
-(e.g., resolve the `triage` symlink under the workflows install directory).
 
 If the script exits with a non-zero code, report the error to the user:
 - Exit 1: a required input file is missing or contains invalid JSON
