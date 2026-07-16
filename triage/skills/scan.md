@@ -34,8 +34,8 @@ Check that `JIRA_URL` and `JIRA_TOKEN` environment variables are set (do not pri
 
 Run the scan script to fetch and normalize all bugs. Resolve
 `{AI_WORKFLOWS_ROOT}` by running `git rev-parse --show-toplevel` from
-any file in the workflow directory. The `--output-dir` path is relative
-to the project root (CWD).
+within the ai-workflows checkout (e.g., this skill file's directory).
+The `--output-dir` path is relative to the project root (CWD).
 
 ```bash
 python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/scan.py" {PROJECT} --output-dir .artifacts/triage/{PROJECT}
