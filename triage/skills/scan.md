@@ -67,10 +67,6 @@ Read the script's stdout for the scan summary (issue counts by priority and stat
 
 Display the summary from Step 4 to the user.
 
-### Step 6: Edge Case — Zero Unresolved Issues
-
-If the summary shows zero unresolved bugs, the workflow is done — there is nothing to triage. Suggest verifying the project key or issue type filter. The `resolved.json` file may still contain data.
-
 ## Output
 
 - Scan summary displayed to the user
