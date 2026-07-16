@@ -17,8 +17,12 @@ graph TD
 
 ## Prerequisites
 
-- **Jira MCP server** — the `user-mcp-jira` MCP server must be configured and authenticated
 - **Jira access** — the authenticated user must have read access to the target project
+- **Jira MCP server** — the `user-mcp-jira` MCP server must be configured and authenticated (used by `/start` and `/assess`)
+- **Environment variables for `/scan` (and `/run`, which includes scan)** — the scan phase calls the Jira REST API directly via `scripts/scan.py` instead of MCP:
+  - `JIRA_URL` — Jira instance base URL (e.g., `https://redhat.atlassian.net`)
+  - `JIRA_TOKEN` — API token or Personal Access Token
+  - `JIRA_EMAIL` — (optional) account email; set this when using an API token (Basic auth); omit for PATs (Bearer auth)
 
 ## Phases
 

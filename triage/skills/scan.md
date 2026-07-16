@@ -9,164 +9,68 @@ You are fetching **every unresolved bug** and **recently resolved bugs** (for re
 
 ## Allowed Tools
 
-- **Jira MCP (read-only):** `jira_search` — fetch issues via JQL
-- **Local:** write `issues.json` and `resolved.json` artifacts
-- **Prohibited:** all Jira write tools (create, update, delete, comment, transition)
+- **Shell:** run `triage/scripts/scan.py` to fetch, normalize, and write artifacts
+- **Local:** read script output (stdout, stderr, exit code)
+- **Prohibited:** all Jira MCP tools — the script calls the Jira REST API directly
 
 ## Prerequisites
 
 Before scanning, ensure you have:
 
 - **Project key** (required) — from `/start` or the user's message
+- **`JIRA_URL`** (required) — Jira instance base URL (e.g., `https://redhat.atlassian.net`)
+- **`JIRA_TOKEN`** (required) — API token or Personal Access Token
+- **`JIRA_EMAIL`** (optional) — account email; required when using an API token (Basic auth), omit for PATs (Bearer auth)
 
-If the project key is missing, ask the user before proceeding.
+If the project key is missing, ask the user before proceeding. If the environment variables are not set, tell the user which ones to set and stop.
 
 ## Process
 
-### Step 1: Fetch Unresolved Bugs (JQL with Key-Based Cursor Pagination)
+### Step 1: Verify Environment
 
-Use the `jira_search` MCP tool (server: `user-mcp-jira`) to fetch all unresolved bugs. The tool returns a maximum of 50 results per call, so you must paginate.
+Confirm that `JIRA_URL` and `JIRA_TOKEN` environment variables are set. If either is missing, tell the user what to set and stop.
 
-**Important:** The `start_at` parameter of the MCP tool is non-functional (the response always returns `total: -1` and ignores `start_at`). Use **JQL key-based cursor pagination** instead: sort by `key ASC` and add `AND key > '{LAST_KEY}'` to advance through pages.
+### Step 2: Run the Scan Script
 
-**First call** — fetches the first 50 issues sorted by key:
+Run the scan script to fetch and normalize all bugs. Resolve
+`{AI_WORKFLOWS_ROOT}` as the git root of the ai-workflows install
+(run `git rev-parse --show-toplevel` from any file in the workflow
+directory, or use `~/.ai-workflows` when symlinked). The `--output-dir`
+path is relative to the project root (CWD).
 
-```json
-{
-  "jql": "project = EDM AND issuetype = Bug AND resolution = Unresolved ORDER BY key ASC",
-  "fields": "summary,status,priority,assignee,reporter,created,updated,labels,components,description",
-  "limit": 50
-}
+```bash
+python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/scan.py" {PROJECT} --output-dir .artifacts/triage/{PROJECT}
 ```
 
-**Pagination loop:**
+The script handles pagination, normalization, and file output. It writes:
 
-```text
-last_key = ""
-all_issues = []
+- `.artifacts/triage/{PROJECT}/issues.json` — all unresolved bugs
+- `.artifacts/triage/{PROJECT}/resolved.json` — bugs resolved in the last 90 days
 
-loop:
-  1. Build JQL:
-     - First call: "project = {PROJECT} AND issuetype = Bug AND resolution = Unresolved ORDER BY key ASC"
-     - Subsequent calls: "project = {PROJECT} AND issuetype = Bug AND resolution = Unresolved AND key > '{last_key}' ORDER BY key ASC"
-  2. Call jira_search with the JQL and limit=50
-  3. Let page_issues = the returned issues array
-  4. If page_issues is empty → stop (all issues fetched)
-  5. Append page_issues to all_issues
-  6. last_key = the key of the last issue in page_issues
-  7. If len(page_issues) < 50 → stop (final partial page)
-  8. Go to step 1
+To change the resolved-bug lookback window (default 90 days):
+
+```bash
+python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/scan.py" {PROJECT} --window-days 30 --output-dir .artifacts/triage/{PROJECT}
 ```
 
-Important:
-- Always set `ORDER BY key ASC` — this gives a deterministic sort for cursor pagination.
-- Never use `start_at` for pagination — it is ignored by the MCP tool.
-- Stop when a page returns fewer than 50 issues (final page) or zero issues.
-- Deduplicate by key as a safety net before saving.
+### Step 3: Handle Errors
 
-### Step 2: Fetch Recently Resolved Bugs (Regression Context)
+If the script exits with code 1, report the error from stderr to the user:
 
-After the unresolved scan completes, fetch **bugs resolved in the last 90 days** using the same key-based cursor pagination pattern.
+- Missing environment variables → tell the user which variable to set
+- Jira API errors → report the HTTP status and suggest checking the token or project key
 
-**JQL (first call):**
+### Step 4: Read the Summary
 
-```text
-project = {PROJECT} AND issuetype = Bug AND resolution != Unresolved AND resolved >= -90d ORDER BY key ASC
-```
+Read the script's stdout for the scan summary (issue counts by priority and status, artifact file paths).
 
-**Pagination:** Same loop as Step 1, but substitute the unresolved JQL with the resolved JQL above, and use `AND key > '{last_key}'` on subsequent pages.
+### Step 5: Present Results
 
-**Fields:** Include at minimum: `summary,status,priority,assignee,reporter,created,updated,labels,components,description,resolution`. Request resolution date if your Jira API exposes it (e.g. `resolutiondate` or equivalent) so `/analyze` can match fix timing.
+Display the summary from Step 4 to the user.
 
-If the resolved query returns **zero** issues (quiet project), still write `resolved.json` with an empty `issues` array — `/analyze` must be able to read the file.
+### Step 6: Edge Case — Zero Unresolved Issues
 
-### Step 3: Normalize Issue Data
-
-For each **unresolved** issue, extract and normalize:
-
-- `key` — Jira issue key (e.g. `EDM-1234`)
-- `summary` — issue title
-- `status` — current status name
-- `priority` — priority name (Critical, High, Medium, Low, etc.)
-- `assignee` — display name or "Unassigned"
-- `reporter` — display name
-- `created` — creation date (ISO 8601)
-- `updated` — last update date (ISO 8601)
-- `labels` — array of labels
-- `components` — array of component names
-- `description` — full description text (may be long; preserve it for analysis)
-
-For each **resolved** issue, normalize the same fields plus when available:
-
-- `resolution` — resolution name (e.g. Fixed, Done)
-- `resolved` — resolution date (ISO 8601), if available from the API response
-
-### Step 4: Extract Jira Base URL
-
-Inspect the `jira_search` response for a `self` URL or similar field that contains the Jira instance domain (e.g. `https://mycompany.atlassian.net`). Save this so the `/report` phase can link issue keys without making additional Jira calls.
-
-### Step 5: Save Raw Data
-
-Write the normalized issues to the artifact file:
-
-```
-.artifacts/triage/{PROJECT}/issues.json
-```
-
-Format as a JSON object:
-
-```json
-{
-  "project": "EDM",
-  "jiraBaseUrl": "https://mycompany.atlassian.net",
-  "scannedAt": "2026-03-19T12:00:00Z",
-  "totalCount": 87,
-  "issues": [ ... ]
-}
-```
-
-Write the resolved-bug dataset to:
-
-```
-.artifacts/triage/{PROJECT}/resolved.json
-```
-
-Format:
-
-```json
-{
-  "project": "EDM",
-  "jiraBaseUrl": "https://mycompany.atlassian.net",
-  "scannedAt": "2026-03-19T12:05:00Z",
-  "windowDays": 90,
-  "totalCount": 42,
-  "issues": [ ... ]
-}
-```
-
-Use the same `jiraBaseUrl` and a `scannedAt` timestamp when you finish the resolved pass. `windowDays` should be `90` when using the default `-90d` JQL window.
-
-### Step 6: Present Summary
-
-Display a summary of the scan results:
-
-```text
-Scan complete: 87 unresolved bugs in EDM
-Resolved (last 90 days): 42 bugs — saved for regression context
-
-By priority:
-  Critical:  3
-  High:     12
-  ...
-
-By status:
-  Open:        52
-  ...
-
-Data saved to:
-  .artifacts/triage/EDM/issues.json
-  .artifacts/triage/EDM/resolved.json
-```
+If the summary shows zero unresolved bugs, the workflow is done — there is nothing to triage. Suggest verifying the project key or issue type filter. The `resolved.json` file may still contain data.
 
 ## Output
 
