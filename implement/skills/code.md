@@ -187,9 +187,46 @@ Write the production code that makes the tests from 3b pass:
 3. If the task involves modifying generated code (e.g., OpenAPI specs),
    modify the source specification and run the generation command
 4. Keep changes focused on what the task describes
-5. Code comments describe what the code does and why — not the process
-   of arriving there. Do not reference abandoned approaches or prior
-   states that no longer exist
+5. **Comments must earn their place.** Default to writing no comments
+   unless the project's lint or style conventions require doc comments
+   on exported symbols — in that case write the minimal comment that
+   satisfies the convention without restating the signature. Add a
+   comment only when the *why* is non-obvious — a hidden constraint,
+   a subtle invariant, a workaround for a specific bug, behavior that
+   would surprise a reader. If removing the comment wouldn't confuse a
+   future reader, don't write it. A function named `createUser` that
+   returns a `User` does not need a doc comment restating that; a
+   3-line helper whose body is a single assignment does not need a
+   comment explaining the assignment.
+
+   **Journey narration anti-patterns** — never include these:
+   - Referencing a prior architecture ("extracted from the monolithic X",
+     "moved from the old Y")
+   - Citing design documents, section numbers, or ticket IDs
+     ("per §4.1 of the design", "as specified in EDM-1234")
+   - Embedding verification notes ("verified by inspection of X",
+     "confirmed to match the design's table")
+   - Counting or enumerating methods/fields as proof of completeness
+     ("covers the 12 methods defined in the old X")
+   - Explaining why something is *here* rather than *there* in terms
+     of a refactoring that produced the current layout
+
+   **Coupling anti-patterns** — never include these:
+   - Cross-referencing private/internal functions from public doc
+     comments ("see applyOverridesOnTop"). Public API docs must stand
+     alone; they must not send the reader into implementation internals
+   - Documenting who calls a function or consumes an event ("used by
+     the lifecycle APIs", "consumed by the fan-out task"). Callers
+     change; the comment rots. Document the contract, not the call graph
+   - Repeating the same explanation at every call site. If multiple
+     functions share the same mechanism (e.g., version-based arbitration),
+     document it once on the mechanism and reference it briefly — do not
+     paste the full explanation into every caller's doc comment
+
+   A reader who never saw the prior code or the design document must
+   find every comment useful. A comment that merely restates the
+   function signature, narrates the development history, or couples
+   documentation to the current call graph is a defect, not documentation.
 
 #### 3d: Run Tests
 
