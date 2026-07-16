@@ -152,7 +152,7 @@ script replaces all template placeholders, validates the output, and
 writes the final HTML file.
 
 Resolve `{AI_WORKFLOWS_ROOT}` as the git root of the ai-workflows
-install (see `_shared/recipes/capture-provenance-event.md` for the
+install (see `../../_shared/recipes/capture-provenance-event.md` for the
 canonical resolution instructions). The `--analyzed`, `--ai-input`, and
 `--output` paths are relative to the project root (CWD).
 
@@ -160,7 +160,7 @@ canonical resolution instructions). The `--analyzed`, `--ai-input`, and
 python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/render_report.py" \
   --analyzed .artifacts/triage/{PROJECT}/analyzed.json \
   --template "{AI_WORKFLOWS_ROOT}/triage/templates/report.html" \
-  --jira-url {JIRA_BASE_URL} \
+  --jira-url "{JIRA_BASE_URL}" \
   --ai-input .artifacts/triage/{PROJECT}/ai-synthesis.json \
   --output .artifacts/triage/{PROJECT}/report.html
 ```
