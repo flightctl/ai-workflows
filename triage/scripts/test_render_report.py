@@ -244,7 +244,7 @@ class TestRender(unittest.TestCase):
             ai_input=SAMPLE_AI_INPUT,
             jira_url="https://issues.redhat.com",
         )
-        html = render_report.render(MINIMAL_TEMPLATE, replacements)
+        html, _ = render_report.render(MINIMAL_TEMPLATE, replacements)
 
         for name in render_report.ALL_PLACEHOLDERS:
             self.assertNotIn(
@@ -259,7 +259,7 @@ class TestRender(unittest.TestCase):
             ai_input=SAMPLE_AI_INPUT,
             jira_url="https://issues.redhat.com",
         )
-        html = render_report.render(MINIMAL_TEMPLATE, replacements)
+        html, _ = render_report.render(MINIMAL_TEMPLATE, replacements)
 
         self.assertIn("EDM", html)
         self.assertIn("issues.redhat.com", html)
@@ -273,7 +273,7 @@ class TestRender(unittest.TestCase):
         replacements = {"PROJECT_KEY": "VALUE_WITH_{ISSUES_JSON}_INSIDE"}
         # Only PROJECT_KEY is in the mapping; ISSUES_JSON should not
         # cause a KeyError or secondary replacement.
-        html = render_report.render(template, replacements)
+        html, _ = render_report.render(template, replacements)
         self.assertIn("VALUE_WITH_{ISSUES_JSON}_INSIDE", html)
 
     def test_javascript_braces_untouched(self) -> None:
@@ -284,39 +284,50 @@ class TestRender(unittest.TestCase):
             ai_input=SAMPLE_AI_INPUT,
             jira_url="https://x.com",
         )
-        html = render_report.render(template, replacements)
+        html, _ = render_report.render(template, replacements)
         self.assertIn("var x = {};", html)
 
     def test_missing_key_leaves_placeholder(self) -> None:
-        """A placeholder with no matching key is left intact, not KeyError."""
+        """A placeholder with no matching key is left intact and reported."""
         template = "{PROJECT_KEY} and {ISSUES_JSON}"
-        html = render_report.render(template, {"PROJECT_KEY": "EDM"})
+        html, missing = render_report.render(template, {"PROJECT_KEY": "EDM"})
         self.assertIn("EDM", html)
         self.assertIn("{ISSUES_JSON}", html)
+        self.assertEqual(missing, ["ISSUES_JSON"])
 
 
-class TestValidateNoUnreplaced(unittest.TestCase):
-    def test_clean_output(self) -> None:
-        self.assertEqual(render_report.validate_no_unreplaced("<p>hello</p>"), [])
+class TestRenderMissingDetection(unittest.TestCase):
+    """Verify that render() reports missing placeholders without being
+    fooled by placeholder-shaped text in replacement values."""
 
-    def test_detects_remaining_placeholder(self) -> None:
-        result = render_report.validate_no_unreplaced("<p>{PROJECT_KEY}</p>")
-        self.assertEqual(result, ["PROJECT_KEY"])
-
-    def test_ignores_javascript_braces(self) -> None:
-        self.assertEqual(render_report.validate_no_unreplaced("var x = {};"), [])
-
-    def test_ignores_unknown_brace_patterns(self) -> None:
-        self.assertEqual(
-            render_report.validate_no_unreplaced("var counts = {};"),
-            [],
+    def test_all_present_returns_empty_missing(self) -> None:
+        replacements = render_report.build_replacements(
+            analyzed=SAMPLE_ANALYZED,
+            ai_input=SAMPLE_AI_INPUT,
+            jira_url="https://x.com",
         )
+        _, missing = render_report.render(MINIMAL_TEMPLATE, replacements)
+        self.assertEqual(missing, [])
 
-    def test_catches_leftover_placeholder(self) -> None:
-        """Verify detection of a known placeholder still present in output."""
-        html_with_leftover = "<p>Done</p>{PROJECT_KEY}"
-        remaining = render_report.validate_no_unreplaced(html_with_leftover)
-        self.assertEqual(remaining, ["PROJECT_KEY"])
+    def test_detects_missing_placeholder(self) -> None:
+        _, missing = render_report.render("{PROJECT_KEY}", {})
+        self.assertEqual(missing, ["PROJECT_KEY"])
+
+    def test_javascript_braces_not_flagged(self) -> None:
+        _, missing = render_report.render("var x = {};", {})
+        self.assertEqual(missing, [])
+
+    def test_placeholder_in_data_not_flagged(self) -> None:
+        """Issue data containing {PROJECT_KEY} must not trigger a false
+        positive — validation happens on the template, not the output."""
+        issues = [{"key": "X-1", "summary": "Bug about {PROJECT_KEY}"}]
+        replacements = render_report.build_replacements(
+            analyzed={"issues": issues, "clusters": [], "keyRecommendations": []},
+            ai_input=SAMPLE_AI_INPUT,
+            jira_url="https://x.com",
+        )
+        _, missing = render_report.render(MINIMAL_TEMPLATE, replacements)
+        self.assertEqual(missing, [])
 
 
 # ---------------------------------------------------------------------------

@@ -15,7 +15,7 @@ the script to produce the final HTML.
 ## Allowed Tools
 
 - **Jira MCP:** none — this phase works entirely from local artifact data
-- **Local:** read `analyzed.json`, write `ai-synthesis.json`, run `render_report.py`, read script output
+- **Local:** read `analyzed.json`, read `issues.json` (for Jira base URL), write `ai-synthesis.json`, run `render_report.py`, read script output
 - **Prohibited:** all Jira tools (no MCP calls in this phase)
 
 ## Prerequisites
@@ -34,7 +34,7 @@ Read the analyzed issues from `.artifacts/triage/{PROJECT}/analyzed.json`.
 
 The report links each issue key to its Jira page. To build these links, you need the Jira instance base URL (e.g. `https://mycompany.atlassian.net`).
 
-The base URL should already be known from the `/scan` phase (extracted from `self` links in the `jira_search` response). Check if it was saved in `issues.json`. If not available, ask the user for their Jira instance URL. Do **not** call any Jira MCP tools in this phase.
+The base URL should already be known from the `/scan` phase (extracted from `self` links in the `jira_search` response). Check if it was saved in `.artifacts/triage/{PROJECT}/issues.json` (the `jiraBaseUrl` field written by `/scan`). If not available, ask the user for their Jira instance URL. Do **not** call any Jira MCP tools in this phase.
 
 ### Step 2: Synthesize Executive Summary & Release Risk Assessment
 

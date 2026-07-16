@@ -161,28 +161,30 @@ def build_replacements(
     }
 
 
-def render(template: str, replacements: dict[str, str]) -> str:
-    """Replace all placeholder tokens in the template.
+def render(template: str, replacements: dict[str, str]) -> tuple[str, list[str]]:
+    """Replace placeholder tokens in the template, returning the result
+    and any placeholders that had no corresponding replacement value.
 
     Uses a single regex pass to replace all known placeholders at once,
     avoiding accidental double-replacement when a replacement value
     happens to contain a placeholder-shaped string.
 
-    Placeholders missing from *replacements* are left in place so that
-    ``validate_no_unreplaced`` can report them cleanly, rather than
-    raising an unhandled ``KeyError``.
+    Missing placeholders are tracked during rendering rather than by
+    scanning the final output, so replacement values that happen to
+    contain placeholder-shaped text (e.g., a Jira summary containing
+    ``{PROJECT_KEY}``) are never flagged as unreplaced.
     """
+    missing: list[str] = []
 
     def _sub(match: re.Match) -> str:
         name = match.group(1)
-        return replacements.get(name, match.group(0))
+        if name in replacements:
+            return replacements[name]
+        missing.append(name)
+        return match.group(0)
 
-    return _PLACEHOLDER_RE.sub(_sub, template)
-
-
-def validate_no_unreplaced(html: str) -> list[str]:
-    """Return a list of any known placeholder tokens still present."""
-    return _PLACEHOLDER_RE.findall(html)
+    html = _PLACEHOLDER_RE.sub(_sub, template)
+    return html, missing
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -246,13 +248,12 @@ def main(argv: list[str] | None = None) -> int:
         project_key=args.project_key,
     )
 
-    html = render(template, replacements)
+    html, missing = render(template, replacements)
 
-    remaining = validate_no_unreplaced(html)
-    if remaining:
+    if missing:
         print(
-            f"Error: {len(remaining)} unreplaced placeholder(s): "
-            f"{', '.join(sorted(set(remaining)))}",
+            f"Error: {len(missing)} unreplaced placeholder(s): "
+            f"{', '.join(sorted(set(missing)))}",
             file=sys.stderr,
         )
         return 2
