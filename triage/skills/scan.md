@@ -28,15 +28,14 @@ If the project key is missing, ask the user before proceeding. If the environmen
 
 ### Step 1: Verify Environment
 
-Confirm that `JIRA_URL` and `JIRA_TOKEN` environment variables are set. If either is missing, tell the user what to set and stop.
+Check that `JIRA_URL` and `JIRA_TOKEN` environment variables are set (do not print or echo their values). If either is missing, tell the user which variable to set and stop.
 
 ### Step 2: Run the Scan Script
 
 Run the scan script to fetch and normalize all bugs. Resolve
-`{AI_WORKFLOWS_ROOT}` as the git root of the ai-workflows install
-(run `git rev-parse --show-toplevel` from any file in the workflow
-directory, or use `~/.ai-workflows` when symlinked). The `--output-dir`
-path is relative to the project root (CWD).
+`{AI_WORKFLOWS_ROOT}` by running `git rev-parse --show-toplevel` from
+any file in the workflow directory. The `--output-dir` path is relative
+to the project root (CWD).
 
 ```bash
 python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/scan.py" {PROJECT} --output-dir .artifacts/triage/{PROJECT}
@@ -55,10 +54,10 @@ python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/scan.py" {PROJECT} --window-days 30 
 
 ### Step 3: Handle Errors
 
-If the script exits with code 1, report the error from stderr to the user:
+If the script exits with a non-zero code, report the error from stderr to the user:
 
-- Missing environment variables → tell the user which variable to set
-- Jira API errors → report the HTTP status and suggest checking the token or project key
+- Exit 1 — missing environment variables, invalid project key, or Jira API errors
+- Exit 2 — invalid command-line arguments (e.g., missing project key)
 
 ### Step 4: Read the Summary
 

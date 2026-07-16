@@ -16,6 +16,7 @@ Environment:
 Exit codes:
     0 — scan completed successfully
     1 — missing input or configuration error
+    2 — invalid arguments (from argparse)
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ import argparse
 import base64
 import json
 import os
+import re
 import ssl
 import sys
 import time
@@ -40,6 +42,7 @@ from typing import Any
 PAGE_SIZE = 50
 MAX_RETRIES = 3
 RETRY_BACKOFF_BASE = 2
+HTTP_TIMEOUT = 30
 
 UNRESOLVED_FIELDS = (
     "summary,status,priority,assignee,reporter,"
@@ -102,7 +105,7 @@ def _http_get(url: str, headers: dict[str, str]) -> bytes:
     for attempt in range(MAX_RETRIES + 1):
         req = urllib.request.Request(url, headers=headers)
         try:
-            with urllib.request.urlopen(req, context=ctx) as resp:
+            with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT, context=ctx) as resp:
                 return resp.read()
         except urllib.error.HTTPError as exc:
             body = _read_error_body(exc)
@@ -122,6 +125,27 @@ def _http_get(url: str, headers: dict[str, str]) -> bytes:
     # defensive: every loop iteration returns or raises, but this
     # satisfies the type checker and guards against future refactors
     raise ScanError(f"Retries exhausted after {MAX_RETRIES + 1} attempts")
+
+
+_PROJECT_KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]+$")
+
+
+def validate_project_key(key: str) -> None:
+    """Reject values that don't match Jira's project key grammar."""
+    if not _PROJECT_KEY_RE.match(key):
+        raise ScanError(
+            f"Invalid project key {key!r} — must be uppercase letters, "
+            f"digits, and underscores (e.g., EDM, FLIGHTCTL)"
+        )
+
+
+def validate_jira_url(url: str) -> None:
+    """Reject URLs that would send credentials over cleartext or to unexpected destinations."""
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme != "https":
+        raise ScanError(f"JIRA_URL must use https (got {parsed.scheme!r})")
+    if not parsed.hostname:
+        raise ScanError("JIRA_URL has no hostname")
 
 
 def build_auth_header(token: str, email: str | None = None) -> str:
@@ -156,7 +180,10 @@ def jira_search(
         "Accept": "application/json",
     }
     raw = _http_get(url, headers)
-    return json.loads(raw.decode("utf-8"))
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ScanError("Jira returned an invalid JSON response") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -189,7 +216,12 @@ def fetch_all_issues(
             break
 
         all_issues.extend(page)
-        last_key = page[-1]["key"]
+        new_key = page[-1]["key"]
+        if new_key == last_key:
+            raise ScanError(
+                f"Pagination cursor did not advance (stuck at {last_key})"
+            )
+        last_key = new_key
 
         if len(page) < PAGE_SIZE:
             break
@@ -371,6 +403,13 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if not jira_token:
         print("Error: JIRA_TOKEN environment variable is not set", file=sys.stderr)
+        return 1
+
+    try:
+        validate_project_key(project)
+        validate_jira_url(jira_url)
+    except ScanError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
         return 1
 
     auth_header = build_auth_header(jira_token, jira_email)

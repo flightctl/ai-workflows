@@ -560,6 +560,16 @@ class TestFetchAllIssues(unittest.TestCase):
         keys = [r["key"] for r in result]
         self.assertEqual(keys, ["EDM-1", "EDM-2"])
 
+    def test_non_advancing_cursor_raises(self) -> None:
+        stuck_page = [_raw_issue(f"EDM-{i}") for i in range(1, scan.PAGE_SIZE + 1)]
+
+        def stuck_search(jql: str, fields: str, max_results: int = scan.PAGE_SIZE) -> dict:
+            return _search_response(stuck_page)
+
+        with self.assertRaises(scan.ScanError) as ctx:
+            scan.fetch_all_issues(stuck_search, "project = EDM", "summary")
+        self.assertIn("did not advance", str(ctx.exception))
+
 
 # ---------------------------------------------------------------------------
 # main — integration tests
@@ -604,8 +614,9 @@ class TestMain(unittest.TestCase):
         if extra_args:
             argv.extend(extra_args)
 
+        effective_env = self._ENV if env is None else env
         with (
-            patch.dict(os.environ, env or self._ENV, clear=False),
+            patch.dict(os.environ, effective_env, clear=True),
             patch.object(scan, "jira_search", fake_jira_search),
         ):
             return scan.main(argv)
@@ -753,6 +764,56 @@ class TestExceptions(unittest.TestCase):
 
     def test_scan_error_is_base(self) -> None:
         self.assertTrue(issubclass(scan.JiraAPIError, scan.ScanError))
+
+
+# ---------------------------------------------------------------------------
+# validate_project_key — pure function tests
+# ---------------------------------------------------------------------------
+
+class TestValidateProjectKey(unittest.TestCase):
+
+    def test_valid_keys(self) -> None:
+        for key in ("EDM", "FLIGHTCTL", "MY_PROJ", "A1"):
+            scan.validate_project_key(key)
+
+    def test_lowercase_rejected(self) -> None:
+        with self.assertRaises(scan.ScanError):
+            scan.validate_project_key("edm")
+
+    def test_empty_rejected(self) -> None:
+        with self.assertRaises(scan.ScanError):
+            scan.validate_project_key("")
+
+    def test_injection_rejected(self) -> None:
+        with self.assertRaises(scan.ScanError):
+            scan.validate_project_key("EDM' OR 1=1 --")
+
+    def test_path_traversal_rejected(self) -> None:
+        with self.assertRaises(scan.ScanError):
+            scan.validate_project_key("../../etc")
+
+
+# ---------------------------------------------------------------------------
+# validate_jira_url — pure function tests
+# ---------------------------------------------------------------------------
+
+class TestValidateJiraUrl(unittest.TestCase):
+
+    def test_valid_https_url(self) -> None:
+        scan.validate_jira_url("https://redhat.atlassian.net")
+
+    def test_http_rejected(self) -> None:
+        with self.assertRaises(scan.ScanError) as ctx:
+            scan.validate_jira_url("http://jira.example.com")
+        self.assertIn("https", str(ctx.exception))
+
+    def test_no_scheme_rejected(self) -> None:
+        with self.assertRaises(scan.ScanError):
+            scan.validate_jira_url("jira.example.com")
+
+    def test_file_scheme_rejected(self) -> None:
+        with self.assertRaises(scan.ScanError):
+            scan.validate_jira_url("file:///etc/passwd")
 
 
 # ---------------------------------------------------------------------------
