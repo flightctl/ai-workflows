@@ -1,6 +1,6 @@
 ---
 name: review-protocol
-version: 0.1.0
+version: 0.2.0
 ---
 # Code Review Protocol
 
@@ -59,7 +59,19 @@ Evaluate changes against these categories, prioritized by impact:
 5. **Performance** — Are there unnecessary allocations, N+1 queries, unbounded
    operations, or other efficiency concerns?
 6. **Naming and clarity** — Are names descriptive? Is the intent clear from
-   reading the code?
+   reading the code? Flag comments with these defects:
+   - **Restates the signature.** A doc comment that only says what the
+     function name and parameter types already say adds nothing.
+   - **Narrates the journey.** References prior architectures, design-doc
+     sections, refactoring provenance, or verification steps.
+   - **Couples to callers.** Documents who calls a function or consumes
+     an event — callers change; the comment rots.
+   - **Cross-references internals from public docs.** A public doc
+     comment that says "see privateHelper" sends the reader into
+     implementation details the public API should abstract away.
+   - **Repeats across call sites.** The same multi-sentence explanation
+     copy-pasted into every function that uses a shared mechanism.
+   Comments that exhibit any of these are defects, not documentation.
 7. **Test coverage** — Are the changes tested? Are edge cases covered? Are
    tests testing contracts, not implementation?
 8. **Project conventions** — Do the changes follow the conventions discovered

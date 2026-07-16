@@ -10,7 +10,16 @@
 - Each completed story must leave the system in a **stable state**. All tests pass, linter is clean, no regressions.
 - The implementation plan is a **living document**. Update `02-plan.md` as tasks are completed so it reflects current progress.
 - **Discover, don't assume.** The project's build commands, test commands, lint commands, coverage tooling, and commit format are discovered during `/ingest` and recorded in the validation profile. Never hardcode language-specific or project-specific assumptions.
-- **Shipped artifacts describe the final state, not the journey.** Code comments, commit messages, PR descriptions, and test names describe what the code does now — not the process of getting there. Do not reference abandoned approaches, intermediate bugs introduced and fixed during the same session, or prior states that no longer exist. Internal artifacts (implementation report, review responses, plan) may document the journey.
+- **Comments must earn their place — and describe the final state, not the journey.** Default to no comments unless the project's conventions require doc comments on exported symbols. Add a comment only when the *why* is non-obvious. Do not:
+  - Restate what the function signature already says
+  - Reference abandoned approaches or prior states
+  - Cite design-document sections or ticket IDs
+  - Embed verification notes ("confirmed by inspection", "matches the design's table")
+  - Document callers or consumers ("used by X", "consumed by Y")
+  - Cross-reference private functions from public doc comments
+  - Repeat the same explanation at every call site of a shared mechanism
+
+  Code comments, commit messages, PR descriptions, and test names describe what the code does now. A reader who has never seen the design document or the prior codebase must find every comment useful. Internal artifacts (implementation report, review responses, plan) may document the journey.
 
 ## Hard Limits
 
