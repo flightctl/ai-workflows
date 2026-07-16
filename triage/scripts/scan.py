@@ -146,6 +146,10 @@ def validate_jira_url(url: str) -> None:
         raise ScanError(f"JIRA_URL must use https (got {parsed.scheme!r})")
     if not parsed.hostname:
         raise ScanError("JIRA_URL has no hostname")
+    if parsed.username or parsed.password:
+        raise ScanError("JIRA_URL must not contain credentials")
+    if parsed.fragment:
+        raise ScanError("JIRA_URL must not contain a fragment")
 
 
 def build_auth_header(token: str, email: str | None = None) -> str:

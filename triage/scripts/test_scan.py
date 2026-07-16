@@ -815,6 +815,16 @@ class TestValidateJiraUrl(unittest.TestCase):
         with self.assertRaises(scan.ScanError):
             scan.validate_jira_url("file:///etc/passwd")
 
+    def test_userinfo_rejected(self) -> None:
+        with self.assertRaises(scan.ScanError) as ctx:
+            scan.validate_jira_url("https://user:pass@jira.example.com")
+        self.assertIn("credentials", str(ctx.exception))
+
+    def test_fragment_rejected(self) -> None:
+        with self.assertRaises(scan.ScanError) as ctx:
+            scan.validate_jira_url("https://jira.example.com#section")
+        self.assertIn("fragment", str(ctx.exception))
+
 
 # ---------------------------------------------------------------------------
 # _retry_delay — pure function tests
