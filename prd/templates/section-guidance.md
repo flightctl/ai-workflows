@@ -98,6 +98,7 @@ This file is read during the `/draft` phase. It is not included in the final out
 ## 7. Risks
 
 - Each risk gets its own numbered subsection (7.1, 7.2, ...) with **Owner** and **Mitigation** fields.
+- **Owner** is the person or team responsible for mitigating the risk — derive from the source material; do not default to the document's Author(s). If not evident, write "To be determined."
 - Risks describe what could go wrong and the mitigation strategy, if known. If no mitigation is known yet, write "To be determined."
 - Risks are permanent — they stay in the document even after the PRD is approved, unless the risk no longer applies.
 - **Product scope only.** Process-level risks (e.g., "schedule might slip") belong in project management tools, not the PRD.
@@ -105,7 +106,7 @@ This file is read during the `/draft` phase. It is not included in the final out
 
 ## 8. Open Questions
 
-- Each open question gets its own numbered subsection with **Owner** (person or team who should answer) and **Impact** (which section or decision the answer affects).
+- Each open question gets its own numbered subsection with **Owner** (person or team who should answer) and **Impact** (which section or decision the answer affects). Derive the Owner from the source material — do not default to the document's Author(s).
 - **Frame as clear, answerable questions.** Write "Should tenants be able to configure scan sources, or is this fixed at install time?" not "To be determined — how much tenants configure versus fixed at install." The reader should know exactly what they're being asked.
 - Open questions are things that could not be resolved during the clarify phase and need broader stakeholder input via PR review.
 - Questions resolved during clarification should **not** appear here — they are already incorporated into the PRD body via locked decisions.

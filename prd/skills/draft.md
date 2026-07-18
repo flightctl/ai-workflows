@@ -95,9 +95,17 @@ and task breakdowns can reference specific requirements by ID rather
 than by description.
 
 Fill in the metadata table:
-- **Author(s):** The feature owner (ask if not known).
+- **Author(s):** The human who owns or requested this feature — never
+  the AI assistant. If not stated in the source material, do not
+  proceed — ask the user and wait for an answer before continuing.
 - **Jira:** Link to the source Feature issue (e.g., `https://redhat.atlassian.net/browse/EDM-1471`)
 - **Date:** Today's date
+
+**Owner fields (Risks, Open Questions):** When populating Owner fields,
+derive the owner from the source material (e.g., the responsible team
+evident from the Jira ticket or requirement context). If the owner is
+not evident, write "To be determined" — do not default to the document's
+Author(s). Step 6 will prompt the user to resolve any missing owners.
 
 ### Step 5: Verify Coverage
 
