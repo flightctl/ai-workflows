@@ -11,6 +11,7 @@ Systematic bug resolution through these phases:
 7. **Document** (`/document`) — Release notes and documentation
 8. **PR** (`/pr`) — Submit a pull request
 9. **Feedback** (`/feedback`) — Address PR review comments
+10. **Feedback submit** (`/feedback-submit`) — Commit, push, and post replies on an existing PR
 
 The workflow controller lives at `skills/controller.md` (interactive) or
 `skills/unattended.md` (unattended).

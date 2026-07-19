@@ -65,6 +65,7 @@ _shared/
     record-manual-edit.md         # Tier 3 manual-edit attribution (wraps capture recipe)
     render-provenance-footer.md   # Render durable footer into docs-repo markdown before commit
     self-review-gate.md           # Pre-PR self-review quality gate (used by bugfix, implement, e2e, cve-fix)
+    validation-gate.md            # Pre-commit build/test/lint discovery gate (used by bugfix)
 ```
 
 Recipes are self-contained, parameterized procedures that workflows reference via relative path (e.g., `../../_shared/recipes/self-review-gate.md` from `skills/`). The **prd** and **design** workflows use the provenance recipes on `/draft`, `/revise`, `/respond` (capture) and `/publish` plus docs-sync paths (render). See `_shared/provenance-schema.md` for the published footer format.
@@ -148,7 +149,8 @@ ai-workflows/
 │       ├── phase-override-resolution.md  # Project-level phase override lookup
 │       ├── record-manual-edit.md
 │       ├── render-provenance-footer.md
-│       └── self-review-gate.md  # Pre-PR self-review quality gate
+│       ├── self-review-gate.md  # Pre-PR self-review quality gate
+│       └── validation-gate.md   # Pre-commit build/test/lint discovery gate
 ├── ai-ready/                  # Workflows (auto-discovered via SKILL.md)
 ├── bugfix/
 ├── code-review/
