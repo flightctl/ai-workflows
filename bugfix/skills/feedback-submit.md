@@ -36,16 +36,30 @@ posting replies and note that in the report.
 Work in the **target project** directory (where the PR branch lives), not
 the ai-workflows install tree. If unclear, ask the user.
 
-### Step 2: Run Shared PR Gates (by title)
+### Step 2: Run Validation
+
+**Gate: do not commit or push until all checks pass.**
+
+Read and follow `../../_shared/recipes/validation-gate.md` with these
+parameters:
+
+| Parameter | Value |
+|-----------|-------|
+| PROJECT_DIR | The target project directory (Step 1) |
+| SCOPE | `full` |
+
+**If any check fails:** Stop. Fix the failure and re-run. Do not proceed
+to commit.
+
+### Step 3: Run Shared PR Gates (by title)
 
 Read `pr.md` and execute **only** these steps, in order, matching by
 **step title** (not step number):
 
-1. **Run Validation**
-2. **Self-Review Gate**
-3. **Stage and Commit** — exclude `.artifacts/` unless the user asks to
+1. **Self-Review Gate**
+2. **Stage and Commit** — exclude `.artifacts/` unless the user asks to
    commit them
-4. **Push to Fork** — push to the `fork` remote, never `origin`
+3. **Push to Fork** — push to the `fork` remote, never `origin`
 
 Do **not** run **Create the Draft PR** — the PR already exists.
 
@@ -58,7 +72,7 @@ URLs, and do not run setup steps from `pr.md` to "recover."
 If push fails due to missing fork remote or auth, stop and report the
 error — ask the user how to proceed.
 
-### Step 3: Post Review Replies
+### Step 4: Post Review Replies
 
 If `.artifacts/bugfix/{issue}/comment-responses.json` has entries with
 `comment_id`, post each as a review-thread reply:
@@ -70,12 +84,16 @@ gh api repos/acme/myproject/pulls/42/comments \
 ```
 
 Use each entry's `comment_id` and `response`. Mention the commit SHA when
-helpful. Skip entries without `comment_id`.
+helpful. Skip entries without `comment_id` or where `"posted": true`.
 
-If push or reply posting fails, stop and report the error — do not claim
-the feedback was submitted.
+**After each successful post**, update the entry in
+`comment-responses.json` with `"posted": true` and write the file back
+to disk immediately. This ensures retries skip already-posted replies.
 
-### Step 4: Confirm and Report
+If a reply fails, stop and report which comments were posted and which
+failed — do not claim the feedback was fully submitted.
+
+### Step 5: Confirm and Report
 
 Summarize:
 
