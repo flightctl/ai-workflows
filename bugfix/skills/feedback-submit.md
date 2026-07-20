@@ -22,14 +22,15 @@ and post replies — do not infer submit intent from other user messages.
 - A pull request already exists for the current branch (created earlier via
   `/pr` or manually). If you cannot locate it with certainty, stop and ask
   the user for the PR URL or number — do not create a new PR.
-- Feedback changes are in the working tree (and/or staged). Prefer that
-  `/feedback` has already written
-  `.artifacts/bugfix/{issue}/comment-responses.json`.
+- `.artifacts/bugfix/{issue}/comment-responses.json` **must exist**. This
+  file is created by `/feedback` and contains the responses to post on the
+  PR.
 
-If `comment-responses.json` is missing entirely, stop and ask the user how
-to proceed (e.g., confirm `/feedback` ran, or explicitly proceed with
-commit/push but no posted replies) — don't push a branch and only surface
-the gap afterward in the report.
+If `comment-responses.json` does not exist:
+- **Stop immediately**. Report to the user: "comment-responses.json is
+  missing. Run `/feedback` first to create the responses artifact, or use
+  `/pr` to submit code changes without posting feedback replies."
+- Do not proceed with this skill.
 
 If the file exists but some entries have no `comment_id` (expected for
 feedback gathered from user-provided text rather than a PR — see
@@ -62,29 +63,21 @@ parameters:
 **If any check fails:** Stop. Fix the failure and re-run. Do not proceed
 to commit.
 
-### Step 3: Verify Fixes Were Applied
+### Step 3: Run Self-Review Gate
 
-Before committing, confirm that each response recorded in
-`comment-responses.json` reflects an actual code change — not just a
-claimed one.
+Run the self-review gate to validate code quality and alignment with
+responses recorded in `comment-responses.json`.
 
-If `comment-responses.json` is missing (per Prerequisites), skip this
-step and proceed to **Stage and Commit**.
+Reference: `../../_shared/recipes/self-review-gate.md`
 
-For each entry in `.artifacts/bugfix/{issue}/comment-responses.json`:
+**Inputs:**
+| Input | Value |
+|-------|-------|
+| PROJECT_DIR | The repository directory from Step 1 |
+| SCOPE | `full` |
 
-1. Fetch the original comment for context:
-   ```bash
-   gh api repos/{owner}/{repo}/pulls/comments/{comment_id}
-   ```
-2. Check `git diff HEAD` for a change matching the response. Read the
-   relevant file if the diff alone isn't conclusive.
-3. If the response claims a change but the diff shows none, or the
-   change doesn't match what the response describes, flag it.
-
-If any entries are flagged, stop and report them to the user — do not
-commit until they confirm how to proceed (fix the code, or correct the
-response). Otherwise, proceed to **Stage and Commit**.
+**If the gate fails:** Stop. Address findings and re-run the gate.
+Do not proceed to commit until validation passes.
 
 ### Step 4: Stage and Commit
 
