@@ -391,14 +391,14 @@ If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
 present the findings to the user. Do not proceed to commit until the user
 decides how to handle them.
 
-If the gate reports PASS, proceed to **Stage and Commit**. Any code fixes
-made by the gate are uncommitted changes that will be included in the
-commit below.
+If the gate reports PASS, proceed to Step 7. Any code fixes made by the
+gate are uncommitted changes that will be included in the commit below.
 
 **Note:** The bugfix workflow also has an optional `/review` phase that
-provides a thorough, interactive review with findings and verdict. **Self-Review
-Gate** here is an automated pre-commit check — not a substitute for `/test`
-or **Run Validation**.
+provides a thorough, interactive review with findings and verdict. The
+self-review gate here is a different mechanism — an automated quality check
+that fixes obvious issues without user interaction, similar to running lint
+before pushing.
 
 ### Step 7: Stage and Commit
 
@@ -454,11 +454,6 @@ If push requires sandbox permissions, tell the user: "The push needs network
 access. Please run: `git push -u fork BRANCH_NAME`"
 
 ### Step 9: Create the Draft PR
-
-**If a pull request already exists** for this branch on
-`UPSTREAM_OWNER/REPO`, skip this step and proceed to **Confirm and
-Report**. (To commit, push, and post review replies after `/feedback`,
-use `/feedback-submit` instead of creating another PR.)
 
 **PR title format:** Use **`[ISSUE_KEY]: short description in lowercase`**. If the artifact `.artifacts/bugfix/{issue}/pr-description.md` exists and has a `## Title` line in this format, use that title. Otherwise set `ISSUE_KEY` from the branch name or context (e.g. Jira EDM-1234, GitHub #47) and build the title as `[ISSUE_KEY]: short description`.
 
@@ -541,13 +536,12 @@ do NOT debug further, do NOT fall back to a patch file. Instead:
 4. **Remind the user** to check "Create draft pull request" if they want
    it as a draft.
 
-**If "branch not found"**: The push in **Push to Fork** may have failed silently.
+**If "branch not found"**: The push in Step 8 may have failed silently.
 Verify with `git ls-remote fork bugfix/BRANCH_NAME`.
 
 ### Step 10: Confirm and Report
 
-After the PR is created (or the URL is provided), or after push/replies on
-an existing PR, summarize:
+After the PR is created (or the URL is provided), summarize:
 
 - PR URL (or manual creation URL)
 - What was included in the PR
