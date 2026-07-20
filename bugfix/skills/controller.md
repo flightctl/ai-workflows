@@ -87,6 +87,7 @@ After presenting results, consider what just happened, then offer options that m
   and `/diagnose`
 - Review says everything is solid → offer `/pr` directly
 - PR has been submitted and reviewers have commented → offer `/feedback`
+- Feedback has been applied and verified → offer `/feedback-submit`
 
 **Going back** — sometimes earlier work needs revision:
 
