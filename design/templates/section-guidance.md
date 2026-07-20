@@ -128,7 +128,7 @@ This is the core section. All subsections (4.1–4.8) are required. If a subsect
 
 ### 8. Open Questions
 
-- Each open question gets its own numbered subsection with **Owner** (person or team who should answer) and **Impact** (which section or decision the answer affects). Derive the Owner from the source material — do not default to the document's Author(s).
+- Each open question gets its own numbered subsection with **Owner** (person or team who should answer) and **Impact** (which section or decision the answer affects). Derive the Owner from the source material — do not default to the document's Author(s). If not evident, write "To be determined."
 - **Frame as clear, answerable questions.** Write "Should the backup archive include a file manifest, or is a SHA256 checksum sufficient?" not "To be determined — archive validation approach."
 - Open questions are things that could not be resolved during drafting and need broader stakeholder input via PR review.
 - **Transient by design.** When an open question is resolved during PR review (`/respond`), the answer is incorporated into the appropriate section of the design document (e.g., an architecture decision updates §4.1, a security constraint updates §4.5) and the entry is removed from this section. By the time the design PR is approved, this section should be empty and removed.
