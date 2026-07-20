@@ -28,7 +28,7 @@ These apply across all sections:
 
 ### Metadata Header
 
-- **Author(s):** The human who owns or requested this feature — never the AI assistant.
+- **Author(s):** The human who owns or requested this feature — never the AI assistant. If not stated in the source material, do not proceed — ask the user and wait for an answer before continuing.
 - **Jira:** Link to the Feature issue.
 - **PRD:** Relative link to the PRD (`prd.md`) — co-located in the same docs repo directory.
 - **Date:** Date of last significant update.
