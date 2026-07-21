@@ -195,19 +195,11 @@ exist, write "General review — no specific items flagged."}
 ```
 
 Determine `{owner}/{repo}` from `docs_repo_remote`, then create the draft PR.
-If `{issue-number}` is available, prefix the title with it; otherwise fall back
-to the plain format.
-
-With issue number:
+If `{issue-number}` is a Jira key, prefix the title with it
+(`{issue-number}: Design - {title}`); otherwise use `Design: {title}`.
 
 ```bash
 gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head design/{issue-number} --title "{issue-number}: Design - {title}" --body-file .artifacts/design/{issue-number}/07-pr-description.md
-```
-
-Without issue number:
-
-```bash
-gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head design/{slug} --title "Design: {title}" --body-file .artifacts/design/{slug}/07-pr-description.md
 ```
 
 ### Step 6: Save Publish Metadata
