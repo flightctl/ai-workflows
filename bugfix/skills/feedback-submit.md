@@ -65,19 +65,21 @@ to commit.
 
 ### Step 3: Run Self-Review Gate
 
-Run the self-review gate to validate code quality and alignment with
-responses recorded in `comment-responses.json`.
+Run this in the repository directory from Step 1, not the workflow install
+tree.
 
-Reference: `../../_shared/recipes/self-review-gate.md`
+Read and follow `../../_shared/recipes/self-review-gate.md` with these
+parameters:
 
-**Inputs:**
-| Input | Value |
-|-------|-------|
-| PROJECT_DIR | The repository directory from Step 1 |
-| SCOPE | `full` |
+| Parameter | Value |
+|-----------|-------|
+| DIFF_COMMAND | `git diff HEAD` |
+| MAX_ROUNDS | `3` |
+| CONTEXT_FILES | `.artifacts/bugfix/{issue}/comment-responses.json` (gives the reviewer the claimed responses to check the diff against) |
 
-**If the gate fails:** Stop. Address findings and re-run the gate.
-Do not proceed to commit until validation passes.
+**If the gate reports FLAG (unfixed CRITICAL or HIGH findings):** Stop and
+present the findings to the user. Do not proceed to commit until the self-review
+gate passes.
 
 ### Step 4: Stage and Commit
 
