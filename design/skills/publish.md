@@ -194,10 +194,15 @@ exist, write "General review — no specific items flagged."}
 - Approve when the design accurately reflects a viable implementation approach
 ```
 
-Determine `{owner}/{repo}` from `docs_repo_remote`, then create the draft PR:
+Determine `{owner}/{repo}` from `docs_repo_remote`, then create the draft PR.
+If `{issue-number}` is available, prefix the title with it; otherwise fall back
+to the plain format:
+
+- With issue number: `--title "{issue-number}: Design - {title}"`
+- Without issue number: `--title "Design: {title}"`
 
 ```bash
-gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head design/{issue-number} --title "Design: {title}" --body-file .artifacts/design/{issue-number}/07-pr-description.md
+gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head design/{issue-number} --title "{issue-number}: Design - {title}" --body-file .artifacts/design/{issue-number}/07-pr-description.md
 ```
 
 ### Step 6: Save Publish Metadata
