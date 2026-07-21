@@ -189,13 +189,18 @@ Prepare the PR description and save it to `.artifacts/prd/{issue-number}/04-pr-d
 Determine `{owner}/{repo}` from the `docs_repo_remote` in `.artifacts/prd/config.json`
 (e.g., `git@github.com:org/planning-docs.git` → `org/planning-docs`), then
 create the draft PR. If `{issue-number}` is available, prefix the title with it;
-otherwise fall back to the plain format:
+otherwise fall back to the plain format.
 
-- With issue number: `--title "{issue-number}: PRD - {title}"`
-- Without issue number: `--title "PRD: {title}"`
+With issue number:
 
 ```bash
 gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head prd/{issue-number} --title "{issue-number}: PRD - {title}" --body-file .artifacts/prd/{issue-number}/04-pr-description.md
+```
+
+Without issue number:
+
+```bash
+gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head prd/{slug} --title "PRD: {title}" --body-file .artifacts/prd/{slug}/04-pr-description.md
 ```
 
 ### Step 6: Save Publish Metadata
