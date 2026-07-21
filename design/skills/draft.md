@@ -88,8 +88,8 @@ document states the current position as if it was always the intent.
 
 Fill in the metadata header:
 - **Author(s):** The human who owns or requested this feature — never
-  the AI assistant. If not stated in the source material, do not
-  proceed — ask the user and wait for an answer before continuing.
+  the AI assistant. Derive from `git config user.name` if available;
+  otherwise ask the user before continuing.
 - **Jira:** Link to the source Feature issue
 - **PRD:** `[prd.md](prd.md)` — relative link to the co-located PRD
 - **Date:** Today's date

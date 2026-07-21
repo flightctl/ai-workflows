@@ -96,8 +96,8 @@ than by description.
 
 Fill in the metadata table:
 - **Author(s):** The human who owns or requested this feature — never
-  the AI assistant. If not stated in the source material, do not
-  proceed — ask the user and wait for an answer before continuing.
+  the AI assistant. Derive from `git config user.name` if available;
+  otherwise ask the user before continuing.
 - **Jira:** Link to the source Feature issue (e.g., `https://redhat.atlassian.net/browse/EDM-1471`)
 - **Date:** Today's date
 
