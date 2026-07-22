@@ -87,10 +87,18 @@ removed, or why a previous position was abandoned. The clarification log
 document states the current position as if it was always the intent.
 
 Fill in the metadata header:
-- **Author(s):** The feature owner (ask if not known).
+- **Author(s):** The human who owns or requested this feature — never
+  the AI assistant. Derive from `git config user.name` if available;
+  otherwise ask the user before continuing.
 - **Jira:** Link to the source Feature issue
 - **PRD:** `[prd.md](prd.md)` — relative link to the co-located PRD
 - **Date:** Today's date
+
+**Owner fields (Open Questions):** When populating Owner fields, derive
+the owner from the source material (e.g., the responsible team evident
+from the Jira ticket, PRD, or requirement context). If the owner is not
+evident, write "To be determined" — do not default to the document's
+Author(s). Step 5 will prompt the user to resolve any missing owners.
 
 **Mermaid diagrams:** Use them where they add clarity — especially for
 architecture (section 4.1) and data flow. Any Mermaid diagram type is
