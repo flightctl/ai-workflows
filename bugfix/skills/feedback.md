@@ -19,8 +19,12 @@ Make focused, correct changes that address each review comment. You will:
 2. Recover context from the prior session
 3. Understand what each reviewer is asking for
 4. Implement changes that address the feedback
-5. Verify the changes compile and pass tests
+5. Verify using the shared **validation gate** recipe
 6. Update session artifacts with what you changed and why
+7. Write comment responses for the PR (when applicable)
+
+Then **stop**. Commit, push, and posting replies happen only when the
+user invokes `/feedback-submit` (see **When This Phase Is Done**).
 
 ## Process
 
@@ -74,22 +78,35 @@ For each review comment:
 
 ### Step 4: Implement Changes
 
+Before editing code, read the project's `AGENTS.md` (and `CLAUDE.md` if
+present) in the target project directory for coding conventions, testing
+standards, and contribution guidelines. Follow those over generic defaults.
+
 For each actionable comment:
 
 - Make the minimal change that addresses the feedback
-- Follow the project's coding standards and conventions
+- Follow the project's coding standards and conventions from those files
 - If you disagree with a suggestion (based on evidence from the prior
   session or your own analysis), document your reasoning — don't
   silently ignore the comment
 
 ### Step 5: Verify
 
-- Run the project's test suite and fix any failures
-- Run lint and format checks. To find the lint command: check the
-  project's `AGENTS.md`, then `Makefile` for `lint`/`fmt` targets,
-  then `package.json` scripts, then fall back to language-specific
-  defaults.
-- Ensure no regressions were introduced
+**Gate: do not commit or push until all checks pass.**
+
+Read and follow `../../_shared/recipes/validation-gate.md` with these
+parameters:
+
+| Parameter | Value |
+|-----------|-------|
+| PROJECT_DIR | The target project directory (where the PR changes live) |
+| SCOPE | `full` |
+
+Record the commands you ran in the session context under
+`**Verification**` for the current feedback round.
+
+**If any check fails:** Stop. Fix the failure and re-run **Verify**. Do not
+leave broken code for a later `/feedback-submit`.
 
 ### Step 6: Update Session Context
 
@@ -110,6 +127,7 @@ with `## Feedback Round` in the file and adding one.
 **Suggestions declined**:
 - [@reviewer on file.go:80]: [reason — e.g., "conflicts with backward
   compat requirement from original design"]
+**Verification**: [commands from the validation-gate recipe]
 **Tests updated**: [list any test changes, or "no test changes needed"]
 ```
 
@@ -119,8 +137,8 @@ section before adding the feedback round.
 ### Step 7: Write Comment Responses
 
 Write a JSON file mapping each comment you addressed to a brief summary
-of what you did (or chose not to do). The calling system uses this to
-post descriptive replies on the PR.
+of what you did (or chose not to do). `/feedback-submit` uses this file
+to post replies on the existing PR.
 
 Write to `.artifacts/bugfix/{issue}/comment-responses.json`:
 
@@ -136,8 +154,9 @@ Use the `comment_id` values from Step 1:
   API response.
 - **From a task file**: Use the comment ID if provided in the structured
   format.
-- **From user-provided feedback**: If no IDs are available, skip this
-  step entirely.
+- **From user-provided feedback**: If no IDs are available, still write
+  responses for the session record if helpful; `/feedback-submit` will
+  skip posting for entries without `comment_id`.
 
 Keep responses concise (1-2 sentences).
 
@@ -151,6 +170,9 @@ Keep responses concise (1-2 sentences).
 
 ## Best Practices
 
+- **Use the validation-gate recipe.** Do not invent alternate lint or test
+  commands, and do not substitute file-scoped tool runs for the project's
+  documented CI command.
 - **Read before writing.** Understand the original reasoning before
   changing code — a reviewer comment that says "do X" may conflict with
   a design constraint you'd only know from the prior session context.
@@ -179,7 +201,15 @@ Report your results:
 - Which comments were addressed and how
 - Which suggestions were declined and why
 - Where the session context was updated
+- **Verification commands run** and whether they passed
 
-Then **stop and wait for further instructions** — do not re-read the
-controller. (If this skill was invoked by an automated orchestrator,
-return control to it.)
+Then **stop and wait for further instructions.** Do not commit, push, or
+post PR replies from this skill.
+
+To submit the feedback changes, the user should invoke `/feedback-submit`
+(explicit command — do not infer submit intent from other messages). That
+skill re-runs the shared gates, commits, pushes, and posts review-thread
+replies from `comment-responses.json`.
+
+Do not re-read the controller. (If this skill was invoked by an automated
+orchestrator, return control to it.)

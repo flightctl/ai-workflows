@@ -38,7 +38,12 @@ executing phases and handling transitions between them.
    Push the branch to a fork and create a draft pull request.
 
 9. **Feedback** (`/feedback`) — `feedback.md`
-   Address PR review comments.
+   Address PR review comments. Stops after artifacts.
+
+10. **Feedback submit** (`/feedback-submit`) — `feedback-submit.md`
+    Commit, push, and post review replies for an existing PR after
+    `/feedback`. Explicit submit — do not run unless this command is
+    invoked.
 
 Phases can be skipped or reordered at the user's discretion.
 
@@ -82,6 +87,7 @@ After presenting results, consider what just happened, then offer options that m
   and `/diagnose`
 - Review says everything is solid → offer `/pr` directly
 - PR has been submitted and reviewers have commented → offer `/feedback`
+- Feedback has been applied and verified → offer `/feedback-submit`
 
 **Going back** — sometimes earlier work needs revision:
 

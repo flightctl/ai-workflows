@@ -26,6 +26,7 @@ graph TD
     review -->|solid| document
     document --> pr
     pr --> feedback
+    feedback --> feedbackSubmit[feedback-submit]
     feedback --> feedback
 ```
 
@@ -44,6 +45,7 @@ bugfix/
 │   ├── review.md
 │   ├── test.md
 │   ├── feedback.md
+│   ├── feedback-submit.md
 │   └── unattended.md
 ├── skills/               # Detailed process definitions
 │   ├── start.md
@@ -52,6 +54,7 @@ bugfix/
 │   ├── diagnose.md
 │   ├── document.md
 │   ├── feedback.md
+│   ├── feedback-submit.md
 │   ├── fix.md
 │   ├── pr.md
 │   ├── reproduce.md
@@ -218,10 +221,22 @@ The Bug Fix Workflow follows this approach:
 - Implement targeted changes addressing reviewer feedback
 - Track declined suggestions with rationale to prevent re-litigation
 - Update session context for continuity across review rounds
+- Stops after artifacts — does not commit, push, or post replies
 
 **Output**: Modified code files + updated `.artifacts/bugfix/{issue}/session-context.md` + `.artifacts/bugfix/{issue}/comment-responses.json`
 
 **When to use**: After a PR has been submitted and reviewers have left comments, especially when a different AI session needs to address the feedback.
+
+### Phase 10: Feedback submit (`/feedback-submit`)
+
+**Purpose**: Submit a completed `/feedback` round to the existing PR.
+
+- Re-run validation and self-review gates
+- Commit and push to the fork
+- Post review-thread replies from `comment-responses.json`
+- Skips creating a new PR (the PR already exists)
+
+**When to use**: After `/feedback` finishes and you are ready to publish the round. Explicit command — do not infer from other messages.
 
 ### Unattended (`/unattended`)
 

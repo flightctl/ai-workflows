@@ -7,7 +7,7 @@ description: >-
   Use when fixing bugs, debugging runtime errors or exceptions, investigating
   test failures or crashes, or submitting bug-fix pull requests.
   Activated by commands: /unattended, /assess, /diagnose, /reproduce, /fix,
-  /test, /review, /document, /pr, /feedback, /start.
+  /test, /review, /document, /pr, /feedback, /feedback-submit, /start.
 ---
 # Bugfix Workflow Orchestrator
 
