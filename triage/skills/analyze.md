@@ -125,7 +125,7 @@ Assign exactly one recommendation per issue:
 | **ESCALATE** | Needs architectural decision, cross-team coordination, or security review |
 | **WONT_FIX** | Valid but out of scope, cost-prohibitive, or the affected feature is being deprecated |
 
-When a bug qualifies for both FIX_NOW and AUTO_FIX, prefer AUTO_FIX — a well-described, automatable bug gets fixed fastest by the bot, which satisfies the urgency that FIX_NOW signals.
+When a bug qualifies for both FIX_NOW and AUTO_FIX, assign AUTO_FIX — a well-described, automatable bug gets fixed fastest by the bot, which satisfies the urgency that FIX_NOW signals.
 
 #### Priority Mismatch Detection
 
