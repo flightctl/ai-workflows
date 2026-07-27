@@ -151,11 +151,16 @@ Read these from the docs repo:
    architectural decisions and locked decisions incorporated as content
 2. **PRD** (`prd.md`) — the product requirements, with locked decisions
    reflected in the requirements text
+3. **Testplan** (`testplan.md`) — behavioral test cases mapped to PRD
+   requirements. For `[QE]` stories, this is particularly valuable: the
+   testplan's test cases for the relevant requirements provide structured
+   starting points for e2e scenario design. Cross-reference test case
+   IDs in `02-plan.md` when scenarios align.
 
 If the docs repo documents are not found, ask the user for their location
-or proceed with only the Jira story content. The design document and PRD
-are valuable context but not strictly required — the story's acceptance
-criteria are the primary contract.
+or proceed with only the Jira story content. The design document, PRD,
+and testplan are valuable context but not strictly required — the story's
+acceptance criteria are the primary contract.
 
 ### Step 6: Explore E2E Test Infrastructure
 

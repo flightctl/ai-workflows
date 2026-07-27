@@ -152,9 +152,27 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=design`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{docs_repo_path}/{release}/{feature}/design.md"`.
 
+If `.artifacts/design/{issue-key}/07-testplan.md` exists, also copy it:
+
+```bash
+cp ".artifacts/design/{issue-key}/07-testplan.md" "{docs_repo_path}/{release}/{feature}/testplan.md"
+```
+
 ```bash
 git -C "{docs_repo_path}" add "{release}/{feature}/design.md"
 ```
+
+If the testplan was copied:
+
+```bash
+git -C "{docs_repo_path}" add "{release}/{feature}/testplan.md"
+```
+
+```bash
+git -C "{docs_repo_path}" commit -m "Add design document and testplan for {issue-key}: {title}"
+```
+
+If the testplan does not exist, use the original commit message:
 
 ```bash
 git -C "{docs_repo_path}" commit -m "Add design document for {issue-key}: {title}"
@@ -173,7 +191,7 @@ attention:
 - Key architectural decisions that have significant trade-offs
 
 Prepare the PR description and save it to
-`.artifacts/design/{issue-key}/07-pr-description.md`:
+`.artifacts/design/{issue-key}/08-pr-description.md`:
 
 ```markdown
 ## Design: {title}
@@ -189,6 +207,10 @@ Prepare the PR description and save it to
 markers, or significant trade-offs, list each as a bullet. If none
 exist, write "General review — no specific items flagged."}
 
+### Documents
+- `design.md` — technical design document
+- `testplan.md` — behavioral test cases mapped to PRD requirements (included if testplan exists)
+
 ### How to Review
 - Comment inline on specific sections
 - Approve when the design accurately reflects a viable implementation approach
@@ -199,7 +221,7 @@ If `{issue-key}` is a Jira key, prefix the title with it
 (`{issue-key}: Design - {title}`); otherwise use `Design: {title}`.
 
 ```bash
-gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head design/{issue-key} --title "{issue-key}: Design - {title}" --body-file .artifacts/design/{issue-key}/07-pr-description.md
+gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head design/{issue-key} --title "{issue-key}: Design - {title}" --body-file .artifacts/design/{issue-key}/08-pr-description.md
 ```
 
 ### Step 6: Save Publish Metadata
@@ -211,10 +233,14 @@ Write `.artifacts/design/{issue-key}/publish-metadata.json`:
   "release": "{release}",
   "feature": "{feature}",
   "design_file_path": "{release}/{feature}/design.md",
+  "testplan_file_path": "{release}/{feature}/testplan.md",
   "pr_number": {pr-number},
   "branch": "design/{issue-key}"
 }
 ```
+
+Include `testplan_file_path` only if `07-testplan.md` was published. Omit
+the field if no testplan exists.
 
 ### Step 7: Report to User
 
@@ -230,7 +256,7 @@ Present:
 - `.artifacts/design/{issue-key}/publish-metadata.json`
 - Design document committed and pushed to feature branch in the docs repo
 - Draft PR created against the docs repo
-- `.artifacts/design/{issue-key}/07-pr-description.md`
+- `.artifacts/design/{issue-key}/08-pr-description.md`
 
 ## When This Phase Is Done
 

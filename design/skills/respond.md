@@ -192,6 +192,17 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 git -C "{docs_repo_path}" add "{design_file_path}"
 ```
 
+If `07-testplan.md` exists and `publish-metadata.json` contains a
+`testplan_file_path` field, also copy the testplan:
+
+```bash
+cp ".artifacts/design/{issue-key}/07-testplan.md" "{docs_repo_path}/{testplan_file_path}"
+```
+
+```bash
+git -C "{docs_repo_path}" add "{testplan_file_path}"
+```
+
 ```bash
 git -C "{docs_repo_path}" commit -m "Design {issue-key}: address review feedback"
 ```
@@ -238,7 +249,7 @@ rm .artifacts/design/{issue-key}/tmp-reply.md
 
 ### Step 5: Update Response Log
 
-Write or update `.artifacts/design/{issue-key}/08-review-responses.md`:
+Write or update `.artifacts/design/{issue-key}/09-review-responses.md`:
 
 ```markdown
 # Review Responses — {issue-key}
@@ -258,6 +269,7 @@ If design changes were made, check whether they affect the task breakdown:
 - Did components change? → Epic boundaries may need adjustment
 - Did APIs or data models change? → Stories may need updating
 - Did new requirements emerge from review? → Coverage matrix needs checking
+- Did requirements or acceptance criteria change? → Testplan may need updating
 
 If the decomposition is affected, flag it and recommend `/revise` or
 re-running `/decompose`.
@@ -274,7 +286,7 @@ Summarize:
 
 - PR comments posted (with user approval)
 - `.artifacts/design/{issue-key}/03-design.md` (updated if needed)
-- `.artifacts/design/{issue-key}/08-review-responses.md`
+- `.artifacts/design/{issue-key}/09-review-responses.md`
 
 ## When This Phase Is Done
 

@@ -142,11 +142,15 @@ Read these from the docs repo:
    architectural decisions and locked decisions incorporated as content
 2. **PRD** (`prd.md`) — the product requirements, with locked decisions
    reflected in the requirements text
+3. **Testplan** (`testplan.md`) — behavioral test cases mapped to PRD
+   requirements. Valuable context for understanding what scenarios the
+   feature is expected to pass, but not required. The story's acceptance
+   criteria and testing approach remain the primary contract.
 
 If the docs repo documents are not found, ask the user for their location
-or proceed with only the Jira story content. The design document and PRD
-are valuable context but not strictly required — the story's acceptance
-criteria are the primary contract.
+or proceed with only the Jira story content. The design document, PRD,
+and testplan are valuable context but not strictly required — the story's
+acceptance criteria are the primary contract.
 
 ### Step 6: Explore the Codebase
 

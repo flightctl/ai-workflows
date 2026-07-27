@@ -37,6 +37,7 @@ Determine which artifacts exist and read them:
 - `.artifacts/design/{issue-key}/04-epics.md` (epic metadata, if exists)
 - `.artifacts/design/{issue-key}/05-stories/` (epic and story files, if exist)
 - `.artifacts/design/{issue-key}/06-coverage.md` (coverage matrix, if exists)
+- `.artifacts/design/{issue-key}/07-testplan.md` (testplan, if exists)
 - `.artifacts/design/{issue-key}/sync-manifest.json` (if exists — means
   epics/stories have been synced to Jira and filenames are locked)
 
@@ -122,6 +123,19 @@ After applying changes, verify:
   added, removed, or reassigned.
 - Do story dependencies still make sense?
 
+**If the testplan exists (`07-testplan.md`):**
+- If the design changed: do any test cases reference changed behavior?
+  Update preconditions, steps, or expected results if the design change
+  affects what the test validates.
+- If stories were added or removed: add or remove test cases as
+  appropriate. Update `Test Case References` in affected story files.
+- If acceptance criteria changed on a story: review the test cases
+  referencing that story — do they still validate the correct behavior?
+- Update the coverage matrix's Test Cases column if test case IDs
+  changed.
+- If requirement IDs changed (rare — requires PRD revision): update
+  all TC IDs anchored to the changed requirement.
+
 ### Step 5: Update Artifacts
 
 Overwrite the affected artifact files.
@@ -186,8 +200,21 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=design`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{docs_repo_path}/{design_file_path}"`.
 
+If `07-testplan.md` exists and `publish-metadata.json` contains a
+`testplan_file_path` field, also copy the testplan:
+
+```bash
+cp ".artifacts/design/{issue-key}/07-testplan.md" "{docs_repo_path}/{testplan_file_path}"
+```
+
 ```bash
 git -C "{docs_repo_path}" add "{design_file_path}"
+```
+
+If the testplan was copied:
+
+```bash
+git -C "{docs_repo_path}" add "{testplan_file_path}"
 ```
 
 ```bash
@@ -212,6 +239,11 @@ Summarize what changed:
 ### Decomposition Changes
 - Epic 2: Split Story 2.3 into 2.3 and 2.4
 - Coverage matrix: Updated to reflect new story mapping
+
+### Testplan Changes
+- {TC-FR1-03 added — new acceptance criterion on Story 1.01}
+- {TC-NFR2-01 updated — expected result changed to match revised design}
+- {Omit this section if the testplan did not change or does not exist}
 
 ### Consistency Updates
 - Section 8: Added open question about performance impact of new approach
@@ -244,6 +276,7 @@ The following artifacts were modified since the last sync. Re-run
 - `.artifacts/design/{issue-key}/05-stories/epic-*.md` (updated, if epics changed)
 - `.artifacts/design/{issue-key}/05-stories/epic-*/story-*.md` (updated, if stories changed)
 - `.artifacts/design/{issue-key}/06-coverage.md` (updated, if coverage changed)
+- `.artifacts/design/{issue-key}/07-testplan.md` (updated, if testplan changed)
 
 ## When This Phase Is Done
 

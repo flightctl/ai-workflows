@@ -58,9 +58,10 @@ the source repo (this directory should be gitignored in the source repo):
 | Epic files | `05-stories/epic-{N}-{slug}.md` | `/decompose`, `/revise` |
 | Story files | `05-stories/epic-{N}/story-{NN}-{slug}.md` | `/decompose`, `/revise` |
 | Coverage matrix | `06-coverage.md` | `/decompose`, `/revise` |
-| PR description | `07-pr-description.md` | `/publish` |
+| Testplan | `07-testplan.md` | `/decompose`, `/revise` |
+| PR description | `08-pr-description.md` | `/publish` |
 | Publish metadata | `publish-metadata.json` | `/publish` |
-| Review responses | `08-review-responses.md` | `/respond` |
+| Review responses | `09-review-responses.md` | `/respond` |
 | Jira sync manifest | `sync-manifest.json` | `/sync` |
 
 ### Docs repo configuration

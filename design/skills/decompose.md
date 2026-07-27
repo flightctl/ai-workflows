@@ -1,6 +1,6 @@
 ---
 name: decompose
-description: Break the design into Jira-ready epics and stories with a coverage matrix.
+description: Break the design into Jira-ready epics and stories with a testplan and coverage matrix.
 ---
 
 # Decompose Skill
@@ -110,7 +110,7 @@ Write `.artifacts/design/{issue-key}/04-epics.md`:
 {PRD Requirements column: list the primary requirements for quick reference.
  If an epic maps to more than ~8 requirements, list the most significant
  and add "See coverage matrix for full mapping." The coverage matrix
- (Step 7) is the authoritative source for requirement-to-story traceability.}
+ (Step 8) is the authoritative source for requirement-to-story traceability.}
 
 ## Dependency Order
 
@@ -212,6 +212,13 @@ Write each story to
 Epic: Epic {N} — {epic title}
 PRD Requirements: {FR-1, NFR-1}
 Design section: {§4.3 API Changes, or specific subsection}
+
+## Test Case References
+
+Verified by: {TC-FR1-01, TC-FR1-02, ...}
+{Generated during Step 7 (testplan). For stories with no behavioral test
+ cases (e.g., infrastructure prerequisites): "Verified by: None
+ (infrastructure — no behavioral test cases)"}
 ```
 
 **For `[DOCS]` stories** (see `[DOCS]` story requirements below for the
@@ -362,7 +369,132 @@ After sizing all epics, verify plausibility:
 3. Verify no epic is sized XXL. If any is, stop and require a split
    before proceeding to Step 7.
 
-### Step 7: Write Coverage Matrix
+### Step 7: Generate Testplan
+
+Generate `.artifacts/design/{issue-key}/07-testplan.md` containing
+behavioral test cases anchored to PRD requirements. This artifact serves
+dev teams (cross-reference against implemented tests for completeness),
+QA teams (independent coverage review without reading every story), and
+ALM export (structured for tools like Polarion).
+
+#### 7a: Derive Test Cases
+
+For each PRD requirement (FR-N, NFR-N), examine the stories that address
+it (from the epic/story files written in Step 5). For each story:
+
+1. Read the **Acceptance Criteria** — each criterion is a candidate test
+   case or a grouping of related test cases.
+2. Read the **Testing Approach** — use it to understand what scenarios
+   are expected.
+3. Generate test cases at the behavioral/scenario level. Each test case
+   describes an observable outcome verifiable against a running system.
+   Do not generate unit-test-level entries — tracing unit tests to
+   testplan entries is impractical and fragile.
+
+**Test case ID scheme:** `TC-{requirement-id}-{sequence}`, where
+`{requirement-id}` is the PRD requirement ID with the hyphen removed
+(e.g., `FR-1` → `FR1`, `NFR-3` → `NFR3`) and `{sequence}` is a
+two-digit zero-padded counter within that requirement. Examples:
+`TC-FR1-01`, `TC-FR1-02`, `TC-NFR3-01`.
+
+**Test case fields** (all required):
+
+| Field | Description |
+|-------|-------------|
+| Test Case ID | `TC-{req}-{NN}` (e.g., `TC-FR1-01`) |
+| Title | One-line scenario description |
+| Requirement | PRD requirement ID (e.g., `FR-1`) |
+| Story | Which story implements the capability under test (e.g., `Story 1.01`) |
+| Preconditions | System state required before the test |
+| Scenario / Steps | What the tester does — numbered steps |
+| Expected Result | Observable outcome the tester verifies |
+| Priority | `critical` / `high` / `medium` / `low` |
+
+**Priority assignment:**
+- `critical` — core user workflows or data integrity
+- `high` — important but non-core requirements
+- `medium` — edge cases and secondary workflows
+- `low` — cosmetic or informational scenarios
+
+**Coverage target:** Every FR and NFR covered by at least one story
+should have at least one test case. A covered requirement with no test
+cases is a gap — flag it in the testplan's Gaps section.
+
+**Negative scenarios:** Include negative/error test cases where the PRD
+or design specifies error handling behavior. Do not invent error
+scenarios beyond what the requirements and design describe.
+
+#### 7b: Write the Testplan
+
+Write `.artifacts/design/{issue-key}/07-testplan.md`:
+
+```markdown
+# Testplan — {issue-key}
+
+## Overview
+
+Feature: {feature-key} — {feature-title}
+Total test cases: {N}
+Requirements covered: {N} of {total FR + NFR count}
+
+## Test Cases
+
+### FR-1: {requirement description}
+
+| ID | Title | Story | Preconditions | Scenario / Steps | Expected Result | Priority |
+|----|-------|-------|---------------|------------------|-----------------|----------|
+| TC-FR1-01 | {title} | Story 1.01 | {preconditions} | 1. {step} 2. {step} | {expected result} | high |
+| TC-FR1-02 | {title} | Story 1.02 | {preconditions} | 1. {step} 2. {step} | {expected result} | medium |
+
+### FR-2: {requirement description}
+
+| ID | Title | Story | Preconditions | Scenario / Steps | Expected Result | Priority |
+|----|-------|-------|---------------|------------------|-----------------|----------|
+| TC-FR2-01 | {title} | Story 2.01 | {preconditions} | 1. {step} 2. {step} | {expected result} | critical |
+
+### NFR-1: {requirement description}
+
+| ID | Title | Story | Preconditions | Scenario / Steps | Expected Result | Priority |
+|----|-------|-------|---------------|------------------|-----------------|----------|
+| TC-NFR1-01 | {title} | Story 1.02 | {preconditions} | 1. {step} 2. {step} | {expected result} | high |
+
+## Gaps
+
+{For each PRD requirement with stories but no test cases: why it lacks
+ coverage and a recommendation. For requirements not covered by any
+ story (already flagged in the coverage matrix): note "Not testable —
+ no implementing story."
+
+ If no gaps: "All covered requirements have test cases."}
+
+## Summary
+
+| Metric | Count |
+|--------|-------|
+| Total test cases | {N} |
+| Critical | {N} |
+| High | {N} |
+| Medium | {N} |
+| Low | {N} |
+| Requirements with test cases | {N} / {total} |
+| Requirements without test cases | {N} (see Gaps) |
+```
+
+Test cases are grouped under requirement headings (not by epic) because
+the testplan's purpose is requirement traceability. The Story column
+provides the link back to the epic/story structure.
+
+#### 7c: Add Test Case References to Stories
+
+After writing the testplan, append a `## Test Case References` section
+to each non-`[DOCS]` story file. For each test case in the testplan,
+its Story field identifies the implementing story. Collect all TC IDs
+for each story and write them into that story's file.
+
+Re-read each story file before appending to ensure current content.
+`[DOCS]` stories do not receive this section.
+
+### Step 8: Write Coverage Matrix
 
 Write `.artifacts/design/{issue-key}/06-coverage.md`:
 
@@ -371,13 +503,13 @@ Write `.artifacts/design/{issue-key}/06-coverage.md`:
 
 ## PRD Requirement → Epic/Story Mapping
 
-| PRD Requirement | Epic | Story | Status |
-|-----------------|------|-------|--------|
-| FR-1: {description} | Epic 1 | Story 1.01, 1.02 | Covered |
-| FR-2: {description} | Epic 2 | Story 2.01 | Covered |
-| FR-3: {description} | — | — | **GAP** |
-| NFR-1: {description} | Epic 1 | Story 1.02 | Covered |
-| NFR-2: {description} | Epic 2 | Story 2.01 | Covered |
+| PRD Requirement | Epic | Story | Test Cases | Status |
+|-----------------|------|-------|------------|--------|
+| FR-1: {description} | Epic 1 | Story 1.01, 1.02 | TC-FR1-01, TC-FR1-02 | Covered |
+| FR-2: {description} | Epic 2 | Story 2.01 | TC-FR2-01 | Covered |
+| FR-3: {description} | — | — | — | **GAP** |
+| NFR-1: {description} | Epic 1 | Story 1.02 | TC-NFR1-01 | Covered |
+| NFR-2: {description} | Epic 2 | Story 2.01 | TC-NFR2-01 | Covered |
 
 ## Gaps
 
@@ -391,7 +523,7 @@ Write `.artifacts/design/{issue-key}/06-coverage.md`:
  If none: "All stories trace to PRD requirements."}
 ```
 
-### Step 8: Verify Artifact Structure
+### Step 9: Verify Artifact Structure
 
 Quick sanity check before invoking the decomposition review. Verify:
 
@@ -400,11 +532,13 @@ Quick sanity check before invoking the decomposition review. Verify:
    `05-stories/epic-1-{slug}.md`)
 3. Each epic has a corresponding story directory with story files
 4. `06-coverage.md` exists and contains at least one mapping row
+5. `07-testplan.md` exists and contains at least one test case row
+6. Every non-`[DOCS]` story file has a `## Test Case References` section
 
 If structural issues are found, fix them before proceeding. Do not
 invoke a review on incomplete artifacts.
 
-### Step 9: Review Decomposition
+### Step 10: Review Decomposition
 
 Review the decomposition for structural quality and requirement
 coverage. This review operates independently from the design document —
@@ -422,11 +556,12 @@ subagent for independence. Load it with:
   `.artifacts/prd/{issue-key}/03-prd.md`)
 - All decomposition artifacts: `04-epics.md`, all
   `05-stories/epic-{N}-{slug}.md` files, all
-  `05-stories/epic-{N}/story-{NN}-{slug}.md` files, `06-coverage.md`
+  `05-stories/epic-{N}/story-{NN}-{slug}.md` files, `06-coverage.md`,
+  `07-testplan.md`
 - NOT the design document (`03-design.md`) — the reviewer evaluates
   the artifacts on their own merits
 
-Retain the subagent's ID for use in Step 11 — resuming the same
+Retain the subagent's ID for use in Step 12 — resuming the same
 reviewer gives it memory of its previous findings and concerns,
 producing more coherent follow-up reviews.
 
@@ -441,9 +576,9 @@ severity definitions from the protocol. The subagent path provides
 stronger independence; the inline path still catches issues by forcing
 a perspective shift.
 
-### Step 10: Validate and Assess Findings
+### Step 11: Validate and Assess Findings
 
-For each finding from Step 9:
+For each finding from Step 10:
 
 1. **Validate the reference.** Confirm the cited artifact file and
    section exist. Discard any finding that references a file or section
@@ -466,13 +601,13 @@ For each finding from Step 9:
 Only fix findings that add real value. Do not make changes for
 structural preferences not grounded in the evaluation criteria.
 
-### Step 11: Re-Review (if fixes were made)
+### Step 12: Re-Review (if fixes were made)
 
-If Step 10 produced changes to the decomposition artifacts:
+If Step 11 produced changes to the decomposition artifacts:
 
 1. Obtain a re-review of the updated artifacts:
 
-   **If a subagent was used in Step 9 and the runtime supports agent
+   **If a subagent was used in Step 10 and the runtime supports agent
    resumption:** Resume the same reviewer agent. Send it the updated
    artifacts and a summary of fixes applied. This gives the reviewer
    memory of its original findings and lets it verify they were
@@ -492,13 +627,13 @@ If Step 10 produced changes to the decomposition artifacts:
    - Whether fixes were applied correctly
    - Whether fixes introduced new issues
 2. If new issues are found, fix them following the same validate-and-
-   assess procedure from Step 10
+   assess procedure from Step 11
 3. Cap at 2 review-fix rounds total. Decomposition fixes are structural
    and less likely than code fixes to need multiple iterations.
 
-If no fixes were needed in Step 10, the review passes immediately.
+If no fixes were needed in Step 11, the review passes immediately.
 
-### Step 12: Report Review Summary
+### Step 13: Report Review Summary
 
 ```markdown
 ## Decomposition Review Summary
@@ -513,7 +648,7 @@ If no fixes were needed in Step 10, the review passes immediately.
 list them with their file, section, and issue description.}
 ```
 
-### Step 13: Present to User
+### Step 14: Present to User
 
 Present the decomposition and highlight:
 - Number of epics and stories
@@ -521,7 +656,7 @@ Present the decomposition and highlight:
 - Any coverage gaps
 - Stories that might need size adjustment (too large or too small)
 - Any assumptions or judgment calls in the decomposition
-- Decomposition review summary (from Step 12)
+- Decomposition review summary (from Step 13)
 
 If the decomposition review gate reported FLAG, present the unfixed
 CRITICAL/HIGH findings and ask the user to decide how to handle them.
@@ -534,6 +669,7 @@ should not resolve them unilaterally.
 - `.artifacts/design/{issue-key}/05-stories/epic-{N}-{slug}.md` (one per epic)
 - `.artifacts/design/{issue-key}/05-stories/epic-{N}/story-{NN}-{slug}.md` (one per story)
 - `.artifacts/design/{issue-key}/06-coverage.md`
+- `.artifacts/design/{issue-key}/07-testplan.md`
 
 ## When This Phase Is Done
 

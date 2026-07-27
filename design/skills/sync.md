@@ -423,6 +423,13 @@ For each new story under each epic, create a Jira issue:
 {dependencies from story file, with local references resolved to Jira keys
  per the Reference Resolution section}
 
+## Test Case References
+
+{test case references from story file, preserving TC IDs as-is.
+ TC IDs are requirement-anchored (TC-FR1-01) and do not need Jira key
+ resolution. If the story has no Test Case References section, omit
+ this section from the Jira description.}
+
 ## Design Reference
 
 Design document: {link to design doc PR or file}
