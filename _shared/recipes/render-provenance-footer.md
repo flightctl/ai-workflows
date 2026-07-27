@@ -12,7 +12,7 @@ Render the durable `## Provenance` footer into a docs-repo markdown file before
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | WORKFLOW | Yes | `prd` or `design` |
-| ISSUE_KEY | Yes | Jira issue key |
+| ISSUE_KEY | Yes | Full Jira issue key including project prefix (e.g., `PROJ-1234`, not `1234`) |
 | TARGET_FILE | Yes | Absolute path to the docs-repo file about to be committed |
 | ALLOW_MISSING | No | Set to `yes` only after the user explicitly declines provenance |
 

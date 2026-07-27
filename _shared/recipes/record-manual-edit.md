@@ -12,7 +12,7 @@ attribution). Delegates to `capture-provenance-event` with fixed parameters.
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | WORKFLOW | Yes | `prd` or `design` |
-| ISSUE_KEY | Yes | Jira issue key |
+| ISSUE_KEY | Yes | Full Jira issue key including project prefix (e.g., `PROJ-1234`, not `1234`) |
 
 ## When to invoke
 
