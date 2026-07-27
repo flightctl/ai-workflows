@@ -31,8 +31,8 @@ the contract. Commit each logical unit of work independently.
 ### Step 1: Read the Plan and Context
 
 Read these files:
-1. `.artifacts/implement/{jira-key}/02-plan.md` (implementation plan)
-2. `.artifacts/implement/{jira-key}/01-context.md` (story context and validation profile)
+1. `.artifacts/implement/{issue-key}/02-plan.md` (implementation plan)
+2. `.artifacts/implement/{issue-key}/01-context.md` (story context and validation profile)
 3. The project's `AGENTS.md` and/or `CLAUDE.md` (coding conventions)
 
 If the plan doesn't exist, tell the user that `/plan` should be run first.
@@ -115,7 +115,7 @@ ask how to proceed (stash, commit, or abort) before any rebase/merge
 operation.
 
 Check whether a PR has already been created by looking for
-`.artifacts/implement/{jira-key}/publish-metadata.json`.
+`.artifacts/implement/{issue-key}/publish-metadata.json`.
 
 If no PR exists yet, rebase:
 
@@ -282,7 +282,7 @@ parameters:
 |-----------|-------|
 | DIFF_COMMAND | `git diff --cached` |
 | MAX_ROUNDS | `1` |
-| CONTEXT_FILES | `.artifacts/implement/{jira-key}/01-context.md`, `.artifacts/implement/{jira-key}/02-plan.md` (if they exist) |
+| CONTEXT_FILES | `.artifacts/implement/{issue-key}/01-context.md`, `.artifacts/implement/{issue-key}/02-plan.md` (if they exist) |
 | SUPPLEMENTARY_CRITERIA | None |
 
 If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
@@ -354,7 +354,7 @@ test re-run, and proceed directly to Step 3i.
 
 If new commits exist, sync the branch with the base. Check whether a
 PR has already been created by looking for
-`.artifacts/implement/{jira-key}/publish-metadata.json`.
+`.artifacts/implement/{issue-key}/publish-metadata.json`.
 
 **If no PR exists yet** (pre-publish), rebase:
 
@@ -423,10 +423,10 @@ During implementation, you may encounter unexpected situations:
 
 After all tasks are complete (or if interrupted), write:
 
-**Test report** (`.artifacts/implement/{jira-key}/03-test-report.md`):
+**Test report** (`.artifacts/implement/{issue-key}/03-test-report.md`):
 
 ```markdown
-# Test Report — {jira-key}
+# Test Report — {issue-key}
 
 ## Unit Tests Written
 
@@ -449,10 +449,10 @@ After all tasks are complete (or if interrupted), write:
  known gaps.}
 ```
 
-**Implementation report** (`.artifacts/implement/{jira-key}/04-impl-report.md`):
+**Implementation report** (`.artifacts/implement/{issue-key}/04-impl-report.md`):
 
 ```markdown
-# Implementation Report — {jira-key}
+# Implementation Report — {issue-key}
 
 ## Changes Summary
 
@@ -488,9 +488,9 @@ After all tasks are complete (or if interrupted), write:
 - Test files in the source repo (on the feature branch)
 - Production code in the source repo (on the feature branch)
 - Incremental commits (following the project's commit format)
-- `.artifacts/implement/{jira-key}/02-plan.md` (updated with task status)
-- `.artifacts/implement/{jira-key}/03-test-report.md`
-- `.artifacts/implement/{jira-key}/04-impl-report.md`
+- `.artifacts/implement/{issue-key}/02-plan.md` (updated with task status)
+- `.artifacts/implement/{issue-key}/03-test-report.md`
+- `.artifacts/implement/{issue-key}/04-impl-report.md`
 
 ## When This Phase Is Done
 

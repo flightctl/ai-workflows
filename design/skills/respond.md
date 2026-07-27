@@ -30,7 +30,7 @@ is repeatable as new comments arrive.
 ### Step 1: Resolve Docs Repo and Fetch PR Comments
 
 Read `.artifacts/prd/config.json` to get the docs repo path and
-`.artifacts/design/{issue-number}/publish-metadata.json` to get the PR
+`.artifacts/design/{issue-key}/publish-metadata.json` to get the PR
 number and file path. If either file doesn't exist, tell the user that
 `/publish` should be run first.
 
@@ -99,14 +99,14 @@ Wait for the user to approve, modify, or reject each response.
 
 ### Step 4: Apply Approved Changes
 
-If the user edited `.artifacts/design/{issue-number}/03-design.md` manually
+If the user edited `.artifacts/design/{issue-key}/03-design.md` manually
 since the last workflow phase, read and follow
 `../../_shared/recipes/record-manual-edit.md` with `WORKFLOW=design` and
-`ISSUE_NUMBER={issue-number}` before applying changes.
+`ISSUE_KEY={issue-key}` before applying changes.
 
 **Check locked decisions:** Before applying any design document change —
 whether a direct edit or an open question resolution — read the "Locked
-Decisions" section of `.artifacts/prd/{issue-number}/02-clarifications.md`
+Decisions" section of `.artifacts/prd/{issue-key}/02-clarifications.md`
 (if it exists). If a requested change contradicts a locked decision, flag
 the conflict rather than applying the change.
 
@@ -138,14 +138,14 @@ section, synthesize the discussion into a proposed resolution:
    (heading and introductory text) from the design document.
 
 **Update the local artifact:** Update
-`.artifacts/design/{issue-number}/03-design.md`.
+`.artifacts/design/{issue-key}/03-design.md`.
 
 Read and follow `../../_shared/recipes/capture-provenance-event.md` with
-`WORKFLOW=design`, `ISSUE_NUMBER={issue-number}`, `PHASE=respond`,
+`WORKFLOW=design`, `ISSUE_KEY={issue-key}`, `PHASE=respond`,
 `AUTHORING_MODE=skill`.
 
 **Update the docs repo copy:** Read
-`.artifacts/design/{issue-number}/publish-metadata.json` to get the file
+`.artifacts/design/{issue-key}/publish-metadata.json` to get the file
 path. If metadata doesn't exist, ask the user for the path.
 
 Copy the updated artifact to the docs repo and commit:
@@ -164,10 +164,10 @@ If there are uncommitted changes, ask the user before continuing.
 git -C "{docs_repo_path}" branch --show-current
 ```
 
-If not on the PR branch (`design/{issue-number}`), check it out:
+If not on the PR branch (`design/{issue-key}`), check it out:
 
 ```bash
-git -C "{docs_repo_path}" checkout design/{issue-number}
+git -C "{docs_repo_path}" checkout design/{issue-key}
 ```
 
 Fast-forward the local branch if the remote is ahead:
@@ -181,11 +181,11 @@ mkdir -p "{docs_repo_path}/$(dirname "{design_file_path}")"
 ```
 
 ```bash
-cp ".artifacts/design/{issue-number}/03-design.md" "{docs_repo_path}/{design_file_path}"
+cp ".artifacts/design/{issue-key}/03-design.md" "{docs_repo_path}/{design_file_path}"
 ```
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
-`WORKFLOW=design`, `ISSUE_NUMBER={issue-number}`,
+`WORKFLOW=design`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{docs_repo_path}/{design_file_path}"`.
 
 ```bash
@@ -193,7 +193,7 @@ git -C "{docs_repo_path}" add "{design_file_path}"
 ```
 
 ```bash
-git -C "{docs_repo_path}" commit -m "Design {issue-number}: address review feedback"
+git -C "{docs_repo_path}" commit -m "Design {issue-key}: address review feedback"
 ```
 
 ```bash
@@ -211,7 +211,7 @@ For comments that only need a reply, post directly.
 Write the reply to a temp file to avoid shell metacharacter issues:
 
 ```bash
-cat > .artifacts/design/{issue-number}/tmp-reply.md << 'REPLY_EOF'
+cat > .artifacts/design/{issue-key}/tmp-reply.md << 'REPLY_EOF'
 {approved reply text}
 REPLY_EOF
 ```
@@ -222,26 +222,26 @@ line), reply in-thread so the response appears alongside the original
 comment:
 
 ```bash
-gh api repos/{owner}/{repo}/pulls/{pr-number}/comments/{comment-id}/replies --field body=@.artifacts/design/{issue-number}/tmp-reply.md
+gh api repos/{owner}/{repo}/pulls/{pr-number}/comments/{comment-id}/replies --field body=@.artifacts/design/{issue-key}/tmp-reply.md
 ```
 
 **For top-level PR comments** (those from `gh pr view --json comments` —
 general conversation comments), use:
 
 ```bash
-gh pr comment {pr-number} --repo {owner}/{repo} --body-file .artifacts/design/{issue-number}/tmp-reply.md
+gh pr comment {pr-number} --repo {owner}/{repo} --body-file .artifacts/design/{issue-key}/tmp-reply.md
 ```
 
 ```bash
-rm .artifacts/design/{issue-number}/tmp-reply.md
+rm .artifacts/design/{issue-key}/tmp-reply.md
 ```
 
 ### Step 5: Update Response Log
 
-Write or update `.artifacts/design/{issue-number}/08-review-responses.md`:
+Write or update `.artifacts/design/{issue-key}/08-review-responses.md`:
 
 ```markdown
-# Review Responses — {issue-number}
+# Review Responses — {issue-key}
 
 ## Round {N} — {date}
 
@@ -273,8 +273,8 @@ Summarize:
 ## Output
 
 - PR comments posted (with user approval)
-- `.artifacts/design/{issue-number}/03-design.md` (updated if needed)
-- `.artifacts/design/{issue-number}/08-review-responses.md`
+- `.artifacts/design/{issue-key}/03-design.md` (updated if needed)
+- `.artifacts/design/{issue-key}/08-review-responses.md`
 
 ## When This Phase Is Done
 

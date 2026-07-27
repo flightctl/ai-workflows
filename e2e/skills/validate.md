@@ -30,9 +30,9 @@ re-run checks, and repeat until everything passes.
 ### Step 1: Read Context
 
 Read:
-1. `.artifacts/e2e/{jira-key}/01-context.md` (validation profile and e2e infrastructure)
-2. `.artifacts/e2e/{jira-key}/02-plan.md` (what was planned)
-3. `.artifacts/e2e/{jira-key}/04-impl-report.md` (implementation status)
+1. `.artifacts/e2e/{issue-key}/01-context.md` (validation profile and e2e infrastructure)
+2. `.artifacts/e2e/{issue-key}/02-plan.md` (what was planned)
+3. `.artifacts/e2e/{issue-key}/04-impl-report.md` (implementation status)
 
 Extract the validation profile's pre-PR checks list and the e2e test
 execution command.
@@ -78,7 +78,7 @@ If output is non-empty, stop and ask the user how to proceed (commit,
 stash, or abort) before continuing.
 
 Check whether a PR has already been created by looking for
-`.artifacts/e2e/{jira-key}/publish-metadata.json`.
+`.artifacts/e2e/{issue-key}/publish-metadata.json`.
 
 **If no PR exists yet**, offer to rebase:
 
@@ -185,7 +185,7 @@ parameters:
 |-----------|-------|
 | DIFF_COMMAND | `git diff {local-base}...HEAD` |
 | MAX_ROUNDS | `3` |
-| CONTEXT_FILES | `.artifacts/e2e/{jira-key}/01-context.md`, `.artifacts/e2e/{jira-key}/02-plan.md` (if they exist) |
+| CONTEXT_FILES | `.artifacts/e2e/{issue-key}/01-context.md`, `.artifacts/e2e/{issue-key}/02-plan.md` (if they exist) |
 | SUPPLEMENTARY_CRITERIA | This is the full-branch validation review for e2e test code. Anti-pattern detection is already complete (Step 4) — skip those checks. Focus on test design depth: (1) **Assertion specificity** — do tests verify the actual behavioral outcome the AC describes, or just assert "no error"? (2) **Brittleness** — will tests break only when real behavior changes, or will they break when unrelated implementation details change? (3) **Test isolation** — could any test leak state (credentials, resources, configuration) that affects other suites or environments? (4) **Reference suite consistency** — does the test structure match the project's reference suite, or does it introduce divergent patterns that will confuse future contributors? |
 
 If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
@@ -232,10 +232,10 @@ covered:
 
 ### Step 8: Write Validation Report
 
-Write `.artifacts/e2e/{jira-key}/05-validation-report.md`:
+Write `.artifacts/e2e/{issue-key}/05-validation-report.md`:
 
 ```markdown
-# Validation Report — {jira-key}
+# Validation Report — {issue-key}
 
 ## Branch Currency
 
@@ -323,7 +323,7 @@ Summarize for the user:
 
 ## Output
 
-- `.artifacts/e2e/{jira-key}/05-validation-report.md`
+- `.artifacts/e2e/{issue-key}/05-validation-report.md`
 - Additional test fixes (if anti-patterns or gaps were found)
 - Fix commits (if issues were found and fixed)
 

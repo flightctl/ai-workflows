@@ -150,7 +150,7 @@ every finding:
 
 1. **Verify file references.** Confirm the cited artifact file exists in
    the decomposition output (under
-   `.artifacts/design/{issue-number}/`).
+   `.artifacts/design/{issue-key}/`).
 2. **Verify section references.** Confirm the cited section exists in
    the artifact file (e.g., an "Acceptance Criteria" heading actually
    appears in the story file).

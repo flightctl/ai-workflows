@@ -30,19 +30,19 @@ multiple rounds of revision.
 ### Step 1: Read Current Artifacts
 
 Determine which artifacts exist and read them:
-- `.artifacts/design/{issue-number}/01-context.md` (requirements context with FR/NFR IDs)
-- `.artifacts/design/{issue-number}/02-research.md` (if exists — research findings)
-- `.artifacts/prd/{issue-number}/02-clarifications.md` (if exists — locked decisions)
-- `.artifacts/design/{issue-number}/03-design.md` (design document)
-- `.artifacts/design/{issue-number}/04-epics.md` (epic metadata, if exists)
-- `.artifacts/design/{issue-number}/05-stories/` (epic and story files, if exist)
-- `.artifacts/design/{issue-number}/06-coverage.md` (coverage matrix, if exists)
-- `.artifacts/design/{issue-number}/sync-manifest.json` (if exists — means
+- `.artifacts/design/{issue-key}/01-context.md` (requirements context with FR/NFR IDs)
+- `.artifacts/design/{issue-key}/02-research.md` (if exists — research findings)
+- `.artifacts/prd/{issue-key}/02-clarifications.md` (if exists — locked decisions)
+- `.artifacts/design/{issue-key}/03-design.md` (design document)
+- `.artifacts/design/{issue-key}/04-epics.md` (epic metadata, if exists)
+- `.artifacts/design/{issue-key}/05-stories/` (epic and story files, if exist)
+- `.artifacts/design/{issue-key}/06-coverage.md` (coverage matrix, if exists)
+- `.artifacts/design/{issue-key}/sync-manifest.json` (if exists — means
   epics/stories have been synced to Jira and filenames are locked)
 
 If the user edited `03-design.md` manually since the last workflow phase, read
 and follow `../../_shared/recipes/record-manual-edit.md` with `WORKFLOW=design`
-and `ISSUE_NUMBER={issue-number}` before applying revisions.
+and `ISSUE_KEY={issue-key}` before applying revisions.
 
 ### Step 2: Understand the Feedback
 
@@ -128,10 +128,10 @@ Overwrite the affected artifact files.
 
 If `03-design.md` was updated, read and follow
 `../../_shared/recipes/capture-provenance-event.md` with `WORKFLOW=design`,
-`ISSUE_NUMBER={issue-number}`, `PHASE=revise`, `AUTHORING_MODE=skill`.
+`ISSUE_KEY={issue-key}`, `PHASE=revise`, `AUTHORING_MODE=skill`.
 
 If the design document was published, also update the docs repo copy.
-Check for `.artifacts/design/{issue-number}/publish-metadata.json` and
+Check for `.artifacts/design/{issue-key}/publish-metadata.json` and
 `.artifacts/prd/config.json`. If either file does not exist, skip the
 docs repo update steps — the design has not been published yet.
 
@@ -143,7 +143,7 @@ If both exist:
 4. Check whether a PR branch exists:
 
 ```bash
-gh pr list --repo {owner}/{repo} --head design/{issue-number} --state open --json number,url
+gh pr list --repo {owner}/{repo} --head design/{issue-key} --state open --json number,url
 ```
 
 If a PR exists, update the docs repo:
@@ -162,10 +162,10 @@ If there are uncommitted changes, ask the user before continuing.
 git -C "{docs_repo_path}" branch --show-current
 ```
 
-If not on the PR branch (`design/{issue-number}`), check it out:
+If not on the PR branch (`design/{issue-key}`), check it out:
 
 ```bash
-git -C "{docs_repo_path}" checkout design/{issue-number}
+git -C "{docs_repo_path}" checkout design/{issue-key}
 ```
 
 Fast-forward the local branch if the remote is ahead:
@@ -179,11 +179,11 @@ mkdir -p "{docs_repo_path}/$(dirname "{design_file_path}")"
 ```
 
 ```bash
-cp ".artifacts/design/{issue-number}/03-design.md" "{docs_repo_path}/{design_file_path}"
+cp ".artifacts/design/{issue-key}/03-design.md" "{docs_repo_path}/{design_file_path}"
 ```
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
-`WORKFLOW=design`, `ISSUE_NUMBER={issue-number}`,
+`WORKFLOW=design`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{docs_repo_path}/{design_file_path}"`.
 
 ```bash
@@ -191,7 +191,7 @@ git -C "{docs_repo_path}" add "{design_file_path}"
 ```
 
 ```bash
-git -C "{docs_repo_path}" commit -m "Design {issue-number}: revise — {brief description}"
+git -C "{docs_repo_path}" commit -m "Design {issue-key}: revise — {brief description}"
 ```
 
 ```bash
@@ -239,11 +239,11 @@ The following artifacts were modified since the last sync. Re-run
 
 ## Output
 
-- `.artifacts/design/{issue-number}/03-design.md` (updated, if design changed)
-- `.artifacts/design/{issue-number}/04-epics.md` (updated, if decomposition changed)
-- `.artifacts/design/{issue-number}/05-stories/epic-*.md` (updated, if epics changed)
-- `.artifacts/design/{issue-number}/05-stories/epic-*/story-*.md` (updated, if stories changed)
-- `.artifacts/design/{issue-number}/06-coverage.md` (updated, if coverage changed)
+- `.artifacts/design/{issue-key}/03-design.md` (updated, if design changed)
+- `.artifacts/design/{issue-key}/04-epics.md` (updated, if decomposition changed)
+- `.artifacts/design/{issue-key}/05-stories/epic-*.md` (updated, if epics changed)
+- `.artifacts/design/{issue-key}/05-stories/epic-*/story-*.md` (updated, if stories changed)
+- `.artifacts/design/{issue-key}/06-coverage.md` (updated, if coverage changed)
 
 ## When This Phase Is Done
 

@@ -58,15 +58,15 @@ yet or failed to create), leave the local identifier, annotate it with
 ### Step 1: Read Decomposition Artifacts and Detect Changes
 
 Read these files:
-1. `.artifacts/design/{issue-number}/04-epics.md` (epic metadata and ordering)
-2. `.artifacts/design/{issue-number}/05-stories/epic-*.md` (individual epic files)
-3. `.artifacts/design/{issue-number}/05-stories/epic-*/story-*.md` (all story files)
-4. `.artifacts/design/{issue-number}/03-design.md` (for the Jira link and title)
+1. `.artifacts/design/{issue-key}/04-epics.md` (epic metadata and ordering)
+2. `.artifacts/design/{issue-key}/05-stories/epic-*.md` (individual epic files)
+3. `.artifacts/design/{issue-key}/05-stories/epic-*/story-*.md` (all story files)
+4. `.artifacts/design/{issue-key}/03-design.md` (for the Jira link and title)
 
 If these don't exist, tell the user that `/decompose` should be run first.
 
 Check for an existing sync manifest at
-`.artifacts/design/{issue-number}/sync-manifest.json`.
+`.artifacts/design/{issue-key}/sync-manifest.json`.
 
 #### If no manifest exists
 
@@ -192,7 +192,7 @@ Confirm with the user:
 Present a preview of all planned operations:
 
 ```markdown
-## Jira Sync Preview — {issue-number}
+## Jira Sync Preview — {issue-key}
 
 ### Feature: {feature-key} — {title}
 
@@ -616,7 +616,7 @@ local `.artifacts/` files who needs to find the corresponding Jira issue:
 ## Output
 
 - Jira epics and stories created, updated, or closed (with user approval)
-- `.artifacts/design/{issue-number}/sync-manifest.json` (v2 schema)
+- `.artifacts/design/{issue-key}/sync-manifest.json` (v2 schema)
 
 ## When This Phase Is Done
 

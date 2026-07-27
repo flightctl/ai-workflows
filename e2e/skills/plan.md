@@ -31,7 +31,7 @@ review checkpoint before any test code is written.
 ### Step 1: Read Source Material
 
 Read these files in order:
-1. `.artifacts/e2e/{jira-key}/01-context.md` (story context and e2e infrastructure)
+1. `.artifacts/e2e/{issue-key}/01-context.md` (story context and e2e infrastructure)
 2. The project's `AGENTS.md` and/or `CLAUDE.md` (coding conventions)
 3. Any test-specific documentation referenced in the context (test READMEs, guidelines)
 
@@ -113,10 +113,10 @@ plan, consolidate:
 
 ### Step 5: Write the Test Plan
 
-Write `.artifacts/e2e/{jira-key}/02-plan.md` with this structure:
+Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
 
 ```markdown
-# E2E Test Plan — {jira-key}
+# E2E Test Plan — {issue-key}
 
 ## Summary
 
@@ -124,7 +124,7 @@ Write `.artifacts/e2e/{jira-key}/02-plan.md` with this structure:
 
 ## Branch
 
-- **Name:** {jira-key}-{short-slug} (e.g., EDM-5678-fleet-rollback-e2e)
+- **Name:** {issue-key}-{short-slug} (e.g., EDM-5678-fleet-rollback-e2e)
 - **Local Base:** {branch confirmed in Step 2 — used for rebasing during /code and /validate}
 - **PR Target:** {branch confirmed in Step 2 — used as --base in gh pr create; typically `main`}
 
@@ -320,7 +320,7 @@ Show the user the complete plan and highlight:
 
 ## Output
 
-- `.artifacts/e2e/{jira-key}/02-plan.md`
+- `.artifacts/e2e/{issue-key}/02-plan.md`
 
 ## When This Phase Is Done
 

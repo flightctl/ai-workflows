@@ -1,6 +1,6 @@
 ---
 name: capture-provenance-event
-version: 0.1.0
+version: 0.1.1
 ---
 # Recipe: Capture Provenance Event
 
@@ -12,7 +12,7 @@ phase mutates the planning document. See `../provenance-schema.md`.
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | WORKFLOW | Yes | `prd` or `design` |
-| ISSUE_NUMBER | Yes | Jira issue key (e.g., `PROJ-1234`) |
+| ISSUE_KEY | Yes | Jira issue key (e.g., `PROJ-1234`) |
 | PHASE | Yes | `draft`, `revise`, or `respond` |
 | AUTHORING_MODE | Yes | `skill` (default for phase skills) or `manual` |
 
@@ -23,7 +23,7 @@ From the **source repo** root (where `.artifacts/` lives), run:
 ```bash
 python3 "{AI_WORKFLOWS_ROOT}/_shared/scripts/provenance.py" capture \
   --workflow {WORKFLOW} \
-  --issue {ISSUE_NUMBER} \
+  --issue {ISSUE_KEY} \
   --phase {PHASE} \
   --authoring-mode {AUTHORING_MODE}
 ```
@@ -35,4 +35,4 @@ Resolve `{AI_WORKFLOWS_ROOT}` as the git root of the ai-workflows install
 If the command fails, warn the user but do not block the phase — provenance is
 diagnostic, not a hard gate.
 
-Writes or updates `.artifacts/{WORKFLOW}/{ISSUE_NUMBER}/provenance.json`.
+Writes or updates `.artifacts/{WORKFLOW}/{ISSUE_KEY}/provenance.json`.

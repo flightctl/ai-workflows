@@ -32,29 +32,32 @@ The user will provide one of:
 - A path to an existing PRD
 - A path to existing design context
 
-Extract the issue key and set it as the context identifier.
+Extract the full Jira issue key, including the project prefix (e.g.,
+`PROJ-1234`, not just `1234`). Use this as `{issue-key}` throughout
+the workflow — it is the context identifier for the artifact directory
+and all downstream phases.
 
 ### Step 2: Create Artifact Directory
 
 ```bash
-mkdir -p .artifacts/design/{issue-number}
+mkdir -p .artifacts/design/{issue-key}
 ```
 
 ```bash
-mkdir -p .artifacts/design/{issue-number}/05-stories
+mkdir -p .artifacts/design/{issue-key}/05-stories
 ```
 
 ### Step 2a: Check for Prior Ingest
 
-If `.artifacts/design/{issue-number}/01-context.md` already exists, this
+If `.artifacts/design/{issue-key}/01-context.md` already exists, this
 is a re-invocation. Copy the existing file to
-`.artifacts/design/{issue-number}/01-context.md.prev` so it is preserved
+`.artifacts/design/{issue-key}/01-context.md.prev` so it is preserved
 for the diff in Step 6a.
 
 ### Step 3: Read the PRD
 
 Locate and read the PRD. Check in this order:
-1. `.artifacts/prd/{issue-number}/03-prd.md` (local PRD artifact from same session)
+1. `.artifacts/prd/{issue-key}/03-prd.md` (local PRD artifact from same session)
 2. Published PRD in the docs repo (see Step 3a below)
 3. A path provided by the user
 
@@ -62,18 +65,18 @@ If no PRD is found, tell the user and ask for the location. A PRD is the
 primary input to the design workflow.
 
 Also read the clarification log if it exists:
-`.artifacts/prd/{issue-number}/02-clarifications.md`
+`.artifacts/prd/{issue-key}/02-clarifications.md`
 
 Note any locked decisions — these are binding constraints for the design.
 
 ### Step 3a: Locate Published PRD (Fallback)
 
-If the local artifact (`.artifacts/prd/{issue-number}/03-prd.md`) does not
+If the local artifact (`.artifacts/prd/{issue-key}/03-prd.md`) does not
 exist — e.g., the PRD was created in a prior session, on another machine, or
 by someone else — look for the published PRD in the docs repo:
 
 1. Read `.artifacts/prd/config.json` to find `docs_repo_path`
-2. If config exists, read `.artifacts/prd/{issue-number}/publish-metadata.json`
+2. If config exists, read `.artifacts/prd/{issue-key}/publish-metadata.json`
    to find `prd_file_path` (the relative path within the docs repo)
 3. Read the PRD from `{docs_repo_path}/{prd_file_path}`
 
@@ -82,7 +85,7 @@ cloned locally), or if no config or publish metadata exists, fall through
 to the next option in Step 3 (a path provided by the user).
 
 **Note on clarification logs:** The clarification log
-(`.artifacts/prd/{issue-number}/02-clarifications.md`) is not published to
+(`.artifacts/prd/{issue-key}/02-clarifications.md`) is not published to
 the docs repo and only exists locally. If the PRD was created in a prior
 session and `.artifacts/` was cleaned up, locked decisions from the
 clarification log will not be available. The PRD itself should reflect all
@@ -91,7 +94,7 @@ exist that aren't captured in the PRD, ask them to provide the
 clarification log path.
 
 Once the PRD is found, record its resolved path in
-`.artifacts/design/{issue-number}/01-context.md` (in the PRD Summary section)
+`.artifacts/design/{issue-key}/01-context.md` (in the PRD Summary section)
 so that downstream phases (`/draft`, `/research`, `/decompose`) can read it directly from
 the authoritative location rather than relying on a local copy that could
 diverge.
@@ -143,10 +146,10 @@ is a re-invocation (Step 2a found an existing file), **do not write the
 file yet** — hold the compiled content and proceed to Step 6a first.
 
 If this is a first invocation, write
-`.artifacts/design/{issue-number}/01-context.md` with this structure:
+`.artifacts/design/{issue-key}/01-context.md` with this structure:
 
 ```markdown
-# Architectural Context — {issue-number}
+# Architectural Context — {issue-key}
 
 ## PRD Summary
 
@@ -261,7 +264,7 @@ If the user declined a re-invocation overwrite in Step 6a, report instead:
 
 ## Output
 
-- `.artifacts/design/{issue-number}/01-context.md`
+- `.artifacts/design/{issue-key}/01-context.md`
 
 ## When This Phase Is Done
 

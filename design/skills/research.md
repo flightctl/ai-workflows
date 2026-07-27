@@ -56,7 +56,7 @@ the design document, it uses `[Research: §{section}]` markers instead.
 
 #### Step 1: Read the Context
 
-Read `.artifacts/design/{issue-number}/01-context.md` to understand:
+Read `.artifacts/design/{issue-key}/01-context.md` to understand:
 - What the PRD requires (key requirements, functional and non-functional)
 - What the codebase currently looks like (affected components, existing patterns)
 - What locked decisions constrain the design
@@ -67,12 +67,12 @@ run first and stop.
 
 Also read the PRD for the full requirements — use the path recorded in
 `01-context.md`'s PRD Summary section, falling back to
-`.artifacts/prd/{issue-number}/03-prd.md`. Read
-`.artifacts/prd/{issue-number}/02-clarifications.md` for any locked decisions.
+`.artifacts/prd/{issue-key}/03-prd.md`. Read
+`.artifacts/prd/{issue-key}/02-clarifications.md` for any locked decisions.
 
 #### Step 1a: Check for Prior Research (Re-invocation)
 
-If `.artifacts/design/{issue-number}/02-research.md` already exists, this is a
+If `.artifacts/design/{issue-key}/02-research.md` already exists, this is a
 re-invocation (e.g., looping back from `/draft` to investigate a gap). Present
 the user with options:
 
@@ -111,7 +111,7 @@ patterns" to understand the landscape.
 Present the user with a numbered research plan:
 
 ```
-Research Plan for {issue-number}
+Research Plan for {issue-key}
 
 Domain 1: {domain name}
   Q1. {specific research question}
@@ -191,7 +191,7 @@ gaps.
 #### Step 7: Write Domain Findings
 
 After completing research on each domain, write the findings to
-`.artifacts/design/{issue-number}/02-research.md`. Don't wait until all domains
+`.artifacts/design/{issue-key}/02-research.md`. Don't wait until all domains
 are complete — write incrementally so the artifact evolves and the user can
 see progress if they check the file.
 
@@ -229,12 +229,12 @@ Present a summary to the user highlighting:
 
 ## Output
 
-`.artifacts/design/{issue-number}/02-research.md`
+`.artifacts/design/{issue-key}/02-research.md`
 
 Structure:
 
 ```markdown
-# Design Research — {issue-number}
+# Design Research — {issue-key}
 
 **Researched:** {date}
 

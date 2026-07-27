@@ -55,8 +55,8 @@ the project should also provide matching section guidance.
 ### Step 2: Read Source Material
 
 Read these files in order:
-1. `.artifacts/prd/{issue-number}/01-requirements.md` (raw requirements)
-2. `.artifacts/prd/{issue-number}/02-clarifications.md` (clarification log, if exists)
+1. `.artifacts/prd/{issue-key}/01-requirements.md` (raw requirements)
+2. `.artifacts/prd/{issue-key}/02-clarifications.md` (clarification log, if exists)
 3. The PRD template (from Step 1)
 4. The section guidance (from Step 1)
 
@@ -206,7 +206,7 @@ Before presenting the PRD, verify:
 
 ### Step 8: Write Artifact
 
-Save the PRD to `.artifacts/prd/{issue-number}/03-prd.md`.
+Save the PRD to `.artifacts/prd/{issue-key}/03-prd.md`.
 
 ### Step 8a: Capture Provenance
 
@@ -215,7 +215,7 @@ Read and follow `../../_shared/recipes/capture-provenance-event.md` with:
 | Parameter | Value |
 |-----------|-------|
 | WORKFLOW | `prd` |
-| ISSUE_NUMBER | `{issue-number}` |
+| ISSUE_KEY | `{issue-key}` |
 | PHASE | `draft` |
 | AUTHORING_MODE | `skill` |
 
@@ -228,8 +228,8 @@ Show the user the complete PRD and highlight:
 
 ## Output
 
-- `.artifacts/prd/{issue-number}/03-prd.md`
-- `.artifacts/prd/{issue-number}/provenance.json`
+- `.artifacts/prd/{issue-key}/03-prd.md`
+- `.artifacts/prd/{issue-key}/provenance.json`
 
 ## When This Phase Is Done
 

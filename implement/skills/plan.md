@@ -29,7 +29,7 @@ review checkpoint before any code is written.
 ### Step 1: Read Source Material
 
 Read these files in order:
-1. `.artifacts/implement/{jira-key}/01-context.md` (story context)
+1. `.artifacts/implement/{issue-key}/01-context.md` (story context)
 2. The project's `AGENTS.md` and/or `CLAUDE.md` (coding conventions)
 
 If `01-context.md` doesn't exist, tell the user that `/ingest` should be
@@ -81,10 +81,10 @@ Before writing the plan, create a mental map:
 
 ### Step 4: Write the Implementation Plan
 
-Write `.artifacts/implement/{jira-key}/02-plan.md` with this structure:
+Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
 
 ```markdown
-# Implementation Plan — {jira-key}
+# Implementation Plan — {issue-key}
 
 ## Summary
 
@@ -92,7 +92,7 @@ Write `.artifacts/implement/{jira-key}/02-plan.md` with this structure:
 
 ## Branch
 
-- **Name:** {jira-key}-{short-slug} (e.g., EDM-1234-fleet-rollback)
+- **Name:** {issue-key}-{short-slug} (e.g., EDM-1234-fleet-rollback)
 - **Local Base:** {branch confirmed in Step 2 — used for rebasing during /code and /validate}
 - **PR Target:** {branch confirmed in Step 2 — used as --base in gh pr create; typically `main`}
 
@@ -213,7 +213,7 @@ Show the user the complete plan and highlight:
 
 ## Output
 
-- `.artifacts/implement/{jira-key}/02-plan.md`
+- `.artifacts/implement/{issue-key}/02-plan.md`
 
 ## When This Phase Is Done
 

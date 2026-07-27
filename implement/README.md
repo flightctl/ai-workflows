@@ -87,7 +87,7 @@ graph TD
 
 ## Artifacts
 
-All artifacts are stored in `.artifacts/implement/{jira-key}/`.
+All artifacts are stored in `.artifacts/implement/{issue-key}/`.
 
 ```text
 .artifacts/implement/EDM-1234/
