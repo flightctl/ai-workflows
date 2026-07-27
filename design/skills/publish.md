@@ -194,10 +194,12 @@ exist, write "General review — no specific items flagged."}
 - Approve when the design accurately reflects a viable implementation approach
 ```
 
-Determine `{owner}/{repo}` from `docs_repo_remote`, then create the draft PR:
+Determine `{owner}/{repo}` from `docs_repo_remote`, then create the draft PR.
+If `{issue-number}` is a Jira key, prefix the title with it
+(`{issue-number}: Design - {title}`); otherwise use `Design: {title}`.
 
 ```bash
-gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head design/{issue-number} --title "Design: {title}" --body-file .artifacts/design/{issue-number}/07-pr-description.md
+gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head design/{issue-number} --title "{issue-number}: Design - {title}" --body-file .artifacts/design/{issue-number}/07-pr-description.md
 ```
 
 ### Step 6: Save Publish Metadata
