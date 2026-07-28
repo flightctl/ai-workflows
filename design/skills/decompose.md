@@ -467,9 +467,9 @@ Write `.artifacts/design/{issue-key}/07-testplan.md`:
 
 ## Overview
 
-Feature: {feature-key} — {feature-title}<br>
-Total test cases: {N}<br>
-Requirements covered: {N} of {total FR + NFR count}
+- **Feature:** {feature-key} — {feature-title}
+- **Total test cases:** {N}
+- **Requirements covered:** {N} of {total FR + NFR count}
 
 ## Test Cases
 

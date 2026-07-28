@@ -138,10 +138,11 @@ After applying changes, verify:
 - If test cases were added, removed, or modified (including metadata
   changes like Priority or Automation): recompute the testplan's Overview
   counts and Summary table from the current test cases.
-- If test cases were added, removed, or renamed: rebuild the testplan's
-  Gaps section from the current requirement-to-test-case mappings.
-  Remove stale gaps for requirements that now have coverage, and add
-  gaps for requirements that have lost all test cases.
+- If test cases were added, removed, renamed, or had their Story, AC,
+  or requirement mapping changed: rebuild the testplan's Gaps section
+  from the current requirement-to-test-case and AC-to-test-case
+  mappings. Remove stale gaps for requirements or ACs that now have
+  coverage, and add gaps for those that have lost coverage.
 - If requirement IDs changed (rare — requires PRD revision): update
   all TC IDs anchored to the changed requirement, cascade the renamed
   IDs to each story's `Test Case References` section and the coverage

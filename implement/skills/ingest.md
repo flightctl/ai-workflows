@@ -193,9 +193,9 @@ Write `.artifacts/implement/{issue-key}/testplan.md`:
 ```markdown
 # Story Test Plan — {issue-key}
 
-Source: {docs-repo-path}/testplan.md<br>
-Story: {issue-key} — {story-title}<br>
-Test cases: {count}
+- **Source:** {docs-repo-path}/testplan.md
+- **Story:** {issue-key} — {story-title}
+- **Test cases:** {count}
 
 ## TC-FR1-01: {scenario title}
 
