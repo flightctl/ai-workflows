@@ -85,6 +85,7 @@ graph TD
 /sync
   → previews all Jira operations (dry run)
   → syncs epics and stories — creates new, updates changed, closes removed
+  → resolves testplan story references to Jira keys in docs repo
   → maintains sync-manifest.json with content hashes
 ```
 

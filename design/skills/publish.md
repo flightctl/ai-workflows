@@ -220,7 +220,9 @@ exist, write "General review — no specific items flagged."}
 
 ### Documents
 - `design.md` — technical design document
-- `testplan.md` — behavioral test cases mapped to PRD requirements (included if testplan exists)
+{If `07-testplan.md` was published, add:
+- `testplan.md` — behavioral test cases mapped to PRD requirements
+Otherwise, omit the testplan bullet entirely.}
 
 ### How to Review
 - Comment inline on specific sections
@@ -239,6 +241,8 @@ gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head design/{i
 
 Write `.artifacts/design/{issue-key}/publish-metadata.json`:
 
+If `07-testplan.md` was published:
+
 ```json
 {
   "release": "{release}",
@@ -250,8 +254,17 @@ Write `.artifacts/design/{issue-key}/publish-metadata.json`:
 }
 ```
 
-Include `testplan_file_path` only if `07-testplan.md` was published. Omit
-the field if no testplan exists.
+If no testplan was published, omit `testplan_file_path` entirely:
+
+```json
+{
+  "release": "{release}",
+  "feature": "{feature}",
+  "design_file_path": "{release}/{feature}/design.md",
+  "pr_number": {pr-number},
+  "branch": "design/{issue-key}"
+}
+```
 
 ### Step 7: Report to User
 
