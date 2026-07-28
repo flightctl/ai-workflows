@@ -71,7 +71,18 @@ Group comments into categories:
 | **New requirement** | Flag for user decision — update design or defer |
 | **Approval / positive** | Acknowledge |
 | **Open question resolution** | Resolve the open question (see Step 4) |
+| **Testplan feedback** | Route to testplan-specific handling (Step 4b) |
 | **Out of scope** | Draft a reply explaining why |
+
+**Routing testplan comments:** Line-level review comments (from
+`gh api .../pulls/{pr-number}/comments`) include a `path` field. Comments
+with `path` ending in `testplan.md` are categorized as **Testplan
+feedback**. Top-level PR comments (from `gh pr view --json comments`) do
+not carry a `path`. For these, inspect the comment body: if it references
+test case IDs matching the pattern `TC-` followed by a requirement
+identifier, or discusses adding, modifying, or removing test cases,
+categorize as **Testplan feedback**. When uncertain, categorize as the
+next-best-fit category and let the user reclassify during Step 3.
 
 ### Step 3: Propose Responses
 
@@ -93,6 +104,14 @@ Present each comment with a proposed response:
 **Category:** Open question resolution
 **Proposed resolution:** {synthesized answer from reviewer discussion}
 **Design change needed:** Yes — incorporate into Section {N}, remove open question 8.2
+
+### Comment 3 — {reviewer} on testplan.md, TC-FR2-01
+> {quoted comment text}
+
+**Category:** Testplan feedback
+**Proposed response:** {suggested reply}
+**Testplan change needed:** {modify TC-FR2-01 expected result / add TC-FR2-03 / remove TC-FR1-02}
+**Cascade:** Update Story 2.01 Test Case References, update coverage matrix
 ```
 
 Wait for the user to approve, modify, or reject each response.
@@ -136,6 +155,42 @@ section, synthesize the discussion into a proposed resolution:
 6. Remove the resolved entry from the Open Questions section.
 7. If the Open Questions section is now empty, remove the entire section
    (heading and introductory text) from the design document.
+
+#### Applying testplan changes
+
+When approved changes include testplan modifications (category: Testplan
+feedback), apply them in this order:
+
+1. **Modify `07-testplan.md`.** Add, modify, or remove test cases as
+   directed by the approved response. For each change:
+   - **Adding a test case:** Assign the next available sequence number
+     within the requirement group (e.g., if TC-FR2-01 and TC-FR2-02
+     exist, the new case is TC-FR2-03). Fill all required fields (ID,
+     Title, Requirement, Story, Preconditions, Scenario/Steps, Expected
+     Result, Priority, Automation). Update the testplan's Overview counts
+     and Summary table.
+   - **Modifying a test case:** Update the affected fields. If the Story
+     assignment changes, update both the old and new story's Test Case
+     References in step 2 below.
+   - **Removing a test case:** Delete the row. Update the testplan's
+     Overview counts and Summary table.
+
+2. **Cascade to story files.** For each affected story (identified by the
+   Story column of changed test cases):
+   - Re-read the story file at
+     `.artifacts/design/{issue-key}/05-stories/epic-{N}/story-{NN}-{slug}.md`.
+   - Rewrite the `## Test Case References` section: collect all TC IDs
+     from the updated testplan where the Story column matches this story,
+     then write `Verified by: {comma-separated TC IDs}`.
+   - If a story loses all its test cases, write:
+     `Verified by: None (no behavioral test cases after testplan revision)`.
+
+3. **Cascade to coverage matrix.** Re-read
+   `.artifacts/design/{issue-key}/06-coverage.md`. For each row in the PRD
+   Requirement mapping table, update the `Test Cases` column to reflect
+   the current TC IDs from the testplan for that requirement. If a
+   requirement previously had test cases and now has none, flag it in the
+   Gaps section.
 
 **Update the local artifact:** Update
 `.artifacts/design/{issue-key}/03-design.md`.
@@ -193,11 +248,24 @@ git -C "{docs_repo_path}" add "{design_file_path}"
 ```
 
 If `07-testplan.md` exists and `publish-metadata.json` contains a
-`testplan_file_path` field, also copy the testplan:
+`testplan_file_path` field, also copy the testplan to the docs repo.
+
+**Sync-manifest guard:** If `.artifacts/design/{issue-key}/sync-manifest.json`
+exists, the published testplan's Story column must use Jira keys (resolved
+by `/sync`), not local identifiers. Before copying, read the sync manifest
+and resolve the Story column in each test case row: replace local
+references (e.g., `Story 1.01`) with their Jira keys from the manifest
+(e.g., `EDM-1234`). Write the resolved version to the docs repo — do NOT
+modify the local `07-testplan.md` (it keeps local identifiers).
+
+If `sync-manifest.json` does not exist, copy `07-testplan.md` as-is.
 
 ```bash
 cp ".artifacts/design/{issue-key}/07-testplan.md" "{docs_repo_path}/{testplan_file_path}"
 ```
+
+(If the sync-manifest guard applied, the file written to the docs repo is
+the resolved version, not the literal local copy.)
 
 ```bash
 git -C "{docs_repo_path}" add "{testplan_file_path}"
@@ -261,6 +329,7 @@ Write or update `.artifacts/design/{issue-key}/09-review-responses.md`:
 - **Category:** {category}
 - **Response:** {what was replied}
 - **Design change:** {Yes/No — description if yes}
+- **Testplan change:** {Yes/No — TC-FR2-01 modified, TC-FR2-03 added / None}
 ```
 
 ### Step 6: Assess Decomposition Impact
@@ -270,6 +339,12 @@ If design changes were made, check whether they affect the task breakdown:
 - Did APIs or data models change? → Stories may need updating
 - Did new requirements emerge from review? → Coverage matrix needs checking
 - Did requirements or acceptance criteria change? → Testplan may need updating
+
+If testplan changes were applied in Step 4b, verify that the cascade
+(story Test Case References and coverage matrix Test Cases column) is
+consistent. If the cascade reveals an inconsistency not caught during
+Step 4b (e.g., a story references a TC ID that was removed), fix it
+before proceeding.
 
 If the decomposition is affected, flag it and recommend `/revise` or
 re-running `/decompose`.
