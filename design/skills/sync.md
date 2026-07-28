@@ -598,7 +598,7 @@ Fields:
 ### Step 7: Update Published Testplan
 
 If the testplan has been published to the docs repo, update the
-published copy's Story column with Jira keys so downstream workflows
+published copy's Story field with Jira keys so downstream workflows
 can filter by Jira key.
 
 **Skip this step entirely if any of these are true:**
@@ -610,12 +610,11 @@ can filter by Jira key.
 **Resolve Story references:**
 
 1. Read `.artifacts/design/{issue-key}/07-testplan.md`.
-2. For each test case row in the Test Cases tables, resolve the Story
-   column using the sync manifest: replace local references (e.g.,
-   `Story 1.01`) with their Jira keys (e.g., `EDM-1234`). Use the
-   reference resolution logic described in the Reference Resolution
-   section (look up `story-{NN}-*.md` under `epic-{N}/` in the manifest
-   to find the Jira key).
+2. For each test case entry, resolve the Story field in the metadata
+   table: replace local references (e.g., `Story 1.01`) with their Jira
+   keys (e.g., `EDM-1234`). Use the reference resolution logic described
+   in the Reference Resolution section (look up `story-{NN}-*.md` under
+   `epic-{N}/` in the manifest to find the Jira key).
 3. If a Story reference cannot be resolved (not in the manifest), leave
    it as-is and note it for the user.
 
@@ -624,7 +623,7 @@ can filter by Jira key.
 Read `.artifacts/prd/config.json` to get the docs repo path. Read
 `publish-metadata.json` to get the `testplan_file_path`.
 
-Write the resolved testplan content (with Jira keys in the Story column)
+Write the resolved testplan content (with Jira keys in the Story field)
 to `{docs_repo_path}/{testplan_file_path}`. Do NOT modify the local
 `07-testplan.md` — it keeps local identifiers.
 

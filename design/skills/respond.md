@@ -165,28 +165,30 @@ feedback), apply them in this order:
    directed by the approved response. For each change:
    - **Adding a test case:** Assign the next available sequence number
      within the requirement group (e.g., if TC-FR2-01 and TC-FR2-02
-     exist, the new case is TC-FR2-03). Fill all required fields (ID,
-     Title, Requirement, Story, Preconditions, Scenario/Steps, Expected
-     Result, Priority, Automation). Update the testplan's Overview counts
-     and Summary table.
-   - **Modifying a test case:** Update the affected fields. If the Story
-     assignment changes, update both the old and new story's Test Case
-     References in step 2 below.
-   - **Removing a test case:** Delete the row. Update the testplan's
-     Overview counts and Summary table.
+     exist, the new case is TC-FR2-03). Create the full test case entry:
+     H4 heading with ID and title, metadata table (Story, Priority,
+     Automation), and H5 sub-sections (Preconditions, Steps, Expected
+     Results). Update the testplan's Overview counts and Summary table.
+   - **Modifying a test case:** Update the affected heading, metadata
+     table fields, or sub-section content. If the Story assignment
+     changes, update both the old and new story's Test Case References
+     in step 2 below.
+   - **Removing a test case:** Delete the test case entry (heading and
+     all sub-sections). Update the testplan's Overview counts and
+     Summary table.
 
 2. **Cascade to story files.** For each affected story (identified by the
-   Story column of changed test cases):
+   Story field of changed test cases):
    - Re-read the story file at
      `.artifacts/design/{issue-key}/05-stories/epic-{N}/story-{NN}-{slug}.md`.
    - Rewrite the `## Test Case References` section: collect all TC IDs
-     from the updated testplan where the Story column matches this story,
+     from the updated testplan where the Story field matches this story,
      then write `Verified by: {comma-separated TC IDs}`.
    - If a story loses all its test cases, write:
      `Verified by: None (no behavioral test cases after testplan revision)`.
 
 3. **Cascade to coverage matrix.** Re-read
-   `.artifacts/design/{issue-key}/06-coverage.md`. For each row in the PRD
+   `.artifacts/design/{issue-key}/06-coverage.md`. For each entry in the PRD
    Requirement mapping table, update the `Test Cases` column to reflect
    the current TC IDs from the testplan for that requirement. If a
    requirement previously had test cases and now has none, flag it in the
@@ -258,9 +260,9 @@ metadata — testplan changes are applied locally only. Re-run `/publish`
 to include the testplan in the docs repo.)
 
 **Sync-manifest guard:** If `.artifacts/design/{issue-key}/sync-manifest.json`
-exists, the published testplan's Story column must use Jira keys (resolved
+exists, the published testplan's Story field must use Jira keys (resolved
 by `/sync`), not local identifiers. Before copying, read the sync manifest
-and resolve the Story column in each test case row: replace local
+and resolve the Story field in each test case's metadata table: replace local
 references (e.g., `Story 1.01`) with their Jira keys from the manifest
 (e.g., `EDM-1234`). Write the resolved version to the docs repo — do NOT
 modify the local `07-testplan.md` (it keeps local identifiers).

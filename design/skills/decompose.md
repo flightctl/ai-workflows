@@ -394,19 +394,16 @@ it (from the epic/story files written in Step 5). For each story:
 two-digit zero-padded counter within that requirement. Examples:
 `TC-FR1-01`, `TC-FR1-02`, `TC-NFR3-01`.
 
-**Test case fields** (all required per row; the requirement is identified
-by the section heading, not repeated in each row):
+**Test case fields** (all required per test case; the requirement is
+identified by the parent section heading):
 
 | Field | Description |
 |-------|-------------|
-| Test Case ID | `TC-{req}-{NN}` (e.g., `TC-FR1-01`) |
-| Title | One-line scenario description |
-| Story | Which story implements the capability under test (e.g., `Story 1.01`) |
-| Preconditions | System state required before the test |
-| Scenario / Steps | What the tester does — numbered steps |
-| Expected Result | Observable outcome the tester verifies |
-| Priority | `critical` / `high` / `medium` / `low` |
-| Automation | `automated` / `manual` |
+| Test Case ID and Title | H4 heading: `#### TC-{req}-{NN}: {one-line scenario description}` |
+| Story, Priority, Automation | Single metadata table beneath the H4 heading |
+| Preconditions | H5 section: system state required before the test |
+| Steps | H5 section: what the tester does — numbered steps |
+| Expected Results | H5 section: observable outcomes the tester verifies |
 
 **Priority assignment:**
 - `critical` — core user workflows or data integrity
@@ -446,22 +443,85 @@ Requirements covered: {N} of {total FR + NFR count}
 
 ### FR-1: {requirement description}
 
-| ID | Title | Story | Preconditions | Scenario / Steps | Expected Result | Priority | Automation |
-|----|-------|-------|---------------|------------------|-----------------|----------|------------|
-| TC-FR1-01 | {title} | Story 1.01 | {preconditions} | 1. {step} 2. {step} | {expected result} | high | automated |
-| TC-FR1-02 | {title} | Story 1.02 | {preconditions} | 1. {step} 2. {step} | {expected result} | medium | automated |
+#### TC-FR1-01: {scenario title}
+
+| Story | Priority | Automation |
+|-------|----------|------------|
+| Story 1.01 | high | automated |
+
+##### Preconditions
+
+- {system state required before the test}
+
+##### Steps
+
+1. {what the tester does}
+2. {next action}
+
+##### Expected Results
+
+- {observable outcome the tester verifies}
+
+#### TC-FR1-02: {scenario title}
+
+| Story | Priority | Automation |
+|-------|----------|------------|
+| Story 1.02 | medium | automated |
+
+##### Preconditions
+
+- {precondition}
+
+##### Steps
+
+1. {step}
+2. {step}
+
+##### Expected Results
+
+- {expected outcome}
 
 ### FR-2: {requirement description}
 
-| ID | Title | Story | Preconditions | Scenario / Steps | Expected Result | Priority | Automation |
-|----|-------|-------|---------------|------------------|-----------------|----------|------------|
-| TC-FR2-01 | {title} | Story 2.01 | {preconditions} | 1. {step} 2. {step} | {expected result} | critical | automated |
+#### TC-FR2-01: {scenario title}
+
+| Story | Priority | Automation |
+|-------|----------|------------|
+| Story 2.01 | critical | automated |
+
+##### Preconditions
+
+- {precondition}
+
+##### Steps
+
+1. {step}
+2. {step}
+
+##### Expected Results
+
+- {expected outcome}
 
 ### NFR-1: {requirement description}
 
-| ID | Title | Story | Preconditions | Scenario / Steps | Expected Result | Priority | Automation |
-|----|-------|-------|---------------|------------------|-----------------|----------|------------|
-| TC-NFR1-01 | {title} | Story 1.02 | {preconditions} | 1. {step} 2. {step} | {expected result} | high | automated |
+#### TC-NFR1-01: {scenario title}
+
+| Story | Priority | Automation |
+|-------|----------|------------|
+| Story 1.02 | high | automated |
+
+##### Preconditions
+
+- {precondition}
+
+##### Steps
+
+1. {step}
+2. {step}
+
+##### Expected Results
+
+- {expected outcome}
 
 ## Gaps
 
@@ -488,8 +548,8 @@ Requirements covered: {N} of {total FR + NFR count}
 ```
 
 Test cases are grouped under requirement headings (not by epic) because
-the testplan's purpose is requirement traceability. The Story column
-provides the link back to the epic/story structure.
+the testplan's purpose is requirement traceability. The Story field in
+each test case's metadata table links back to the epic/story structure.
 
 #### 7c: Add Test Case References to Stories
 
@@ -539,7 +599,7 @@ Quick sanity check before invoking the decomposition review. Verify:
    `05-stories/epic-1-{slug}.md`)
 3. Each epic has a corresponding story directory with story files
 4. `06-coverage.md` exists and contains at least one mapping row
-5. `07-testplan.md` exists and contains at least one test case row
+5. `07-testplan.md` exists and contains at least one test case entry
 6. Every non-`[DOCS]` story file has a `## Test Case References` section
 
 If structural issues are found, fix them before proceeding. Do not

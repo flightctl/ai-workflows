@@ -107,7 +107,7 @@ impact:
    restatements of acceptance criteria? Are priorities assigned
    consistently (critical for core workflows, not everything marked
    high)? Do the `Test Case References` in story files match the
-   testplan's Story column? Does the coverage matrix's Test Cases column
+   testplan's Story field? Does the coverage matrix's Test Cases column
    match the testplan? Are there requirements with stories but no test
    cases (testplan gaps)?
 
@@ -146,7 +146,7 @@ Findings that cannot cite a specific file and section in the actual
 artifacts must be discarded — they indicate hallucinated references.
 Coverage matrix findings should cite `06-coverage.md` and the specific
 row or gap. Testplan findings should cite `07-testplan.md` and the
-specific requirement section or test case row.
+specific requirement section or test case entry.
 
 ## Severity Definitions
 

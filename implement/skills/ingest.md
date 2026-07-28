@@ -143,14 +143,81 @@ Read these from the docs repo:
 2. **PRD** (`prd.md`) — the product requirements, with locked decisions
    reflected in the requirements text
 3. **Testplan** (`testplan.md`) — behavioral test cases mapped to PRD
-   requirements. Valuable context for understanding what scenarios the
-   feature is expected to pass, but not required. The story's acceptance
-   criteria and testing approach remain the primary contract.
+   requirements. If found, proceed to Step 5d for filtering.
 
-If the docs repo documents are not found, ask the user for their location
-or proceed with only the Jira story content. The design document, PRD,
-and testplan are valuable context but not strictly required — the story's
-acceptance criteria are the primary contract.
+If the design document or PRD are not found, ask the user for their
+location or proceed with only the Jira story content. The design
+document and PRD are valuable context but not strictly required — the
+story's acceptance criteria are the primary contract.
+
+#### 5d: Filter Testplan to Story Scope
+
+If `testplan.md` was found in Step 5c, filter it to the test cases
+relevant to this story. The published testplan uses Jira keys in the
+Story field in each test case's metadata table (resolved by `/sync`).
+Filter by matching the Story field against this story's Jira key
+(`{issue-key}`).
+
+If the Story field still contains local identifiers (e.g., `Story 1.01`
+instead of Jira keys), this means `/sync` has not yet been run or the
+testplan was published before sync. In this case, look for TC IDs in the
+Jira story's Test Case References section (synced from the design
+workflow) and match those TC IDs directly against the testplan entries.
+
+**Three-outcome gate:**
+
+| Outcome | Condition | Action |
+|---------|-----------|--------|
+| **Normal** | Matching test cases found | Write `.artifacts/implement/{issue-key}/testplan.md` |
+| **Expected zero** | No matches AND story type is `[QE]`, `[DOCS]`, `[UX]`, or `[CI]` | Note in context: "Testplan exists but has no test cases for this story type. This is expected." Do not write `testplan.md`. |
+| **Anomalous zero** | No matches AND story type is `[DEV]` or `[UI]` | Warn the user: "Testplan exists but no test cases reference this story. This may indicate a gap in the testplan or an incorrect requirement mapping." This is non-blocking — continue without `testplan.md`. |
+
+If `testplan.md` was not found in the docs repo, note "No feature-level
+testplan available" and continue. This is not an error — the testplan is
+a newer feature and older designs may not have one.
+
+**Write story-scoped testplan (Normal outcome only):**
+
+Write `.artifacts/implement/{issue-key}/testplan.md`:
+
+```markdown
+# Story Test Plan — {issue-key}
+
+Source: {docs-repo-path}/testplan.md
+Story: {issue-key} — {story-title}
+Test cases: {count}
+
+## TC-FR1-01: {scenario title}
+
+| Requirement | Priority | Automation |
+|-------------|----------|------------|
+| FR-1 | high | automated |
+
+### Preconditions
+
+- {precondition}
+
+### Steps
+
+1. {step}
+2. {step}
+
+### Expected Results
+
+- {expected outcome}
+
+## TC-FR1-02: {scenario title}
+
+{... same structure for each test case ...}
+```
+
+Each test case becomes an H2 heading with the same structure as the
+feature-level testplan (metadata table, Preconditions, Steps, Expected
+Results as sub-headings). Heading levels are shifted up by two because
+the requirement-grouping layer and the Test Cases section are removed.
+The Story field is omitted from the metadata table (redundant — all
+entries are for this story). The Requirement ID is included in the
+metadata table for traceability back to the feature-level testplan.
 
 ### Step 6: Explore the Codebase
 
@@ -268,6 +335,21 @@ If this is a first invocation, write
 
 {Which FR-N and NFR-N requirements this story addresses, from the
  coverage matrix or story metadata.}
+
+### Story Test Plan
+
+{If testplan.md was written: "Story-scoped test plan with {N} test
+ cases. See `.artifacts/implement/{issue-key}/testplan.md` for full
+ details. TC IDs: {comma-separated list}."
+
+ If testplan exists but no matches (expected): "Feature testplan exists
+ but has no test cases for this {story-type} story (expected)."
+
+ If testplan exists but no matches (anomalous): "Feature testplan exists
+ but no test cases reference this {story-type} story (anomalous — flagged
+ during ingest)."
+
+ If testplan not found: "No feature-level testplan available."}
 
 ## Codebase Context
 
@@ -388,6 +470,7 @@ what changes were found and that the existing context was preserved.
 ## Output
 
 - `.artifacts/implement/{issue-key}/01-context.md`
+- `.artifacts/implement/{issue-key}/testplan.md` (if testplan exists with matching test cases)
 
 ## When This Phase Is Done
 
@@ -396,6 +479,7 @@ Report your findings:
 - Affected components and current patterns
 - Validation profile summary
 - Dependency warnings (if any)
+- Story test plan status (test cases found / expected zero / anomalous zero / no testplan)
 - Assessment of readiness for `/plan`
 
 Then **re-read the controller** (`controller.md`) for next-step guidance.

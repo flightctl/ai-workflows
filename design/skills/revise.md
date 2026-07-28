@@ -204,9 +204,9 @@ If `07-testplan.md` exists and `publish-metadata.json` contains a
 `testplan_file_path` field, also copy the testplan to the docs repo.
 
 **Sync-manifest guard:** If `.artifacts/design/{issue-key}/sync-manifest.json`
-exists, the published testplan's Story column must use Jira keys. Before
-copying, read the sync manifest and resolve the Story column in each test
-case row (`Story 1.01` → Jira key from manifest). Write the resolved
+exists, the published testplan's Story field must use Jira keys. Before
+copying, read the sync manifest and resolve the Story field in each test
+case's metadata table (`Story 1.01` → Jira key from manifest). Write the resolved
 version to the docs repo — do NOT modify the local `07-testplan.md`.
 If `sync-manifest.json` does not exist, copy `07-testplan.md` as-is.
 
