@@ -595,11 +595,90 @@ Fields:
 - `synced_at` — top-level only, not per-entry. Updated to the current
   timestamp at the end of each sync run.
 
-### Step 7: Report to User
+### Step 7: Update Published Testplan
+
+If the testplan has been published to the docs repo, update the
+published copy's Story column with Jira keys so downstream workflows
+can filter by Jira key.
+
+**Skip this step entirely if any of these are true:**
+- `.artifacts/prd/config.json` does not exist
+- `.artifacts/design/{issue-key}/publish-metadata.json` does not exist
+- `publish-metadata.json` does not contain a `testplan_file_path` field
+- `.artifacts/design/{issue-key}/07-testplan.md` does not exist
+
+**Resolve Story references:**
+
+1. Read `.artifacts/design/{issue-key}/07-testplan.md`.
+2. For each test case row in the Test Cases tables, resolve the Story
+   column using the sync manifest: replace local references (e.g.,
+   `Story 1.01`) with their Jira keys (e.g., `EDM-1234`). Use the
+   reference resolution logic described in the Reference Resolution
+   section (look up `story-{NN}-*.md` under `epic-{N}/` in the manifest
+   to find the Jira key).
+3. If a Story reference cannot be resolved (not in the manifest), leave
+   it as-is and note it for the user.
+
+**Write the resolved testplan to the docs repo:**
+
+Read `.artifacts/prd/config.json` to get the docs repo path. Read
+`publish-metadata.json` to get the `testplan_file_path`.
+
+Write the resolved testplan content (with Jira keys in the Story column)
+to `{docs_repo_path}/{testplan_file_path}`. Do NOT modify the local
+`07-testplan.md` — it keeps local identifiers.
+
+Compare the resolved content against the current content of
+`{docs_repo_path}/{testplan_file_path}`. If they are identical, skip
+the commit — the published testplan is already up to date.
+
+```bash
+git -C "{docs_repo_path}" fetch origin
+```
+
+```bash
+git -C "{docs_repo_path}" status
+```
+
+If there are uncommitted changes in the docs repo, ask the user before
+continuing.
+
+```bash
+git -C "{docs_repo_path}" branch --show-current
+```
+
+If not on the PR branch (`design/{issue-key}`), check it out:
+
+```bash
+git -C "{docs_repo_path}" checkout design/{issue-key}
+```
+
+```bash
+git -C "{docs_repo_path}" pull --ff-only
+```
+
+```bash
+git -C "{docs_repo_path}" add "{testplan_file_path}"
+```
+
+```bash
+git -C "{docs_repo_path}" commit -m "Sync {issue-key}: resolve testplan story references to Jira keys"
+```
+
+```bash
+git -C "{docs_repo_path}" push
+```
+
+If any git operation fails, report the error to the user. The Jira sync
+is already complete — this step only affects the docs repo copy. Offer
+to retry or skip.
+
+### Step 8: Report to User
 
 Summarize:
 - How many epics and stories were created, updated, closed, and unchanged
 - Confirm the hierarchy was verified: every epic has parent = Feature (verified in Step 4), every story has parent = its epic (verified in Step 5)
+- Whether the published testplan was updated (and how many Story references were resolved vs. left unresolved), or skipped (no testplan published)
 - Link to the Feature issue in Jira (which now shows the full hierarchy)
 
 **Do not suggest manual parent linking as a next step.** If any parent
@@ -624,6 +703,7 @@ local `.artifacts/` files who needs to find the corresponding Jira issue:
 
 - Jira epics and stories created, updated, or closed (with user approval)
 - `.artifacts/design/{issue-key}/sync-manifest.json` (v2 schema)
+- Published testplan updated in docs repo with Jira keys (if testplan was published)
 
 ## When This Phase Is Done
 
