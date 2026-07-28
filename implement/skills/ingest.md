@@ -161,8 +161,9 @@ Filter by matching the Story field against this story's Jira key
 If the Story field still contains local identifiers (e.g., `Story 1.01`
 instead of Jira keys), this means `/sync` has not yet been run or the
 testplan was published before sync. In this case, look for TC IDs in the
-Jira story's Test Case References section (synced from the design
-workflow) and match those TC IDs directly against the testplan entries.
+Jira story's Test Case References section (captured in Step 3 from the
+story description) and match those TC IDs directly against the testplan
+entries.
 
 **Three-outcome gate:**
 
@@ -172,9 +173,13 @@ workflow) and match those TC IDs directly against the testplan entries.
 | **Expected zero** | No matches AND story type is `[QE]`, `[DOCS]`, `[UX]`, or `[CI]` | Note in context: "Testplan exists but has no test cases for this story type. This is expected." |
 | **Anomalous zero** | No matches AND story type is `[DEV]` or `[UI]` | Warn the user: "Testplan exists but no test cases reference this story. This may indicate a gap in the testplan or an incorrect requirement mapping." This is non-blocking. |
 
-For non-normal outcomes (expected zero, anomalous zero, or no
-feature-level testplan): if `.artifacts/implement/{issue-key}/testplan.md`
-exists from a prior ingest run, delete it. A stale story-scoped testplan
+If the story type prefix is not listed above (unknown type), treat it
+as anomalous zero and ask the user how to proceed.
+
+For non-normal outcomes (expected zero, anomalous zero, unknown type,
+or no feature-level testplan): if
+`.artifacts/implement/{issue-key}/testplan.md` exists from a prior
+ingest run, delete it. A stale story-scoped testplan
 would cause downstream gates to enforce obsolete coverage requirements.
 
 If `testplan.md` was not found in the docs repo, note "No feature-level

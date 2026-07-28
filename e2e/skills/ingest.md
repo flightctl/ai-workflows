@@ -167,13 +167,15 @@ relevant to this story's scope.
 For `[QE]` stories, the testplan's test cases reference `[DEV]` stories
 (the testplan maps test cases to implementing stories, not to `[QE]`
 stories). Filter by **requirement**: extract the PRD requirement IDs
-from the story's Design Reference section (e.g., `FR-1, FR-3, NFR-2`),
-then collect all test cases from the testplan whose requirement heading
-matches any of those IDs.
+from the story's Design Reference section (captured in Step 3 from the
+story description, e.g., `FR-1, FR-3, NFR-2`), then collect all test
+cases from the testplan whose requirement heading matches any of those
+IDs.
 
 If the story's Design Reference does not list PRD requirements, fall
 back to looking for TC IDs in the Jira story's Test Case References
-section and matching those directly against the testplan.
+section (also captured in Step 3) and matching those directly against
+the testplan.
 
 **Three-outcome gate:**
 
@@ -183,9 +185,13 @@ section and matching those directly against the testplan.
 | **Expected zero** | No matches AND story type is `[DOCS]`, `[UX]`, or `[CI]` | Note in context. |
 | **Anomalous zero** | No matches AND story type is `[QE]`, `[DEV]`, or `[UI]` | Warn the user: "Testplan exists but no test cases match this story's requirements. This may indicate a gap in the testplan or the story's requirement mapping." This is non-blocking. |
 
-For non-normal outcomes (expected zero, anomalous zero, or no
-feature-level testplan): if `.artifacts/e2e/{issue-key}/testplan.md`
-exists from a prior ingest run, delete it. A stale story-scoped testplan
+If the story type prefix is not listed above (unknown type), treat it
+as anomalous zero and ask the user how to proceed.
+
+For non-normal outcomes (expected zero, anomalous zero, unknown type,
+or no feature-level testplan): if
+`.artifacts/e2e/{issue-key}/testplan.md` exists from a prior ingest
+run, delete it. A stale story-scoped testplan
 would cause downstream gates to enforce obsolete coverage requirements.
 
 If `testplan.md` was not found in the docs repo, note "No feature-level

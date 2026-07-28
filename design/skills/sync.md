@@ -653,11 +653,12 @@ git -C "{docs_repo_path}" pull --ff-only
 
 Compare the resolved content against the current content of
 `{docs_repo_path}/{testplan_file_path}`. If they are identical, skip
-the commit — the published testplan is already up to date.
+the write, staging, commit, and push — the published testplan is
+already up to date. Continue to the reporting step.
 
-Write the resolved testplan content (with Jira keys in the Story field)
-to `{docs_repo_path}/{testplan_file_path}`. Do NOT modify the local
-`07-testplan.md` — it keeps local identifiers.
+If the content differs, write the resolved testplan (with Jira keys in
+the Story field) to `{docs_repo_path}/{testplan_file_path}`. Do NOT
+modify the local `07-testplan.md` — it keeps local identifiers.
 
 ```bash
 git -C "{docs_repo_path}" add "{testplan_file_path}"
