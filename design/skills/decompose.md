@@ -387,6 +387,10 @@ it (from the epic/story files written in Step 5). For each story:
    describes an observable outcome verifiable against a running system.
    Do not generate unit-test-level entries — tracing unit tests to
    testplan entries is impractical and fragile.
+4. After generating test cases for a story, verify that every AC on that
+   story appears in at least one test case's AC field (see AC mapping
+   rules below). If an AC has no test case, either add one or flag it
+   in the Gaps section.
 
 **Test case ID scheme:** `TC-{requirement-id}-{sequence}`, where
 `{requirement-id}` is the PRD requirement ID with the hyphen removed
@@ -400,7 +404,7 @@ identified by the parent section heading):
 | Field | Description |
 |-------|-------------|
 | Test Case ID and Title | H4 heading: `#### TC-{req}-{NN}: {one-line scenario description}` |
-| Story, Priority, Automation | Single metadata table beneath the H4 heading |
+| Story, AC, Priority, Automation | Single metadata table beneath the H4 heading |
 | Preconditions | H5 section: system state required before the test |
 | Steps | H5 section: what the tester does — numbered steps |
 | Expected Results | H5 section: observable outcomes the tester verifies |
@@ -418,9 +422,19 @@ identified by the parent section heading):
   hardware interaction, exploratory testing, or scenarios explicitly
   scoped as manual in a `[QE]` story)
 
+**AC mapping:**
+- `AC` lists the acceptance criteria from the implementing story that
+  this test case validates (e.g., `AC-1`, `AC-1, AC-3`).
+- Use the numbering from the story's Acceptance Criteria section
+  (first criterion = AC-1, second = AC-2, etc.).
+- A test case must map to at least one AC. A single test case may
+  cover multiple ACs if they describe aspects of the same scenario.
+
 **Coverage target:** Every FR and NFR covered by at least one story
-should have at least one test case. A covered requirement with no test
-cases is a gap — flag it in the testplan's Gaps section.
+should have at least one test case. Within each story, every acceptance
+criterion should be referenced by at least one test case's AC field. A
+story AC with no test case mapping is a gap — flag it in the testplan's
+Gaps section.
 
 **Negative scenarios:** Include negative/error test cases where the PRD
 or design specifies error handling behavior. Do not invent error
@@ -445,9 +459,9 @@ Requirements covered: {N} of {total FR + NFR count}
 
 #### TC-FR1-01: {scenario title}
 
-| Story | Priority | Automation |
-|-------|----------|------------|
-| Story 1.01 | high | automated |
+| Story | AC | Priority | Automation |
+|-------|-----|----------|------------|
+| Story 1.01 | AC-1 | high | automated |
 
 ##### Preconditions
 
@@ -464,9 +478,9 @@ Requirements covered: {N} of {total FR + NFR count}
 
 #### TC-FR1-02: {scenario title}
 
-| Story | Priority | Automation |
-|-------|----------|------------|
-| Story 1.02 | medium | automated |
+| Story | AC | Priority | Automation |
+|-------|-----|----------|------------|
+| Story 1.02 | AC-2 | medium | automated |
 
 ##### Preconditions
 
@@ -485,9 +499,9 @@ Requirements covered: {N} of {total FR + NFR count}
 
 #### TC-FR2-01: {scenario title}
 
-| Story | Priority | Automation |
-|-------|----------|------------|
-| Story 2.01 | critical | automated |
+| Story | AC | Priority | Automation |
+|-------|-----|----------|------------|
+| Story 2.01 | AC-1, AC-3 | critical | automated |
 
 ##### Preconditions
 
@@ -506,9 +520,9 @@ Requirements covered: {N} of {total FR + NFR count}
 
 #### TC-NFR1-01: {scenario title}
 
-| Story | Priority | Automation |
-|-------|----------|------------|
-| Story 1.02 | high | automated |
+| Story | AC | Priority | Automation |
+|-------|-----|----------|------------|
+| Story 1.02 | AC-1 | high | automated |
 
 ##### Preconditions
 
@@ -530,7 +544,12 @@ Requirements covered: {N} of {total FR + NFR count}
  story (already flagged in the coverage matrix): note "Not testable —
  no implementing story."
 
- If no gaps: "All covered requirements have test cases."}
+ For each story AC with no test case mapping: identify the story, the
+ uncovered AC, and a recommendation (add a test case, or justify why
+ the AC does not warrant a behavioral test case).
+
+ If no gaps: "All covered requirements have test cases and all story
+ ACs are mapped to test cases."}
 
 ## Summary
 

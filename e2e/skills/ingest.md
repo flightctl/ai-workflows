@@ -200,9 +200,9 @@ Test cases: {count}
 
 ## TC-FR1-01: {scenario title}
 
-| Requirement | Story | Priority | Automation |
-|-------------|-------|----------|------------|
-| FR-1 | {DEV story Jira key} | high | automated |
+| Requirement | Story | AC | Priority | Automation |
+|-------------|-------|-----|----------|------------|
+| FR-1 | {DEV story Jira key} | AC-1 | high | automated |
 
 ### Preconditions
 

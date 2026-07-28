@@ -166,7 +166,7 @@ feedback), apply them in this order:
    - **Adding a test case:** Assign the next available sequence number
      within the requirement group (e.g., if TC-FR2-01 and TC-FR2-02
      exist, the new case is TC-FR2-03). Create the full test case entry:
-     H4 heading with ID and title, metadata table (Story, Priority,
+     H4 heading with ID and title, metadata table (Story, AC, Priority,
      Automation), and H5 sub-sections (Preconditions, Steps, Expected
      Results). Update the testplan's Overview counts and Summary table.
    - **Modifying a test case:** Update the affected heading, metadata

@@ -189,9 +189,9 @@ Test cases: {count}
 
 ## TC-FR1-01: {scenario title}
 
-| Requirement | Priority | Automation |
-|-------------|----------|------------|
-| FR-1 | high | automated |
+| Requirement | AC | Priority | Automation |
+|-------------|-----|----------|------------|
+| FR-1 | AC-1 | high | automated |
 
 ### Preconditions
 
