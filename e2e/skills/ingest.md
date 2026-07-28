@@ -152,15 +152,80 @@ Read these from the docs repo:
 2. **PRD** (`prd.md`) — the product requirements, with locked decisions
    reflected in the requirements text
 3. **Testplan** (`testplan.md`) — behavioral test cases mapped to PRD
-   requirements. For `[QE]` stories, this is particularly valuable: the
-   testplan's test cases for the relevant requirements provide structured
-   starting points for e2e scenario design. Cross-reference test case
-   IDs in `02-plan.md` when scenarios align.
+   requirements. If found, proceed to Step 5d for filtering.
 
-If the docs repo documents are not found, ask the user for their location
-or proceed with only the Jira story content. The design document, PRD,
-and testplan are valuable context but not strictly required — the story's
-acceptance criteria are the primary contract.
+If the design document or PRD are not found, ask the user for their
+location or proceed with only the Jira story content. The design
+document and PRD are valuable context but not strictly required — the
+story's acceptance criteria are the primary contract.
+
+#### 5d: Filter Testplan to Story Scope
+
+If `testplan.md` was found in Step 5c, filter it to the test cases
+relevant to this story's scope.
+
+For `[QE]` stories, the testplan's test cases reference `[DEV]` stories
+(the testplan maps test cases to implementing stories, not to `[QE]`
+stories). Filter by **requirement**: extract the PRD requirement IDs
+from the story's Design Reference section (e.g., `FR-1, FR-3, NFR-2`),
+then collect all test cases from the testplan whose requirement heading
+matches any of those IDs.
+
+If the story's Design Reference does not list PRD requirements, fall
+back to looking for TC IDs in the Jira story's Test Case References
+section and matching those directly against the testplan.
+
+**Three-outcome gate:**
+
+| Outcome | Condition | Action |
+|---------|-----------|--------|
+| **Normal** | Matching test cases found | Write `.artifacts/e2e/{issue-key}/testplan.md` |
+| **Expected zero** | No matches AND story type is `[DOCS]`, `[UX]`, or `[CI]` | Note in context. Do not write `testplan.md`. |
+| **Anomalous zero** | No matches AND story type is `[QE]`, `[DEV]`, or `[UI]` | Warn the user: "Testplan exists but no test cases match this story's requirements. This may indicate a gap in the testplan or the story's requirement mapping." This is non-blocking — continue without `testplan.md`. |
+
+If `testplan.md` was not found in the docs repo, note "No feature-level
+testplan available" and continue. This is not an error — the testplan is
+a newer feature and older designs may not have one.
+
+**Write story-scoped testplan (Normal outcome only):**
+
+Write `.artifacts/e2e/{issue-key}/testplan.md`:
+
+```markdown
+# Story Test Plan — {issue-key}
+
+Source: {docs-repo-path}/testplan.md
+Story: {issue-key} — {story-title}
+Test cases: {count}
+
+## TC-FR1-01: {scenario title}
+
+| Requirement | Story | Priority | Automation |
+|-------------|-------|----------|------------|
+| FR-1 | {DEV story Jira key} | high | automated |
+
+### Preconditions
+
+- {precondition}
+
+### Steps
+
+1. {step}
+2. {step}
+
+### Expected Results
+
+- {expected outcome}
+
+## TC-FR1-02: {scenario title}
+
+{... same structure for each test case ...}
+```
+
+Unlike the implement workflow's story-scoped testplan, this version
+includes the Story field in the metadata table — it identifies the
+`[DEV]` story that implements the behavior this `[QE]` story will
+test, which is not redundant here.
 
 ### Step 6: Explore E2E Test Infrastructure
 
@@ -433,6 +498,22 @@ If this is a first invocation, write
 
 {Which FR-N and NFR-N requirements this story's tests will validate.}
 
+### Story Test Plan
+
+{If testplan.md was written: "Story-scoped test plan with {N} test
+ cases covering requirements {FR-1, FR-3, NFR-2}. See
+ `.artifacts/e2e/{issue-key}/testplan.md` for full details.
+ TC IDs: {comma-separated list}."
+
+ If testplan exists but no matches (expected): "Feature testplan exists
+ but has no test cases for this {story-type} story (expected)."
+
+ If testplan exists but no matches (anomalous): "Feature testplan exists
+ but no test cases match this {story-type} story's requirements
+ (anomalous — flagged during ingest)."
+
+ If testplan not found: "No feature-level testplan available."}
+
 ## E2E Test Infrastructure
 
 ### Framework
@@ -628,6 +709,7 @@ what changes were found and that the existing context was preserved.
 ## Output
 
 - `.artifacts/e2e/{issue-key}/01-context.md`
+- `.artifacts/e2e/{issue-key}/testplan.md` (if testplan exists with matching test cases)
 
 ## When This Phase Is Done
 
@@ -636,6 +718,7 @@ Report your findings:
 - Dependency status ([DEV] stories merged or not)
 - E2E infrastructure discovered (framework, test abstractions, reference suite)
 - Validation profile summary
+- Story test plan status (test cases found / expected zero / anomalous zero / no testplan)
 - Assessment of readiness for `/plan`
 
 Then **re-read the controller** (`controller.md`) for next-step guidance.

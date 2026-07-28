@@ -32,7 +32,8 @@ each logical unit of work independently.
 Read these files:
 1. `.artifacts/e2e/{issue-key}/02-plan.md` (test plan)
 2. `.artifacts/e2e/{issue-key}/01-context.md` (story context and e2e infrastructure)
-3. The project's `AGENTS.md` and/or `CLAUDE.md` (coding conventions)
+3. `.artifacts/e2e/{issue-key}/testplan.md` (story-scoped testplan, if exists)
+4. The project's `AGENTS.md` and/or `CLAUDE.md` (coding conventions)
 
 If the plan doesn't exist, tell the user that `/plan` should be run first.
 
@@ -256,6 +257,31 @@ the task-scoped tests (Step 3c) and fast quality checks (Step 3d) to
 verify the fixes. Only proceed to commit once checks pass. Note any
 dismissed findings in the implementation report (Discoveries section).
 
+**Test plan reconciliation (if story-scoped testplan exists):**
+
+After the self-review gate passes, check whether this task's scenario(s)
+have TC IDs mapped to them in the Test Plan Coverage matrix of
+`02-plan.md`. If so, verify each mapped TC ID before proceeding to
+commit:
+
+1. Read the full test case entry for each TC ID from `testplan.md`
+   (the Preconditions, Steps, and Expected Results sections).
+2. Verify that the test scenario's validations assert the Expected
+   Results described in the test case. The match is behavioral, not
+   textual — the test must exercise the described scenario and assert
+   the described outcomes.
+3. If a TC ID mapped to this task has no corresponding validation with
+   sufficient assertion depth, write the missing validation (Step 3b),
+   run the tests (Step 3c), re-run the review gate, then re-check.
+
+This is a hard gate — the task cannot proceed to commit until every
+mapped TC ID has coverage. The testplan is a floor, not a ceiling:
+validations discovered through test design that are not tied to any
+TC ID are expected and encouraged.
+
+If no story-scoped testplan exists, or this task has no mapped TC IDs,
+skip this check.
+
 #### 3f: Commit
 
 The changes are already staged from Step 3e. Create the commit:
@@ -397,6 +423,24 @@ After all tasks are complete (or if interrupted), write:
 {Which services must be running for these tests, if any. If the services
  are self-starting, note that. If tests run against a pre-existing
  environment: "Tests run against {environment}."}
+
+## Test Plan Reconciliation
+
+{Include only if story-scoped testplan exists. Omit entirely otherwise.}
+
+| TC ID | Title | Outcome | Notes |
+|-------|-------|---------|-------|
+| TC-FR1-01 | {title} | verified | Scenario validation matched |
+| TC-FR1-02 | {title} | written | Validation added during task execution |
+| TC-NFR1-01 | {title} | N/A | See Deviations from Plan |
+
+{Every TC ID mapped to a scenario in the Test Plan Coverage matrix must
+ appear exactly once. Outcome values:
+ - verified: validation existed and had sufficient assertion depth
+ - written: validation was written to satisfy this TC ID
+ - strengthened: validation existed but lacked assertions; added them
+ - N/A: test case found inapplicable (explain in Notes and in
+   Deviations from Plan)}
 
 ## Notes
 

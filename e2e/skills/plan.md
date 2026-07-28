@@ -32,8 +32,9 @@ review checkpoint before any test code is written.
 
 Read these files in order:
 1. `.artifacts/e2e/{issue-key}/01-context.md` (story context and e2e infrastructure)
-2. The project's `AGENTS.md` and/or `CLAUDE.md` (coding conventions)
-3. Any test-specific documentation referenced in the context (test READMEs, guidelines)
+2. `.artifacts/e2e/{issue-key}/testplan.md` (story-scoped testplan, if exists)
+3. The project's `AGENTS.md` and/or `CLAUDE.md` (coding conventions)
+4. Any test-specific documentation referenced in the context (test READMEs, guidelines)
 
 If `01-context.md` doesn't exist, tell the user that `/ingest` should be
 run first.
@@ -276,6 +277,23 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
 {Every AC must appear in at least one scenario. Consolidated scenarios
  will appear in multiple AC rows — this is expected. Flag any gaps.}
 
+## Test Plan Coverage
+
+{Include this section only if `.artifacts/e2e/{issue-key}/testplan.md`
+ exists. If no story-scoped testplan: omit this section entirely.}
+
+| TC ID | Title | Covered by Scenario | Notes |
+|-------|-------|---------------------|-------|
+| TC-FR1-01 | {title} | C1 | |
+| TC-FR1-02 | {title} | S1 | |
+| TC-NFR1-01 | {title} | N/A | {rationale} |
+
+{Every TC ID from testplan.md must appear. Each must be assigned to a
+ scenario or marked N/A with a rationale. This is a set-diff gate:
+ compute the difference between the set of TC IDs in testplan.md and
+ the set assigned to scenarios or marked N/A. If the difference is
+ non-empty, the plan is incomplete — resolve before proceeding.}
+
 ## Risk Assessment
 
 {Things the plan author is uncertain about. Ordered by impact.}
@@ -308,6 +326,7 @@ Before presenting the plan, verify:
 - [ ] Each validation in a consolidated scenario is tagged with its source AC
 - [ ] Scenario identifiers and titles are unique across the plan (no duplicate C#/S# or repeated names)
 - [ ] The plan is achievable — no scenarios depend on unmerged features or unavailable test infrastructure methods
+- [ ] If story-scoped testplan exists: every TC ID is assigned to a scenario or marked N/A with rationale (Test Plan Coverage set-diff is clean)
 
 ### Step 7: Present to User
 
