@@ -640,10 +640,11 @@ continuing.
 git -C "{docs_repo_path}" branch --show-current
 ```
 
-If not on the PR branch (`design/{issue-key}`), check it out:
+Read the `branch` field from `publish-metadata.json` to get the docs
+repo PR branch name. If not on that branch, check it out:
 
 ```bash
-git -C "{docs_repo_path}" checkout design/{issue-key}
+git -C "{docs_repo_path}" checkout {branch}
 ```
 
 ```bash
