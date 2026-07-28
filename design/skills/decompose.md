@@ -409,12 +409,20 @@ two-digit zero-padded counter within that requirement. Examples:
 | Scenario / Steps | What the tester does — numbered steps |
 | Expected Result | Observable outcome the tester verifies |
 | Priority | `critical` / `high` / `medium` / `low` |
+| Automation | `automated` / `manual` |
 
 **Priority assignment:**
 - `critical` — core user workflows or data integrity
 - `high` — important but non-core requirements
 - `medium` — edge cases and secondary workflows
 - `low` — cosmetic or informational scenarios
+
+**Automation assignment:**
+- `automated` — the scenario will be verified by automated tests (e2e
+  or feature-level integration) produced by the implementing story
+- `manual` — the scenario requires human verification (visual checks,
+  hardware interaction, exploratory testing, or scenarios explicitly
+  scoped as manual in a `[QE]` story)
 
 **Coverage target:** Every FR and NFR covered by at least one story
 should have at least one test case. A covered requirement with no test
@@ -441,22 +449,22 @@ Requirements covered: {N} of {total FR + NFR count}
 
 ### FR-1: {requirement description}
 
-| ID | Title | Story | Preconditions | Scenario / Steps | Expected Result | Priority |
-|----|-------|-------|---------------|------------------|-----------------|----------|
-| TC-FR1-01 | {title} | Story 1.01 | {preconditions} | 1. {step} 2. {step} | {expected result} | high |
-| TC-FR1-02 | {title} | Story 1.02 | {preconditions} | 1. {step} 2. {step} | {expected result} | medium |
+| ID | Title | Story | Preconditions | Scenario / Steps | Expected Result | Priority | Automation |
+|----|-------|-------|---------------|------------------|-----------------|----------|------------|
+| TC-FR1-01 | {title} | Story 1.01 | {preconditions} | 1. {step} 2. {step} | {expected result} | high | automated |
+| TC-FR1-02 | {title} | Story 1.02 | {preconditions} | 1. {step} 2. {step} | {expected result} | medium | automated |
 
 ### FR-2: {requirement description}
 
-| ID | Title | Story | Preconditions | Scenario / Steps | Expected Result | Priority |
-|----|-------|-------|---------------|------------------|-----------------|----------|
-| TC-FR2-01 | {title} | Story 2.01 | {preconditions} | 1. {step} 2. {step} | {expected result} | critical |
+| ID | Title | Story | Preconditions | Scenario / Steps | Expected Result | Priority | Automation |
+|----|-------|-------|---------------|------------------|-----------------|----------|------------|
+| TC-FR2-01 | {title} | Story 2.01 | {preconditions} | 1. {step} 2. {step} | {expected result} | critical | automated |
 
 ### NFR-1: {requirement description}
 
-| ID | Title | Story | Preconditions | Scenario / Steps | Expected Result | Priority |
-|----|-------|-------|---------------|------------------|-----------------|----------|
-| TC-NFR1-01 | {title} | Story 1.02 | {preconditions} | 1. {step} 2. {step} | {expected result} | high |
+| ID | Title | Story | Preconditions | Scenario / Steps | Expected Result | Priority | Automation |
+|----|-------|-------|---------------|------------------|-----------------|----------|------------|
+| TC-NFR1-01 | {title} | Story 1.02 | {preconditions} | 1. {step} 2. {step} | {expected result} | high | automated |
 
 ## Gaps
 
@@ -476,6 +484,8 @@ Requirements covered: {N} of {total FR + NFR count}
 | High | {N} |
 | Medium | {N} |
 | Low | {N} |
+| Automated | {N} |
+| Manual | {N} |
 | Requirements with test cases | {N} / {total} |
 | Requirements without test cases | {N} (see Gaps) |
 ```
