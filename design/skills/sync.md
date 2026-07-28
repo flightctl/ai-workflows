@@ -641,10 +641,13 @@ git -C "{docs_repo_path}" branch --show-current
 ```
 
 Read the `branch` field from `publish-metadata.json` to get the docs
-repo PR branch name. If not on that branch, check it out:
+repo PR branch name. If `branch` is missing or empty, stop and report
+the error — publish-metadata.json is incomplete.
+
+If not on that branch, check it out:
 
 ```bash
-git -C "{docs_repo_path}" checkout {branch}
+git -C "{docs_repo_path}" checkout "{branch}"
 ```
 
 ```bash
