@@ -268,15 +268,15 @@ references (e.g., `Story 1.01`) with their Jira keys from the manifest
 (e.g., `EDM-1234`). Write the resolved version to the docs repo — do NOT
 modify the local `07-testplan.md` (it keeps local identifiers).
 
-If `sync-manifest.json` does not exist, copy `07-testplan.md` as-is:
+If `sync-manifest.json` does not exist:
 
 ```bash
 cp ".artifacts/design/{issue-key}/07-testplan.md" "{docs_repo_path}/{testplan_file_path}"
 ```
 
-If the sync-manifest guard applied, write the resolved content to
-`{docs_repo_path}/{testplan_file_path}` directly instead of using
-a literal `cp` of the unresolved local file.
+If `sync-manifest.json` exists, write the resolved content (with Jira
+keys in Story fields) to `{docs_repo_path}/{testplan_file_path}`
+directly — do not `cp` the unresolved local file.
 
 ```bash
 git -C "{docs_repo_path}" add "{testplan_file_path}"
