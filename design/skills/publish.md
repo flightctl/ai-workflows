@@ -152,11 +152,22 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=design`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{docs_repo_path}/{release}/{feature}/design.md"`.
 
-If `.artifacts/design/{issue-key}/07-testplan.md` exists, also copy it:
+If `.artifacts/design/{issue-key}/07-testplan.md` exists, also copy it.
+
+**Sync-manifest guard:** If `.artifacts/design/{issue-key}/sync-manifest.json`
+exists, the published testplan's Story column must use Jira keys. Before
+copying, read the sync manifest and resolve the Story column in each test
+case row (`Story 1.01` → Jira key from manifest). Write the resolved
+version to the docs repo — do NOT modify the local `07-testplan.md`.
+If `sync-manifest.json` does not exist, copy `07-testplan.md` as-is.
 
 ```bash
 cp ".artifacts/design/{issue-key}/07-testplan.md" "{docs_repo_path}/{release}/{feature}/testplan.md"
 ```
+
+(If the sync-manifest guard applied, write the resolved content to
+`{docs_repo_path}/{release}/{feature}/testplan.md` directly instead
+of using a literal `cp` of the local file.)
 
 ```bash
 git -C "{docs_repo_path}" add "{release}/{feature}/design.md"

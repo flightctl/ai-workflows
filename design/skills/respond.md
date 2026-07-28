@@ -71,7 +71,7 @@ Group comments into categories:
 | **New requirement** | Flag for user decision — update design or defer |
 | **Approval / positive** | Acknowledge |
 | **Open question resolution** | Resolve the open question (see Step 4) |
-| **Testplan feedback** | Route to testplan-specific handling (Step 4b) |
+| **Testplan feedback** | Route to testplan change handling (see Step 4, "Applying testplan changes") |
 | **Out of scope** | Draft a reply explaining why |
 
 **Routing testplan comments:** Line-level review comments (from
@@ -190,7 +190,11 @@ feedback), apply them in this order:
    Requirement mapping table, update the `Test Cases` column to reflect
    the current TC IDs from the testplan for that requirement. If a
    requirement previously had test cases and now has none, flag it in the
-   Gaps section.
+   coverage matrix Gaps section.
+
+4. **Update testplan Gaps section.** If test cases were removed and a
+   requirement that previously had test cases now has none, update the
+   testplan's own Gaps section to reflect the new gap.
 
 **Update the local artifact:** Update
 `.artifacts/design/{issue-key}/03-design.md`.
@@ -249,6 +253,9 @@ git -C "{docs_repo_path}" add "{design_file_path}"
 
 If `07-testplan.md` exists and `publish-metadata.json` contains a
 `testplan_file_path` field, also copy the testplan to the docs repo.
+(If the testplan was never published — no `testplan_file_path` in
+metadata — testplan changes are applied locally only. Re-run `/publish`
+to include the testplan in the docs repo.)
 
 **Sync-manifest guard:** If `.artifacts/design/{issue-key}/sync-manifest.json`
 exists, the published testplan's Story column must use Jira keys (resolved
@@ -258,14 +265,15 @@ references (e.g., `Story 1.01`) with their Jira keys from the manifest
 (e.g., `EDM-1234`). Write the resolved version to the docs repo — do NOT
 modify the local `07-testplan.md` (it keeps local identifiers).
 
-If `sync-manifest.json` does not exist, copy `07-testplan.md` as-is.
+If `sync-manifest.json` does not exist, copy `07-testplan.md` as-is:
 
 ```bash
 cp ".artifacts/design/{issue-key}/07-testplan.md" "{docs_repo_path}/{testplan_file_path}"
 ```
 
-(If the sync-manifest guard applied, the file written to the docs repo is
-the resolved version, not the literal local copy.)
+If the sync-manifest guard applied, write the resolved content to
+`{docs_repo_path}/{testplan_file_path}` directly instead of using
+a literal `cp` of the unresolved local file.
 
 ```bash
 git -C "{docs_repo_path}" add "{testplan_file_path}"
@@ -340,10 +348,10 @@ If design changes were made, check whether they affect the task breakdown:
 - Did new requirements emerge from review? → Coverage matrix needs checking
 - Did requirements or acceptance criteria change? → Testplan may need updating
 
-If testplan changes were applied in Step 4b, verify that the cascade
+If testplan changes were applied in Step 4, verify that the cascade
 (story Test Case References and coverage matrix Test Cases column) is
 consistent. If the cascade reveals an inconsistency not caught during
-Step 4b (e.g., a story references a TC ID that was removed), fix it
+Step 4 (e.g., a story references a TC ID that was removed), fix it
 before proceeding.
 
 If the decomposition is affected, flag it and recommend `/revise` or
@@ -361,6 +369,9 @@ Summarize:
 
 - PR comments posted (with user approval)
 - `.artifacts/design/{issue-key}/03-design.md` (updated if needed)
+- `.artifacts/design/{issue-key}/07-testplan.md` (updated if testplan feedback was applied)
+- `.artifacts/design/{issue-key}/05-stories/epic-{N}/story-{NN}-{slug}.md` (Test Case References updated if testplan changed)
+- `.artifacts/design/{issue-key}/06-coverage.md` (Test Cases column updated if testplan changed)
 - `.artifacts/design/{issue-key}/09-review-responses.md`
 
 ## When This Phase Is Done

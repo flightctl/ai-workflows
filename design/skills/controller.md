@@ -22,7 +22,7 @@ executing phases and handling transitions between them.
    Draft the design/architecture document using the template and section guidance.
 
 4. **Decompose** (`/decompose`) — `decompose.md`
-   Break the design into Jira-ready epics and stories with a coverage matrix.
+   Break the design into Jira-ready epics and stories with a testplan and coverage matrix.
 
 5. **Revise** (`/revise`) — `revise.md`
    Incorporate user feedback into the design document and/or task breakdown. Repeatable.
@@ -58,7 +58,7 @@ the source repo (this directory should be gitignored in the source repo):
 | Epic files | `05-stories/epic-{N}-{slug}.md` | `/decompose`, `/revise` |
 | Story files | `05-stories/epic-{N}/story-{NN}-{slug}.md` | `/decompose`, `/revise` |
 | Coverage matrix | `06-coverage.md` | `/decompose`, `/revise` |
-| Testplan | `07-testplan.md` | `/decompose`, `/revise` |
+| Testplan | `07-testplan.md` | `/decompose`, `/revise`, `/respond` |
 | PR description | `08-pr-description.md` | `/publish` |
 | Publish metadata | `publish-metadata.json` | `/publish` |
 | Review responses | `09-review-responses.md` | `/respond` |

@@ -212,14 +212,11 @@ Write each story to
 Epic: Epic {N} — {epic title}
 PRD Requirements: {FR-1, NFR-1}
 Design section: {§4.3 API Changes, or specific subsection}
-
-## Test Case References
-
-Verified by: {TC-FR1-01, TC-FR1-02, ...}
-{Generated during Step 7 (testplan). For stories with no behavioral test
- cases (e.g., infrastructure prerequisites): "Verified by: None
- (infrastructure — no behavioral test cases)"}
 ```
+
+Do NOT include a `## Test Case References` section when writing stories
+in Step 5 — that section is added by Step 7c after the testplan is
+generated.
 
 **For `[DOCS]` stories** (see `[DOCS]` story requirements below for the
 Documentation Inputs section):
@@ -397,13 +394,13 @@ it (from the epic/story files written in Step 5). For each story:
 two-digit zero-padded counter within that requirement. Examples:
 `TC-FR1-01`, `TC-FR1-02`, `TC-NFR3-01`.
 
-**Test case fields** (all required):
+**Test case fields** (all required per row; the requirement is identified
+by the section heading, not repeated in each row):
 
 | Field | Description |
 |-------|-------------|
 | Test Case ID | `TC-{req}-{NN}` (e.g., `TC-FR1-01`) |
 | Title | One-line scenario description |
-| Requirement | PRD requirement ID (e.g., `FR-1`) |
 | Story | Which story implements the capability under test (e.g., `Story 1.01`) |
 | Preconditions | System state required before the test |
 | Scenario / Steps | What the tester does — numbered steps |
