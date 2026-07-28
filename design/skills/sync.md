@@ -621,7 +621,9 @@ can filter by Jira key.
 **Write the resolved testplan to the docs repo:**
 
 Read `.artifacts/prd/config.json` to get the docs repo path. Read
-`publish-metadata.json` to get the `testplan_file_path`.
+`publish-metadata.json` to get the `testplan_file_path` and the
+`branch` field. If `branch` is missing or empty, stop and report the
+error — publish-metadata.json is incomplete.
 
 Verify the docs repo state before writing:
 
@@ -640,11 +642,7 @@ continuing.
 git -C "{docs_repo_path}" branch --show-current
 ```
 
-Read the `branch` field from `publish-metadata.json` to get the docs
-repo PR branch name. If `branch` is missing or empty, stop and report
-the error — publish-metadata.json is incomplete.
-
-If not on that branch, check it out:
+If not on the published branch, check it out:
 
 ```bash
 git -C "{docs_repo_path}" checkout "{branch}"
