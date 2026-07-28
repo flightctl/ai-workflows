@@ -31,7 +31,8 @@ repeatable as new comments arrive.
 
 Read `.artifacts/prd/config.json` to get the docs repo path and
 `.artifacts/prd/{issue-key}/publish-metadata.json` to get the PR
-number, file path, and `{branch-name}` (from the `branch` field). If either file doesn't exist, tell the user that
+number, file path, and `{branch-name}` (from the `branch` field). If
+either file doesn't exist, tell the user that
 `/publish` should be run first.
 
 Determine `{owner}/{repo}` from the `docs_repo_remote` in the config.
