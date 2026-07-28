@@ -261,7 +261,7 @@ dismissed findings in the implementation report (Discoveries section).
 The changes are already staged from Step 3e. Create the commit:
 
 ```bash
-git commit -m "{JIRA-KEY}: {task description}"
+git commit -m "{issue-key}: {task description}"
 ```
 
 Follow the commit format from the **Commit Format** section of

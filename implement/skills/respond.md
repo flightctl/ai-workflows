@@ -146,7 +146,7 @@ git add {specific files}
 ```
 
 ```bash
-git commit -m "{JIRA-KEY}: Address review feedback — {brief description}"
+git commit -m "{issue-key}: Address review feedback — {brief description}"
 ```
 
 ```bash

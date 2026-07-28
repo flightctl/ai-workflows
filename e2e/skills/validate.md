@@ -198,7 +198,7 @@ git add {fixed files}
 ```
 
 ```bash
-git commit -m "{JIRA-KEY}: address validation review findings"
+git commit -m "{issue-key}: address validation review findings"
 ```
 
 ### Step 7: Acceptance Criteria Verification

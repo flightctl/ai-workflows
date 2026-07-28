@@ -299,11 +299,11 @@ so there is a paper trail.
 The changes are already staged from Step 3f. Create the commit:
 
 ```bash
-git commit -m "{JIRA-KEY}: {task description}"
+git commit -m "{issue-key}: {task description}"
 ```
 
 Follow the commit format from the **Commit Format** section of
-`01-context.md` (typically `{JIRA-KEY}: {description}`). The commit
+`01-context.md` (typically `{issue-key}: {description}`). The commit
 message must:
 - Use the discovered format
 - Describe what the code does, not the development journey. Do not

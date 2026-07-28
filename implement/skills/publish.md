@@ -90,7 +90,7 @@ git add {fixed files}
 ```
 
 ```bash
-git commit -m "{JIRA-KEY}: address cross-cutting review findings"
+git commit -m "{issue-key}: address cross-cutting review findings"
 ```
 
 ### Step 3: Confirm Details
@@ -107,7 +107,7 @@ git log --oneline {local-base}..HEAD
 ```
 
 - **PR title:** Use the title format from the **PR Conventions** section of
-  `01-context.md` (typically `{JIRA-KEY}: {story title}`)
+  `01-context.md` (typically `{issue-key}: {story title}`)
 
 Confirm with the user before proceeding.
 
@@ -131,7 +131,7 @@ In either case, save the result to
 **Default template** (used when the project has no PR template):
 
 ```markdown
-## {JIRA-KEY}: {story title}
+## {issue-key}: {story title}
 
 **Jira:** {jira-link}
 **Story type:** {[DEV], [UI], etc.}
@@ -164,7 +164,7 @@ whether this is a fork-based workflow.
 `{upstream-owner}/{repo}`):
 
 ```bash
-gh pr create --draft --repo {upstream-owner}/{repo} --base {pr-target} --head {fork-owner}:{branch-name} --title "{JIRA-KEY}: {story title}" --body-file .artifacts/implement/{issue-key}/06-pr-description.md
+gh pr create --draft --repo {upstream-owner}/{repo} --base {pr-target} --head {fork-owner}:{branch-name} --title "{issue-key}: {story title}" --body-file .artifacts/implement/{issue-key}/06-pr-description.md
 ```
 
 The `--repo` flag targets the upstream repository (where the PR lives),
@@ -174,7 +174,7 @@ branch (on the fork).
 **If the repo is a direct clone** (not a fork):
 
 ```bash
-gh pr create --draft --base {pr-target} --head {branch-name} --title "{JIRA-KEY}: {story title}" --body-file .artifacts/implement/{issue-key}/06-pr-description.md
+gh pr create --draft --base {pr-target} --head {branch-name} --title "{issue-key}: {story title}" --body-file .artifacts/implement/{issue-key}/06-pr-description.md
 ```
 
 Parse the PR number and URL from the `gh pr create` output. The command
