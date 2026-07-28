@@ -103,8 +103,11 @@ impact:
    every FR and NFR that has implementing stories? Are test case IDs
    correctly anchored to PRD requirement IDs (`TC-FR1-01`, not arbitrary
    sequences)? Does each test case have concrete preconditions, numbered
-   scenario steps, and an observable expected result — or are they vague
-   restatements of acceptance criteria? Are priorities assigned
+   scenario steps, and observable expected results — or do they contain
+   banned vague phrases ("works correctly", "handles appropriately", "is
+   validated", etc.)? Are expected results concrete enough to write an
+   assertion against (specific values, status codes, state changes)? Are
+   priorities assigned
    consistently (critical for core workflows, not everything marked
    high)? Do the `Test Case References` in story files match the
    testplan's Story field? Does the coverage matrix's Test Cases column

@@ -440,6 +440,24 @@ Gaps section.
 or design specifies error handling behavior. Do not invent error
 scenarios beyond what the requirements and design describe.
 
+**Expected Results quality gate:** The Expected Results section must
+describe concrete, observable outcomes — not restatements of the
+acceptance criteria in vaguer terms. Banned phrases in Expected Results:
+- "works correctly", "works as expected", "works properly"
+- "handles appropriately", "handles gracefully"
+- "is validated", "is verified", "is processed"
+- "behaves as expected", "behaves properly"
+- "completes successfully", "responds correctly", "functions as expected"
+- "returns the correct value" (state the specific value)
+- "no issues", "no problems"
+- "appropriate error", "proper error" (name the specific error or code)
+
+Each expected result must state what the tester observes: a specific
+return value, status code, UI state, log message, or data change. If
+you cannot state the expected result concretely, the acceptance
+criterion or design is underspecified — flag it in the testplan's Gaps
+section rather than writing a vague test case.
+
 #### 7b: Write the Testplan
 
 Write `.artifacts/design/{issue-key}/07-testplan.md`:

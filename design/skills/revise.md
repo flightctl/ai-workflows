@@ -126,7 +126,8 @@ After applying changes, verify:
 **If the testplan exists (`07-testplan.md`):**
 - If the design changed: do any test cases reference changed behavior?
   Update preconditions, steps, or expected results if the design change
-  affects what the test validates.
+  affects what the test validates. The Expected Results quality gate
+  applies — no banned vague phrases.
 - If stories were added or removed: add or remove test cases as
   appropriate. Update `Test Case References` in affected story files.
 - If acceptance criteria changed on a story: review the test cases

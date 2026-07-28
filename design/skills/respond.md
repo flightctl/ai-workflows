@@ -170,7 +170,8 @@ feedback), apply them in this order:
      Automation), and H5 sub-sections (Preconditions, Steps, Expected
      Results). Update the testplan's Overview counts and Summary table.
    - **Modifying a test case:** Update the affected heading, metadata
-     table fields, or sub-section content. If the Story assignment
+     table fields, or sub-section content. The same Expected Results
+     quality gate applies — no banned vague phrases. If the Story assignment
      changes, update both the old and new story's Test Case References
      in step 2 below.
    - **Removing a test case:** Delete the test case entry (heading and
