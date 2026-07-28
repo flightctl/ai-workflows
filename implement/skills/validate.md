@@ -33,6 +33,7 @@ Read:
 1. `.artifacts/implement/{issue-key}/01-context.md` (validation profile)
 2. `.artifacts/implement/{issue-key}/02-plan.md` (what was implemented)
 3. `.artifacts/implement/{issue-key}/04-impl-report.md` (implementation status)
+4. `.artifacts/implement/{issue-key}/testplan.md` (story-scoped testplan, if exists)
 
 Extract the validation profile's pre-PR checks list.
 
@@ -245,6 +246,36 @@ satisfied:
    it requires manual verification or describes a UX quality) — note
    it as "requires manual verification" with an explanation of why
 
+### Step 7b: Test Plan Verification
+
+If `.artifacts/implement/{issue-key}/testplan.md` exists, independently
+verify that every test case has been implemented. This check re-derives
+the required TC ID list from `testplan.md` directly — it does NOT rely
+on the plan's task-to-TC-ID mappings or `/code`'s per-task reconciliation
+for determining which tests exist. The only information carried forward
+from the plan is the N/A rationale for test cases marked inapplicable.
+This is an intentional independent verification: if the plan's
+bookkeeping or the code phase's gate drifted from reality, this step
+catches it.
+
+If `testplan.md` does not exist, skip this step entirely.
+
+1. Read `testplan.md` and extract all TC IDs.
+2. For each TC ID (except those the validate phase agrees are
+   legitimately N/A based on the rationale in the plan's Test Plan
+   Coverage matrix):
+   - Search the test files on the feature branch for a test whose
+     scenario matches the TC's Steps and whose assertions match the
+     Expected Results.
+   - The match is behavioral, not textual — the test must exercise the
+     described scenario and assert the described outcomes.
+   - Record the test file and test name for each TC ID.
+3. If any TC ID lacks a corresponding test:
+   - Write the missing test following contract-based testing standards.
+   - Commit the test following the project's commit format.
+   - Re-run the relevant checks from Step 3.
+4. Record results for the validation report.
+
 ### Step 8: Write Validation Report
 
 Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
@@ -313,6 +344,26 @@ Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
  If any gaps: describe what's missing and what was done about it.
  If any require manual verification: list them with rationale.}
 
+## Test Plan Verification
+
+{Include only if testplan.md exists. Omit entirely otherwise.}
+
+| TC ID | Title | Test File | Test Name | Status |
+|-------|-------|-----------|-----------|--------|
+| TC-FR1-01 | {title} | {file} | {test name} | covered |
+| TC-FR1-02 | {title} | {file} | {test name} | gap-filled |
+| TC-NFR1-01 | {title} | — | — | N/A |
+
+{Status values:
+ - covered: test existed and had sufficient assertion depth
+ - gap-filled: test was written during validation
+ - N/A: test case legitimately not applicable (rationale required)
+
+ If all covered: "All test plan cases verified."
+ If gaps were filled: "{N} test cases required additional tests during
+ validation."
+ If any N/A: list rationale for each.}
+
 ## Quality Review Findings
 
 {Findings from the code quality review gate (protocol criteria plus
@@ -349,6 +400,7 @@ Summarize for the user:
 - Which checks passed and which failed
 - Coverage assessment (behavioral, not numeric)
 - Acceptance criteria status (all satisfied, or which ones have gaps)
+- Test plan verification status (all covered / gaps filled / not applicable), if testplan exists
 - Any tests added during validation
 - Any regressions found (and whether they were fixed)
 - Overall verdict: ready for `/publish` or not
