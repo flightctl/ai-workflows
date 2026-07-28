@@ -239,7 +239,9 @@ re-derives the required TC ID list from `testplan.md` directly — it does
 NOT rely on the plan's task-to-TC-ID mappings or `/code`'s per-task
 reconciliation for determining which tests exist. The only information
 carried forward from the plan is the N/A rationale for test cases marked
-inapplicable.
+inapplicable. This is an intentional independent verification: if the
+plan's bookkeeping or the code phase's gate drifted from reality, this
+step catches it.
 
 If `testplan.md` does not exist, skip this step entirely.
 

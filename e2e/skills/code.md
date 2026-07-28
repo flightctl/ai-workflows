@@ -269,7 +269,9 @@ commit:
 2. Verify that the test scenario's validations assert the Expected
    Results described in the test case. The match is behavioral, not
    textual — the test must exercise the described scenario and assert
-   the described outcomes.
+   the described outcomes. The test may use project-specific assertion
+   mechanisms (e.g., Eventually/Consistently in Ginkgo, polling in
+   pytest).
 3. If a TC ID mapped to this task has no corresponding validation with
    sufficient assertion depth, write the missing validation (Step 3b),
    run the tests (Step 3c), re-run the review gate, then re-check.

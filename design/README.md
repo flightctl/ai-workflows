@@ -38,7 +38,7 @@ graph TD
 | Decompose | `/decompose` | Break into epics and stories | `04-epics.md`, `05-stories/`, `06-coverage.md`, `07-testplan.md` |
 | Revise | `/revise` | Incorporate feedback | Updated design and/or stories |
 | Publish | `/publish` | Post design doc as GitHub PR | `08-pr-description.md` |
-| Respond | `/respond` | Address reviewer comments | `09-review-responses.md` |
+| Respond | `/respond` | Address reviewer comments | `09-review-responses.md`, updated `07-testplan.md` / stories / `06-coverage.md` |
 | Sync | `/sync` | Sync Jira epics and stories | `sync-manifest.json` |
 
 ## Typical Flow
@@ -78,7 +78,8 @@ graph TD
 /respond
   → fetches PR review comments
   → proposes responses (user approves before posting)
-  → updates design document if needed
+  → updates design document and testplan if needed
+  → cascades testplan changes to story Test Case References and coverage matrix
   → repeatable
 
 /sync

@@ -133,6 +133,8 @@ After applying changes, verify:
   referencing that story — do they still validate the correct behavior?
 - Update the coverage matrix's Test Cases column if test case IDs
   changed.
+- If test cases were removed and a requirement now has none: update
+  the testplan's Gaps section to reflect the new gap.
 - If requirement IDs changed (rare — requires PRD revision): update
   all TC IDs anchored to the changed requirement.
 

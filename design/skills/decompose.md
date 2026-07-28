@@ -561,6 +561,24 @@ for each story and write them into that story's file.
 Re-read each story file before appending to ensure current content.
 `[DOCS]` stories do not receive this section.
 
+The section format is a single `Verified by:` line with comma-separated
+TC IDs:
+
+```markdown
+## Test Case References
+
+Verified by: TC-FR1-01, TC-FR1-02, TC-NFR1-01
+```
+
+For stories with no behavioral test cases (e.g., infrastructure
+prerequisites):
+
+```markdown
+## Test Case References
+
+Verified by: None (infrastructure — no behavioral test cases)
+```
+
 ### Step 8: Write Coverage Matrix
 
 Write `.artifacts/design/{issue-key}/06-coverage.md`:

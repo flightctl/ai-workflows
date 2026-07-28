@@ -56,8 +56,8 @@ the source repo (this directory should be gitignored in the source repo):
 | Provenance log | `provenance.json` | `/draft`, `/revise`, `/respond` |
 | Epic metadata | `04-epics.md` | `/decompose`, `/revise` |
 | Epic files | `05-stories/epic-{N}-{slug}.md` | `/decompose`, `/revise` |
-| Story files | `05-stories/epic-{N}/story-{NN}-{slug}.md` | `/decompose`, `/revise` |
-| Coverage matrix | `06-coverage.md` | `/decompose`, `/revise` |
+| Story files | `05-stories/epic-{N}/story-{NN}-{slug}.md` | `/decompose`, `/revise`, `/respond` |
+| Coverage matrix | `06-coverage.md` | `/decompose`, `/revise`, `/respond` |
 | Testplan | `07-testplan.md` | `/decompose`, `/revise`, `/respond` |
 | PR description | `08-pr-description.md` | `/publish` |
 | Publish metadata | `publish-metadata.json` | `/publish` |
