@@ -31,20 +31,22 @@ The user will provide one of:
 - A Jira issue key (e.g., `EDM-2324`)
 - A Jira issue URL (e.g., `https://redhat.atlassian.net/browse/EDM-2324`)
 
-Extract the issue key and set it as the context identifier for the
-artifact directory.
+Extract the full Jira issue key, including the project prefix (e.g.,
+`PROJ-1234`, not just `1234`). Use this as `{issue-key}` throughout
+the workflow — it is the context identifier for the artifact directory
+and all downstream phases.
 
 ### Step 2: Create Artifact Directory
 
 ```bash
-mkdir -p .artifacts/prd/{issue-number}
+mkdir -p .artifacts/prd/{issue-key}
 ```
 
 ### Step 2a: Check for Prior Ingest
 
-If `.artifacts/prd/{issue-number}/01-requirements.md` already exists, this
+If `.artifacts/prd/{issue-key}/01-requirements.md` already exists, this
 is a re-invocation. Copy the existing file to
-`.artifacts/prd/{issue-number}/01-requirements.md.prev` so it is
+`.artifacts/prd/{issue-key}/01-requirements.md.prev` so it is
 preserved for the diff in Step 5a.
 
 ### Step 3: Fetch the Primary Issue
@@ -94,14 +96,14 @@ re-invocation (Step 2a found an existing file), **do not write the file
 yet** — hold the compiled content and proceed to Step 5a first.
 
 If this is a first invocation, write
-`.artifacts/prd/{issue-number}/01-requirements.md` with this structure:
+`.artifacts/prd/{issue-key}/01-requirements.md` with this structure:
 
 ```markdown
-# Raw Requirements — {issue-number}
+# Raw Requirements — {issue-key}
 
 ## Source Issue
 
-- **Key:** {issue-number}
+- **Key:** {issue-key}
 - **Summary:** {title}
 - **Status:** {status}
 - **Priority:** {priority}
@@ -183,7 +185,7 @@ If the user declined a re-invocation overwrite in Step 5a, report instead:
 
 ## Output
 
-- `.artifacts/prd/{issue-number}/01-requirements.md`
+- `.artifacts/prd/{issue-key}/01-requirements.md`
 
 ## When This Phase Is Done
 

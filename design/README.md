@@ -89,7 +89,7 @@ graph TD
 
 ## Artifacts
 
-All artifacts are stored in `.artifacts/design/{issue-number}/`.
+All artifacts are stored in `.artifacts/design/{issue-key}/`.
 
 Epic and story files live under `05-stories/`. Each file maps 1:1 to a
 Jira issue:

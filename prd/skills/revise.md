@@ -27,12 +27,12 @@ user may request multiple rounds of revision.
 
 ### Step 1: Read Current PRD
 
-Read `.artifacts/prd/{issue-number}/03-prd.md`.
+Read `.artifacts/prd/{issue-key}/03-prd.md`.
 
 If the user edited the document manually since the last workflow phase, or a
 re-ingest diff shows unsynchronized manual changes, read and follow
 `../../_shared/recipes/record-manual-edit.md` with `WORKFLOW=prd` and
-`ISSUE_NUMBER={issue-number}` before applying revisions. Otherwise ask whether
+`ISSUE_KEY={issue-key}` before applying revisions. Otherwise ask whether
 manual edits occurred when uncertain.
 
 ### Step 2: Understand the Feedback
@@ -67,21 +67,21 @@ After applying changes, verify:
 
 ### Step 5: Update Artifact
 
-Overwrite `.artifacts/prd/{issue-number}/03-prd.md` with the revised PRD.
+Overwrite `.artifacts/prd/{issue-key}/03-prd.md` with the revised PRD.
 
 Read and follow `../../_shared/recipes/capture-provenance-event.md` with
-`WORKFLOW=prd`, `ISSUE_NUMBER={issue-number}`, `PHASE=revise`,
+`WORKFLOW=prd`, `ISSUE_KEY={issue-key}`, `PHASE=revise`,
 `AUTHORING_MODE=skill`.
 
 Read `.artifacts/prd/config.json` to get the docs repo path and
-`.artifacts/prd/{issue-number}/publish-metadata.json` to get `{prd-file-path}`.
+`.artifacts/prd/{issue-key}/publish-metadata.json` to get `{prd-file-path}`.
 If either file doesn't exist, skip the remaining steps — the PRD hasn't been
 published yet, so the artifact update is sufficient.
 
 Check whether a PR branch exists in the docs repo:
 
 ```bash
-gh pr list --repo {owner}/{repo} --head prd/{issue-number} --state open --json number,url
+gh pr list --repo {owner}/{repo} --head prd/{issue-key} --state open --json number,url
 ```
 
 (Determine `{owner}/{repo}` from the `docs_repo_remote` in the config.)
@@ -107,10 +107,10 @@ If there are uncommitted changes, ask the user before continuing.
 git -C "{docs_repo_path}" branch --show-current
 ```
 
-If not on the PR branch (`prd/{issue-number}`), check it out:
+If not on the PR branch (`prd/{issue-key}`), check it out:
 
 ```bash
-git -C "{docs_repo_path}" checkout prd/{issue-number}
+git -C "{docs_repo_path}" checkout prd/{issue-key}
 ```
 
 Fast-forward the local branch if the remote is ahead:
@@ -129,11 +129,11 @@ mkdir -p "{docs_repo_path}/$(dirname "{prd-file-path}")"
 ```
 
 ```bash
-cp ".artifacts/prd/{issue-number}/03-prd.md" "{docs_repo_path}/{prd-file-path}"
+cp ".artifacts/prd/{issue-key}/03-prd.md" "{docs_repo_path}/{prd-file-path}"
 ```
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
-`WORKFLOW=prd`, `ISSUE_NUMBER={issue-number}`,
+`WORKFLOW=prd`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{docs_repo_path}/{prd-file-path}"`.
 
 ```bash
@@ -141,7 +141,7 @@ git -C "{docs_repo_path}" add "{prd-file-path}"
 ```
 
 ```bash
-git -C "{docs_repo_path}" commit -m "PRD {issue-number}: revise — {brief description of changes}"
+git -C "{docs_repo_path}" commit -m "PRD {issue-key}: revise — {brief description of changes}"
 ```
 
 ```bash
@@ -166,7 +166,7 @@ Summarize what changed:
 
 ## Output
 
-- `.artifacts/prd/{issue-number}/03-prd.md` (updated)
+- `.artifacts/prd/{issue-key}/03-prd.md` (updated)
 
 ## When This Phase Is Done
 

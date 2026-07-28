@@ -30,9 +30,9 @@ and repeat until everything passes.
 ### Step 1: Read Context
 
 Read:
-1. `.artifacts/implement/{jira-key}/01-context.md` (validation profile)
-2. `.artifacts/implement/{jira-key}/02-plan.md` (what was implemented)
-3. `.artifacts/implement/{jira-key}/04-impl-report.md` (implementation status)
+1. `.artifacts/implement/{issue-key}/01-context.md` (validation profile)
+2. `.artifacts/implement/{issue-key}/02-plan.md` (what was implemented)
+3. `.artifacts/implement/{issue-key}/04-impl-report.md` (implementation status)
 
 Extract the validation profile's pre-PR checks list.
 
@@ -69,7 +69,7 @@ git rev-list --count HEAD..origin/{local-base}
 ```
 
 If the branch is behind base, check whether a PR has already been
-created by looking for `.artifacts/implement/{jira-key}/publish-metadata.json`.
+created by looking for `.artifacts/implement/{issue-key}/publish-metadata.json`.
 
 **If no PR exists yet** (pre-publish), offer to rebase:
 
@@ -195,7 +195,7 @@ parameters:
 |-----------|-------|
 | DIFF_COMMAND | `git diff {local-base}...HEAD` |
 | MAX_ROUNDS | `3` |
-| CONTEXT_FILES | `.artifacts/implement/{jira-key}/01-context.md`, `.artifacts/implement/{jira-key}/02-plan.md` (if they exist) |
+| CONTEXT_FILES | `.artifacts/implement/{issue-key}/01-context.md`, `.artifacts/implement/{issue-key}/02-plan.md` (if they exist) |
 | SUPPLEMENTARY_CRITERIA | This is the full-branch validation review — the last quality gate before PR creation. The reviewer has the complete diff, not a per-task slice. In addition to the standard protocol criteria, evaluate: (1) **Backward compatibility** — does the change modify public APIs, error formats, configuration, or wire protocols? If so, is it backward-compatible or is the break documented and justified? (2) **Completeness across call sites** — if the story introduces a guard, wrapper, or handling pattern in one location, search the codebase for similar patterns needing the same treatment. A pattern applied to 7 of 8 identical call sites is itself a bug. |
 
 If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
@@ -210,7 +210,7 @@ git add {fixed files}
 ```
 
 ```bash
-git commit -m "{JIRA-KEY}: address validation review findings"
+git commit -m "{issue-key}: address validation review findings"
 ```
 
 ### Step 7: Acceptance Criteria Verification
@@ -247,10 +247,10 @@ satisfied:
 
 ### Step 8: Write Validation Report
 
-Write `.artifacts/implement/{jira-key}/05-validation-report.md`:
+Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
 
 ```markdown
-# Validation Report — {jira-key}
+# Validation Report — {issue-key}
 
 ## Branch Currency
 
@@ -355,7 +355,7 @@ Summarize for the user:
 
 ## Output
 
-- `.artifacts/implement/{jira-key}/05-validation-report.md`
+- `.artifacts/implement/{issue-key}/05-validation-report.md`
 - Additional test files (if coverage gaps were found)
 - Fix commits (if issues were found and fixed)
 

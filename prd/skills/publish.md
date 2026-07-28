@@ -25,7 +25,7 @@ the user before taking action.
 
 ### Step 1: Read the PRD
 
-Read `.artifacts/prd/{issue-number}/03-prd.md`.
+Read `.artifacts/prd/{issue-key}/03-prd.md`.
 
 If the file doesn't exist, tell the user that `/draft` should be run first.
 
@@ -77,7 +77,7 @@ git -C "{docs_repo_path}" status
 ```
 
 Provenance at publish time:
-- If `.artifacts/prd/{issue-number}/provenance.json` exists from `/draft`, `/revise`,
+- If `.artifacts/prd/{issue-key}/provenance.json` exists from `/draft`, `/revise`,
   or `/respond`, the footer reflects the full authoring session (`provenance_kind:
   session`).
 - If the log is missing, the render recipe **auto-captures a commit-time snapshot**
@@ -95,7 +95,7 @@ Confirm with the user:
   directory, with the Jira issue key appended (e.g., if the summary is
   "Container Port Mapping Support" and the issue is EDM-1471, suggest
   `port-mappings-EDM-1471`). Ask for **just the slug**, not a full path.
-- **Branch name:** Propose `prd/{issue-number}` and let the user override
+- **Branch name:** Propose `prd/{issue-key}` and let the user override
 
 These two values determine the PRD file path in the docs repo:
 `{release}/{feature}/prd.md`. The filename is always `prd.md` — future
@@ -111,7 +111,7 @@ repo. Use `git -C "{docs_repo_path}"` for all commands.
 Check if the branch already exists (locally or on the remote) before creating it:
 
 ```bash
-git -C "{docs_repo_path}" branch --list prd/{issue-number}
+git -C "{docs_repo_path}" branch --list prd/{issue-key}
 ```
 
 ```bash
@@ -119,20 +119,20 @@ git -C "{docs_repo_path}" fetch origin
 ```
 
 ```bash
-git -C "{docs_repo_path}" branch -r --list origin/prd/{issue-number}
+git -C "{docs_repo_path}" branch -r --list origin/prd/{issue-key}
 ```
 
 Depending on the results:
 
 ```bash
 # If branch exists locally:
-git -C "{docs_repo_path}" checkout prd/{issue-number}
+git -C "{docs_repo_path}" checkout prd/{issue-key}
 
 # If branch does not exist locally but exists on remote:
-git -C "{docs_repo_path}" checkout -b prd/{issue-number} origin/prd/{issue-number}
+git -C "{docs_repo_path}" checkout -b prd/{issue-key} origin/prd/{issue-key}
 
 # If branch doesn't exist locally or remotely:
-git -C "{docs_repo_path}" checkout -b prd/{issue-number}
+git -C "{docs_repo_path}" checkout -b prd/{issue-key}
 ```
 
 Copy the PRD artifact from the source repo to the docs repo:
@@ -142,11 +142,11 @@ mkdir -p "{docs_repo_path}/{release}/{feature}"
 ```
 
 ```bash
-cp ".artifacts/prd/{issue-number}/03-prd.md" "{docs_repo_path}/{release}/{feature}/prd.md"
+cp ".artifacts/prd/{issue-key}/03-prd.md" "{docs_repo_path}/{release}/{feature}/prd.md"
 ```
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
-`WORKFLOW=prd`, `ISSUE_NUMBER={issue-number}`,
+`WORKFLOW=prd`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{docs_repo_path}/{release}/{feature}/prd.md"`.
 
 ```bash
@@ -154,16 +154,16 @@ git -C "{docs_repo_path}" add "{release}/{feature}/prd.md"
 ```
 
 ```bash
-git -C "{docs_repo_path}" commit -m "Add PRD for {issue-number}: {title}"
+git -C "{docs_repo_path}" commit -m "Add PRD for {issue-key}: {title}"
 ```
 
 ### Step 5: Push and Create PR
 
 ```bash
-git -C "{docs_repo_path}" push -u origin prd/{issue-number}
+git -C "{docs_repo_path}" push -u origin prd/{issue-key}
 ```
 
-Prepare the PR description and save it to `.artifacts/prd/{issue-number}/04-pr-description.md`
+Prepare the PR description and save it to `.artifacts/prd/{issue-key}/04-pr-description.md`
 (in the source repo's artifact directory):
 
 ```markdown
@@ -188,16 +188,16 @@ Prepare the PR description and save it to `.artifacts/prd/{issue-number}/04-pr-d
 
 Determine `{owner}/{repo}` from the `docs_repo_remote` in `.artifacts/prd/config.json`
 (e.g., `git@github.com:org/planning-docs.git` → `org/planning-docs`), then
-create the draft PR. If `{issue-number}` is a Jira key, prefix the title
-with it (`{issue-number}: PRD - {title}`); otherwise use `PRD: {title}`.
+create the draft PR. If `{issue-key}` is a Jira key, prefix the title
+with it (`{issue-key}: PRD - {title}`); otherwise use `PRD: {title}`.
 
 ```bash
-gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head prd/{issue-number} --title "{issue-number}: PRD - {title}" --body-file .artifacts/prd/{issue-number}/04-pr-description.md
+gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head prd/{issue-key} --title "{issue-key}: PRD - {title}" --body-file .artifacts/prd/{issue-key}/04-pr-description.md
 ```
 
 ### Step 6: Save Publish Metadata
 
-Write `.artifacts/prd/{issue-number}/publish-metadata.json` to record the
+Write `.artifacts/prd/{issue-key}/publish-metadata.json` to record the
 file path and PR details for use by `/revise` and `/respond`:
 
 ```json
@@ -206,7 +206,7 @@ file path and PR details for use by `/revise` and `/respond`:
   "feature": "{feature}",
   "prd_file_path": "{release}/{feature}/prd.md",
   "pr_number": {pr-number},
-  "branch": "prd/{issue-number}"
+  "branch": "prd/{issue-key}"
 }
 ```
 
@@ -221,10 +221,10 @@ Present:
 ## Output
 
 - `.artifacts/prd/config.json` (created on first run, reused on subsequent runs)
-- `.artifacts/prd/{issue-number}/publish-metadata.json`
+- `.artifacts/prd/{issue-key}/publish-metadata.json`
 - PRD committed and pushed to feature branch in the docs repo
 - Draft PR created against the docs repo
-- `.artifacts/prd/{issue-number}/04-pr-description.md`
+- `.artifacts/prd/{issue-key}/04-pr-description.md`
 
 ## When This Phase Is Done
 

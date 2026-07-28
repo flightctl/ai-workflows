@@ -30,8 +30,8 @@ each logical unit of work independently.
 ### Step 1: Read the Plan and Context
 
 Read these files:
-1. `.artifacts/e2e/{jira-key}/02-plan.md` (test plan)
-2. `.artifacts/e2e/{jira-key}/01-context.md` (story context and e2e infrastructure)
+1. `.artifacts/e2e/{issue-key}/02-plan.md` (test plan)
+2. `.artifacts/e2e/{issue-key}/01-context.md` (story context and e2e infrastructure)
 3. The project's `AGENTS.md` and/or `CLAUDE.md` (coding conventions)
 
 If the plan doesn't exist, tell the user that `/plan` should be run first.
@@ -114,7 +114,7 @@ ask how to proceed (stash, commit, or abort) before any rebase/merge
 operation.
 
 Check whether a PR has already been created by looking for
-`.artifacts/e2e/{jira-key}/publish-metadata.json`.
+`.artifacts/e2e/{issue-key}/publish-metadata.json`.
 
 If no PR exists yet, rebase:
 
@@ -245,7 +245,7 @@ parameters:
 |-----------|-------|
 | DIFF_COMMAND | `git diff --cached` |
 | MAX_ROUNDS | `1` |
-| CONTEXT_FILES | `.artifacts/e2e/{jira-key}/01-context.md`, `.artifacts/e2e/{jira-key}/02-plan.md` (if they exist) |
+| CONTEXT_FILES | `.artifacts/e2e/{issue-key}/01-context.md`, `.artifacts/e2e/{issue-key}/02-plan.md` (if they exist) |
 | SUPPLEMENTARY_CRITERIA | Check for e2e-specific issues: (1) Anti-patterns: hardcoded sleeps, shared mutable state, missing cleanup. (2) Test infrastructure bypass: direct API calls instead of project abstractions. (3) Missing async polling: synchronous assertions on async operations. (4) Hardcoded values: inline strings/numbers instead of project-defined constants. (5) Pattern drift: deviations from the reference suite's conventions. (6) Missing labels: tests without CI-filtering labels. |
 
 If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
@@ -261,7 +261,7 @@ dismissed findings in the implementation report (Discoveries section).
 The changes are already staged from Step 3e. Create the commit:
 
 ```bash
-git commit -m "{JIRA-KEY}: {task description}"
+git commit -m "{issue-key}: {task description}"
 ```
 
 Follow the commit format from the **Commit Format** section of
@@ -315,7 +315,7 @@ If output is non-empty, stop and ask the user how to proceed (commit,
 stash, or abort) before continuing.
 
 Check whether a PR has already been created by looking for
-`.artifacts/e2e/{jira-key}/publish-metadata.json`.
+`.artifacts/e2e/{issue-key}/publish-metadata.json`.
 
 **If no PR exists yet**, rebase:
 
@@ -369,10 +369,10 @@ During test implementation, you may encounter unexpected situations:
 
 After all tasks are complete (or if interrupted), write:
 
-**Test report** (`.artifacts/e2e/{jira-key}/03-test-report.md`):
+**Test report** (`.artifacts/e2e/{issue-key}/03-test-report.md`):
 
 ```markdown
-# E2E Test Report — {jira-key}
+# E2E Test Report — {issue-key}
 
 ## Tests Written
 
@@ -403,10 +403,10 @@ After all tasks are complete (or if interrupted), write:
 {Any qualitative observations about test coverage, gaps, or patterns.}
 ```
 
-**Implementation report** (`.artifacts/e2e/{jira-key}/04-impl-report.md`):
+**Implementation report** (`.artifacts/e2e/{issue-key}/04-impl-report.md`):
 
 ```markdown
-# Implementation Report — {jira-key}
+# Implementation Report — {issue-key}
 
 ## Changes Summary
 
@@ -443,9 +443,9 @@ After all tasks are complete (or if interrupted), write:
 
 - Test files in the source repo (on the feature branch)
 - Incremental commits (following the project's commit format)
-- `.artifacts/e2e/{jira-key}/02-plan.md` (updated with task status)
-- `.artifacts/e2e/{jira-key}/03-test-report.md`
-- `.artifacts/e2e/{jira-key}/04-impl-report.md`
+- `.artifacts/e2e/{issue-key}/02-plan.md` (updated with task status)
+- `.artifacts/e2e/{issue-key}/03-test-report.md`
+- `.artifacts/e2e/{issue-key}/04-impl-report.md`
 
 ## When This Phase Is Done
 

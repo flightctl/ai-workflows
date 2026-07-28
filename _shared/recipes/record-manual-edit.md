@@ -1,6 +1,6 @@
 ---
 name: record-manual-edit
-version: 0.1.0
+version: 0.1.1
 ---
 # Recipe: Record Manual Edit
 
@@ -12,7 +12,7 @@ attribution). Delegates to `capture-provenance-event` with fixed parameters.
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | WORKFLOW | Yes | `prd` or `design` |
-| ISSUE_NUMBER | Yes | Jira issue key |
+| ISSUE_KEY | Yes | Full Jira issue key including project prefix (e.g., `PROJ-1234`, not `1234`) |
 
 ## When to invoke
 
@@ -30,7 +30,7 @@ Read and follow `capture-provenance-event.md` with:
 | Parameter | Value |
 |-----------|-------|
 | WORKFLOW | `{WORKFLOW}` |
-| ISSUE_NUMBER | `{ISSUE_NUMBER}` |
+| ISSUE_KEY | `{ISSUE_KEY}` |
 | PHASE | `manual-edit` |
 | AUTHORING_MODE | `manual` |
 

@@ -27,11 +27,11 @@ multiple rounds of revision. This phase only modifies the plan, not code.
 
 ### Step 1: Read Current Plan
 
-Read `.artifacts/e2e/{jira-key}/02-plan.md`.
+Read `.artifacts/e2e/{issue-key}/02-plan.md`.
 
 If the plan doesn't exist, tell the user that `/plan` should be run first.
 
-Also read `.artifacts/e2e/{jira-key}/01-context.md` for reference
+Also read `.artifacts/e2e/{issue-key}/01-context.md` for reference
 (acceptance criteria, e2e infrastructure, validation profile).
 
 ### Step 2: Understand the Feedback
@@ -99,7 +99,7 @@ After applying changes, verify:
 
 ### Step 5: Update Artifact
 
-Overwrite `.artifacts/e2e/{jira-key}/02-plan.md` with the revised plan.
+Overwrite `.artifacts/e2e/{issue-key}/02-plan.md` with the revised plan.
 
 ### Step 6: Present Changes
 
@@ -124,7 +124,7 @@ Summarize what changed:
 
 ## Output
 
-- `.artifacts/e2e/{jira-key}/02-plan.md` (updated)
+- `.artifacts/e2e/{issue-key}/02-plan.md` (updated)
 
 ## When This Phase Is Done
 

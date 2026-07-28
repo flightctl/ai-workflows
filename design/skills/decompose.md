@@ -31,11 +31,11 @@ must leave the system in a stable state.
 ### Step 1: Read Source Material
 
 Read these files:
-1. `.artifacts/design/{issue-number}/03-design.md` (design document)
-2. `.artifacts/design/{issue-number}/01-context.md` (architectural context)
-3. `.artifacts/design/{issue-number}/02-research.md` (if exists — research findings and integration constraints)
+1. `.artifacts/design/{issue-key}/03-design.md` (design document)
+2. `.artifacts/design/{issue-key}/01-context.md` (architectural context)
+3. `.artifacts/design/{issue-key}/02-research.md` (if exists — research findings and integration constraints)
 4. The PRD — use the path recorded in `01-context.md`'s PRD Summary section,
-   falling back to `.artifacts/prd/{issue-number}/03-prd.md`
+   falling back to `.artifacts/prd/{issue-key}/03-prd.md`
 
 If the design document doesn't exist, tell the user that `/draft` should be
 run first.
@@ -90,10 +90,10 @@ its content is what `/sync` will push to Jira.
 
 #### 4a: Write Epic Metadata
 
-Write `.artifacts/design/{issue-number}/04-epics.md`:
+Write `.artifacts/design/{issue-key}/04-epics.md`:
 
 ```markdown
-# Epic Breakdown — {issue-number}
+# Epic Breakdown — {issue-key}
 
 ## Feature
 
@@ -128,7 +128,7 @@ Write `.artifacts/design/{issue-number}/04-epics.md`:
 #### 4b: Write Epic Files
 
 For each epic, write
-`.artifacts/design/{issue-number}/05-stories/epic-{N}-{slug}.md`:
+`.artifacts/design/{issue-key}/05-stories/epic-{N}-{slug}.md`:
 
 ```markdown
 # Epic {N}: {title}
@@ -164,11 +164,11 @@ story file has a 1:1 correspondence with a Jira Story issue — its content
 is what `/sync` will push to Jira.
 
 ```bash
-mkdir -p .artifacts/design/{issue-number}/05-stories/epic-{N}
+mkdir -p .artifacts/design/{issue-key}/05-stories/epic-{N}
 ```
 
 Write each story to
-`.artifacts/design/{issue-number}/05-stories/epic-{N}/story-{NN}-{slug}.md`:
+`.artifacts/design/{issue-key}/05-stories/epic-{N}/story-{NN}-{slug}.md`:
 
 **For `[DEV]`, `[UI]`, `[UX]`, `[QE]`, and `[CI]` stories:**
 
@@ -346,9 +346,9 @@ renumbering existing ones.
 
 After sizing all epics, verify plausibility:
 
-1. Read the Feature's Size from `.artifacts/prd/{issue-number}/01-requirements.md`
+1. Read the Feature's Size from `.artifacts/prd/{issue-key}/01-requirements.md`
    (the Size field captured during PRD ingest) or from
-   `.artifacts/sizing/{issue-number}/02-assessment.md` (if the sizing
+   `.artifacts/sizing/{issue-key}/02-assessment.md` (if the sizing
    workflow was run in single-Feature mode). If neither exists, skip this
    check. Note: batch-mode sizing stores assessments under a version slug
    (e.g., `.artifacts/sizing/1-3-0/`), not per-Feature — batch assessments
@@ -364,10 +364,10 @@ After sizing all epics, verify plausibility:
 
 ### Step 7: Write Coverage Matrix
 
-Write `.artifacts/design/{issue-number}/06-coverage.md`:
+Write `.artifacts/design/{issue-key}/06-coverage.md`:
 
 ```markdown
-# Coverage Matrix — {issue-number}
+# Coverage Matrix — {issue-key}
 
 ## PRD Requirement → Epic/Story Mapping
 
@@ -419,7 +419,7 @@ subagent for independence. Load it with:
 
 - The decomposition review protocol (`../decomposition-review.md`)
 - The PRD (use the path from `01-context.md`'s PRD Summary, falling back to
-  `.artifacts/prd/{issue-number}/03-prd.md`)
+  `.artifacts/prd/{issue-key}/03-prd.md`)
 - All decomposition artifacts: `04-epics.md`, all
   `05-stories/epic-{N}-{slug}.md` files, all
   `05-stories/epic-{N}/story-{NN}-{slug}.md` files, `06-coverage.md`
@@ -530,10 +530,10 @@ should not resolve them unilaterally.
 
 ## Output
 
-- `.artifacts/design/{issue-number}/04-epics.md` (epic metadata and ordering)
-- `.artifacts/design/{issue-number}/05-stories/epic-{N}-{slug}.md` (one per epic)
-- `.artifacts/design/{issue-number}/05-stories/epic-{N}/story-{NN}-{slug}.md` (one per story)
-- `.artifacts/design/{issue-number}/06-coverage.md`
+- `.artifacts/design/{issue-key}/04-epics.md` (epic metadata and ordering)
+- `.artifacts/design/{issue-key}/05-stories/epic-{N}-{slug}.md` (one per epic)
+- `.artifacts/design/{issue-key}/05-stories/epic-{N}/story-{NN}-{slug}.md` (one per story)
+- `.artifacts/design/{issue-key}/06-coverage.md`
 
 ## When This Phase Is Done
 

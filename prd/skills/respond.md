@@ -30,7 +30,7 @@ repeatable as new comments arrive.
 ### Step 1: Resolve Docs Repo and Fetch PR Comments
 
 Read `.artifacts/prd/config.json` to get the docs repo path and
-`.artifacts/prd/{issue-number}/publish-metadata.json` to get the PR
+`.artifacts/prd/{issue-key}/publish-metadata.json` to get the PR
 number and file path. If either file doesn't exist, tell the user that
 `/publish` should be run first.
 
@@ -110,14 +110,14 @@ Wait for the user to approve, modify, or reject each response.
 
 ### Step 4: Apply Approved Changes
 
-If the user edited `.artifacts/prd/{issue-number}/03-prd.md` manually since the
+If the user edited `.artifacts/prd/{issue-key}/03-prd.md` manually since the
 last workflow phase, read and follow
 `../../_shared/recipes/record-manual-edit.md` with `WORKFLOW=prd` and
-`ISSUE_NUMBER={issue-number}` before applying changes.
+`ISSUE_KEY={issue-key}` before applying changes.
 
 **Check locked decisions:** Before applying any PRD change — whether a
 direct edit or an open question resolution — read the "Locked Decisions"
-section of `.artifacts/prd/{issue-number}/02-clarifications.md` (if it
+section of `.artifacts/prd/{issue-key}/02-clarifications.md` (if it
 exists). If a requested change contradicts a locked decision, flag the
 conflict to the user rather than applying the change — locked decisions
 are binding and cannot be overridden without explicit user approval.
@@ -155,14 +155,14 @@ synthesize the discussion into a proposed resolution:
 7. If the Open Questions section is now empty, remove the entire section (heading and
    introductory text) from the PRD. Renumber any subsequent sections to close the gap.
 
-**Update the local artifact:** Update `.artifacts/prd/{issue-number}/03-prd.md`
+**Update the local artifact:** Update `.artifacts/prd/{issue-key}/03-prd.md`
 in the source repo.
 
 Read and follow `../../_shared/recipes/capture-provenance-event.md` with
-`WORKFLOW=prd`, `ISSUE_NUMBER={issue-number}`, `PHASE=respond`,
+`WORKFLOW=prd`, `ISSUE_KEY={issue-key}`, `PHASE=respond`,
 `AUTHORING_MODE=skill`.
 
-**Update the docs repo copy:** Read `.artifacts/prd/{issue-number}/publish-metadata.json`
+**Update the docs repo copy:** Read `.artifacts/prd/{issue-key}/publish-metadata.json`
 to get `{prd-file-path}` (the PRD's location within the docs repo). If the
 metadata file doesn't exist, ask the user for the file path within the docs
 repo. If they provide it, write it to `publish-metadata.json` so subsequent
@@ -190,10 +190,10 @@ Ensure the correct branch is checked out:
 git -C "{docs_repo_path}" branch --show-current
 ```
 
-If not on `prd/{issue-number}`, check it out:
+If not on `prd/{issue-key}`, check it out:
 
 ```bash
-git -C "{docs_repo_path}" checkout prd/{issue-number}
+git -C "{docs_repo_path}" checkout prd/{issue-key}
 ```
 
 Fast-forward the local branch if the remote is ahead:
@@ -212,11 +212,11 @@ mkdir -p "{docs_repo_path}/$(dirname "{prd-file-path}")"
 ```
 
 ```bash
-cp ".artifacts/prd/{issue-number}/03-prd.md" "{docs_repo_path}/{prd-file-path}"
+cp ".artifacts/prd/{issue-key}/03-prd.md" "{docs_repo_path}/{prd-file-path}"
 ```
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
-`WORKFLOW=prd`, `ISSUE_NUMBER={issue-number}`,
+`WORKFLOW=prd`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{docs_repo_path}/{prd-file-path}"`.
 
 ```bash
@@ -224,7 +224,7 @@ git -C "{docs_repo_path}" add "{prd-file-path}"
 ```
 
 ```bash
-git -C "{docs_repo_path}" commit -m "PRD {issue-number}: address review feedback"
+git -C "{docs_repo_path}" commit -m "PRD {issue-key}: address review feedback"
 ```
 
 ```bash
@@ -242,7 +242,7 @@ For comments that only need a reply (no PRD changes), post the reply directly.
 Write the reply to a temp file to avoid shell metacharacter issues:
 
 ```bash
-cat > .artifacts/prd/{issue-number}/tmp-reply.md << 'REPLY_EOF'
+cat > .artifacts/prd/{issue-key}/tmp-reply.md << 'REPLY_EOF'
 {approved reply text}
 REPLY_EOF
 ```
@@ -253,28 +253,28 @@ line), reply in-thread so the response appears alongside the original
 comment:
 
 ```bash
-gh api repos/{owner}/{repo}/pulls/{pr-number}/comments/{comment-id}/replies --field body=@.artifacts/prd/{issue-number}/tmp-reply.md
+gh api repos/{owner}/{repo}/pulls/{pr-number}/comments/{comment-id}/replies --field body=@.artifacts/prd/{issue-key}/tmp-reply.md
 ```
 
 **For top-level PR comments** (those from `gh pr view --json comments` —
 general conversation comments), use:
 
 ```bash
-gh pr comment {pr-number} --repo {owner}/{repo} --body-file .artifacts/prd/{issue-number}/tmp-reply.md
+gh pr comment {pr-number} --repo {owner}/{repo} --body-file .artifacts/prd/{issue-key}/tmp-reply.md
 ```
 
 Delete the temp file after posting:
 
 ```bash
-rm .artifacts/prd/{issue-number}/tmp-reply.md
+rm .artifacts/prd/{issue-key}/tmp-reply.md
 ```
 
 ### Step 5: Update Response Log
 
-Write or update `.artifacts/prd/{issue-number}/05-review-responses.md`:
+Write or update `.artifacts/prd/{issue-key}/05-review-responses.md`:
 
 ```markdown
-# Review Responses — {issue-number}
+# Review Responses — {issue-key}
 
 ## Round {N} — {date}
 
@@ -302,8 +302,8 @@ Summarize:
 ## Output
 
 - PR comments posted (with user approval)
-- `.artifacts/prd/{issue-number}/03-prd.md` (updated if needed)
-- `.artifacts/prd/{issue-number}/05-review-responses.md`
+- `.artifacts/prd/{issue-key}/03-prd.md` (updated if needed)
+- `.artifacts/prd/{issue-key}/05-review-responses.md`
 
 ## When This Phase Is Done
 

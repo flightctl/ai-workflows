@@ -45,7 +45,7 @@ docs repo** so planning artifacts don't pollute the source tree.
 
 ### Artifact directory
 
-All working artifacts are stored in `.artifacts/design/{issue-number}/` within
+All working artifacts are stored in `.artifacts/design/{issue-key}/` within
 the source repo (this directory should be gitignored in the source repo):
 
 | Artifact | File | Written by |
@@ -209,7 +209,7 @@ When output quality appears to be degrading (e.g., the AI misses details,
 repeats itself, or loses track of earlier decisions), consider spawning the
 next phase as a subagent with a fresh context window. Load the subagent with
 the skill file for the phase being executed, the relevant artifact files from
-`.artifacts/design/{issue-number}/`, and any template files referenced by that
+`.artifacts/design/{issue-key}/`, and any template files referenced by that
 skill (e.g., `draft.md` and `section-guidance.md` for `/draft`).
 
 This is a recommendation, not a requirement — not all AI runtimes support

@@ -101,7 +101,7 @@ This phase handles the PR review cycle. See the dedicated section below.
 
 ## The Artifact Trail
 
-Each PRD produces a set of numbered artifacts in `.artifacts/prd/{issue-number}/`:
+Each PRD produces a set of numbered artifacts in `.artifacts/prd/{issue-key}/`:
 
 | File | Created by | Purpose |
 |------|-----------|---------|

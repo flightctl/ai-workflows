@@ -29,7 +29,7 @@ and what's still open. Know when to stop.
 
 ### Step 1: Read Source Material
 
-Read `.artifacts/prd/{issue-number}/01-requirements.md` (from `/ingest`).
+Read `.artifacts/prd/{issue-key}/01-requirements.md` (from `/ingest`).
 
 If this file doesn't exist, tell the user that `/ingest` should be run first,
 or ask them to provide requirements directly.
@@ -106,10 +106,10 @@ a locked decision; only record clear, scope-affecting choices.
 
 ### Step 4: Update Clarification Log
 
-After each round, write or update `.artifacts/prd/{issue-number}/02-clarifications.md`:
+After each round, write or update `.artifacts/prd/{issue-key}/02-clarifications.md`:
 
 ```markdown
-# Clarification Log — {issue-number}
+# Clarification Log — {issue-key}
 
 ## Status
 
@@ -175,7 +175,7 @@ where it left off.
 
 ## Output
 
-- `.artifacts/prd/{issue-number}/02-clarifications.md` (created or updated)
+- `.artifacts/prd/{issue-key}/02-clarifications.md` (created or updated)
 
 ## When This Phase Is Done
 

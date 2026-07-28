@@ -72,7 +72,7 @@ graph TD
 
 ## Artifacts
 
-All artifacts are stored in `.artifacts/prd/{issue-number}/`.
+All artifacts are stored in `.artifacts/prd/{issue-key}/`.
 
 Session-local `provenance.json` records environment snapshots from `/draft`,
 `/revise`, and `/respond`. `/publish` renders a durable `## Provenance` footer

@@ -36,12 +36,15 @@ The user will provide one of:
 - A Jira issue key or URL (fetch via Jira MCP)
 - A path to an existing story file from the design workflow
 
-Extract the Jira key (e.g., `EDM-5678`) and set it as the context identifier.
+Extract the full Jira issue key, including the project prefix (e.g.,
+`PROJ-1234`, not just `1234`). Use this as `{issue-key}` throughout
+the workflow — it is the context identifier for the artifact directory
+and all downstream phases.
 
 ### Step 2: Create Artifact Directory
 
 ```bash
-mkdir -p .artifacts/e2e/{jira-key}
+mkdir -p .artifacts/e2e/{issue-key}
 ```
 
 Verify that `.artifacts/` is covered by the project's `.gitignore`. If it
@@ -50,7 +53,7 @@ with the code.
 
 ### Step 2a: Check for Prior Ingest
 
-If `.artifacts/e2e/{jira-key}/01-context.md` already exists, this is a
+If `.artifacts/e2e/{issue-key}/01-context.md` already exists, this is a
 re-invocation. Copy the existing file to `01-context.md.prev` so it is
 preserved for the diff in Step 7a.
 
@@ -370,16 +373,16 @@ Compile all findings into the structure below. If this is a re-invocation
 compiled content and proceed to Step 7a first.
 
 If this is a first invocation, write
-`.artifacts/e2e/{jira-key}/01-context.md` with this structure:
+`.artifacts/e2e/{issue-key}/01-context.md` with this structure:
 
 ```markdown
-# Story Context — {jira-key}
+# Story Context — {issue-key}
 
 ## Story Summary
 
 - **Title:** {title}
 - **Type:** [QE]
-- **Jira:** {jira-key}
+- **Jira:** {issue-key}
 - **Epic:** {parent epic key and title}
 - **Feature:** {parent feature key, if known}
 
@@ -619,7 +622,7 @@ what changes were found and that the existing context was preserved.
 
 ## Output
 
-- `.artifacts/e2e/{jira-key}/01-context.md`
+- `.artifacts/e2e/{issue-key}/01-context.md`
 
 ## When This Phase Is Done
 
