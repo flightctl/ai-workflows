@@ -590,12 +590,14 @@ each test case's metadata table links back to the epic/story structure.
 
 #### 7c: Add Test Case References to Stories
 
-After writing the testplan, append a `## Test Case References` section
+After writing the testplan, add a `## Test Case References` section
 to each non-`[DOCS]` story file. For each test case in the testplan,
 its Story field identifies the implementing story. Collect all TC IDs
 for each story and write them into that story's file.
 
-Re-read each story file before appending to ensure current content.
+Re-read each story file before writing. If the story already has a
+`## Test Case References` section (from a prior decomposition), replace
+it entirely with the current TC IDs. Do not append a second section.
 `[DOCS]` stories do not receive this section.
 
 The section format is a single `Verified by:` line with comma-separated

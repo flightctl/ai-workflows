@@ -180,8 +180,13 @@ section and matching those directly against the testplan.
 | Outcome | Condition | Action |
 |---------|-----------|--------|
 | **Normal** | Matching test cases found | Write `.artifacts/e2e/{issue-key}/testplan.md` |
-| **Expected zero** | No matches AND story type is `[DOCS]`, `[UX]`, or `[CI]` | Note in context. Do not write `testplan.md`. |
-| **Anomalous zero** | No matches AND story type is `[QE]`, `[DEV]`, or `[UI]` | Warn the user: "Testplan exists but no test cases match this story's requirements. This may indicate a gap in the testplan or the story's requirement mapping." This is non-blocking — continue without `testplan.md`. |
+| **Expected zero** | No matches AND story type is `[DOCS]`, `[UX]`, or `[CI]` | Note in context. |
+| **Anomalous zero** | No matches AND story type is `[QE]`, `[DEV]`, or `[UI]` | Warn the user: "Testplan exists but no test cases match this story's requirements. This may indicate a gap in the testplan or the story's requirement mapping." This is non-blocking. |
+
+For non-normal outcomes (expected zero, anomalous zero, or no
+feature-level testplan): if `.artifacts/e2e/{issue-key}/testplan.md`
+exists from a prior ingest run, delete it. A stale story-scoped testplan
+would cause downstream gates to enforce obsolete coverage requirements.
 
 If `testplan.md` was not found in the docs repo, note "No feature-level
 testplan available" and continue. This is not an error — the testplan is

@@ -111,6 +111,14 @@ placed alongside the PRD (`prd.md`) if one was published previously.
 All git operations run against the **docs repo**. Use
 `git -C "{docs_repo_path}"` for all commands.
 
+Verify the docs repo is clean before modifying it:
+
+```bash
+git -C "{docs_repo_path}" status
+```
+
+If there are uncommitted changes, ask the user before continuing.
+
 Check if the branch already exists:
 
 ```bash

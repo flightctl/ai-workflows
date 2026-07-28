@@ -129,15 +129,20 @@ After applying changes, verify:
   affects what the test validates. The Expected Results quality gate
   applies — no banned vague phrases.
 - If stories were added or removed: add or remove test cases as
-  appropriate. Update `Test Case References` in affected story files.
+  appropriate. Update `Test Case References` in affected non-`[DOCS]`
+  story files.
 - If acceptance criteria changed on a story: review the test cases
   referencing that story — do they still validate the correct behavior?
 - Update the coverage matrix's Test Cases column if test case IDs
   changed.
+- If test cases were added or removed: update the testplan's Overview
+  counts and Summary table to reflect the current totals.
 - If test cases were removed and a requirement now has none: update
   the testplan's Gaps section to reflect the new gap.
 - If requirement IDs changed (rare — requires PRD revision): update
-  all TC IDs anchored to the changed requirement.
+  all TC IDs anchored to the changed requirement, cascade the renamed
+  IDs to each story's `Test Case References` section and the coverage
+  matrix's Test Cases column, then revalidate the cross-file mappings.
 
 ### Step 5: Update Artifacts
 

@@ -623,13 +623,7 @@ can filter by Jira key.
 Read `.artifacts/prd/config.json` to get the docs repo path. Read
 `publish-metadata.json` to get the `testplan_file_path`.
 
-Write the resolved testplan content (with Jira keys in the Story field)
-to `{docs_repo_path}/{testplan_file_path}`. Do NOT modify the local
-`07-testplan.md` — it keeps local identifiers.
-
-Compare the resolved content against the current content of
-`{docs_repo_path}/{testplan_file_path}`. If they are identical, skip
-the commit — the published testplan is already up to date.
+Verify the docs repo state before writing:
 
 ```bash
 git -C "{docs_repo_path}" fetch origin
@@ -655,6 +649,14 @@ git -C "{docs_repo_path}" checkout design/{issue-key}
 ```bash
 git -C "{docs_repo_path}" pull --ff-only
 ```
+
+Compare the resolved content against the current content of
+`{docs_repo_path}/{testplan_file_path}`. If they are identical, skip
+the commit — the published testplan is already up to date.
+
+Write the resolved testplan content (with Jira keys in the Story field)
+to `{docs_repo_path}/{testplan_file_path}`. Do NOT modify the local
+`07-testplan.md` — it keeps local identifiers.
 
 ```bash
 git -C "{docs_repo_path}" add "{testplan_file_path}"

@@ -179,7 +179,8 @@ feedback), apply them in this order:
      Summary table.
 
 2. **Cascade to story files.** For each affected story (identified by the
-   Story field of changed test cases):
+   Story field of changed test cases), skip `[DOCS]` stories (they do
+   not have a Test Case References section). For non-`[DOCS]` stories:
    - Re-read the story file at
      `.artifacts/design/{issue-key}/05-stories/epic-{N}/story-{NN}-{slug}.md`.
    - Rewrite the `## Test Case References` section: collect all TC IDs
