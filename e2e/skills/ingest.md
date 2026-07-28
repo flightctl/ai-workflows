@@ -185,11 +185,11 @@ the testplan.
 | **Expected zero** | No matches AND story type is `[DOCS]`, `[UX]`, or `[CI]` | Note in context. |
 | **Anomalous zero** | No matches AND story type is `[QE]`, `[DEV]`, or `[UI]` | Warn the user: "Testplan exists but no test cases match this story's requirements. This may indicate a gap in the testplan or the story's requirement mapping." This is non-blocking. |
 
-If the story type prefix is not listed above (unknown type), treat it
-as anomalous zero and ask the user how to proceed.
+If the story type prefix is not listed above, treat it as anomalous
+zero (warn the user, continue without `testplan.md`).
 
-For non-normal outcomes (expected zero, anomalous zero, unknown type,
-or no feature-level testplan): if
+For non-normal outcomes (expected zero, anomalous zero, or no
+feature-level testplan): if
 `.artifacts/e2e/{issue-key}/testplan.md` exists from a prior ingest
 run, delete it. A stale story-scoped testplan
 would cause downstream gates to enforce obsolete coverage requirements.
@@ -511,19 +511,22 @@ If this is a first invocation, write
 
 ### Story Test Plan
 
-{If testplan.md was written: "Story-scoped test plan with {N} test
- cases covering requirements {FR-1, FR-3, NFR-2}. See
- `.artifacts/e2e/{issue-key}/testplan.md` for full details.
+{If story-scoped testplan was written: "Story-scoped test plan written
+ to `.artifacts/e2e/{issue-key}/testplan.md` with {N} test cases
+ covering requirements {FR-1, FR-3, NFR-2}.
  TC IDs: {comma-separated list}."
 
- If testplan exists but no matches (expected): "Feature testplan exists
- but has no test cases for this {story-type} story (expected)."
+ If feature-level testplan exists but no matches (expected):
+ "Feature-level testplan found in docs repo but no test cases match
+ this {story-type} story (expected). No story-scoped testplan written."
 
- If testplan exists but no matches (anomalous): "Feature testplan exists
- but no test cases match this {story-type} story's requirements
- (anomalous — flagged during ingest)."
+ If feature-level testplan exists but no matches (anomalous):
+ "Feature-level testplan found in docs repo but no test cases match
+ this {story-type} story's requirements (anomalous — flagged during
+ ingest). No story-scoped testplan written."
 
- If testplan not found: "No feature-level testplan available."}
+ If no feature-level testplan in docs repo: "No feature-level testplan
+ available in docs repo. No story-scoped testplan written."}
 
 ## E2E Test Infrastructure
 
