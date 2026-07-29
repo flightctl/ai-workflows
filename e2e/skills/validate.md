@@ -248,7 +248,10 @@ Coverage section, skip this step entirely. However, if `02-plan.md`
 has TC mappings but `testplan.md` is missing, unreadable, or malformed
 (no parseable TC IDs), stop and report the inconsistency.
 
-1. Read `testplan.md` and extract all TC IDs.
+1. Read `testplan.md` and extract all TC IDs. For each TC entry,
+   verify that Preconditions, Steps, and Expected Results sections
+   are present. If any entry is missing a required section, stop and
+   report the testplan as malformed.
 2. For each TC ID (except those the validate phase agrees are
    legitimately N/A based on the rationale in the plan's Test Plan
    Coverage matrix):

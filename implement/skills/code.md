@@ -302,7 +302,10 @@ mapped to it in the Test Plan Coverage matrix of `02-plan.md`. If it
 does, verify each mapped TC ID before proceeding to commit:
 
 1. Read the full test case entry for each TC ID from `testplan.md`
-   (the Preconditions, Steps, and Expected Results sections).
+   (the Preconditions, Steps, and Expected Results sections). If any
+   of these sections is missing from a test case entry, stop and
+   report the testplan as malformed — do not attempt to reconcile
+   against an incomplete test case.
 2. Verify that a test exists (written in Step 3b or a prior task)
    whose assertions validate the Expected Results described in the
    test case. The match is behavioral, not textual — the test must
