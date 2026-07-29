@@ -212,8 +212,26 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=design`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{docs_repo_path}/{design_file_path}"`.
 
+**Testplan docs-repo sync:**
+
 If `07-testplan.md` exists and `publish-metadata.json` contains a
-`testplan_file_path` field, also copy the testplan to the docs repo.
+`testplan_file_path` field, copy the testplan to the docs repo (see
+sync-manifest guard below).
+
+If `07-testplan.md` exists but `publish-metadata.json` does NOT contain
+`testplan_file_path` (testplan was created after initial publish), note
+to the user: "Testplan exists locally but was not included in the
+original publish. Re-run `/publish` to include it in the docs repo."
+
+If `07-testplan.md` does NOT exist but `publish-metadata.json` contains
+`testplan_file_path` (testplan was removed during revision), remove the
+published testplan from the docs repo:
+
+```bash
+git -C "{docs_repo_path}" rm "{testplan_file_path}"
+```
+
+Remove `testplan_file_path` from `publish-metadata.json`.
 
 **Sync-manifest guard:** If `.artifacts/design/{issue-key}/sync-manifest.json`
 exists, the published testplan's Story field must use Jira keys. Before
@@ -266,6 +284,7 @@ Summarize what changed:
 ### Testplan Changes
 - {TC-FR1-03 added — new acceptance criterion on Story 1.01}
 - {TC-NFR2-01 updated — expected result changed to match revised design}
+- {TC-FR2-02 removed — requirement FR-2 no longer in scope}
 - {Omit this section if the testplan did not change or does not exist}
 
 ### Consistency Updates

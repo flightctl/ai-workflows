@@ -615,8 +615,11 @@ can filter by Jira key.
    keys (e.g., `EDM-1234`). Use the reference resolution logic described
    in the Reference Resolution section (look up `story-{NN}-*.md` under
    `epic-{N}/` in the manifest to find the Jira key).
-3. If a Story reference cannot be resolved (not in the manifest), leave
-   it as-is and note it for the user.
+3. If a Story reference cannot be resolved (not in the manifest),
+   preserve the local reference as-is and warn the user: "Story
+   reference '{local ref}' could not be resolved to a Jira key —
+   downstream workflows that filter by Jira key will not match this
+   test case." Include unresolved references in the Step 8 report.
 
 **Write the resolved testplan to the docs repo:**
 
