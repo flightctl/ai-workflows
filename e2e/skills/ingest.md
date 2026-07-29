@@ -518,7 +518,8 @@ If this is a first invocation, write
 
  If feature-level testplan exists but no matches (expected):
  "Feature-level testplan found in docs repo but no test cases match
- this {story-type} story (expected). No story-scoped testplan written."
+ this {story-type} story's requirements (expected). No story-scoped
+ testplan written."
 
  If feature-level testplan exists but no matches (anomalous):
  "Feature-level testplan found in docs repo but no test cases match
