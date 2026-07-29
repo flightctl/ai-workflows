@@ -311,15 +311,21 @@ does, verify each mapped TC ID before proceeding to commit:
    Eventually/Consistently in Ginkgo, polling in pytest).
 3. If a TC ID mapped to this task has no corresponding test with
    sufficient assertion depth, write the missing test (Step 3b), run
-   it (Step 3d), re-run the review gate, then re-check.
+   it (Step 3d), stage the new files (`git add`), re-run the review
+   gate, then re-check.
 
 This is a hard gate — the task cannot proceed to commit until every
-mapped TC ID has coverage. The testplan is a floor, not a ceiling:
-tests discovered through TDD that are not tied to any TC ID are
-expected and encouraged.
+mapped TC ID has coverage or is explicitly marked N/A with a non-empty
+rationale (e.g., the test case describes behavior that this story's
+implementation made inapplicable). The testplan is a floor, not a
+ceiling: tests discovered through TDD that are not tied to any TC ID
+are expected and encouraged.
 
-If no story-scoped testplan exists, or this task has no mapped TC IDs,
-skip this check.
+If no story-scoped testplan exists and `02-plan.md` has no Test Plan
+Coverage section, skip this check. However, if `02-plan.md` has TC
+mappings but `testplan.md` is missing or unreadable, stop and report
+the inconsistency — the plan references a testplan that the code phase
+cannot access.
 
 #### 3g: Commit
 

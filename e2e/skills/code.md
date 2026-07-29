@@ -274,15 +274,20 @@ commit:
    pytest).
 3. If a TC ID mapped to this task has no corresponding validation with
    sufficient assertion depth, write the missing validation (Step 3b),
-   run the tests (Step 3c), re-run the review gate, then re-check.
+   run the tests (Step 3c), stage the new files (`git add`), re-run
+   the review gate, then re-check.
 
 This is a hard gate — the task cannot proceed to commit until every
-mapped TC ID has coverage. The testplan is a floor, not a ceiling:
-validations discovered through test design that are not tied to any
-TC ID are expected and encouraged.
+mapped TC ID has coverage or is explicitly marked N/A with a non-empty
+rationale. The testplan is a floor, not a ceiling: validations
+discovered through test design that are not tied to any TC ID are
+expected and encouraged.
 
-If no story-scoped testplan exists, or this task has no mapped TC IDs,
-skip this check.
+If no story-scoped testplan exists and `02-plan.md` has no Test Plan
+Coverage section, skip this check. However, if `02-plan.md` has TC
+mappings but `testplan.md` is missing or unreadable, stop and report
+the inconsistency — the plan references a testplan that the code phase
+cannot access.
 
 #### 3f: Commit
 
