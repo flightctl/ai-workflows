@@ -74,14 +74,15 @@ Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 `AUTHORING_MODE=skill`.
 
 Read `.artifacts/prd/config.json` to get the docs repo path and
-`.artifacts/prd/{issue-key}/publish-metadata.json` to get `{prd-file-path}`.
+`.artifacts/prd/{issue-key}/publish-metadata.json` to get `{prd-file-path}`
+and `{branch-name}` (from the `branch` field).
 If either file doesn't exist, skip the remaining steps — the PRD hasn't been
 published yet, so the artifact update is sufficient.
 
 Check whether a PR branch exists in the docs repo:
 
 ```bash
-gh pr list --repo {owner}/{repo} --head prd/{issue-key} --state open --json number,url
+gh pr list --repo {owner}/{repo} --head {branch-name} --state open --json number,url
 ```
 
 (Determine `{owner}/{repo}` from the `docs_repo_remote` in the config.)
@@ -107,10 +108,10 @@ If there are uncommitted changes, ask the user before continuing.
 git -C "{docs_repo_path}" branch --show-current
 ```
 
-If not on the PR branch (`prd/{issue-key}`), check it out:
+If not on the PR branch (`{branch-name}`), check it out:
 
 ```bash
-git -C "{docs_repo_path}" checkout prd/{issue-key}
+git -C "{docs_repo_path}" checkout {branch-name}
 ```
 
 Fast-forward the local branch if the remote is ahead:

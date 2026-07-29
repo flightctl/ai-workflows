@@ -31,7 +31,8 @@ repeatable as new comments arrive.
 
 Read `.artifacts/prd/config.json` to get the docs repo path and
 `.artifacts/prd/{issue-key}/publish-metadata.json` to get the PR
-number and file path. If either file doesn't exist, tell the user that
+number, file path, and `{branch-name}` (from the `branch` field). If
+either file doesn't exist, tell the user that
 `/publish` should be run first.
 
 Determine `{owner}/{repo}` from the `docs_repo_remote` in the config.
@@ -190,10 +191,10 @@ Ensure the correct branch is checked out:
 git -C "{docs_repo_path}" branch --show-current
 ```
 
-If not on `prd/{issue-key}`, check it out:
+If not on `{branch-name}`, check it out:
 
 ```bash
-git -C "{docs_repo_path}" checkout prd/{issue-key}
+git -C "{docs_repo_path}" checkout {branch-name}
 ```
 
 Fast-forward the local branch if the remote is ahead:

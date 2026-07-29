@@ -138,12 +138,12 @@ docs repo update steps — the design has not been published yet.
 If both exist:
 
 1. Read the config to get the docs repo path
-2. Read publish metadata to get the file path within the docs repo
+2. Read publish metadata to get the file path and `{branch-name}` (from the `branch` field)
 3. Determine `{owner}/{repo}` from the `docs_repo_remote` value in the config
 4. Check whether a PR branch exists:
 
 ```bash
-gh pr list --repo {owner}/{repo} --head design/{issue-key} --state open --json number,url
+gh pr list --repo {owner}/{repo} --head {branch-name} --state open --json number,url
 ```
 
 If a PR exists, update the docs repo:
@@ -162,10 +162,10 @@ If there are uncommitted changes, ask the user before continuing.
 git -C "{docs_repo_path}" branch --show-current
 ```
 
-If not on the PR branch (`design/{issue-key}`), check it out:
+If not on the PR branch (`{branch-name}`), check it out:
 
 ```bash
-git -C "{docs_repo_path}" checkout design/{issue-key}
+git -C "{docs_repo_path}" checkout {branch-name}
 ```
 
 Fast-forward the local branch if the remote is ahead:

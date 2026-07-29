@@ -100,7 +100,8 @@ Confirm with the user:
   If PRD publish metadata exists, propose its `feature` value as the
   default. Otherwise, suggest a slug derived from the Jira issue summary
   with the issue key appended. Ask for **just the slug**, not a full path.
-- **Branch name:** Propose `design/{issue-key}` and let the user override
+- **Branch name:** Propose `design/{issue-key}` and let the user override.
+  Use the confirmed value as `{branch-name}` in all subsequent steps.
 
 These values determine the design document file path in the docs repo:
 `{release}/{feature}/design.md`. The filename is always `design.md` —
@@ -114,7 +115,7 @@ All git operations run against the **docs repo**. Use
 Check if the branch already exists:
 
 ```bash
-git -C "{docs_repo_path}" branch --list design/{issue-key}
+git -C "{docs_repo_path}" branch --list {branch-name}
 ```
 
 ```bash
@@ -122,20 +123,20 @@ git -C "{docs_repo_path}" fetch origin
 ```
 
 ```bash
-git -C "{docs_repo_path}" branch -r --list origin/design/{issue-key}
+git -C "{docs_repo_path}" branch -r --list origin/{branch-name}
 ```
 
 Depending on results:
 
 ```bash
 # If branch exists locally:
-git -C "{docs_repo_path}" checkout design/{issue-key}
+git -C "{docs_repo_path}" checkout {branch-name}
 
 # If branch does not exist locally but exists on remote:
-git -C "{docs_repo_path}" checkout -b design/{issue-key} origin/design/{issue-key}
+git -C "{docs_repo_path}" checkout -b {branch-name} origin/{branch-name}
 
 # If branch doesn't exist at all:
-git -C "{docs_repo_path}" checkout -b design/{issue-key}
+git -C "{docs_repo_path}" checkout -b {branch-name}
 ```
 
 Copy the design document artifact to the docs repo:
@@ -163,7 +164,7 @@ git -C "{docs_repo_path}" commit -m "Add design document for {issue-key}: {title
 ### Step 5: Push and Create PR
 
 ```bash
-git -C "{docs_repo_path}" push -u origin design/{issue-key}
+git -C "{docs_repo_path}" push -u origin {branch-name}
 ```
 
 Read the design document and identify specific areas that warrant reviewer
@@ -199,7 +200,7 @@ If `{issue-key}` is a Jira key, prefix the title with it
 (`{issue-key}: Design - {title}`); otherwise use `Design: {title}`.
 
 ```bash
-gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head design/{issue-key} --title "{issue-key}: Design - {title}" --body-file .artifacts/design/{issue-key}/07-pr-description.md
+gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head {branch-name} --title "{issue-key}: Design - {title}" --body-file .artifacts/design/{issue-key}/07-pr-description.md
 ```
 
 ### Step 6: Save Publish Metadata
@@ -212,7 +213,7 @@ Write `.artifacts/design/{issue-key}/publish-metadata.json`:
   "feature": "{feature}",
   "design_file_path": "{release}/{feature}/design.md",
   "pr_number": {pr-number},
-  "branch": "design/{issue-key}"
+  "branch": "{branch-name}"
 }
 ```
 

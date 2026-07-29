@@ -95,7 +95,8 @@ Confirm with the user:
   directory, with the Jira issue key appended (e.g., if the summary is
   "Container Port Mapping Support" and the issue is EDM-1471, suggest
   `port-mappings-EDM-1471`). Ask for **just the slug**, not a full path.
-- **Branch name:** Propose `prd/{issue-key}` and let the user override
+- **Branch name:** Propose `prd/{issue-key}` and let the user override.
+  Use the confirmed value as `{branch-name}` in all subsequent steps.
 
 These two values determine the PRD file path in the docs repo:
 `{release}/{feature}/prd.md`. The filename is always `prd.md` — future
@@ -111,7 +112,7 @@ repo. Use `git -C "{docs_repo_path}"` for all commands.
 Check if the branch already exists (locally or on the remote) before creating it:
 
 ```bash
-git -C "{docs_repo_path}" branch --list prd/{issue-key}
+git -C "{docs_repo_path}" branch --list {branch-name}
 ```
 
 ```bash
@@ -119,20 +120,20 @@ git -C "{docs_repo_path}" fetch origin
 ```
 
 ```bash
-git -C "{docs_repo_path}" branch -r --list origin/prd/{issue-key}
+git -C "{docs_repo_path}" branch -r --list origin/{branch-name}
 ```
 
 Depending on the results:
 
 ```bash
 # If branch exists locally:
-git -C "{docs_repo_path}" checkout prd/{issue-key}
+git -C "{docs_repo_path}" checkout {branch-name}
 
 # If branch does not exist locally but exists on remote:
-git -C "{docs_repo_path}" checkout -b prd/{issue-key} origin/prd/{issue-key}
+git -C "{docs_repo_path}" checkout -b {branch-name} origin/{branch-name}
 
 # If branch doesn't exist locally or remotely:
-git -C "{docs_repo_path}" checkout -b prd/{issue-key}
+git -C "{docs_repo_path}" checkout -b {branch-name}
 ```
 
 Copy the PRD artifact from the source repo to the docs repo:
@@ -160,7 +161,7 @@ git -C "{docs_repo_path}" commit -m "Add PRD for {issue-key}: {title}"
 ### Step 5: Push and Create PR
 
 ```bash
-git -C "{docs_repo_path}" push -u origin prd/{issue-key}
+git -C "{docs_repo_path}" push -u origin {branch-name}
 ```
 
 Prepare the PR description and save it to `.artifacts/prd/{issue-key}/04-pr-description.md`
@@ -192,7 +193,7 @@ create the draft PR. If `{issue-key}` is a Jira key, prefix the title
 with it (`{issue-key}: PRD - {title}`); otherwise use `PRD: {title}`.
 
 ```bash
-gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head prd/{issue-key} --title "{issue-key}: PRD - {title}" --body-file .artifacts/prd/{issue-key}/04-pr-description.md
+gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head {branch-name} --title "{issue-key}: PRD - {title}" --body-file .artifacts/prd/{issue-key}/04-pr-description.md
 ```
 
 ### Step 6: Save Publish Metadata
@@ -206,7 +207,7 @@ file path and PR details for use by `/revise` and `/respond`:
   "feature": "{feature}",
   "prd_file_path": "{release}/{feature}/prd.md",
   "pr_number": {pr-number},
-  "branch": "prd/{issue-key}"
+  "branch": "{branch-name}"
 }
 ```
 
