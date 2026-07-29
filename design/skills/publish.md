@@ -248,12 +248,13 @@ Otherwise, omit the testplan bullet entirely.}
 - Approve when the design accurately reflects a viable implementation approach
 ```
 
-Determine `{owner}/{repo}` from `docs_repo_remote`, then create the draft PR.
-If `{issue-key}` is a Jira key, prefix the title with it
-(`{issue-key}: Design - {title}`); otherwise use `Design: {title}`.
+Determine `{owner}/{repo}` from `docs_repo_remote`, then create the
+draft PR. Set `{pr-title}` based on whether `{issue-key}` is a Jira
+key: if yes, use `{issue-key}: Design - {title}`; otherwise use
+`Design: {title}`.
 
 ```bash
-gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head {branch-name} --title "{issue-key}: Design - {title}" --body-file .artifacts/design/{issue-key}/08-pr-description.md
+gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head {branch-name} --title "{pr-title}" --body-file .artifacts/design/{issue-key}/08-pr-description.md
 ```
 
 ### Step 6: Save Publish Metadata
