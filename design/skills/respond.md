@@ -161,11 +161,16 @@ section, synthesize the discussion into a proposed resolution:
 When approved changes include testplan modifications (category: Testplan
 feedback), apply them in this order:
 
-1. **Modify `07-testplan.md`.** Add, modify, or remove test cases as
-   directed by the approved response. For each change:
-   - **Adding a test case:** Assign the next available sequence number
-     within the requirement group (e.g., if TC-FR2-01 and TC-FR2-02
-     exist, the new case is TC-FR2-03). Create the full test case entry:
+1. **Modify `07-testplan.md`.** Before making any changes, record the
+   Story and AC mappings of any test cases that will be removed or
+   reassigned — these are needed for the cascade in step 2. Then add,
+   modify, or remove test cases as directed by the approved response.
+   For each change:
+   - **Adding a test case:** Assign a sequence number using
+     `max(existing sequences) + 1` within the requirement group (e.g.,
+     if TC-FR2-01 and TC-FR2-03 exist and TC-FR2-02 was previously
+     removed, the new case is TC-FR2-04 — do not reuse gaps, as ALM
+     systems track by ID). Create the full test case entry:
      H4 heading with ID and title, metadata table (Story, AC, Priority,
      Automation), and H5 sub-sections (Preconditions, Steps, Expected
      Results). Update the testplan's Overview counts and Summary table.
@@ -178,9 +183,11 @@ feedback), apply them in this order:
      all sub-sections). Update the testplan's Overview counts and
      Summary table.
 
-2. **Cascade to story files.** For each affected story (identified by the
-   Story field of changed test cases), skip `[DOCS]` stories (they do
-   not have a Test Case References section). For non-`[DOCS]` stories:
+2. **Cascade to story files.** For each affected story (identified by
+   the Story field of changed test cases AND the pre-mutation mappings
+   captured in step 1 for removed/reassigned cases), skip `[DOCS]`
+   stories (they do not have a Test Case References section). For
+   non-`[DOCS]` stories:
    - Re-read the story file at
      `.artifacts/design/{issue-key}/05-stories/epic-{N}/story-{NN}-{slug}.md`.
    - Rewrite the `## Test Case References` section: collect all TC IDs

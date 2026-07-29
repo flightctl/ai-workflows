@@ -112,9 +112,10 @@ impact:
    high)? Do the `Test Case References` in story files match the
    testplan's Story field? Does the coverage matrix's Test Cases column
    match the testplan? Are there requirements with stories but no test
-   cases (testplan gaps)? Does every story AC appear in at least one
-   test case's AC field? Are there story ACs with no test case mapping
-   (AC-level gaps)?
+   cases (testplan gaps)? Does every non-`[DOCS]` story AC appear in
+   at least one test case's AC field? Are there story ACs with no test
+   case mapping (AC-level gaps)? (`[DOCS]` stories are excluded from
+   testplan derivation.)
 
 6. **Integration Stability** — Would implementing all stories in
    dependency order produce a working feature end-to-end? Does any

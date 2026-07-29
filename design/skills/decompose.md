@@ -376,8 +376,14 @@ ALM export (structured for tools like Polarion).
 
 #### 7a: Derive Test Cases
 
-For each PRD requirement (FR-N, NFR-N), examine the stories that address
-it (from the epic/story files written in Step 5). For each story:
+For each PRD requirement (FR-N, NFR-N), examine the non-`[DOCS]` stories
+that address it (from the epic/story files written in Step 5). Skip
+`[DOCS]` stories — they have documentation outcomes, not behavioral
+acceptance criteria, and should not generate test cases. If a requirement
+is addressed only by `[DOCS]` stories, record it in the Gaps section as
+"documentation-only requirement — no behavioral test cases."
+
+For each non-`[DOCS]` story:
 
 1. Read the **Acceptance Criteria** — each criterion is a candidate test
    case or a grouping of related test cases.
