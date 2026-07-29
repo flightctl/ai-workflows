@@ -301,11 +301,13 @@ After the self-review gate passes, check whether this task has TC IDs
 mapped to it in the Test Plan Coverage matrix of `02-plan.md`. If it
 does, verify each mapped TC ID before proceeding to commit:
 
-1. Read the full test case entry for each TC ID from `testplan.md`
-   (the Preconditions, Steps, and Expected Results sections). If any
-   of these sections is missing from a test case entry, stop and
-   report the testplan as malformed — do not attempt to reconcile
-   against an incomplete test case.
+1. For each mapped TC ID, locate its entry in `testplan.md`. If a
+   mapped TC ID does not exist in the testplan, stop and report the
+   inconsistency — the plan references a test case that the testplan
+   does not contain. Read the full test case entry (the Preconditions,
+   Steps, and Expected Results sections). If any of these sections is
+   missing, stop and report the testplan as malformed — do not attempt
+   to reconcile against an incomplete test case.
 2. Verify that a test exists (written in Step 3b or a prior task)
    whose assertions validate the Expected Results described in the
    test case. The match is behavioral, not textual — the test must
@@ -495,8 +497,9 @@ After all tasks are complete (or if interrupted), write:
  - verified: test existed and had sufficient assertion depth
  - written: test was written to satisfy this TC ID
  - strengthened: test existed but lacked assertions; added them
- - N/A: test case found inapplicable (explain in Notes and in
-   Deviations from Plan)}
+ - N/A: test case marked inapplicable in the plan's Test Plan Coverage
+   matrix with a non-empty rationale (explain in Notes and in
+   Deviations from Plan — code phase cannot invent N/A exemptions)}
 
 ## Coverage Notes
 
