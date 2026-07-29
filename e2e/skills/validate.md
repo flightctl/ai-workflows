@@ -245,8 +245,8 @@ step catches it.
 
 If `testplan.md` does not exist and `02-plan.md` has no Test Plan
 Coverage section, skip this step entirely. However, if `02-plan.md`
-has TC mappings but `testplan.md` is missing or unreadable, stop and
-report the inconsistency.
+has TC mappings but `testplan.md` is missing, unreadable, or malformed
+(no parseable TC IDs), stop and report the inconsistency.
 
 1. Read `testplan.md` and extract all TC IDs.
 2. For each TC ID (except those the validate phase agrees are

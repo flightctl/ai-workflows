@@ -315,17 +315,18 @@ does, verify each mapped TC ID before proceeding to commit:
    gate, then re-check.
 
 This is a hard gate — the task cannot proceed to commit until every
-mapped TC ID has coverage or is explicitly marked N/A with a non-empty
-rationale (e.g., the test case describes behavior that this story's
-implementation made inapplicable). The testplan is a floor, not a
-ceiling: tests discovered through TDD that are not tied to any TC ID
-are expected and encouraged.
+mapped TC ID has coverage. A TC ID may be treated as N/A only if the
+plan's Test Plan Coverage matrix already marks it N/A with a non-empty
+rationale — the code phase must not invent N/A exemptions that the
+plan did not authorize. The testplan is a floor, not a ceiling: tests
+discovered through TDD that are not tied to any TC ID are expected
+and encouraged.
 
 If no story-scoped testplan exists and `02-plan.md` has no Test Plan
 Coverage section, skip this check. However, if `02-plan.md` has TC
-mappings but `testplan.md` is missing or unreadable, stop and report
-the inconsistency — the plan references a testplan that the code phase
-cannot access.
+mappings but `testplan.md` is missing, unreadable, or malformed (no
+parseable TC IDs), stop and report the inconsistency — the plan
+references a testplan that the code phase cannot use.
 
 #### 3g: Commit
 
