@@ -544,11 +544,14 @@ the Jira key from the manifest:
 - **Summary:** re-read the `[{prefix}] {story title}` from the current file
 - **Description:** re-render the full description from the current file
   content (same template as creation above), resolving all references
-- **Issue links:** read the Jira issue's current dependency links and
-  compare against the artifact file's dependency list. Remove links
-  whose dependency stories no longer appear in the artifact and create
-  new links for added dependencies, following the same direction
-  semantics as Step 5a — the dependency story blocks the current story.
+- **Issue links:** read the Jira issue's current issue links and filter
+  to only those matching the link type selected in Step 5a (either
+  "Dependency" or "Blocks", whichever was used during creation).
+  Compare these filtered links against the artifact file's dependency
+  list. Remove links whose dependency stories no longer appear in the
+  artifact and create new links for added dependencies, using the same
+  link type and direction mapping as Step 5a. Do not touch issue links
+  of other types.
 
 Update only the sync-owned fields. Do not touch status, assignee, or
 other Jira-managed fields.
