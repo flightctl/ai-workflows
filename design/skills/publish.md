@@ -161,15 +161,23 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=design`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{docs_repo_path}/{release}/{feature}/design.md"`.
 
-If `.artifacts/design/{issue-key}/07-testplan.md` exists, also copy it.
+```bash
+git -C "{docs_repo_path}" add "{release}/{feature}/design.md"
+```
+
+**Testplan publication (conditional):** Only if
+`.artifacts/design/{issue-key}/07-testplan.md` exists, copy it to the
+docs repo. If `07-testplan.md` does not exist, skip all of the
+following testplan steps and proceed to the commit.
 
 **Sync-manifest guard:** This guard handles re-publishing after `/sync`
 has run (e.g., `decompose → publish → sync → revise → publish`). If
 `.artifacts/design/{issue-key}/sync-manifest.json` exists, the published
-testplan's Story field must use Jira keys. Before
-copying, read the sync manifest and resolve the Story field in each test
-case's metadata table (`Story 1.01` → Jira key from manifest). Write the resolved
-version to the docs repo — do NOT modify the local `07-testplan.md`.
+testplan's Story field must use Jira keys. Before copying, read the sync
+manifest and resolve the Story field in each test case's metadata table
+(`Story 1.01` → Jira key from manifest). Write the resolved version to
+the docs repo — do NOT modify the local `07-testplan.md`.
+
 If `sync-manifest.json` does not exist:
 
 ```bash
@@ -181,7 +189,7 @@ keys in Story fields) to `{docs_repo_path}/{release}/{feature}/testplan.md`
 directly — do not `cp` the unresolved local file.
 
 ```bash
-git -C "{docs_repo_path}" add "{release}/{feature}/design.md"
+git -C "{docs_repo_path}" add "{release}/{feature}/testplan.md"
 ```
 
 If the testplan was copied:
