@@ -188,11 +188,8 @@ If `sync-manifest.json` exists, write the resolved content (with Jira
 keys in Story fields) to `{docs_repo_path}/{release}/{feature}/testplan.md`
 directly — do not `cp` the unresolved local file.
 
-```bash
-git -C "{docs_repo_path}" add "{release}/{feature}/testplan.md"
-```
-
-If the testplan was copied:
+Regardless of which path was taken (copy or resolved write), stage the
+testplan:
 
 ```bash
 git -C "{docs_repo_path}" add "{release}/{feature}/testplan.md"
@@ -202,7 +199,9 @@ git -C "{docs_repo_path}" add "{release}/{feature}/testplan.md"
 git -C "{docs_repo_path}" commit -m "Add design document and testplan for {issue-key}: {title}"
 ```
 
-If the testplan does not exist, use the original commit message:
+**(End of testplan-conditional block.)** If `07-testplan.md` did not
+exist and the testplan steps above were skipped, use the design-only
+commit message:
 
 ```bash
 git -C "{docs_repo_path}" commit -m "Add design document for {issue-key}: {title}"

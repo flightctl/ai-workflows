@@ -314,8 +314,8 @@ does, verify each mapped TC ID before proceeding to commit:
    Eventually/Consistently in Ginkgo, polling in pytest).
 3. If a TC ID mapped to this task has no corresponding test with
    sufficient assertion depth, write the missing test (Step 3b), run
-   it (Step 3d), stage the new files (`git add`), re-run the review
-   gate, then re-check.
+   it (Step 3d), run the fast quality checks (Step 3e), stage the new
+   files (`git add`), re-run the review gate, then re-check.
 
 This is a hard gate — the task cannot proceed to commit until every
 mapped TC ID has coverage. A TC ID may be treated as N/A only if the

@@ -277,8 +277,9 @@ commit:
    pytest).
 3. If a TC ID mapped to this task has no corresponding validation with
    sufficient assertion depth, write the missing validation (Step 3b),
-   run the tests (Step 3c), stage the new files (`git add`), re-run
-   the review gate, then re-check.
+   run the tests (Step 3c), run the fast quality checks (Step 3d),
+   stage the new files (`git add`), re-run the review gate, then
+   re-check.
 
 This is a hard gate — the task cannot proceed to commit until every
 mapped TC ID has coverage. A TC ID may be treated as N/A only if the
