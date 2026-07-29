@@ -26,7 +26,7 @@
 - No fabricated implementations. Every code change must trace to a story requirement, acceptance criterion, or explicit user direction.
 - No auto-advancing between phases. Always wait for the user.
 - No publishing (creating PRs, pushing branches) without explicit user approval.
-- No Jira modifications. This workflow is read-only with respect to Jira.
+- **Jira writes are limited to `/publish` linking the PR.** The only allowed Jira write is setting the story's **Git Pull Request** field to the created PR URL after successful draft PR creation during `/publish`. Do not transition status, change assignee, add comments, or edit any other Jira field. `/ingest` remains read-only.
 - **No scope creep.** Do not refactor adjacent code, add features beyond the story, or "improve" code you didn't need to change. If you discover something that should be fixed, note it in the implementation report — don't fix it silently.
 - **No test shortcuts.** Do not write tests that test implementation details, mock internal logic, or exist solely to increase coverage numbers. Every test must validate a behavioral contract through a public interface.
 - No committing to `main` directly. Use a feature branch.

@@ -22,7 +22,7 @@ graph TD
 
 | Tool | Required | Purpose |
 |------|----------|---------|
-| Jira access (MCP or CLI) | For `/ingest` | Fetch Story issue details |
+| Jira access (MCP or CLI) | For `/ingest`, `/publish` | Fetch Story details; write PR URL to Git Pull Request field |
 | GitHub CLI (`gh`) | For `/publish`, `/respond` | Create PRs, post review comments |
 | Git | Yes | Branch management, commits |
 | Project build/test tooling | Yes | Discovered during `/ingest` from project's AGENTS.md, Makefile, CI workflows |
@@ -37,7 +37,7 @@ graph TD
 | Revise | `/revise` | Incorporate feedback into the plan | Updated `02-plan.md` |
 | Code | `/code` | Write tests and code via TDD | `03-test-report.md`, `04-impl-report.md` |
 | Validate | `/validate` | Run tests, lint, coverage analysis | `05-validation-report.md` |
-| Publish | `/publish` | Push branch, create draft PR | `06-pr-description.md` |
+| Publish | `/publish` | Push branch, create draft PR, link PR on Jira story | `06-pr-description.md` |
 | Respond | `/respond` | Address reviewer comments | `07-review-responses.md` |
 
 ## Typical Flow
@@ -76,6 +76,7 @@ graph TD
 /publish
   → pushes feature branch
   → creates draft GitHub PR with Jira link
+  → writes the PR URL to the Jira story's Git Pull Request field
   → writes 06-pr-description.md
 
 /respond (repeatable)

@@ -28,7 +28,8 @@ workflow by executing phases and handling transitions between them.
    Run the full validation suite (tests, lint, coverage), iterate on gaps.
 
 6. **Publish** (`/publish`) — `publish.md`
-   Push the feature branch and create a draft PR in the source repo.
+   Push the feature branch, create a draft PR in the source repo, and link
+   the PR URL on the Jira story's **Git Pull Request** field.
 
 7. **Respond** (`/respond`) — `respond.md`
    Fetch and address PR reviewer comments. Repeatable.
@@ -162,6 +163,6 @@ subagent spawning.
 
 - **Never auto-advance.** Always wait for the user between phases.
 - **Recommendations come from this file, not from skills.** Skills report findings; this controller decides what to recommend next.
-- **Jira is read-only.** The `/ingest` phase reads from Jira but never modifies it. No phase in this workflow writes to Jira.
+- **Jira writes are limited.** `/ingest` is read-only. The only Jira write in this workflow is `/publish` setting the story's **Git Pull Request** field to the created PR URL. No other phase may write to Jira.
 - **Plan evolves during implementation.** `/code` updates `02-plan.md` as tasks are completed. This is expected, not a sign of plan failure.
 - **Validation is mandatory before publishing.** Never recommend `/publish` unless `/validate` has passed.

@@ -179,5 +179,5 @@ ai-workflows/
 When a workflow invokes commands that could affect shared systems:
 - **Git operations**: Always verify with `git status` before destructive operations
 - **PR/MR creation**: Confirm branch and base before pushing
-- **Jira writes**: Only cve-fix `/close`, design `/sync`, and sizing `/apply` write to Jira; all require explicit approval
+- **Jira writes**: Only cve-fix `/close`, design `/sync`, sizing `/apply`, and implement `/publish` (Git Pull Request field only) write to Jira; all require explicit approval
 - **Documentation changes**: Run Vale validation before applying changes to repository files

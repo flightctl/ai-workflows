@@ -22,6 +22,7 @@ user before taking action.
 - **No force-push.** No destructive git operations.
 - **No direct commits to main.** The feature branch must already exist from `/code`.
 - **Validation must have passed.** Check for a passing validation report before proceeding.
+- **Jira write is limited.** The only Jira write allowed in this workflow is setting the story's **Git Pull Request** field to the created PR URL after successful draft PR creation during `/publish`. Do not transition status, change assignee, add comments, or edit any other field.
 
 ## Process
 
@@ -108,6 +109,8 @@ git log --oneline {local-base}..HEAD
 
 - **PR title:** Use the title format from the **PR Conventions** section of
   `01-context.md` (typically `{issue-key}: {story title}`)
+- **Jira link:** After the PR is created, the PR URL will be written to the
+  story's **Git Pull Request** field on `{issue-key}`
 
 Confirm with the user before proceeding.
 
@@ -181,7 +184,82 @@ Parse the PR number and URL from the `gh pr create` output. The command
 prints a URL like `https://github.com/owner/repo/pull/42` — extract the
 number from the URL path.
 
-### Step 7: Save Publish Metadata
+### Step 7: Link PR on the Jira Story
+
+Immediately after the draft PR is created (Step 6), write the PR URL into
+the Jira story's **Git Pull Request** field. The issue key is
+`{issue-key}` from the artifact directory / `01-context.md`. The PR URL
+is the one returned by `gh pr create` in Step 6.
+
+Record a `jira_link_status` of `linked`, `skipped`, or `failed` for
+Step 8 metadata and Step 9 reporting.
+
+1. **Resolve the field ID** for the current Jira instance (IDs are
+   instance-specific — do not hardcode):
+
+   ```text
+   GET /rest/api/3/field
+   ```
+
+   Match `name` case-insensitively to `Git Pull Request`.
+
+   - If **exactly one** field matches, use that field's `id` (for example
+     `customfield_XXXXX`) and continue.
+   - If **none** match, set `jira_link_status` to `skipped`, report that
+     the PR was created but the Jira link was skipped (field not found),
+     and continue to Step 8. Do not fail the publish phase.
+   - If **more than one** field matches, set `jira_link_status` to
+     `skipped`, report the ambiguity (list matching field IDs), and
+     continue to Step 8 without writing. Do not pick an arbitrary ID.
+
+2. **Inspect the field schema** from the same field descriptor before
+   encoding any update. Use the schema to choose the write shape:
+
+   | Schema shape | How to encode the value |
+   |--------------|-------------------------|
+   | Scalar string / URL | Single string: `"{pr_url}"` |
+   | Multi-line / free text | Newline-delimited string; preserve existing lines |
+   | Array / multi-value | JSON array of strings; preserve existing entries |
+
+   If the schema is unrecognized or incompatible, set
+   `jira_link_status` to `skipped`, report why, and continue to Step 8.
+
+3. **Read the current value** of that field on `{issue-key}`.
+
+4. **Update the field** (schema-appropriate encoding from step 2):
+   - If the field is empty, set it to the PR URL.
+   - If it already contains this exact PR URL, set `jira_link_status` to
+     `linked` (idempotent no-op) and continue to Step 8.
+   - If it already contains other PR URL(s) and the schema is multi-line
+     or array, append the new URL without removing existing ones.
+   - If the schema is scalar and already set to a different URL, ask the
+     user whether to replace it or leave it. If they leave it, set
+     `jira_link_status` to `skipped` and continue to Step 8.
+
+   Prefer the available Jira MCP update tool when authenticated:
+
+   ```text
+   jira_update_issue(
+     issue_key: "{issue-key}",
+     fields: {"{git_pull_request_field_id}": {schema-appropriate value}}
+   )
+   ```
+
+   If MCP is unavailable, use the Jira REST API or `jira` CLI equivalent.
+
+   **Concurrency:** Immediately before writing, re-read the field. If the
+   value changed since step 3, recompute the update from the fresh value
+   (still idempotent on this PR URL) and write once. If the write still
+   fails due to a conflict, retry the re-read/recompute/write path once.
+   Do not invent unsupported "atomic append" APIs.
+
+5. **On failure:** set `jira_link_status` to `failed`, report the error
+   and the PR URL so the user can paste it manually. Do not roll back
+   the GitHub PR. Continue to Step 8.
+
+6. **On success:** set `jira_link_status` to `linked`.
+
+### Step 8: Save Publish Metadata
 
 Read `{owner}/{repo}` from the **Origin** field of the Repository
 Topology section of `01-context.md`. If the repo is a fork, also read
@@ -190,7 +268,8 @@ the **Upstream** field.
 Write `.artifacts/implement/{issue-key}/publish-metadata.json`.
 
 The `repo` field always refers to where the PR lives. The `origin` field
-records the repo that was pushed to.
+records the repo that was pushed to. Include `jira_link_status` from
+Step 7 (`linked`, `skipped`, or `failed`).
 
 **If the repo is a fork** (set `repo` to the upstream, `origin` to the fork):
 
@@ -202,7 +281,8 @@ records the repo that was pushed to.
   "base": "{pr-target}",
   "pr_number": {pr-number},
   "pr_url": "{url from gh pr create output}",
-  "jira_key": "{issue-key}"
+  "jira_key": "{issue-key}",
+  "jira_link_status": "{linked|skipped|failed}"
 }
 ```
 
@@ -216,22 +296,28 @@ records the repo that was pushed to.
   "base": "{pr-target}",
   "pr_number": {pr-number},
   "pr_url": "{url from gh pr create output}",
-  "jira_key": "{issue-key}"
+  "jira_key": "{issue-key}",
+  "jira_link_status": "{linked|skipped|failed}"
 }
 ```
 
-### Step 8: Report to User
+### Step 9: Report to User
 
 Present:
 - PR URL (the full `https://github.com/...` link, not just `owner/repo#number`)
 - Branch name and base
 - Number of commits included
+- Jira **Git Pull Request** link result from `jira_link_status`
+  (`linked` / `skipped` / `failed`)
 - Next steps (share with reviewers, wait for comments, then use `/respond`)
 
 ## Output
 
 - Feature branch pushed to remote
 - Draft PR created
+- Jira link result recorded in `publish-metadata.json` as `jira_link_status`
+  (`linked`, `skipped`, or `failed`); the PR URL is written to the story's
+  **Git Pull Request** field only when status is `linked`
 - `.artifacts/implement/{issue-key}/06-pr-description.md`
 - `.artifacts/implement/{issue-key}/publish-metadata.json`
 
@@ -240,6 +326,7 @@ Present:
 Report your results:
 - PR URL and branch name
 - Commits included
+- `jira_link_status` (`linked` / `skipped` / `failed`)
 - Suggested next steps
 
 Then **re-read the controller** (`controller.md`) for next-step guidance.
