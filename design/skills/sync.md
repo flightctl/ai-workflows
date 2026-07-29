@@ -515,10 +515,13 @@ link type. Using the link type definition already retrieved above, read
 the chosen type's inward and outward descriptions and assign the
 dependency story's key and the current story's key to whichever fields
 produce the expected display above. **After creating the first
-dependency link in a sync run, read it back from Jira to verify the
-direction matches the expected display. If the direction is wrong,
-delete the link, swap the field assignments, recreate it, and re-verify
-before creating the remaining links.**
+dependency link in a sync run, read the current story's issue links
+back from Jira, find the link matching the dependency story's key and
+the selected link type, and verify its direction matches the expected
+display. If the direction is wrong, delete the link, swap the field
+assignments, recreate it, and re-verify. If the retry also fails, log
+the failure and continue with the remaining links (same as any other
+link failure).**
 
 Issue link creation is a separate Jira operation — use the Jira CLI or
 MCP server to create the link.
