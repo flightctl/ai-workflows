@@ -487,11 +487,39 @@ wasn't created or failed), skip the link and note it for the user. These
 links enable downstream workflows (e.g., docs-writer) to traverse the
 dependency chain via the Jira API.
 
-For each dependency, create a link where the current story **depends on**
-the dependency story. Try the Jira "Dependency" link type first
-(relationship `"depends on"` / `"is depended on by"`). If the API
-returns an error indicating the link type is not available, fall back to
-"Blocks" (where the dependency story **blocks** the current story).
+For each dependency, the semantic relationship is:
+
+> The **current story** depends on the **dependency story**.
+> Equivalently: the **dependency story** blocks the **current story**.
+
+**Link type selection:** Try the "Dependency" link type first
+(`"depends on"` / `"is depended on by"`). If the Jira instance does
+not have this type, fall back to "Blocks"
+(`"blocks"` / `"is blocked by"`).
+
+**Example:** If Story 1.02's artifact lists `Dependencies: Story 1.01`,
+then Story 1.01 must finish before Story 1.02 can begin. After link
+creation, Jira should show (depending on which link type was used):
+
+Using "Dependency":
+- On Story 1.01's issue: **"is depended on by"** Story 1.02
+- On Story 1.02's issue: **"depends on"** Story 1.01
+
+Using "Blocks" (fallback):
+- On Story 1.01's issue: **"blocks"** Story 1.02
+- On Story 1.02's issue: **"is blocked by"** Story 1.01
+
+**Getting the direction right:** Jira link-creation APIs use directional
+fields (e.g., `inwardIssue` / `outwardIssue`) whose meaning varies by
+link type. Using the link type definition already retrieved above, read
+the chosen type's inward and outward descriptions and assign the
+dependency story's key and the current story's key to whichever fields
+produce the expected display above. **After creating the first
+dependency link in a sync run, read it back from Jira to verify the
+direction matches the expected display. If the direction is wrong,
+delete the link, swap the field assignments, recreate it, and re-verify
+before creating the remaining links.**
+
 Issue link creation is a separate Jira operation — use the Jira CLI or
 MCP server to create the link.
 
@@ -513,10 +541,11 @@ the Jira key from the manifest:
 - **Summary:** re-read the `[{prefix}] {story title}` from the current file
 - **Description:** re-render the full description from the current file
   content (same template as creation above), resolving all references
-- **Issue links:** read the Jira issue's current issue links and compare
-  against the artifact file's dependency list. Remove links that no
-  longer appear in the artifact and create new links for added
-  dependencies.
+- **Issue links:** read the Jira issue's current dependency links and
+  compare against the artifact file's dependency list. Remove links
+  whose dependency stories no longer appear in the artifact and create
+  new links for added dependencies, following the same direction
+  semantics as Step 5a — the dependency story blocks the current story.
 
 Update only the sync-owned fields. Do not touch status, assignee, or
 other Jira-managed fields.
