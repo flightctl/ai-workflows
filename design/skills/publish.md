@@ -169,9 +169,13 @@ git -C "{docs_repo_path}" add "{release}/{feature}/design.md"
 `.artifacts/design/{issue-key}/07-testplan.md` exists, copy it to the
 docs repo. If `07-testplan.md` does not exist: check whether a
 previously published testplan exists at
-`{docs_repo_path}/{release}/{feature}/testplan.md`. If it does, remove
-it (`git rm`) so the docs repo stays consistent. Then skip all of the
-following testplan steps and proceed to the commit.
+`{docs_repo_path}/{release}/{feature}/testplan.md`. If it does, remove it:
+
+```bash
+git -C "{docs_repo_path}" rm -- "{release}/{feature}/testplan.md"
+```
+
+Then skip all of the following testplan steps and proceed to the commit.
 
 **Sync-manifest guard:** This guard handles re-publishing after `/sync`
 has run (e.g., `decompose → publish → sync → revise → publish`). If
