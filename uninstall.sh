@@ -265,7 +265,10 @@ case "$TARGET" in
     uninstall_gemini
     if [[ "$SCOPE" == "user" && "$SELECTIVE" == false ]]; then
       if [[ -x "${REPO_DIR}/hack/install-update-timer.sh" ]]; then
-        "${REPO_DIR}/hack/install-update-timer.sh" --remove >/dev/null 2>&1 || true
+        if ! "${REPO_DIR}/hack/install-update-timer.sh" --remove; then
+          echo "Error: failed to remove update notifier via ${REPO_DIR}/hack/install-update-timer.sh --remove" >&2
+          exit 1
+        fi
       fi
       uninstall_link
     fi

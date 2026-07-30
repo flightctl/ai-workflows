@@ -55,7 +55,7 @@ rm -f "${INSTALL_DIR}/.update-available"
 
 CHANGED_COMMANDS=false
 if [[ "$BEFORE_HEAD" != "$AFTER_HEAD" ]]; then
-  if git diff --name-only "$BEFORE_HEAD" "$AFTER_HEAD" -- '*/commands/*.md' install.sh uninstall.sh | grep -q .; then
+  if git diff --name-only "$BEFORE_HEAD" "$AFTER_HEAD" -- '*/commands/*.md' '*/SKILL.md' install.sh uninstall.sh | grep -q .; then
     CHANGED_COMMANDS=true
   fi
 fi

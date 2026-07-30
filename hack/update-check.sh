@@ -82,10 +82,14 @@ Update with:
 
 if command -v notify-send >/dev/null 2>&1; then
   # --expire-time in ms; keep it visible long enough to notice during testing.
-  notify-send --app-name="ai-workflows" --urgency=normal --expire-time=20000 \
-    "$TITLE" "$BODY" || true
+  if notify-send --app-name="ai-workflows" --urgency=normal --expire-time=20000 \
+    "$TITLE" "$BODY"; then
+    echo "$REMOTE_SHA" > "$LAST_NOTIFIED"
+  else
+    echo "ai-workflows: notify-send failed; will retry next check" >&2
+  fi
 else
+  # No desktop notifier — keep the marker file and avoid spamming every run.
   echo "ai-workflows: notify-send not found; wrote marker at $MARKER" >&2
+  echo "$REMOTE_SHA" > "$LAST_NOTIFIED"
 fi
-
-echo "$REMOTE_SHA" > "$LAST_NOTIFIED"

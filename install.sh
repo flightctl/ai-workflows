@@ -299,28 +299,33 @@ maybe_offer_update_timer() {
   local installer="${REPO_DIR}/hack/install-update-timer.sh"
 
   if [[ "$UPDATE_TIMER" == "no" ]]; then
-    return
+    return 0
   fi
   if [[ ! -x "$installer" ]]; then
-    return
+    [[ "$UPDATE_TIMER" == "yes" ]] && echo "Update notifier: installer script missing/not executable; skipping." >&2
+    return 0
   fi
   # Linux + desktop notification stack only.
   if [[ "$(uname -s)" != "Linux" ]]; then
-    return
+    [[ "$UPDATE_TIMER" == "yes" ]] && echo "Update notifier requires Linux; --with-update-timer ignored." >&2
+    return 0
   fi
   if ! command -v systemctl >/dev/null 2>&1; then
-    return
+    [[ "$UPDATE_TIMER" == "yes" ]] && echo "Update notifier requires systemd; --with-update-timer ignored." >&2
+    return 0
   fi
   if ! systemctl --user status >/dev/null 2>&1; then
-    return
+    [[ "$UPDATE_TIMER" == "yes" ]] && echo "Update notifier requires an active systemd --user session; --with-update-timer ignored." >&2
+    return 0
   fi
   if ! command -v notify-send >/dev/null 2>&1; then
-    return
+    [[ "$UPDATE_TIMER" == "yes" ]] && echo "Update notifier requires notify-send; --with-update-timer ignored." >&2
+    return 0
   fi
   # Already enabled — don't re-prompt on every install.
   if systemctl --user is-enabled ai-workflows-update-check.timer >/dev/null 2>&1; then
     echo "Update notifier already enabled (ai-workflows-update-check.timer)."
-    return
+    return 0
   fi
 
   local answer="n"
@@ -338,12 +343,14 @@ maybe_offer_update_timer() {
     fi
   else
     # Non-interactive: skip unless --with-update-timer was passed.
-    return
+    return 0
   fi
 
   case "${answer,,}" in
     y|yes)
-      "$installer"
+      if ! "$installer"; then
+        echo "Warning: failed to enable update notifier; retry later with: ${installer}" >&2
+      fi
       ;;
     *)
       echo "Skipped update notifier. Enable later with: ${installer}"
@@ -393,5 +400,9 @@ case "$TARGET" in
     ;;
 esac
 
-echo "Done. Run 'git pull' from $INSTALL_DIR to update (or: aiw-update)."
 maybe_offer_update_timer
+if command -v aiw-update >/dev/null 2>&1 || [[ -x "${HOME}/.local/bin/aiw-update" ]]; then
+  echo "Done. Run 'git pull' from $INSTALL_DIR to update (or: aiw-update)."
+else
+  echo "Done. Run 'git pull' from $INSTALL_DIR to update."
+fi
