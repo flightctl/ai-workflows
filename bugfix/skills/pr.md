@@ -463,8 +463,11 @@ Report**. Check with:
 gh pr list --repo UPSTREAM_OWNER/REPO --head bugfix/BRANCH_NAME --json number,url --jq '.[0]'
 ```
 
-If this returns a result, the PR already exists (likely from a prior `/pr`
-run). Report its URL and skip to Step 10.
+If the command fails (auth error, network error, API error), **stop and
+report the failure** — do not fall through to PR creation. Only proceed
+when the command succeeds: a result means the PR already exists (skip to
+Step 10 and report its URL); an empty result means no existing PR (continue
+with creation below).
 
 **PR title format:** Use **`[ISSUE_KEY]: short description in lowercase`**. If the artifact `.artifacts/bugfix/{issue}/pr-description.md` exists and has a `## Title` line in this format, use that title. Otherwise set `ISSUE_KEY` from the branch name or context (e.g. Jira EDM-1234, GitHub #47) and build the title as `[ISSUE_KEY]: short description`.
 
