@@ -18,11 +18,14 @@
 #   ./install.sh all                                     # user-level Cursor + Claude + Gemini
 #   ./install.sh all --project [path]                    # project-level Cursor + Claude + Gemini
 #   ./install.sh --list                                  # list available workflows
+#   ./install.sh cursor --with-update-timer              # also enable daily update notifier
+#   ./install.sh cursor --no-update-timer                # skip the update-notifier prompt
 
 set -e
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="${HOME}/.ai-workflows"
+UPDATE_TIMER="ask" # ask | yes | no
 
 # --- discover all available workflows ---
 ALL_WORKFLOWS=()
@@ -67,6 +70,12 @@ while [[ $# -gt 0 ]]; do
         echo "Error: --workflows requires a comma-separated list of workflow names" >&2
         exit 1
       fi
+      ;;
+    --with-update-timer)
+      UPDATE_TIMER="yes"
+      ;;
+    --no-update-timer)
+      UPDATE_TIMER="no"
       ;;
   esac
   shift
@@ -285,6 +294,63 @@ install_gemini() {
   done
 }
 
+# Offer a daily systemd --user notifier (Linux desktop). Default: no.
+maybe_offer_update_timer() {
+  local installer="${REPO_DIR}/hack/install-update-timer.sh"
+
+  if [[ "$UPDATE_TIMER" == "no" ]]; then
+    return
+  fi
+  if [[ ! -x "$installer" ]]; then
+    return
+  fi
+  # Linux + desktop notification stack only.
+  if [[ "$(uname -s)" != "Linux" ]]; then
+    return
+  fi
+  if ! command -v systemctl >/dev/null 2>&1; then
+    return
+  fi
+  if ! systemctl --user status >/dev/null 2>&1; then
+    return
+  fi
+  if ! command -v notify-send >/dev/null 2>&1; then
+    return
+  fi
+  # Already enabled — don't re-prompt on every install.
+  if systemctl --user is-enabled ai-workflows-update-check.timer >/dev/null 2>&1; then
+    echo "Update notifier already enabled (ai-workflows-update-check.timer)."
+    return
+  fi
+
+  local answer="n"
+  if [[ "$UPDATE_TIMER" == "yes" ]]; then
+    answer="y"
+  elif [[ -t 0 || -r /dev/tty ]]; then
+    echo
+    echo "Optional: enable a daily desktop notification when ai-workflows is behind main?"
+    echo "  (Linux/systemd; run 'aiw-update' when notified. Default: No)"
+    if [[ -t 0 ]]; then
+      read -r -p "Enable daily update notifier? [y/N] " answer || true
+    else
+      # stdin may be piped; still prompt on the real terminal when available.
+      read -r -p "Enable daily update notifier? [y/N] " answer </dev/tty || true
+    fi
+  else
+    # Non-interactive: skip unless --with-update-timer was passed.
+    return
+  fi
+
+  case "${answer,,}" in
+    y|yes)
+      "$installer"
+      ;;
+    *)
+      echo "Skipped update notifier. Enable later with: ${installer}"
+      ;;
+  esac
+}
+
 # --- main ---
 
 echo "Installing ai-workflows ($TARGET, $SCOPE)..."
@@ -320,9 +386,12 @@ case "$TARGET" in
     echo "                         defaults to all available workflows" >&2
     echo "  --project [path]      project-level (.cursor/skills/, .claude/, .gemini/skills/)" >&2
     echo "                         path defaults to current directory" >&2
+    echo "  --with-update-timer   enable daily Linux update notifier (no prompt)" >&2
+    echo "  --no-update-timer     skip the update-notifier prompt" >&2
     echo "  --list                list available workflows and exit" >&2
     exit 1
     ;;
 esac
 
-echo "Done. Run 'git pull' from $INSTALL_DIR to update."
+echo "Done. Run 'git pull' from $INSTALL_DIR to update (or: aiw-update)."
+maybe_offer_update_timer

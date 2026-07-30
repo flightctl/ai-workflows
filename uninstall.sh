@@ -264,6 +264,9 @@ case "$TARGET" in
     uninstall_claude
     uninstall_gemini
     if [[ "$SCOPE" == "user" && "$SELECTIVE" == false ]]; then
+      if [[ -x "${REPO_DIR}/hack/install-update-timer.sh" ]]; then
+        "${REPO_DIR}/hack/install-update-timer.sh" --remove >/dev/null 2>&1 || true
+      fi
       uninstall_link
     fi
     ;;
