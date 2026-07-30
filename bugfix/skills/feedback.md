@@ -49,16 +49,7 @@ again when new comments arrive.
 
 ### Step 1: Gather Review Comments
 
-Determine the PR number and `{owner}/{repo}`. Check these sources in order:
-
-1. **Session context**: `.artifacts/bugfix/{issue}/session-context.md` may
-   contain the PR URL from a prior `/pr` or feedback round.
-2. **Current branch**: Use `gh pr list --head {branch-name}` to find the PR
-   for the current branch.
-3. **User-provided**: The user gives a PR URL, number, or pastes comments.
-4. **Task file**: A calling system has provided the review comments inline.
-
-**Identify the push remote and `{owner}/{repo}`:**
+**First, identify the push remote and `{owner}/{repo}`:**
 
 Run `git remote -v` and examine the remotes. The fork remote is the one
 whose URL contains the current user's GitHub username (not the upstream
@@ -75,6 +66,15 @@ pushing in Step 6.
 If ambiguous, check `session-context.md` for the remote used in the prior
 `/pr` phase. If no fork remote can be identified, ask the user.
 
+**Then determine the PR number.** Check these sources in order:
+
+1. **Session context**: `.artifacts/bugfix/{issue}/session-context.md` may
+   contain the PR URL from a prior `/pr` or feedback round.
+2. **Current branch**: Use `gh pr list --repo {owner}/{repo} --head {branch-name}`
+   to find the PR for the current branch.
+3. **User-provided**: The user gives a PR URL, number, or pastes comments.
+4. **Task file**: A calling system has provided the review comments inline.
+
 Fetch comments from both endpoints:
 
 ```bash
@@ -85,9 +85,12 @@ gh api repos/{owner}/{repo}/pulls/{pr-number}/comments --paginate
 gh api repos/{owner}/{repo}/pulls/{pr-number}/reviews --paginate
 ```
 
-Filter to unresolved comments. If a prior feedback round exists in
-`session-context.md`, identify previously addressed comments and focus on
-new or unaddressed ones.
+Filter to comments that still need attention. The REST endpoints do not
+expose thread resolution status directly — to check which threads are
+resolved, use the GraphQL `pullRequest.reviewThreads` query with
+`isResolved`. Alternatively, compare against previously addressed
+comments in `session-context.md` (if a prior feedback round exists) and
+focus on new or unaddressed ones.
 
 If no review comments can be found from any source, stop and ask for
 clarification.
@@ -249,10 +252,10 @@ ask the user how to proceed.
 For each approved response from Step 3 that has a `comment_id`, post a
 reply on the PR.
 
-Write the reply to a temp file to avoid shell metacharacter issues. Use the
-file-writing tool (Write) to create the file — do not use a shell heredoc.
-
-Write `{approved reply text}` to `.artifacts/bugfix/{issue}/tmp-reply.md`.
+Write the reply text to a temp file to avoid shell metacharacter issues.
+Create `.artifacts/bugfix/{issue}/tmp-reply.md` using the host's
+file-writing capability — do not use a shell heredoc, as reply content
+containing the delimiter string would break it.
 
 **For line-level review comments** (attached to a specific file and line),
 reply in-thread:

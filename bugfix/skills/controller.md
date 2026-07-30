@@ -38,8 +38,9 @@ executing phases and handling transitions between them.
    Push the branch to a fork and create a draft pull request.
 
 9. **Feedback** (`/feedback`) — `feedback.md`
-   Full review-feedback cycle: fetch comments, implement changes, validate,
-   then commit, push, and post review replies on the existing PR. Repeatable.
+   Full review-feedback cycle: fetch comments, propose responses for user
+   approval, implement approved changes, validate, commit, push, and post
+   review replies. Clarification-only rounds skip to reply posting. Repeatable.
 
 Phases can be skipped or reordered at the user's discretion.
 

@@ -218,10 +218,10 @@ The Bug Fix Workflow follows this approach:
 - Categorize feedback, propose responses, and obtain user approval
 - Implement approved changes
 - Run the shared validation gate (build, test, lint/format)
-- Submit: self-review gate, commit, push, and post review replies
+- Submit: self-review gate, commit, push, and post review replies (when code changes are approved; clarification-only rounds skip to reply posting)
 - Repeatable: run again when new comments arrive
 
-**Output**: Modified code files + pushed commit(s) + review replies posted on the PR + updated `.artifacts/bugfix/{issue}/session-context.md`
+**Output**: Review replies posted on the PR + updated `.artifacts/bugfix/{issue}/session-context.md`. When code changes are approved: modified code files + pushed commit(s).
 
 **When to use**: After a PR has been submitted and reviewers have left comments. Run again for each review round.
 
