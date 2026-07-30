@@ -460,7 +460,7 @@ access. Please run: `git push -u fork BRANCH_NAME`"
 Report**. Check with:
 
 ```bash
-gh pr list --repo UPSTREAM_OWNER/REPO --head bugfix/BRANCH_NAME --json number,url --jq '.[0]'
+gh pr list --repo UPSTREAM_OWNER/REPO --head bugfix/BRANCH_NAME --json number,url --jq '.[0] // empty'
 ```
 
 If the command fails (auth error, network error, API error), **stop and
