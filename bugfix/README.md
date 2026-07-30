@@ -211,17 +211,19 @@ The Bug Fix Workflow follows this approach:
 
 ### Phase 9: Feedback (`/feedback`)
 
-**Purpose**: Address PR review feedback across sessions.
+**Purpose**: Full review-feedback cycle on an existing PR.
 
-- Gather review comments from a PR, task file, or user input
-- Recover context from prior session artifacts (session-context.md, implementation-notes.md)
-- Implement targeted changes addressing reviewer feedback
-- Track declined suggestions with rationale to prevent re-litigation
-- Update session context for continuity across review rounds
+- Gather review comments from the PR (both line-level and review-level)
+- Recover context from prior session artifacts and read project conventions (AGENTS.md)
+- Categorize feedback, propose responses, and obtain user approval
+- Implement approved changes
+- Run the shared validation gate (build, test, lint/format)
+- Submit: self-review gate, commit, push, and post review replies
+- Repeatable: run again when new comments arrive
 
-**Output**: Modified code files + updated `.artifacts/bugfix/{issue}/session-context.md` + `.artifacts/bugfix/{issue}/comment-responses.json`
+**Output**: Modified code files + pushed commit(s) + review replies posted on the PR + updated `.artifacts/bugfix/{issue}/session-context.md`
 
-**When to use**: After a PR has been submitted and reviewers have left comments, especially when a different AI session needs to address the feedback.
+**When to use**: After a PR has been submitted and reviewers have left comments. Run again for each review round.
 
 ### Unattended (`/unattended`)
 
@@ -307,8 +309,7 @@ All workflow artifacts are organized in the `.artifacts/bugfix/{issue}/` directo
 ├── team-announcement.md      # Internal team communication
 ├── user-announcement.md      # Customer communication (optional)
 ├── pr-description.md         # Pull request description
-├── session-context.md        # Cross-session context manifest (unattended)
-└── comment-responses.json    # PR comment reply summaries (feedback)
+└── session-context.md        # Cross-session context manifest (unattended + feedback)
 ```
 
 ## Best Practices
