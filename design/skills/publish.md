@@ -165,17 +165,27 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 git -C "{docs_repo_path}" add "{release}/{feature}/design.md"
 ```
 
-**Testplan publication (conditional):** Only if
-`.artifacts/design/{issue-key}/07-testplan.md` exists, copy it to the
-docs repo. If `07-testplan.md` does not exist: check whether a
-previously published testplan exists at
-`{docs_repo_path}/{release}/{feature}/testplan.md`. If it does, remove it:
+**Testplan publication:**
+
+**Skip all testplan steps below and proceed directly to the design-only
+commit if:**
+- `.artifacts/design/{issue-key}/07-testplan.md` does not exist
+
+If `07-testplan.md` does not exist, check whether a previously published
+testplan exists at `{docs_repo_path}/{release}/{feature}/testplan.md`.
+If it does, remove it before committing:
 
 ```bash
 git -C "{docs_repo_path}" rm -- "{release}/{feature}/testplan.md"
 ```
 
-Then skip all of the following testplan steps and proceed to the commit.
+Then commit with the design-only message:
+
+```bash
+git -C "{docs_repo_path}" commit -m "Add design document for {issue-key}: {title}"
+```
+
+**If `07-testplan.md` exists**, copy it to the docs repo:
 
 **Sync-manifest guard:** This guard handles re-publishing after `/sync`
 has run (e.g., `decompose → publish → sync → revise → publish`). If
@@ -204,14 +214,6 @@ git -C "{docs_repo_path}" add "{release}/{feature}/testplan.md"
 
 ```bash
 git -C "{docs_repo_path}" commit -m "Add design document and testplan for {issue-key}: {title}"
-```
-
-**(End of testplan-conditional block.)** If `07-testplan.md` did not
-exist and the testplan steps above were skipped, use the design-only
-commit message:
-
-```bash
-git -C "{docs_repo_path}" commit -m "Add design document for {issue-key}: {title}"
 ```
 
 ### Step 5: Push and Create PR

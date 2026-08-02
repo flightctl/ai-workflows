@@ -214,8 +214,8 @@ PRD Requirements: {FR-1, NFR-1}
 Design section: {§4.3 API Changes, or specific subsection}
 ```
 
-Do NOT include a `## Test Case References` section when writing stories
-in Step 5 — that section is added by Step 7c after the testplan is
+The story template above is complete as shown. Step 7c adds a
+`## Test Case References` section to each story after the testplan is
 generated.
 
 **For `[DOCS]` stories** (see `[DOCS]` story requirements below for the
@@ -663,6 +663,8 @@ Quick sanity check before invoking the decomposition review. Verify:
 3. Each epic has a corresponding story directory with story files
 4. `06-coverage.md` exists and contains at least one mapping row
 5. `07-testplan.md` exists and contains at least one test case entry
+   (if the decomposition contains only `[DOCS]` stories, the testplan
+   may contain only gap entries and this minimum does not apply)
 6. Every non-`[DOCS]` story file has a `## Test Case References` section
 
 If structural issues are found, fix them before proceeding. Do not

@@ -263,11 +263,14 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 git -C "{docs_repo_path}" add "{design_file_path}"
 ```
 
-If `07-testplan.md` exists and `publish-metadata.json` contains a
-`testplan_file_path` field, also copy the testplan to the docs repo.
-(If the testplan was never published — no `testplan_file_path` in
-metadata — testplan changes are applied locally only. Re-run `/publish`
-to include the testplan in the docs repo.)
+**Skip testplan docs-repo sync if any of these are true:**
+- `07-testplan.md` does not exist
+- `publish-metadata.json` does not contain a `testplan_file_path` field
+  (testplan was never published — changes are applied locally only; re-run
+  `/publish` to include the testplan in the docs repo)
+
+**If both `07-testplan.md` exists and `publish-metadata.json` contains
+`testplan_file_path`**, copy the testplan to the docs repo:
 
 **Sync-manifest guard:** If `.artifacts/design/{issue-key}/sync-manifest.json`
 exists, the published testplan's Story field must use Jira keys (resolved

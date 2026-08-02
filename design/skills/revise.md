@@ -214,18 +214,18 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 
 **Testplan docs-repo sync:**
 
-If `07-testplan.md` exists and `publish-metadata.json` contains a
-`testplan_file_path` field, copy the testplan to the docs repo (see
-sync-manifest guard below).
+**Skip all testplan sync steps below if any of these are true:**
+- `07-testplan.md` does not exist and `publish-metadata.json` does not
+  contain a `testplan_file_path` field (no testplan anywhere)
+- `07-testplan.md` exists but `publish-metadata.json` does NOT contain
+  `testplan_file_path` (testplan was created after initial publish) —
+  note to the user: "Testplan exists locally but was not included in
+  the original publish. Re-run `/publish` to include it in the docs
+  repo."
 
-If `07-testplan.md` exists but `publish-metadata.json` does NOT contain
-`testplan_file_path` (testplan was created after initial publish), note
-to the user: "Testplan exists locally but was not included in the
-original publish. Re-run `/publish` to include it in the docs repo."
-
-If `07-testplan.md` does NOT exist but `publish-metadata.json` contains
-`testplan_file_path` (testplan was removed during revision), remove the
-published testplan from the docs repo:
+**If `07-testplan.md` does NOT exist but `publish-metadata.json`
+contains `testplan_file_path`** (testplan was removed during revision),
+remove the published testplan from the docs repo:
 
 ```bash
 git -C "{docs_repo_path}" rm "{testplan_file_path}"
@@ -233,11 +233,15 @@ git -C "{docs_repo_path}" rm "{testplan_file_path}"
 
 Remove `testplan_file_path` from `publish-metadata.json`.
 
+**If `07-testplan.md` exists and `publish-metadata.json` contains
+`testplan_file_path`**, copy the testplan to the docs repo:
+
 **Sync-manifest guard:** If `.artifacts/design/{issue-key}/sync-manifest.json`
 exists, the published testplan's Story field must use Jira keys. Before
 copying, read the sync manifest and resolve the Story field in each test
 case's metadata table (`Story 1.01` → Jira key from manifest). Write the resolved
 version to the docs repo — do NOT modify the local `07-testplan.md`.
+
 If `sync-manifest.json` does not exist:
 
 ```bash
