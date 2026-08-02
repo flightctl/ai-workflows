@@ -36,12 +36,13 @@ again when new comments arrive.
   documented CI command.
 - **Commit changes using the project's commit conventions** from `AGENTS.md`
   or `CLAUDE.md`.
-- **Allowed `gh` operations:**
+- **Allowed `gh` and `git` operations:**
   - **Read:** `gh pr view`, `gh pr list`, `gh api` GET (for fetching PR
     comments and review data)
   - **Write:** `gh pr comment` (for top-level replies), `gh api` POST to
     `pulls/{pr-number}/comments/{id}/replies` (for replying to line-level
-    review comments), `git push`
+    review comments)
+  - **Git write:** `git push` (to fork remote only)
   - **Forbidden:** `gh pr close`, `gh pr merge`, `gh pr edit`, `gh pr ready`,
     `gh pr create`
 
@@ -249,8 +250,8 @@ ask the user how to proceed.
 
 #### Post Review Replies
 
-For each approved response from Step 3 that has a `comment_id`, post a
-reply on the PR.
+For each approved response from Step 3 that has a `comment_id` or
+`review_id`, post a reply on the PR.
 
 Write the reply text to a temp file to avoid shell metacharacter issues.
 Create `.artifacts/bugfix/{issue}/tmp-reply.md` using the host's

@@ -402,10 +402,11 @@ before pushing.
 
 ### Step 7: Stage and Commit
 
-This is the **only** phase that creates git commits. All code changes from
-prior phases (`/fix`, `/test`, etc.) plus any fixes from the self-review
-gate should be in the working tree as an uncommitted diff. This step
-consolidates them into a single commit.
+This is the commit step for the initial PR submission. All code changes
+from prior phases (`/fix`, `/test`, etc.) plus any fixes from the
+self-review gate should be in the working tree as an uncommitted diff.
+This step consolidates them into a single commit. (For subsequent
+feedback rounds, `/feedback` handles its own commits.)
 
 **Stage changes selectively** — don't blindly `git add .`:
 
