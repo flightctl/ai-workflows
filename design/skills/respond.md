@@ -179,7 +179,9 @@ feedback), apply them in this order:
      table fields, or sub-section content. The same Expected Results
      quality gate applies — no banned vague phrases. If the Story assignment
      changes, update both the old and new story's Test Case References
-     in step 2 below.
+     in step 2 below. If any metadata field changed (Priority, Automation,
+     Story, or AC), update the testplan's Overview counts and Summary
+     table.
    - **Removing a test case:** Delete the test case entry (heading and
      all sub-sections). Update the testplan's Overview counts and
      Summary table.
@@ -204,9 +206,10 @@ feedback), apply them in this order:
    requirement previously had test cases and now has none, flag it in the
    coverage matrix Gaps section.
 
-4. **Update testplan Gaps section.** If test cases were removed and a
-   requirement that previously had test cases now has none, update the
-   testplan's own Gaps section to reflect the new gap.
+4. **Update testplan Gaps section.** After all mutations, rebuild the
+   Gaps section from the current testplan state: remove gaps for
+   requirements or story ACs that now have coverage, and add gaps for
+   those that lost coverage (from removals or Story/AC reassignment).
 
 **Update the local artifact:** Update
 `.artifacts/design/{issue-key}/03-design.md`.
@@ -264,10 +267,21 @@ git -C "{docs_repo_path}" add "{design_file_path}"
 ```
 
 **Skip testplan docs-repo sync if any of these are true:**
-- `07-testplan.md` does not exist
+- `07-testplan.md` does not exist AND `publish-metadata.json` does not
+  contain a `testplan_file_path` field (no testplan anywhere)
 - `publish-metadata.json` does not contain a `testplan_file_path` field
   (testplan was never published — changes are applied locally only; re-run
   `/publish` to include the testplan in the docs repo)
+
+**If `07-testplan.md` does NOT exist but `publish-metadata.json`
+contains `testplan_file_path`** (testplan was removed), remove the
+published testplan from the docs repo:
+
+```bash
+git -C "{docs_repo_path}" rm "{testplan_file_path}"
+```
+
+Remove `testplan_file_path` from `publish-metadata.json`.
 
 **If both `07-testplan.md` exists and `publish-metadata.json` contains
 `testplan_file_path`**, copy the testplan to the docs repo:
