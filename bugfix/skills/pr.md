@@ -358,7 +358,22 @@ Branch naming conventions:
 If a branch already exists with the changes (from a prior `/fix` phase), use
 it instead of creating a new one.
 
-### Step 5: Self-Review Gate
+### Step 5: Run Validation
+
+**Gate: do not commit or push until all checks pass.**
+
+Read and follow `../../_shared/recipes/validation-gate.md` with these
+parameters:
+
+| Parameter | Value |
+|-----------|-------|
+| PROJECT_DIR | The target project directory (Step 0) |
+| SCOPE | `full` |
+
+**If any check fails:** Stop. Fix the failure and re-run **Run Validation**.
+Do not proceed to **Self-Review Gate** or commit.
+
+### Step 6: Self-Review Gate
 
 Before committing, run a self-review of the changes to catch issues before
 they reach external reviewers.
@@ -376,7 +391,7 @@ If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
 present the findings to the user. Do not proceed to commit until the user
 decides how to handle them.
 
-If the gate reports PASS, proceed to Step 6. Any code fixes made by the
+If the gate reports PASS, proceed to Step 7. Any code fixes made by the
 gate are uncommitted changes that will be included in the commit below.
 
 **Note:** The bugfix workflow also has an optional `/review` phase that
@@ -385,12 +400,13 @@ self-review gate here is a different mechanism — an automated quality check
 that fixes obvious issues without user interaction, similar to running lint
 before pushing.
 
-### Step 6: Stage and Commit
+### Step 7: Stage and Commit
 
-This is the **only** phase that creates git commits. All code changes from
-prior phases (`/fix`, `/test`, etc.) plus any fixes from the self-review
-gate should be in the working tree as an uncommitted diff. This step
-consolidates them into a single commit.
+This is the commit step for the initial PR submission. All code changes
+from prior phases (`/fix`, `/test`, etc.) plus any fixes from the
+self-review gate should be in the working tree as an uncommitted diff.
+This step consolidates them into a single commit. (For subsequent
+feedback rounds, `/feedback` handles its own commits.)
 
 **Stage changes selectively** — don't blindly `git add .`:
 
@@ -421,7 +437,7 @@ component. Reference the issue number if one exists.
 If prior artifacts exist (root cause analysis, implementation notes), use them
 to write an accurate commit message. Don't make up details.
 
-### Step 7: Push to Fork
+### Step 8: Push to Fork
 
 ```bash
 git push -u fork bugfix/BRANCH_NAME
@@ -438,7 +454,21 @@ git push -u fork bugfix/BRANCH_NAME
 If push requires sandbox permissions, tell the user: "The push needs network
 access. Please run: `git push -u fork BRANCH_NAME`"
 
-### Step 8: Create the Draft PR
+### Step 9: Create the Draft PR
+
+**If a pull request already exists** for this branch on
+`UPSTREAM_OWNER/REPO`, skip this step and proceed to **Confirm and
+Report**. Check with:
+
+```bash
+gh pr list --repo UPSTREAM_OWNER/REPO --head bugfix/BRANCH_NAME --json number,url --jq '.[0] // empty'
+```
+
+If the command fails (auth error, network error, API error), **stop and
+report the failure** — do not fall through to PR creation. Only proceed
+when the command succeeds: a result means the PR already exists (skip to
+Step 10 and report its URL); an empty result means no existing PR (continue
+with creation below).
 
 **PR title format:** Use **`[ISSUE_KEY]: short description in lowercase`**. If the artifact `.artifacts/bugfix/{issue}/pr-description.md` exists and has a `## Title` line in this format, use that title. Otherwise set `ISSUE_KEY` from the branch name or context (e.g. Jira EDM-1234, GitHub #47) and build the title as `[ISSUE_KEY]: short description`.
 
@@ -521,10 +551,10 @@ do NOT debug further, do NOT fall back to a patch file. Instead:
 4. **Remind the user** to check "Create draft pull request" if they want
    it as a draft.
 
-**If "branch not found"**: The push in Step 7 may have failed silently.
+**If "branch not found"**: The push in Step 8 may have failed silently.
 Verify with `git ls-remote fork bugfix/BRANCH_NAME`.
 
-### Step 9: Confirm and Report
+### Step 10: Confirm and Report
 
 After the PR is created (or the URL is provided), summarize:
 
@@ -630,4 +660,4 @@ Report your results:
 - What was included
 - Any follow-up actions needed (mark ready for review, add reviewers, etc.)
 
-Then **re-read the controller** (`skills/controller.md`) for next-step guidance.
+Then **re-read the controller** (`controller.md`) for next-step guidance.
