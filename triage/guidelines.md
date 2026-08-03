@@ -37,7 +37,7 @@ Artifacts go in `.artifacts/triage/{project}/`.
 |---------|-------------------------------------|--------------------------------|
 | Run     | Per phase below                     | Per phase below                |
 | Start   | `jira_search`                       | `mkdir` (create artifact dir)  |
-| Scan    | `jira_search`                       | Write `issues.json` and `resolved.json` |
+| Scan    | none (script calls REST API directly) | Run `scripts/scan.py`; read stdout/stderr |
 | Analyze | none                                | Read `issues.json`, read `resolved.json` (if present), write `analyzed.json` |
 | Report  | none                                | Read `analyzed.json`, read `templates/report.html`, write `report.html` |
 | Assess (`/assess`) | `jira_search`              | Optionally read `issues.json`; no required artifact writes |
