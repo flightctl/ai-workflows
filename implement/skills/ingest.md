@@ -62,6 +62,8 @@ Fetch the story from Jira. Capture:
 - Acceptance criteria
 - Implementation guidance (if present)
 - Testing approach (if present)
+- Test Case References (if present — TC IDs used for testplan filtering in Step 5d)
+- Design Reference (if present — PRD requirement IDs and design section refs)
 - Story type prefix (`[DEV]`, `[UI]`, etc.)
 - Parent epic key
 - Story dependencies (linked issues — "depends on", "is blocked by")

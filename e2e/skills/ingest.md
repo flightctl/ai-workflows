@@ -65,6 +65,8 @@ Fetch the story from Jira. Capture:
 - Acceptance criteria
 - Testing approach (if present — this is the primary implementation guidance for [QE] stories)
 - Implementation guidance (if present — may be sparse for [QE] stories)
+- Test Case References (if present — TC IDs used for testplan filtering in Step 5d)
+- Design Reference (if present — PRD requirement IDs used for testplan filtering in Step 5d)
 - Story type prefix — verify it is `[QE]`. If it is `[DEV]`, `[UI]`, or another prefix, warn the user that this workflow is designed for `[QE]` stories and ask whether to proceed.
 - Parent epic key
 - Story dependencies (linked issues — "depends on", "is blocked by")

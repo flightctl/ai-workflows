@@ -167,19 +167,17 @@ git -C "{docs_repo_path}" add "{release}/{feature}/design.md"
 
 **Testplan publication:**
 
-**Skip all testplan steps below and proceed directly to the design-only
-commit if:**
-- `.artifacts/design/{issue-key}/07-testplan.md` does not exist
-
-If `07-testplan.md` does not exist, check whether a previously published
-testplan exists at `{docs_repo_path}/{release}/{feature}/testplan.md`.
-If it does, remove it before committing:
+**If `07-testplan.md` does not exist:** check whether a previously
+published testplan exists at
+`{docs_repo_path}/{release}/{feature}/testplan.md`. If it does, remove
+it:
 
 ```bash
 git -C "{docs_repo_path}" rm -- "{release}/{feature}/testplan.md"
 ```
 
-Then commit with the design-only message:
+Commit with the design-only message (regardless of whether a stale
+testplan was removed) and skip to Step 5:
 
 ```bash
 git -C "{docs_repo_path}" commit -m "Add design document for {issue-key}: {title}"
