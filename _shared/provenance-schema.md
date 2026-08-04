@@ -1,6 +1,6 @@
 ---
 name: provenance-schema
-version: 0.1.0
+version: 0.2.0
 ---
 # Provenance Schema
 
@@ -31,6 +31,10 @@ supports same-session drift analysis only.
 - The machine-readable `<!-- ai-workflow-provenance:{...} -->` comment is the stable hook
   for future metrics pipelines. Human-readable lines above it are
   for reviewer triage, not programmatic parsing.
+- A session that starts at `/respond`, `/revise`, or a manual-edit record — with no prior
+  `/draft` or `commit` snapshot — sets `origin_untracked: true` and renders a disclaimer
+  line, since the document's structure was never verified against the template from
+  origin. This is independent of `provenance_kind` (see below).
 
 ## `provenance.json` (schema_version 1)
 
@@ -93,6 +97,15 @@ Recomputed after every capture. Compares the first and last events on:
 | `commit_only` | Log has only `commit` events (auto-captured at publish) | Committed line + disclaimer |
 | `declined` | User bypassed via `--allow-missing` | None — machine comment only |
 
+`origin_untracked` is a separate, orthogonal boolean (not a `provenance_kind` value):
+always `false` for a `commit_only` log (a bare commit-time snapshot with no
+authoring history yet, already covered by its own disclaimer); otherwise `true`
+unless the log's very first-ever event was `draft`. This covers both a session
+that starts at `/respond`, `/revise`, or a manual-edit record, and a log that
+started as a `commit_only` snapshot and later picked up authoring events (e.g.
+`commit` followed by `revise`) — in both cases the document's structure was
+never checked against the template from origin.
+
 **Session — single context** (no drift):
 
 ```markdown
@@ -119,6 +132,17 @@ Authored: draft @ prd 0.5.0 - adfad68, workspace main @ abc1234 (47 behind origi
 Final:    revise @ prd 0.5.0 - adfad68, workspace main @ 00e78b8f
 
 > Context changed between draft and revise.
+```
+
+**Session — untracked origin** (first-ever event is `respond`, `revise`, or
+`manual-edit` — no prior `/draft` or commit snapshot):
+
+```markdown
+Authored: respond @ prd 0.5.0 - adfad68, workspace main @ 00e78b8f
+
+> This document's phase history does not include an initial /draft — structure was not verified against the template from origin.
+
+<!-- ai-workflow-provenance:{"schema_version":1,"provenance_kind":"session","phases":["respond"],"origin_untracked":true,...} -->
 ```
 
 **Commit-only** (no authoring phases recorded this session):
