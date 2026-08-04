@@ -35,6 +35,15 @@ supports same-session drift analysis only.
   `/draft` or `commit` snapshot — sets `origin_untracked: true` and renders a disclaimer
   line, since the document's structure was never verified against the template from
   origin. This is independent of `provenance_kind` (see below).
+- `origin_untracked` reflects only the *local* session log, not absolute ground truth.
+  Because `provenance.json` is gitignored (see "Published vs session-local" above), a
+  fresh clone, a new git worktree, a cleaned `.artifacts/`, or a CI runner all start that
+  log from empty. If the next captured event on that empty log is `respond`, `revise`, or
+  `manual-edit`, `origin_untracked` becomes `true` even when the document was genuinely
+  drafted in an earlier session whose log no longer exists. It also does not self-heal:
+  `capture_event` only appends, so a later `/draft` run lands past `events[0]` and leaves
+  the flag set. Recovery requires deleting the stale `provenance.json` before the next
+  `/draft` run so the log restarts cleanly with `draft` as its first event.
 
 ## `provenance.json` (schema_version 1)
 
