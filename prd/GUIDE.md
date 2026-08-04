@@ -69,7 +69,7 @@ Every requirement gets a stable ID (FR-1, NFR-1) and a source marker indicating 
 
 Before presenting the draft, the workflow runs a coverage check (did anything from the source material get dropped?) and resolves outstanding assumptions with you.
 
-**Template overrides:** Projects can provide their own PRD template. The workflow checks these locations in order: a path specified in the project's `CLAUDE.md` or `AGENTS.md`, then `.prd/templates/prd.md` at the project root, then the built-in default.
+**Template overrides:** Projects can provide their own PRD template. `/draft`, `/revise`, and `/respond` all check these locations in order: a path specified in the project's `CLAUDE.md` or `AGENTS.md`, then `.prd/templates/prd.md` at the project root, then the built-in default.
 
 ### Revise
 

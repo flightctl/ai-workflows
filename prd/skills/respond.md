@@ -29,6 +29,11 @@ repeatable as new comments arrive.
 
 ### Step 1: Resolve Docs Repo and Fetch PR Comments
 
+Read and follow `../../_shared/recipes/template-override-resolution.md`
+with `WORKFLOW=prd`, `TEMPLATE_FILE=prd.md`. Per that recipe's "Using the
+Resolved Files" guidance, treat the examples below (e.g., "NFR-3",
+"non-goal") as illustrations of the built-in template only.
+
 Read `.artifacts/prd/config.json` to get the docs repo path and
 `.artifacts/prd/{issue-key}/publish-metadata.json` to get the PR
 number, file path, and `{branch-name}` (from the `branch` field). If
@@ -131,30 +136,49 @@ limit in `../guidelines.md`. Do not incorporate design details into the PRD.
 
 #### Resolving open questions
 
-When reviewer comments relate to an open question from the Open Questions section,
+The resolved section guidance (from Step 1) determines whether the current
+template tracks open questions as a distinct section (like the built-in
+template's "Open Questions") or some other way (or not at all). When
+reviewer comments relate to an unresolved question or gap in the document,
 synthesize the discussion into a proposed resolution:
 
-1. Identify which open question subsection the discussion relates to.
+1. If the template has a distinct open-questions section, identify which
+   entry the discussion relates to. Otherwise, identify the gap the
+   discussion is resolving directly from the comment thread.
 2. Read the full thread — there may be multiple reviewers with differing
    views. Synthesize the discussion into a single proposed resolution.
    Do not assume a single comment is the final answer. If reviewers
    disagree and no consensus is apparent, present the competing positions
    to the user and ask them to decide rather than fabricating a
    compromise that nobody advocated.
-3. Determine the appropriate target section based on the **Impact** field
-   of the open question — e.g., a scope decision becomes a non-goal in
-   Section 2.3, a constraint goes into NFRs in Section 3.2, a requirement
-   clarification updates the relevant FR in Section 3.1.
-4. Present the proposed resolution to the user: show which open question
-   is being resolved, the synthesized answer, where it will be placed in
-   the PRD, and the proposed text. The user may approve, correct, or
-   rewrite the synthesis.
+3. If a distinct open-question entry exists, determine the target section
+   based on its **Impact** field and the resolved template's actual
+   structure — e.g., in the built-in template, a scope decision becomes a
+   non-goal, a constraint goes into NFRs, and a requirement clarification
+   updates the relevant FR. A project override may map these differently
+   (or have no numbered requirement IDs at all — see the section
+   guidance). Otherwise (no such entry — the gap was identified directly
+   from the comment thread per item 1 above), determine the target
+   section from the resolved section guidance and the nature of the gap;
+   there is no **Impact** field to consult.
+4. Present the proposed resolution to the user: show what is being
+   resolved, the synthesized answer, where it will be placed in the PRD,
+   and the proposed text. The user may approve, correct, or rewrite the
+   synthesis.
 5. After user approval, incorporate the answer into the target section,
    writing it in final form as if it was always the intent (do not
    narrate the resolution).
-6. Remove the resolved entry from the Open Questions section.
-7. If the Open Questions section is now empty, remove the entire section (heading and
-   introductory text) from the PRD. Renumber any subsequent sections to close the gap.
+6. If the resolved template tracks unresolved items in a structured
+   location — a distinct open-questions section, or another location the
+   section guidance identifies (e.g., an inline marker, a combined
+   risks/open-items table) — remove or retire the resolved entry there
+   once its answer has been incorporated into the target section. If
+   removing the entry leaves a section empty, remove the section (heading
+   and introductory text) only if the resolved template doesn't require it
+   to remain present. Renumber subsequent sections to close the gap only
+   if the resolved template numbers sections positionally; otherwise leave
+   section numbers/headings as-is. Either way, fix any cross-references
+   that pointed at the removed content.
 
 **Update the local artifact:** Update `.artifacts/prd/{issue-key}/03-prd.md`
 in the source repo.

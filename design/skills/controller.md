@@ -211,7 +211,8 @@ repeats itself, or loses track of earlier decisions), consider spawning the
 next phase as a subagent with a fresh context window. Load the subagent with
 the skill file for the phase being executed, the relevant artifact files from
 `.artifacts/design/{issue-key}/`, and any template files referenced by that
-skill (e.g., `draft.md` and `section-guidance.md` for `/draft`).
+skill (`draft.md`, `revise.md`, and `respond.md` each resolve and use
+`design.md` and `section-guidance.md` — see `template-override-resolution.md`).
 
 This is a recommendation, not a requirement — not all AI runtimes support
 subagent spawning.
@@ -220,6 +221,6 @@ subagent spawning.
 
 - **Never auto-advance.** Always wait for the user between phases.
 - **Recommendations come from this file, not from skills.** Skills report findings; this controller decides what to recommend next.
-- **Template loading is handled by the `/draft` skill.** It checks for project-level overrides before falling back to the workflow default. See `draft.md` Step 1.
+- **Template loading is shared across `/draft`, `/revise`, and `/respond`.** Each resolves project-level overrides before falling back to the workflow default via `../../_shared/recipes/template-override-resolution.md`; none is more canonical than another.
 - **Jira is read-only until `/sync`.** The `/ingest` phase reads from Jira but never modifies it. Only `/sync` modifies Jira issues, and only with explicit user approval.
 - **Design and decomposition co-evolve.** If `/revise` changes the design, recommend re-running `/decompose`. If `/decompose` reveals design gaps, recommend `/revise`.

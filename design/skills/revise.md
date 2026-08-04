@@ -29,6 +29,11 @@ multiple rounds of revision.
 
 ### Step 1: Read Current Artifacts
 
+Read and follow `../../_shared/recipes/template-override-resolution.md`
+with `WORKFLOW=design`, `TEMPLATE_FILE=design.md`. Per that recipe's
+"Using the Resolved Files" guidance, treat the section-number examples
+below (e.g., "Section 4.3") as illustrations of the built-in template only.
+
 Determine which artifacts exist and read them:
 - `.artifacts/design/{issue-key}/01-context.md` (requirements context with FR/NFR IDs)
 - `.artifacts/design/{issue-key}/02-research.md` (if exists — research findings)

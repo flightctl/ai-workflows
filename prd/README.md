@@ -124,13 +124,15 @@ prd/
 
 ## Project-Level Template Override
 
-Projects can customize the PRD template by providing their own at a well-known location. The `/draft` phase checks for overrides in this order:
+Projects can customize the PRD template by providing their own at a well-known location. `/draft`, `/revise`, and `/respond` all check for overrides in this order (see `../_shared/recipes/template-override-resolution.md`):
 
 1. Path specified in the project's `CLAUDE.md` or `AGENTS.md` (e.g., `PRD template: docs/templates/prd-template.md`)
 2. `.prd/templates/prd.md` at the project root
 3. Workflow's built-in template (fallback)
 
-The same applies to `section-guidance.md`. Place both files alongside each other.
+Section guidance follows the same fallback, but only checks steps 2–3
+above — it doesn't check `CLAUDE.md`/`AGENTS.md`. Place both files
+alongside each other.
 
 ## Getting Started
 
