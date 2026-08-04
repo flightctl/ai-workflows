@@ -72,7 +72,18 @@ Group comments into categories:
 | **New requirement** | Flag for user decision — update design or defer |
 | **Approval / positive** | Acknowledge |
 | **Open question resolution** | Resolve the open question (see Step 4) |
+| **Testplan feedback** | Route to testplan change handling (see Step 4, "Applying testplan changes") |
 | **Out of scope** | Draft a reply explaining why |
+
+**Routing testplan comments:** Line-level review comments (from
+`gh api .../pulls/{pr-number}/comments`) include a `path` field. Comments
+with `path` ending in `testplan.md` are categorized as **Testplan
+feedback**. Top-level PR comments (from `gh pr view --json comments`) do
+not carry a `path`. For these, inspect the comment body: if it references
+test case IDs matching the pattern `TC-` followed by a requirement
+identifier, or discusses adding, modifying, or removing test cases,
+categorize as **Testplan feedback**. When uncertain, categorize as the
+next-best-fit category and let the user reclassify during Step 3.
 
 ### Step 3: Propose Responses
 
@@ -94,6 +105,14 @@ Present each comment with a proposed response:
 **Category:** Open question resolution
 **Proposed resolution:** {synthesized answer from reviewer discussion}
 **Design change needed:** Yes — incorporate into Section {N}, remove open question 8.2
+
+### Comment 3 — {reviewer} on testplan.md, TC-FR2-01
+> {quoted comment text}
+
+**Category:** Testplan feedback
+**Proposed response:** {suggested reply}
+**Testplan change needed:** {modify TC-FR2-01 expected result / add TC-FR2-03 / remove TC-FR1-02}
+**Cascade:** Update Story 2.01 Test Case References, update coverage matrix
 ```
 
 Wait for the user to approve, modify, or reject each response.
@@ -137,6 +156,60 @@ section, synthesize the discussion into a proposed resolution:
 6. Remove the resolved entry from the Open Questions section.
 7. If the Open Questions section is now empty, remove the entire section
    (heading and introductory text) from the design document.
+
+#### Applying testplan changes
+
+When approved changes include testplan modifications (category: Testplan
+feedback), apply them in this order:
+
+1. **Modify `07-testplan.md`.** Before making any changes, record the
+   Story and AC mappings of any test cases that will be removed or
+   reassigned — these are needed for the cascade in step 2. Then add,
+   modify, or remove test cases as directed by the approved response.
+   For each change:
+   - **Adding a test case:** Assign a sequence number using
+     `max(existing sequences) + 1` within the requirement group (e.g.,
+     if TC-FR2-01 and TC-FR2-03 exist and TC-FR2-02 was previously
+     removed, the new case is TC-FR2-04 — do not reuse gaps, as ALM
+     systems track by ID). Create the full test case entry:
+     H4 heading with ID and title, metadata table (Story, AC, Priority,
+     Automation), and H5 sub-sections (Preconditions, Steps, Expected
+     Results). Update the testplan's Overview counts and Summary table.
+   - **Modifying a test case:** Update the affected heading, metadata
+     table fields, or sub-section content. The same Expected Results
+     quality gate applies — no banned vague phrases. If the Story assignment
+     changes, update both the old and new story's Test Case References
+     in step 2 below. If any metadata field changed (Priority, Automation,
+     Story, or AC), update the testplan's Overview counts and Summary
+     table.
+   - **Removing a test case:** Delete the test case entry (heading and
+     all sub-sections). Update the testplan's Overview counts and
+     Summary table.
+
+2. **Cascade to story files.** For each affected story (identified by
+   the Story field of changed test cases AND the pre-mutation mappings
+   captured in step 1 for removed/reassigned cases), skip `[DOCS]`
+   stories (they do not have a Test Case References section). For
+   non-`[DOCS]` stories:
+   - Re-read the story file at
+     `.artifacts/design/{issue-key}/05-stories/epic-{N}/story-{NN}-{slug}.md`.
+   - Rewrite the `## Test Case References` section: collect all TC IDs
+     from the updated testplan where the Story field matches this story,
+     then write `Verified by: {comma-separated TC IDs}`.
+   - If a story loses all its test cases, write:
+     `Verified by: None (no behavioral test cases after testplan revision)`.
+
+3. **Cascade to coverage matrix.** Re-read
+   `.artifacts/design/{issue-key}/06-coverage.md`. For each entry in the PRD
+   Requirement mapping table, update the `Test Cases` column to reflect
+   the current TC IDs from the testplan for that requirement. If a
+   requirement previously had test cases and now has none, flag it in the
+   coverage matrix Gaps section.
+
+4. **Update testplan Gaps section.** After all mutations, rebuild the
+   Gaps section from the current testplan state: remove gaps for
+   requirements or story ACs that now have coverage, and add gaps for
+   those that lost coverage (from removals or Story/AC reassignment).
 
 **Update the local artifact:** Update
 `.artifacts/design/{issue-key}/03-design.md`.
@@ -193,6 +266,48 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 git -C "{docs_repo_path}" add "{design_file_path}"
 ```
 
+**Skip testplan docs-repo sync if any of these are true:**
+- `07-testplan.md` does not exist AND `publish-metadata.json` does not
+  contain a `testplan_file_path` field (no testplan anywhere)
+- `publish-metadata.json` does not contain a `testplan_file_path` field
+  (testplan was never published — changes are applied locally only; re-run
+  `/publish` to include the testplan in the docs repo)
+
+**If `07-testplan.md` does NOT exist but `publish-metadata.json`
+contains `testplan_file_path`** (testplan was removed), remove the
+published testplan from the docs repo:
+
+```bash
+git -C "{docs_repo_path}" rm "{testplan_file_path}"
+```
+
+Remove `testplan_file_path` from `publish-metadata.json`.
+
+**If both `07-testplan.md` exists and `publish-metadata.json` contains
+`testplan_file_path`**, copy the testplan to the docs repo:
+
+**Sync-manifest guard:** If `.artifacts/design/{issue-key}/sync-manifest.json`
+exists, the published testplan's Story field must use Jira keys (resolved
+by `/sync`), not local identifiers. Before copying, read the sync manifest
+and resolve the Story field in each test case's metadata table: replace local
+references (e.g., `Story 1.01`) with their Jira keys from the manifest
+(e.g., `EDM-1234`). Write the resolved version to the docs repo — do NOT
+modify the local `07-testplan.md` (it keeps local identifiers).
+
+If `sync-manifest.json` does not exist:
+
+```bash
+cp ".artifacts/design/{issue-key}/07-testplan.md" "{docs_repo_path}/{testplan_file_path}"
+```
+
+If `sync-manifest.json` exists, write the resolved content (with Jira
+keys in Story fields) to `{docs_repo_path}/{testplan_file_path}`
+directly — do not `cp` the unresolved local file.
+
+```bash
+git -C "{docs_repo_path}" add "{testplan_file_path}"
+```
+
 ```bash
 git -C "{docs_repo_path}" commit -m "Design {issue-key}: address review feedback"
 ```
@@ -239,7 +354,7 @@ rm .artifacts/design/{issue-key}/tmp-reply.md
 
 ### Step 5: Update Response Log
 
-Write or update `.artifacts/design/{issue-key}/08-review-responses.md`:
+Write or update `.artifacts/design/{issue-key}/09-review-responses.md`:
 
 ```markdown
 # Review Responses — {issue-key}
@@ -251,6 +366,7 @@ Write or update `.artifacts/design/{issue-key}/08-review-responses.md`:
 - **Category:** {category}
 - **Response:** {what was replied}
 - **Design change:** {Yes/No — description if yes}
+- **Testplan change:** {Yes/No — TC-FR2-01 modified, TC-FR2-03 added / None}
 ```
 
 ### Step 6: Assess Decomposition Impact
@@ -259,6 +375,13 @@ If design changes were made, check whether they affect the task breakdown:
 - Did components change? → Epic boundaries may need adjustment
 - Did APIs or data models change? → Stories may need updating
 - Did new requirements emerge from review? → Coverage matrix needs checking
+- Did requirements or acceptance criteria change? → Testplan may need updating
+
+If testplan changes were applied in Step 4, verify that the cascade
+(story Test Case References and coverage matrix Test Cases column) is
+consistent. If the cascade reveals an inconsistency not caught during
+Step 4 (e.g., a story references a TC ID that was removed), fix it
+before proceeding.
 
 If the decomposition is affected, flag it and recommend `/revise` or
 re-running `/decompose`.
@@ -275,7 +398,10 @@ Summarize:
 
 - PR comments posted (with user approval)
 - `.artifacts/design/{issue-key}/03-design.md` (updated if needed)
-- `.artifacts/design/{issue-key}/08-review-responses.md`
+- `.artifacts/design/{issue-key}/07-testplan.md` (updated if testplan feedback was applied)
+- `.artifacts/design/{issue-key}/05-stories/epic-{N}/story-{NN}-{slug}.md` (Test Case References updated if testplan changed)
+- `.artifacts/design/{issue-key}/06-coverage.md` (Test Cases column updated if testplan changed)
+- `.artifacts/design/{issue-key}/09-review-responses.md`
 
 ## When This Phase Is Done
 

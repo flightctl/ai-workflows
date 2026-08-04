@@ -37,6 +37,7 @@ Determine which artifacts exist and read them:
 - `.artifacts/design/{issue-key}/04-epics.md` (epic metadata, if exists)
 - `.artifacts/design/{issue-key}/05-stories/` (epic and story files, if exist)
 - `.artifacts/design/{issue-key}/06-coverage.md` (coverage matrix, if exists)
+- `.artifacts/design/{issue-key}/07-testplan.md` (testplan, if exists)
 - `.artifacts/design/{issue-key}/sync-manifest.json` (if exists — means
   epics/stories have been synced to Jira and filenames are locked)
 
@@ -122,6 +123,31 @@ After applying changes, verify:
   added, removed, or reassigned.
 - Do story dependencies still make sense?
 
+**If the testplan exists (`07-testplan.md`):**
+- If the design changed: do any test cases reference changed behavior?
+  Update preconditions, steps, or expected results if the design change
+  affects what the test validates. The Expected Results quality gate
+  applies — no banned vague phrases.
+- If stories were added or removed: add or remove test cases as
+  appropriate. Update `Test Case References` in affected non-`[DOCS]`
+  story files.
+- If acceptance criteria changed on a story: review the test cases
+  referencing that story — do they still validate the correct behavior?
+- Update the coverage matrix's Test Cases column if test case IDs
+  changed.
+- If test cases were added, removed, or modified (including metadata
+  changes like Priority or Automation): recompute the testplan's Overview
+  counts and Summary table from the current test cases.
+- If test cases were added, removed, renamed, or had their Story, AC,
+  or requirement mapping changed: rebuild the testplan's Gaps section
+  from the current requirement-to-test-case and AC-to-test-case
+  mappings. Remove stale gaps for requirements or ACs that now have
+  coverage, and add gaps for those that have lost coverage.
+- If requirement IDs changed (rare — requires PRD revision): update
+  all TC IDs anchored to the changed requirement, cascade the renamed
+  IDs to each story's `Test Case References` section and the coverage
+  matrix's Test Cases column, then revalidate the cross-file mappings.
+
 ### Step 5: Update Artifacts
 
 Overwrite the affected artifact files.
@@ -186,8 +212,54 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=design`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{docs_repo_path}/{design_file_path}"`.
 
+**Testplan docs-repo sync:**
+
+**Skip all testplan sync steps below if any of these are true:**
+- `07-testplan.md` does not exist and `publish-metadata.json` does not
+  contain a `testplan_file_path` field (no testplan anywhere)
+- `07-testplan.md` exists but `publish-metadata.json` does NOT contain
+  `testplan_file_path` (testplan was created after initial publish) —
+  note to the user: "Testplan exists locally but was not included in
+  the original publish. Re-run `/publish` to include it in the docs
+  repo."
+
+**If `07-testplan.md` does NOT exist but `publish-metadata.json`
+contains `testplan_file_path`** (testplan was removed during revision),
+remove the published testplan from the docs repo:
+
+```bash
+git -C "{docs_repo_path}" rm "{testplan_file_path}"
+```
+
+Remove `testplan_file_path` from `publish-metadata.json`.
+
+**If `07-testplan.md` exists and `publish-metadata.json` contains
+`testplan_file_path`**, copy the testplan to the docs repo:
+
+**Sync-manifest guard:** If `.artifacts/design/{issue-key}/sync-manifest.json`
+exists, the published testplan's Story field must use Jira keys. Before
+copying, read the sync manifest and resolve the Story field in each test
+case's metadata table (`Story 1.01` → Jira key from manifest). Write the resolved
+version to the docs repo — do NOT modify the local `07-testplan.md`.
+
+If `sync-manifest.json` does not exist:
+
+```bash
+cp ".artifacts/design/{issue-key}/07-testplan.md" "{docs_repo_path}/{testplan_file_path}"
+```
+
+If `sync-manifest.json` exists, write the resolved content (with Jira
+keys in Story fields) to `{docs_repo_path}/{testplan_file_path}`
+directly — do not `cp` the unresolved local file.
+
 ```bash
 git -C "{docs_repo_path}" add "{design_file_path}"
+```
+
+If the testplan was copied:
+
+```bash
+git -C "{docs_repo_path}" add "{testplan_file_path}"
 ```
 
 ```bash
@@ -212,6 +284,12 @@ Summarize what changed:
 ### Decomposition Changes
 - Epic 2: Split Story 2.3 into 2.3 and 2.4
 - Coverage matrix: Updated to reflect new story mapping
+
+### Testplan Changes
+- {TC-FR1-03 added — new acceptance criterion on Story 1.01}
+- {TC-NFR2-01 updated — expected result changed to match revised design}
+- {TC-FR2-02 removed — requirement FR-2 no longer in scope}
+- {Omit this section if the testplan did not change or does not exist}
 
 ### Consistency Updates
 - Section 8: Added open question about performance impact of new approach
@@ -244,6 +322,7 @@ The following artifacts were modified since the last sync. Re-run
 - `.artifacts/design/{issue-key}/05-stories/epic-*.md` (updated, if epics changed)
 - `.artifacts/design/{issue-key}/05-stories/epic-*/story-*.md` (updated, if stories changed)
 - `.artifacts/design/{issue-key}/06-coverage.md` (updated, if coverage changed)
+- `.artifacts/design/{issue-key}/07-testplan.md` (updated, if testplan changed)
 
 ## When This Phase Is Done
 

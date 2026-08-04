@@ -87,6 +87,7 @@ After applying changes, verify:
 - Does the test strategy still align with the tasks?
 - Do interface definitions match what the tasks describe?
 - Are commit messages still properly formatted?
+- If a Test Plan Coverage section exists: do the TC ID → Task mappings still reflect the current task breakdown? If tasks were added, removed, split, or combined, update the Covered by Task column accordingly.
 
 ### Step 5: Update Artifact
 

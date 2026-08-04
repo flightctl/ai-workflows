@@ -33,6 +33,7 @@ Read:
 1. `.artifacts/e2e/{issue-key}/01-context.md` (validation profile and e2e infrastructure)
 2. `.artifacts/e2e/{issue-key}/02-plan.md` (what was planned)
 3. `.artifacts/e2e/{issue-key}/04-impl-report.md` (implementation status)
+4. `.artifacts/e2e/{issue-key}/testplan.md` (story-scoped testplan, if exists)
 
 Extract the validation profile's pre-PR checks list and the e2e test
 execution command.
@@ -230,6 +231,42 @@ covered:
    requires manual measurement) — note it as "not e2e-testable" with
    an explanation of why
 
+### Step 7b: Test Plan Verification
+
+If `.artifacts/e2e/{issue-key}/testplan.md` exists, independently verify
+that every test case has been covered by the e2e tests. This check
+re-derives the required TC ID list from `testplan.md` directly — it does
+NOT rely on the plan's task-to-TC-ID mappings or `/code`'s per-task
+reconciliation for determining which tests exist. The only information
+carried forward from the plan is the N/A rationale for test cases marked
+inapplicable. This is an intentional independent verification: if the
+plan's bookkeeping or the code phase's gate drifted from reality, this
+step catches it.
+
+If `testplan.md` does not exist and `02-plan.md` has no Test Plan
+Coverage section, skip this step entirely. However, if `02-plan.md`
+has TC mappings but `testplan.md` is missing, unreadable, or malformed
+(no parseable TC IDs), stop and report the inconsistency.
+
+1. Read `testplan.md` and extract all TC IDs. For each TC entry,
+   verify that Preconditions, Steps, and Expected Results sections
+   are present. If any entry is missing a required section, stop and
+   report the testplan as malformed.
+2. For each TC ID (except those the validate phase agrees are
+   legitimately N/A based on the rationale in the plan's Test Plan
+   Coverage matrix):
+   - Search the e2e test files on the feature branch for a test
+     scenario whose validations match the TC's Steps and Expected
+     Results.
+   - The match is behavioral, not textual — the test must exercise the
+     described scenario and assert the described outcomes.
+   - Record the test file and scenario name for each TC ID.
+3. If any TC ID lacks a corresponding test:
+   - Write the missing test following the reference suite's patterns.
+   - Commit the test following the project's commit format.
+   - Re-run the relevant checks from Step 3.
+4. Record results for the validation report.
+
 ### Step 8: Write Validation Report
 
 Write `.artifacts/e2e/{issue-key}/05-validation-report.md`:
@@ -282,6 +319,26 @@ Write `.artifacts/e2e/{issue-key}/05-validation-report.md`:
  If any gaps: describe what's missing and what was done about it.
  If any not e2e-testable: list them with rationale.}
 
+## Test Plan Verification
+
+{Include only if testplan.md exists. Omit entirely otherwise.}
+
+| TC ID | Title | Test File | Scenario | Status |
+|-------|-------|-----------|----------|--------|
+| TC-FR1-01 | {title} | {file} | {scenario name} | covered |
+| TC-FR1-02 | {title} | {file} | {scenario name} | gap-filled |
+| TC-NFR1-01 | {title} | — | — | N/A |
+
+{Status values:
+ - covered: test scenario existed and had sufficient assertion depth
+ - gap-filled: test scenario was written during validation
+ - N/A: test case legitimately not applicable (rationale required)
+
+ If all covered: "All test plan cases verified."
+ If gaps were filled: "{N} test cases required additional tests during
+ validation."
+ If any N/A: list rationale for each.}
+
 ## Quality Review Findings
 
 {Findings from the code quality review gate (protocol criteria plus
@@ -318,6 +375,7 @@ Summarize for the user:
 - Which checks passed and which failed
 - Anti-pattern check results (clean or what was fixed)
 - Acceptance criteria coverage (all covered, or which ones have gaps)
+- Test plan verification status (all covered / gaps filled / not applicable), if testplan exists
 - Any regressions found (and whether they were fixed)
 - Overall verdict: ready for `/publish` or not
 

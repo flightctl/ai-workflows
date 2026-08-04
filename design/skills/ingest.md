@@ -234,7 +234,8 @@ line-by-line comparison.
 
 Then check whether downstream artifacts exist (`02-research.md`,
 `03-design.md`, `04-epics.md`, `05-stories/`, `06-coverage.md`,
-`07-pr-description.md`, `08-review-responses.md`, `sync-manifest.json`).
+`07-testplan.md`, `08-pr-description.md`, `09-review-responses.md`,
+`sync-manifest.json`).
 If they do, tell the
 user:
 

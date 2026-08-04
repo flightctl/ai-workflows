@@ -35,10 +35,10 @@ graph TD
 | Ingest | `/ingest` | Read PRD, explore codebase | `01-context.md` |
 | Research | `/research` | Investigate problem space, solutions, standards | `02-research.md` |
 | Design | `/draft` | Draft design document | `03-design.md` |
-| Decompose | `/decompose` | Break into epics and stories | `04-epics.md`, `05-stories/`, `06-coverage.md` |
+| Decompose | `/decompose` | Break into epics and stories | `04-epics.md`, `05-stories/`, `06-coverage.md`, `07-testplan.md` |
 | Revise | `/revise` | Incorporate feedback | Updated design and/or stories |
-| Publish | `/publish` | Post design doc as GitHub PR | `07-pr-description.md` |
-| Respond | `/respond` | Address reviewer comments | `08-review-responses.md` |
+| Publish | `/publish` | Post design doc as GitHub PR | `08-pr-description.md` |
+| Respond | `/respond` | Address reviewer comments | `09-review-responses.md`, updated `07-testplan.md` / stories / `06-coverage.md` |
 | Sync | `/sync` | Sync Jira epics and stories | `sync-manifest.json` |
 
 ## Typical Flow
@@ -63,7 +63,7 @@ graph TD
 /decompose
   → breaks design into epics and stories
   → validates coverage against PRD requirements
-  → writes 04-epics.md, 05-stories/ (epics + stories), 06-coverage.md
+  → writes 04-epics.md, 05-stories/ (epics + stories), 06-coverage.md, 07-testplan.md
 
 /revise
   → user reviews, requests changes to design and/or decomposition
@@ -73,17 +73,19 @@ graph TD
 /publish
   → commits design document to feature branch in docs repo
   → creates draft GitHub PR
-  → writes 07-pr-description.md
+  → writes 08-pr-description.md
 
 /respond
   → fetches PR review comments
   → proposes responses (user approves before posting)
-  → updates design document if needed
+  → updates design document and testplan if needed
+  → cascades testplan changes to story Test Case References and coverage matrix
   → repeatable
 
 /sync
   → previews all Jira operations (dry run)
   → syncs epics and stories — creates new, updates changed, closes removed
+  → resolves testplan story references to Jira keys in docs repo
   → maintains sync-manifest.json with content hashes
 ```
 
@@ -109,8 +111,9 @@ Jira issue:
     epic-2/
       story-01-deploy-config.md        (→ Jira Story)
   06-coverage.md
-  07-pr-description.md
-  08-review-responses.md
+  07-testplan.md
+  08-pr-description.md
+  09-review-responses.md
   publish-metadata.json
   provenance.json
   sync-manifest.json

@@ -112,6 +112,14 @@ placed alongside the PRD (`prd.md`) if one was published previously.
 All git operations run against the **docs repo**. Use
 `git -C "{docs_repo_path}"` for all commands.
 
+Verify the docs repo is clean before modifying it:
+
+```bash
+git -C "{docs_repo_path}" status
+```
+
+If there are uncommitted changes, ask the user before continuing.
+
 Check if the branch already exists:
 
 ```bash
@@ -157,8 +165,53 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 git -C "{docs_repo_path}" add "{release}/{feature}/design.md"
 ```
 
+**Testplan publication:**
+
+**If `07-testplan.md` does not exist:** check whether a previously
+published testplan exists at
+`{docs_repo_path}/{release}/{feature}/testplan.md`. If it does, remove
+it:
+
+```bash
+git -C "{docs_repo_path}" rm -- "{release}/{feature}/testplan.md"
+```
+
+Commit with the design-only message (regardless of whether a stale
+testplan was removed) and skip to Step 5:
+
 ```bash
 git -C "{docs_repo_path}" commit -m "Add design document for {issue-key}: {title}"
+```
+
+**If `07-testplan.md` exists**, copy it to the docs repo:
+
+**Sync-manifest guard:** This guard handles re-publishing after `/sync`
+has run (e.g., `decompose → publish → sync → revise → publish`). If
+`.artifacts/design/{issue-key}/sync-manifest.json` exists, the published
+testplan's Story field must use Jira keys. Before copying, read the sync
+manifest and resolve the Story field in each test case's metadata table
+(`Story 1.01` → Jira key from manifest). Write the resolved version to
+the docs repo — do NOT modify the local `07-testplan.md`.
+
+If `sync-manifest.json` does not exist:
+
+```bash
+cp ".artifacts/design/{issue-key}/07-testplan.md" "{docs_repo_path}/{release}/{feature}/testplan.md"
+```
+
+If `sync-manifest.json` exists, write the resolved content (with Jira
+keys in Story fields) to `{docs_repo_path}/{release}/{feature}/testplan.md`
+directly — do not `cp` the unresolved local file.
+
+Regardless of which path was taken (copy or resolved write), stage the
+testplan:
+
+```bash
+git -C "{docs_repo_path}" add "{release}/{feature}/testplan.md"
+```
+
+```bash
+git -C "{docs_repo_path}" commit -m "Add design document and testplan for {issue-key}: {title}"
 ```
 
 ### Step 5: Push and Create PR
@@ -174,7 +227,7 @@ attention:
 - Key architectural decisions that have significant trade-offs
 
 Prepare the PR description and save it to
-`.artifacts/design/{issue-key}/07-pr-description.md`:
+`.artifacts/design/{issue-key}/08-pr-description.md`:
 
 ```markdown
 ## Design: {title}
@@ -190,22 +243,44 @@ Prepare the PR description and save it to
 markers, or significant trade-offs, list each as a bullet. If none
 exist, write "General review — no specific items flagged."}
 
+### Documents
+- `design.md` — technical design document
+{If `07-testplan.md` was published, add:
+- `testplan.md` — behavioral test cases mapped to PRD requirements
+Otherwise, omit the testplan bullet entirely.}
+
 ### How to Review
 - Comment inline on specific sections
 - Approve when the design accurately reflects a viable implementation approach
 ```
 
-Determine `{owner}/{repo}` from `docs_repo_remote`, then create the draft PR.
-If `{issue-key}` is a Jira key, prefix the title with it
-(`{issue-key}: Design - {title}`); otherwise use `Design: {title}`.
+Determine `{owner}/{repo}` from `docs_repo_remote`, then create the
+draft PR. Set `{pr-title}` based on whether `{issue-key}` is a Jira
+key: if yes, use `{issue-key}: Design - {title}`; otherwise use
+`Design: {title}`.
 
 ```bash
-gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head {branch-name} --title "{issue-key}: Design - {title}" --body-file .artifacts/design/{issue-key}/07-pr-description.md
+gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head {branch-name} --title "{pr-title}" --body-file .artifacts/design/{issue-key}/08-pr-description.md
 ```
 
 ### Step 6: Save Publish Metadata
 
 Write `.artifacts/design/{issue-key}/publish-metadata.json`:
+
+If `07-testplan.md` was published:
+
+```json
+{
+  "release": "{release}",
+  "feature": "{feature}",
+  "design_file_path": "{release}/{feature}/design.md",
+  "testplan_file_path": "{release}/{feature}/testplan.md",
+  "pr_number": {pr-number},
+  "branch": "{branch-name}"
+}
+```
+
+If no testplan was published, omit `testplan_file_path` entirely:
 
 ```json
 {
@@ -231,7 +306,7 @@ Present:
 - `.artifacts/design/{issue-key}/publish-metadata.json`
 - Design document committed and pushed to feature branch in the docs repo
 - Draft PR created against the docs repo
-- `.artifacts/design/{issue-key}/07-pr-description.md`
+- `.artifacts/design/{issue-key}/08-pr-description.md`
 
 ## When This Phase Is Done
 

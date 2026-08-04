@@ -96,6 +96,7 @@ After applying changes, verify:
 - Are scenario identifiers and titles unique across the plan (no duplicate C#/S# or repeated names)?
 - Does the Scenario Consolidation table still match the current scenario list?
 - Are commit messages still properly formatted?
+- If a Test Plan Coverage section exists: do the TC ID → Scenario mappings still reflect the current scenario breakdown? If scenarios were added, removed, split, or combined, update the Covered by Scenario column accordingly.
 
 ### Step 5: Update Artifact
 
