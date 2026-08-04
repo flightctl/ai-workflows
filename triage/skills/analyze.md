@@ -151,6 +151,12 @@ Set `priorityMismatch` to `null` when the assigned priority reasonably matches t
 
 #### AUTO_FIX Likelihood Criteria
 
+AUTO_FIX evaluates whether the bug is technically amenable to automated
+fixing — clear root cause, bounded scope, testable fix. Do not factor in
+workflow state such as existing PRs, prior fix attempts, open branches, or
+previous bot assessments. Those are operational concerns for the caller, not
+indicators of technical feasibility.
+
 When assigning `autoFixLikelihood`, consider:
 
 - **80-100%**: Exact error message with stack trace, single file/method, clear fix pattern (e.g. null check, off-by-one, missing validation)

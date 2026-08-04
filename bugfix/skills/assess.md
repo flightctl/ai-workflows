@@ -162,7 +162,13 @@ Provide a **reason** (1–2 sentences) and **confidence** (High / Medium / Low).
 
 #### AUTO_FIX Likelihood
 
-Only when recommendation is AUTO_FIX. Score 0–100 using these bands, then
+Only when recommendation is AUTO_FIX. AUTO_FIX evaluates whether the bug is
+technically amenable to automated fixing — clear root cause, bounded scope,
+testable fix. Do not factor in workflow state such as existing PRs, prior fix
+attempts, open branches, or previous bot assessments. Those are operational
+concerns for the caller, not indicators of technical feasibility.
+
+Score 0–100 using these bands, then
 adjust based on source-code complexity from Step 4d:
 
 | Band | Description-quality criteria | Code-level adjustments |
