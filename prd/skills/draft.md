@@ -33,24 +33,8 @@ in design documents, not the PRD.
 
 ### Step 1: Locate the Template
 
-Check for a project-level template override before falling back to the
-workflow default. Use the first match found:
-
-1. **Project CLAUDE.md / AGENTS.md** — if the project's AI config specifies
-   a PRD template path, use it (e.g., a line like
-   `PRD template: docs/templates/prd-template.md`)
-2. **`.prd/templates/prd.md`** — conventional project-level override at the
-   repo root
-3. **`../templates/prd.md`** — workflow's built-in default
-
-The same lookup applies to section guidance: check for
-`.prd/templates/section-guidance.md` alongside a project-level template,
-then fall back to `../templates/section-guidance.md`.
-
-Note: if a project-level template adds sections not covered by the section
-guidance, fill them on a best-effort basis using the section heading and
-any placeholder text as cues. For precise control over custom sections,
-the project should also provide matching section guidance.
+Read and follow `../../_shared/recipes/template-override-resolution.md`
+with `WORKFLOW=prd`, `TEMPLATE_FILE=prd.md`.
 
 ### Step 2: Read Source Material
 

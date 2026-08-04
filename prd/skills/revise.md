@@ -19,13 +19,18 @@ user may request multiple rounds of revision.
 - **Change only what's requested.** Do not "improve" sections the user didn't mention.
 - **Maintain consistency.** If a revision changes a requirement, check whether acceptance criteria, goals, or other sections need corresponding updates.
 - **Preserve traceability.** If new content is added, note its source (user feedback, not original requirements).
-- **Preserve requirement IDs.** FR-N and NFR-N IDs are stable across revisions. When removing a requirement, replace it with a tombstone (e.g., `- ~~FR-3:~~ Removed — {brief reason}.`) so the ID is visibly retired. When adding requirements, assign the next ID after the highest existing or tombstoned ID. Downstream artifacts (design documents, coverage matrices, story references) depend on these IDs remaining fixed.
+- **Preserve requirement IDs, if the resolved template uses them.** The built-in template numbers requirements as `FR-N`/`NFR-N`; a project override may use a different scheme or none at all (check the section guidance resolved in Step 1). Where stable IDs exist, they must remain fixed across revisions: when removing a requirement, replace it with a tombstone (e.g., `- ~~FR-3:~~ Removed — {brief reason}.`) so the ID is visibly retired; when adding requirements, assign the next ID after the highest existing or tombstoned ID. Downstream artifacts (design documents, coverage matrices, story references) depend on these IDs remaining fixed. If the resolved template has no numbered ID scheme, skip this rule — there is nothing to preserve.
 - **Show your changes.** After revising, summarize what changed so the user can verify.
 - **No scope reduction.** Do not silently simplify, even when revising.
 
 ## Process
 
 ### Step 1: Read Current PRD
+
+Read and follow `../../_shared/recipes/template-override-resolution.md`
+with `WORKFLOW=prd`, `TEMPLATE_FILE=prd.md`. Per that recipe's "Using the
+Resolved Files" guidance, treat the examples below (e.g., "non-goals",
+"FR-N") as illustrations of the built-in template only.
 
 Read `.artifacts/prd/{issue-key}/03-prd.md`.
 
@@ -58,8 +63,8 @@ Edit the PRD to incorporate the feedback:
 After applying changes, verify:
 - If a requirement changed, do the acceptance criteria still match?
 - If a goal changed, do the requirements still support it?
-- If scope changed, are non-goals still accurate?
-- If dependencies changed, are risks updated?
+- If scope changed, is the section covering what's excluded (e.g., "Non-Goals" or "Out of Scope", per the resolved template) still accurate?
+- If dependencies changed, are risks or other affected sections updated?
 - Do any changes contradict a locked decision in `02-clarifications.md`? If so, flag the conflict to the user — locked decisions are binding and cannot be overridden without explicit user approval.
 - If requirements were removed or simplified, verify this was explicitly requested by the user. Flag any silent scope reduction.
 - If any revision introduces design details (specific API fields, internal architecture, code-level mechanisms, or non-user-observable behavior), flag them and elevate to user-facing capabilities per the "No design details" hard limit in `../guidelines.md`.
@@ -151,7 +156,9 @@ git -C "{docs_repo_path}" push
 
 ### Step 6: Present Changes
 
-Summarize what changed:
+Summarize what changed, using the resolved template's actual section names
+(the example below shows the built-in template's names — substitute the
+project's if a template override applies):
 
 ```markdown
 ## Revision Summary
@@ -159,10 +166,12 @@ Summarize what changed:
 ### Changes Made
 - Section 3.1: Added requirement for UDP port mapping support
 - Section 4: Added acceptance criterion for UDP validation
-- Section 2.3: Removed "UDP support" from non-goals
+- Section 2.3: Removed "UDP support" from Non-Goals (or the resolved
+  template's equivalent out-of-scope section)
 
 ### Consistency Updates
-- Open Questions: Added open question about UDP performance testing
+- Open Questions (or the resolved template's equivalent, if any): Added
+  open question about UDP performance testing
 ```
 
 ## Output

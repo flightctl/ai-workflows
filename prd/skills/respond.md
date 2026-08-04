@@ -29,6 +29,11 @@ repeatable as new comments arrive.
 
 ### Step 1: Resolve Docs Repo and Fetch PR Comments
 
+Read and follow `../../_shared/recipes/template-override-resolution.md`
+with `WORKFLOW=prd`, `TEMPLATE_FILE=prd.md`. Per that recipe's "Using the
+Resolved Files" guidance, treat the examples below (e.g., "NFR-3",
+"non-goal") as illustrations of the built-in template only.
+
 Read `.artifacts/prd/config.json` to get the docs repo path and
 `.artifacts/prd/{issue-key}/publish-metadata.json` to get the PR
 number, file path, and `{branch-name}` (from the `branch` field). If
@@ -131,30 +136,37 @@ limit in `../guidelines.md`. Do not incorporate design details into the PRD.
 
 #### Resolving open questions
 
-When reviewer comments relate to an open question from the Open Questions section,
+The resolved section guidance (from Step 1) determines whether the current
+template tracks open questions as a distinct section (like the built-in
+template's "Open Questions") or some other way (or not at all). When
+reviewer comments relate to an unresolved question or gap in the document,
 synthesize the discussion into a proposed resolution:
 
-1. Identify which open question subsection the discussion relates to.
+1. If the template has a distinct open-questions section, identify which
+   entry the discussion relates to. Otherwise, identify the gap the
+   discussion is resolving directly from the comment thread.
 2. Read the full thread — there may be multiple reviewers with differing
    views. Synthesize the discussion into a single proposed resolution.
    Do not assume a single comment is the final answer. If reviewers
    disagree and no consensus is apparent, present the competing positions
    to the user and ask them to decide rather than fabricating a
    compromise that nobody advocated.
-3. Determine the appropriate target section based on the **Impact** field
-   of the open question — e.g., a scope decision becomes a non-goal in
-   Section 2.3, a constraint goes into NFRs in Section 3.2, a requirement
-   clarification updates the relevant FR in Section 3.1.
-4. Present the proposed resolution to the user: show which open question
-   is being resolved, the synthesized answer, where it will be placed in
-   the PRD, and the proposed text. The user may approve, correct, or
-   rewrite the synthesis.
+3. Determine the appropriate target section using the resolved section
+   guidance — e.g., in the built-in template, a scope decision becomes a
+   non-goal, a constraint goes into NFRs, and a requirement clarification
+   updates the relevant FR. A project override may map these differently
+   (or have no numbered requirement IDs at all — see the section guidance).
+4. Present the proposed resolution to the user: show what is being
+   resolved, the synthesized answer, where it will be placed in the PRD,
+   and the proposed text. The user may approve, correct, or rewrite the
+   synthesis.
 5. After user approval, incorporate the answer into the target section,
    writing it in final form as if it was always the intent (do not
    narrate the resolution).
-6. Remove the resolved entry from the Open Questions section.
-7. If the Open Questions section is now empty, remove the entire section (heading and
-   introductory text) from the PRD. Renumber any subsequent sections to close the gap.
+6. If the template has a distinct open-questions section, remove the
+   resolved entry from it. If that section is now empty, remove the entire
+   section (heading and introductory text) from the PRD and renumber any
+   subsequent sections to close the gap.
 
 **Update the local artifact:** Update `.artifacts/prd/{issue-key}/03-prd.md`
 in the source repo.
@@ -285,11 +297,11 @@ Write or update `.artifacts/prd/{issue-key}/05-review-responses.md`:
 - **Response:** {what was replied}
 - **PRD change:** {Yes/No — description if yes}
 
-### Open question 8.2 resolved — {reviewer} thread on Open Questions
+### Open question 8.2 resolved — {reviewer} thread on Open Questions (or the resolved template's equivalent)
 - **Comment:** {summary of discussion thread}
 - **Category:** Open question resolution
 - **Response:** {what was replied}
-- **PRD change:** Yes — resolved open question 8.2, incorporated into Section 3.2 as NFR-3
+- **PRD change:** Yes — resolved open question 8.2, incorporated into {target section per the resolved template, e.g., "Section 3.2 as NFR-3" in the built-in template}
 ```
 
 ### Step 6: Report to User

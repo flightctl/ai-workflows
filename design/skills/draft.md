@@ -30,18 +30,8 @@ must be traceable to a PRD requirement or explicitly flagged as an assumption.
 
 ### Step 1: Locate the Template
 
-Check for a project-level template override before falling back to the
-workflow default. Use the first match found:
-
-1. **Project CLAUDE.md / AGENTS.md** — if the project's AI config specifies
-   a design template path, use it
-2. **`.design/templates/design.md`** — conventional project-level override
-   at the repo root
-3. **`../templates/design.md`** — workflow's built-in default
-
-The same lookup applies to section guidance: check for
-`.design/templates/section-guidance.md` alongside a project-level template,
-then fall back to `../templates/section-guidance.md`.
+Read and follow `../../_shared/recipes/template-override-resolution.md`
+with `WORKFLOW=design`, `TEMPLATE_FILE=design.md`.
 
 ### Step 2: Read Source Material
 
