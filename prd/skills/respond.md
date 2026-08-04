@@ -163,10 +163,17 @@ synthesize the discussion into a proposed resolution:
 5. After user approval, incorporate the answer into the target section,
    writing it in final form as if it was always the intent (do not
    narrate the resolution).
-6. If the template has a distinct open-questions section, remove the
-   resolved entry from it. If that section is now empty, remove the entire
-   section (heading and introductory text) from the PRD and renumber any
-   subsequent sections to close the gap.
+6. If the resolved template tracks unresolved items in a structured
+   location — a distinct open-questions section, or another location the
+   section guidance identifies (e.g., an inline marker, a combined
+   risks/open-items table) — remove or retire the resolved entry there
+   once its answer has been incorporated into the target section. If
+   removing the entry leaves a section empty, remove the section (heading
+   and introductory text) only if the resolved template doesn't require it
+   to remain present. Renumber subsequent sections to close the gap only
+   if the resolved template numbers sections positionally; otherwise leave
+   section numbers/headings as-is. Either way, fix any cross-references
+   that pointed at the removed content.
 
 **Update the local artifact:** Update `.artifacts/prd/{issue-key}/03-prd.md`
 in the source repo.

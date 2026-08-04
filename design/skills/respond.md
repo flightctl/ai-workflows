@@ -152,11 +152,15 @@ discussion into a proposed resolution:
    disagree and no consensus is apparent, present the competing positions
    to the user and ask them to decide rather than fabricating a
    compromise that nobody advocated.
-3. Determine the appropriate target section based on the **Impact** field
-   of the open question and the resolved template's actual structure —
-   e.g., in the built-in template, an architecture decision updates §4.1,
-   a data model constraint updates §4.2, a security requirement updates
-   §4.5. A project override may number or name sections differently.
+3. If a distinct open-question entry exists, determine the target section
+   based on its **Impact** field and the resolved template's actual
+   structure — e.g., in the built-in template, an architecture decision
+   updates §4.1, a data model constraint updates §4.2, a security
+   requirement updates §4.5. A project override may number or name
+   sections differently. Otherwise (no such entry — the gap was
+   identified directly from the comment thread per item 1 above),
+   determine the target section from the resolved section guidance and
+   the nature of the gap; there is no **Impact** field to consult.
 4. Present the proposed resolution to the user: show which open question
    is being resolved, the synthesized answer, where it will be placed in
    the design document, and the proposed text. The user may approve,
@@ -164,9 +168,17 @@ discussion into a proposed resolution:
 5. After user approval, incorporate the answer into the target section,
    writing it in final form as if it was always the intent (do not
    narrate the resolution).
-6. If the template has a distinct open-questions section, remove the
-   resolved entry from it. If that section is now empty, remove the entire
-   section (heading and introductory text) from the design document.
+6. If the resolved template tracks unresolved items in a structured
+   location — a distinct open-questions section, or another location the
+   section guidance identifies (e.g., an inline marker, a combined
+   risks/open-items table) — remove or retire the resolved entry there
+   once its answer has been incorporated into the target section. If
+   removing the entry leaves a section empty, remove the section (heading
+   and introductory text) only if the resolved template doesn't require it
+   to remain present. Renumber subsequent sections to close the gap only
+   if the resolved template numbers sections positionally; otherwise leave
+   section numbers/headings as-is. Either way, fix any cross-references
+   that pointed at the removed content.
 
 #### Applying testplan changes
 

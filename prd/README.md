@@ -124,7 +124,7 @@ prd/
 
 ## Project-Level Template Override
 
-Projects can customize the PRD template by providing their own at a well-known location. `/draft`, `/revise`, and `/respond` all check for overrides in this order (see `_shared/recipes/template-override-resolution.md`):
+Projects can customize the PRD template by providing their own at a well-known location. `/draft`, `/revise`, and `/respond` all check for overrides in this order (see `../_shared/recipes/template-override-resolution.md`):
 
 1. Path specified in the project's `CLAUDE.md` or `AGENTS.md` (e.g., `PRD template: docs/templates/prd-template.md`)
 2. `.prd/templates/prd.md` at the project root

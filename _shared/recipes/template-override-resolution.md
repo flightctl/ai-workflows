@@ -26,11 +26,23 @@ default. Use the first match found for the template:
 
 1. **Project `CLAUDE.md` / `AGENTS.md`** — if the project's AI config
    specifies a `{WORKFLOW}` template path (e.g. a line like "PRD template:
-   `docs/templates/prd-template.md`"), use it.
+   `docs/templates/prd-template.md`"), use it. If both `CLAUDE.md` and
+   `AGENTS.md` specify a path and they disagree, do not silently pick one —
+   warn the user about the conflict and ask which path to use.
 2. **`.{WORKFLOW}/templates/{TEMPLATE_FILE}`** — conventional project-level
    override at the repo root.
 3. **`../templates/{TEMPLATE_FILE}`** — workflow's built-in default (sibling
-   file in `templates/`, relative to the calling skill file).
+   file in `templates/`, relative to the calling skill file). This is
+   anchored to the `{WORKFLOW}` workflow's own installed package: correct
+   whenever the calling skill file is the phase's normal, installed copy at
+   `{WORKFLOW}/skills/`. A project-level phase override (see
+   `phase-override-resolution.md`) is a documented exception to this
+   relative-path convention (`CONTRIBUTING.md`'s "Path Conventions" section)
+   — it intentionally lives outside the workflow directory tree at the
+   consuming project's repo root, so `../templates/{TEMPLATE_FILE}` would not
+   resolve there. A project providing a phase override must hardcode the
+   correct package-relative path to the built-in template instead of relying
+   on this recipe's default.
 
 For section guidance, use the first match found from steps 2–3 only — no
 project currently declares a section-guidance path in `CLAUDE.md`/`AGENTS.md`,
@@ -40,8 +52,9 @@ so step 1 does not apply:
    project-level override at the repo root, alongside the template override.
 2. **`../templates/{SECTION_GUIDANCE_FILE}`** — workflow's built-in default.
 
-If a project-level override exists but is empty or appears malformed, warn
-the user and fall back to the built-in default for that file.
+If a candidate override is missing, unreadable, empty, or appears malformed,
+warn the user and continue to the next candidate in the fallback order. Use
+the built-in default only when no valid candidate remains.
 
 If using a project override for either file, announce it: *"Using project
 override for {template|section guidance}."*

@@ -204,7 +204,7 @@ design/
 
 ## Project-Level Template Override
 
-Projects can customize the design document template by providing their own at a well-known location. `/draft`, `/revise`, and `/respond` all check for overrides in this order (see `_shared/recipes/template-override-resolution.md`):
+Projects can customize the design document template by providing their own at a well-known location. `/draft`, `/revise`, and `/respond` all check for overrides in this order (see `../_shared/recipes/template-override-resolution.md`):
 
 1. Path specified in the project's `CLAUDE.md` or `AGENTS.md`
 2. `.design/templates/design.md` at the project root
