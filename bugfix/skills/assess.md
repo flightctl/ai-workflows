@@ -99,7 +99,12 @@ be determined.
 Before investing in source-code exploration, pause and present your
 understanding to the user:
 
-- Your 2–3 sentence interpretation of the bug
+- **Evidence:** what the bug report explicitly states — error messages,
+  stack traces, reproduction steps, affected component
+- **Assumptions:** what you inferred that isn't directly stated — which
+  code area is likely involved, what the failure mode probably is
+- **Unknowns:** what's missing or ambiguous — unclear repro steps,
+  unspecified environment, vague symptoms
 - The error signature table from Step 3
 - The area of code you plan to investigate based on the bug report, and why
 

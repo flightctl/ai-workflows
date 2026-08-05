@@ -34,6 +34,10 @@ user:
 - The fix approach you plan to take, based on the root cause analysis
 - Which files you expect to modify and why
 - The expected scope of changes (single function, multiple files, etc.)
+- **Assumptions:** any inferences about the fix that aren't directly
+  established by the diagnosis (e.g., that no other callers are affected,
+  that backward compatibility is preserved)
+- **Risks:** anything that could go wrong with this approach
 
 Then ask the user to confirm or redirect.
 

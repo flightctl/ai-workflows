@@ -53,7 +53,10 @@ Perform thorough root cause analysis that provides clear, evidence-based conclus
 Before testing hypotheses, pause and present the hypotheses from Step 4
 to the user:
 
-- The ranked hypotheses with brief supporting evidence for each
+- The ranked hypotheses, each labeled with:
+  - **Evidence:** what code analysis or history directly supports it
+  - **Assumptions:** what you inferred beyond the evidence
+  - **Unknowns:** what would need to be confirmed to validate it
 - Which hypothesis you plan to test first and how
 
 Then ask the user to confirm or redirect.
