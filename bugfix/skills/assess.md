@@ -94,6 +94,28 @@ be determined.
 | Symptoms | One-line user-visible symptom (e.g., "Save returns 500") |
 | Environment | OS, browser, version, cluster — only if stated |
 
+### Checkpoint: Confirm Understanding
+
+Before investing in source-code exploration, pause and present your
+understanding to the user:
+
+- Your 2–3 sentence interpretation of the bug
+- The error signature table from Step 3
+- The area of code you plan to investigate based on the bug report, and why
+
+Then ask the user to confirm or redirect.
+
+**Handling the response:**
+
+- **User confirms** — proceed to Step 4.
+- **User redirects** ("no, look at X instead") — evaluate the redirect
+  against the evidence you have. If it aligns, incorporate it and proceed.
+  If it contradicts what the bug report shows, say so — explain what you
+  found and why your original direction may be more accurate. Reach
+  agreement before proceeding.
+- **User rejects without a redirect** — ask what to adjust. Do not
+  proceed past this checkpoint until the user confirms direction.
+
 ### Step 4: Source-Code Exploration
 
 Explore the local repository to build source-level context for the bug. This

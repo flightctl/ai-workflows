@@ -48,6 +48,27 @@ Perform thorough root cause analysis that provides clear, evidence-based conclus
 - Consider multiple failure modes: logic errors, race conditions, edge cases, missing validation
 - Document reasoning for each hypothesis
 
+### Checkpoint: Confirm Direction
+
+Before testing hypotheses, pause and present the hypotheses from Step 4
+to the user:
+
+- The ranked hypotheses with brief supporting evidence for each
+- Which hypothesis you plan to test first and how
+
+Then ask the user to confirm or redirect.
+
+**Handling the response:**
+
+- **User confirms** — proceed to Step 5.
+- **User redirects** ("it's actually X") — evaluate the redirect against
+  the evidence you've gathered. If it aligns, incorporate it and adjust
+  your hypothesis ranking. If it contradicts what the code shows, say
+  so — explain your evidence and why you think your original direction may
+  be more accurate. Reach agreement before proceeding.
+- **User rejects without a redirect** — ask what to adjust. Do not
+  proceed past this checkpoint until the user confirms direction.
+
 ### Step 5: Hypothesis Testing
 
 - Add targeted logging or debugging to test hypotheses
