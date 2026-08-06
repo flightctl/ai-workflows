@@ -43,6 +43,13 @@ iteration and worktree location, the latest draft
 (`02-draft-review-{NNN}.md`), and the matching decisions file
 (`decisions-{NNN}.json`).
 
+If `review-metadata.json` is missing, there's no review in progress for
+this context -- tell the user and suggest `/start` instead. If the draft or
+decisions file for the current iteration is missing or unreadable, or the
+worktree directory referenced in metadata no longer exists, stop and report
+exactly what's missing rather than guessing its contents or fabricating a
+draft to edit.
+
 If the user's requested changes for this round aren't already clear from
 the conversation, ask them to state their decisions on the current draft
 first (which comments to keep/drop/edit, any questions, any new findings to

@@ -117,6 +117,11 @@ Other options:
 When the user runs `/start` with a PR/MR URL and artifacts already exist for
 that PR's context, warn that a review is already in progress and ask
 whether to resume (`/revise` or `/publish`, depending on state) or restart.
+**Restart** means: confirmed cleanup of the existing worktree/ref/artifacts
+(the same removal `/clean` performs), followed immediately by a fresh
+`/start` on the same URL -- see `start.md` Step 1 for the exact procedure.
+It never silently reuses or overwrites existing state without that
+cleanup.
 
 When invoked without a specific command (e.g., just "review this PR:
 {url}"), treat it as `/start` with that URL -- including the existing-review

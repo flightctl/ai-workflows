@@ -41,29 +41,48 @@ it is.
 ### Step 1: Read Context
 
 Read `.artifacts/pr-review/{context}/review-metadata.json` for `provider`,
-`owner_or_namespace`, `repo_or_project`, `number`, `head_sha`,
-`merge_base_sha`, and the worktree location, plus the latest draft
-(`02-draft-review-{NNN}.md`, per the current `iteration`) for the kept
-comments to post. For GitLab, derive `{namespace}` and `{project}` from
-`owner_or_namespace`/`repo_or_project`.
+`host` (GitLab only), `owner_or_namespace`, `repo_or_project`, `number`,
+`head_sha`, `merge_base_sha`, and the worktree location. For GitLab, derive
+`{namespace}` and `{project}` from `owner_or_namespace`/`repo_or_project`,
+and `{project_path}` the same way `start.md` Step 1 does (every `/` in
+`{namespace}/{project}` replaced by `%2F`).
 
-If `review-metadata.json` is missing, or `state` isn't `awaiting_decision`
-or a later approved state, stop and tell the user there's no approved draft
-to publish yet -- run `/start` or `/revise` first.
+If `review-metadata.json` is missing, stop and tell the user there's no
+review in progress for this context -- run `/start` first. The only valid
+pre-publish `state` is `awaiting_decision`; any other value is explicit:
+- `published`: this round was already posted. Report that instead of
+  posting again (see the idempotency note in Step 5) -- don't silently
+  re-post.
+- Anything else (or the field missing): stop and tell the user there's no
+  approved draft to publish yet -- run `/start` or `/revise` first.
+
+**Determine what's actually approved -- the draft alone is not enough.**
+Read the decisions file matching the current `iteration`
+(`decisions-{NNN}.json`). `02-draft-review-{NNN}.md` documents every
+candidate for transparency, including ones assessed "Disagree" and never
+selected to post -- only comments whose matching entry in
+`decisions-{NNN}.json` has `"decision": "keep"` may be posted. If a draft
+comment has no matching decision entry, treat it as not approved: stop and
+ask the user to confirm keep/drop for it rather than guessing either way.
 
 ### Step 2: Re-Verify Line Anchors
 
 The PR/MR may have changed since the draft was written (a `/revise` round
-can span time). Refresh what's needed and re-check that every kept comment
-still anchors to a line inside the current diff:
+can span time). `--name-status` only proves a file is still touched, not
+that a specific line is still inside a hunk -- for each kept comment's
+`{path}`, pull the actual hunk ranges instead:
 
 ```bash
-git -C {worktree} diff {merge-base-sha} HEAD --name-status
+git -C {worktree} diff --unified=0 {merge-base-sha} HEAD -- {path}
 ```
 
-If a comment's file or line no longer exists in the diff, do not post it
-silently and do not silently drop it either -- tell the user which
-comment(s) are affected and ask whether to drop, relocate, or abort.
+Parse the `@@ -a,b +c,d @@` hunk headers and confirm the comment's line
+(and, for multi-line comments, its full `start_line`-`line` range) falls
+within one of the `+c,d` ranges on the new side. If a comment's file no
+longer appears in the diff at all, or its line falls outside every hunk,
+do not post it silently and do not silently drop it either -- tell the
+user which comment(s) are affected and ask whether to drop, relocate, or
+abort.
 
 ### Step 3: Build the Payload
 
@@ -95,15 +114,24 @@ gh api repos/{owner}/{repo}/pulls/{number}/reviews --method POST --input .artifa
 
 **GitLab** -- no batched review object exists. First fetch the diff refs
 needed to anchor each discussion (base/start/head SHAs from the MR's own
-diff, not just the worktree's). The project ID is the URL-encoded
-"namespace/project" path, which GitLab's REST API accepts directly in
-place of the numeric ID:
+diff, not just the worktree's). `{project_path}` is the fully URL-encoded
+`namespace/project` path from Step 1, which GitLab's REST API accepts
+directly in place of the numeric ID; every call must also target `{host}`
+explicitly for self-hosted instances:
 
 ```bash
-glab api "projects/{namespace}%2F{project}/merge_requests/{number}" | jq '.diff_refs'
+glab api --hostname {host} "projects/{project_path}/merge_requests/{number}" | jq '.diff_refs'
 ```
 
-Then, for each kept comment, POST one discussion,
+Before posting, check whether
+`.artifacts/pr-review/{context}/publish-metadata.json` already exists **for
+this `iteration`** (a prior `/publish` run was interrupted partway through
+this exact round). If so, skip any kept comment whose number already
+appears in its `posted_comments` -- only post the ones still missing. This
+is what keeps a retry from double-posting discussions that already
+succeeded.
+
+Then, for each remaining kept comment, POST one discussion,
 `.artifacts/pr-review/{context}/tmp-discussion-{n}.json`:
 
 ```json
@@ -121,13 +149,21 @@ Then, for each kept comment, POST one discussion,
 ```
 
 ```bash
-glab api "projects/{namespace}%2F{project}/merge_requests/{number}/discussions" --method POST --input .artifacts/pr-review/{context}/tmp-discussion-{n}.json
+glab api --hostname {host} "projects/{project_path}/merge_requests/{number}/discussions" --method POST --input .artifacts/pr-review/{context}/tmp-discussion-{n}.json
 ```
 
-Then post one separate top-level note carrying the fixed summary:
+After each successful POST, immediately write (don't wait for Step 5) the
+comment number and returned discussion ID into
+`.artifacts/pr-review/{context}/publish-metadata.json`'s `posted_comments`
+array, with `iteration` set to the current round. Persisting this on every
+success, not just at the end, is what makes a retry after a partial
+failure safe.
+
+Then post one separate top-level note carrying the fixed summary (only
+after every discussion above succeeded -- see Step 5's idempotency note):
 
 ```bash
-glab mr note {number} --repo {namespace}/{project} --message "See comments below"
+glab mr note {number} --repo "https://{host}/{namespace}/{project}" --message "See comments below"
 ```
 
 Only the rendered posted text goes in any `body` field -- no internal
@@ -146,23 +182,44 @@ content and do not skip it silently. Report:
 Then ask the user how to proceed (fix and retry, drop the failed ones and
 post the rest, or abort). Do not invent a resolution on their behalf.
 
-### Step 5: Write Publish Metadata
+### Step 5: Finalize Publish Metadata
 
-On success (all kept comments posted, or the user explicitly accepted a
-partial post), write `.artifacts/pr-review/{context}/publish-metadata.json`:
+For GitHub, the single batched review call from Step 3 either creates the
+whole review or fails creating nothing -- write
+`.artifacts/pr-review/{context}/publish-metadata.json` fresh on success:
 
 ```json
 {
+  "iteration": {N},
   "posted_at": "{ISO 8601 timestamp}",
   "head_sha_reviewed": "{head-sha}",
   "comments_posted": {N},
-  "review_id": "{GitHub review id, if provider = github}",
-  "discussion_ids": ["{GitLab discussion id, ...}", "..."],
-  "review_url": "{URL to view the posted review/discussions}"
+  "review_id": "{GitHub review id}",
+  "review_url": "{URL to view the posted review}"
 }
 ```
 
-Update `review-metadata.json`'s `state` to `published`.
+For GitLab, `publish-metadata.json` was already being written incrementally
+in Step 3 (`posted_comments`); once every kept comment has a discussion ID
+and the summary note posted successfully, finalize it:
+
+```json
+{
+  "iteration": {N},
+  "posted_at": "{ISO 8601 timestamp}",
+  "head_sha_reviewed": "{head-sha}",
+  "comments_posted": {N},
+  "posted_comments": [{"comment": 1, "discussion_id": "{id}"}],
+  "review_url": "{URL to view the posted discussions}"
+}
+```
+
+Only set `review-metadata.json`'s `state` to `published` once this file is
+complete for every kept comment (and, for GitLab, the summary note has
+posted) -- not on a partial post. If the user explicitly accepted a
+partial post (Step 4), leave `state` as `awaiting_decision` so a later
+`/publish` retry is still recognized as having unfinished work, and note in
+`publish-metadata.json` which comments were intentionally left unposted.
 
 Clean up any temp payload files created in Step 3.
 

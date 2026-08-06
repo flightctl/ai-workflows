@@ -1,6 +1,6 @@
 ---
 name: pr-review
-version: 0.1.0
+version: 0.2.0
 description: >-
   AI-driven review of a remote pull request or merge request, given its URL
   (GitHub or GitLab, auto-detected). Checks out the PR/MR into a git worktree,

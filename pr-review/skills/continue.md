@@ -37,9 +37,16 @@ same `/revise` -> `/publish` loop as `/start` did.
 ### Step 1: Read Prior State
 
 Read `.artifacts/pr-review/{context}/review-metadata.json` and
-`publish-metadata.json`. If `publish-metadata.json` doesn't exist, `/publish`
-was never run (or was interrupted) -- tell the user and suggest resolving
-that first (`/revise` then `/publish`) rather than running `/continue`.
+`publish-metadata.json`.
+
+- If `review-metadata.json` is missing, there's no review in progress for
+  this context -- tell the user and suggest `/start` instead.
+- If `publish-metadata.json` doesn't exist, `/publish` was never run (or
+  was interrupted) -- tell the user and suggest resolving that first
+  (`/revise` then `/publish`) rather than running `/continue`.
+- If either file exists but is malformed or missing a field this phase
+  needs (`head_sha_reviewed`, `provider`, worktree location), stop and
+  report exactly which field is missing rather than guessing a value.
 
 ### Step 2: Check for New Commits
 
@@ -51,7 +58,7 @@ Fetch current PR/MR metadata with the provider's command (same as
 gh pr view {number} --repo {owner}/{repo} --json headRefName,commits,state
 
 # gitlab
-glab mr view {number} --repo {namespace}/{project} -F json
+glab mr view {number} --repo "https://{host}/{namespace}/{project}" -F json
 ```
 
 Compare the current head SHA to `head_sha_reviewed` from
@@ -62,19 +69,25 @@ to review and stop here.
 
 If `.artifacts/pr-review/{context}/worktree` still exists (the normal case,
 since only `/clean` removes it), refresh it in place using exactly
-`start.md` Step 2's refresh form (fetch the head ref, fast-forward the
-local branch, then `reset --hard` the worktree to it).
+`start.md` Step 2's refresh form (fetch the head ref into
+`refs/pr-review/{context}`, then `reset --hard` the worktree to it -- safe
+to fetch into even though the worktree is checked out, since it's a plain
+ref, not a branch).
 
 If the worktree was somehow removed outside of `/clean` (e.g., manually
 deleted), fall through to `start.md` Step 2's full setup procedure instead
 (check for a reusable local repo or scratch-clone, then create the
 worktree fresh) before proceeding.
 
+If any of these Git operations fail (fetch error, reset failure, missing
+`{base-repo}`), stop and report the exact error rather than continuing
+with a possibly-stale worktree.
+
 Recompute the merge base and new head SHA:
 
 ```bash
-git -C {base-repo} merge-base origin/{base_ref_name} pr-review/{context}
-git -C {base-repo} rev-parse pr-review/{context}
+git -C {base-repo} merge-base "origin/{base_ref_name}" refs/pr-review/{context}
+git -C {base-repo} rev-parse refs/pr-review/{context}
 ```
 
 ### Step 4: Determine What's New
@@ -92,9 +105,16 @@ the provider's listing command (same as `start.md` Step 3):
 # github
 gh api repos/{owner}/{repo}/pulls/{number}/comments --paginate
 
-# gitlab (project ID is the URL-encoded "namespace/project" path)
-glab api "projects/{namespace}%2F{project}/merge_requests/{number}/discussions" --paginate
+# gitlab ({project_path} is the fully URL-encoded namespace/project path
+# from `start.md` Step 1)
+glab api --hostname {host} "projects/{project_path}/merge_requests/{number}/discussions" --paginate
 ```
+
+An empty result here is a normal, expected case (no one has commented) --
+treat it as "0 addressed, 0 still open, 0 with a reply," not an error. If
+the command itself fails (auth expired, host unreachable), stop and report
+the exact error rather than proceeding with a stale or assumed comment
+list.
 
 For each previously posted comment, note whether it looks **addressed**
 (the flagged code changed in a way that resolves the concern), **still

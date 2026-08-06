@@ -101,9 +101,11 @@ every kept finding here also carries:
 
 - A **permalink** to the exact line(s) at the PR/MR's head SHA
 - The **quoted snippet** at that location
-- A **suggested-change block** (a fenced ` ```suggestion ` block) when the
-  fix is a concrete, mechanical replacement — omitted for conceptual or
-  design-level findings
+- A **suggested-change block** when the fix is a concrete, mechanical
+  replacement — omitted for conceptual or design-level findings. The fence
+  syntax is provider-specific: a bare ` ```suggestion ` block on GitHub, or
+  ` ```suggestion:-{lines_above}+{lines_below} ` on GitLab (see
+  `templates/comment-style.md`).
 
 ### Pluggable Comment Style
 
