@@ -61,9 +61,10 @@ across all workflows for this source repo):
 }
 ```
 
-This config is created by `/publish` the first time it runs. On subsequent
-runs, `/publish` validates that the path exists and the remote matches. If
-validation fails, it re-asks the user.
+This config is created by whichever workflow's `/publish` or `/ingest`
+phase runs first. On subsequent runs, phases that need the config validate
+that the path exists and the remote matches. If validation fails, they
+re-ask the user.
 
 `/revise` and `/respond` also read this config when they need to update the
 published copy in the docs repo.
