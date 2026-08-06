@@ -34,7 +34,7 @@ with `WORKFLOW=design`, `TEMPLATE_FILE=design.md`. Per that recipe's
 "Using the Resolved Files" guidance, treat the section-number examples
 below (e.g., "§4.1") as illustrations of the built-in template only.
 
-Read `.artifacts/prd/config.json` to get the docs repo path and
+Read `.artifacts/config.json` to get the docs repo path and
 `.artifacts/design/{issue-key}/publish-metadata.json` to get the PR
 number, file path, and `{branch-name}` (from the `branch` field). If
 either file doesn't exist, tell the user that
@@ -130,10 +130,12 @@ since the last workflow phase, read and follow
 `ISSUE_KEY={issue-key}` before applying changes.
 
 **Check locked decisions:** Before applying any design document change —
-whether a direct edit or an open question resolution — read the "Locked
-Decisions" section of `.artifacts/prd/{issue-key}/02-clarifications.md`
-(if it exists). If a requested change contradicts a locked decision, flag
-the conflict rather than applying the change.
+whether a direct edit or an open question resolution — read the locked
+decisions from the clarifications file (use the path from
+`.artifacts/design/{issue-key}/01-context.md`'s PRD Summary section, if
+one was recorded). Locked decisions appear as `#### Decision (D{N})`
+sections within Q&A entries. If a requested change contradicts a locked
+decision, flag the conflict rather than applying the change.
 
 #### Resolving open questions
 

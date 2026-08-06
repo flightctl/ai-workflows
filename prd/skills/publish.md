@@ -31,7 +31,7 @@ If the file doesn't exist, tell the user that `/draft` should be run first.
 
 ### Step 2: Resolve Docs Repo
 
-Check for an existing docs repo configuration at `.artifacts/prd/config.json`.
+Check for an existing docs repo configuration at `.artifacts/config.json`.
 
 **If the config exists**, read it and validate:
 
@@ -51,11 +51,7 @@ correct values.
 
 Validate the path and remote, then save the config:
 
-```bash
-mkdir -p .artifacts/prd
-```
-
-Write `.artifacts/prd/config.json` with the validated `docs_repo_path` and
+Write `.artifacts/config.json` with the validated `docs_repo_path` and
 `docs_repo_remote`.
 
 ### Step 3: Pre-Flight Checks
@@ -154,6 +150,25 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 git -C "{docs_repo_path}" add "{release}/{feature}/prd.md"
 ```
 
+If `.artifacts/prd/{issue-key}/02-clarifications.md` exists, publish it
+alongside the PRD:
+
+```bash
+cp ".artifacts/prd/{issue-key}/02-clarifications.md" "{docs_repo_path}/{release}/{feature}/clarifications.md"
+```
+
+```bash
+git -C "{docs_repo_path}" add "{release}/{feature}/clarifications.md"
+```
+
+If clarifications were published, use:
+
+```bash
+git -C "{docs_repo_path}" commit -m "Add PRD and clarifications for {issue-key}: {title}"
+```
+
+Otherwise:
+
 ```bash
 git -C "{docs_repo_path}" commit -m "Add PRD for {issue-key}: {title}"
 ```
@@ -187,7 +202,7 @@ Prepare the PR description and save it to `.artifacts/prd/{issue-key}/04-pr-desc
 - Approve when the PRD accurately reflects the agreed requirements
 ```
 
-Determine `{owner}/{repo}` from the `docs_repo_remote` in `.artifacts/prd/config.json`
+Determine `{owner}/{repo}` from the `docs_repo_remote` in `.artifacts/config.json`
 (e.g., `git@github.com:org/planning-docs.git` → `org/planning-docs`), then
 create the draft PR. If `{issue-key}` is a Jira key, prefix the title
 with it (`{issue-key}: PRD - {title}`); otherwise use `PRD: {title}`.
@@ -221,9 +236,10 @@ Present:
 
 ## Output
 
-- `.artifacts/prd/config.json` (created on first run, reused on subsequent runs)
+- `.artifacts/config.json` (workspace-level config, created if it didn't exist)
 - `.artifacts/prd/{issue-key}/publish-metadata.json`
 - PRD committed and pushed to feature branch in the docs repo
+- Clarifications committed alongside PRD (if `02-clarifications.md` exists)
 - Draft PR created against the docs repo
 - `.artifacts/prd/{issue-key}/04-pr-description.md`
 

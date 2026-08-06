@@ -34,7 +34,7 @@ with `WORKFLOW=prd`, `TEMPLATE_FILE=prd.md`. Per that recipe's "Using the
 Resolved Files" guidance, treat the examples below (e.g., "NFR-3",
 "non-goal") as illustrations of the built-in template only.
 
-Read `.artifacts/prd/config.json` to get the docs repo path and
+Read `.artifacts/config.json` to get the docs repo path and
 `.artifacts/prd/{issue-key}/publish-metadata.json` to get the PR
 number, file path, and `{branch-name}` (from the `branch` field). If
 either file doesn't exist, tell the user that
@@ -122,9 +122,10 @@ last workflow phase, read and follow
 `ISSUE_KEY={issue-key}` before applying changes.
 
 **Check locked decisions:** Before applying any PRD change — whether a
-direct edit or an open question resolution — read the "Locked Decisions"
-section of `.artifacts/prd/{issue-key}/02-clarifications.md` (if it
-exists). If a requested change contradicts a locked decision, flag the
+direct edit or an open question resolution — read the locked decisions
+from `.artifacts/prd/{issue-key}/02-clarifications.md` (if it exists).
+Locked decisions appear as `#### Decision (D{N})` sections within Q&A
+entries. If a requested change contradicts a locked decision, flag the
 conflict to the user rather than applying the change — locked decisions
 are binding and cannot be overridden without explicit user approval.
 
@@ -195,7 +196,7 @@ runs don't re-ask, then proceed with the docs repo update. If they cannot
 provide it, skip the docs repo update.
 
 Copy the updated artifact to the docs repo and commit. All git operations use
-the docs repo path from `.artifacts/prd/config.json`.
+the docs repo path from `.artifacts/config.json`.
 
 Fetch the latest state from the remote and verify the working tree is clean:
 

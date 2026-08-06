@@ -51,8 +51,8 @@ source repo (this directory should be gitignored in the source repo):
 
 ### Docs repo configuration
 
-The docs repo location is stored in `.artifacts/prd/config.json` (shared
-across all PRDs for this source repo):
+The docs repo location is stored in `.artifacts/config.json` (shared
+across all workflows for this source repo):
 
 ```json
 {

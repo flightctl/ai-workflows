@@ -66,12 +66,12 @@ the source repo (this directory should be gitignored in the source repo):
 
 ### Docs repo configuration
 
-The docs repo location is stored in `.artifacts/prd/config.json` (shared
-across all workflows for this source repo). This config is created by the
-PRD workflow's `/publish` phase the first time it runs.
+The docs repo location is stored in `.artifacts/config.json` (workspace-level
+config shared across all workflows for this source repo). This config is
+created by whichever workflow's `/publish` or `/ingest` phase runs first.
 
-If the config doesn't exist when `/publish` is invoked, the design workflow
-creates it following the same format:
+If the config doesn't exist when a phase needs it, the workflow prompts for
+the docs repo location and creates it:
 
 ```json
 {

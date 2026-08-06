@@ -98,9 +98,9 @@ design workflows. Fetch them from there.
 
 #### 5a: Resolve the Docs Repo
 
-Check for an existing docs repo configuration at `.artifacts/prd/config.json`.
-This config is project-level and shared across workflows (prd, design,
-implement, e2e) — a prior workflow run may have already created it.
+Check for an existing docs repo configuration at `.artifacts/config.json`.
+This config is workspace-level and shared across all workflows — a prior
+workflow run may have already created it.
 
 **If the config exists**, read it and validate:
 1. Verify the path exists on the local filesystem
@@ -115,12 +115,8 @@ If validation fails, inform the user and re-ask for the correct values.
 
 Validate the path and remote, then save the config:
 
-```bash
-mkdir -p .artifacts/prd
-```
-
-Write `.artifacts/prd/config.json` with the validated `docs_repo_path` and
-`docs_repo_remote` (same format used by the prd and design workflows).
+Write `.artifacts/config.json` with the validated `docs_repo_path` and
+`docs_repo_remote` (workspace-level config shared across all workflows).
 
 #### 5b: Find the PRD and Design Document
 
