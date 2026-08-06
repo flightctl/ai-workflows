@@ -59,7 +59,7 @@ for the diff in Step 6a.
 The published PRD in the docs repo is the authoritative source. Locate it
 there — do not read from `.artifacts/prd/`.
 
-#### 3a: Resolve the Docs Repo
+#### Resolve the Docs Repo
 
 Read `.artifacts/config.json` for `docs_repo_path` and `docs_repo_remote`.
 
@@ -74,7 +74,7 @@ Update `.artifacts/config.json` with the corrected values.
 **If the config does not exist**, ask the user for the docs repo local path
 and remote, validate them, and write `.artifacts/config.json`.
 
-#### 3b: Find the PRD in the Docs Repo
+#### Find the PRD in the Docs Repo
 
 Search the docs repo for a directory whose name contains `{issue-key}`:
 
@@ -93,7 +93,7 @@ user and ask which one contains the current PRD.
 If no match is found (or no matches contain `prd.md`), ask the user for
 the path to the PRD.
 
-#### 3c: Read Clarifications
+#### Read Clarifications
 
 If `clarifications.md` exists in the same docs repo directory as the PRD,
 read it. Note any locked decisions — these are binding constraints for the
@@ -102,7 +102,7 @@ design.
 If no clarifications file exists, the PRD itself should reflect all locked
 decisions in its final form.
 
-#### 3d: Record the Resolved Paths
+#### Record the Resolved Paths
 
 Record the resolved PRD path (and clarifications path, if found) in
 `.artifacts/design/{issue-key}/01-context.md` (in the PRD Summary section)
