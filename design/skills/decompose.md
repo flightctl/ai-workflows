@@ -350,8 +350,11 @@ renumbering existing ones.
 After sizing all epics, verify plausibility:
 
 1. Read the Feature's Size from the Jira Feature issue (`{issue-key}`).
-   Check the Size field (or Story Points, if Size is not set). If neither
-   field is set on the Feature issue, skip this check.
+   Check the Size field (or Story Points, if Size is not set). If the
+   Jira lookup fails (authentication error, network failure, issue not
+   found), stop and report the error — do not skip silently. Skip this
+   check only if the issue was retrieved successfully and neither field
+   is set.
 
 2. Verify that the epic sizes are collectively plausible given the
    Feature's overall size.

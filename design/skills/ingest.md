@@ -61,9 +61,17 @@ there — do not read from `.artifacts/prd/`.
 
 #### 3a: Resolve the Docs Repo
 
-Read `.artifacts/config.json` for `docs_repo_path`. If the config does not
-exist, ask the user for the docs repo local path and remote, validate them,
-and write `.artifacts/config.json`.
+Read `.artifacts/config.json` for `docs_repo_path` and `docs_repo_remote`.
+
+**If the config exists**, validate it:
+1. Verify the path exists on the local filesystem
+2. Verify the directory is a git repository
+3. Verify the remote URL matches the configured `docs_repo_remote`
+
+If any validation fails, inform the user and re-ask for the correct values.
+
+**If the config does not exist**, ask the user for the docs repo local path
+and remote, validate them, and write `.artifacts/config.json`.
 
 #### 3b: Find the PRD in the Docs Repo
 
@@ -73,13 +81,16 @@ Search the docs repo for a directory whose name contains `{issue-key}`:
 find "{docs_repo_path}" -type d -name "*{issue-key}*"
 ```
 
-If exactly one matching directory is found (e.g.,
-`v2.1/delta-updates-EDM-4867`), read `prd.md` from that directory.
+Filter matches to directories that contain a `prd.md` file.
 
-If multiple matches are found, present them to the user and ask which one
-contains the current PRD.
+If exactly one matching directory contains `prd.md` (e.g.,
+`v2.1/delta-updates-EDM-4867/prd.md`), read it.
 
-If no match is found, ask the user for the path to the PRD.
+If multiple matching directories contain `prd.md`, present them to the
+user and ask which one contains the current PRD.
+
+If no match is found (or no matches contain `prd.md`), ask the user for
+the path to the PRD.
 
 #### 3c: Read Clarifications
 
