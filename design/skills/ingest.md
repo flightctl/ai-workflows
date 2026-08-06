@@ -91,11 +91,12 @@ If multiple matching directories contain `prd.md`, present them to the
 user and ask which one contains the current PRD.
 
 If no match is found (or no matches contain `prd.md`), ask the user for
-the path to the PRD.
+the path to the PRD. Verify that the file exists and is readable, then
+read it before continuing.
 
 #### Read Clarifications
 
-If `clarifications.md` exists in the same docs repo directory as the PRD,
+If `clarifications.md` exists in the directory containing the resolved PRD,
 read it. Note any locked decisions — these are binding constraints for the
 design.
 
