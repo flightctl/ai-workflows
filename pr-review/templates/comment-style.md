@@ -1,8 +1,8 @@
 # Comment Style (Default)
 
 Default tone and structure rules for every comment this workflow drafts and
-posts. `skills/start.md`, `skills/revise.md`, and `skills/publish.md` all
-resolve and apply this file (or a project override — see "Resolution"
+posts. `../skills/start.md`, `../skills/revise.md`, and `../skills/publish.md`
+all resolve and apply this file (or a project override — see "Resolution"
 below) when rendering the text that will actually be posted to the PR/MR.
 
 ## Resolution
@@ -40,8 +40,8 @@ it: *"Using project override for comment style."*
 
 - **No severity or category labels in posted content.** `CRITICAL`,
   `HIGH`, `Correctness`, `Security`, etc. are internal-only labels used
-  while presenting the draft for local approval (see `skills/start.md` Step
-  10) — they never appear in the text that gets posted to the PR/MR.
+  while presenting the draft for local approval (see `../skills/start.md`
+  Step 9) — they never appear in the text that gets posted to the PR/MR.
 - **No "Finding N" headers in posted content.** Each posted comment is
   anchored to its own line by the host's own UI; it doesn't need a numbered
   heading to stand apart from other comments.

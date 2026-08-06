@@ -79,7 +79,10 @@ specific to reviewing a remote PR/MR.
 ## Safety
 
 - Verify the matching host CLI is authenticated (`gh auth status` /
-  `glab auth status`) before doing anything else.
+  `glab auth status`) before any phase that calls a host API (`/start`,
+  `/publish`, `/continue`). `/clean` only reads local metadata and removes
+  local files -- it never calls a host API, so it must not be blocked by
+  missing or expired host credentials.
 - Read the target project's own `AGENTS.md`, `CLAUDE.md`, and contribution
   guidelines (from the worktree) before reviewing. The reviewed project's
   conventions override general preferences.

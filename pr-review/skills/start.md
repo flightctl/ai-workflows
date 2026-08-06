@@ -23,9 +23,15 @@ approval-to-post.
 
 ## Critical Rules
 
-- **Read-only against the reviewed repository.** This phase never edits
-  files in the worktree and never pushes anywhere. The only git operations
-  are `clone`, `fetch`, `worktree add`, `diff`, `merge-base`, and `log`.
+- **Read-only against the reviewed repository's real history.** This phase
+  never edits tracked files in the worktree and never pushes to the
+  reviewed repo's remote. Operations against this workflow's own disposable
+  local ref/worktree (`fetch`, `worktree add`/`remove`, `reset --hard` on
+  the `refs/pr-review/{context}` ref only) are fine -- they touch only a
+  scratch ref this workflow created, never the PR/MR's real commits
+  upstream. Also allowed: `clone` (for a scratch base-repo clone),
+  `rev-parse`, `remote -v` (read-only inspection), `diff`, `merge-base`,
+  and `log`.
 - **No posting.** This phase only drafts. Posting happens in `/publish`,
   and only after explicit local approval-to-post.
 - **Context before critique.** `01-pr-context.md` is always produced and
@@ -39,6 +45,11 @@ approval-to-post.
 - **Optional user focus.** If the user provided focus guidance alongside
   the URL (e.g., "focus on error handling"), apply it, but still surface
   CRITICAL/HIGH findings in other categories.
+- **Don't duplicate existing discussion.** Cross-reference candidate
+  findings against the comments/reviews gathered in Step 3. Drop a finding
+  that duplicates an existing, still-open comment -- unless that comment is
+  factually wrong or the concern clearly wasn't addressed by the current
+  diff, in which case keep the new finding and say so in its internal note.
 
 ## Process
 
@@ -53,9 +64,19 @@ input's shape, not from a hardcoded host list:
 - No `://` and it matches `{owner}/{repo}#{number}` (a single `/` before
   the `#`) -> **provider = github**, CLI = `gh`. Split on `#` for
   `{number}`, then on `/` for `{owner}`/`{repo}`.
-- Path contains `/pull/{n}` -> **provider = github**, CLI = `gh`.
+- Path contains `/pull/{n}` -> **provider = github**, CLI = `gh`. Extract
+  `{owner}`/`{repo}` from the path segments before `/pull/`.
 - Path contains `/-/merge_requests/{n}` -> **provider = gitlab**, CLI =
   `glab`. Works for `gitlab.com` and self-hosted GitLab instances alike.
+  Extract `{host}` (the URL's hostname) and `{namespace}`/`{project}` from
+  the path segments before `/-/merge_requests/` (`{namespace}` may contain
+  nested `/` subgroups -- everything between the host and the final project
+  segment is the namespace). `{host}` matters for self-hosted instances:
+  every `glab` call below must target it explicitly rather than assuming
+  `gitlab.com`. Also compute `{project_path}` = `{namespace}/{project}`
+  with **every** `/` replaced by `%2F` -- GitLab's REST API requires the
+  full path URL-encoded as a single segment; replacing only the
+  namespace/project separator breaks nested subgroups.
 
 If the input matches none of these shapes, stop and ask the user for a
 valid PR/MR URL.
@@ -63,20 +84,22 @@ valid PR/MR URL.
 Verify the matching CLI is authenticated:
 
 ```bash
-gh auth status      # if provider = github
-glab auth status    # if provider = gitlab
+gh auth status                    # if provider = github
+glab auth status --hostname {host}  # if provider = gitlab
 ```
 
 If authentication fails, stop and report it -- do not proceed.
 
-Fetch PR/MR metadata with the provider's command:
+Fetch PR/MR metadata with the provider's command. For GitLab, pass the full
+URL form to `--repo` so `glab` always targets `{host}` -- never assume
+`gitlab.com` for self-hosted instances:
 
 ```bash
 # github
 gh pr view {number} --repo {owner}/{repo} --json title,body,author,baseRefName,headRefName,headRepositoryOwner,url,commits,additions,deletions,changedFiles,state,comments,reviews
 
 # gitlab
-glab mr view {number} --repo {namespace}/{project} -F json
+glab mr view {number} --repo "https://{host}/{namespace}/{project}" -F json
 ```
 
 If the PR/MR cannot be fetched (private without access, deleted, wrong
@@ -95,7 +118,7 @@ review is already in progress for this PR/MR. Stop and tell the user:
 
 If the user confirms a restart, remove the existing worktree per
 `../guidelines.md` (`git worktree remove --force`, drop the
-`pr-review/{context}` branch or scratch clone as applicable -- same
+`refs/pr-review/{context}` ref or scratch clone as applicable -- same
 commands as `clean.md`) and delete the artifact directory before
 proceeding.
 
@@ -128,28 +151,33 @@ not.
    Use `.artifacts/pr-review/{context}/_scratch-repo` as `{base-repo}` and
    record `base_repo_is_scratch: true` in metadata (Step 10) -- this tells
    `/clean` to remove the scratch clone alongside the worktree.
-4. Fetch the PR/MR head and base ref, then create the worktree. The ref
-   path is the one provider-specific detail here (both are plain `git
-   fetch`, no `gh`/`glab` involved):
+4. Fetch the PR/MR head and base ref into `refs/pr-review/{context}` --
+   deliberately **not** under `refs/heads/`, since that would make it a
+   branch, and Git refuses to fetch into a branch that's checked out in a
+   worktree (a later refresh would then fail). A plain custom ref has no
+   such restriction and still gives a stable, inspectable name. The ref
+   path fetched is the one provider-specific detail here (both are plain
+   `git fetch`, no `gh`/`glab` involved); quote every interpolated ref:
    ```bash
    # github
-   git -C {base-repo} fetch origin "pull/{number}/head:refs/heads/pr-review/{context}"
+   git -C {base-repo} fetch origin "pull/{number}/head:refs/pr-review/{context}"
    # gitlab
-   git -C {base-repo} fetch origin "merge-requests/{number}/head:refs/heads/pr-review/{context}"
+   git -C {base-repo} fetch origin "merge-requests/{number}/head:refs/pr-review/{context}"
 
-   git -C {base-repo} fetch origin {baseRefName}
-   git -C {base-repo} worktree add .artifacts/pr-review/{context}/worktree "pr-review/{context}"
+   git -C {base-repo} fetch origin "{baseRefName}"
+   git -C {base-repo} worktree add --detach .artifacts/pr-review/{context}/worktree "refs/pr-review/{context}"
    ```
    **To refresh an existing worktree instead** (step 1's branch): re-run
-   the same `fetch origin "{ref}:refs/heads/pr-review/{context}"` command
-   (fast-forwards the local branch to the new head), then:
+   the same `fetch origin "{ref}:refs/pr-review/{context}"` command
+   (updates the local ref to the new head -- safe even though the worktree
+   is checked out, since this isn't a branch), then:
    ```bash
-   git -C .artifacts/pr-review/{context}/worktree reset --hard pr-review/{context}
+   git -C .artifacts/pr-review/{context}/worktree reset --hard refs/pr-review/{context}
    ```
 5. Compute the merge base and record `{head-sha}`:
    ```bash
-   git -C {base-repo} merge-base origin/{baseRefName} pr-review/{context}
-   git -C {base-repo} rev-parse pr-review/{context}
+   git -C {base-repo} merge-base "origin/{baseRefName}" refs/pr-review/{context}
+   git -C {base-repo} rev-parse refs/pr-review/{context}
    ```
    The PR/MR diff is `git -C {worktree} diff {merge-base-sha} HEAD`
    (equivalent to the host's shown diff).
@@ -200,9 +228,10 @@ List existing comments/discussions with the provider's command:
 gh api repos/{owner}/{repo}/pulls/{number}/comments --paginate
 gh api repos/{owner}/{repo}/pulls/{number}/reviews --paginate
 
-# gitlab (project ID is the URL-encoded "namespace/project" path --
-# GitLab's REST API accepts this directly in place of the numeric ID)
-glab api "projects/{namespace}%2F{project}/merge_requests/{number}/discussions" --paginate
+# gitlab ({project_path} is the fully URL-encoded namespace/project path
+# from Step 1 -- GitLab's REST API accepts it directly in place of the
+# numeric project ID)
+glab api --hostname {host} "projects/{project_path}/merge_requests/{number}/discussions" --paginate
 ```
 
 Present `01-pr-context.md` to the user before moving on -- this satisfies
@@ -251,6 +280,16 @@ Unlike `code-review`, there is no relevance-filtering step -- every changed
 file in the PR/MR diff is in scope by definition; this is someone else's
 already-scoped change, not a mixed local working tree.
 
+**Exception: skip generated, vendored, and binary files.** Exclude files
+matching common generated/vendored patterns (e.g. `*.gen.go`, `*.pb.go`,
+`*_pb2.py`, `vendor/`, `node_modules/`, `dist/`, `build/`, lock files like
+`package-lock.json`/`go.sum`/`Cargo.lock`) and any file the diff or `git
+-C {worktree} diff --stat` shows as binary. Confirm against the target
+project's own conventions (`.gitattributes`, `AGENTS.md`) where available --
+a project may generate files this default list doesn't recognize. Never
+draft findings against a skipped file; mention which files were skipped
+and why when presenting the draft in Step 9.
+
 ### Step 6: Obtain the Review
 
 Follow the same subagent pattern as `code-review`'s equivalent step:
@@ -264,6 +303,11 @@ reviewer profile, `01-pr-context.md`, the full diff
 calibrate, then review sequentially. Read full files in `{worktree}` around
 changed sections, not just the diff in isolation -- the diff shows what
 changed, the surrounding code reveals whether it fits.
+
+Either way, brief the reviewer with `01-pr-context.md`'s "Existing
+Discussion" section and instruct it not to re-raise a concern an existing
+comment or review already covers, unless that comment is wrong or the
+current diff clearly hasn't addressed it (per the Critical Rules above).
 
 Evaluate all categories defined in `../../_shared/review-protocol.md`. For
 each finding, capture (internally -- this is not the posted format yet):
@@ -320,7 +364,7 @@ posted, following the resolved style's tone and structure rules.
 
 Write `.artifacts/pr-review/{context}/02-draft-review-001.md`:
 
-```markdown
+````markdown
 # Draft PR Review -- Round 1
 
 ## PR Context
@@ -345,8 +389,9 @@ See comments below
   {optional fenced suggestion block}
 - **Internal note (not posted):** {SEVERITY} / {CATEGORY} -- {Agree|Disagree|Partially agree}: {rationale}
 
-### Comment 2 -- ...
-```
+### Comment N -- {file}:{line-range}
+{repeat the same structure for every remaining candidate}
+````
 
 ### Step 9: Present for Local Approval-to-Post
 
@@ -357,16 +402,19 @@ Show, in this order:
 2. A compact table of every candidate, including "Disagree" ones (full
    transparency, same as `code-review`):
 
-```markdown
-| # | File:Line | Severity | Category | Finding | Assessment | Recommendation |
-|---|-----------|----------|----------|---------|-------------|-----------------|
-| 1 | foo.py:42 | HIGH | Correctness | {short description} | Agree -- {rationale} | Keep |
-| 2 | bar.go:10 | LOW | Naming | {short description} | Disagree -- {rationale} | Drop |
-```
+   ```markdown
+   | # | File:Line | Severity | Category | Finding | Assessment | Recommendation |
+   |---|-----------|----------|----------|---------|-------------|-----------------|
+   | 1 | foo.py:42 | HIGH | Correctness | {short description} | Agree -- {rationale} | Keep |
+   | 2 | bar.go:10 | LOW | Naming | {short description} | Disagree -- {rationale} | Drop |
+   ```
 
 3. The full comment blocks from `02-draft-review-001.md` for every
    candidate recommended "Keep" (link, snippet, exact posted text,
    suggestion block).
+4. If Step 5 skipped any generated/vendored/binary files, a short note
+   listing which ones and why -- so the user knows they weren't silently
+   missed.
 
 Then prompt:
 
@@ -413,6 +461,7 @@ Write `.artifacts/pr-review/{context}/review-metadata.json`:
 ```json
 {
   "provider": "{provider}",
+  "host": "{host, if provider is gitlab; null if github}",
   "owner_or_namespace": "{owner-or-namespace}",
   "repo_or_project": "{repo-or-project}",
   "number": {number},
