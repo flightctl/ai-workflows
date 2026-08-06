@@ -86,12 +86,41 @@ abort.
 
 ### Step 3: Build the Payload
 
-Write the payload to a temp file first (same pattern as other workflows'
-`gh api`/`glab api` calls in this repo) to avoid shell-escaping issues, then
-delete the temp file after posting.
+Comment bodies are rendered Markdown and will routinely contain quotes,
+backslashes, or literal newlines (code snippets, suggestion blocks). Never
+build the JSON by string-interpolating that text between quotes -- a single
+`"`, `\`, or newline produces invalid JSON or a silently corrupted body.
+Build every payload with `jq`, which serializes each string correctly:
+write the exact comment text (as it will be posted) to its own plain-text
+temp file, then pass it in with `jq`'s `--rawfile` so `jq` handles escaping
+-- never `--arg` from a shell-interpolated variable holding the same text.
+Delete all temp files (bodies, per-comment JSON, assembled payload) after
+posting.
 
-**GitHub** -- one batched review object,
-`.artifacts/pr-review/{context}/tmp-review-payload.json`:
+**GitHub** -- one batched review object. Build each comment as its own
+JSON object from its body file, collect them into an array, then assemble
+the final payload:
+
+```bash
+# per kept comment, {n} = its position in the kept list
+jq -n --rawfile body .artifacts/pr-review/{context}/tmp-body-{n}.txt \
+     --arg path "{path}" --argjson line {end-line} \
+     '{path: $path, line: $line, side: "RIGHT", body: $body}' \
+     > .artifacts/pr-review/{context}/tmp-comment-{n}.json
+# multi-line comment: add --argjson start_line {start-line} and merge in
+# {start_line: $start_line, start_side: "RIGHT"}
+
+jq -s '.' .artifacts/pr-review/{context}/tmp-comment-*.json \
+     > .artifacts/pr-review/{context}/tmp-comments-array.json
+
+jq -n --arg commit_id "{head-sha}" \
+     --slurpfile comments .artifacts/pr-review/{context}/tmp-comments-array.json \
+     '{commit_id: $commit_id, event: "COMMENT", body: "See comments below", comments: $comments[0]}' \
+     > .artifacts/pr-review/{context}/tmp-review-payload.json
+```
+
+Illustrative shape of the assembled payload (the commands above produce
+this -- don't hand-write it):
 
 ```json
 {
@@ -103,8 +132,6 @@ delete the temp file after posting.
   ]
 }
 ```
-
-For a multi-line comment, add `"start_line": {start-line}, "start_side": "RIGHT"` alongside `"line"` (the end line).
 
 Post it:
 
@@ -131,8 +158,20 @@ appears in its `posted_comments` -- only post the ones still missing. This
 is what keeps a retry from double-posting discussions that already
 succeeded.
 
-Then, for each remaining kept comment, POST one discussion,
-`.artifacts/pr-review/{context}/tmp-discussion-{n}.json`:
+Then, for each remaining kept comment, build the discussion payload the
+same `--rawfile` way as the GitHub comments above, then POST it:
+
+```bash
+jq -n --rawfile body .artifacts/pr-review/{context}/tmp-body-{n}.txt \
+     --arg base_sha "{diff_refs.base_sha}" --arg start_sha "{diff_refs.start_sha}" \
+     --arg head_sha "{diff_refs.head_sha}" --arg new_path "{path}" --argjson new_line {line} \
+     '{body: $body, position: {position_type: "text", base_sha: $base_sha, start_sha: $start_sha, head_sha: $head_sha, new_path: $new_path, new_line: $new_line}}' \
+     > .artifacts/pr-review/{context}/tmp-discussion-{n}.json
+
+glab api --hostname {host} "projects/{project_path}/merge_requests/{number}/discussions" --method POST --input .artifacts/pr-review/{context}/tmp-discussion-{n}.json
+```
+
+Illustrative shape of the assembled payload (for reference only):
 
 ```json
 {
@@ -146,10 +185,6 @@ Then, for each remaining kept comment, POST one discussion,
     "new_line": {line}
   }
 }
-```
-
-```bash
-glab api --hostname {host} "projects/{project_path}/merge_requests/{number}/discussions" --method POST --input .artifacts/pr-review/{context}/tmp-discussion-{n}.json
 ```
 
 After each successful POST, immediately write (don't wait for Step 5) the
