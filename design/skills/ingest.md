@@ -69,6 +69,7 @@ Read `.artifacts/config.json` for `docs_repo_path` and `docs_repo_remote`.
 3. Verify the remote URL matches the configured `docs_repo_remote`
 
 If any validation fails, inform the user and re-ask for the correct values.
+Update `.artifacts/config.json` with the corrected values.
 
 **If the config does not exist**, ask the user for the docs repo local path
 and remote, validate them, and write `.artifacts/config.json`.
