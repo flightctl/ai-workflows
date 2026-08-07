@@ -115,10 +115,10 @@ Update `.artifacts/config.json` with the corrected values.
 - **Docs repo remote:** Run `git -C "{docs_repo_path}" remote get-url origin`
   and confirm with the user
 
-Validate the path and remote, then save the config:
-
-Write `.artifacts/config.json` with the validated `docs_repo_path` and
-`docs_repo_remote` (workspace-level config shared across all workflows).
+Validate the path and remote. Resolve `~` to the user's home directory
+so the stored path is absolute. Write `.artifacts/config.json` with the
+validated `docs_repo_path` and `docs_repo_remote` (workspace-level config
+shared across all workflows).
 
 #### 5b: Find the PRD and Design Document
 

@@ -72,7 +72,8 @@ If any validation fails, inform the user and re-ask for the correct values.
 Update `.artifacts/config.json` with the corrected values.
 
 **If the config does not exist**, ask the user for the docs repo local path
-and remote, validate them, and write `.artifacts/config.json`.
+and remote, validate them. Resolve `~` to the user's home directory so
+the stored path is absolute. Write `.artifacts/config.json`.
 
 #### Find the PRD in the Docs Repo
 

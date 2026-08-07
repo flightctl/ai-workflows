@@ -49,10 +49,9 @@ correct values. Update `.artifacts/config.json` with the corrected values.
 - **Docs repo remote:** Run `git -C "{docs_repo_path}" remote get-url origin`
   and confirm the result with the user before proceeding
 
-Validate the path and remote, then save the config:
-
-Write `.artifacts/config.json` with the validated `docs_repo_path` and
-`docs_repo_remote`.
+Validate the path and remote. Resolve `~` to the user's home directory
+so the stored path is absolute. Write `.artifacts/config.json` with the
+validated `docs_repo_path` and `docs_repo_remote`.
 
 ### Step 3: Pre-Flight Checks
 
