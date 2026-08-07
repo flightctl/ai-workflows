@@ -15,7 +15,7 @@ Ensure a project has accurate, up-to-date AGENTS.md files and a clean set of AI 
 - Never delete a file without first consolidating its unique content into AGENTS.md
 - Never fabricate file paths, commands, or conventions that don't exist in the codebase
 - Never add generic or aspirational advice — if it's not discoverable, don't document it
-- Never modify source code, tests, or non-AI configuration — this workflow only touches documentation and AI convention files (AGENTS.md, CLAUDE.md, .cursorrules, .github/copilot-instructions.md, etc.)
+- Never modify source code, tests, or non-AI configuration — this workflow only touches documentation and AI convention files (AGENTS.md, CLAUDE.md, .cursorrules, GitHub Copilot instructions, etc.)
 - **No personal names in generated content.** Replace references to individuals from commit history or other source material with role-based descriptions or drop the attribution and state the finding directly.
 
 ## Safety
@@ -30,6 +30,19 @@ Ensure a project has accurate, up-to-date AGENTS.md files and a clean set of AI 
 - Every command referenced must be runnable
 - No duplicate content across sections or across files
 - Content must reflect the current state of the codebase, not a past version
+
+## AGENTS.md Size Limits
+
+- Target root AGENTS.md under 150 lines
+- Treat 300 lines as the absolute maximum for any single AGENTS.md file
+- Highly optimized projects can stay under 60 lines by keeping only commands,
+  boundaries, project geography, and high-signal examples in root AGENTS.md
+- When root AGENTS.md would exceed 150 lines, preserve or create hierarchy:
+  nested AGENTS.md files for monorepos, `.claude/rules/**` for specialized
+  single-repo concerns, and tool-specific rule directories when they provide
+  scoped loading that AGENTS.md cannot express
+- Prefer references to existing docs over copying long explanations into
+  AGENTS.md
 
 ## Working With the Project
 
