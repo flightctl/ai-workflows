@@ -89,11 +89,13 @@ Search the docs repo for a published PRD directory containing
 find "{docs_repo_path}" -type d -name "*{issue-key}*"
 ```
 
-If exactly one matching directory is found (e.g.,
+Filter matches to directories that contain a `prd.md` file.
+
+If exactly one matching directory contains `prd.md` (e.g.,
 `v2.1/delta-updates-EDM-4867`), parse the path to extract `release` (first
 path component under the docs repo root) and `feature` (second component)
-and propose them as defaults below. If multiple matches are found, present
-them to the user and ask which one to use.
+and propose them as defaults below. If multiple matches contain `prd.md`,
+present them to the user and ask which one to use.
 
 Confirm with the user:
 - **Base branch:** Which branch should the PR target? (usually `main`)

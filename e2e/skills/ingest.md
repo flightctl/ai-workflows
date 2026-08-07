@@ -105,8 +105,9 @@ workflow run may have already created it.
 **If the config exists**, read it and validate:
 1. Verify the path exists on the local filesystem
 2. Verify the directory is a git repository
+3. Verify the remote URL matches the configured `docs_repo_remote`
 
-If validation fails, inform the user and re-ask for the correct values.
+If any validation fails, inform the user and re-ask for the correct values.
 Update `.artifacts/config.json` with the corrected values.
 
 **If the config does not exist**, ask the user:
