@@ -98,6 +98,7 @@ workflow run may have already created it.
 2. Verify the directory is a git repository
 
 If validation fails, inform the user and re-ask for the correct values.
+Update `.artifacts/config.json` with the corrected values.
 
 **If the config does not exist**, ask the user:
 - **Docs repo local path:** Where is the planning docs repo checked out?
