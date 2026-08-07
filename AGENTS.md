@@ -85,6 +85,7 @@ Critical for symlink resolution:
 4. **No auto-advance in attended mode**: Workflows wait for user input between phases unless an explicit unattended mode is documented for that workflow
 5. **Artifact persistence**: All significant outputs saved to `.artifacts/{workflow-name}/{context}/`
 6. **Read-only reviews**: skill-reviewer never modifies target skill files during review
+7. **Artifact isolation**: `.artifacts/{workflow-name}/` is each workflow's private state. Other workflows must never read from or write to another workflow's artifact directory. The shared interfaces between workflows are: Jira (canonical source for issue data), published docs repo files (PRDs, designs, testplans), and workspace-level config at `.artifacts/config.json`
 
 ## Workflow Versioning
 

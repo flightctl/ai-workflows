@@ -87,7 +87,7 @@ You can run `/prd:revise` as many times as needed. Each round updates the same a
 
 The workflow copies the PRD to a docs repository and creates a **draft** GitHub PR. It asks you to confirm the details first: base branch, release name, feature slug, and branch name.
 
-On first use, it asks for your docs repo location and saves the configuration to `.artifacts/prd/config.json`. Subsequent PRDs reuse this configuration without asking again.
+On first use, it asks for your docs repo location and saves the configuration to `.artifacts/config.json`. Subsequent runs (including other workflows like `/design`) reuse this configuration without asking again.
 
 The PR is always created as a draft. It includes a description with a link to the Jira issue, a summary of what the PRD covers, and guidance for reviewers on what to focus on.
 

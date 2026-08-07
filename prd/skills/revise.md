@@ -78,7 +78,7 @@ Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 `WORKFLOW=prd`, `ISSUE_KEY={issue-key}`, `PHASE=revise`,
 `AUTHORING_MODE=skill`.
 
-Read `.artifacts/prd/config.json` to get the docs repo path and
+Read `.artifacts/config.json` to get the docs repo path and
 `.artifacts/prd/{issue-key}/publish-metadata.json` to get `{prd-file-path}`
 and `{branch-name}` (from the `branch` field).
 If either file doesn't exist, skip the remaining steps — the PRD hasn't been

@@ -31,7 +31,7 @@ If the file doesn't exist, tell the user that `/draft` should be run first.
 
 ### Step 2: Resolve Docs Repo
 
-Check for an existing docs repo configuration at `.artifacts/prd/config.json`.
+Check for an existing docs repo configuration at `.artifacts/config.json`.
 
 **If the config exists**, read it and validate:
 
@@ -40,7 +40,8 @@ Check for an existing docs repo configuration at `.artifacts/prd/config.json`.
 3. Verify the remote URL matches the configured `docs_repo_remote`
 
 If any validation fails, inform the user what failed and re-ask for the
-correct values.
+correct values. Resolve `~` to an absolute path before saving. Update
+`.artifacts/config.json` with the corrected values.
 
 **If the config does not exist**, ask the user:
 
@@ -49,14 +50,9 @@ correct values.
 - **Docs repo remote:** Run `git -C "{docs_repo_path}" remote get-url origin`
   and confirm the result with the user before proceeding
 
-Validate the path and remote, then save the config:
-
-```bash
-mkdir -p .artifacts/prd
-```
-
-Write `.artifacts/prd/config.json` with the validated `docs_repo_path` and
-`docs_repo_remote`.
+Validate the path and remote. Resolve `~` to the user's home directory
+so the stored path is absolute. Write `.artifacts/config.json` with the
+validated `docs_repo_path` and `docs_repo_remote`.
 
 ### Step 3: Pre-Flight Checks
 
@@ -86,19 +82,30 @@ Provenance at publish time:
 - Only if the user explicitly declines provenance, pass `ALLOW_MISSING=yes` to strip
   the footer and record `provenance_kind: declined` (no human-readable block).
 
-Check for PRD publish metadata at
-`.artifacts/prd/{issue-key}/publish-metadata.json`. If it exists, read
-the `release` and `feature` values and propose them as defaults below.
+Search the docs repo for a published PRD directory containing
+`{issue-key}`:
+
+```bash
+find "{docs_repo_path}" -type d -name "*{issue-key}*"
+```
+
+Filter matches to directories that contain a `prd.md` file.
+
+If exactly one matching directory contains `prd.md` (e.g.,
+`v2.1/delta-updates-EDM-4867`), parse the path to extract `release` (first
+path component under the docs repo root) and `feature` (second component)
+and propose them as defaults below. If multiple matches contain `prd.md`,
+present them to the user and ask which one to use.
 
 Confirm with the user:
 - **Base branch:** Which branch should the PR target? (usually `main`)
 - **Release:** Which release is this for? (e.g., `v2.1`, `2026-Q2`).
-  If PRD publish metadata exists, propose its `release` value as the
-  default. Otherwise, if the Jira issue has a fix version, suggest that.
+  If a PRD directory was found, propose the extracted `release` value as
+  the default. Otherwise, if the Jira issue has a fix version, suggest that.
 - **Feature:** A short, lowercase, hyphenated slug for the feature
   directory, with the Jira issue key appended (e.g., `port-mappings-EDM-1471`).
-  If PRD publish metadata exists, propose its `feature` value as the
-  default. Otherwise, suggest a slug derived from the Jira issue summary
+  If a PRD directory was found, propose the extracted `feature` value as
+  the default. Otherwise, suggest a slug derived from the Jira issue summary
   with the issue key appended. Ask for **just the slug**, not a full path.
 - **Branch name:** Propose `design/{issue-key}` and let the user override.
   Use the confirmed value as `{branch-name}` in all subsequent steps.
@@ -302,7 +309,7 @@ Present:
 
 ## Output
 
-- `.artifacts/prd/config.json` (created if it didn't exist)
+- `.artifacts/config.json` (workspace-level config, created if it didn't exist)
 - `.artifacts/design/{issue-key}/publish-metadata.json`
 - Design document committed and pushed to feature branch in the docs repo
 - Draft PR created against the docs repo

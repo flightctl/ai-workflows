@@ -37,7 +37,8 @@ below (e.g., "Section 4.3") as illustrations of the built-in template only.
 Determine which artifacts exist and read them:
 - `.artifacts/design/{issue-key}/01-context.md` (requirements context with FR/NFR IDs)
 - `.artifacts/design/{issue-key}/02-research.md` (if exists — research findings)
-- `.artifacts/prd/{issue-key}/02-clarifications.md` (if exists — locked decisions)
+- Clarifications — use the path from `01-context.md`'s PRD Summary section
+  (if one was recorded) — for locked decisions
 - `.artifacts/design/{issue-key}/03-design.md` (design document)
 - `.artifacts/design/{issue-key}/04-epics.md` (epic metadata, if exists)
 - `.artifacts/design/{issue-key}/05-stories/` (epic and story files, if exist)
@@ -110,8 +111,8 @@ After applying changes, verify:
 - Do the architectural decisions still support all PRD requirements?
 - Does the data model still align with the API changes?
 - Are alternatives still relevant, or do they need updating?
-- Do any changes contradict a locked decision from `02-clarifications.md`?
-  If so, flag the conflict — locked decisions are binding.
+- Do any changes contradict a locked decision from the clarifications file
+  (loaded in Step 1)? If so, flag the conflict — locked decisions are binding.
 - If `02-research.md` exists, do any changes contradict research findings
   or integration constraints? If the revision switches to an approach the
   research evaluated unfavorably, flag the conflict and explain the tradeoff.
@@ -163,7 +164,7 @@ If `03-design.md` was updated, read and follow
 
 If the design document was published, also update the docs repo copy.
 Check for `.artifacts/design/{issue-key}/publish-metadata.json` and
-`.artifacts/prd/config.json`. If either file does not exist, skip the
+`.artifacts/config.json`. If either file does not exist, skip the
 docs repo update steps — the design has not been published yet.
 
 If both exist:

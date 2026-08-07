@@ -637,7 +637,7 @@ published copy's Story field with Jira keys so downstream workflows
 can filter by Jira key.
 
 **Skip this step entirely if any of these are true:**
-- `.artifacts/prd/config.json` does not exist
+- `.artifacts/config.json` does not exist
 - `.artifacts/design/{issue-key}/publish-metadata.json` does not exist
 - `publish-metadata.json` does not contain a `testplan_file_path` field
 - `.artifacts/design/{issue-key}/07-testplan.md` does not exist
@@ -658,7 +658,7 @@ can filter by Jira key.
 
 **Write the resolved testplan to the docs repo:**
 
-Read `.artifacts/prd/config.json` to get the docs repo path. Read
+Read `.artifacts/config.json` to get the docs repo path. Read
 `publish-metadata.json` to get the `testplan_file_path` and the
 `branch` field. If `branch` is missing or empty, stop and report the
 error — publish-metadata.json is incomplete.

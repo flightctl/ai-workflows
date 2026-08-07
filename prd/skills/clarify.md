@@ -99,14 +99,19 @@ deliverables exclude e2e tests." The feature still includes work that
 *uses* the dependency; it just doesn't *deliver* the dependency itself.
 
 When the user makes a definitive choice (e.g., "TCP only, no UDP" or
-"we'll use Postgres, not SQLite"), record it as a locked decision in
-the clarification log's "Locked Decisions" section. These are binding
-constraints — `/draft` must reflect them exactly. Not every answer is
-a locked decision; only record clear, scope-affecting choices.
+"we'll use Postgres, not SQLite"), record it as a locked decision by
+adding a `#### Decision (D{N})` section to that Q&A entry. These are
+binding constraints — `/draft` must reflect them exactly. Not every
+answer is a locked decision; only record clear, scope-affecting choices.
 
 ### Step 4: Update Clarification Log
 
-After each round, write or update `.artifacts/prd/{issue-key}/02-clarifications.md`:
+After each round, write or update `.artifacts/prd/{issue-key}/02-clarifications.md`.
+
+This file is published alongside the PRD in the docs repo (by `/publish`),
+so it must be readable by humans — not just parseable by AI. Each field
+(Answer, Impact, Decision) gets its own heading. Never collapse multiple
+fields into a single paragraph.
 
 ```markdown
 # Clarification Log — {issue-key}
@@ -119,32 +124,59 @@ After each round, write or update `.artifacts/prd/{issue-key}/02-clarifications.
 
 ## Round 1 — {topic area}
 
-### R1.Q1: {question}
-**Answer:** {user's response}
-**Impact:** {how this affects the PRD}
+### R1.Q1: {short title}
 
-### R1.Q2: {question}
-**Answer:** {user's response}
-**Impact:** {how this affects the PRD}
+{Full question with enough context to be self-contained.}
+
+#### Answer
+
+{User's response.}
+
+#### Impact
+
+{How this affects the PRD.}
+
+#### Decision (D1)
+
+{Decision text — only present when this Q&A produced a locked decision.
+Omit this section entirely for questions that did not result in a locked
+decision.}
+
+---
+
+### R1.Q2: {short title}
+
+{question}
+
+#### Answer
+
+{answer}
+
+#### Impact
+
+{impact}
+
+---
 
 ## Round 2 — {topic area}
 
-### R2.Q1: {question}
-**Answer:** {user's response}
-**Impact:** {how this affects the PRD}
+### R2.Q1: {short title}
 
-## Locked Decisions
+...
 
-Decisions the user made definitively during clarification. These are
-binding constraints for `/draft` — the PRD must reflect them exactly.
-
-- **D1:** {decision} `[Clarify: R{N}.Q{M}]`
-- **D2:** {decision} `[Clarify: R{N}.Q{M}]`
+---
 
 ## Remaining Gaps
 
 - {Any gaps that are still unresolved, if applicable}
 ```
+
+**Formatting rules:**
+- Answer, Impact, and Decision are each `####` headings, never bold-inline
+- Use `---` horizontal rules between Q&A entries for visual separation
+- Decision sections carry the D-number parenthetically: `#### Decision (D3)`
+- Omit the Decision section for questions that did not produce a locked decision
+- D-numbers are assigned sequentially across all rounds (D1, D2, ... D{N})
 
 ### Step 5: Check Exit Criteria
 

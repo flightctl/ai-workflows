@@ -34,8 +34,7 @@ Read these files:
 1. `.artifacts/design/{issue-key}/03-design.md` (design document)
 2. `.artifacts/design/{issue-key}/01-context.md` (architectural context)
 3. `.artifacts/design/{issue-key}/02-research.md` (if exists — research findings and integration constraints)
-4. The PRD — use the path recorded in `01-context.md`'s PRD Summary section,
-   falling back to `.artifacts/prd/{issue-key}/03-prd.md`
+4. The PRD — use the path recorded in `01-context.md`'s PRD Summary section
 
 If the design document doesn't exist, tell the user that `/draft` should be
 run first.
@@ -350,13 +349,12 @@ renumbering existing ones.
 
 After sizing all epics, verify plausibility:
 
-1. Read the Feature's Size from `.artifacts/prd/{issue-key}/01-requirements.md`
-   (the Size field captured during PRD ingest) or from
-   `.artifacts/sizing/{issue-key}/02-assessment.md` (if the sizing
-   workflow was run in single-Feature mode). If neither exists, skip this
-   check. Note: batch-mode sizing stores assessments under a version slug
-   (e.g., `.artifacts/sizing/1-3-0/`), not per-Feature — batch assessments
-   are not automatically found by this lookup.
+1. Read the Feature's Size from the Jira Feature issue (`{issue-key}`).
+   Check the Size field (or Story Points, if Size is not set). If the
+   Jira lookup fails (authentication error, network failure, issue not
+   found), stop and report the error — do not skip silently. Skip this
+   check only if the issue was retrieved successfully and neither field
+   is set.
 
 2. Verify that the epic sizes are collectively plausible given the
    Feature's overall size.
@@ -684,8 +682,7 @@ format, and severity definitions.
 subagent for independence. Load it with:
 
 - The decomposition review protocol (`../decomposition-review.md`)
-- The PRD (use the path from `01-context.md`'s PRD Summary, falling back to
-  `.artifacts/prd/{issue-key}/03-prd.md`)
+- The PRD (use the path from `01-context.md`'s PRD Summary section)
 - All decomposition artifacts: `04-epics.md`, all
   `05-stories/epic-{N}-{slug}.md` files, all
   `05-stories/epic-{N}/story-{NN}-{slug}.md` files, `06-coverage.md`,

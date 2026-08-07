@@ -38,9 +38,9 @@ with `WORKFLOW=design`, `TEMPLATE_FILE=design.md`.
 Read these files in order:
 1. `.artifacts/design/{issue-key}/01-context.md` (architectural context)
 2. `.artifacts/design/{issue-key}/02-research.md` (if exists — design research findings)
-3. The PRD — use the path recorded in `01-context.md`'s PRD Summary section.
-   If not recorded there, fall back to `.artifacts/prd/{issue-key}/03-prd.md`
-4. `.artifacts/prd/{issue-key}/02-clarifications.md` (if exists — for locked decisions)
+3. The PRD — use the path recorded in `01-context.md`'s PRD Summary section
+4. Clarifications — use the path recorded in `01-context.md`'s PRD Summary
+   section (if it lists a clarifications path). Read for locked decisions.
 5. The design document template (from Step 1)
 6. The section guidance (from Step 1)
 
@@ -141,15 +141,15 @@ Before self-review, systematically verify that nothing was lost between
 source material and design document:
 
 1. **Requirements coverage:** Re-read the PRD (use the path from
-   `01-context.md`'s PRD Summary, falling back to
-   `.artifacts/prd/{issue-key}/03-prd.md`). For each functional
+   `01-context.md`'s PRD Summary section). For each functional
    requirement (FR-1, FR-2, ...) and non-functional requirement (NFR-1,
    NFR-2, ...), confirm it is addressed in the design document. If a
    requirement has no corresponding design element, either add it or
    note the gap in the Open Questions section with a reason.
 
-2. **Clarification incorporation:** Re-read `02-clarifications.md` (if
-   it exists). For each answered question, confirm the answer is reflected
+2. **Clarification incorporation:** Re-read the clarifications file (use
+   the path from `01-context.md`'s PRD Summary section, if one was
+   recorded). For each answered question, confirm the answer is reflected
    in the design. Pay particular attention to answers that added
    constraints or changed scope — these may affect architectural decisions
    even if they weren't recorded as formal locked decisions.

@@ -45,7 +45,7 @@ graph TD
 
 ```text
 /ingest EDM-2324
-  → reads PRD from .artifacts/prd/EDM-2324/03-prd.md
+  → finds and reads PRD from the docs repo
   → explores affected codebase areas
   → writes .artifacts/design/EDM-2324/01-context.md
 
