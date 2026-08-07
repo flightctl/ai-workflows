@@ -99,7 +99,8 @@ workflow run may have already created it.
 3. Verify the remote URL matches the configured `docs_repo_remote`
 
 If any validation fails, inform the user and re-ask for the correct values.
-Update `.artifacts/config.json` with the corrected values.
+Resolve `~` to an absolute path before saving. Update
+`.artifacts/config.json` with the corrected values.
 
 **If the config does not exist**, ask the user:
 - **Docs repo local path:** Where is the planning docs repo checked out?
