@@ -81,7 +81,7 @@ detect_install_targets() {
   fi
 
   if [[ ${#targets[@]} -eq 0 ]]; then
-    targets+=(cursor)
+    return 0
   fi
   printf '%s\n' "${targets[@]}"
 }
@@ -122,12 +122,16 @@ fi
 mapfile -t INSTALL_TARGETS < <(detect_install_targets)
 
 if $FORCE_REINSTALL || $CHANGED_COMMANDS; then
-  local_target=""
-  for local_target in "${INSTALL_TARGETS[@]}"; do
-    echo "Refreshing user-level install (${local_target})..."
-    # Avoid re-prompting for the update timer on every refresh.
-    "${REPO_DIR}/install.sh" "$local_target" --no-update-timer
-  done
+  if [[ ${#INSTALL_TARGETS[@]} -eq 0 ]]; then
+    echo "No Cursor/Claude/Gemini install detected; skipping user-level refresh."
+    echo "  Pass --target cursor|claude|gemini|all to force."
+  else
+    for tgt in "${INSTALL_TARGETS[@]}"; do
+      echo "Refreshing user-level install (${tgt})..."
+      # Avoid re-prompting for the update timer on every refresh.
+      "${REPO_DIR}/install.sh" "$tgt" --no-update-timer
+    done
+  fi
 
   for p in "${PROJECTS[@]}"; do
     if [[ -d "$p" ]]; then

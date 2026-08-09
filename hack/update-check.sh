@@ -33,8 +33,16 @@ flock 9
 
 cd "$REPO_DIR"
 
+# Fetch the same ref we compare against (default origin/main).
+FETCH_REMOTE="${REMOTE_REF%%/*}"
+FETCH_BRANCH="${REMOTE_REF#*/}"
+if [[ "$FETCH_REMOTE" == "$REMOTE_REF" ]]; then
+  FETCH_REMOTE="origin"
+  FETCH_BRANCH="$REMOTE_REF"
+fi
+
 # Fetch quietly; network failures should not spam the user.
-if ! git fetch --quiet origin main 2>/dev/null; then
+if ! git fetch --quiet "$FETCH_REMOTE" "$FETCH_BRANCH" 2>/dev/null; then
   echo "ai-workflows: fetch failed (offline?); skipping check"
   exit 0
 fi
@@ -47,6 +55,10 @@ fi
 REMOTE_SHA="$(git rev-parse "$REMOTE_REF")"
 BEHIND="$(git rev-list --count "HEAD..${REMOTE_REF}" 2>/dev/null || echo 0)"
 BRANCH="$(git branch --show-current 2>/dev/null || echo detached)"
+UPDATE_CMD="aiw-update"
+if [[ "$BRANCH" != "main" ]]; then
+  UPDATE_CMD="aiw-update --checkout-main"
+fi
 
 if [[ "$BEHIND" -eq 0 ]]; then
   rm -f "$MARKER"
@@ -64,7 +76,7 @@ remote_sha=${REMOTE_SHA}
 branch=${BRANCH}
 checked_at=$(date -Iseconds)
 latest_subject=${SUBJECT}
-update_cmd=aiw-update
+update_cmd=${UPDATE_CMD}
 EOF
 
 echo "ai-workflows: ${BEHIND} commit(s) behind ${REMOTE_REF} (${SHORT_SHA})"
@@ -82,7 +94,7 @@ TITLE="New update for ai-workflows"
 BODY="${BEHIND} new ${COMMIT_WORD} on main
 
 Update with:
-  aiw-update"
+  ${UPDATE_CMD}"
 
 if command -v notify-send >/dev/null 2>&1; then
   # --expire-time in ms; keep it visible long enough to notice during testing.

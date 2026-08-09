@@ -331,16 +331,17 @@ maybe_offer_update_timer() {
   local answer="n"
   if [[ "$UPDATE_TIMER" == "yes" ]]; then
     answer="y"
-  elif [[ -t 0 || -r /dev/tty ]]; then
+  elif [[ -t 0 ]]; then
     echo
     echo "Optional: enable a daily desktop notification when ai-workflows is behind main?"
     echo "  (Linux/systemd; run 'aiw-update' when notified. Default: No)"
-    if [[ -t 0 ]]; then
-      read -r -p "Enable daily update notifier? [y/N] " answer || true
-    else
-      # stdin may be piped; still prompt on the real terminal when available.
-      read -r -p "Enable daily update notifier? [y/N] " answer </dev/tty || true
-    fi
+    read -r -p "Enable daily update notifier? [y/N] " answer || true
+  elif { : <>/dev/tty; } 2>/dev/null; then
+    # stdin may be piped; prompt on the controlling terminal when available.
+    echo
+    echo "Optional: enable a daily desktop notification when ai-workflows is behind main?"
+    echo "  (Linux/systemd; run 'aiw-update' when notified. Default: No)"
+    read -r -p "Enable daily update notifier? [y/N] " answer </dev/tty || true
   else
     # Non-interactive: skip unless --with-update-timer was passed.
     return 0
