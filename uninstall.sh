@@ -266,8 +266,7 @@ case "$TARGET" in
     if [[ "$SCOPE" == "user" && "$SELECTIVE" == false ]]; then
       if [[ -x "${REPO_DIR}/hack/install-update-timer.sh" ]]; then
         if ! "${REPO_DIR}/hack/install-update-timer.sh" --remove; then
-          echo "Error: failed to remove update notifier via ${REPO_DIR}/hack/install-update-timer.sh --remove" >&2
-          exit 1
+          echo "Warning: failed to remove update notifier; you may need to clean it up manually" >&2
         fi
       fi
       uninstall_link

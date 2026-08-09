@@ -401,8 +401,10 @@ case "$TARGET" in
 esac
 
 maybe_offer_update_timer
-if command -v aiw-update >/dev/null 2>&1 || [[ -x "${HOME}/.local/bin/aiw-update" ]]; then
+if command -v aiw-update >/dev/null 2>&1; then
   echo "Done. Run 'git pull' from $INSTALL_DIR to update (or: aiw-update)."
+elif [[ -x "${HOME}/.local/bin/aiw-update" ]]; then
+  echo "Done. Run 'git pull' from $INSTALL_DIR to update (or: ${HOME}/.local/bin/aiw-update)."
 else
   echo "Done. Run 'git pull' from $INSTALL_DIR to update."
 fi

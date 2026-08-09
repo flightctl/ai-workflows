@@ -27,6 +27,10 @@ fi
 
 mkdir -p "$STATE_DIR"
 
+# Serialize timer + --once paths so concurrent runs cannot double-notify.
+exec 9>"${STATE_DIR}/update-check.lock"
+flock 9
+
 cd "$REPO_DIR"
 
 # Fetch quietly; network failures should not spam the user.
