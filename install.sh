@@ -18,14 +18,11 @@
 #   ./install.sh all                                     # user-level Cursor + Claude + Gemini
 #   ./install.sh all --project [path]                    # project-level Cursor + Claude + Gemini
 #   ./install.sh --list                                  # list available workflows
-#   ./install.sh cursor --with-update-timer              # also enable daily update notifier
-#   ./install.sh cursor --no-update-timer                # skip the update-notifier prompt
 
 set -e
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="${HOME}/.ai-workflows"
-UPDATE_TIMER="ask" # ask | yes | no
 
 # --- discover all available workflows ---
 ALL_WORKFLOWS=()
@@ -70,12 +67,6 @@ while [[ $# -gt 0 ]]; do
         echo "Error: --workflows requires a comma-separated list of workflow names" >&2
         exit 1
       fi
-      ;;
-    --with-update-timer)
-      UPDATE_TIMER="yes"
-      ;;
-    --no-update-timer)
-      UPDATE_TIMER="no"
       ;;
   esac
   shift
@@ -294,71 +285,6 @@ install_gemini() {
   done
 }
 
-# Offer a daily systemd --user notifier (Linux desktop). Default: no.
-maybe_offer_update_timer() {
-  local installer="${REPO_DIR}/hack/install-update-timer.sh"
-
-  if [[ "$UPDATE_TIMER" == "no" ]]; then
-    return 0
-  fi
-  if [[ ! -x "$installer" ]]; then
-    [[ "$UPDATE_TIMER" == "yes" ]] && echo "Update notifier: installer script missing/not executable; skipping." >&2
-    return 0
-  fi
-  # Linux + desktop notification stack only.
-  if [[ "$(uname -s)" != "Linux" ]]; then
-    [[ "$UPDATE_TIMER" == "yes" ]] && echo "Update notifier requires Linux; --with-update-timer ignored." >&2
-    return 0
-  fi
-  if ! command -v systemctl >/dev/null 2>&1; then
-    [[ "$UPDATE_TIMER" == "yes" ]] && echo "Update notifier requires systemd; --with-update-timer ignored." >&2
-    return 0
-  fi
-  if ! systemctl --user status >/dev/null 2>&1; then
-    [[ "$UPDATE_TIMER" == "yes" ]] && echo "Update notifier requires an active systemd --user session; --with-update-timer ignored." >&2
-    return 0
-  fi
-  if ! command -v notify-send >/dev/null 2>&1; then
-    [[ "$UPDATE_TIMER" == "yes" ]] && echo "Update notifier requires notify-send; --with-update-timer ignored." >&2
-    return 0
-  fi
-  # Already enabled — don't re-prompt on every install.
-  if systemctl --user is-enabled ai-workflows-update-check.timer >/dev/null 2>&1; then
-    echo "Update notifier already enabled (ai-workflows-update-check.timer)."
-    return 0
-  fi
-
-  local answer="n"
-  if [[ "$UPDATE_TIMER" == "yes" ]]; then
-    answer="y"
-  elif [[ -t 0 ]]; then
-    echo
-    echo "Optional: enable a daily desktop notification when ai-workflows is behind main?"
-    echo "  (Linux/systemd; run 'aiw-update' when notified. Default: No)"
-    read -r -p "Enable daily update notifier? [y/N] " answer || true
-  elif { : <>/dev/tty; } 2>/dev/null; then
-    # stdin may be piped; prompt on the controlling terminal when available.
-    echo
-    echo "Optional: enable a daily desktop notification when ai-workflows is behind main?"
-    echo "  (Linux/systemd; run 'aiw-update' when notified. Default: No)"
-    read -r -p "Enable daily update notifier? [y/N] " answer </dev/tty || true
-  else
-    # Non-interactive: skip unless --with-update-timer was passed.
-    return 0
-  fi
-
-  case "${answer,,}" in
-    y|yes)
-      if ! "$installer"; then
-        echo "Warning: failed to enable update notifier; retry later with: ${installer}" >&2
-      fi
-      ;;
-    *)
-      echo "Skipped update notifier. Enable later with: ${installer}"
-      ;;
-  esac
-}
-
 # --- main ---
 
 echo "Installing ai-workflows ($TARGET, $SCOPE)..."
@@ -394,18 +320,9 @@ case "$TARGET" in
     echo "                         defaults to all available workflows" >&2
     echo "  --project [path]      project-level (.cursor/skills/, .claude/, .gemini/skills/)" >&2
     echo "                         path defaults to current directory" >&2
-    echo "  --with-update-timer   enable daily Linux update notifier (no prompt)" >&2
-    echo "  --no-update-timer     skip the update-notifier prompt" >&2
     echo "  --list                list available workflows and exit" >&2
     exit 1
     ;;
 esac
 
-maybe_offer_update_timer
-if command -v aiw-update >/dev/null 2>&1; then
-  echo "Done. Run 'git pull' from $INSTALL_DIR to update (or: aiw-update)."
-elif [[ -x "${HOME}/.local/bin/aiw-update" ]]; then
-  echo "Done. Run 'git pull' from $INSTALL_DIR to update (or: ${HOME}/.local/bin/aiw-update)."
-else
-  echo "Done. Run 'git pull' from $INSTALL_DIR to update."
-fi
+echo "Done. Run 'git pull' from $INSTALL_DIR to update."

@@ -9,8 +9,6 @@
 .tessl
 .artifacts
 
-.update-available
-
 __pycache__/
 *.py[cod]
 
