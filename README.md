@@ -171,6 +171,20 @@ Cursor scans both project-level (`.cursor/commands/`) and user-level (`~/.cursor
 
 ```bash
 cd ~/.ai-workflows && git pull
+# or, if you enabled the update notifier:
+aiw-update
+```
+
+### Optional: daily update notifier (Linux)
+
+On Linux desktops with systemd user sessions and `notify-send`, `install.sh` can prompt to enable a daily check. If `~/.ai-workflows` is behind `origin/main`, you get a desktop notification suggesting `aiw-update`.
+
+```bash
+./install.sh cursor                  # prompts [y/N] when supported
+./install.sh cursor --with-update-timer
+./install.sh cursor --no-update-timer
+./hack/install-update-timer.sh       # enable later
+./hack/install-update-timer.sh --remove
 ```
 
 ## Uninstalling
