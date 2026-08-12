@@ -30,6 +30,9 @@ Reusable AI coding workflows a team member can install globally or per-project, 
 - **Code Review** -- AI-driven code review for uncommitted changes: discover project conventions, review with an independent reviewer perspective, present findings with honest implementor assessments for human decision, iterate until approved. Supports unattended mode for fully automated review-fix-iterate cycles.
   See [code-review/README.md](code-review/README.md).
 
+- **PR Review** -- AI-driven review of a remote GitHub PR or GitLab MR by URL: check it out into a disposable git worktree, explain context before critiquing, draft inline comments with permalinks/snippets/suggestion blocks, and post only after local approval. Never changes the reviewed code.
+  See [pr-review/README.md](pr-review/README.md).
+
 - **CVE Fix** -- Automated CVE remediation: read vulnerability details from Jira, apply multi-strategy dependency fixes, validate, create pull requests, backport to release branches, and close Jira tickets. Language-agnostic.
   See [cve-fix/README.md](cve-fix/README.md).
 
@@ -112,6 +115,7 @@ Each workflow is intended for a specific project or use case:
 
 - **bugfix** -- the **Flight Control** projects ([flightctl](https://github.com/flightctl/flightctl), [flightctl-ui](https://github.com/flightctl/flightctl-ui))
 - **code-review** -- any project; reviews uncommitted changes against discovered project conventions
+- **pr-review** -- any project; reviews a remote GitHub PR or GitLab MR by URL
 - **docs-writer** -- the [edge-manager](https://gitlab.cee.redhat.com/red-hat-enterprise-openshift-documentation/edge-manager) downstream docs project
 - **prd** -- teams drafting Product Requirements Documents from Jira features
 - **design** -- teams creating technical design documents and Jira-ready epic/story breakdowns from PRDs
