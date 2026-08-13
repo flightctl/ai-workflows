@@ -122,6 +122,49 @@ ensure_repo_linked() {
   echo "  Linked $INSTALL_DIR -> $REPO_DIR"
 }
 
+UXD_REPO="https://github.com/rh-uxd/ai-helpers.git"
+UXD_DIR="${HOME}/.uxd-ai-skills"
+UXD_MARKETPLACE="rh-uxd/ai-helpers"
+
+# UXD AI Skills — plugins used by workflows.
+# uxd-workshop: research/*
+UXD_PLUGINS=(uxd-workshop)
+
+ensure_uxd_repo() {
+  if [[ -d "$UXD_DIR" ]]; then
+    echo "  UXD AI Skills repo already cloned at $UXD_DIR"
+    return
+  fi
+  echo "  Cloning UXD AI Skills repo..."
+  git clone --depth 1 "$UXD_REPO" "$UXD_DIR" 2>/dev/null || {
+    echo "  Warning: could not clone UXD AI Skills repo; skipping" >&2
+    return 1
+  }
+}
+
+install_uxd_skills() {
+  local skills_dir="$1"
+  ensure_uxd_repo || return
+
+  for plugin in "${UXD_PLUGINS[@]}"; do
+    local plugin_skills
+    if [[ "$plugin" == pf-* ]]; then
+      plugin_skills="${UXD_DIR}/plugins/patternfly/${plugin}/skills"
+    else
+      plugin_skills="${UXD_DIR}/plugins/${plugin}/skills"
+    fi
+    [[ -d "$plugin_skills" ]] || continue
+
+    for skill_dir in "${plugin_skills}"/*/; do
+      [[ -d "$skill_dir" ]] || continue
+      local skill_name
+      skill_name="$(basename "$skill_dir")"
+      ln -sfn "$skill_dir" "${skills_dir}/${skill_name}"
+      echo "  Linked ${skills_dir}/${skill_name} -> ${skill_dir}  (uxd)"
+    done
+  done
+}
+
 install_shared() {
   local target_dir="$1"
   if [[ ! -d "${INSTALL_DIR}/_shared" ]]; then
@@ -194,6 +237,7 @@ install_cursor() {
     echo "  Linked ${SKILLS_DIR}/${wf} -> ${INSTALL_DIR}/${wf}  ($SCOPE)"
   done
   generate_cursor_commands "$CMDS_DIR"
+  install_uxd_skills "$SKILLS_DIR"
 }
 
 install_claude() {
@@ -268,6 +312,22 @@ install_claude() {
       echo "  Removed stale commands symlink ${CMDS_DIR}/${wf}  ($SCOPE)"
     fi
   done
+
+  # Install UXD AI Skills — marketplace (preferred) with symlink fallback.
+  if command -v claude &>/dev/null; then
+    if ! claude plugins marketplace list 2>/dev/null | grep -q "uxd-ai-helpers"; then
+      echo "  Adding UXD AI Skills marketplace..."
+      claude plugins marketplace add "$UXD_MARKETPLACE" 2>/dev/null || true
+    fi
+    for plugin in "${UXD_PLUGINS[@]}"; do
+      if ! claude plugins list 2>/dev/null | grep -q "$plugin"; then
+        echo "  Installing ${plugin} plugin (UXD AI Skills)..."
+        claude plugins install "${plugin}@uxd-ai-helpers" 2>/dev/null || true
+      fi
+    done
+  else
+    install_uxd_skills "$SKILLS_DIR"
+  fi
 }
 
 install_gemini() {
@@ -283,6 +343,7 @@ install_gemini() {
     ln -sfn "${INSTALL_DIR}/${wf}" "${SKILLS_DIR}/${wf}"
     echo "  Linked ${SKILLS_DIR}/${wf} -> ${INSTALL_DIR}/${wf}  ($SCOPE)"
   done
+  install_uxd_skills "$SKILLS_DIR"
 }
 
 # --- main ---
