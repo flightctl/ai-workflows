@@ -11,13 +11,11 @@ is more valuable than a polished one that can't be changed.
 
 ## Prerequisites
 
-Read `.artifacts/research/{issue-key}/02-research.md` for research findings
-and design recommendations. If it doesn't exist, tell the researcher that
-`/investigate` should run first and stop.
+Read `.artifacts/ux-design/{issue-key}/01-discovery.md` for problem context,
+user groups, and competitive landscape. If it doesn't exist, tell the
+designer that `/ingest` should run first and stop.
 
-Also read `01-discovery.md` for problem context and competitive landscape.
-
-If this is a re-entry from `/evaluate`, read `04-evaluation.md` for the
+If this is a re-entry from `/evaluate`, read `03-evaluation.md` for the
 issues to address in this iteration.
 
 ## Process
@@ -30,7 +28,7 @@ Determine what input is available for prototyping:
 |-------------|--------------|
 | **Jira RFE** | Fetch the issue, extract requirements and acceptance criteria |
 | **Figma designs** | Run `/uxd-workshop:uxd-figma-read` to extract design context (pages, frames, tokens). If unavailable, ask the researcher to describe the relevant frames. |
-| **Feature description** | Use the research findings and design recommendations from `/investigate` |
+| **Feature description** | Use the discovery brief and any research the designer provides |
 | **Existing prototype** | Read the current prototype for refinement (iteration from `/evaluate`) |
 
 Ask the researcher to confirm the input source and scope before generating.
@@ -39,11 +37,11 @@ Ask the researcher to confirm the input source and scope before generating.
 
 From the input source, extract or derive user stories:
 
-- Map each research insight to one or more user stories
-- Include acceptance criteria derived from research findings
-- Prioritize stories by user need priority from `02-research.md`
+- Map each discovery insight to one or more user stories
+- Include acceptance criteria derived from discovery and any research provided
+- Prioritize stories by user need priority from `01-discovery.md`
 
-Save to `.artifacts/research/{issue-key}/03-prototype/user-stories.json`.
+Save to `.artifacts/ux-design/{issue-key}/02-prototype/user-stories.json`.
 
 ### Step 3: Design Direction (Interactive)
 
@@ -88,6 +86,10 @@ The prototype should cover:
 Don't try to cover everything — prototype the riskiest or most uncertain
 parts of the design first.
 
+Always write prototype files, metadata, and rationale to
+`.artifacts/ux-design/{issue-key}/02-prototype/` before or alongside any
+codebase integration. The `/evaluate` phase depends on this directory.
+
 ### Step 5: Document Design Rationale
 
 For each design decision in the prototype, trace it back to a research
@@ -100,10 +102,10 @@ finding:
 
 ## Output
 
-`.artifacts/research/{issue-key}/03-prototype/`
+`.artifacts/ux-design/{issue-key}/02-prototype/`
 
 ```
-03-prototype/
+02-prototype/
 ├── prototype-notes.md      # Design rationale and decisions
 ├── user-stories.json       # Extracted user stories with acceptance criteria
 ├── rfe-snapshot.md          # Requirements snapshot (if sourced from Jira)

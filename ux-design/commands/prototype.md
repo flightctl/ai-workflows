@@ -1,5 +1,5 @@
 ---
-name: research:prototype
+name: ux-design:prototype
 description: "Generate design prototypes informed by research findings"
 ---
 # /prototype

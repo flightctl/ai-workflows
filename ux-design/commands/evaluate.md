@@ -1,5 +1,5 @@
 ---
-name: research:evaluate
+name: ux-design:evaluate
 description: "Run heuristic evaluation and usability assessment against prototypes"
 ---
 # /evaluate

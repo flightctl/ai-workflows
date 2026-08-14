@@ -1,5 +1,5 @@
 ---
-name: research:handoff
+name: ux-design:handoff
 description: "Synthesize all research into an implementation-ready handoff spec"
 ---
 # /handoff

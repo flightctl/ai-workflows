@@ -1,5 +1,5 @@
 ---
-name: research:ingest
+name: ux-design:ingest
 description: "Frame the problem, identify user groups, and survey the competitive landscape"
 ---
 # /ingest

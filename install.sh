@@ -19,7 +19,9 @@
 #   ./install.sh all --project [path]                    # project-level Cursor + Claude + Gemini
 #   ./install.sh --list                                  # list available workflows
 
-set -e
+set -eo pipefail
+# Note: -u intentionally omitted — bash 3.2 (macOS default) treats
+# "${empty_array[@]}" as unbound, breaking the workflow discovery loop.
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="${HOME}/.ai-workflows"
@@ -127,8 +129,16 @@ UXD_DIR="${HOME}/.uxd-ai-skills"
 UXD_MARKETPLACE="rh-uxd/ai-helpers"
 
 # UXD AI Skills — plugins used by workflows.
-# uxd-workshop: research/*
+# uxd-workshop: ux-design/*
 UXD_PLUGINS=(uxd-workshop)
+
+workflow_selected() {
+  local name="$1"
+  for wf in "${WORKFLOWS[@]}"; do
+    [[ "$wf" == "$name" ]] && return 0
+  done
+  return 1
+}
 
 ensure_uxd_repo() {
   if [[ -d "$UXD_DIR" ]]; then
@@ -237,7 +247,9 @@ install_cursor() {
     echo "  Linked ${SKILLS_DIR}/${wf} -> ${INSTALL_DIR}/${wf}  ($SCOPE)"
   done
   generate_cursor_commands "$CMDS_DIR"
-  install_uxd_skills "$SKILLS_DIR"
+  if workflow_selected "ux-design"; then
+    install_uxd_skills "$SKILLS_DIR"
+  fi
 }
 
 install_claude() {
@@ -313,19 +325,7 @@ install_claude() {
     fi
   done
 
-  # Install UXD AI Skills — marketplace (preferred) with symlink fallback.
-  if command -v claude &>/dev/null; then
-    if ! claude plugins marketplace list 2>/dev/null | grep -q "uxd-ai-helpers"; then
-      echo "  Adding UXD AI Skills marketplace..."
-      claude plugins marketplace add "$UXD_MARKETPLACE" 2>/dev/null || true
-    fi
-    for plugin in "${UXD_PLUGINS[@]}"; do
-      if ! claude plugins list 2>/dev/null | grep -q "$plugin"; then
-        echo "  Installing ${plugin} plugin (UXD AI Skills)..."
-        claude plugins install "${plugin}@uxd-ai-helpers" 2>/dev/null || true
-      fi
-    done
-  else
+  if workflow_selected "ux-design"; then
     install_uxd_skills "$SKILLS_DIR"
   fi
 }
@@ -343,7 +343,9 @@ install_gemini() {
     ln -sfn "${INSTALL_DIR}/${wf}" "${SKILLS_DIR}/${wf}"
     echo "  Linked ${SKILLS_DIR}/${wf} -> ${INSTALL_DIR}/${wf}  ($SCOPE)"
   done
-  install_uxd_skills "$SKILLS_DIR"
+  if workflow_selected "ux-design"; then
+    install_uxd_skills "$SKILLS_DIR"
+  fi
 }
 
 # --- main ---

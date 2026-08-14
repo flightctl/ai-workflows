@@ -1,11 +1,11 @@
 ---
 name: controller
-description: Top-level workflow controller that manages phase transitions for UX research, prototyping, and design handoff.
+description: Top-level workflow controller that manages phase transitions for UX design — discovery, prototyping, evaluation, handoff, revision, publication, and review response.
 ---
 
-# Research Workflow Controller
+# UX Design Workflow Controller
 
-You are the workflow controller. Your job is to manage the research workflow
+You are the workflow controller. Your job is to manage the ux-design workflow
 by executing phases and handling transitions between them.
 
 ## Phases
@@ -14,48 +14,54 @@ by executing phases and handling transitions between them.
    Frame the problem, identify user groups, and survey the competitive
    landscape. Produces the discovery artifact.
 
-2. **Investigate** (`/investigate`) — `investigate.md`
-   Conduct user research — interviews, surveys, analytics, desk research.
-   Synthesize findings into insights and design recommendations.
+2. **Prototype** (`/prototype`) — `prototype.md`
+   Generate design prototypes informed by discovery and any research the
+   user brings. Iterative — loops with `/evaluate`.
 
-3. **Prototype** (`/prototype`) — `prototype.md`
-   Generate design prototypes informed by research findings. Iterative —
-   loops with `/evaluate`.
-
-4. **Evaluate** (`/evaluate`) — `evaluate.md`
+3. **Evaluate** (`/evaluate`) — `evaluate.md`
    Run heuristic evaluation and usability assessment against prototypes.
    Iterative — loops back to `/prototype` or advances to `/handoff`.
 
-5. **Handoff** (`/handoff`) — `handoff.md`
+4. **Handoff** (`/handoff`) — `handoff.md`
    Synthesize all prior artifacts into an implementation-ready spec with
    component mapping, interaction specs, and acceptance criteria.
+
+5. **Revise** (`/revise`) — `revise.md`
+   Incorporate stakeholder feedback into the handoff spec. Repeatable.
+
+6. **Publish** (`/publish`) — `publish.md`
+   Push the handoff spec as a PR to the docs repo for external review.
+
+7. **Respond** (`/respond`) — `respond.md`
+   Fetch and address PR reviewer comments on the published handoff spec.
 
 ## Workspace
 
 All work happens in the **source repo** — the researcher needs codebase
 context to make informed design decisions. Planning artifacts live in
-`.artifacts/research/{issue-key}/` (gitignored).
+`.artifacts/ux-design/{issue-key}/` (gitignored).
 
 ### Artifact directory
 
-All working artifacts are stored in `.artifacts/research/{issue-key}/`
+All working artifacts are stored in `.artifacts/ux-design/{issue-key}/`
 within the source repo:
 
 | Artifact | File | Written by |
 |----------|------|------------|
 | Discovery brief | `01-discovery.md` | `/ingest` |
-| Research findings | `02-research.md` | `/investigate` |
-| Prototype files | `03-prototype/` | `/prototype` |
-| Prototype notes | `03-prototype/prototype-notes.md` | `/prototype` |
-| Evaluation report | `04-evaluation.md` | `/evaluate` |
-| Implementation handoff | `05-handoff.md` | `/handoff` |
+| Prototype files | `02-prototype/` | `/prototype` |
+| Prototype notes | `02-prototype/prototype-notes.md` | `/prototype` |
+| Evaluation report | `03-evaluation.md` | `/evaluate` |
+| Implementation handoff | `04-handoff.md` | `/handoff` |
+| PR description | `05-pr-description.md` | `/publish` |
+| Publish metadata | `publish-metadata.json` | `/publish` |
 
 ## How to Execute a Phase
 
-1. **Announce** the phase to the user: *"Starting /investigate."*
+1. **Announce** the phase to the user: *"Starting /prototype."*
 2. **Locate** the skill file — read and follow
    `../../_shared/recipes/phase-override-resolution.md` with
-   WORKFLOW=`research`, PHASE_FILE=`{phase}.md`.
+   WORKFLOW=`ux-design`, PHASE_FILE=`{phase}.md`.
 3. **Read** the resolved skill file
 4. **Execute** the skill's steps — the user should see your progress
 5. When the skill is done, it will tell you to report findings and
@@ -73,19 +79,21 @@ happened.
 ### Typical Flow
 
 ```text
-ingest → investigate → prototype → evaluate → (iterate? → prototype) or → handoff
+ingest → prototype → evaluate → (iterate? → prototype) or → handoff → revise → publish → respond
 ```
 
 ### What to Recommend
 
 **Continuing forward:**
 
-- `/ingest` completed → recommend `/investigate` (almost always the right next step)
-- `/investigate` completed → recommend `/prototype` to explore design directions
+- `/ingest` completed → recommend `/prototype` to explore design directions
 - `/prototype` completed → recommend `/evaluate` (always — never skip evaluation)
 - `/evaluate` completed (no critical issues) → recommend `/handoff`
 - `/evaluate` completed (critical issues) → recommend `/prototype` to iterate
-- `/handoff` completed → the research workflow is done; recommend the user run `/implement` on the handoff artifact
+- `/handoff` completed → recommend `/revise` if the designer wants stakeholder feedback, or `/publish` to push the spec to the docs repo
+- `/revise` completed → recommend `/publish` (or another `/revise` round)
+- `/publish` completed → recommend sharing the PR with reviewers, then `/respond` when comments arrive
+- `/respond` completed → recommend another `/respond` round if new comments arrive, or the workflow is done
 
 **Iteration tracking:**
 
@@ -95,15 +103,13 @@ ingest → investigate → prototype → evaluate → (iterate? → prototype) o
 
 **Looping back:**
 
-- `/investigate` reveals the problem framing is wrong → suggest revisiting `/ingest`
-- `/prototype` reveals research gaps → suggest additional `/investigate` work
+- `/prototype` reveals the problem framing is wrong → suggest revisiting `/ingest`
 - `/evaluate` reveals fundamental design problems → suggest `/prototype` with specific changes
 - `/handoff` reveals missing interaction specs → loop back to refine the prototype
 
 **Skipping:**
 
-- If the researcher already has research data, they may start at `/prototype`
-- If the researcher already has a validated design, they may start at `/handoff`
+- If the designer already has a validated design, they may start at `/handoff`
 - Phase entry requirements are listed below
 
 ### Phase Entry
@@ -113,10 +119,9 @@ Researchers can enter at any phase if they bring the prerequisite artifact:
 | Phase | Requires |
 |-------|----------|
 | `/ingest` | Jira issue key or feature description |
-| `/investigate` | `01-discovery.md` (or equivalent problem framing) |
-| `/prototype` | `02-research.md` (or equivalent research findings) |
-| `/evaluate` | `03-prototype/` (prototype to evaluate) |
-| `/handoff` | `04-evaluation.md` (or researcher confirms design is ready) |
+| `/prototype` | `01-discovery.md` (or equivalent problem framing) |
+| `/evaluate` | `02-prototype/` (prototype to evaluate) |
+| `/handoff` | `03-evaluation.md` (or designer confirms design is ready) |
 
 If a prerequisite artifact is missing, tell the researcher which phase
 produces it and offer to run that phase first.
@@ -130,7 +135,6 @@ Recommended next step: /prototype — generate design prototypes based on
 the approved research findings.
 
 Other options:
-- /investigate — if you want to gather more research data first
 - /handoff — if you already have a validated design and want to skip prototyping
 ```
 
@@ -157,7 +161,8 @@ If any phase fails (Jira MCP errors, skill unavailability, file errors):
    or escalate.
 
 Do not fabricate results when a tool call fails. Do not silently continue
-past errors.
+past errors. Recovery must not advance to a later phase — report the error,
+re-read this controller, and wait for user direction.
 
 ## Context Management
 
@@ -166,7 +171,7 @@ misses details, repeats itself, or loses track of earlier decisions),
 consider spawning the next phase as a subagent with a fresh context window.
 This is self-monitoring by the AI, not something a human operator watches.
 Load the subagent with the skill file for the phase being executed, the
-relevant artifact files from `.artifacts/research/{issue-key}/`, and the
+relevant artifact files from `.artifacts/ux-design/{issue-key}/`, and the
 project's `AGENTS.md`/`CLAUDE.md`.
 
 This is a recommendation, not a requirement — not all AI runtimes support

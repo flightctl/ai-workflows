@@ -1,4 +1,4 @@
-# Research Workflow Guidelines
+# UX Design Workflow Guidelines
 
 ## Principles
 
@@ -14,7 +14,10 @@
   the researcher can react to is more valuable than a polished one they can't.
 - Heuristic evaluation supplements — never replaces — real user testing.
   AI-driven evaluation catches systematic issues; only humans catch context-
-  dependent usability problems.
+  dependent usability problems. Heuristic and simulated evaluation inform
+  design iteration but do not constitute usability validation. The handoff
+  spec must note evaluation method and flag when real user testing has not
+  been conducted.
 
 ## Hard Limits
 
@@ -38,7 +41,7 @@
 ## Quality
 
 - Artifacts should be structured for both human reading and machine
-  consumption. Use consistent markdown with frontmatter.
+  consumption. Use consistent markdown with headings.
 - Handoff artifacts must be detailed enough for a developer to implement
   without additional design consultation.
 - Heuristic evaluation findings must include severity ratings and specific

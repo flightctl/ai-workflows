@@ -6,19 +6,19 @@ description: Synthesize research, prototype, and evaluation into an implementati
 # Handoff — Implementation Spec
 
 Synthesize all prior artifacts into a spec that a developer can implement
-from. This is the contract between the research workflow and `/implement`.
+from. This is the contract between the ux-design workflow and `/implement`.
 
 ## Prerequisites
 
-Read all prior artifacts:
-- `.artifacts/research/{issue-key}/01-discovery.md` — problem context
-- `.artifacts/research/{issue-key}/02-research.md` — user needs and insights
-- `.artifacts/research/{issue-key}/03-prototype/prototype-notes.md` — design decisions
-- `.artifacts/research/{issue-key}/04-evaluation.md` — evaluation results
+Verify these artifacts exist before generating:
+- `.artifacts/ux-design/{issue-key}/01-discovery.md` — problem context
+- `.artifacts/ux-design/{issue-key}/02-prototype/` — design prototype
+- `.artifacts/ux-design/{issue-key}/03-evaluation.md` — evaluation results
 
-If `04-evaluation.md` doesn't exist, ask the researcher: "No evaluation
-artifact found. Want to run `/evaluate` first, or proceed with handoff
-based on the current prototype?"
+If any are missing, stop and ask whether to run the owning phase or proceed
+with an explicit partial-handoff caveat in the output.
+
+Read all available artifacts before proceeding.
 
 ## Process
 
@@ -71,7 +71,7 @@ not just *what*:
 
 ## Output
 
-`.artifacts/research/{issue-key}/05-handoff.md`
+`.artifacts/ux-design/{issue-key}/04-handoff.md`
 
 ```markdown
 # Implementation Handoff — {issue-key}
@@ -149,9 +149,8 @@ not just *what*:
 {Why these decisions were made — link to prior artifacts for full detail}
 
 - **Discovery:** `01-discovery.md`
-- **Research:** `02-research.md`
-- **Prototype:** `03-prototype/`
-- **Evaluation:** `04-evaluation.md`
+- **Prototype:** `02-prototype/`
+- **Evaluation:** `03-evaluation.md`
 
 ### Key Design Decisions
 

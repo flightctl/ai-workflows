@@ -24,6 +24,10 @@ Extract:
 If a Jira issue key was provided, fetch the issue details. If a PRD exists
 at `.artifacts/prd/{issue-key}/03-prd.md`, read it for additional context.
 
+If any external operation fails (Jira fetch, PRD lookup, competitive search)
+or returns zero results: note what failed, continue with available data, and
+never fabricate context to fill the gap.
+
 Explore the codebase to understand the current UI:
 - What pages/views exist in the affected area?
 - What components are used?
@@ -53,7 +57,7 @@ user research should answer:
 
 ## Output
 
-`.artifacts/research/{issue-key}/01-discovery.md`
+`.artifacts/ux-design/{issue-key}/01-discovery.md`
 
 ```markdown
 # Discovery — {issue-key}

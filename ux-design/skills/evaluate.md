@@ -11,12 +11,11 @@ systematic issues; only humans catch context-dependent problems.
 
 ## Prerequisites
 
-Read `.artifacts/research/{issue-key}/03-prototype/prototype-notes.md`
+Read `.artifacts/ux-design/{issue-key}/02-prototype/prototype-notes.md`
 for design decisions and open questions. If the prototype directory doesn't
 exist, tell the researcher that `/prototype` should run first and stop.
 
-Also read `02-research.md` for user needs that the prototype should address
-and `01-discovery.md` for user group context.
+Also read `01-discovery.md` for user group context and problem framing.
 
 ## Process
 
@@ -31,6 +30,9 @@ Ask the researcher what depth of evaluation is appropriate:
 | **Full** | Standard + desirability study (word association, emotional response mapping, desirability score 1-10) | Final evaluation before handoff |
 
 Default to **Standard** unless the researcher specifies otherwise.
+
+If a selected depth's tools are unavailable, note "Tool unavailable — depth
+downgraded to Standard" and confirm with the researcher before proceeding.
 
 ### Step 2: Heuristic Evaluation
 
@@ -123,7 +125,7 @@ The AI identifies violations; the researcher makes judgment calls.
 
 ## Output
 
-`.artifacts/research/{issue-key}/04-evaluation.md`
+`.artifacts/ux-design/{issue-key}/03-evaluation.md`
 
 ```markdown
 # Evaluation Report — {issue-key}
