@@ -39,6 +39,9 @@ Check for an existing docs repo configuration at `.artifacts/prd/config.json`.
 
 Validate the path and remote, then save the config.
 
+Derive `{owner}/{repo}` from the remote URL (e.g.,
+`git@github.com:org/repo.git` → `org/repo`).
+
 ### Step 3: Pre-Flight Checks
 
 Verify the environment:
@@ -69,7 +72,7 @@ All git operations run against the **docs repo**. Use
 `git -C "{docs_repo_path}"` for all commands.
 
 ```bash
-git -C "{docs_repo_path}" checkout -b {branch-name}
+git -C "{docs_repo_path}" checkout -b {branch-name} {base-branch}
 ```
 
 ```bash
@@ -79,6 +82,15 @@ mkdir -p "{docs_repo_path}/{release}/{feature}"
 ```bash
 cp ".artifacts/ux-design/{issue-key}/04-handoff.md" "{docs_repo_path}/{release}/{feature}/handoff.md"
 ```
+
+Run Vale against the copied file before staging:
+
+```bash
+vale "{docs_repo_path}/{release}/{feature}/handoff.md"
+```
+
+If Vale reports errors, fix them in the source artifact and re-copy.
+If Vale is not installed, note the skip and continue.
 
 ```bash
 git -C "{docs_repo_path}" add "{release}/{feature}/handoff.md"

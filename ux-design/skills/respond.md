@@ -85,6 +85,15 @@ git -C "{docs_repo_path}" pull --ff-only
 cp ".artifacts/ux-design/{issue-key}/04-handoff.md" "{docs_repo_path}/{handoff_file_path}"
 ```
 
+Run Vale against the updated file before staging:
+
+```bash
+vale "{docs_repo_path}/{handoff_file_path}"
+```
+
+If Vale reports errors, fix them in the source artifact and re-copy.
+If Vale is not installed, note the skip and continue.
+
 ```bash
 git -C "{docs_repo_path}" add "{handoff_file_path}"
 ```

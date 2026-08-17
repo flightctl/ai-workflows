@@ -90,7 +90,7 @@ ingest → prototype → evaluate → (iterate? → prototype) or → handoff �
 - `/prototype` completed → recommend `/evaluate` (always — never skip evaluation)
 - `/evaluate` completed (no critical issues) → recommend `/handoff`
 - `/evaluate` completed (critical issues) → recommend `/prototype` to iterate
-- `/handoff` completed → recommend `/revise` if the designer wants stakeholder feedback, or `/publish` to push the spec to the docs repo
+- `/handoff` completed → recommend `/revise` if the researcher wants stakeholder feedback, or `/publish` to push the spec to the docs repo
 - `/revise` completed → recommend `/publish` (or another `/revise` round)
 - `/publish` completed → recommend sharing the PR with reviewers, then `/respond` when comments arrive
 - `/respond` completed → recommend another `/respond` round if new comments arrive, or the workflow is done
@@ -109,7 +109,7 @@ ingest → prototype → evaluate → (iterate? → prototype) or → handoff �
 
 **Skipping:**
 
-- If the designer already has a validated design, they may start at `/handoff`
+- If the researcher already has a validated design, they may start at `/handoff`
 - Phase entry requirements are listed below
 
 ### Phase Entry
@@ -121,7 +121,7 @@ Researchers can enter at any phase if they bring the prerequisite artifact:
 | `/ingest` | Jira issue key or feature description |
 | `/prototype` | `01-discovery.md` (or equivalent problem framing) |
 | `/evaluate` | `02-prototype/` (prototype to evaluate) |
-| `/handoff` | `03-evaluation.md` (or designer confirms design is ready) |
+| `/handoff` | `03-evaluation.md` (or researcher confirms design is ready) |
 
 If a prerequisite artifact is missing, tell the researcher which phase
 produces it and offer to run that phase first.

@@ -13,7 +13,7 @@ is more valuable than a polished one that can't be changed.
 
 Read `.artifacts/ux-design/{issue-key}/01-discovery.md` for problem context,
 user groups, and competitive landscape. If it doesn't exist, tell the
-designer that `/ingest` should run first and stop.
+researcher that `/ingest` should run first and stop.
 
 If this is a re-entry from `/evaluate`, read `03-evaluation.md` for the
 issues to address in this iteration.
@@ -28,7 +28,7 @@ Determine what input is available for prototyping:
 |-------------|--------------|
 | **Jira RFE** | Fetch the issue, extract requirements and acceptance criteria |
 | **Figma designs** | Run `/uxd-workshop:uxd-figma-read` to extract design context (pages, frames, tokens). If unavailable, ask the researcher to describe the relevant frames. |
-| **Feature description** | Use the discovery brief and any research the designer provides |
+| **Feature description** | Use the discovery brief and any research the researcher provides |
 | **Existing prototype** | Read the current prototype for refinement (iteration from `/evaluate`) |
 
 Ask the researcher to confirm the input source and scope before generating.

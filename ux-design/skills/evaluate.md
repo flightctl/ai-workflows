@@ -12,10 +12,11 @@ systematic issues; only humans catch context-dependent problems.
 ## Prerequisites
 
 Read `.artifacts/ux-design/{issue-key}/02-prototype/prototype-notes.md`
-for design decisions and open questions. If the prototype directory doesn't
+for design decisions and open questions. If `prototype-notes.md` doesn't
 exist, tell the researcher that `/prototype` should run first and stop.
 
-Also read `01-discovery.md` for user group context and problem framing.
+Also read `.artifacts/ux-design/{issue-key}/01-discovery.md` for user group
+context and problem framing.
 
 ## Process
 

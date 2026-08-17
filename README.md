@@ -21,8 +21,8 @@ Reusable AI coding workflows a team member can install globally or per-project, 
 - **Design** -- Design-and-decompose workflow: ingest a PRD, draft a technical design document, decompose into Jira-ready epics and stories, revise based on feedback, publish as a GitHub PR, respond to reviewer comments, and sync epics/stories to Jira.
   See [design/README.md](design/README.md).
 
-- **Research** -- UX research workflow: ingest a feature request, investigate through user research, generate prototypes, run heuristic evaluation, and produce a validated design handoff. Uses skills from the [UXD AI Skills marketplace](https://github.com/rh-uxd/ai-helpers).
-  See [research/README.md](research/README.md).
+- **UX Design** -- UX design workflow: ingest a feature request, generate prototypes, run heuristic evaluation, and produce a validated design handoff for implementation. Uses skills from the [UXD AI Skills marketplace](https://github.com/rh-uxd/ai-helpers).
+  See [ux-design/README.md](ux-design/README.md).
 
 - **Implement** -- Story-to-code workflow: take a Jira Story, plan the implementation, write contract-based tests and production code via TDD, validate against the project's CI expectations, and manage review via GitHub PRs.
   See [implement/README.md](implement/README.md).

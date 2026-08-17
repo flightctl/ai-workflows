@@ -19,9 +19,7 @@
 #   ./install.sh all --project [path]                    # project-level Cursor + Claude + Gemini
 #   ./install.sh --list                                  # list available workflows
 
-set -eo pipefail
-# Note: -u intentionally omitted — bash 3.2 (macOS default) treats
-# "${empty_array[@]}" as unbound, breaking the workflow discovery loop.
+set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="${HOME}/.ai-workflows"
@@ -37,7 +35,7 @@ done
 for arg in "$@"; do
   if [[ "$arg" == "--list" ]]; then
     echo "Available workflows:"
-    for wf in "${ALL_WORKFLOWS[@]}"; do
+    for wf in ${ALL_WORKFLOWS[@]+"${ALL_WORKFLOWS[@]}"}; do
       echo "  $wf"
     done
     exit 0
@@ -97,7 +95,7 @@ if [[ ${#SELECTED_WORKFLOWS[@]} -gt 0 ]]; then
     WORKFLOWS+=("$sel")
   done
 else
-  WORKFLOWS=("${ALL_WORKFLOWS[@]}")
+  WORKFLOWS=(${ALL_WORKFLOWS[@]+"${ALL_WORKFLOWS[@]}"})
 fi
 
 if [[ ${#WORKFLOWS[@]} -eq 0 ]]; then
