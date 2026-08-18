@@ -175,9 +175,23 @@ cd ~/.ai-workflows && git pull
 aiw-update
 ```
 
+If your upstream remote is not named `origin` (for example `redhat/main`), set
+`AI_WORKFLOWS_REMOTE_REF` so `aiw-update` and the daily update check use the
+same ref:
+
+```bash
+export AI_WORKFLOWS_REMOTE_REF=redhat/main
+aiw-update
+```
+
+For the systemd timer, add a drop-in under
+`~/.config/systemd/user/ai-workflows-update-check.service.d/` with
+`Environment=AI_WORKFLOWS_REMOTE_REF=redhat/main`, then
+`systemctl --user daemon-reload`.
+
 ### Optional: daily update notifier (Linux)
 
-On Linux desktops with systemd user sessions and `notify-send`, `install.sh` can prompt to enable a daily check. If `~/.ai-workflows` is behind `origin/main`, you get a desktop notification suggesting `aiw-update`.
+On Linux desktops with systemd user sessions and `notify-send`, `install.sh` can prompt to enable a daily check. If `~/.ai-workflows` is behind the configured upstream ref (default `origin/main`), you get a desktop notification suggesting `aiw-update`.
 
 ```bash
 ./install.sh cursor                  # prompts [y/N] when supported
