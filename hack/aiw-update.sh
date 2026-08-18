@@ -109,11 +109,12 @@ if [[ "$FETCH_REMOTE" == "$REMOTE_REF" ]]; then
   FETCH_REMOTE="origin"
   FETCH_BRANCH="$REMOTE_REF"
 fi
+MERGE_REF="refs/remotes/${FETCH_REMOTE}/${FETCH_BRANCH}"
 
 git fetch "$FETCH_REMOTE" "$FETCH_BRANCH"
-if ! git merge --ff-only "$REMOTE_REF"; then
+if ! git merge --ff-only "$MERGE_REF"; then
   echo "ai-workflows: fast-forward pull from ${REMOTE_REF} failed." >&2
-  echo "  Resolve local commits on main, or: git reset --hard ${REMOTE_REF} (destructive)." >&2
+  echo "  Resolve local commits on main, or: git reset --hard ${MERGE_REF} (destructive)." >&2
   exit 1
 fi
 
