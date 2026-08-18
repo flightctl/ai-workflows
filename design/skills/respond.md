@@ -217,15 +217,20 @@ feedback), apply them in this order:
 
 2. **Cascade to story files (if decomposition exists).** Skip this step
    if no decomposition artifacts exist (`06-stories/` directory not
-   found). For each affected story (identified by IC overlap between
-   the changed test cases and the story's `Interface Changes` line in
-   its Design Reference), skip `[DOCS]` stories. For non-`[DOCS]`
-   stories:
+   found). For each affected story, skip `[DOCS]` stories. Identify
+   affected stories using two matching rules:
+   - **IC-based:** the changed test case's Interface Change overlaps
+     with the story's `Interface Changes` line in its Design Reference.
+   - **Requirement-based (fallback for cross-cutting TCs):** the
+     changed test case has `Interface Change: —` and its requirement
+     (from the parent heading) overlaps with the story's PRD
+     Requirements in its Design Reference.
+   For each affected non-`[DOCS]` story:
    - Re-read the story file at
      `.artifacts/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md`.
    - Rewrite the `Validated by` line in the Design Reference section:
-     collect all TC IDs from the updated testplan where the TC's
-     Interface Change overlaps with this story's `Interface Changes`,
+     collect all TC IDs from the updated testplan that match this story
+     (by IC overlap or requirement-based fallback for `—` TCs),
      then write `Validated by: {comma-separated TC IDs}`.
    - If a story loses all its test cases, write:
      `Validated by: None — no behavioral test cases after testplan revision`.

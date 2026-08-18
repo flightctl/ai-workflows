@@ -150,8 +150,9 @@ After applying changes, verify:
   section. Re-read each affected story file at
   `.artifacts/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md`
   before modifying it. Collect all TC IDs from the updated testplan
-  where the IC overlaps with the story's `Interface Changes`, then
-  write the updated `Validated by` line.
+  that match this story — by IC overlap with the story's `Interface
+  Changes`, or by requirement overlap for cross-cutting TCs with
+  `Interface Change: —` — then write the updated `Validated by` line.
 - If design Interface Changes were added, removed, or renamed: update
   affected stories' `Interface Changes` line in their Design Reference
   section.

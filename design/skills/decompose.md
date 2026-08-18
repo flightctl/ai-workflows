@@ -30,6 +30,9 @@ must leave the system in a stable state.
 
 ### Step 1: Read Source Material
 
+Read and follow `../artifact-migration.md` for artifact filename
+resolution when reading or writing design workflow artifacts.
+
 Read these files:
 1. `.artifacts/design/{issue-key}/03-design.md` (design document)
 2. `.artifacts/design/{issue-key}/01-context.md` (architectural context)
@@ -42,9 +45,6 @@ run first.
 
 If the testplan doesn't exist, tell the user that `/draft` should be
 run first.
-
-Read and follow `../artifact-migration.md` for artifact filename
-resolution when reading or writing design workflow artifacts.
 
 ### Step 2: Identify the Feature
 
@@ -394,8 +394,15 @@ may be implemented across multiple stories.
 
 For each non-`[DOCS]` story, determine which test cases from the
 testplan (read in Step 1) validate the behavior the story delivers.
-Match by IC overlap: if a test case exercises IC-3 and the story
-implements IC-3, the story is validated by that test case.
+
+**IC-based matching (primary):** If a test case exercises IC-3 and the
+story implements IC-3, the story is validated by that test case.
+
+**Requirement-based matching (fallback for cross-cutting TCs):** Test
+cases with `Interface Change: —` (cross-cutting NFRs) have no IC to
+match on. For these, match by requirement overlap: if the test case
+covers NFR-2 and the story's PRD Requirements include NFR-2, the story
+is validated by that test case.
 
 For stories that implement ICs with no corresponding test cases
 (identified in the testplan's IC coverage gaps), note this — the

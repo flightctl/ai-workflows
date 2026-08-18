@@ -115,6 +115,10 @@ impact:
    unimplemented work. Every TC that references an IC has at least one
    story whose `Interface Changes` include that IC — a test case that
    nothing implements is a gap in the decomposition, not the testplan.
+   For cross-cutting test cases with `Interface Change: —`, verify
+   that at least one story whose PRD Requirements include the test
+   case's requirement has it in its `Validated by` line — these TCs
+   use requirement-based matching instead of IC overlap.
    No story claims to implement an IC that doesn't appear in the
    testplan. No story references a TC that doesn't exist in the
    testplan. Infrastructure stories with `Interface Changes: None` and
