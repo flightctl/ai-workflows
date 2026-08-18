@@ -401,8 +401,10 @@ field in each test case's metadata table links to the design's §5.
 
 Before presenting the testplan, verify:
 
-- [ ] Every FR and NFR has at least one test case
-- [ ] Every IC from §5 is exercised by at least one test case
+- [ ] Every FR and NFR has a test case or a documented Requirement Coverage Gap with rationale
+- [ ] Every IC from §5 has a test case or a documented Interface Change Coverage Gap with rationale
+- [ ] Every non-`—` Interface Change value in a test case metadata table matches an IC defined in §5
+- [ ] Every IC named in an Interface Change Coverage Gap entry exists in §5
 - [ ] Expected Results contain no banned vague phrases
 - [ ] Priority assignment is consistent (critical for core workflows, not everything marked high)
 - [ ] All test case fields are complete (heading, metadata table, Preconditions, Steps, Expected Results)

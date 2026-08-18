@@ -240,13 +240,22 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 
 **If `04-testplan.md` does NOT exist but `publish-metadata.json`
 contains `testplan_file_path`** (testplan was removed during revision),
-remove the published testplan from the docs repo:
+remove the published testplan from the docs repo if it is still tracked:
+
+```bash
+git -C "{docs_repo_path}" ls-files --error-unmatch "{testplan_file_path}"
+```
+
+If the file is tracked, remove it:
 
 ```bash
 git -C "{docs_repo_path}" rm "{testplan_file_path}"
 ```
 
-Remove `testplan_file_path` from `publish-metadata.json`.
+If the file is not tracked (already deleted by another process), skip
+the `git rm` — no action needed in the docs repo.
+
+In either case, remove `testplan_file_path` from `publish-metadata.json`.
 
 **If `04-testplan.md` exists and `publish-metadata.json` contains
 `testplan_file_path`**, copy the testplan to the docs repo:
