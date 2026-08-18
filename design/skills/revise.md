@@ -142,21 +142,25 @@ After applying changes, verify:
 - If test cases were added, removed, or modified: recompute the
   testplan's Overview counts and Summary table. Rebuild the Gaps
   section from the current requirement-to-TC and IC-to-TC mappings.
+- Before modifying any test cases in the bullets above, record the IC
+  and requirement mappings of any TCs that will be removed or
+  reassigned — these pre-mutation mappings are needed for the story
+  cascade below.
 - If test cases were added, removed, or had their IC or requirement
-  mapping changed: before modifying test cases, record the IC and
-  requirement mappings of any TCs that will be removed or reassigned.
-  Then update affected stories' `Validated by` line in their Design
-  Reference section. Identify affected stories using the current
-  mappings for added/modified TCs and the pre-mutation mappings for
-  removed/reassigned TCs. Re-read each affected story file at
+  mapping changed: update affected non-`[DOCS]` stories' `Validated
+  by` line in their Design Reference section. Skip `[DOCS]` stories
+  (they lack `Interface Changes` and `Validated by` fields). Identify
+  affected stories using the current mappings for added/modified TCs
+  and the pre-mutation mappings for removed/reassigned TCs. Re-read
+  each affected story file at
   `.artifacts/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md`
   before modifying it. Collect all TC IDs from the updated testplan
   that match this story — by IC overlap with the story's `Interface
   Changes`, or by requirement overlap for cross-cutting TCs with
   `Interface Change: —` — then write the updated `Validated by` line.
 - If design Interface Changes were added, removed, or renamed: update
-  affected stories' `Interface Changes` line in their Design Reference
-  section.
+  affected non-`[DOCS]` stories' `Interface Changes` line in their
+  Design Reference section.
 
 ### Step 5: Update Artifacts
 
