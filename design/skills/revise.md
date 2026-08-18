@@ -34,16 +34,19 @@ with `WORKFLOW=design`, `TEMPLATE_FILE=design.md`. Per that recipe's
 "Using the Resolved Files" guidance, treat the section-number examples
 below (e.g., "Section 4.3") as illustrations of the built-in template only.
 
+Read and follow `../artifact-migration.md` for artifact filename
+resolution when reading or writing design workflow artifacts.
+
 Determine which artifacts exist and read them:
 - `.artifacts/design/{issue-key}/01-context.md` (requirements context with FR/NFR IDs)
 - `.artifacts/design/{issue-key}/02-research.md` (if exists — research findings)
 - Clarifications — use the path from `01-context.md`'s PRD Summary section
   (if one was recorded) — for locked decisions
 - `.artifacts/design/{issue-key}/03-design.md` (design document)
-- `.artifacts/design/{issue-key}/04-epics.md` (epic metadata, if exists)
-- `.artifacts/design/{issue-key}/05-stories/` (epic and story files, if exist)
-- `.artifacts/design/{issue-key}/06-coverage.md` (coverage matrix, if exists)
-- `.artifacts/design/{issue-key}/07-testplan.md` (testplan, if exists)
+- `.artifacts/design/{issue-key}/05-epics.md` (epic metadata, if exists)
+- `.artifacts/design/{issue-key}/06-stories/` (epic and story files, if exist)
+- `.artifacts/design/{issue-key}/07-coverage.md` (coverage matrix, if exists)
+- `.artifacts/design/{issue-key}/04-testplan.md` (testplan, if exists)
 - `.artifacts/design/{issue-key}/sync-manifest.json` (if exists — means
   epics/stories have been synced to Jira and filenames are locked)
 
@@ -90,7 +93,7 @@ If `sync-manifest.json` **exists** (post-sync), filenames are locked:
 - **Splitting stories:** Keep the original story file. Add new stories
   with the next available number (e.g., if story-03 is the last, add
   story-04 and story-05).
-- **Reordering:** Update `04-epics.md` implementation notes to reflect
+- **Reordering:** Update `05-epics.md` implementation notes to reflect
   the new order. Do not rename files — the numbering no longer implies order.
 
 Clarify with the user if the feedback is ambiguous before making changes.
@@ -129,30 +132,29 @@ After applying changes, verify:
   added, removed, or reassigned.
 - Do story dependencies still make sense?
 
-**If the testplan exists (`07-testplan.md`):**
-- If the design changed: do any test cases reference changed behavior?
-  Update preconditions, steps, or expected results if the design change
-  affects what the test validates. The Expected Results quality gate
-  applies — no banned vague phrases.
-- If stories were added or removed: add or remove test cases as
-  appropriate. Update `Test Case References` in affected non-`[DOCS]`
-  story files.
-- If acceptance criteria changed on a story: review the test cases
-  referencing that story — do they still validate the correct behavior?
-- Update the coverage matrix's Test Cases column if test case IDs
-  changed.
-- If test cases were added, removed, or modified (including metadata
-  changes like Priority or Automation): recompute the testplan's Overview
-  counts and Summary table from the current test cases.
-- If test cases were added, removed, renamed, or had their Story, AC,
-  or requirement mapping changed: rebuild the testplan's Gaps section
-  from the current requirement-to-test-case and AC-to-test-case
-  mappings. Remove stale gaps for requirements or ACs that now have
-  coverage, and add gaps for those that have lost coverage.
-- If requirement IDs changed (rare — requires PRD revision): update
-  all TC IDs anchored to the changed requirement, cascade the renamed
-  IDs to each story's `Test Case References` section and the coverage
-  matrix's Test Cases column, then revalidate the cross-file mappings.
+**If the testplan exists (`04-testplan.md`):**
+- If design Interface Changes (§5) changed: update any test cases whose
+  IC reference, preconditions, steps, or expected results are affected by
+  the IC change. If an IC was added, consider whether new test cases are
+  needed. If an IC was removed, remove or reassign test cases that
+  referenced it. The Expected Results quality gate applies — no banned
+  vague phrases.
+- If PRD requirements changed (rare — requires PRD revision): update
+  test cases anchored to changed requirements. Update TC IDs if
+  requirement IDs changed.
+- If test cases were added, removed, or modified: recompute the
+  testplan's Overview counts and Summary table. Rebuild the Gaps
+  section from the current requirement-to-TC and IC-to-TC mappings.
+- If test cases were added, removed, or had their IC mapping changed:
+  update affected stories' `Validated by` line in their Design Reference
+  section. Re-read each affected story file at
+  `.artifacts/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md`
+  before modifying it. Collect all TC IDs from the updated testplan
+  where the IC overlaps with the story's `Interface Changes`, then
+  write the updated `Validated by` line.
+- If design Interface Changes were added, removed, or renamed: update
+  affected stories' `Interface Changes` line in their Design Reference
+  section.
 
 ### Step 5: Update Artifacts
 
@@ -221,15 +223,15 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 **Testplan docs-repo sync:**
 
 **Skip all testplan sync steps below if any of these are true:**
-- `07-testplan.md` does not exist and `publish-metadata.json` does not
+- `04-testplan.md` does not exist and `publish-metadata.json` does not
   contain a `testplan_file_path` field (no testplan anywhere)
-- `07-testplan.md` exists but `publish-metadata.json` does NOT contain
+- `04-testplan.md` exists but `publish-metadata.json` does NOT contain
   `testplan_file_path` (testplan was created after initial publish) —
   note to the user: "Testplan exists locally but was not included in
   the original publish. Re-run `/publish` to include it in the docs
   repo."
 
-**If `07-testplan.md` does NOT exist but `publish-metadata.json`
+**If `04-testplan.md` does NOT exist but `publish-metadata.json`
 contains `testplan_file_path`** (testplan was removed during revision),
 remove the published testplan from the docs repo:
 
@@ -239,30 +241,16 @@ git -C "{docs_repo_path}" rm "{testplan_file_path}"
 
 Remove `testplan_file_path` from `publish-metadata.json`.
 
-**If `07-testplan.md` exists and `publish-metadata.json` contains
+**If `04-testplan.md` exists and `publish-metadata.json` contains
 `testplan_file_path`**, copy the testplan to the docs repo:
 
-**Sync-manifest guard:** If `.artifacts/design/{issue-key}/sync-manifest.json`
-exists, the published testplan's Story field must use Jira keys. Before
-copying, read the sync manifest and resolve the Story field in each test
-case's metadata table (`Story 1.01` → Jira key from manifest). Write the resolved
-version to the docs repo — do NOT modify the local `07-testplan.md`.
-
-If `sync-manifest.json` does not exist:
-
 ```bash
-cp ".artifacts/design/{issue-key}/07-testplan.md" "{docs_repo_path}/{testplan_file_path}"
+cp ".artifacts/design/{issue-key}/04-testplan.md" "{docs_repo_path}/{testplan_file_path}"
 ```
-
-If `sync-manifest.json` exists, write the resolved content (with Jira
-keys in Story fields) to `{docs_repo_path}/{testplan_file_path}`
-directly — do not `cp` the unresolved local file.
 
 ```bash
 git -C "{docs_repo_path}" add "{design_file_path}"
 ```
-
-If the testplan was copied:
 
 ```bash
 git -C "{docs_repo_path}" add "{testplan_file_path}"
@@ -292,13 +280,13 @@ Summarize what changed:
 - Coverage matrix: Updated to reflect new story mapping
 
 ### Testplan Changes
-- {TC-FR1-03 added — new acceptance criterion on Story 1.01}
+- {TC-FR1-03 added — new IC in design §5}
 - {TC-NFR2-01 updated — expected result changed to match revised design}
-- {TC-FR2-02 removed — requirement FR-2 no longer in scope}
+- {TC-FR2-02 removed — IC-4 removed from design}
 - {Omit this section if the testplan did not change or does not exist}
 
 ### Consistency Updates
-- Section 8: Added open question about performance impact of new approach
+- Section 9: Added open question about performance impact of new approach
 
 ### Decomposition Impact
 - Design changes affect Epic 1 stories — recommend re-running /decompose
@@ -317,18 +305,18 @@ The following artifacts were modified since the last sync. Re-run
 
 | Artifact | Jira Issue | What Changed |
 |----------|------------|--------------|
-| `05-stories/epic-1-image-building.md` | [EDM-6789]({browse-url}) | Acceptance criteria updated |
-| `05-stories/epic-1/story-02-add-validation.md` | [EDM-6842]({browse-url}) | Description revised |
+| `06-stories/epic-1-image-building.md` | [EDM-6789]({browse-url}) | Acceptance criteria updated |
+| `06-stories/epic-1/story-02-add-validation.md` | [EDM-6842]({browse-url}) | Description revised |
 ```
 
 ## Output
 
 - `.artifacts/design/{issue-key}/03-design.md` (updated, if design changed)
-- `.artifacts/design/{issue-key}/04-epics.md` (updated, if decomposition changed)
-- `.artifacts/design/{issue-key}/05-stories/epic-*.md` (updated, if epics changed)
-- `.artifacts/design/{issue-key}/05-stories/epic-*/story-*.md` (updated, if stories changed)
-- `.artifacts/design/{issue-key}/06-coverage.md` (updated, if coverage changed)
-- `.artifacts/design/{issue-key}/07-testplan.md` (updated, if testplan changed)
+- `.artifacts/design/{issue-key}/05-epics.md` (updated, if decomposition changed)
+- `.artifacts/design/{issue-key}/06-stories/epic-*.md` (updated, if epics changed)
+- `.artifacts/design/{issue-key}/06-stories/epic-*/story-*.md` (updated, if stories changed)
+- `.artifacts/design/{issue-key}/07-coverage.md` (updated, if coverage changed)
+- `.artifacts/design/{issue-key}/04-testplan.md` (updated, if testplan changed)
 
 ## When This Phase Is Done
 

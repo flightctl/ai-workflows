@@ -37,6 +37,9 @@ Extract the full Jira issue key, including the project prefix (e.g.,
 the workflow — it is the context identifier for the artifact directory
 and all downstream phases.
 
+Read and follow `../artifact-migration.md` for artifact filename
+resolution when reading or writing design workflow artifacts.
+
 ### Step 2: Create Artifact Directory
 
 ```bash
@@ -44,7 +47,7 @@ mkdir -p .artifacts/design/{issue-key}
 ```
 
 ```bash
-mkdir -p .artifacts/design/{issue-key}/05-stories
+mkdir -p .artifacts/design/{issue-key}/06-stories
 ```
 
 ### Step 2a: Check for Prior Ingest
@@ -247,8 +250,8 @@ note at a high level whether the exploration found material differences
 line-by-line comparison.
 
 Then check whether downstream artifacts exist (`02-research.md`,
-`03-design.md`, `04-epics.md`, `05-stories/`, `06-coverage.md`,
-`07-testplan.md`, `08-pr-description.md`, `09-review-responses.md`,
+`03-design.md`, `04-testplan.md`, `05-epics.md`, `06-stories/`,
+`07-coverage.md`, `08-pr-description.md`, `09-review-responses.md`,
 `sync-manifest.json`).
 If they do, tell the
 user:

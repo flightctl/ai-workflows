@@ -57,10 +57,13 @@ yet or failed to create), leave the local identifier, annotate it with
 
 ### Step 1: Read Decomposition Artifacts and Detect Changes
 
+Read and follow `../artifact-migration.md` for artifact filename
+resolution when reading or writing design workflow artifacts.
+
 Read these files:
-1. `.artifacts/design/{issue-key}/04-epics.md` (epic metadata and ordering)
-2. `.artifacts/design/{issue-key}/05-stories/epic-*.md` (individual epic files)
-3. `.artifacts/design/{issue-key}/05-stories/epic-*/story-*.md` (all story files)
+1. `.artifacts/design/{issue-key}/05-epics.md` (epic metadata and ordering)
+2. `.artifacts/design/{issue-key}/06-stories/epic-*.md` (individual epic files)
+3. `.artifacts/design/{issue-key}/06-stories/epic-*/story-*.md` (all story files)
 4. `.artifacts/design/{issue-key}/03-design.md` (for the Jira link and title)
 
 If these don't exist, tell the user that `/decompose` should be run first.
@@ -289,7 +292,7 @@ For each new epic, create a Jira issue:
 ```markdown
 ## Summary
 
-{summary from the epic file (05-stories/epic-{N}-{slug}.md)}
+{summary from the epic file (06-stories/epic-{N}-{slug}.md)}
 
 ## Acceptance Criteria
 
@@ -423,19 +426,14 @@ For each new story under each epic, create a Jira issue:
 {dependencies from story file, with local references resolved to Jira keys
  per the Reference Resolution section}
 
-## Test Case References
-
-{test case references from story file, preserving TC IDs as-is.
- TC IDs are requirement-anchored (TC-FR1-01) and do not need Jira key
- resolution. If the story has no Test Case References section, omit
- this section from the Jira description.}
-
 ## Design Reference
 
 Design document: {link to design doc PR or file}
 Epic: {epic jira key}
 PRD Requirements: {requirement IDs}
 Design section: {§reference}
+Interface Changes: {IC-1, IC-2 — from story file, preserved as-is}
+Validated by: {TC-FR1-01, TC-FR3-02 — from story file, preserved as-is}
 ```
 
 **For `[DOCS]` stories:**
@@ -630,97 +628,11 @@ Fields:
 - `synced_at` — top-level only, not per-entry. Updated to the current
   timestamp at the end of each sync run.
 
-### Step 7: Update Published Testplan
-
-If the testplan has been published to the docs repo, update the
-published copy's Story field with Jira keys so downstream workflows
-can filter by Jira key.
-
-**Skip this step entirely if any of these are true:**
-- `.artifacts/config.json` does not exist
-- `.artifacts/design/{issue-key}/publish-metadata.json` does not exist
-- `publish-metadata.json` does not contain a `testplan_file_path` field
-- `.artifacts/design/{issue-key}/07-testplan.md` does not exist
-
-**Resolve Story references:**
-
-1. Read `.artifacts/design/{issue-key}/07-testplan.md`.
-2. For each test case entry, resolve the Story field in the metadata
-   table: replace local references (e.g., `Story 1.01`) with their Jira
-   keys (e.g., `EDM-1234`). Use the reference resolution logic described
-   in the Reference Resolution section (look up `story-{NN}-*.md` under
-   `epic-{N}/` in the manifest to find the Jira key).
-3. If a Story reference cannot be resolved (not in the manifest),
-   preserve the local reference as-is and warn the user: "Story
-   reference '{local ref}' could not be resolved to a Jira key —
-   downstream workflows that filter by Jira key will not match this
-   test case." Include unresolved references in the Step 8 report.
-
-**Write the resolved testplan to the docs repo:**
-
-Read `.artifacts/config.json` to get the docs repo path. Read
-`publish-metadata.json` to get the `testplan_file_path` and the
-`branch` field. If `branch` is missing or empty, stop and report the
-error — publish-metadata.json is incomplete.
-
-Verify the docs repo state before writing:
-
-```bash
-git -C "{docs_repo_path}" fetch origin
-```
-
-```bash
-git -C "{docs_repo_path}" status
-```
-
-If there are uncommitted changes in the docs repo, ask the user before
-continuing.
-
-```bash
-git -C "{docs_repo_path}" branch --show-current
-```
-
-If not on the published branch, check it out:
-
-```bash
-git -C "{docs_repo_path}" checkout "{branch}"
-```
-
-```bash
-git -C "{docs_repo_path}" pull --ff-only
-```
-
-Compare the resolved content against the current content of
-`{docs_repo_path}/{testplan_file_path}`. If they are identical, skip
-the write, staging, commit, and push — the published testplan is
-already up to date. Continue to the reporting step.
-
-If the content differs, write the resolved testplan (with Jira keys in
-the Story field) to `{docs_repo_path}/{testplan_file_path}`. Do NOT
-modify the local `07-testplan.md` — it keeps local identifiers.
-
-```bash
-git -C "{docs_repo_path}" add "{testplan_file_path}"
-```
-
-```bash
-git -C "{docs_repo_path}" commit -m "Sync {issue-key}: resolve testplan story references to Jira keys"
-```
-
-```bash
-git -C "{docs_repo_path}" push
-```
-
-If any git operation fails, report the error to the user. The Jira sync
-is already complete — this step only affects the docs repo copy. Offer
-to retry or skip.
-
-### Step 8: Report to User
+### Step 7: Report to User
 
 Summarize:
 - How many epics and stories were created, updated, closed, and unchanged
 - Confirm the hierarchy was verified: every epic has parent = Feature (verified in Step 4), every story has parent = its epic (verified in Step 5)
-- Whether the published testplan was updated (and how many Story references were resolved vs. left unresolved), or skipped (no testplan published)
 - Link to the Feature issue in Jira (which now shows the full hierarchy)
 
 **Do not suggest manual parent linking as a next step.** If any parent
@@ -745,7 +657,6 @@ local `.artifacts/` files who needs to find the corresponding Jira issue:
 
 - Jira epics and stories created, updated, or closed (with user approval)
 - `.artifacts/design/{issue-key}/sync-manifest.json` (v2 schema)
-- Published testplan updated in docs repo with Jira keys (if testplan was published)
 
 ## When This Phase Is Done
 

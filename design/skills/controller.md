@@ -22,7 +22,7 @@ executing phases and handling transitions between them.
    Draft the design/architecture document using the template and section guidance.
 
 4. **Decompose** (`/decompose`) — `decompose.md`
-   Break the design into Jira-ready epics and stories with a testplan and coverage matrix.
+   Break the design into Jira-ready epics and stories with a coverage matrix.
 
 5. **Revise** (`/revise`) — `revise.md`
    Incorporate user feedback into the design document and/or task breakdown. Repeatable.
@@ -53,12 +53,12 @@ the source repo (this directory should be gitignored in the source repo):
 | Architectural context | `01-context.md` | `/ingest` |
 | Design research | `02-research.md` | `/research` |
 | Design document | `03-design.md` | `/draft`, `/revise`, `/respond` |
+| Testplan | `04-testplan.md` | `/draft`, `/revise`, `/respond` |
 | Provenance log | `provenance.json` | `/draft`, `/revise`, `/respond` |
-| Epic metadata | `04-epics.md` | `/decompose`, `/revise` |
-| Epic files | `05-stories/epic-{N}-{slug}.md` | `/decompose`, `/revise` |
-| Story files | `05-stories/epic-{N}/story-{NN}-{slug}.md` | `/decompose`, `/revise`, `/respond` |
-| Coverage matrix | `06-coverage.md` | `/decompose`, `/revise`, `/respond` |
-| Testplan | `07-testplan.md` | `/decompose`, `/revise`, `/respond` |
+| Epic metadata | `05-epics.md` | `/decompose`, `/revise` |
+| Epic files | `06-stories/epic-{N}-{slug}.md` | `/decompose`, `/revise` |
+| Story files | `06-stories/epic-{N}/story-{NN}-{slug}.md` | `/decompose`, `/revise`, `/respond` |
+| Coverage matrix | `07-coverage.md` | `/decompose`, `/revise`, `/respond` |
 | PR description | `08-pr-description.md` | `/publish` |
 | Publish metadata | `publish-metadata.json` | `/publish` |
 | Review responses | `09-review-responses.md` | `/respond` |
@@ -117,8 +117,8 @@ Research is in brackets because it is conditional — not every design needs it.
 
 - `/ingest` completed → recommend `/research` or `/draft` (see "When to Recommend Research" below)
 - `/research` completed → recommend `/draft`
-- `/draft` completed → recommend `/decompose` (decomposition validates the design)
-- `/decompose` completed → recommend `/revise` for user review of both documents
+- `/draft` completed → recommend `/decompose` (decomposition validates the design). Note that the testplan was generated alongside the design document.
+- `/decompose` completed → recommend `/revise` for user review of the decomposition
 - `/revise` completed (user satisfied) → recommend `/publish`, or another `/revise` round
 - `/publish` completed → recommend `/respond` when review comments arrive
 - `/respond` completed → recommend another `/respond` round, or `/sync` if approved
