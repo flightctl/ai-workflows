@@ -57,9 +57,6 @@ yet or failed to create), leave the local identifier, annotate it with
 
 ### Step 1: Read Decomposition Artifacts and Detect Changes
 
-Read and follow `../artifact-migration.md` for artifact filename
-resolution when reading or writing design workflow artifacts.
-
 Read these files:
 1. `.artifacts/design/{issue-key}/05-epics.md` (epic metadata and ordering)
 2. `.artifacts/design/{issue-key}/06-stories/epic-*.md` (individual epic files)

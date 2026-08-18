@@ -62,7 +62,7 @@ Fetch the story from Jira. Capture:
 - Acceptance criteria
 - Implementation guidance (if present)
 - Testing approach (if present)
-- Test Case References (if present — TC IDs used for testplan filtering in Step 5d)
+- Validated by (if present — TC IDs used for testplan filtering in Step 5d)
 - Design Reference (if present — PRD requirement IDs and design section refs)
 - Story type prefix (`[DEV]`, `[UI]`, etc.)
 - Parent epic key
@@ -154,17 +154,16 @@ story's acceptance criteria are the primary contract.
 #### 5d: Filter Testplan to Story Scope
 
 If `testplan.md` was found in Step 5c, filter it to the test cases
-relevant to this story. The published testplan uses Jira keys in the
-Story field in each test case's metadata table (resolved by `/sync`).
-Filter by matching the Story field against this story's Jira key
-(`{issue-key}`).
+relevant to this story. The Jira story's description contains a
+`Validated by` line in its Design Reference section (captured in Step 3)
+listing the TC IDs that validate the behavior this story delivers.
+Extract the TC IDs from `Validated by` and match them against the
+published testplan entries.
 
-If the Story field still contains local identifiers (e.g., `Story 1.01`
-instead of Jira keys), this means `/sync` has not yet been run or the
-testplan was published before sync. In this case, look for TC IDs in the
-Jira story's Test Case References section (captured in Step 3 from the
-story description) and match those TC IDs directly against the testplan
-entries.
+If the story's `Validated by` line is missing or empty, fall back to
+filtering by requirement: extract PRD requirement IDs from the story's
+Design Reference `PRD Requirements` line and collect all test cases
+whose requirement heading matches.
 
 **Three-outcome gate:**
 
@@ -200,9 +199,9 @@ Write `.artifacts/implement/{issue-key}/testplan.md`:
 
 ## TC-FR1-01: {scenario title}
 
-| Requirement | AC | Priority | Automation |
-|-------------|-----|----------|------------|
-| FR-1 | AC-1 | high | automated |
+| Requirement | Interface Change | Priority | Automation |
+|-------------|-----------------|----------|------------|
+| FR-1 | IC-1 | high | automated |
 
 ### Preconditions
 
@@ -226,9 +225,8 @@ Each test case becomes an H2 heading with the same structure as the
 feature-level testplan (metadata table, Preconditions, Steps, Expected
 Results as sub-headings). Heading levels are shifted up by two because
 the requirement-grouping layer and the Test Cases section are removed.
-The Story field is omitted from the metadata table (redundant — all
-entries are for this story). The Requirement ID is included in the
-metadata table for traceability back to the feature-level testplan.
+The Requirement ID and Interface Change are included in the metadata
+table for traceability back to the feature-level testplan.
 
 ### Step 6: Explore the Codebase
 

@@ -34,9 +34,6 @@ with `WORKFLOW=design`, `TEMPLATE_FILE=design.md`. Per that recipe's
 "Using the Resolved Files" guidance, treat the section-number examples
 below (e.g., "Section 4.3") as illustrations of the built-in template only.
 
-Read and follow `../artifact-migration.md` for artifact filename
-resolution when reading or writing design workflow artifacts.
-
 Determine which artifacts exist and read them:
 - `.artifacts/design/{issue-key}/01-context.md` (requirements context with FR/NFR IDs)
 - `.artifacts/design/{issue-key}/02-research.md` (if exists — research findings)
@@ -145,9 +142,13 @@ After applying changes, verify:
 - If test cases were added, removed, or modified: recompute the
   testplan's Overview counts and Summary table. Rebuild the Gaps
   section from the current requirement-to-TC and IC-to-TC mappings.
-- If test cases were added, removed, or had their IC or requirement mapping changed:
-  update affected stories' `Validated by` line in their Design Reference
-  section. Re-read each affected story file at
+- If test cases were added, removed, or had their IC or requirement
+  mapping changed: before modifying test cases, record the IC and
+  requirement mappings of any TCs that will be removed or reassigned.
+  Then update affected stories' `Validated by` line in their Design
+  Reference section. Identify affected stories using the current
+  mappings for added/modified TCs and the pre-mutation mappings for
+  removed/reassigned TCs. Re-read each affected story file at
   `.artifacts/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md`
   before modifying it. Collect all TC IDs from the updated testplan
   that match this story — by IC overlap with the story's `Interface

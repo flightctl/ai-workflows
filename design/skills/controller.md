@@ -58,7 +58,7 @@ the source repo (this directory should be gitignored in the source repo):
 | Epic metadata | `05-epics.md` | `/decompose`, `/revise` |
 | Epic files | `06-stories/epic-{N}-{slug}.md` | `/decompose`, `/revise` |
 | Story files | `06-stories/epic-{N}/story-{NN}-{slug}.md` | `/decompose`, `/revise`, `/respond` |
-| Coverage matrix | `07-coverage.md` | `/decompose`, `/revise`, `/respond` |
+| Coverage matrix | `07-coverage.md` | `/decompose`, `/revise` |
 | PR description | `08-pr-description.md` | `/publish` |
 | Publish metadata | `publish-metadata.json` | `/publish` |
 | Review responses | `09-review-responses.md` | `/respond` |

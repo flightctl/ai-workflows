@@ -33,9 +33,6 @@ must be traceable to a PRD requirement or explicitly flagged as an assumption.
 Read and follow `../../_shared/recipes/template-override-resolution.md`
 with `WORKFLOW=design`, `TEMPLATE_FILE=design.md`.
 
-Read and follow `../artifact-migration.md` for artifact filename
-resolution when reading or writing design workflow artifacts.
-
 ### Step 2: Read Source Material
 
 Read these files in order:
@@ -263,8 +260,9 @@ The metadata table uses this format:
 |-----------------|----------|------------|
 | IC-{N} | {priority} | {automation} |
 
-For cross-cutting NFRs without a direct IC mapping, use `—` in the
-Interface Change field.
+For any requirement without a direct IC mapping (cross-cutting NFRs
+or FRs satisfied only by internal changes), use `—` in the Interface
+Change field.
 
 **Priority assignment:**
 - `critical` — core user workflows or data integrity

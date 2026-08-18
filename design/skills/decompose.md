@@ -30,9 +30,6 @@ must leave the system in a stable state.
 
 ### Step 1: Read Source Material
 
-Read and follow `../artifact-migration.md` for artifact filename
-resolution when reading or writing design workflow artifacts.
-
 Read these files:
 1. `.artifacts/design/{issue-key}/03-design.md` (design document)
 2. `.artifacts/design/{issue-key}/01-context.md` (architectural context)

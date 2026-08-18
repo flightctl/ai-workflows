@@ -25,9 +25,6 @@ the user before taking action.
 
 ### Step 1: Read the Design Document
 
-Read and follow `../artifact-migration.md` for artifact filename
-resolution when reading or writing design workflow artifacts.
-
 Read `.artifacts/design/{issue-key}/03-design.md`.
 
 If the file doesn't exist, tell the user that `/draft` should be run first.

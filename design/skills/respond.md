@@ -34,9 +34,6 @@ with `WORKFLOW=design`, `TEMPLATE_FILE=design.md`. Per that recipe's
 "Using the Resolved Files" guidance, treat the section-number examples
 below (e.g., "§4.1") as illustrations of the built-in template only.
 
-Read and follow `../artifact-migration.md` for artifact filename
-resolution when reading or writing design workflow artifacts.
-
 Read `.artifacts/config.json` to get the docs repo path and
 `.artifacts/design/{issue-key}/publish-metadata.json` to get the PR
 number, file path, and `{branch-name}` (from the `branch` field). If
@@ -220,13 +217,16 @@ feedback), apply them in this order:
 2. **Cascade to story files (if decomposition exists).** Skip this step
    if no decomposition artifacts exist (`06-stories/` directory not
    found). For each affected story, skip `[DOCS]` stories. Identify
-   affected stories using two matching rules:
-   - **IC-based:** the changed test case's Interface Change overlaps
-     with the story's `Interface Changes` line in its Design Reference.
-   - **Requirement-based (fallback for cross-cutting TCs):** the
-     changed test case has `Interface Change: —` and its requirement
-     (from the parent heading) overlaps with the story's PRD
-     Requirements in its Design Reference.
+   affected stories using two matching rules — for removed or
+   reassigned TCs, use the pre-mutation mappings recorded in step 1
+   (the TC's metadata is gone from the testplan after removal):
+   - **IC-based:** the test case's Interface Change (current or
+     pre-mutation) overlaps with the story's `Interface Changes` line
+     in its Design Reference.
+   - **Requirement-based (fallback for cross-cutting TCs):** the test
+     case has `Interface Change: —` and its requirement (current or
+     pre-mutation) overlaps with the story's PRD Requirements in its
+     Design Reference.
    For each affected non-`[DOCS]` story:
    - Re-read the story file at
      `.artifacts/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md`.
@@ -416,7 +416,6 @@ Summarize:
 - `.artifacts/design/{issue-key}/03-design.md` (updated if needed)
 - `.artifacts/design/{issue-key}/04-testplan.md` (updated if testplan feedback was applied)
 - `.artifacts/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md` (Validated by updated in Design Reference if testplan changed)
-- `.artifacts/design/{issue-key}/07-coverage.md` (updated if coverage changed)
 - `.artifacts/design/{issue-key}/09-review-responses.md`
 
 ## When This Phase Is Done

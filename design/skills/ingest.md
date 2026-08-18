@@ -37,9 +37,6 @@ Extract the full Jira issue key, including the project prefix (e.g.,
 the workflow — it is the context identifier for the artifact directory
 and all downstream phases.
 
-Read and follow `../artifact-migration.md` for artifact filename
-resolution when reading or writing design workflow artifacts.
-
 ### Step 2: Create Artifact Directory
 
 ```bash

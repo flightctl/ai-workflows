@@ -65,8 +65,8 @@ Fetch the story from Jira. Capture:
 - Acceptance criteria
 - Testing approach (if present — this is the primary implementation guidance for [QE] stories)
 - Implementation guidance (if present — may be sparse for [QE] stories)
-- Test Case References (if present — TC IDs used for testplan filtering in Step 5d)
-- Design Reference (if present — PRD requirement IDs used for testplan filtering in Step 5d)
+- Validated by (if present — TC IDs used for testplan filtering in Step 5d)
+- Design Reference (if present — PRD requirement IDs used for testplan filtering fallback in Step 5d)
 - Story type prefix — verify it is `[QE]`. If it is `[DEV]`, `[UI]`, or another prefix, warn the user that this workflow is designed for `[QE]` stories and ask whether to proceed.
 - Parent epic key
 - Story dependencies (linked issues — "depends on", "is blocked by")
@@ -165,18 +165,19 @@ story's acceptance criteria are the primary contract.
 If `testplan.md` was found in Step 5c, filter it to the test cases
 relevant to this story's scope.
 
-For `[QE]` stories, the testplan's test cases reference `[DEV]` stories
-(the testplan maps test cases to implementing stories, not to `[QE]`
-stories). Filter by **requirement**: extract the PRD requirement IDs
-from the story's Design Reference section (captured in Step 3 from the
-story description, e.g., `FR-1, FR-3, NFR-2`), then collect all test
-cases from the testplan whose requirement heading matches any of those
-IDs.
+The Jira story's description contains a `Validated by` line in its
+Design Reference section (captured in Step 3) listing the TC IDs that
+validate the behavior this story delivers. Extract the TC IDs from
+`Validated by` and match them against the published testplan entries.
 
-If the story's Design Reference does not list PRD requirements, fall
-back to looking for TC IDs in the Jira story's Test Case References
-section (also captured in Step 3) and matching those directly against
-the testplan.
+For `[QE]` stories, `Validated by` lists the same TCs as the `[DEV]`
+stories that implement the behavior being tested — the `[QE]` story
+validates the same system surface from an e2e perspective.
+
+If the story's `Validated by` line is missing or empty, fall back to
+filtering by requirement: extract PRD requirement IDs from the story's
+Design Reference `PRD Requirements` line and collect all test cases
+whose requirement heading matches.
 
 **Three-outcome gate:**
 
@@ -212,9 +213,9 @@ Write `.artifacts/e2e/{issue-key}/testplan.md`:
 
 ## TC-FR1-01: {scenario title}
 
-| Requirement | Story | AC | Priority | Automation |
-|-------------|-------|-----|----------|------------|
-| FR-1 | {DEV story Jira key} | AC-1 | high | automated |
+| Requirement | Interface Change | Priority | Automation |
+|-------------|-----------------|----------|------------|
+| FR-1 | IC-1 | high | automated |
 
 ### Preconditions
 
@@ -234,10 +235,12 @@ Write `.artifacts/e2e/{issue-key}/testplan.md`:
 {... same structure for each test case ...}
 ```
 
-Unlike the implement workflow's story-scoped testplan, this version
-includes the Story field in the metadata table — it identifies the
-`[DEV]` story that implements the behavior this `[QE]` story will
-test, which is not redundant here.
+Each test case becomes an H2 heading with the same structure as the
+feature-level testplan (metadata table, Preconditions, Steps, Expected
+Results as sub-headings). Heading levels are shifted up by two because
+the requirement-grouping layer and the Test Cases section are removed.
+The Requirement ID and Interface Change are included in the metadata
+table for traceability back to the feature-level testplan.
 
 ### Step 6: Explore E2E Test Infrastructure
 
