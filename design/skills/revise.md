@@ -130,6 +130,9 @@ After applying changes, verify:
 - Do story dependencies still make sense?
 
 **If the testplan exists (`04-testplan.md`):**
+- Before modifying any test cases, record the IC and requirement
+  mappings of any TCs that will be removed or reassigned — these
+  pre-mutation mappings are needed for the story cascade below.
 - If design Interface Changes (§5) changed: update any test cases whose
   IC reference, preconditions, steps, or expected results are affected by
   the IC change. If an IC was added, consider whether new test cases are
@@ -142,10 +145,6 @@ After applying changes, verify:
 - If test cases were added, removed, or modified: recompute the
   testplan's Overview counts and Summary table. Rebuild the Gaps
   section from the current requirement-to-TC and IC-to-TC mappings.
-- Before modifying any test cases in the bullets above, record the IC
-  and requirement mappings of any TCs that will be removed or
-  reassigned — these pre-mutation mappings are needed for the story
-  cascade below.
 - If test cases were added, removed, or had their IC or requirement
   mapping changed: update affected non-`[DOCS]` stories' `Validated
   by` line in their Design Reference section. Skip `[DOCS]` stories
@@ -158,6 +157,8 @@ After applying changes, verify:
   that match this story — by IC overlap with the story's `Interface
   Changes`, or by requirement overlap for cross-cutting TCs with
   `Interface Change: —` — then write the updated `Validated by` line.
+  If a story loses all its test cases, write:
+  `Validated by: None — no behavioral test cases after testplan revision`.
 - If design Interface Changes were added, removed, or renamed: update
   affected non-`[DOCS]` stories' `Interface Changes` line in their
   Design Reference section.
