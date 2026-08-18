@@ -46,10 +46,6 @@ resolution when reading or writing design workflow artifacts.
 mkdir -p .artifacts/design/{issue-key}
 ```
 
-```bash
-mkdir -p .artifacts/design/{issue-key}/06-stories
-```
-
 ### Step 2a: Check for Prior Ingest
 
 If `.artifacts/design/{issue-key}/01-context.md` already exists, this
