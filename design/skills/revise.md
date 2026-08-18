@@ -145,7 +145,7 @@ After applying changes, verify:
 - If test cases were added, removed, or modified: recompute the
   testplan's Overview counts and Summary table. Rebuild the Gaps
   section from the current requirement-to-TC and IC-to-TC mappings.
-- If test cases were added, removed, or had their IC mapping changed:
+- If test cases were added, removed, or had their IC or requirement mapping changed:
   update affected stories' `Validated by` line in their Design Reference
   section. Re-read each affected story file at
   `.artifacts/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md`

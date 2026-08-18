@@ -191,8 +191,10 @@ When approved changes include testplan modifications (category: Testplan
 feedback), apply them in this order:
 
 1. **Modify `04-testplan.md`.** Before making any changes, record the
-   IC mappings of any test cases that will be removed or reassigned —
-   these are needed for the cascade in step 2. Then add, modify, or
+   IC and requirement mappings of any test cases that will be removed
+   or reassigned — both are needed for the cascade in step 2 (IC
+   mappings for IC-based matching, requirement mappings for
+   cross-cutting TCs with `Interface Change: —`). Then add, modify, or
    remove test cases as directed by the approved response.
    For each change:
    - **Adding a test case:** Assign a sequence number using

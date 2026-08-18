@@ -399,9 +399,9 @@ testplan (read in Step 1) validate the behavior the story delivers.
 story implements IC-3, the story is validated by that test case.
 
 **Requirement-based matching (fallback for cross-cutting TCs):** Test
-cases with `Interface Change: —` (cross-cutting NFRs) have no IC to
-match on. For these, match by requirement overlap: if the test case
-covers NFR-2 and the story's PRD Requirements include NFR-2, the story
+cases with `Interface Change: —` have no IC to match on. For these,
+match by requirement overlap: if the test case covers a requirement
+and the story's PRD Requirements include that requirement, the story
 is validated by that test case.
 
 For stories that implement ICs with no corresponding test cases
