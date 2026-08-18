@@ -242,18 +242,21 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 contains `testplan_file_path`** (testplan was removed during revision),
 remove the published testplan from the docs repo if it is still tracked:
 
+Check whether the file is tracked (this command exits non-zero if the
+file is not tracked — that is expected, not an error):
+
 ```bash
 git -C "{docs_repo_path}" ls-files --error-unmatch "{testplan_file_path}"
 ```
 
-If the file is tracked, remove it:
+If the file is tracked (exit 0), remove it:
 
 ```bash
 git -C "{docs_repo_path}" rm "{testplan_file_path}"
 ```
 
-If the file is not tracked (already deleted by another process), skip
-the `git rm` — no action needed in the docs repo.
+If the file is not tracked (non-zero exit — already deleted by another
+process), skip the `git rm`. This is not an error.
 
 In either case, remove `testplan_file_path` from `publish-metadata.json`.
 
