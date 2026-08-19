@@ -126,6 +126,7 @@ Each workflow is intended for a specific project or use case:
 - **triage** -- teams that want bulk Jira triage, categorization, and HTML reports from this repo or a clone
 - **sizing** -- teams sizing Features for cycle planning using T-shirt sizes with per-team effort breakdowns
 - **skill-reviewer** -- reviewing or standardizing Cursor/agent skills and skill packs (structure, clarity, completeness)
+- **ux-design** -- UX design workflow: ingest a feature request, prototype, evaluate, and produce a validated design handoff
 
 Use `--workflows` to install only the workflows relevant to a given project:
 
@@ -159,6 +160,7 @@ Invoke a workflow command using the colon-namespaced format:
 - `/bugfix:assess`, `/bugfix:diagnose`, `/bugfix:fix`, ...
 - `/code-review:start`, `/code-review:continue`, `/code-review:clean`
 - `/docs-writer:gather`, `/docs-writer:plan`, `/docs-writer:draft`, ...
+- `/ux-design:ingest`, `/ux-design:prototype`, `/ux-design:evaluate`, `/ux-design:handoff`, ...
 
 ### Cursor
 
@@ -167,6 +169,7 @@ The installer generates flat command files in `.cursor/commands/` so each phase 
 - `/bugfix-assess`, `/bugfix-diagnose`, `/bugfix-fix`, ...
 - `/code-review-start`, `/code-review-continue`, `/code-review-clean`
 - `/docs-writer-gather`, `/docs-writer-plan`, `/docs-writer-draft`, ...
+- `/ux-design-ingest`, `/ux-design-prototype`, `/ux-design-evaluate`, `/ux-design-handoff`, ...
 
 Cursor scans both project-level (`.cursor/commands/`) and user-level (`~/.cursor/commands/`) directories. Commands are plain `.md` files — no manifest or wrapper directories needed. They are created by `install.sh` and cleaned up by `uninstall.sh`.
 

@@ -122,6 +122,9 @@ Researchers can enter at any phase if they bring the prerequisite artifact:
 | `/prototype` | `01-discovery.md` (or equivalent problem framing) |
 | `/evaluate` | `02-prototype/` (prototype to evaluate) |
 | `/handoff` | `03-evaluation.md` (or researcher confirms design is ready) |
+| `/revise` | `04-handoff.md` |
+| `/publish` | `04-handoff.md` |
+| `/respond` | `publish-metadata.json` (PR must exist) |
 
 If a prerequisite artifact is missing, tell the researcher which phase
 produces it and offer to run that phase first.

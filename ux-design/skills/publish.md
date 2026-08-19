@@ -55,8 +55,12 @@ git -C "{docs_repo_path}" remote -v
 ```
 
 ```bash
-git -C "{docs_repo_path}" status
+git -C "{docs_repo_path}" status --porcelain
 ```
+
+If the output is not empty, stop and tell the researcher the docs repo has
+uncommitted changes that must be resolved before publishing. Do not proceed
+with a dirty working tree.
 
 Confirm with the user:
 - **Base branch:** Which branch should the PR target? (usually `main`)

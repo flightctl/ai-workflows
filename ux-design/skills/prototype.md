@@ -12,8 +12,10 @@ is more valuable than a polished one that can't be changed.
 ## Prerequisites
 
 Read `.artifacts/ux-design/{issue-key}/01-discovery.md` for problem context,
-user groups, and competitive landscape. If it doesn't exist, tell the
-researcher that `/ingest` should run first and stop.
+user groups, and competitive landscape. If it doesn't exist, ask the
+researcher if they have an equivalent problem framing (PRD, feature brief,
+or description). If they do, use it as context. If not, tell the researcher
+that `/ingest` should run first and stop.
 
 If this is a re-entry from `/evaluate`, read `03-evaluation.md` for the
 issues to address in this iteration.

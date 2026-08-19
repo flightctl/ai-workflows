@@ -10,7 +10,8 @@ graph TD
     prototype --> evaluate
     evaluate -->|iterate| prototype
     evaluate -->|ready| handoff
-    handoff --> revise
+    handoff -->|feedback needed| revise
+    handoff -->|ready to publish| publish
     revise --> publish
     publish --> respond
 ```
