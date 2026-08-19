@@ -160,7 +160,8 @@ listing the TC IDs that validate the behavior this story delivers.
 Extract the TC IDs from `Validated by` and match them against the
 published testplan entries.
 
-If the story's `Validated by` line is missing or empty, fall back to
+If the story's `Validated by` line is missing, empty, or contains no
+TC IDs (e.g., `Validated by: None — ...`), fall back to
 filtering by requirement: extract PRD requirement IDs from the story's
 Design Reference `PRD Requirements` line and collect all test cases
 whose requirement heading matches.

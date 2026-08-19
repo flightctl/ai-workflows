@@ -179,7 +179,8 @@ and collect all test cases whose requirement heading matches, then
 merge with the `Validated by` set (deduplicate).
 
 For non-`[QE]` stories, use `Validated by` TC IDs directly. If the
-`Validated by` line is missing or empty, fall back to requirement-heading
+`Validated by` line is missing, empty, or contains no TC IDs (e.g.,
+`Validated by: None — ...`), fall back to requirement-heading
 matching as above.
 
 **Three-outcome gate:**
