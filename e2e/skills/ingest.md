@@ -166,18 +166,21 @@ If `testplan.md` was found in Step 5c, filter it to the test cases
 relevant to this story's scope.
 
 The Jira story's description contains a `Validated by` line in its
-Design Reference section (captured in Step 3) listing the TC IDs that
-validate the behavior this story delivers. Extract the TC IDs from
-`Validated by` and match them against the published testplan entries.
+Design Reference section (captured in Step 3) listing TC IDs, and a
+`PRD Requirements` line listing requirement IDs.
 
-For `[QE]` stories, `Validated by` lists the same TCs as the `[DEV]`
-stories that implement the behavior being tested — the `[QE]` story
-validates the same system surface from an e2e perspective.
+For `[QE]` stories, `Validated by` may not carry the full set of
+relevant TCs — `/decompose` assigns TCs via IC overlap, but `[QE]`
+stories typically don't implement ICs (they test the surface that
+`[DEV]` stories implement). To ensure complete coverage, always
+**union** the `Validated by` TC IDs with requirement-heading matches:
+extract PRD requirement IDs from the story's `PRD Requirements` line
+and collect all test cases whose requirement heading matches, then
+merge with the `Validated by` set (deduplicate).
 
-If the story's `Validated by` line is missing or empty, fall back to
-filtering by requirement: extract PRD requirement IDs from the story's
-Design Reference `PRD Requirements` line and collect all test cases
-whose requirement heading matches.
+For non-`[QE]` stories, use `Validated by` TC IDs directly. If the
+`Validated by` line is missing or empty, fall back to requirement-heading
+matching as above.
 
 **Three-outcome gate:**
 

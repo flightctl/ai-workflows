@@ -308,21 +308,23 @@ git -C "{docs_repo_path}" add "{design_file_path}"
 contains `testplan_file_path`** (testplan was removed), remove the
 published testplan from the docs repo if it is still tracked:
 
-Check whether the file is tracked (this command exits non-zero if the
-file is not tracked — that is expected, not an error):
+Check whether the file is tracked:
 
 ```bash
 git -C "{docs_repo_path}" ls-files --error-unmatch "{testplan_file_path}"
 ```
 
-If the file is tracked (exit 0), remove it:
+- If exit 0 (file is tracked), remove it:
 
 ```bash
 git -C "{docs_repo_path}" rm "{testplan_file_path}"
 ```
 
-If the file is not tracked (non-zero exit — already deleted by another
-process), skip the `git rm`. This is not an error.
+- If exit 1 with "did not match any file(s) known to git" (file is not
+  tracked — already deleted by another process), skip the `git rm`.
+- If any other non-zero exit (unexpected git error), stop and report
+  the error to the user. Do not proceed with metadata cleanup until the
+  error is resolved.
 
 In either case, remove `testplan_file_path` from `publish-metadata.json`.
 

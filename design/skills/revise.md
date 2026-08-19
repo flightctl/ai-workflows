@@ -131,8 +131,10 @@ After applying changes, verify:
 
 **If the testplan exists (`04-testplan.md`):**
 - Before modifying any test cases, record the IC and requirement
-  mappings of any TCs that will be removed or reassigned — these
-  pre-mutation mappings are needed for the story cascade below.
+  mappings of any TCs that will be removed, reassigned, or have their
+  IC or requirement mapping changed (even if the TC ID is retained) —
+  these pre-mutation mappings are needed for the story cascade below
+  to clear stale `Validated by` references on the old stories.
 - If design Interface Changes (§5) changed: update any test cases whose
   IC reference, preconditions, steps, or expected results are affected by
   the IC change. If an IC was added, consider whether new test cases are
@@ -150,7 +152,8 @@ After applying changes, verify:
   by` line in their Design Reference section. Skip `[DOCS]` stories
   (they lack `Interface Changes` and `Validated by` fields). Identify
   affected stories using the current mappings for added/modified TCs
-  and the pre-mutation mappings for removed/reassigned TCs. Re-read
+  and the pre-mutation mappings for removed, reassigned, or remapped
+  TCs (including TCs that kept their ID but changed IC or requirement). Re-read
   each affected story file at
   `.artifacts/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md`
   before modifying it. Collect all TC IDs from the updated testplan
@@ -242,21 +245,23 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 contains `testplan_file_path`** (testplan was removed during revision),
 remove the published testplan from the docs repo if it is still tracked:
 
-Check whether the file is tracked (this command exits non-zero if the
-file is not tracked — that is expected, not an error):
+Check whether the file is tracked:
 
 ```bash
 git -C "{docs_repo_path}" ls-files --error-unmatch "{testplan_file_path}"
 ```
 
-If the file is tracked (exit 0), remove it:
+- If exit 0 (file is tracked), remove it:
 
 ```bash
 git -C "{docs_repo_path}" rm "{testplan_file_path}"
 ```
 
-If the file is not tracked (non-zero exit — already deleted by another
-process), skip the `git rm`. This is not an error.
+- If exit 1 with "did not match any file(s) known to git" (file is not
+  tracked — already deleted by another process), skip the `git rm`.
+- If any other non-zero exit (unexpected git error), stop and report
+  the error to the user. Do not proceed with metadata cleanup until the
+  error is resolved.
 
 In either case, remove `testplan_file_path` from `publish-metadata.json`.
 

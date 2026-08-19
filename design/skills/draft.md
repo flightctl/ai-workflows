@@ -403,7 +403,8 @@ Before presenting the testplan, verify:
 
 - [ ] Every FR and NFR has a test case or a documented Requirement Coverage Gap with rationale
 - [ ] Every IC from §5 has a test case or a documented Interface Change Coverage Gap with rationale
-- [ ] Every non-`—` Interface Change value in a test case metadata table matches an IC defined in §5
+- [ ] Every non-`—` Interface Change value matches an IC defined in §5, and that IC's `Requirements` line includes the test case's requirement
+- [ ] Every `—` Interface Change value is used only for a requirement without a direct IC mapping
 - [ ] Every IC named in an Interface Change Coverage Gap entry exists in §5
 - [ ] Expected Results contain no banned vague phrases
 - [ ] Priority assignment is consistent (critical for core workflows, not everything marked high)
