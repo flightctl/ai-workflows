@@ -94,6 +94,7 @@ For each **unresolved** issue, extract and normalize:
 - `updated` — last update date (ISO 8601)
 - `labels` — array of labels
 - `components` — array of component names
+- `fixSurface` — inferred fix surface (`CLI`, `UI`, or `API`) when determinable; use `null` when unknown. Infer using the same rules as `/analyze` Step 5 (title prefix, component, then description)
 - `description` — full description text (may be long; preserve it for analysis)
 
 For each **resolved** issue, normalize the same fields plus when available:

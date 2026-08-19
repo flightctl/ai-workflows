@@ -81,6 +81,8 @@ Use **project key** `PROJECT`.
 
 Assign **duplicateConfidence** (0–100) per strong candidate using bulk bands.
 
+**UI / API / CLI sibling tickets:** One bug per fix surface is intentional. Candidates with near-identical text but **different fix surfaces** (e.g. `[UI]` vs `[Backend]`, `MyApp-UI` vs `Backend`, or UI vs API repro in the description) are **not duplicates** — note them as related siblings and recommend linking (`relates to`), not DUPLICATE. See "Determine fix surface" in [`analyze.md`](analyze.md) Step 5.
+
 ### Step 5: Integrate and finalize
 
 - If a **duplicate** is conclusive, set recommendation to **DUPLICATE** with `duplicateOf` (target key) and **duplicateConfidence**; align reason.

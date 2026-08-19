@@ -52,7 +52,7 @@ Steps 3–7 progressively populate the following fields for each issue. Refer to
 ```json
 {
   "key": "EDM-1234",
-  "summary": "...",
+  "summary": "[Backend] Checkout throws 500 on submit",
   "status": "Open",
   "priority": "High",
   "suggestedPriority": null,
@@ -61,7 +61,8 @@ Steps 3–7 progressively populate the following fields for each issue. Refer to
   "created": "2025-06-15T10:30:00Z",
   "updated": "2026-01-20T14:00:00Z",
   "labels": ["backend"],
-  "components": ["API"],
+  "components": ["Backend"],
+  "fixSurface": "API",
   "errorType": "NullPointerException",
   "errorCode": null,
   "errorMessageExcerpt": "at com.example.OrderTotals.apply",
@@ -90,6 +91,7 @@ Steps 3–7 progressively populate the following fields for each issue. Refer to
 | `priorityMismatch` | Step 3 | Object `{assigned, suggested, reason}` when assigned priority ≠ description severity; otherwise null |
 | `autoFixLikelihood` | Step 3 | Integer 0–100, only when recommendation is AUTO_FIX |
 | `errorType`, `errorCode`, `errorMessageExcerpt`, `affectedComponent`, `symptoms`, `environmentHint` | Step 4 | Nullable strings — error signature fields |
+| `fixSurface` | Step 5 | `CLI`, `UI`, or `API` when inferable; otherwise null (see "Determine fix surface") |
 | `duplicateOf` | Step 5 | Jira key of the duplicate target, or null |
 | `duplicateConfidence` | Step 5 | Integer 0–100 when `duplicateOf` is set; null otherwise |
 | `regressionOf` | Step 6 | Object `{key, summary, resolved, reason}` or null |
@@ -107,7 +109,7 @@ For every issue, evaluate the following signals and assign a recommendation.
 - **Description quality** — length, presence of reproduction steps, error details, expected vs actual behavior
 - **Components** — which area of the system is affected
 - **Labels** — any existing categorization
-- **Similar titles** — scan for issues with near-identical summaries (potential duplicates)
+- **Similar titles** — scan for issues with near-identical summaries (potential duplicates, but see Step 5 — different fix surfaces such as UI vs API are not duplicates)
 - **Assignee** — assigned or unassigned
 
 #### Recommendation Types
@@ -185,17 +187,47 @@ Populate `duplicateOf` and `duplicateConfidence` from the schema above. Before f
 
 1. **Error / signature angle** — same or highly similar `errorType`, `errorCode`, or overlapping `errorMessageExcerpt` / stack location
 2. **Component + symptom angle** — same Jira component(s) and matching `symptoms` or summary phrases
-3. **Description similarity** — same root cause described (not merely similar titles)
+3. **Description similarity** — same root cause described **on the same fix surface** (not merely similar titles)
 
-For each issue, pick the strongest non-self candidate. If two issues describe the **same** underlying bug, mark the **newer** (by `created` or `key`) as **DUPLICATE** with `duplicateOf` pointing to the older.
+For each issue, pick the strongest non-self candidate. If two issues describe the **same** underlying bug **on the same fix surface**, mark the **newer** (by `created` or `key`) as **DUPLICATE** with `duplicateOf` pointing to the older.
+
+#### UI / API / CLI fix surfaces are not duplicates
+
+Many projects file **separate bugs per fix surface** when the same user-visible problem must be fixed in more than one layer (e.g. UI and API). Two tickets with **near-identical descriptions** but **different fix surfaces** are **intentional siblings**, not duplicates.
+
+**Do not mark DUPLICATE** when the only strong overlap is shared symptom or description but the **fix surface differs**. Treat as distinct issues; **cluster** them (Step 7) with `"relates to"` when they clearly track the same underlying problem across layers.
+
+#### Determine fix surface
+
+There is no Jira Target custom field. Infer `fixSurface` as `CLI`, `UI`, or `API` using the first match below:
+
+1. **Summary prefix** — title tags at the start of the summary:
+   - `[CLI]` → `CLI`
+   - `[UI]` → `UI`
+   - `[Backend]` → `API` (backend/API work)
+2. **Jira component** — component names that indicate the layer:
+   - `*-UI` suffix (e.g. `MyApp-UI`) → `UI`
+   - paired backend/API component without a `-UI` suffix (e.g. `MyApp`, `Backend`) → `API`
+3. **Description cues** — when title and component are ambiguous:
+   - **UI**: browser, page, button, modal, screenshot, frontend repro
+   - **API**: endpoint, HTTP status, request/response, backend service, server-side stack trace
+   - **CLI**: command-line invocation, terminal output, CLI subcommand
+
+Set `fixSurface` to `null` only when none of the above apply. Re-infer during Step 5 even if `/scan` left it null.
+
+| Pair | Verdict |
+|------|---------|
+| Same description, `fixSurface` UI vs API (e.g. `[UI]` vs `[Backend]`, or `MyApp-UI` vs `Backend`) | **Not duplicate** — cluster as related |
+| Same description, same `fixSurface` and same component | Candidate duplicate — apply confidence bands below |
+| Same symptom, one ticket UI-only repro and one API-only repro | **Not duplicate** even if summaries match |
 
 **`duplicateConfidence`** — integer **0–100** when there is a named duplicate target, reflecting how strong the match is:
 
 | Band | When to use |
 |------|-------------|
-| **85–100** | Same error signature and same repro path; or explicit duplicate reference in text |
-| **70–84** | Strong component + symptom overlap and very similar description |
-| **50–69** | Plausible duplicate; needs human confirmation |
+| **85–100** | Same fix surface, same error signature and same repro path; or explicit duplicate reference in text |
+| **70–84** | Same fix surface, strong component + symptom overlap and very similar description |
+| **50–69** | Same fix surface, plausible duplicate; needs human confirmation |
 | **Below 50** | Do not mark DUPLICATE — prefer BACKLOG or cluster with a note in `reason` |
 
 Set `duplicateOf` to **null** and `duplicateConfidence` to **null** when there is no duplicate target. If you keep DUPLICATE recommendation, both `duplicateOf` and `duplicateConfidence` must be set consistently.
@@ -274,8 +306,8 @@ Field details:
 
 #### Cluster vs Duplicate
 
-- **Duplicate**: the issues describe the exact same bug — mark the newer as DUPLICATE
-- **Cluster**: the issues are related but distinct — they share a theme, root cause area, or feature, but each describes a different manifestation. Cluster members keep their own recommendation (FIX_NOW, AUTO_FIX, BACKLOG, etc.); clustering does not change individual recommendations
+- **Duplicate**: the issues describe the exact same bug **on the same fix surface** — mark the newer as DUPLICATE
+- **Cluster**: the issues are related but distinct — they share a theme, root cause area, or feature, but each describes a different manifestation or **different fix surface** (e.g. UI vs API). Cluster members keep their own recommendation (FIX_NOW, AUTO_FIX, BACKLOG, etc.); clustering does not change individual recommendations
 
 ### Step 8: Generate Key Recommendations
 

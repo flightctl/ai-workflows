@@ -54,6 +54,7 @@ Any tool not listed above is **prohibited** in that phase. If a phase needs data
 
 - Recommendations must be consistent — similar bugs should receive similar treatment
 - Duplicate detection should reference the specific target issue key, not just say "duplicate"
+- **UI vs API vs CLI (and other fix surfaces) are not duplicates** — when the same symptom is tracked in separate tickets per layer (different summary prefix, component, or repro surface), treat them as related siblings; cluster with `"relates to"`, do not mark DUPLICATE
 - The HTML report must ship as one file with inline CSS/JS and embedded JSON; optional Google Fonts load when online (system fonts offline)
 - Artifact JSON files must be valid, parseable JSON
 
