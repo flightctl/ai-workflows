@@ -162,9 +162,19 @@ After applying changes, verify:
   `Interface Change: —` — then write the updated `Validated by` line.
   If a story loses all its test cases, write:
   `Validated by: None — no behavioral test cases after testplan revision`.
-- If design Interface Changes were added, removed, or renamed: update
-  affected non-`[DOCS]` stories' `Interface Changes` line in their
-  Design Reference section.
+- If design Interface Changes (§5) were added, removed, or renamed:
+  update affected non-`[DOCS]` stories' `Interface Changes` line in
+  their Design Reference section. For each case:
+  - **Removed IC:** Remove the IC from every story that lists it. If a
+    story's `Interface Changes` becomes empty, write
+    `Interface Changes: None — infrastructure prerequisite` (or ask the
+    user if the story should be removed).
+  - **Renamed IC:** Replace the old IC identifier with the new one in
+    every story that lists it.
+  - **Added IC:** Determine which stories implement the new IC using
+    the same criteria as `/decompose` Step 7a (the story delivers part
+    or all of the behavior the IC describes). If ownership is unclear,
+    ask the user which story should claim it.
 
 ### Step 5: Update Artifacts
 
