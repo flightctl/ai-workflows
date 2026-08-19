@@ -11,7 +11,18 @@ builds on.
 
 ## Process
 
-### Step 1: Gather Context
+**If `/uxd-workshop:uxd-discovery` is available:**
+
+Run it with the input source (Jira issue key, feature description, or problem
+statement). The skill handles user group identification, strategic decision
+framing, competitive landscape survey, and constraint capture. It produces the
+discovery artifact directly.
+
+If the skill is not available, follow the manual steps below.
+
+### Manual Fallback
+
+#### Step 1: Gather Context
 
 Read the Jira issue, PRD, or feature description provided by the researcher.
 Extract:
@@ -33,7 +44,7 @@ Explore the codebase to understand the current UI:
 - What components are used?
 - What user flows currently exist?
 
-### Step 2: Competitive Landscape
+#### Step 2: Competitive Landscape
 
 Search for how other products solve this problem:
 
@@ -46,14 +57,14 @@ For each relevant example, note:
 - What they do poorly
 - Patterns worth considering or avoiding
 
-### Step 3: Frame Research Questions
+#### Step 3: Frame Strategic Decisions
 
-Based on the problem and landscape, identify the open questions that
-user research should answer:
+Based on the problem and landscape, identify the design decisions that
+need to be made to move this work forward:
 
-- What do we not know about user needs?
-- Where do our assumptions need validation?
-- What usability risks exist in the current approaches?
+- What design decisions depend on understanding user needs?
+- Which assumptions need validation before the team can commit to a direction?
+- What usability risks could change the approach?
 
 ## Output
 
@@ -89,10 +100,10 @@ user research should answer:
 ### {Product/Pattern B}
 ...
 
-## Research Questions
+## Strategic Decisions
 
-1. {Specific, answerable question}
-2. {Specific, answerable question}
+1. {Decision the team needs to make, framed as "We need to decide..."}
+2. {Decision the team needs to make, framed as "We need to decide..."}
 ...
 
 ## Constraints
@@ -105,7 +116,7 @@ user research should answer:
 Present the discovery brief to the researcher:
 "Here's the problem framing, user groups, and competitive landscape.
 Does this capture the right scope? Any user groups, competitors, or
-research questions missing?"
+strategic decisions missing?"
 
 Wait for confirmation. Then **re-read the controller** (`controller.md`)
 for next-step guidance.

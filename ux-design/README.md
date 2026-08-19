@@ -38,8 +38,9 @@ graph TD
 
 ```text
 /ingest EDM-1234
+  → uses uxd-discovery skill when available
   → frames the problem, identifies user groups
-  → surveys competitive landscape
+  → surveys competitive landscape, frames strategic decisions
   → writes .artifacts/ux-design/EDM-1234/01-discovery.md
 
 /prototype
@@ -54,6 +55,7 @@ graph TD
   → loops back to /prototype if critical issues found
 
 /handoff
+  → uses uxd-design-handoff skill when available
   → synthesizes all artifacts into implementation spec
   → maps UI elements to design system components
   → writes 04-handoff.md

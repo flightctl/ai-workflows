@@ -22,7 +22,18 @@ Read all available artifacts before proceeding.
 
 ## Process
 
-### Step 1: Component Mapping
+**If `/uxd-workshop:uxd-design-handoff` is available:**
+
+Run it with the prior artifacts (discovery brief, prototype, evaluation report).
+The skill handles component mapping, interaction specification, state enumeration,
+and acceptance criteria generation — all traced back to design decisions. It
+produces the handoff artifact directly.
+
+If the skill is not available, follow the manual steps below.
+
+### Manual Fallback
+
+#### Step 1: Component Mapping
 
 Map each UI element in the validated prototype to specific design system
 components:
@@ -31,7 +42,7 @@ components:
 - Reference the component's documented API/props
 - Note any customization or composition required
 
-### Step 2: Interaction Specification
+#### Step 2: Interaction Specification
 
 Document every user interaction:
 
@@ -41,7 +52,7 @@ Document every user interaction:
 - Navigation flow between views
 - Keyboard interaction and shortcuts
 
-### Step 3: State Enumeration
+#### Step 3: State Enumeration
 
 List every state the UI can be in:
 
@@ -52,7 +63,7 @@ List every state the UI can be in:
 - **Partial** — some data loaded, some failed
 - **Responsive** — behavior at each breakpoint
 
-### Step 4: Acceptance Criteria
+#### Step 4: Acceptance Criteria
 
 Write testable acceptance criteria derived from research findings:
 
@@ -60,7 +71,7 @@ Write testable acceptance criteria derived from research findings:
 - Each criterion is verifiable (pass/fail, not subjective)
 - Include accessibility criteria from evaluation findings
 
-### Step 5: Research Context Summary
+#### Step 5: Research Context Summary
 
 Summarize the key research decisions so developers understand *why*,
 not just *what*:
