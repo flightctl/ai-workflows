@@ -31,7 +31,7 @@ includes PatternFly components that need test coverage:
 
 ### If running:
 
-Run `/pf-react:pf-test-gen`. If this skill is not available, skip this step.
+Run `/pf-react:pf-test-gen`. If this skill is not available, note in the validation output that test coverage was not verified.
 
 Run the generated tests and verify they pass.
 
