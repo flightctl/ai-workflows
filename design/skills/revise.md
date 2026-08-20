@@ -147,24 +147,11 @@ After applying changes, verify:
 - If test cases were added, removed, or modified: recompute the
   testplan's Overview counts and Summary table. Rebuild the Gaps
   section from the current requirement-to-TC and IC-to-TC mappings.
-- If test cases were added, removed, or had their IC or requirement
-  mapping changed: update affected non-`[DOCS]` stories' `Validated
-  by` line in their Design Reference section. Skip `[DOCS]` stories
-  (they lack `Interface Changes` and `Validated by` fields). Identify
-  affected stories using the current mappings for added/modified TCs
-  and the pre-mutation mappings for removed, reassigned, or remapped
-  TCs (including TCs that kept their ID but changed IC or requirement). Re-read
-  each affected story file at
-  `.artifacts/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md`
-  before modifying it. Collect all TC IDs from the updated testplan
-  that match this story — by IC overlap with the story's `Interface
-  Changes`, or by requirement overlap for cross-cutting TCs with
-  `Interface Change: —` — then write the updated `Validated by` line.
-  If a story loses all its test cases, write:
-  `Validated by: None — no behavioral test cases after testplan revision`.
 - If design Interface Changes (§5) were added, removed, or renamed:
   update affected non-`[DOCS]` stories' `Interface Changes` line in
-  their Design Reference section. For each case:
+  their Design Reference section **before** the `Validated by` cascade
+  below (the cascade uses IC overlap, so stories must have current ICs
+  for correct matching). For each case:
   - **Removed IC:** Remove the IC from every story that lists it. If a
     story's `Interface Changes` becomes empty, write
     `Interface Changes: None — infrastructure prerequisite` (or ask the
@@ -175,6 +162,21 @@ After applying changes, verify:
     the same criteria as `/decompose` Step 7a (the story delivers part
     or all of the behavior the IC describes). If ownership is unclear,
     ask the user which story should claim it.
+- If test cases were added, removed, or had their IC or requirement
+  mapping changed: update affected non-`[DOCS]` stories' `Validated
+  by` line in their Design Reference section. Skip `[DOCS]` stories
+  (they lack `Interface Changes` and `Validated by` fields). Identify
+  affected stories using the current mappings for added/modified TCs
+  and the pre-mutation mappings for removed, reassigned, or remapped
+  TCs (including TCs that kept their ID but changed IC or requirement).
+  Re-read each affected story file at
+  `.artifacts/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md`
+  before modifying it. Collect all TC IDs from the updated testplan
+  that match this story — by IC overlap with the story's (now-updated)
+  `Interface Changes`, or by requirement overlap for cross-cutting TCs
+  with `Interface Change: —` — then write the updated `Validated by`
+  line. If a story loses all its test cases, write:
+  `Validated by: None — no behavioral test cases after testplan revision`.
 
 ### Step 5: Update Artifacts
 
