@@ -28,7 +28,8 @@ already has validated data or well-understood user needs.
 | Tool | Required | Purpose |
 |------|----------|---------|
 | Jira access (MCP or CLI) | For `/ingest` | Fetch issue details for problem framing |
-| UXD marketplace plugins | Optional | Enhances `/ingest`, `/prototype`, `/evaluate`, `/handoff` |
+| UXD skills (`uxd-workshop`) | Required | Prototype generation, heuristic evaluation, discovery, handoff |
+| `python3` on PATH | For `/evaluate` (Standard/Full) | `uxd-prototype-evaluate` helper scripts |
 
 ## Phases
 
@@ -90,10 +91,13 @@ All artifacts are stored in `.artifacts/ux-design/{issue-key}/`.
 .artifacts/ux-design/EDM-1234/
   01-discovery.md              (problem framing, user groups, landscape)
   02-research.md               (research findings, insights, recommendations)
-  03-prototype/                (prototype files, design rationale)
+  03-prototype/                (mirrored skill output + design rationale)
     prototype-notes.md         (design decisions, user stories covered)
+    prototype/                 (generated prototype files, from the skill)
   04-evaluation.md             (heuristic eval report, readiness assessment)
+  04-eval-raw/                 (raw skill reports, mirrored from the eval skills)
   05-handoff.md                (implementation spec, component mapping, AC)
+  provenance.json              (authoring provenance log)
 ```
 
 ## Handoff Contract
@@ -111,20 +115,42 @@ It contains:
 
 ## UXD Marketplace Skills
 
-This workflow optionally uses skills from the
+This workflow requires skills from the
 [UXD AI Skills marketplace](https://github.com/rh-uxd/ai-helpers).
-All phases function without them — the skills enhance output quality
-but are not required.
+These skills are a hard dependency — phases that use them will stop and prompt
+you to run `./install.sh` if they are missing.
+
+`install.sh` installs them **AI-agnostically**: it clones the `rh-uxd/ai-helpers`
+repo (pinned to a specific commit) and symlinks each skill into the skills
+directory for your AI tool (Claude Code, Cursor, or Gemini). The skills are
+installed and invoked by **bare name** (`uxd-discovery`, `uxd-prototype-create`,
+…), *not* through Claude Code's `/uxd-workshop:<skill>` plugin-marketplace
+namespace — the bare-name form is the one that resolves across all three tools.
 
 | Skill | Plugin | Used by |
 |-------|--------|---------|
 | `uxd-discovery` | `uxd-workshop` | `/ingest` |
 | `uxd-prototype-create` | `uxd-workshop` | `/prototype` |
-| `uxd-figma-read` | `uxd-workshop` | `/prototype` |
 | `uxd-research-heuristic-eval` | `uxd-workshop` | `/evaluate` |
 | `uxd-evaluate-design-heuristics` | `uxd-workshop` | `/evaluate` |
-| `uxd-prototype-evaluate` | `uxd-workshop` | `/evaluate` |
+| `uxd-prototype-evaluate` | `uxd-workshop` | `/evaluate` (Standard/Full depth) |
 | `uxd-design-handoff` | `uxd-workshop` | `/handoff` |
+
+`uxd-prototype-create` reads Figma links directly, so the workflow does not
+invoke `uxd-figma-read` separately (`install.sh` still symlinks it if you want to
+use it standalone).
+
+**Runtime note:** the script-backed skills (`uxd-prototype-create` and
+`uxd-prototype-evaluate`) run Python helpers via the `${CLAUDE_SKILL_DIR}`
+environment variable, which only Claude Code sets. Under Cursor or Gemini it is
+unset, so `/prototype` and `/evaluate` resolve the scripts from the deterministic
+install path (`${HOME}/.uxd-ai-skills/plugins/uxd-workshop/skills/<skill>`) and
+substitute it inline. If **neither** the variable nor that path resolves to a
+real `scripts/` directory (or a helper is missing), the phase stops and reports
+the error rather than silently downgrading a Standard/Full evaluation to Quick.
+This `${CLAUDE_SKILL_DIR}` workaround is the one runtime-specific wrinkle, and it
+would be removed by an upstream change to how the skills resolve their scripts.
+The remaining skills use no runtime-specific mechanisms.
 
 ## Directory Structure
 

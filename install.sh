@@ -132,6 +132,7 @@ ensure_repo_linked() {
 }
 
 UXD_REPO="https://github.com/rh-uxd/ai-helpers.git"
+UXD_SHA="ad44b9c92c89730da5191487d0ff82af09b41366"
 UXD_DIR="${HOME}/.uxd-ai-skills"
 UXD_PLUGINS=(uxd-workshop)
 
@@ -148,10 +149,31 @@ install_uxd_skills() {
   "$has_ux_design" || return 0
 
   if [[ ! -d "$UXD_DIR" ]]; then
-    echo "  Cloning UXD AI Skills repo..."
-    git clone --depth 1 "$UXD_REPO" "$UXD_DIR" 2>/dev/null || {
-      echo "  Warning: could not clone UXD AI Skills repo; ux-design optional skills unavailable" >&2
-      return 0
+    echo "  Cloning UXD AI Skills repo (${UXD_SHA:0:7})..."
+    git clone "$UXD_REPO" "$UXD_DIR" 2>/dev/null || {
+      echo "  Error: could not clone UXD AI Skills repo — ux-design workflow requires it" >&2
+      echo "  Check network access to github.com and re-run install." >&2
+      return 1
+    }
+    git -C "$UXD_DIR" checkout "$UXD_SHA" 2>/dev/null || {
+      echo "  Error: could not check out UXD AI Skills commit ${UXD_SHA:0:7}" >&2
+      return 1
+    }
+  else
+    # Existing install: make sure it is on the pinned SHA. Fetch first in case
+    # the local clone predates the pinned commit; a fetch failure is non-fatal
+    # only when the commit is already present locally.
+    if ! git -C "$UXD_DIR" cat-file -e "${UXD_SHA}^{commit}" 2>/dev/null; then
+      echo "  Fetching UXD AI Skills updates (${UXD_SHA:0:7})..."
+      git -C "$UXD_DIR" fetch origin 2>/dev/null || {
+        echo "  Error: could not fetch UXD AI Skills commit ${UXD_SHA:0:7}" >&2
+        echo "  Check network access to github.com and re-run install." >&2
+        return 1
+      }
+    fi
+    git -C "$UXD_DIR" checkout "$UXD_SHA" 2>/dev/null || {
+      echo "  Error: could not check out UXD AI Skills commit ${UXD_SHA:0:7}" >&2
+      return 1
     }
   fi
 

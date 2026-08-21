@@ -9,61 +9,53 @@ Frame the problem, identify who it affects, and survey how others have
 solved it. This phase produces the foundation that all downstream work
 builds on.
 
+## Dependencies
+
+This phase requires the `uxd-workshop` skills. If the `uxd-discovery` skill
+is not available, stop and tell the researcher to run `./install.sh` to set up
+the uxd-workshop skills before proceeding.
+
 ## Process
 
-### Step 1: Gather Context
+### Step 1: Run UXD Discovery
 
-Read the Jira issue, PRD, or feature description provided by the researcher.
-Extract:
+Invoke the `uxd-discovery` skill with the input source (Jira issue key,
+feature description, or problem statement).
 
-- **Problem statement** — what problem does this feature solve?
-- **User groups** — who experiences this problem? What are their goals?
-- **Existing state** — what does the product do today? What's the gap?
-- **Constraints** — technical, business, or timeline constraints mentioned
+The skill handles:
+- Problem statement framing
+- User group identification (goals, pain points)
+- Strategic decisions (themed, with business outcomes and timelines)
+- Competitive landscape survey
+- Constraints and assumptions
 
-If a Jira issue key was provided, fetch the issue details. If a PRD exists
-at `.artifacts/prd/{issue-key}/03-prd.md`, read it for additional context.
+If a Jira issue key was provided, pass it directly. If a published PRD exists
+for this issue in the docs repo (the prd workflow publishes there), provide it
+as additional context. Do **not** read another workflow's private artifacts
+under `.artifacts/prd/` — the shared interfaces between workflows are Jira and
+the published docs repo, not each other's working directories.
 
-If any external operation fails (Jira fetch, PRD lookup): note what failed,
-continue with available data, and never fabricate context to fill the gap.
+Wait for the skill to complete and present its output. Confirm understanding
+with the researcher before proceeding.
 
-Explore the codebase to understand the current UI:
-- What pages/views exist in the affected area?
+### Step 2: Current State (Codebase Exploration)
+
+The skill does not explore the codebase. Do this manually:
+
+Explore the repository to understand what exists today in the affected area:
+- What pages or views exist?
 - What components are used?
 - What user flows currently exist?
 
-### Step 2: Competitive Landscape
+If any external operation fails (Jira fetch, codebase read): note what failed,
+continue with available data, and never fabricate context to fill the gap.
 
-Search for how other products solve this problem:
+### Step 3: Assemble the Discovery Artifact
 
-- Direct competitors (similar products in the same space)
-- Adjacent products (different domain, similar UX pattern)
-- Design system references (PatternFly, Material, Atlassian patterns)
-
-For each relevant example, note:
-- What they do well
-- What they do poorly
-- Patterns worth considering or avoiding
-
-### Step 3: Frame Strategic Decisions
-
-Based on the problem and landscape, identify the design decisions that
-need to be made to move this work forward:
-
-- What design decisions depend on understanding user needs?
-- Which assumptions need validation before the team can commit to a direction?
-- What usability risks could change the approach?
-
-### Step 4: UXD Discovery Enhancement (optional)
-
-If `/uxd-workshop:uxd-discovery` is available, run it with the same
-input source. Compare its output with the results above and merge any
-additional findings into the discovery artifact:
-- User groups the manual phase missed
-- Competitive examples the skill surfaced
-- Strategic decisions worth adding
-
-If the skill is not available, skip this step.
+Combine the skill's output with the codebase exploration into the artifact
+below. Preserve the skill's Strategic Decisions structure exactly — do not
+flatten or reformat its themed format. Add the `## Current State` section
+from Step 2.
 
 ## Output
 
@@ -73,41 +65,40 @@ If the skill is not available, skip this step.
 # Discovery — {issue-key}
 
 **Date:** {date}
+**Source:** {Jira issue key, or "Feature description", or "Problem statement"}
 
 ## Problem Statement
 
-{1-2 paragraphs: what problem, for whom, why it matters}
+{From skill output — 1-2 paragraphs: what problem, for whom, why it matters}
 
 ## User Groups
 
-| Group | Goals | Pain Points |
-|-------|-------|-------------|
-| {group} | {what they're trying to do} | {what's hard today} |
+### {Group Name}
+- **Description:** {who they are}
+- **Goals:** {what they want to accomplish}
+- **Pain points:** {current frustrations}
 
 ## Current State
 
 {What the product does today in this area. Include relevant file paths
- or component references from the codebase.}
-
-## Competitive Landscape
-
-### {Product/Pattern A}
-- **Approach:** {how they solve it}
-- **Strengths:** {what works}
-- **Weaknesses:** {what doesn't}
-
-### {Product/Pattern B}
-...
+ or component references from the codebase. Written in Step 2 above.}
 
 ## Strategic Decisions
 
-1. {Decision the team needs to make, framed as "We need to decide..."}
-2. {Decision the team needs to make, framed as "We need to decide..."}
-...
+{From skill output — themed, with business outcomes and timelines.
+ Preserve the skill's structure exactly.}
+
+## Competitive Landscape
+
+{From skill output}
 
 ## Constraints
 
-- {Technical, business, or timeline constraints}
+{From skill output}
+
+## Assumptions to Validate
+
+{From skill output — framed as testable hypotheses}
 ```
 
 ## When This Phase Is Done

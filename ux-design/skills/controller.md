@@ -36,10 +36,10 @@ by executing phases and handling transitions between them.
 6. **Revise** (`/revise`) — `revise.md`
    Incorporate stakeholder feedback into the handoff spec. Repeatable.
 
-6. **Publish** (`/publish`) — `publish.md`
+7. **Publish** (`/publish`) — `publish.md`
    Push the handoff spec as a PR to the docs repo for external review.
 
-7. **Respond** (`/respond`) — `respond.md`
+8. **Respond** (`/respond`) — `respond.md`
    Fetch and address PR reviewer comments on the published handoff spec.
 
 ## Workspace
@@ -61,6 +61,7 @@ within the source repo:
 | Prototype notes | `03-prototype/prototype-notes.md` | `/prototype` |
 | Evaluation report | `04-evaluation.md` | `/evaluate` |
 | Implementation handoff | `05-handoff.md` | `/handoff` |
+| Provenance log | `provenance.json` | `/handoff`, `/revise`, `/respond` |
 | PR description | `06-pr-description.md` | `/publish` |
 | Publish metadata | `publish-metadata.json` | `/publish` |
 
@@ -153,7 +154,7 @@ Researchers can enter at any phase if they bring the prerequisite artifact:
 | `/ingest` | Jira issue key or feature description |
 | `/research` | `01-discovery.md` (or equivalent problem framing) |
 | `/prototype` | `01-discovery.md` + `02-research.md` (or equivalent; research skippable) |
-| `/evaluate` | `03-prototype/` (prototype to evaluate) |
+| `/evaluate` | `03-prototype/` (prototype to evaluate). Standard/Full depth also needs the skill `{ID}` recorded in `03-prototype/prototype-notes.md`, and the mirrored native layout under `03-prototype/` so `.artifacts/{ID}/` can be recreated |
 | `/handoff` | `04-evaluation.md` (or researcher confirms design is ready) |
 | `/revise` | `05-handoff.md` |
 | `/publish` | `05-handoff.md` |
@@ -210,8 +211,10 @@ Load the subagent with the skill file for the phase being executed, the
 relevant artifact files from `.artifacts/ux-design/{issue-key}/`, and the
 project's `AGENTS.md`/`CLAUDE.md`.
 
-This is a recommendation, not a requirement — not all AI runtimes support
-subagent spawning.
+This is a recommendation, not a requirement, and it applies to **Claude Code
+only** — Cursor and Gemini do not support an AI self-directing subagent
+spawning. Under those runtimes, manage context by keeping phases short and
+relying on the artifact files to carry state between phases.
 
 ## Rules
 
@@ -220,7 +223,8 @@ subagent spawning.
   findings; this controller decides what to recommend next.
 - **Evaluation before handoff.** Never recommend `/handoff` unless
   `/evaluate` has been run or the researcher explicitly skips it.
-- **Skills degrade gracefully.** If a marketplace skill is unavailable, the
-  phase falls back to manual steps — the workflow still functions.
+- **Skills are required.** The `uxd-workshop` skills are a hard dependency.
+  If a skill is unavailable, the phase stops and directs the researcher
+  to run `./install.sh`.
 - **Research data is the researcher's.** The AI organizes and synthesizes
   but does not fabricate or extrapolate beyond what the data supports.

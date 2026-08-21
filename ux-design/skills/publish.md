@@ -87,14 +87,19 @@ mkdir -p "{docs_repo_path}/{release}/{feature}"
 cp ".artifacts/ux-design/{issue-key}/05-handoff.md" "{docs_repo_path}/{release}/{feature}/handoff.md"
 ```
 
-Run Vale against the copied file before staging:
+Read and follow `../../_shared/recipes/render-provenance-footer.md` with
+`WORKFLOW=ux-design`, `ISSUE_KEY={issue-key}`,
+`TARGET_FILE="{docs_repo_path}/{release}/{feature}/handoff.md"`.
 
-```bash
-vale "{docs_repo_path}/{release}/{feature}/handoff.md"
-```
-
-If Vale reports errors, fix them in the source artifact and re-copy.
-If Vale is not installed, note the skip and continue.
+Provenance at publish time:
+- If `.artifacts/ux-design/{issue-key}/provenance.json` exists from `/handoff`,
+  `/revise`, or `/respond`, the footer reflects the full authoring session
+  (`provenance_kind: session`).
+- If the log is missing, the render recipe **auto-captures a commit-time
+  snapshot** (`phase=commit`, `provenance_kind: commit_only`) so stale footers
+  are replaced instead of copied forward.
+- Only if the user explicitly declines provenance, pass `ALLOW_MISSING=yes` to
+  strip the footer and record `provenance_kind: declined`.
 
 ```bash
 git -C "{docs_repo_path}" add "{release}/{feature}/handoff.md"

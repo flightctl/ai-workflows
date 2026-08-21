@@ -71,6 +71,10 @@ Wait for the user to approve, modify, or reject each response.
 
 Update `.artifacts/ux-design/{issue-key}/05-handoff.md` with approved changes.
 
+Read and follow `../../_shared/recipes/capture-provenance-event.md` with
+`WORKFLOW=ux-design`, `ISSUE_KEY={issue-key}`, `PHASE=respond`,
+`AUTHORING_MODE=skill`.
+
 Update the docs repo copy:
 
 ```bash
@@ -85,14 +89,9 @@ git -C "{docs_repo_path}" pull --ff-only
 cp ".artifacts/ux-design/{issue-key}/05-handoff.md" "{docs_repo_path}/{handoff_file_path}"
 ```
 
-Run Vale against the updated file before staging:
-
-```bash
-vale "{docs_repo_path}/{handoff_file_path}"
-```
-
-If Vale reports errors, fix them in the source artifact and re-copy.
-If Vale is not installed, note the skip and continue.
+Read and follow `../../_shared/recipes/render-provenance-footer.md` with
+`WORKFLOW=ux-design`, `ISSUE_KEY={issue-key}`,
+`TARGET_FILE="{docs_repo_path}/{handoff_file_path}"`.
 
 ```bash
 git -C "{docs_repo_path}" add "{handoff_file_path}"
