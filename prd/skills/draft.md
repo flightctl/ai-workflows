@@ -187,6 +187,7 @@ Before presenting the PRD, verify:
 - [ ] No scope reduction language ("v2", "simplified", "placeholder", "future enhancement")
 - [ ] The document is concise — no unnecessary repetition or filler
 - [ ] The document reads coherently end-to-end
+- [ ] No customer-specific data — no customer or organization names, hostnames, cluster topology, account identifiers, or other deployment details tied to a specific customer
 
 ### Step 8: Write Artifact
 

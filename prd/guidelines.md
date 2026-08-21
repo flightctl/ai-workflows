@@ -20,6 +20,12 @@
 - **No design details.** PRDs describe what users need to do and experience, not how the system is built. Do not include specific API fields, internal system architecture, code-level implementation details, or anything the user wouldn't be able to observe. If it describes how something works rather than what a user can do, it belongs in a design document or enhancement proposal, not the PRD.
 - Locked decisions from `/clarify` are binding. No phase may contradict a locked decision without explicit user override.
 - **No personal names in generated content.** Replace references to individuals from Jira tickets, comments, or other source material with role-based descriptions (e.g., "the security reviewer noted…", "the reporter described…"). When the person's role is unknown, use a generic attribution ("a reviewer noted…", "feedback identified…") or drop the attribution and state the finding directly. Author metadata fields are exempt — they identify the document author, not referenced individuals.
+- **No customer-specific data in PRD artifacts.** Do not include information that identifies or describes a specific customer's environment, deployment, or business context in any PRD workflow artifact (ingested requirements, clarifications, the PRD, PR descriptions, or review responses). When source material contains customer-specific details, generalize them while preserving requirement intent:
+  - Replace customer or organization names with generic descriptions ("a customer", "an enterprise deployment")
+  - Omit or generalize hostnames, IP addresses, cluster names, namespaces, account or subscription IDs, and region-specific topology
+  - Describe scale and constraints generically ("large multi-node clusters", "air-gapped environments") rather than a particular customer's infrastructure footprint
+  - Omit support case numbers, internal account references, and other identifiers tied to a specific customer
+  Verbatim reproduction of customer-identifying content from Jira or user input is not permitted — abstract the requirement, not the customer's identity.
 
 ## Safety
 
