@@ -131,6 +131,43 @@ ensure_repo_linked() {
   echo "  Linked $INSTALL_DIR -> $REPO_DIR"
 }
 
+UXD_REPO="https://github.com/rh-uxd/ai-helpers.git"
+UXD_DIR="${HOME}/.uxd-ai-skills"
+UXD_PLUGINS=(uxd-workshop)
+
+# Install UXD AI Skills via git clone + symlinks (AI-agnostic; works for all
+# tools). Called at the end of each install target when ux-design is in scope.
+install_uxd_skills() {
+  local skills_dir="$1"
+
+  # Only install if ux-design is in the workflow set being installed
+  local has_ux_design=false
+  for wf in "${WORKFLOWS[@]}"; do
+    [[ "$wf" == "ux-design" ]] && has_ux_design=true
+  done
+  "$has_ux_design" || return 0
+
+  if [[ ! -d "$UXD_DIR" ]]; then
+    echo "  Cloning UXD AI Skills repo..."
+    git clone --depth 1 "$UXD_REPO" "$UXD_DIR" 2>/dev/null || {
+      echo "  Warning: could not clone UXD AI Skills repo; ux-design optional skills unavailable" >&2
+      return 0
+    }
+  fi
+
+  for plugin in "${UXD_PLUGINS[@]}"; do
+    local plugin_skills="${UXD_DIR}/plugins/${plugin}/skills"
+    [[ -d "$plugin_skills" ]] || continue
+    for skill_dir in "${plugin_skills}"/*/; do
+      [[ -d "$skill_dir" ]] || continue
+      local skill_name
+      skill_name="$(basename "$skill_dir")"
+      ln -sfn "$skill_dir" "${skills_dir}/${skill_name}"
+      echo "  Linked ${skills_dir}/${skill_name} -> ${skill_dir}  (uxd)"
+    done
+  done
+}
+
 install_shared() {
   local target_dir="$1"
   if [[ ! -d "${INSTALL_DIR}/_shared" ]]; then
@@ -203,6 +240,7 @@ install_cursor() {
     echo "  Linked ${SKILLS_DIR}/${wf} -> ${INSTALL_DIR}/${wf}  ($SCOPE)"
   done
   generate_cursor_commands "$CMDS_DIR"
+  install_uxd_skills "$SKILLS_DIR"
 }
 
 install_claude() {
@@ -277,6 +315,7 @@ install_claude() {
       echo "  Removed stale commands symlink ${CMDS_DIR}/${wf}  ($SCOPE)"
     fi
   done
+  install_uxd_skills "$SKILLS_DIR"
 }
 
 install_gemini() {
@@ -292,6 +331,7 @@ install_gemini() {
     ln -sfn "${INSTALL_DIR}/${wf}" "${SKILLS_DIR}/${wf}"
     echo "  Linked ${SKILLS_DIR}/${wf} -> ${INSTALL_DIR}/${wf}  ($SCOPE)"
   done
+  install_uxd_skills "$SKILLS_DIR"
 }
 
 # Offer a daily systemd --user notifier (Linux desktop). Default: no.
