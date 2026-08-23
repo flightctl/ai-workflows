@@ -36,6 +36,15 @@ Read these files in order:
 If `01-context.md` doesn't exist, tell the user that `/ingest` should be
 run first.
 
+Then open **citations only** from `01-context.md` (ingest is an index; this is where the files are read):
+
+1. Each `[Design: §…]` (or equivalent) → that path + heading range. Do not Read the rest of the design doc.
+2. Cited source/test paths (Affected Components + Cited, not opened) as needed to name types. Signature `offset`/`limit` slices, not whole files.
+3. Cap **≤12** cited Reads total. Skip a citation if it is not needed to lock a task or interface.
+4. Do not glob, repo-wide grep, Jira, or sibling artifacts. Do not re-run ingest exploration.
+5. Turn ingest open questions into **Locked decisions** when the citations decide them; otherwise keep them under Open Questions.
+6. Do not paste opened file bodies into `02-plan.md` (signatures and decisions only).
+
 ### Step 2: Determine Local Base and PR Target
 
 Before writing the plan, determine two distinct branches:
@@ -221,6 +230,8 @@ Before presenting the plan, verify:
 - [ ] Task count is reasonable — if you have more than 10 tasks, consider whether the story needs re-scoping
 - [ ] The plan is achievable — no tasks depend on unavailable infrastructure or unmerged code
 - [ ] If story-scoped testplan exists: every TC ID is assigned to a task or marked N/A with rationale (Test Plan Coverage set-diff is clean)
+- [ ] Every ingest open question is either a locked decision or still listed
+- [ ] Cited Reads stayed within the cap; `02-plan.md` has no pasted file bodies
 
 ### Step 6: Present to User
 

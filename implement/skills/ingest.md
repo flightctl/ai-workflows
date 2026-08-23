@@ -77,24 +77,31 @@ No feature testplan: note and continue.
 
 **Budgets (hard):**
 - ≤ **20** Greps, each `head_limit` ≤ 25. **One** Makefile grep for `lint|test|generate|tidy|cover`.
-- ≤ **4** Globs. Never `**/*` on `.artifacts`. Never repo-wide `**/*delta*`.
+- ≤ **4** Globs. Never `**/*` on `.artifacts`. Never repo-wide `**/*{story-keyword}*`.
 - Repo-wide Grep: `output_mode: files_with_matches`. Then signature Reads.
 - ≤ **8** source Reads, `offset`/`limit` ≤ 80 around signatures.
 - Stop after 3 consecutive Reads with no new pattern.
 - Stack: `git branch --show-current`, `git log --oneline -8`, `gh stack view --json`. No `.git/` listing.
-- Topology: `git remote get-url origin` + `gh repo view {owner}/{repo} --json isFork,parent`.
+- Topology: parse `{owner}/{repo}` from `git remote get-url origin` (never substitute a well-known upstream name). Then `gh repo view {owner}/{repo} --json isFork,parent`. If `gh` fails, ask the user whether this is a fork and, if so, for upstream `{owner}/{repo}`.
 
 **Validation cache:** If `.artifacts/implement/_validation-profile.md` exists and meta hashes/mtimes for `AGENTS.md`, Makefile, `.github/workflows/*.y*ml`, `CONTRIBUTING.md` match, copy the profile into `01-context.md` and skip config Reads. Else one discovery pass (Makefile grep + CI filenames via `git ls-files '.github/workflows/*.yml'`), then Write cache files **once**.
 
 Skip `AGENTS.md` Read if already in session. Path-only for PR template unless the body is required.
 
-Record components as path + signature + test path. `/plan` opens files.
+Record components as path + signature + test path. `/plan` opens cited files.
+
+**Must-record (index, not dump):**
+
+- **Design:** For each cited section, 2–5 binding bullets for *this* story (identity/key, where a check runs, write vs read target, failure/CAS, timeout/limit, explicit out of scope). One `[Design: §x.y]` each. Not a restatement of the chapter.
+- **PRD:** One clause per FR/NFR ID from the story or from slices already Read. Do not Read whole `prd.md`.
+- **Cite what `/plan` would not guess** (path + one line; extra grep hits stay unread): sibling implementation in another component/language ("pattern only, do not import"); deploy/runtime surface if the story needs a tool on PATH or in an image (Containerfile/Dockerfile/packaging); neighboring unit **and** integration test paths if grep found them. List leftover `files_with_matches` hits under **Cited, not opened**.
+- **Open questions:** Fill or mark `N/A (reason)` for: inbound contract; story boundary vs dependency/successor; spec vs AC conflict (record both, do not pick); named knob missing in code; placement (existing package vs new); runtime dependency not on the current deploy path; shared-state predicate (CAS/lock/idempotency) if the story mutates shared records. Concrete question or N/A. No vague "how should errors work?"
 
 ### 7. Compile context
 
 If re-ingest: hold content, go to 7a.
 
-If first ingest: Read `../templates/01-context.md` **once**, fill it tightly (design bullets with `[Design: §x.y]` + 1–3 sentences; 5–8 lines per component; signatures only), Write `01-context.md` **once**.
+If first ingest: Read `../templates/01-context.md` **once**, fill it tightly (must-record bullets; 5–8 lines per component; signatures only; every open-question slot filled or N/A), Write `01-context.md` **once**.
 
 ### 7a. Re-ingest diff
 

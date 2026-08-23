@@ -36,11 +36,11 @@
 
 ### Relevant Design Sections
 
-{Summary of design sections for this story, with refs (e.g., [Design: §4.1]). Not a full copy. Include locked decisions that bind this story.}
+{2–5 locked bullets per cited section for this story (identity/key, where a check runs, write vs read target, failure/CAS, timeout/limit, out of scope). Refs like [Design: §4.1]. Not a paraphrase of the chapter.}
 
 ### PRD Requirements Covered
 
-{Which FR-N and NFR-N this story addresses.}
+{One clause per FR/NFR ID, not an ID-only list. From the story or slices already read.}
 
 ### Story Test Plan
 
@@ -63,6 +63,14 @@
 - **What changes:** {brief note on what the story requires}
 - **Existing tests:** {test file locations, framework, patterns}
 
+### Cited, not opened
+
+| Path | Why |
+|------|-----|
+| {path} | {one line: pattern-only / deploy surface / leftover grep hit} |
+
+{If none: "None."}
+
 ### Relevant Types and Interfaces
 
 {Signatures only, not implementations.}
@@ -73,8 +81,8 @@
 
 ## Repository Topology
 
-- **Origin:** {owner}/{repo}
-- **Type:** Fork | Direct
+- **Origin:** {owner}/{repo from `git remote get-url origin`}
+- **Type:** Fork | Direct {from `isFork` on that origin repo, not a substituted upstream}
 - **Upstream:** {upstream-owner}/{upstream-repo} (fork only, omit if direct)
 
 ## Validation Profile
@@ -102,4 +110,12 @@
 
 ## Open Questions
 
-{Concrete questions only. Good: "Should Rollback() return an error in package mode? The design only covers Switch/Apply." Bad: observations or "how should error handling work?"}
+Fill each slot with a concrete question or `N/A (reason)`:
+
+- **Inbound contract:** {queue payload / HTTP body / CLI args / event shape, or N/A}
+- **Story boundary:** {vs dependency or successor, or N/A}
+- **Spec vs AC:** {conflict: record both; or N/A}
+- **Missing knob:** {config/flag/timeout/default named but absent in code, or N/A}
+- **Placement:** {existing package vs new, or N/A}
+- **Runtime dependency:** {binary/image/service not on current deploy path, or N/A}
+- **Shared-state predicate:** {CAS/lock/idempotency if mutating shared records, or N/A}
