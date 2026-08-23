@@ -28,6 +28,8 @@ approach.
 - **Never Read the same path twice** in one ingest.
 - **Do not glob this workflow directory.** Do not load `guidelines.md`, `gh-stack`, or other skills during ingest. Stack continuation uses git/`gh` commands only.
 - **Do not re-read `AGENTS.md` / `CLAUDE.md`** if they are already in the session (workspace rules or a prior read). Extract validation commands from what you already have, or grep Makefile/CI instead.
+- **Grep is for locating, not for loading files.** Never grep with pattern `.`. Never use grep `-A`/`-B`/`-C` to pull function bodies — that is a Read. Never grep `.git/`.
+- **Do not glob the whole docs repo** (`**/prd.md` from the docs root). After Step 5b, search only inside the feature directory.
 
 ## Process
 
@@ -262,17 +264,24 @@ Based on the story's scope, explore the areas of the codebase that will be
 affected.
 
 **Budgets (hard):**
-- Grep/glob first. Read a source file only when grep is not enough.
-- At most **12** source-file Reads (application code and tests). Prefer
-  `offset`/`limit` around type/func signatures.
+- At most **20** Greps total. Every Grep must set `head_limit` ≤ 25.
+- Repo-wide searches use `output_mode: files_with_matches` (or
+  `count`). Then Read **signatures** in the 2–4 hottest files
+  (`offset`/`limit`, ≤ 80 lines). Do not dump those files via grep.
+- At most **8** source-file Reads (application code and tests). Prefer
+  `offset`/`limit` around type/func signatures. 6–8 signature Reads beat
+  40 greps — grep hits still enter the context window.
 - Stop when **3 consecutive** Reads add no new pattern.
-- Never Read the same path twice.
+- Never Read the same path twice. Never Grep the same (path, pattern)
+  pair twice.
 - Sibling stories: do **not** Read full prior `01-context.md` / `02-plan.md`.
-  Grep those files for `Dependencies`, `Repository Topology`, and the
-  current issue key only.
-- Stack continuation ("continue the stack"): `git branch`, `git log`,
-  `gh stack view --json` (or equivalent). Do **not** load the `gh-stack`
-  skill.
+  One Grep in those files for `Dependencies`, `Repository Topology`, and
+  the current issue key only.
+- Stack continuation ("continue the stack"): `git branch --show-current`,
+  `git log --oneline -8`, `gh stack view --json` (or equivalent). Do
+  **not** load the `gh-stack` skill. Do not `ls` or grep `.git/`.
+- Jira MCP: fetch the `jira_get_issue` schema only (or call it if already
+  known). Do not list every Jira tool.
 
 **Validation profile cache:**
 
