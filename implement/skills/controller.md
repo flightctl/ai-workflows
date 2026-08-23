@@ -131,6 +131,7 @@ guidance that affects how the workflow operates.
 
 For **ingest**, do not load `guidelines.md`. Those rules apply to
 `/plan` and `/code`. Do not glob the implement workflow directory.
+Do not call `GetDynamicTools`. Write each ingest artifact path once.
 
 When the user provides a Jira issue key or URL:
 1. Execute the **ingest** phase

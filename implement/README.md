@@ -115,7 +115,7 @@ Tests validate behavioral contracts through public interfaces:
 
 The workflow does not hardcode language-specific commands. During `/ingest`, it discovers the project's validation expectations from AGENTS.md, Makefile, and CI workflows, and records them in a validation profile. Subsequent ingests in the same repo reuse `.artifacts/implement/_validation-profile.md` until those sources change. `/validate` executes whatever was discovered. If the project adds new CI checks, the next `/ingest` picks them up automatically.
 
-`/ingest` is an index: it records story contract, design section refs, and code pointers. It does not load entire design/testplan documents or dump implementations into `01-context.md`. Grep locates files; signature Reads load them. `/plan` opens the cited files.
+`/ingest` is an index: it records story contract, design section refs, and code pointers. The `01-context.md` skeleton lives in `templates/01-context.md` (read once at write time). Each artifact path is written once. `/plan` opens the cited files.
 
 ### Incremental Commits
 
@@ -132,6 +132,9 @@ implement/
 ├── SKILL.md                    # Workflow entry point
 ├── guidelines.md               # Behavioral rules and guardrails
 ├── README.md                   # This file
+├── templates/
+│   ├── 01-context.md           # Ingest context skeleton
+│   └── story-testplan.md       # Story-scoped testplan skeleton
 ├── skills/
 │   ├── controller.md           # Phase dispatcher and transitions
 │   ├── ingest.md               # Fetch story, explore codebase

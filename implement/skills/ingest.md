@@ -5,568 +5,111 @@ description: Fetch the Jira story, load design and PRD context, explore the code
 
 # Ingest Story Context Skill
 
-You are a principal technical researcher. Your job is to fetch the Jira story, gather
-all upstream context (design document, PRD, clarifications), explore the
-relevant codebase, and produce a structured context document that will inform
-the implementation.
-
-## Your Role
-
-Build a complete picture of what needs to be implemented, what constraints
-apply, and how the project validates code quality. The output must give the
-planning phase everything it needs to design a concrete implementation
-approach.
+Fetch the Jira story, load upstream design/PRD/testplan slices, index the
+affected code, and write `01-context.md` for `/plan`.
 
 ## Critical Rules
 
-- **Read-only.** Jira access is read-only. Never create, update, or modify Jira issues.
-- **Capture, don't implement.** Record what you find — implementation decisions happen in `/plan`.
-- **Explore relevant areas only.** Don't map the entire codebase. Focus on components the story will affect.
-- **Note unknowns.** If you can't determine something from the codebase, say so explicitly.
-- **Re-invocation diffs before overwriting.** If `01-context.md` already exists, preserve it before exploring. After compiling new context, diff against the previous version and present changes to the user before overwriting (see Steps 2a and 7a).
-- **Ingest is an index, not a dump.** `/plan` will open cited files. Record paths, section refs, and signatures — not full documents or function bodies.
-- **Never Read the same path twice** in one ingest.
-- **Do not glob this workflow directory.** Do not load `guidelines.md`, `gh-stack`, or other skills during ingest. Stack continuation uses git/`gh` commands only.
-- **Do not re-read `AGENTS.md` / `CLAUDE.md`** if they are already in the session (workspace rules or a prior read). Extract validation commands from what you already have, or grep Makefile/CI instead.
-- **Grep is for locating, not for loading files.** Never grep with pattern `.`. Never use grep `-A`/`-B`/`-C` to pull function bodies — that is a Read. Never grep `.git/`.
-- **Do not glob the whole docs repo** (`**/prd.md` from the docs root). After Step 5b, search only inside the feature directory.
+- Jira is read-only. Capture, don't implement. Note unknowns explicitly.
+- Ingest is an index. `/plan` opens cited files. Paths, section refs, signatures — not dumps.
+- Never Read the same path twice. Never Grep the same (path, pattern) pair twice.
+- Do not glob this workflow. Do not load `guidelines.md` or `gh-stack`.
+- Do not re-read `AGENTS.md` / `CLAUDE.md` if already in session.
+- Grep locates; Read loads. Never grep `.`. Never grep `-A`/`-B`/`-C`. Never grep `.git/`.
+- Do not glob the docs repo root. After 5b, search only the feature directory.
+- **Write each output path once.** No Delete+rewrite, no second Write to the same file.
+- Do not call `GetDynamicTools` / list Jira tools. Call `jira_get_issue` with the args below.
+
+## Jira call (use as-is)
+
+`jira_get_issue`: `comment_limit: 0`, `update_history: false`, never `*all`, never changelog expand.
+
+- **Story:** `fields=summary,description,issuetype,status,parent,issuelinks,labels`
+- **Parent epic/feature:** skip if `parent.key` (and its parent) are already in the story payload. Use those keys for docs lookup. Fetch only if a key is missing: `fields=summary,status,issuetype,parent`
+- **Blocking deps only:** `fields=summary,status`
 
 ## Process
 
-### Step 1: Identify the Story
+### 1. Identify the story
 
-The user will provide one of:
-- A Jira issue key or URL (fetch via Jira MCP)
-- A path to an existing story file from the design workflow
+Issue key with project prefix → `{issue-key}`.
 
-Extract the full Jira issue key, including the project prefix (e.g.,
-`PROJ-1234`, not just `1234`). Use this as `{issue-key}` throughout
-the workflow — it is the context identifier for the artifact directory
-and all downstream phases.
-
-### Step 2: Create Artifact Directory
+### 2. Artifact directory
 
 ```bash
 mkdir -p .artifacts/implement/{issue-key}
 ```
 
-Verify that `.artifacts/` is covered by the project's `.gitignore`. If it
-is not, warn the user that implementation artifacts could be accidentally
-committed with the code.
+Warn if `.artifacts/` is not gitignored.
 
-### Step 2a: Check for Prior Ingest
+If `01-context.md` exists (re-ingest): copy to `01-context.md.prev` **before** exploring. Do not Write the new file until Step 7a confirms.
 
-If `.artifacts/implement/{issue-key}/01-context.md` already exists, this is a
-re-invocation. Copy the existing file to `01-context.md.prev` so it is
-preserved for the diff in Step 7a.
+### 3. Fetch the Jira story
 
-### Step 3: Fetch the Jira Story
+One `jira_get_issue` for the story. Capture summary, description, AC, guidance, testing notes, TC refs, design refs, type prefix, parent key, blocking links, fix version/sprint.
 
-Fetch the story from Jira with a **narrow field set**. Do not use `*all`.
-Do not pass `expand: changelog` or `renderedFields`. Set `comment_limit: 0`
-and `update_history: false`.
+### 4. Dependencies
 
-Request only: `summary,description,issuetype,status,parent,issuelinks,labels`
-plus any custom fields this project uses for acceptance criteria,
-implementation guidance, testing approach, test-case refs, and design refs
-(discover those IDs from the story payload if the description already
-contains them — do not fetch `*all` to hunt for custom fields).
+For each blocking link: `jira_get_issue` (narrow fields) + `git log --oneline --grep={key} -5` on main. Warn if unresolved; do not block.
 
-Capture:
-- Summary and description
-- User story (As a... I want... So that...)
-- Acceptance criteria
-- Implementation guidance (if present)
-- Testing approach (if present)
-- Test Case References (if present — TC IDs used for testplan filtering in Step 5d)
-- Design Reference (if present — PRD requirement IDs and design section refs)
-- Story type prefix (`[DEV]`, `[UI]`, etc.)
-- Parent epic key
-- Story dependencies (linked issues — "depends on", "is blocked by")
-- Fix version / sprint (if set)
+### 5. Upstream docs
 
-### Step 4: Check Story Dependencies
+**5a.** Read `.artifacts/config.json` if present; validate path + git remote. Else ask for docs repo path/remote and write the config.
 
-For each dependency identified in Step 3:
-1. Check if the dependent story's Jira status indicates completion
-   (Done, Closed, Resolved). Fetch with
-   `fields=summary,status,issuetype` only — no description, no comments.
-2. Check if the dependent story's code has been merged to the main branch
-   (search git log for the dependent story's Jira key)
+**5b.** Feature directory: `find "{docs_repo_path}" -type d -name "*{feature-key}*"` using keys from the story payload. Ask the user only if not found.
 
-If dependencies are unresolved, **warn the user** but do not block. Report:
-- Which dependencies are unresolved
-- What risk this presents (merge conflicts, missing APIs, etc.)
-- A recommendation to proceed with caution or wait
+**5c.** Do not Read whole `design.md` / `prd.md` / `testplan.md`.
+1. Grep those files for issue key, FR/NFR IDs, AC keywords, `^#`.
+2. Read matching heading ranges (`offset`/`limit`).
+3. If nothing hits, Read the first ~80 lines of `design.md` (TOC) and grep TOC entries — still not the rest.
 
-### Step 5: Load Upstream Context
-
-The PRD and design document are published to a docs repo by the prd and
-design workflows. Fetch them from there.
-
-#### 5a: Resolve the Docs Repo
-
-Check for an existing docs repo configuration at `.artifacts/config.json`.
-This config is workspace-level and shared across all workflows — a prior
-workflow run may have already created it.
-
-**If the config exists**, read it and validate:
-1. Verify the path exists on the local filesystem
-2. Verify the directory is a git repository
-3. Verify the remote URL matches the configured `docs_repo_remote`
-
-If any validation fails, inform the user and re-ask for the correct values.
-Resolve `~` to an absolute path before saving. Update
-`.artifacts/config.json` with the corrected values.
-
-**If the config does not exist**, ask the user:
-- **Docs repo local path:** Where is the planning docs repo checked out?
-- **Docs repo remote:** Run `git -C "{docs_repo_path}" remote get-url origin`
-  and confirm with the user
-
-Validate the path and remote. Resolve `~` to the user's home directory
-so the stored path is absolute. Write `.artifacts/config.json` with the
-validated `docs_repo_path` and `docs_repo_remote` (workspace-level config
-shared across all workflows).
-
-#### 5b: Find the PRD and Design Document
-
-The docs repo organizes documents by Feature-level Jira issue. To find the
-right directory, walk the Jira hierarchy from the story:
-
-1. The story (e.g., `EDM-1234`) has a parent **Epic** — fetch it from Jira
-   with `fields=summary,status,issuetype,parent` only (no description)
-   to get the Epic key
-2. The Epic has a parent **Feature** — fetch it from Jira with the same
-   narrow fields to get the Feature key (e.g., `EDM-1100`)
-
-The docs repo structure is `{release}/{feature-slug}/prd.md` and
-`{release}/{feature-slug}/design.md`, where `{feature-slug}` includes the
-Feature issue key (e.g., `port-mappings-EDM-1100`).
-
-Search the docs repo for the Feature key:
-
-```bash
-find "{docs_repo_path}" -type d -name "*{feature-key}*"
-```
-
-If the hierarchy traversal fails or the directory isn't found, ask the user
-for the path to the PRD and design document within the docs repo.
-
-#### 5c: Read Upstream Documents (section-scoped)
-
-Do **not** Read an entire `design.md`, `prd.md`, or `testplan.md`. Those
-files are often thousands of lines. Search, then slice.
-
-1. Collect search terms from the Jira story: issue key, design section
-   refs, FR/NFR IDs, AC keywords, component names.
-2. Grep `design.md` / `prd.md` / `testplan.md` for those terms and for
-   heading lines (`^#`).
-3. Read **only** the matching heading ranges (`offset`/`limit`). Prefer
-   one contiguous range per relevant section.
-4. If grep finds nothing useful, Read the first ~80 lines of `design.md`
-   (title, TOC, or overview) and grep again using TOC entries — still
-   do not Read the rest of the file.
-
-Need:
-
-1. **Design document** (`design.md`) — sections that bind this story
-2. **PRD** (`prd.md`) — FR/NFR this story covers
-3. **Testplan** (`testplan.md`) — candidate test cases for Step 5d
-
-If the design document or PRD are not found, ask the user for their
-location or proceed with only the Jira story content. The design
-document and PRD are valuable context but not strictly required — the
-story's acceptance criteria are the primary contract.
-
-#### 5d: Filter Testplan to Story Scope
-
-If `testplan.md` was found in Step 5c, filter it to the test cases
-relevant to this story **from grep hits**, not from a full-file Read.
-The published testplan uses Jira keys in the Story field in each test
-case's metadata table (resolved by `/sync`). Filter by matching the
-Story field against this story's Jira key (`{issue-key}`).
-
-If the Story field still contains local identifiers (e.g., `Story 1.01`
-instead of Jira keys), this means `/sync` has not yet been run or the
-testplan was published before sync. In this case, look for TC IDs in the
-Jira story's Test Case References section (captured in Step 3 from the
-story description) and match those TC IDs directly against the testplan
-entries.
-
-**Three-outcome gate:**
+**5d.** Filter testplan from grep hits (Story field = `{issue-key}`, else TC IDs from the Jira description).
 
 | Outcome | Condition | Action |
 |---------|-----------|--------|
-| **Normal** | Matching test cases found | Write `.artifacts/implement/{issue-key}/testplan.md` |
-| **Expected zero** | No matches AND story type is `[QE]`, `[DOCS]`, `[UX]`, or `[CI]` | Note in context: "Testplan exists but has no test cases for this story type. This is expected." |
-| **Anomalous zero** | No matches AND story type is `[DEV]` or `[UI]` | Warn the user: "Testplan exists but no test cases reference this story. This may indicate a gap in the testplan or an incorrect requirement mapping." This is non-blocking. |
+| Normal | Matches found | Write `testplan.md` **once** from `../templates/story-testplan.md` |
+| Expected zero | No matches and type is `[QE]`/`[DOCS]`/`[UX]`/`[CI]` | Note expected; delete stale story testplan if present |
+| Anomalous zero | No matches and type is `[DEV]`/`[UI]` (or unknown) | Warn; delete stale story testplan if present |
 
-If the story type prefix is not listed above, treat it as anomalous
-zero (warn the user, continue without `testplan.md`).
+No feature testplan: note and continue.
 
-For non-normal outcomes (expected zero, anomalous zero, or no
-feature-level testplan): if
-`.artifacts/implement/{issue-key}/testplan.md` exists from a prior
-ingest run, delete it. A stale story-scoped testplan
-would cause downstream gates to enforce obsolete coverage requirements.
-
-If `testplan.md` was not found in the docs repo, note "No feature-level
-testplan available" and continue. This is not an error — the testplan is
-a newer feature and older designs may not have one.
-
-**Write story-scoped testplan (Normal outcome only):**
-
-Write `.artifacts/implement/{issue-key}/testplan.md`:
-
-```markdown
-# Story Test Plan — {issue-key}
-
-- **Source:** {docs-repo-path}/testplan.md
-- **Story:** {issue-key} — {story-title}
-- **Test cases:** {count}
-
-## TC-FR1-01: {scenario title}
-
-| Requirement | AC | Priority | Automation |
-|-------------|-----|----------|------------|
-| FR-1 | AC-1 | high | automated |
-
-### Preconditions
-
-- {precondition}
-
-### Steps
-
-1. {step}
-2. {step}
-
-### Expected Results
-
-- {expected outcome}
-
-## TC-FR1-02: {scenario title}
-
-{... same structure for each test case ...}
-```
-
-Each test case becomes an H2 heading with the same structure as the
-feature-level testplan (metadata table, Preconditions, Steps, Expected
-Results as sub-headings). Heading levels are shifted up by two because
-the requirement-grouping layer and the Test Cases section are removed.
-The Story field is omitted from the metadata table (redundant — all
-entries are for this story). The Requirement ID is included in the
-metadata table for traceability back to the feature-level testplan.
-
-### Step 6: Explore the Codebase
-
-Based on the story's scope, explore the areas of the codebase that will be
-affected.
+### 6. Codebase
 
 **Budgets (hard):**
-- At most **20** Greps total. Every Grep must set `head_limit` ≤ 25.
-- Repo-wide searches use `output_mode: files_with_matches` (or
-  `count`). Then Read **signatures** in the 2–4 hottest files
-  (`offset`/`limit`, ≤ 80 lines). Do not dump those files via grep.
-- At most **8** source-file Reads (application code and tests). Prefer
-  `offset`/`limit` around type/func signatures. 6–8 signature Reads beat
-  40 greps — grep hits still enter the context window.
-- Stop when **3 consecutive** Reads add no new pattern.
-- Never Read the same path twice. Never Grep the same (path, pattern)
-  pair twice.
-- Sibling stories: do **not** Read full prior `01-context.md` / `02-plan.md`.
-  One Grep in those files for `Dependencies`, `Repository Topology`, and
-  the current issue key only.
-- Stack continuation ("continue the stack"): `git branch --show-current`,
-  `git log --oneline -8`, `gh stack view --json` (or equivalent). Do
-  **not** load the `gh-stack` skill. Do not `ls` or grep `.git/`.
-- Jira MCP: fetch the `jira_get_issue` schema only (or call it if already
-  known). Do not list every Jira tool.
+- ≤ **20** Greps, each `head_limit` ≤ 25. **One** Makefile grep for `lint|test|generate|tidy|cover`.
+- ≤ **4** Globs. Never `**/*` on `.artifacts`. Never repo-wide `**/*delta*`.
+- Repo-wide Grep: `output_mode: files_with_matches`. Then signature Reads.
+- ≤ **8** source Reads, `offset`/`limit` ≤ 80 around signatures.
+- Stop after 3 consecutive Reads with no new pattern.
+- Stack: `git branch --show-current`, `git log --oneline -8`, `gh stack view --json`. No `.git/` listing.
+- Topology: `git remote get-url origin` + `gh repo view {owner}/{repo} --json isFork,parent`.
 
-**Validation profile cache:**
+**Validation cache:** If `.artifacts/implement/_validation-profile.md` exists and meta hashes/mtimes for `AGENTS.md`, Makefile, `.github/workflows/*.y*ml`, `CONTRIBUTING.md` match, copy the profile into `01-context.md` and skip config Reads. Else one discovery pass (Makefile grep + CI filenames via `git ls-files '.github/workflows/*.yml'`), then Write cache files **once**.
 
-The profile is repo-stable. Before discovering it:
+Skip `AGENTS.md` Read if already in session. Path-only for PR template unless the body is required.
 
-1. Check `.artifacts/implement/_validation-profile.md` and
-   `.artifacts/implement/_validation-profile.meta.json`.
-2. Meta should list git hashes (or mtimes) of `AGENTS.md`, `Makefile`
-   (or equivalent), `.github/workflows/*.y*ml`, and `CONTRIBUTING.md`
-   if present.
-3. If the cache exists and those sources are unchanged, copy the cached
-   profile into `01-context.md` and **skip** configuration-file Reads
-   below. Still run the cheap topology commands (`git remote`,
-   `gh repo view --json isFork,parent`).
-4. If missing or stale, discover once: grep Makefile/CI for
-   `lint|test|cover|generate` targets — do not Read full workflow YAML
-   unless grep is insufficient. Then write both cache files.
+Record components as path + signature + test path. `/plan` opens files.
 
-Focus on:
+### 7. Compile context
 
-1. **Project configuration** (skip this block when the validation cache
-   hits):
-   - `AGENTS.md`, `CLAUDE.md` — only if not already in session; grep for
-     coverage thresholds and commit/PR conventions
-   - Makefile or equivalent — grep build, test, lint commands
-   - CI/CD workflows — grep what checks run on PRs; Read a workflow
-     file only if grep cannot name the make target
-   - `CONTRIBUTING.md` — grep PR and commit message conventions
-   - `.github/PULL_REQUEST_TEMPLATE.md` or `.github/PULL_REQUEST_TEMPLATE/` —
-     path is enough; Read only if the template body is needed for the
-     profile
+If re-ingest: hold content, go to 7a.
 
-2. **Repository topology:**
+If first ingest: Read `../templates/01-context.md` **once**, fill it tightly (design bullets with `[Design: §x.y]` + 1–3 sentences; 5–8 lines per component; signatures only), Write `01-context.md` **once**.
 
-   Determine whether the local clone is a fork or a direct clone. Parse
-   `{owner}/{repo}` from the origin remote:
+### 7a. Re-ingest diff
 
-   ```bash
-   git remote get-url origin
-   ```
+Diff vs `.prev`. If downstream `02-plan.md` etc. exist, list them. Wait for confirmation, then Write once or abort.
 
-   Then query GitHub:
+### 8. Report
 
-   ```bash
-   gh repo view {owner}/{repo} --json isFork,parent
-   ```
-
-   - If `isFork` is `true`, record the upstream repo from `parent.owner.login`
-     and `parent.name`
-   - If `isFork` is `false`, record it as a direct clone
-   - If the command fails (no network, no `gh` auth), note the failure and
-     ask the user whether this is a fork. If the user confirms it is a fork,
-     also ask for the upstream `{owner}/{repo}` (e.g., `flightctl/flightctl`)
-     so the Repository Topology section is complete for downstream sync steps
-
-3. **Affected components:**
-   - Which packages, modules, or services will this story touch?
-   - Grep for types/funcs; Read signatures (`offset`/`limit`), not full files
-   - Note existing test file paths from glob/grep; Read a test file only
-     to capture the test pattern (table-driven vs Ginkgo, helpers), not
-     the whole suite
-
-4. **Testing infrastructure:**
-   - What test frameworks are used?
-   - How are tests organized (co-located, separate directory, both)?
-   - What test helpers and harnesses exist?
-   - How do integration tests get their infrastructure (auto-started, manual)?
-
-5. **Relevant data models and APIs:**
-   - What existing types and interfaces will be extended or consumed?
-   - What API specifications exist (OpenAPI, protobuf)?
-
-Use file search (glob), content search (grep), and targeted file reading
-within the budgets above. Record paths and signatures in `01-context.md`.
-`/plan` opens the files.
-
-### Step 7: Compile Context
-
-Compile all findings into the structure below. If this is a re-invocation
-(Step 2a found an existing file), **do not write the file yet** — hold the
-compiled content and proceed to Step 7a first.
-
-If this is a first invocation, write
-`.artifacts/implement/{issue-key}/01-context.md` with this structure.
-Fill it tightly: design bullets with `[Design: §x.y]` plus 1–3 sentence
-bindings (no restated architecture); 5–8 lines per affected component;
-signatures only under Relevant Types (no function bodies).
-
-```markdown
-# Story Context — {issue-key}
-
-## Story Summary
-
-- **Title:** {title}
-- **Type:** {story type prefix, e.g., [DEV]}
-- **Jira:** {issue-key}
-- **Epic:** {parent epic key and title}
-- **Feature:** {parent feature key, if known}
-
-### User Story
-
-{As a... I want... So that...}
-
-### Acceptance Criteria
-
-{Numbered list, preserving original wording}
-
-### Implementation Guidance
-
-{From the story or design document. If none: "No implementation guidance
- provided."}
-
-### Testing Approach
-
-{From the story or design document. If none: "No specific testing approach
- prescribed — follow project conventions."}
-
-### Dependencies
-
-| Story | Status | Merged | Risk |
-|-------|--------|--------|------|
-| {key} | {jira status} | {yes/no} | {brief risk note} |
-
-{If no dependencies: "No story dependencies."}
-
-## Design Context
-
-### Relevant Design Sections
-
-{Summary of design document sections relevant to this story, with
- section references (e.g., [Design: §4.1]). Not a full copy. Include
- any locked decisions or binding constraints stated in the design
- document or PRD that affect this story.}
-
-### PRD Requirements Covered
-
-{Which FR-N and NFR-N requirements this story addresses, from the
- coverage matrix or story metadata.}
-
-### Story Test Plan
-
-{If story-scoped testplan was written: "Story-scoped test plan written
- to `.artifacts/implement/{issue-key}/testplan.md` with {N} test cases.
- TC IDs: {comma-separated list}."
-
- If feature-level testplan exists but no matches (expected):
- "Feature-level testplan found in docs repo but no test cases match
- this {story-type} story (expected). No story-scoped testplan written."
-
- If feature-level testplan exists but no matches (anomalous):
- "Feature-level testplan found in docs repo but no test cases reference
- this {story-type} story (anomalous — flagged during ingest). No
- story-scoped testplan written."
-
- If no feature-level testplan in docs repo: "No feature-level testplan
- available in docs repo. No story-scoped testplan written."}
-
-## Codebase Context
-
-### Affected Components
-
-{For each component the story will touch:}
-
-#### {Component Name}
-- **Location:** {path}
-- **Purpose:** {what it does}
-- **Current patterns:** {relevant patterns to follow}
-- **What changes:** {brief note on what the story requires}
-- **Existing tests:** {test file locations, test framework, patterns used}
-
-### Relevant Types and Interfaces
-
-{Existing types, interfaces, and function signatures that will be
- extended or consumed. Show signatures, not full implementations.}
-
-### Relevant APIs
-
-{Existing API endpoints or specifications the story will extend or
- interact with.}
-
-## Repository Topology
-
-- **Origin:** {owner}/{repo}
-- **Type:** Fork | Direct
-- **Upstream:** {upstream-owner}/{upstream-repo} (fork only, omit if direct)
-
-## Validation Profile
-
-### Commit Format
-- **Pattern:** {discovered pattern, e.g., "JIRA-KEY: Description"}
-- **Discovered from:** {source file}
-
-### Pre-PR Checks (ordered)
-{Numbered list of commands to run before creating a PR, discovered from
- Makefile, CI workflows, AGENTS.md. Example:}
-1. `{generate command}` — {purpose}
-2. `{tidy command}` — {purpose}
-3. `{lint command}` — {purpose}
-4. `{unit test command}` — {purpose}
-5. `{integration test command}` — {purpose}
-
-### PR Conventions
-- **Title format:** {discovered format, e.g., "JIRA-KEY: Description" — from
-  CONTRIBUTING.md, AGENTS.md, or CI checks that validate PR/commit titles}
-- **PR template:** {path to `.github/PULL_REQUEST_TEMPLATE.md` if it exists,
-  or "None — use default template" if no project template is found}
-- **Description guidance:** {any PR description expectations from
-  CONTRIBUTING.md or AGENTS.md, e.g., "include test plan", "link Jira ticket"}
-
-### Coverage Tooling
-- **Command:** {how to generate coverage, e.g., go test -coverprofile=...}
-- **Report location:** {where reports are written}
-- **View command:** {how to view reports, if available}
-- **Minimum new-code coverage:** {percentage discovered from the project's
-  AGENTS.md or CLAUDE.md, e.g., "90%". If the project does not specify a
-  threshold, default to 90%. This is used by `/validate` as a design
-  decomposition signal — not a hard gate.}
-
-### Discovered from
-{List of files read to build the validation profile}
-
-## Open Questions
-
-{Questions that need answers before or during implementation. Each entry
- must be a concrete question — not an observation, concern, or statement
- of fact. Ask what needs to be decided, not what you noticed.
-
- Good: "Should Rollback() return an error or silently log when called
- in package mode? The design only covers Switch/Apply error handling."
-
- Bad: "Rollback() behavior on package-mode — design only mentions
- Switch/Apply errors." (observation, not a question)
-
- Bad: "How should error handling work for the new types?" (too broad —
- which types? which errors? what are the options?)}
-```
-
-### Step 7a: Diff Against Prior Ingest (Re-invocation Only)
-
-If Step 2a created a `.prev` file, compare `01-context.md.prev` against
-the newly compiled content. Focus the diff on:
-
-- Changes to acceptance criteria
-- Changes to implementation guidance or testing approach
-- Changes to dependency status
-- New components or patterns discovered in codebase exploration
-- Changes to the validation profile
-
-Then check whether downstream artifacts exist (`02-plan.md`,
-`03-test-report.md`, `04-impl-report.md`, etc.). If they do, tell the user
-which artifacts exist and may be affected by the changes.
-
-Wait for the user to confirm before proceeding. If the user confirms, write
-the compiled content to `01-context.md` and clean up the `.prev` file. If
-the user declines, delete the `.prev` file and stop without overwriting.
-
-### Step 8: Report to User
-
-Present **8–12 lines**. Do not paste `01-context.md` into chat.
-- Story title, type, 1-line scope
-- AC count + pointer to `01-context.md`
-- Design/PRD: which files and section refs (or what was missing)
-- Dependency one-liners (warnings only if unresolved)
-- 3–6 affected paths
-- Validation profile: cache hit/miss + command list names only
-- Open questions as `/plan` investigation items, not user blockers
-- Whether the context is sufficient to proceed to `/plan`
-
-If the user declined a re-invocation overwrite in Step 7a, report instead
-what changes were found and that the existing context was preserved.
+8–12 lines. Do not paste `01-context.md`. Point at the file. Frame open questions as `/plan` work.
 
 ## Output
 
 - `.artifacts/implement/{issue-key}/01-context.md`
-- `.artifacts/implement/{issue-key}/testplan.md` (if testplan exists with matching test cases)
+- `.artifacts/implement/{issue-key}/testplan.md` (normal testplan outcome only)
+- `.artifacts/implement/_validation-profile.md` (+ `.meta.json`) on cache miss
 
-## When This Phase Is Done
+## Done
 
-Report your findings:
-- Story scope and key acceptance criteria
-- Affected components and current patterns
-- Validation profile summary
-- Dependency warnings (if any)
-- Story test plan status (test cases found / expected zero / anomalous zero / no testplan)
-- Assessment of readiness for `/plan`
-
-Then follow next-step guidance from `controller.md` **if it is already in
-this session**. Re-read it only when it was not loaded at dispatch.
+Report scope, components, validation cache hit/miss, dep warnings, testplan status, readiness for `/plan`. Follow `controller.md` only if already in session.
