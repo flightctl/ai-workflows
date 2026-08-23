@@ -30,7 +30,15 @@ confirms, clean up all artifacts.
   `code-review-002.md`, round 3 produces `code-review-003.md`, etc.
 - **Clean up on approval.** When the reviewer approves and the user
   confirms (or in unattended mode, when the reviewer approves), delete
-  all artifacts in the review directory.
+  all artifacts in the review directory. Keep
+  `.artifacts/code-review/_reviewer-profile.md` and
+  `.artifacts/code-review/.meta.json`.
+- **Index the diff; do not dump it.** Capture `--stat` and `--name-status`.
+  Never paste full `git diff HEAD` into this conversation or a subagent
+  prompt. Read hunk neighborhoods (`offset`/`limit` ~80 lines). Cap **≤20**
+  hunk Reads. Skip generated/vendor/lock paths.
+- **Do not glob this workflow. Do not call `GetDynamicTools`.**
+  If this file is already in session, do not re-Read it.
 
 ## Process
 
@@ -224,34 +232,63 @@ Clean it up before handing it to the reviewer.
 
 ### Step 7: Obtain Re-Review
 
-Obtain a fresh review of the current state, following the same approach
-as Step 6 of `/start`:
+Obtain a fresh review of the current state. Spawn a **new, independent**
+reviewer (do not resume a prior reviewer — that would reload dumped
+history). Do **not** pass `AGENTS.md`, `guidelines.md`, the raw patch, or
+historical `code-review-*.md` / `review-response-*.md` files other than
+the latest round.
 
-**If the AI runtime supports subagents:** Check `review-metadata.json`
-for a `reviewer_agent_id`. If one exists and the runtime supports agent
-resumption, resume the same reviewer agent — this gives it memory of
-previous reviews and concerns. If resumption is not available or there
-is no stored agent ID, spawn a new subagent. Load it with the reviewer
-profile, the updated diff (`git diff HEAD`), all previous review and
-response files (so the reviewer has full history), the project's
-`AGENTS.md`/`CLAUDE.md`, and the workflow's guidelines (`../guidelines.md`).
+Capture a **diff index** (do not dump `git diff HEAD`):
+
+```bash
+git diff HEAD --stat
+git diff HEAD --name-status
+git ls-files --others --exclude-standard
+```
+
+Build a short **already decided** list from the latest round: finding id
++ accept/reject only.
+
+**Hunk Reads (reviewer and sequential fallback):** For each relevant
+path, Read ~80 lines around changed lines (`offset`/`limit`). Cap **≤20**
+hunk Reads. Skip generated, vendor, and lockfile paths.
+
+**If the AI runtime supports subagents:** Spawn a subagent. Load **only**:
+
+- `00-reviewer-profile.md`
+- `01-change-summary.md`
+- the name-status / stat index (not the patch)
+- `../../_shared/review-protocol.md`
+- the **latest** `code-review-{NNN}.md`
+- the **latest** `review-response-{NNN}.md`
+- the **already decided** list
+
 Store any new agent ID in the metadata.
 
-**If subagents are not available:** Perform the review sequentially. Focus
-on the current state of the diff, not just the delta from last round.
-Re-evaluate previously flagged areas to confirm they were addressed.
+**If subagents are not available:** Read `../../_shared/review-protocol.md`
+(not `guidelines.md`) and review sequentially. Same hunk-Read rules.
 
-The reviewer should evaluate all categories defined in
+The reviewer should evaluate all categories in
 `../../_shared/review-protocol.md` and additionally:
+
 - Verify that accepted findings were addressed correctly
 - Check whether the changes introduced new issues
-- Re-evaluate any previously rejected findings only if the code context
-  changed in a way that affects them
+- Re-check **rejected** findings only if that finding's file appears in
+  the current name-status index (hunks changed). Do not re-argue settled
+  rejects on unchanged files
 - Issue a verdict: APPROVED or CHANGES_REQUESTED
 
-Increment the iteration counter now. Write the new review to
-`.artifacts/code-review/{branch}/code-review-{NNN}.md` (using the
-incremented number) in the same format as the initial review.
+Parent Reads `../templates/code-review.md` **once**. Instruct the
+subagent to write
+`.artifacts/code-review/{branch}/code-review-{NNN}.md` (incremented
+number) using that skeleton. If reviewing sequentially, Write that file
+**once** from the template.
+
+#### 7a: Validate finding references
+
+Same as `/start` Step 7a: every finding must cite a path from the
+name-status / untracked list (or a path the reviewer Read). Drop or
+rewrite findings that cite files outside the change.
 
 ### Step 8: Update Metadata
 

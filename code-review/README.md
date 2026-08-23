@@ -60,7 +60,7 @@ No external services (Jira, GitHub CLI) are required. The workflow operates enti
 
 ### Project Discovery
 
-On first run, the workflow reads the project's AGENTS.md, CLAUDE.md, CONTRIBUTING.md, linting configs, and CI workflows to build a reviewer profile. This profile determines what the reviewer focuses on and what conventions it enforces. No manual initialization needed.
+On first run, the workflow reads the project's AGENTS.md, CLAUDE.md, CONTRIBUTING.md, linting configs, and CI workflow filenames to build a reviewer profile. The profile is cached; the reviewer sees an index and hunk slices, not a dump. No manual initialization needed.
 
 ### The Decision Table
 
@@ -92,15 +92,18 @@ When the reviewer approves and the user confirms, all artifacts in `.artifacts/c
 All artifacts are stored in `.artifacts/code-review/{branch}/`.
 
 ```text
-.artifacts/code-review/feature-xyz/
-  00-reviewer-profile.md     (project conventions and review focus)
-  01-change-summary.md       (what changed, files affected)
-  review-metadata.json       (iteration count, state, timestamps)
-  decisions-001.json         (user decisions per round)
-  code-review-001.md         (initial review)
-  review-response-001.md     (changes made, rejections documented)
-  code-review-002.md         (re-review)
-  ...
+.artifacts/code-review/
+  _reviewer-profile.md       (cached profile; reused while sources match)
+  .meta.json
+  feature-xyz/
+    00-reviewer-profile.md   (project conventions and review focus)
+    01-change-summary.md     (what changed, files affected)
+    review-metadata.json     (iteration count, state, timestamps)
+    decisions-001.json       (user decisions per round)
+    code-review-001.md       (initial review)
+    review-response-001.md   (changes made, rejections documented)
+    code-review-002.md       (re-review)
+    ...
 ```
 
 ## Optional Focus Guidance
@@ -148,6 +151,10 @@ code-review/
     start.md                   # /start command
     continue.md                # /continue command
     clean.md                   # /clean command
+  templates/
+    00-reviewer-profile.md     # Reviewer profile skeleton
+    01-change-summary.md       # Change summary skeleton
+    code-review.md             # Review round skeleton
 ```
 
 ## Getting Started

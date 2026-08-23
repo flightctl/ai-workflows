@@ -113,8 +113,15 @@ Other options:
 ## Starting the Workflow
 
 Before dispatching any phase, check if the project has its own `AGENTS.md`
-or `CLAUDE.md`. If so, read it -- it may contain project-specific conventions,
-testing standards, or other guidance that affects how the review operates.
+or `CLAUDE.md`. If they are **already in this session** (workspace rules
+or a prior read), do not re-read them. Otherwise read them — they may
+contain project-specific conventions, testing standards, or other
+guidance that affects how the review operates.
+
+For **start**, do not load `guidelines.md` into the reviewer. Those rules
+apply to the parent; the reviewer reads `_shared/review-protocol.md`.
+Do not glob the code-review workflow directory. Do not call
+`GetDynamicTools`.
 
 When the user runs `/start`, execute the start phase. If the user runs
 `/start` and artifacts already exist for the current branch, warn that a
@@ -143,7 +150,9 @@ There are two distinct uses of subagents in this workflow:
 
 1. **Reviewer subagents** (start.md Step 6, continue.md Step 7): The
    reviewer runs as a subagent to ensure independence from the
-   implementor. This is the primary subagent pattern and is described
+   implementor. Load profile, summary, diff index, and
+   `_shared/review-protocol.md` — not `guidelines.md`, `AGENTS.md`, or
+   a raw patch. This is the primary subagent pattern and is described
    in the skill files themselves.
 
 2. **Phase-level subagents** (this section): If the AI's output quality
