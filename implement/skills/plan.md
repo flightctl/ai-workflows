@@ -42,7 +42,10 @@ Then open **citations only** from `01-context.md` (ingest is an index; this is w
 2. Cited source/test paths (Affected Components + Cited, not opened) as needed to name types. Signature `offset`/`limit` slices, not whole files.
 3. Cap **≤12** cited Reads total. Skip a citation if it is not needed to lock a task or interface.
 4. Do not glob, repo-wide grep, Jira, or sibling artifacts. Do not re-run ingest exploration.
-5. Turn ingest open questions into **Locked decisions** when the citations decide them; otherwise keep them under Open Questions.
+5. Classify each ingest open question (ingest is an index, not a spec). Do **not** treat ingest text as a complete contract:
+   - **Already specified:** citations (or an unambiguous AC) define the parse path, type, or behavior → **Locked decision**.
+   - **Implementer default:** unspecified but `/code` needs a choice (timeout number, binary pin, field name that must match an existing pattern). Lock a default that matches cited neighboring code; note it is a default `/revise` may change. Do not leave it open.
+   - **Product fork:** spec vs AC, or two product-legal behaviors. Keep under **Open Questions**. Follow AC in the tasks until the user picks. Do not silently lock the design side.
 6. Do not paste opened file bodies into `02-plan.md` (signatures and decisions only).
 
 ### Step 2: Determine Local Base and PR Target
@@ -105,6 +108,10 @@ Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
 - **Name:** {issue-key}-{short-slug} (e.g., EDM-1234-fleet-rollback)
 - **Local Base:** {branch confirmed in Step 2 — used for rebasing during /code and /validate}
 - **PR Target:** {branch confirmed in Step 2 — used as --base in gh pr create; typically `main`}
+
+## Locked Decisions
+
+{Ingest gaps resolved as “already specified” or “implementer default.” Each bullet: decision + one-line why (citation or “default, match {existing pattern}”). Product forks do not belong here.}
 
 ## Interface Definitions
 
@@ -210,8 +217,8 @@ Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
 
 ## Open Questions
 
-{Questions that need resolution before or during implementation. These
- may be carried forward from the ingest phase's open questions.}
+{Product forks only — spec vs AC or two product-legal behaviors. Not
+ implementer defaults. If none: “None — `/code` can proceed.”}
 ```
 
 ### Step 5: Self-Review
@@ -230,7 +237,8 @@ Before presenting the plan, verify:
 - [ ] Task count is reasonable — if you have more than 10 tasks, consider whether the story needs re-scoping
 - [ ] The plan is achievable — no tasks depend on unavailable infrastructure or unmerged code
 - [ ] If story-scoped testplan exists: every TC ID is assigned to a task or marked N/A with rationale (Test Plan Coverage set-diff is clean)
-- [ ] Every ingest open question is either a locked decision or still listed
+- [ ] Every ingest open question is a locked decision (specified or implementer default) or a product fork still listed
+- [ ] Open Questions contains only product forks, not pins/timeouts/names `/code` could default
 - [ ] Cited Reads stayed within the cap; `02-plan.md` has no pasted file bodies
 
 ### Step 6: Present to User
