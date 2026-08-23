@@ -124,8 +124,13 @@ Other options:
 ## Starting the Workflow
 
 Before dispatching any phase, check if the project has its own `AGENTS.md`
-or `CLAUDE.md`. If so, read it — it may contain project-specific conventions,
-testing standards, or other guidance that affects how the workflow operates.
+or `CLAUDE.md`. If they are **already in this session** (workspace rules
+or a prior read), do not re-read them. Otherwise read them — they may
+contain project-specific conventions, testing standards, or other
+guidance that affects how the workflow operates.
+
+For **ingest**, do not load `guidelines.md`. Those rules apply to
+`/plan` and `/code`. Do not glob the implement workflow directory.
 
 When the user provides a Jira issue key or URL:
 1. Execute the **ingest** phase
