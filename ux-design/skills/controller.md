@@ -220,10 +220,10 @@ phases. Even when a subagent completes a phase artifact, always present it
 to the researcher for confirmation before advancing to the next phase per
 the "Never auto-advance" rule below.
 
-This is a recommendation, not a requirement, and it applies to **Claude Code
-only** — Cursor and Gemini do not support an AI self-directing subagent
-spawning. Under those runtimes, manage context by keeping phases short and
-relying on the artifact files to carry state between phases.
+This is a recommendation, not a requirement — not all AI runtimes support
+subagent spawning. When subagent support is unavailable, manage context by
+keeping phases short and relying on the artifact files to carry state between
+phases.
 
 ## Rules
 
