@@ -11,6 +11,7 @@ This file is read during the `/draft` phase. It is not included in the final out
 - Use fenced code blocks for full commands and example output.
 - Use numbered steps for sequential actions, bullet points for non-sequential items.
 - Write in en-US English.
+- Follow `../../_shared/content-rules.md` for generated content.
 - Every claim must trace to the gathered context (Jira ticket, user-provided details, or logs). Use standardized source markers for traceability:
   - `[Jira: PROJ-123]` — from the Jira issue description or comments
   - `[User]` — from direct user input during the workflow

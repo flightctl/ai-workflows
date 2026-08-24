@@ -24,6 +24,11 @@ Artifacts go in `.artifacts/triage/{project}/`.
 - AUTO_FIX and NEEDS_INFO are mutually exclusive — a bug without sufficient detail can never be a candidate for automated fixing
 - AUTO_FIX likelihood percentages reflect honest assessment of bot success probability, not optimism
 
+## Shared Content Rules
+
+Read and follow `../_shared/content-rules.md` for generated-content rules. Those standards apply to all
+artifacts and published output from this workflow.
+
 ## Hard Limits
 
 - **No Jira writes** — this workflow must not create, update, close, or comment on any Jira issue

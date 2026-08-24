@@ -7,6 +7,11 @@ finding format, severity definitions, and core review principles. Those
 shared standards apply to this workflow. The principles and rules below
 are specific to the interactive code-review workflow.
 
+## Shared Content Rules
+
+Read and follow `../_shared/content-rules.md` for generated-content rules. Those standards apply to all
+artifacts and published output from this workflow.
+
 ## Principles
 
 - **The human decides.** The reviewer proposes; the implementor assesses; the user approves. No change is applied without the user's explicit decision.
@@ -22,7 +27,6 @@ are specific to the interactive code-review workflow.
 - No fabricated findings. Every issue cited must reference a specific file and location in the actual diff.
 - No scope creep. The reviewer reviews what changed, not what didn't.
 - No mutating git operations (commit, push, branch, checkout) during `/start`. Read-only git commands (`git diff`, `git log`, `git ls-files`) are expected. Code changes happen only in `/continue`.
-- **No personal names in generated content.** Replace references to individuals from code comments, commit history, or other source material with role-based descriptions (e.g., "the author noted…", "a previous reviewer identified…") or drop the attribution and state the finding directly.
 
 ## Safety
 
