@@ -50,7 +50,7 @@ check marks its findings "unverified" when the design document was unavailable.
 | Evaluate | `/evaluate` | Heuristic evaluation and usability assessment | `04-evaluation.md` |
 | Handoff | `/handoff` | Produce implementation-ready design spec | `05-handoff.md` |
 | Revise | `/revise` | Incorporate stakeholder feedback | `05-handoff.md` (updated) |
-| Publish | `/publish` | Push handoff spec to docs repo for review | PR in docs repo |
+| Publish | `/publish` | Push handoff spec to docs repo for review | `06-pr-description.md`, `publish-metadata.json`, PR in docs repo |
 | Respond | `/respond` | Address PR reviewer comments | Updated `05-handoff.md` |
 
 ## Typical Flow
@@ -110,6 +110,8 @@ All artifacts are stored in `.artifacts/ux-design/{issue-key}/`.
   04-evaluation.md             (heuristic eval report, readiness assessment)
   04-eval-raw/                 (raw skill reports, mirrored from the eval skills)
   05-handoff.md                (implementation spec, component mapping, AC)
+  06-pr-description.md         (generated PR body for /publish)
+  publish-metadata.json        (PR tracking: number, URL, branch, head SHA)
   provenance.json              (authoring provenance log)
 ```
 

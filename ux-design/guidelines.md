@@ -81,6 +81,32 @@ Stop and request human guidance when:
 - The researcher's domain expertise is needed to interpret data
 - Confidence in a design recommendation is low
 
+## Artifact Persistence and Isolation
+
+- All workflow artifacts MUST be stored under `.artifacts/ux-design/{issue-key}/`
+- NEVER read from another workflow's `.artifacts/` directory (`.artifacts/prd/`,
+  `.artifacts/design/`, etc.) — those are private working directories, not
+  interfaces
+- Shared inputs MUST come from published locations:
+  - Jira issues (read-only)
+  - Published docs repository (PRD, design doc, clarifications)
+  - `.artifacts/config.json` (shared repo configuration)
+  - Project files (AGENTS.md, CLAUDE.md, design system docs)
+- When a downstream workflow needs this workflow's output, it reads from the
+  published docs repository (via `/publish`), not from `.artifacts/ux-design/`
+
+## Shell Command Safety
+
+When instructing the AI to interpolate values into shell commands (e.g., Jira
+titles, branch names, user input):
+
+- Always quote interpolated values with double quotes
+- Never pass unvalidated free-form text (e.g., Jira issue summaries) as
+  command-line flags unquoted
+- Validate values match expected patterns before interpolation when possible
+
+Example: `git commit -m "${title}"` not `git commit -m $title`
+
 ## Working With the Project
 
 This workflow gets deployed into different projects. Respect the target project:

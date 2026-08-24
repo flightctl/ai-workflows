@@ -184,8 +184,13 @@ install_uxd_skills() {
       [[ -d "$skill_dir" ]] || continue
       local skill_name
       skill_name="$(basename "$skill_dir")"
-      ln -sfn "$skill_dir" "${skills_dir}/${skill_name}"
-      echo "  Linked ${skills_dir}/${skill_name} -> ${skill_dir}  (uxd)"
+      local target="${skills_dir}/${skill_name}"
+      if [[ -e "$target" && ! -L "$target" ]]; then
+        echo "  Warning: ${target} exists and is not a symlink; skipping" >&2
+        continue
+      fi
+      ln -sfn "$skill_dir" "$target"
+      echo "  Linked ${target} -> ${skill_dir}  (uxd)"
     done
   done
 }

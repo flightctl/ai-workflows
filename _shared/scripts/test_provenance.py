@@ -125,9 +125,27 @@ class ProvenanceTests(unittest.TestCase):
         self.assertTrue(provenance.origin_untracked(events, "prd"))
 
     def test_origin_untracked_note_names_workflow_origin_phase(self) -> None:
-        self.assertIn("/handoff", provenance.origin_untracked_note("ux-design"))
-        self.assertIn("/draft", provenance.origin_untracked_note("prd"))
+        ux_note = provenance.origin_untracked_note("ux-design")
+        self.assertIn("/handoff", ux_note)
+        # ux-design has no template step, so note should not mention "template"
+        self.assertNotIn("template", ux_note)
+
+        prd_note = provenance.origin_untracked_note("prd")
+        self.assertIn("/draft", prd_note)
+        self.assertIn("template", prd_note)  # prd/design DO have templates
+
         self.assertIn("/draft", provenance.origin_untracked_note())
+
+    def test_workflow_phase_validation_rejects_invalid_combinations(self) -> None:
+        # prd/design don't have 'handoff' phase
+        with self.assertRaises(ValueError) as cm:
+            provenance.capture_event("prd", "TEST-123", "handoff", "skill")
+        self.assertIn("not valid for workflow 'prd'", str(cm.exception))
+
+        # ux-design doesn't have 'draft' phase
+        with self.assertRaises(ValueError) as cm:
+            provenance.capture_event("ux-design", "TEST-456", "draft", "skill")
+        self.assertIn("not valid for workflow 'ux-design'", str(cm.exception))
 
     def test_build_metrics_payload_flags_origin_untracked(self) -> None:
         data = {

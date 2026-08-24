@@ -40,6 +40,13 @@ AUTHORING_PHASES = frozenset(
     {"draft", "handoff", "revise", "respond", "manual-edit"}
 )
 
+# Per-workflow valid phases (for validation in capture_event)
+WORKFLOW_PHASES = {
+    "prd": frozenset({"draft", "revise", "respond", "manual-edit", "commit"}),
+    "design": frozenset({"draft", "revise", "respond", "manual-edit", "commit"}),
+    "ux-design": frozenset({"handoff", "revise", "respond", "manual-edit", "commit"}),
+}
+
 DRIFT_FIELDS = (
     "workflow_version",
     "ai_workflows",
@@ -71,10 +78,17 @@ COMMIT_ONLY_NOTE = (
 )
 def origin_untracked_note(workflow: str | None = None) -> str:
     origin = ORIGIN_PHASE.get(workflow, "draft")
-    return (
-        f"> This document's phase history does not include an initial /{origin} — "
-        "structure was not verified against the template from origin."
-    )
+    # ux-design has no template step; its /handoff assembles from scratch
+    if workflow == "ux-design":
+        return (
+            f"> This document's phase history does not include an initial /{origin} — "
+            "structure was not verified from origin."
+        )
+    else:
+        return (
+            f"> This document's phase history does not include an initial /{origin} — "
+            "structure was not verified against the template from origin."
+        )
 
 
 def repo_root(start: Path) -> Path | None:
@@ -292,6 +306,14 @@ def capture_event(
     phase: str,
     authoring_mode: str,
 ) -> None:
+    # Validate phase is valid for this workflow
+    valid_phases = WORKFLOW_PHASES.get(workflow)
+    if valid_phases and phase not in valid_phases:
+        raise ValueError(
+            f"Phase '{phase}' is not valid for workflow '{workflow}'. "
+            f"Valid phases: {', '.join(sorted(valid_phases))}"
+        )
+
     ai_root = ai_workflows_root()
     ws_root = workspace_root()
     path = provenance_path(workflow, issue)

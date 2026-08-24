@@ -12,7 +12,9 @@ the AI assists with organization, pattern identification, and synthesis.
 ## Prerequisites
 
 Read `.artifacts/ux-design/{issue-key}/01-discovery.md` for the problem
-framing and strategic decisions. If it doesn't exist, tell the researcher
+framing and strategic decisions. If it doesn't exist, ask the researcher
+if they have an equivalent problem framing (PRD, feature brief, or
+description). If they do, use it as context. If not, tell the researcher
 that `/ingest` should run first and stop.
 
 ## Process
@@ -43,6 +45,13 @@ desk research that doesn't require human participants:
 - Synthesize existing internal research documents
 
 Cite all sources. Flag confidence levels (HIGH/MEDIUM/LOW).
+
+**Failure modes:** If a research tool or data source is unavailable (e.g., no
+MCP access to support tickets, search returns zero results, internal docs
+not accessible), note what was attempted and what is missing in the research
+artifact. Do not fabricate findings to fill the gap. Proceed with the
+researcher-provided data (Step 3) and flag the limited desk-research coverage
+in the final synthesis.
 
 ### Stage 2: Data Organization (Collaborative)
 

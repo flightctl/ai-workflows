@@ -54,9 +54,11 @@ The skill handles:
 - Accessibility requirements (WCAG, ARIA, keyboard, screen reader)
 - Open questions
 
-Pass `--design-system patternfly` if the project uses PatternFly (check
-`package.json` for `@patternfly/react-core`); otherwise omit and let the
-skill auto-detect.
+Pass `--design-system patternfly` if the project uses PatternFly. Check the
+top-level `package.json` for `@patternfly/react-core`; for monorepos, also
+check workspace package.json files (e.g., `packages/*/package.json` or
+`apps/*/package.json`). If PatternFly is found anywhere, pass the flag;
+otherwise omit and let the skill auto-detect.
 
 Wait for the skill to complete. Review the output before proceeding.
 
@@ -69,11 +71,12 @@ write into our artifact namespace. So:
    design-handoff-*.json` in the repo root). If more than one matches, use the
    most recently modified.
 2. Read it — this is the input for Steps 2-4.
-3. After you have assembled `05-handoff.md` (Step 4), **move the skill's raw
-   output into our namespace** so it is not left untracked at the repo root:
-   `mv design-handoff-{slug}.md .artifacts/ux-design/{issue-key}/03-prototype/`
+3. After you have assembled `05-handoff.md` (Step 5), **move the skill's raw
+   output into our namespace** so it is not left untracked at the repo root.
+   The skill writes either `.md` or `.json`; move whichever it created:
+   `mv design-handoff-{slug}.* .artifacts/ux-design/{issue-key}/03-prototype/`
    (the source-repo `.gitignore` covers `.artifacts/` but not the repo root, so
-   a stray `design-handoff-*.md` there can be committed by accident). If the
+   a stray `design-handoff-*` file there can be committed by accident). If the
    file cannot be found after the skill reports success, stop and report it —
    do not fabricate the handoff content from the other artifacts alone.
 
@@ -112,7 +115,10 @@ Check `02-research.md` for persona notes (or `01-discovery.md` user groups
 if research was skipped). If multiple user groups interact differently:
 - Identify which components or flows are shared vs. persona-specific
 - Document persona-specific states, actions, or views
-- Note permission-gated interactions
+- Note permission-gated interactions — but do **not** invent permission systems
+  or specific permission names that you have not confirmed exist in the codebase
+  or design document. Describe permission requirements conceptually (e.g., "admin-
+  only action") unless you have verified the actual permission model.
 
 If all user groups interact identically, state that explicitly.
 

@@ -69,6 +69,8 @@ Wait for the user to approve, modify, or reject each response.
 
 ### Step 4: Apply Approved Changes
 
+**If "Handoff change needed: Yes":**
+
 Update `.artifacts/ux-design/{issue-key}/05-handoff.md` with approved changes.
 
 Read and follow `../../_shared/recipes/capture-provenance-event.md` with
@@ -104,6 +106,13 @@ git -C "{docs_repo_path}" commit -m "UX design {issue-key}: address review feedb
 ```bash
 git -C "{docs_repo_path}" push
 ```
+
+**If "Handoff change needed: No":**
+
+Skip the git operations above — the handoff spec is unchanged. The response
+is comment-only (clarification, acknowledgment, or pushback).
+
+**In both cases:**
 
 Post approved replies using `gh pr comment` or `gh api` for line-level replies.
 

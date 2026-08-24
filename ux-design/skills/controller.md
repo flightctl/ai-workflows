@@ -215,6 +215,11 @@ Load the subagent with the skill file for the phase being executed, the
 relevant artifact files from `.artifacts/ux-design/{issue-key}/`, and the
 project's `AGENTS.md`/`CLAUDE.md`.
 
+**Important:** Spawning a subagent does not bypass the human gate between
+phases. Even when a subagent completes a phase artifact, always present it
+to the researcher for confirmation before advancing to the next phase per
+the "Never auto-advance" rule below.
+
 This is a recommendation, not a requirement, and it applies to **Claude Code
 only** — Cursor and Gemini do not support an AI self-directing subagent
 spawning. Under those runtimes, manage context by keeping phases short and

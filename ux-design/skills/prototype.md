@@ -151,6 +151,9 @@ files. Two distinct sets, kept separate:
 - `prototype-summary.yaml` — the skill's designated machine-readable summary
   for downstream skills; mirror it even though `uxd-prototype-evaluate` doesn't
   require it today
+- `reviews/` — if present (created by `/evaluate` when it stages evaluation
+  findings back for refinement); preserves `reviews/summary.md` across refinement
+  iterations
 
 In **workspace mode** the prototype lives in the codebase, not in
 `.artifacts/{ID}/prototype/`, so the `prototype/` subdir may be absent. In that
@@ -209,6 +212,8 @@ finding:
 ├── prototype-notes.md        # Design rationale and decisions (this phase)
 ├── iteration-{N}.md          # Notes from each iteration, if iterating (this phase)
 ├── prototype/                # Generated prototype files (HTML/React/CSS/screenshots)
+├── reviews/                  # Evaluation findings for refinement (from /evaluate)
+│   └── summary.md            # Findings summary (created by uxd-prototype-evaluate)
 ├── user-stories.json         # User stories with acceptance criteria (from the skill)
 ├── rfe-snapshot.md           # Requirements snapshot (always produced; required by evaluator)
 ├── metadata.json             # Prototype metadata (mode, iteration, input source)

@@ -81,7 +81,7 @@ paths. So before invoking it, turn the prototype into something the skill can
 see:
 
 - **Standalone HTML** (`03-prototype/prototype/`): serve it and pass the URL.
-  From the prototype directory, start a local server in the background, e.g.
+  From the prototype directory, start a local server, e.g.
   `python3 -m http.server 8000` (run from
   `.artifacts/ux-design/{issue-key}/03-prototype/prototype/`), then pass
   `http://localhost:8000/<entry>.html`. Stop the server when the skill finishes.
@@ -380,7 +380,13 @@ produces it; leave a section out when that skill did not run.
 
 {Consolidated a11y issues — color contrast, keyboard navigation, screen reader
  support, ARIA usage. Drawn from Evaluator C in uxd-research-heuristic-eval and,
- when run, the accessibility dimension of uxd-evaluate-design-heuristics.}
+ when run, the accessibility dimension of uxd-evaluate-design-heuristics.
+
+ Note whether the chosen design system/framework (e.g., PatternFly, Material UI)
+ provides accessible building blocks (components with built-in WCAG compliance,
+ keyboard navigation, ARIA attributes) as a baseline. The handoff should rely on
+ the framework's accessibility primitives rather than requiring every attribute
+ to be manually specified.}
 
 ## Readiness Assessment
 

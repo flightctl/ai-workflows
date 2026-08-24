@@ -29,9 +29,20 @@ published docs repo or Jira — never from another workflow's private
 `.artifacts/` directory (`.artifacts/prd/`, `.artifacts/design/`). Those are
 each workflow's working directories, not interfaces.
 
-If any input cannot be found, note what is missing, continue with what is
-available, and **never fabricate** context to fill the gap. A downstream phase
-that depends on missing context must flag it, not paper over it.
+**Failure handling:** Distinguish fatal from non-fatal input failures:
+
+- **Fatal (hard-stop):** The core input — the `[UX]` story or feature
+  description — cannot be loaded or is invalid. Stop, report the exact error,
+  and offer to retry or ask the researcher to supply the input directly.
+- **Non-fatal (note and continue):** An optional input (a specific sibling
+  story, one document, the design system reference) is missing. Note what is
+  missing in the artifact, continue with what is available, and **never
+  fabricate** context to fill the gap. A downstream phase that depends on
+  missing context must flag it, not paper over it.
+
+Examples: Jira story fetch failure → fatal. One sibling story inaccessible → non-fatal.
+PRD not found after docs-repo search → non-fatal (record "Not found"). Docs repo
+path invalid or unreadable → fatal (can't perform the search).
 
 ## Process
 
@@ -189,9 +200,11 @@ affected UI area and the design system:
 - What components (from the project's design system) are already used?
 - What user flows currently exist?
 
-If any external operation fails (Jira fetch, docs-repo read, codebase read):
-note what failed, continue with available data, and never fabricate context to
-fill the gap.
+If an optional external operation fails (one sibling story inaccessible, one
+codebase file unreadable): note what failed, continue with available data, and
+never fabricate context to fill the gap. If a core operation fails (story
+identity unresolvable, docs repo path invalid): stop per the failure-handling
+rule above.
 
 ### Step 7: Assemble the Discovery Artifact
 
