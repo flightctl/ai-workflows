@@ -230,8 +230,14 @@ for shared_file in "${!shared_changed[@]}"; do
 
   referencing_workflows=""
 
-  # Direct references in standard behavioral locations
-  direct=$(grep -rl "$base" */skills/*.md */commands/*.md */guidelines.md \
+  # Direct references in behavioral workflow files
+  direct=$(grep -rl "$base" \
+    */guidelines.md \
+    */skills/*.md \
+    */commands/*.md \
+    */templates/*.md \
+    */prompts/*.md \
+    */scripts/* \
     2>/dev/null | sed 's|/.*||' | sort -u || true)
   if [ -n "$direct" ]; then
     referencing_workflows="$direct"
@@ -265,8 +271,14 @@ for shared_file in "${!shared_changed[@]}"; do
   for trans in $transitive_shared; do
     [ "$trans" = "$shared_file" ] && continue
     trans_base=$(basename "$trans" .md)
-    trans_workflows=$(grep -rl "$trans_base" */skills/*.md */commands/*.md \
-      */guidelines.md 2>/dev/null | sed 's|/.*||' | sort -u || true)
+    trans_workflows=$(grep -rl "$trans_base" \
+      */guidelines.md \
+      */skills/*.md \
+      */commands/*.md \
+      */templates/*.md \
+      */prompts/*.md \
+      */scripts/* \
+      2>/dev/null | sed 's|/.*||' | sort -u || true)
     for tw in $trans_workflows; do
       [ -f "$tw/SKILL.md" ] || continue
       if [ -z "${workflow_version_bumped[$tw]:-}" ]; then
