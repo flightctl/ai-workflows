@@ -55,6 +55,7 @@ workflow-name/
 ```text
 _shared/
   provenance-schema.md            # Provenance contract for planning docs (footer + session log)
+  content-rules.md                # Shared generated-content rules for all workflows
   review-protocol.md              # Shared code review criteria, finding format, severity definitions
   sizing-rubric.md                # Shared sizing definitions (T-shirt sizes, heuristics, team effort guidance)
   scripts/
@@ -141,6 +142,7 @@ See CONTRIBUTING.md for workflow structure conventions, path rules, testing, and
 ai-workflows/
 ├── _shared/                   # Cross-cutting shared resources
 │   ├── provenance-schema.md   # Planning-doc provenance contract (footer + session log)
+│   ├── content-rules.md       # Shared generated-content rules for all workflows
 │   ├── review-protocol.md     # Shared code review criteria and finding format
 │   ├── sizing-rubric.md       # Shared sizing definitions and heuristics
 │   ├── scripts/

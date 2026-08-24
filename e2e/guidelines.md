@@ -14,6 +14,11 @@
 - **Discover, don't assume.** The project's e2e test framework, test infrastructure abstractions, auxiliary services (if any), execution commands, and conventions are discovered during `/ingest` and recorded in the context document. Never hardcode language-specific or project-specific assumptions. Different projects use different test infrastructure — harness objects, fixtures, page objects, helper modules, or nothing at all. Use whatever vocabulary the project uses.
 - **Shipped artifacts describe the final state, not the journey.** Code comments, commit messages, PR descriptions, and test names describe what the tests verify now — not the process of getting there. Do not reference abandoned approaches, intermediate failures introduced and fixed during the same session, or prior states that no longer exist. Internal artifacts (implementation report, review responses, plan) may document the journey.
 
+## Shared Content Rules
+
+Read and follow `../_shared/content-rules.md` for generated-content rules. Those standards apply to all
+artifacts and published output from this workflow.
+
 ## Hard Limits
 
 - No fabricated tests. Every test must trace to a story acceptance criterion or explicit user direction.
@@ -25,7 +30,6 @@
 - **No duplicate coverage.** E2e tests validate user-facing workflows. Do not re-test unit-level or integration-level behavior that is already covered by the `[DEV]` story's tests. E2e tests exercise the full system from end to end — they are complementary to, not replacements for, lower-level tests.
 - No committing to `main` directly. Use a feature branch.
 - No force-push or destructive git operations.
-- **No personal names in generated content.** Replace references to individuals from Jira tickets, comments, or other source material with role-based descriptions (e.g., "the reviewer noted…", "the reporter described…") or drop the attribution and state the finding directly. This applies to code comments, commit messages, PR descriptions, and any other generated artifacts.
 
 ## Safety
 
