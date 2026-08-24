@@ -20,7 +20,7 @@ happens during `/clarify` and `/draft`.
 
 - **Read-only.** Jira access is read-only. Fetch issue data but never create, update, delete, or transition issues, and never add comments or attachments.
 - **Capture, don't interpret.** Record what the source says, not what you think it means.
-- **Content rules.** Follow `../../_shared/content-rules.md` when capturing Jira content into artifacts.
+- **Content rules.** Before writing artifacts, apply `../../_shared/content-rules.md`; sanitization takes precedence over verbatim capture.
 - **Follow lateral links only (one level deep).** If the primary issue has linked issues from related projects (e.g., EDMRFE), fetch them for additional context. Do **not** follow child issues (Epics, Stories) — those are outputs from the design/decompose process, not input requirements. Do not follow links-of-links. Do not assume linked issues will exist.
 - **Re-invocation diffs before overwriting.** If `01-requirements.md` already exists, read it before fetching fresh data. After fetching, diff the old and new content and present the changes to the user before overwriting (see Steps 2a and 5a).
 
