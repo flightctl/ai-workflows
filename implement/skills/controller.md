@@ -47,6 +47,7 @@ the source repo:
 | Artifact | File | Written by |
 |----------|------|------------|
 | Story context | `01-context.md` | `/ingest` |
+| Story testplan | `testplan.md` | `/ingest` (when test cases match) |
 | Implementation plan | `02-plan.md` | `/plan`, `/revise`, `/code` |
 | Test report | `03-test-report.md` | `/code` |
 | Implementation report | `04-impl-report.md` | `/code` |

@@ -84,9 +84,9 @@ No feature testplan: note and continue.
 - Stack: `git branch --show-current`, `git log --oneline -8`, `gh stack view --json`. No `.git/` listing.
 - Topology: parse `{owner}/{repo}` from `git remote get-url origin` (never substitute a well-known upstream name). Then `gh repo view {owner}/{repo} --json isFork,parent`. If `gh` fails, ask the user whether this is a fork and, if so, for upstream `{owner}/{repo}`.
 
-**Validation cache:** If `.artifacts/implement/_validation-profile.md` exists and meta hashes/mtimes for `AGENTS.md`, Makefile, `.github/workflows/*.yml` and `*.yaml`, `CONTRIBUTING.md` match, merge the profile into the in-memory context draft, skip config Reads, and do not Write `01-context.md` until Step 7 or Step 7a. Else one discovery pass: Makefile grep plus CI filenames via `git ls-files '.github/workflows/*.yml' '.github/workflows/*.yaml'`. For each listed workflow, Grep command-bearing keys (`run:`, `make`, lint/test targets) — not full workflow bodies. Then Write cache files **once**.
+**Validation cache:** If `.artifacts/implement/_validation-profile.md` exists and meta hashes/mtimes for `AGENTS.md`, Makefile, `.github/workflows/*.yml` and `*.yaml`, `CONTRIBUTING.md` match, merge the profile into the in-memory context draft, skip config Reads, and do not Write `01-context.md` until Step 7 or Step 7a. Else one discovery pass: bounded Greps of present `AGENTS.md` and `CONTRIBUTING.md` (unless already in session) for lint/test/coverage commands, one Makefile grep, plus CI filenames via `git ls-files '.github/workflows/*.yml' '.github/workflows/*.yaml'`. For each listed workflow, Grep command-bearing keys (`run:`, `make`, lint/test targets) — not full workflow bodies. Then Write cache files **once**.
 
-Skip `AGENTS.md` Read if already in session. Path-only for PR template unless the body is required.
+Skip `AGENTS.md` and `CONTRIBUTING.md` Reads if already in session. Path-only for PR template unless the body is required.
 
 Record components as path + signature + test path. `/plan` opens cited files.
 
