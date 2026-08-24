@@ -8,11 +8,13 @@
 accomplish and why}
 
 ## Files Under Review
+
 | Status | File | Purpose of Change |
 |--------|------|-------------------|
 | {M/A/D/R/new} | {file path} | {what changed in this file and why} |
 
 ## Excluded Files
+
 | File | Reason |
 |------|--------|
 | {file path} | {why this file was excluded — e.g., "unrelated scratch notes"} |

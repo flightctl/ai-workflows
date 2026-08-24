@@ -247,7 +247,7 @@ git ls-files --others --exclude-standard
 ```
 
 Build a short **already decided** list from the latest round: finding id
-+ accept/reject only.
+and accept/reject only.
 
 **Hunk Reads (reviewer and sequential fallback):** For each relevant
 path, Read ~80 lines around changed lines (`offset`/`limit`). Cap **≤20**
