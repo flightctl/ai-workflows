@@ -193,7 +193,7 @@ Before presenting the design document, verify:
 - [ ] Every design decision traces to a PRD requirement, research finding, codebase pattern, or is flagged as `[Assumption]` — source markers follow the consolidation rule (no redundant tags for the primary PRD)
 - [ ] Goals are design-scoped (implementation constraints, not product outcomes)
 - [ ] No sections are empty — sections with no impact say so explicitly
-- [ ] §5 Interface Changes enumerates every new or changed API endpoint, CLI command, UI behavior, configuration option, and event surface, each mapped to its PRD requirement(s). Missing ICs produce missing test cases in Step 9.
+- [ ] §5 Interface Changes enumerates every new or changed API endpoint, CLI command, UI behavior, configuration option, event surface, and data format, each mapped to its PRD requirement(s). Missing ICs produce missing test cases in Step 9.
 - [ ] Every Mermaid diagram has accompanying narrative explanation
 - [ ] API changes include validation rules and concrete examples where helpful
 - [ ] Data model changes show field names, types, and constraints

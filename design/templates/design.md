@@ -95,9 +95,10 @@ If straightforward: state that briefly.}
 modified CLI commands, changed UI behaviors, configuration changes. Each
 IC is numbered and references the PRD requirement(s) it satisfies. The
 mapping is many-to-many: one requirement may produce multiple ICs, and
-one IC may satisfy multiple requirements. IC numbers are immutable once
-assigned — edits may add new ICs but must not renumber or reuse existing
-ones.}
+one IC may satisfy multiple requirements. IC numbers are immutable once assigned and must never be reused. Edits
+may add new ICs (with the next unused number) but must not renumber
+existing ones. Removed ICs are deleted from this section and their
+numbers retired — gaps in numbering are expected.}
 
 ## IC-1: {short description of the interface change}
 

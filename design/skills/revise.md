@@ -148,10 +148,13 @@ After applying changes, verify:
   testplan's Overview counts and Summary table. Rebuild the Gaps
   section from the current requirement-to-TC and IC-to-TC mappings.
 - If design Interface Changes (§5) were added, removed, or renamed:
-  update affected non-`[DOCS]` stories' `Interface Changes` line in
-  their Design Reference section **before** the `Validated by` cascade
-  below (the cascade uses IC overlap, so stories must have current ICs
-  for correct matching). For each case:
+  first, record the affected story paths and their current `Interface
+  Changes` mappings (needed for the `Validated by` cascade below —
+  after IC mutation, a story that lost its only IC can no longer be
+  found by IC overlap). Then update affected non-`[DOCS]` stories'
+  `Interface Changes` line in their Design Reference section **before**
+  the `Validated by` cascade (the cascade uses IC overlap, so stories
+  must have current ICs for correct matching). For each case:
   - **Removed IC:** Remove the IC from every story that lists it. If a
     story's `Interface Changes` becomes empty, write
     `Interface Changes: None — infrastructure prerequisite` (or ask the
@@ -166,10 +169,11 @@ After applying changes, verify:
   mapping changed: update affected non-`[DOCS]` stories' `Validated
   by` line in their Design Reference section. Skip `[DOCS]` stories
   (they lack `Interface Changes` and `Validated by` fields). Identify
-  affected stories using the current mappings for added/modified TCs
-  and the pre-mutation mappings for removed, reassigned, or remapped
-  TCs (including TCs that kept their ID but changed IC or requirement).
-  Re-read each affected story file at
+  affected stories using: the current mappings for added/modified TCs,
+  the pre-mutation mappings for removed/reassigned/remapped TCs, and
+  the pre-IC-mutation story paths recorded above (to catch stories
+  that lost their IC mapping during the IC update). Re-read each
+  affected story file at
   `.artifacts/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md`
   before modifying it. Collect all TC IDs from the updated testplan
   that match this story — by IC overlap with the story's (now-updated)
