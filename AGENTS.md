@@ -69,7 +69,7 @@ _shared/
     validation-gate.md            # Pre-commit build/test/lint discovery gate (used by bugfix)
 ```
 
-Recipes are self-contained, parameterized procedures that workflows reference via relative path (e.g., `../../_shared/recipes/self-review-gate.md` from `skills/`). The **prd** and **design** workflows use the provenance recipes on `/draft`, `/revise`, `/respond` (capture) and `/publish` plus docs-sync paths (render). See `_shared/provenance-schema.md` for the published footer format.
+Recipes are self-contained, parameterized procedures that workflows reference via relative path (e.g., `../../_shared/recipes/self-review-gate.md` from `skills/`). Workflows may also reference shared files from `guidelines.md`, `templates/`, `prompts/`, and other behavioral markdown — all such references count as consumers for the shared-file cascade (see Workflow Versioning). The **prd** and **design** workflows use the provenance recipes on `/draft`, `/revise`, `/respond` (capture) and `/publish` plus docs-sync paths (render). See `_shared/provenance-schema.md` for the published footer format.
 
 ### File Reference Conventions
 
@@ -113,13 +113,26 @@ Non-behavioral files (no bump needed): `README.md`, `GUIDE.md`
 ### Shared file cascade
 
 When you modify a file in `_shared/`, also PATCH-bump every workflow
-that references it. Find affected workflows by searching for the
-basename (e.g., `self-review-gate` for `_shared/recipes/self-review-gate.md`):
+that references it — including references in templates, prompts, scripts,
+and other behavioral markdown listed under "Which files require a version
+bump". Find affected workflows by searching for the basename (e.g.,
+`self-review-gate` for `_shared/recipes/self-review-gate.md`, or
+`content-rules` for `_shared/content-rules.md`):
 
 ```bash
-grep -rl "<basename-without-extension>" */skills/*.md \
-  */commands/*.md */guidelines.md | sed 's|/.*||' | sort -u
+grep -rl "<basename-without-extension>" \
+  */guidelines.md \
+  */skills/*.md \
+  */commands/*.md \
+  */templates/*.md \
+  */prompts/*.md \
+  */scripts/* \
+  2>/dev/null | sed 's|/.*||' | sort -u
 ```
+
+Also check root-level workflow `.md` files read during execution (e.g.,
+`design/decomposition-review.md`). The CI script
+`.github/scripts/validate-versions.sh` applies this full set of patterns.
 
 Bump each discovered workflow's `SKILL.md` version (PATCH increment).
 
