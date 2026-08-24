@@ -1,8 +1,11 @@
 # UX Design Workflow
 
-A UX design workflow that takes a feature request through discovery, user
+A UX design workflow that takes a `[UX]` story through discovery, user
 research, prototyping, and heuristic evaluation to produce a validated
-design handoff artifact for the `ui-design` workflow.
+design handoff artifact for the `ui-design` workflow. `/ingest` follows the
+story's references to load the PRD, design document, and sibling stories from
+shared locations, so the design is grounded in the feature's real personas,
+non-functional requirements, and technical constraints.
 
 ## Phase Flow
 
@@ -27,15 +30,21 @@ already has validated data or well-understood user needs.
 
 | Tool | Required | Purpose |
 |------|----------|---------|
-| Jira access (MCP or CLI) | For `/ingest` | Fetch issue details for problem framing |
+| Jira access (MCP or CLI) | For `/ingest` | Fetch the `[UX]` story, its Design Reference, and sibling stories |
+| Docs repo (published PRD + design doc) | For `/ingest` | Load the PRD and design document the design must honor |
 | UXD skills (`uxd-workshop`) | Required | Prototype generation, heuristic evaluation, discovery, handoff |
 | `python3` on PATH | For `/evaluate` (Standard/Full) | `uxd-prototype-evaluate` helper scripts |
+
+`/ingest` loads all upstream inputs from **shared** locations (the published
+docs repo and Jira) — never from another workflow's private `.artifacts/`.
+Missing inputs are recorded as gaps, not fabricated; `/handoff`'s feasibility
+check marks its findings "unverified" when the design document was unavailable.
 
 ## Phases
 
 | Phase | Command | Purpose | Artifact(s) |
 |-------|---------|---------|-------------|
-| Ingest | `/ingest` | Frame the problem, identify user groups, survey landscape | `01-discovery.md` |
+| Ingest | `/ingest` | Load PRD + design doc + sibling stories, frame the problem, identify user groups, survey landscape | `01-discovery.md` |
 | Research | `/research` | Conduct user research, synthesize findings | `02-research.md` |
 | Prototype | `/prototype` | Generate design prototypes from research | `03-prototype/` |
 | Evaluate | `/evaluate` | Heuristic evaluation and usability assessment | `04-evaluation.md` |
@@ -48,6 +57,8 @@ already has validated data or well-understood user needs.
 
 ```text
 /ingest EDM-1234
+  → follows the [UX] story's Design Reference to load the PRD, design
+    document, and sibling stories from the docs repo and Jira
   → frames the problem, identifies user groups
   → surveys competitive landscape
   → writes .artifacts/ux-design/EDM-1234/01-discovery.md
@@ -72,6 +83,8 @@ already has validated data or well-understood user needs.
   → maps UI elements to design system components
   → annotates data requirements per UI element
   → documents persona-specific views
+  → reality-checks the design against the technical design (final vision
+    vs. MVP/phase-1 split when constraints require it)
   → writes 05-handoff.md
 
 /publish
@@ -111,6 +124,8 @@ It contains:
 - **Data annotations** — what data each UI element needs (with gaps flagged)
 - **Persona-specific views** — where user groups interact differently
 - **Acceptance criteria** — testable, traced to research findings
+- **Feasibility and phasing** — design reality-checked against the technical
+  design, with a final-vision/MVP split when constraints require it
 - **Research context** — why decisions were made
 
 ## UXD Marketplace Skills

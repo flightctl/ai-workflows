@@ -11,8 +11,11 @@ by executing phases and handling transitions between them.
 ## Phases
 
 1. **Ingest** (`/ingest`) — `ingest.md`
-   Frame the problem, identify user groups, and survey the competitive
-   landscape. Produces the discovery artifact.
+   Follow the `[UX]` story's references to load the PRD, design document, and
+   sibling stories from shared locations; frame the problem, identify user
+   groups, and survey the competitive landscape. Produces the discovery
+   artifact, grounded in the feature's real personas, NFRs, and technical
+   design.
 
 2. **Research** (`/research`) — `research.md`
    Conduct user research — interviews, surveys, analytics, desk research.
@@ -31,7 +34,8 @@ by executing phases and handling transitions between them.
 5. **Handoff** (`/handoff`) — `handoff.md`
    Synthesize all prior artifacts into an implementation-ready spec with
    component mapping, interaction specs, data annotations, persona-specific
-   views, and acceptance criteria.
+   views, and acceptance criteria — reality-checked against the technical
+   design, with a final-vision/MVP split when constraints require it.
 
 6. **Revise** (`/revise`) — `revise.md`
    Incorporate stakeholder feedback into the handoff spec. Repeatable.

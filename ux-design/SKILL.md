@@ -2,9 +2,12 @@
 name: ux-design
 version: 0.1.0
 description: >-
-  UX design workflow that takes a feature request through discovery,
+  UX design workflow that takes a [UX] story through discovery,
   prototyping, and heuristic evaluation to produce a validated design
-  handoff artifact for implementation.
+  handoff artifact for implementation. Ingest loads the PRD, design
+  document, and sibling stories from shared locations so the design is
+  grounded in real personas, non-functional requirements, and technical
+  constraints.
   Useful for creating prototypes for evaluation, running heuristic
   evaluations, or preparing design handoffs.
   Activated by commands: /ingest, /research, /prototype, /evaluate, /handoff, /revise, /publish, /respond.

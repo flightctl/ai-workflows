@@ -28,6 +28,17 @@ Read all available artifacts before proceeding. If `02-research.md` exists,
 read it — it is required for the Data Annotations and Persona-Specific Views
 sections below.
 
+Read `01-discovery.md` in full — in particular its **Technical Design
+Context** and **Non-Functional Requirements** sections. The design context
+(architecture, API shapes, data models) is the basis for the feasibility check
+in Step 4; the NFRs (accessibility targets, performance, supported browsers)
+feed the Accessibility Requirements and acceptance criteria. If either section
+reads "Not found," the feasibility check falls back to the evidence the phase
+holds — `01-discovery.md`'s Current State and the Step 2 data classifications
+(see Step 4) — and its results must be marked **unverified against the technical
+design**. Do not skip the check, and do not fabricate design constraints to
+satisfy it.
+
 ## Process
 
 ### Step 1: Run UXD Design Handoff
@@ -105,9 +116,53 @@ if research was skipped). If multiple user groups interact differently:
 
 If all user groups interact identically, state that explicitly.
 
-### Step 4: Assemble the Handoff Artifact
+### Step 4: Feasibility and Phasing Check
 
-Combine the skill's output with Steps 2 and 3 into the artifact below, and
+A design that the feature's architecture cannot support is not
+implementation-ready. Reality-check the proposed design against the
+**Technical Design Context** captured in `01-discovery.md` (architecture, API
+shapes, data models, cross-component interactions) before finalizing.
+
+Start from the backend gaps already flagged in Step 2 (Data Annotations) — do
+not re-derive them independently. Step 2 flags, per UI element, data whose
+source is uncertain or likely unsupported; Step 4 reconciles those flags
+against the technical design and presents the single, authoritative backend-gap
+list. If Step 4 surfaces a gap Step 2 missed, add it back to the Data
+Annotations table so the two sections stay consistent.
+
+For each major design element (from the component map, interaction specs, and
+the Data Annotations gaps), determine whether the technical design supports it:
+
+- **Supported** — the architecture, an existing API shape, or an existing data
+  model backs it. No action.
+- **Needs backend support** — the element implies data, an endpoint, or a field
+  the design document does not describe (e.g., "the list needs a child-resource
+  count, but no aggregation field exists"). Record it as a structural
+  observation for `ui-design`/`design` to turn into a `[DEV]` item — do **not**
+  invent the endpoint or field here.
+- **Requires a design change** — the gap reshapes the UX itself (e.g., a filter
+  the API cannot express). Flag it; the researcher decides whether to adjust
+  the design or accept it as a backend requirement.
+
+If the collected constraints mean the full design cannot be delivered in one
+feature, do **not** silently drop scope. Following the workflow's no-scope-
+reduction rule, record a **Final Vision** (the complete intended UX) and a
+proposed **MVP / Phase 1** (what is deliverable now given the constraints),
+and present the split to the researcher. The researcher owns the phasing
+decision.
+
+If `01-discovery.md` has no Technical Design Context (design document was not
+ingested), still perform the check — but against the evidence the workflow
+actually holds: the **Current State** section of `01-discovery.md` (the
+codebase exploration from ingest Step 6) and the data-source classifications in
+Step 2 above. `/handoff` does no codebase exploration of its own, so do not
+imply verification the phase cannot perform. Mark every finding **unverified
+against the technical design** so reviewers know it rests on codebase
+inference, not the design document.
+
+### Step 5: Assemble the Handoff Artifact
+
+Combine the skill's output with Steps 2, 3, and 4 into the artifact below, and
 save it to `.artifacts/ux-design/{issue-key}/05-handoff.md`.
 Preserve the skill's Given/When/Then acceptance criteria format — it is
 more precise than a flat table and `ui-design` can consume it.
@@ -115,7 +170,7 @@ more precise than a flat table and `ui-design` can consume it.
 Then move the skill's raw output into the namespace and clean up the repo
 root as described in Step 1.
 
-### Step 5: Capture Provenance
+### Step 6: Capture Provenance
 
 `05-handoff.md` is a planning document published to the docs repo (via
 `/publish`), so it carries the same provenance contract as `prd`/`design`.
@@ -184,7 +239,10 @@ Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 
 ## Accessibility Requirements
 
-{From skill output — WCAG, ARIA, keyboard, screen reader notes per component}
+{From skill output — WCAG, ARIA, keyboard, screen reader notes per component.
+ Reconcile against the accessibility, performance, and supported-browser NFRs
+ captured in `01-discovery.md`; call out any NFR the design does not yet
+ satisfy, preserving its NFR-N ID.}
 
 ## Acceptance Criteria
 
@@ -195,6 +253,26 @@ AC-1: {Component} — {State/Behavior}
   When {action}
   Then {expected outcome}
   Trace: {design decision, research finding, or "Design spec"}
+
+## Feasibility and Phasing
+
+{Written in Step 4 above. State whether the design is verified against the
+ technical design context or "unverified against the technical design" if no
+ design document was ingested.}
+
+| Design Element | Support | Notes / Backend Requirement |
+|----------------|---------|-----------------------------|
+| {element} | {Supported / Needs backend support / Requires design change} | {structural observation for ui-design, or the design change} |
+
+{If constraints force a split, include both:}
+
+**Final Vision:** {the complete intended UX}
+
+**MVP / Phase 1 (proposed):** {what is deliverable now, and why the rest is
+deferred — the researcher confirms this split}
+
+{If the full design is deliverable as-is, state: "No phasing required — the
+technical design supports the full design."}
 
 ## Open Questions
 
