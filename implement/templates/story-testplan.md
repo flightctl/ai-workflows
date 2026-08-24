@@ -4,11 +4,13 @@
 - **Story:** {issue-key} — {story-title}
 - **Test cases:** {count}
 
-## TC-FR1-01: {scenario title}
+One `## {tc-id}` section per filtered story test case:
+
+## {tc-id}: {scenario title}
 
 | Requirement | AC | Priority | Automation |
 |-------------|-----|----------|------------|
-| FR-1 | AC-1 | high | automated |
+| {requirement-id} | {ac-id} | {priority} | {automation} |
 
 ### Preconditions
 

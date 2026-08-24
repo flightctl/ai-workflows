@@ -40,8 +40,8 @@ Then open **citations only** from `01-context.md` (ingest is an index; this is w
 
 1. Each `[Design: §…]` (or equivalent) → that path + heading range. Do not Read the rest of the design doc.
 2. Cited source/test paths (Affected Components + Cited, not opened) as needed to name types. Signature `offset`/`limit` slices, not whole files.
-3. Cap **≤12** cited Reads total. Skip a citation if it is not needed to lock a task or interface.
-4. Do not glob, repo-wide grep, Jira, or sibling artifacts. Do not re-run ingest exploration.
+3. Cap **≤12** cited source Reads total (bootstrap reads of `01-context.md`, `testplan.md`, and `AGENTS.md`/`CLAUDE.md` do not count). Skip a citation if it is not needed to lock a task or interface.
+4. Do not glob, repo-wide grep, Jira, or unrelated sibling artifacts. Read the required `testplan.md` when it exists. Do not re-run ingest exploration.
 5. Classify each ingest open question (ingest is an index, not a spec). Do **not** treat ingest text as a complete contract:
    - **Already specified:** citations (or an unambiguous AC) define the parse path, type, or behavior → **Locked decision**.
    - **Implementer default:** unspecified but `/code` needs a choice (timeout number, binary pin, field name that must match an existing pattern). Lock a default that matches cited neighboring code; note it is a default `/revise` may change. Do not leave it open.

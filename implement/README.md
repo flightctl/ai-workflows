@@ -32,7 +32,7 @@ graph TD
 
 | Phase | Command | Purpose | Artifact(s) |
 |-------|---------|---------|-------------|
-| Ingest | `/ingest` | Fetch story, load context, explore codebase | `01-context.md` |
+| Ingest | `/ingest` | Fetch story, load context, explore codebase | `01-context.md`, `testplan.md` (when test cases match) |
 | Plan | `/plan` | Design implementation approach and test strategy | `02-plan.md` |
 | Revise | `/revise` | Incorporate feedback into the plan | Updated `02-plan.md` |
 | Code | `/code` | Write tests and code via TDD | `03-test-report.md`, `04-impl-report.md` |
@@ -49,6 +49,7 @@ graph TD
   → explores affected codebase areas
   → discovers validation profile (build, test, lint commands)
   → writes .artifacts/implement/EDM-1234/01-context.md
+  → writes testplan.md when story test cases match
 
 /plan
   → designs implementation approach
@@ -92,6 +93,7 @@ All artifacts are stored in `.artifacts/implement/{issue-key}/`.
 ```text
 .artifacts/implement/EDM-1234/
   01-context.md              (story context, validation profile)
+  testplan.md                (story-scoped test cases, when ingest finds matches)
   02-plan.md                 (task breakdown, test strategy — updated as tasks complete)
   03-test-report.md          (tests written, contracts covered)
   04-impl-report.md          (changes, commits, deviations)
@@ -113,7 +115,7 @@ Tests validate behavioral contracts through public interfaces:
 
 ### Discovery-Based Validation
 
-The workflow does not hardcode language-specific commands. During `/ingest`, it discovers the project's validation expectations from AGENTS.md, Makefile, and CI workflows, and records them in a validation profile. Subsequent ingests in the same repo reuse `.artifacts/implement/_validation-profile.md` until those sources change. `/validate` executes whatever was discovered. If the project adds new CI checks, the next `/ingest` picks them up automatically.
+The workflow does not hardcode language-specific commands. During `/ingest`, it discovers the project's validation expectations from AGENTS.md, CONTRIBUTING.md, Makefile, and CI workflows, and records them in a validation profile. Subsequent ingests in the same repo reuse `.artifacts/implement/_validation-profile.md` until those sources change (AGENTS.md, CONTRIBUTING.md, Makefile, or CI workflow filenames). `/validate` executes whatever was discovered. If the project adds new CI checks, the next `/ingest` picks them up automatically.
 
 `/ingest` is an index: it records story contract, design section refs, code pointers, decision forks, and paths `/plan` would not guess. The `01-context.md` skeleton lives in `templates/01-context.md` (read once at write time). Each artifact path is written once. `/plan` opens cited slices and classifies ingest gaps: lock what citations specify, lock implementer defaults so `/code` is not blocked, leave only product forks open.
 
