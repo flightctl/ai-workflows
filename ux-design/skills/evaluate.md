@@ -113,9 +113,9 @@ other than the prototype.
 is deferred to this workflow's single combined gate in Step 7:
 
 ```
-/uxd-research-heuristic-eval <prototype URL or screenshots dir> \
-  --framework <chosen> --review none \
-  --project .artifacts/ux-design/{issue-key}/04-eval-raw
+/uxd-research-heuristic-eval "<prototype URL or screenshots dir>" \
+  --framework "<chosen>" --review none \
+  --project ".artifacts/ux-design/{issue-key}/04-eval-raw"
 ```
 
 `--review none` requires `--framework` (it activates the skill's Mode B), so

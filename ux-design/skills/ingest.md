@@ -101,14 +101,23 @@ and `design.md` — *not* under the epic key or the `[UX]` story key.
 
 Read `.artifacts/config.json` for `docs_repo_path` and `docs_repo_remote`.
 
-**If the config exists**, validate it: the path exists, it is a git
-repository, and its remote URL matches `docs_repo_remote`. If validation
-fails, tell the researcher and re-ask for the correct values. Resolve `~` to
-an absolute path and update `.artifacts/config.json`.
+The `docs_repo_path` is stored **relative to the source-repository root** so
+the config is portable across machines. Resolve it to an absolute path at
+runtime for validation and use.
+
+**If the config exists**, resolve the relative path to absolute (relative to
+the workspace root), then validate: the path exists, it is a git repository,
+and its remote URL matches `docs_repo_remote`. If validation fails, tell the
+researcher and re-ask for the correct values. Convert the new path to relative
+(from workspace root) and update `.artifacts/config.json`.
 
 **If the config does not exist**, ask the researcher for the docs repo local
-path and remote, validate them, resolve `~` to an absolute path, and write
-`.artifacts/config.json`.
+path and remote, validate them (resolve `~` first), then convert the path to
+relative (from workspace root) and write `.artifacts/config.json`.
+
+Example: if the workspace root is `/home/user/src/myproject` and the docs repo
+is at `/home/user/src/myproject-docs`, store `../myproject-docs` in
+`.artifacts/config.json`, not the absolute path.
 
 #### Find and read the documents
 

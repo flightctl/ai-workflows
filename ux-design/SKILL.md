@@ -11,6 +11,7 @@ description: >-
   Useful for creating prototypes for evaluation, running heuristic
   evaluations, or preparing design handoffs.
   Activated by commands: /ingest, /research, /prototype, /evaluate, /handoff, /revise, /publish, /respond.
+  Activated by commands: /ingest, /research, /prototype, /evaluate, /handoff, /revise, /publish, /respond.
 ---
 # UX Design Workflow Orchestrator
 

@@ -84,11 +84,10 @@ def origin_untracked_note(workflow: str | None = None) -> str:
             f"> This document's phase history does not include an initial /{origin} — "
             "structure was not verified from origin."
         )
-    else:
-        return (
-            f"> This document's phase history does not include an initial /{origin} — "
-            "structure was not verified against the template from origin."
-        )
+    return (
+        f"> This document's phase history does not include an initial /{origin} — "
+        "structure was not verified against the template from origin."
+    )
 
 
 def repo_root(start: Path) -> Path | None:
