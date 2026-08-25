@@ -408,7 +408,7 @@ Before presenting the testplan, verify:
 - [ ] Every `—` Interface Change value is used only for a requirement without a direct IC mapping
 - [ ] Every IC named in an Interface Change Coverage Gap entry exists in §5
 - [ ] Expected Results contain no banned vague phrases
-- [ ] Priority assignment is consistent (critical for core workflows, not everything marked high)
+- [ ] Priority assignment follows the Step 9a criteria (`critical` = core workflows or data integrity; `high` = important non-core; `medium` = edge cases and secondary workflows; `low` = cosmetic or informational) and is not defaulted to `high` across the board
 - [ ] All test case fields are present and non-empty — heading, metadata table, Preconditions, Steps, and Expected Results — with actionable Preconditions and Steps (not placeholder or empty headings)
 - [ ] Gap analysis is accurate — requirement and IC coverage gaps are identified with rationale
 - [ ] Test case IDs follow the scheme (`TC-{req}-{NN}`) with no duplicates
@@ -449,7 +449,7 @@ Show the user the complete design document and highlight:
 
 Report your results:
 - The design document has been written and saved
-- The testplan has been generated with {N} test cases covering {N} requirements and {N} ICs
+- The testplan has been generated with {test-case-count} test cases covering {requirement-count} requirements and {interface-change-count} ICs
 - Highlight key decisions, assumptions, and open questions
 - Note overall confidence in the document's completeness
 

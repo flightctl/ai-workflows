@@ -151,6 +151,13 @@ After applying changes, verify:
   Adding, removing, or renaming an IC changes the "Interface changes
   covered" totals or the identifiers in the Interface Change Coverage
   Gaps even when no test case is edited.
+
+The remaining story cascades apply only when decomposition artifacts
+exist. If `.artifacts/design/{issue-key}/06-stories/` is absent (for
+example, `/decompose` was deferred per the controller), skip the
+`Interface Changes` and `Validated by` story updates below — the testplan
+updates above are complete on their own.
+
 - If design Interface Changes (§5) were added, removed, or renamed:
   first, record the affected story paths and their current `Interface
   Changes` mappings (needed for the `Validated by` cascade below —
@@ -159,10 +166,18 @@ After applying changes, verify:
   `Interface Changes` line in their Design Reference section **before**
   the `Validated by` cascade (the cascade uses IC overlap, so stories
   must have current ICs for correct matching). For each case:
-  - **Removed IC:** Remove the IC from every story that lists it. If a
-    story's `Interface Changes` becomes empty, write
-    `Interface Changes: None — infrastructure prerequisite` (or ask the
-    user if the story should be removed).
+  - **Removed IC:** Remove the IC from every story that lists it. A story
+    losing its last IC does not by itself make it an infrastructure
+    prerequisite — it may still deliver PRD behavior or carry valid test
+    cases. Do not auto-write the infrastructure marker. Instead, ask the
+    user how to reclassify the story:
+    - Keep it with a valid replacement `Interface Changes` mapping if it
+      still implements an interface; or
+    - Mark it `Interface Changes: None — infrastructure prerequisite`
+      only after the user confirms that classification; or
+    - Logically remove it. For a story already synced to Jira, set
+      `status: removed` and retain the file on disk (never delete a
+      synced story file).
   - **Renamed IC:** Replace the old IC identifier with the new one in
     every story that lists it.
   - **Added IC:** Determine which stories implement the new IC using
