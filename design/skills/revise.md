@@ -29,20 +29,27 @@ multiple rounds of revision.
 
 ### Step 1: Read Current Artifacts
 
+Read and follow `../../_shared/recipes/template-override-resolution.md`
+with `WORKFLOW=design`, `TEMPLATE_FILE=design.md`. Per that recipe's
+"Using the Resolved Files" guidance, treat the section-number examples
+below (e.g., "Section 4.3") as illustrations of the built-in template only.
+
 Determine which artifacts exist and read them:
-- `.artifacts/design/{issue-number}/01-context.md` (requirements context with FR/NFR IDs)
-- `.artifacts/design/{issue-number}/02-research.md` (if exists — research findings)
-- `.artifacts/prd/{issue-number}/02-clarifications.md` (if exists — locked decisions)
-- `.artifacts/design/{issue-number}/03-design.md` (design document)
-- `.artifacts/design/{issue-number}/04-epics.md` (epic metadata, if exists)
-- `.artifacts/design/{issue-number}/05-stories/` (epic and story files, if exist)
-- `.artifacts/design/{issue-number}/06-coverage.md` (coverage matrix, if exists)
-- `.artifacts/design/{issue-number}/sync-manifest.json` (if exists — means
+- `.artifacts/design/{issue-key}/01-context.md` (requirements context with FR/NFR IDs)
+- `.artifacts/design/{issue-key}/02-research.md` (if exists — research findings)
+- Clarifications — use the path from `01-context.md`'s PRD Summary section
+  (if one was recorded) — for locked decisions
+- `.artifacts/design/{issue-key}/03-design.md` (design document)
+- `.artifacts/design/{issue-key}/04-epics.md` (epic metadata, if exists)
+- `.artifacts/design/{issue-key}/05-stories/` (epic and story files, if exist)
+- `.artifacts/design/{issue-key}/06-coverage.md` (coverage matrix, if exists)
+- `.artifacts/design/{issue-key}/07-testplan.md` (testplan, if exists)
+- `.artifacts/design/{issue-key}/sync-manifest.json` (if exists — means
   epics/stories have been synced to Jira and filenames are locked)
 
 If the user edited `03-design.md` manually since the last workflow phase, read
 and follow `../../_shared/recipes/record-manual-edit.md` with `WORKFLOW=design`
-and `ISSUE_NUMBER={issue-number}` before applying revisions.
+and `ISSUE_KEY={issue-key}` before applying revisions.
 
 ### Step 2: Understand the Feedback
 
@@ -104,8 +111,8 @@ After applying changes, verify:
 - Do the architectural decisions still support all PRD requirements?
 - Does the data model still align with the API changes?
 - Are alternatives still relevant, or do they need updating?
-- Do any changes contradict a locked decision from `02-clarifications.md`?
-  If so, flag the conflict — locked decisions are binding.
+- Do any changes contradict a locked decision from the clarifications file
+  (loaded in Step 1)? If so, flag the conflict — locked decisions are binding.
 - If `02-research.md` exists, do any changes contradict research findings
   or integration constraints? If the revision switches to an approach the
   research evaluated unfavorably, flag the conflict and explain the tradeoff.
@@ -122,28 +129,53 @@ After applying changes, verify:
   added, removed, or reassigned.
 - Do story dependencies still make sense?
 
+**If the testplan exists (`07-testplan.md`):**
+- If the design changed: do any test cases reference changed behavior?
+  Update preconditions, steps, or expected results if the design change
+  affects what the test validates. The Expected Results quality gate
+  applies — no banned vague phrases.
+- If stories were added or removed: add or remove test cases as
+  appropriate. Update `Test Case References` in affected non-`[DOCS]`
+  story files.
+- If acceptance criteria changed on a story: review the test cases
+  referencing that story — do they still validate the correct behavior?
+- Update the coverage matrix's Test Cases column if test case IDs
+  changed.
+- If test cases were added, removed, or modified (including metadata
+  changes like Priority or Automation): recompute the testplan's Overview
+  counts and Summary table from the current test cases.
+- If test cases were added, removed, renamed, or had their Story, AC,
+  or requirement mapping changed: rebuild the testplan's Gaps section
+  from the current requirement-to-test-case and AC-to-test-case
+  mappings. Remove stale gaps for requirements or ACs that now have
+  coverage, and add gaps for those that have lost coverage.
+- If requirement IDs changed (rare — requires PRD revision): update
+  all TC IDs anchored to the changed requirement, cascade the renamed
+  IDs to each story's `Test Case References` section and the coverage
+  matrix's Test Cases column, then revalidate the cross-file mappings.
+
 ### Step 5: Update Artifacts
 
 Overwrite the affected artifact files.
 
 If `03-design.md` was updated, read and follow
 `../../_shared/recipes/capture-provenance-event.md` with `WORKFLOW=design`,
-`ISSUE_NUMBER={issue-number}`, `PHASE=revise`, `AUTHORING_MODE=skill`.
+`ISSUE_KEY={issue-key}`, `PHASE=revise`, `AUTHORING_MODE=skill`.
 
 If the design document was published, also update the docs repo copy.
-Check for `.artifacts/design/{issue-number}/publish-metadata.json` and
-`.artifacts/prd/config.json`. If either file does not exist, skip the
+Check for `.artifacts/design/{issue-key}/publish-metadata.json` and
+`.artifacts/config.json`. If either file does not exist, skip the
 docs repo update steps — the design has not been published yet.
 
 If both exist:
 
 1. Read the config to get the docs repo path
-2. Read publish metadata to get the file path within the docs repo
+2. Read publish metadata to get the file path and `{branch-name}` (from the `branch` field)
 3. Determine `{owner}/{repo}` from the `docs_repo_remote` value in the config
 4. Check whether a PR branch exists:
 
 ```bash
-gh pr list --repo {owner}/{repo} --head design/{issue-number} --state open --json number,url
+gh pr list --repo {owner}/{repo} --head {branch-name} --state open --json number,url
 ```
 
 If a PR exists, update the docs repo:
@@ -162,10 +194,10 @@ If there are uncommitted changes, ask the user before continuing.
 git -C "{docs_repo_path}" branch --show-current
 ```
 
-If not on the PR branch (`design/{issue-number}`), check it out:
+If not on the PR branch (`{branch-name}`), check it out:
 
 ```bash
-git -C "{docs_repo_path}" checkout design/{issue-number}
+git -C "{docs_repo_path}" checkout {branch-name}
 ```
 
 Fast-forward the local branch if the remote is ahead:
@@ -179,19 +211,65 @@ mkdir -p "{docs_repo_path}/$(dirname "{design_file_path}")"
 ```
 
 ```bash
-cp ".artifacts/design/{issue-number}/03-design.md" "{docs_repo_path}/{design_file_path}"
+cp ".artifacts/design/{issue-key}/03-design.md" "{docs_repo_path}/{design_file_path}"
 ```
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
-`WORKFLOW=design`, `ISSUE_NUMBER={issue-number}`,
+`WORKFLOW=design`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{docs_repo_path}/{design_file_path}"`.
+
+**Testplan docs-repo sync:**
+
+**Skip all testplan sync steps below if any of these are true:**
+- `07-testplan.md` does not exist and `publish-metadata.json` does not
+  contain a `testplan_file_path` field (no testplan anywhere)
+- `07-testplan.md` exists but `publish-metadata.json` does NOT contain
+  `testplan_file_path` (testplan was created after initial publish) —
+  note to the user: "Testplan exists locally but was not included in
+  the original publish. Re-run `/publish` to include it in the docs
+  repo."
+
+**If `07-testplan.md` does NOT exist but `publish-metadata.json`
+contains `testplan_file_path`** (testplan was removed during revision),
+remove the published testplan from the docs repo:
+
+```bash
+git -C "{docs_repo_path}" rm "{testplan_file_path}"
+```
+
+Remove `testplan_file_path` from `publish-metadata.json`.
+
+**If `07-testplan.md` exists and `publish-metadata.json` contains
+`testplan_file_path`**, copy the testplan to the docs repo:
+
+**Sync-manifest guard:** If `.artifacts/design/{issue-key}/sync-manifest.json`
+exists, the published testplan's Story field must use Jira keys. Before
+copying, read the sync manifest and resolve the Story field in each test
+case's metadata table (`Story 1.01` → Jira key from manifest). Write the resolved
+version to the docs repo — do NOT modify the local `07-testplan.md`.
+
+If `sync-manifest.json` does not exist:
+
+```bash
+cp ".artifacts/design/{issue-key}/07-testplan.md" "{docs_repo_path}/{testplan_file_path}"
+```
+
+If `sync-manifest.json` exists, write the resolved content (with Jira
+keys in Story fields) to `{docs_repo_path}/{testplan_file_path}`
+directly — do not `cp` the unresolved local file.
 
 ```bash
 git -C "{docs_repo_path}" add "{design_file_path}"
 ```
 
+If the testplan was copied:
+
 ```bash
-git -C "{docs_repo_path}" commit -m "Design {issue-number}: revise — {brief description}"
+git -C "{docs_repo_path}" add "{testplan_file_path}"
+```
+
+```bash
+git -C "{docs_repo_path}" commit -m "Design {issue-key}: revise — {brief description}"
 ```
 
 ```bash
@@ -212,6 +290,12 @@ Summarize what changed:
 ### Decomposition Changes
 - Epic 2: Split Story 2.3 into 2.3 and 2.4
 - Coverage matrix: Updated to reflect new story mapping
+
+### Testplan Changes
+- {TC-FR1-03 added — new acceptance criterion on Story 1.01}
+- {TC-NFR2-01 updated — expected result changed to match revised design}
+- {TC-FR2-02 removed — requirement FR-2 no longer in scope}
+- {Omit this section if the testplan did not change or does not exist}
 
 ### Consistency Updates
 - Section 8: Added open question about performance impact of new approach
@@ -239,11 +323,12 @@ The following artifacts were modified since the last sync. Re-run
 
 ## Output
 
-- `.artifacts/design/{issue-number}/03-design.md` (updated, if design changed)
-- `.artifacts/design/{issue-number}/04-epics.md` (updated, if decomposition changed)
-- `.artifacts/design/{issue-number}/05-stories/epic-*.md` (updated, if epics changed)
-- `.artifacts/design/{issue-number}/05-stories/epic-*/story-*.md` (updated, if stories changed)
-- `.artifacts/design/{issue-number}/06-coverage.md` (updated, if coverage changed)
+- `.artifacts/design/{issue-key}/03-design.md` (updated, if design changed)
+- `.artifacts/design/{issue-key}/04-epics.md` (updated, if decomposition changed)
+- `.artifacts/design/{issue-key}/05-stories/epic-*.md` (updated, if epics changed)
+- `.artifacts/design/{issue-key}/05-stories/epic-*/story-*.md` (updated, if stories changed)
+- `.artifacts/design/{issue-key}/06-coverage.md` (updated, if coverage changed)
+- `.artifacts/design/{issue-key}/07-testplan.md` (updated, if testplan changed)
 
 ## When This Phase Is Done
 

@@ -1,6 +1,6 @@
 ---
 name: decompose
-description: Break the design into Jira-ready epics and stories with a coverage matrix.
+description: Break the design into Jira-ready epics and stories with a testplan and coverage matrix.
 ---
 
 # Decompose Skill
@@ -31,11 +31,10 @@ must leave the system in a stable state.
 ### Step 1: Read Source Material
 
 Read these files:
-1. `.artifacts/design/{issue-number}/03-design.md` (design document)
-2. `.artifacts/design/{issue-number}/01-context.md` (architectural context)
-3. `.artifacts/design/{issue-number}/02-research.md` (if exists — research findings and integration constraints)
-4. The PRD — use the path recorded in `01-context.md`'s PRD Summary section,
-   falling back to `.artifacts/prd/{issue-number}/03-prd.md`
+1. `.artifacts/design/{issue-key}/03-design.md` (design document)
+2. `.artifacts/design/{issue-key}/01-context.md` (architectural context)
+3. `.artifacts/design/{issue-key}/02-research.md` (if exists — research findings and integration constraints)
+4. The PRD — use the path recorded in `01-context.md`'s PRD Summary section
 
 If the design document doesn't exist, tell the user that `/draft` should be
 run first.
@@ -90,10 +89,10 @@ its content is what `/sync` will push to Jira.
 
 #### 4a: Write Epic Metadata
 
-Write `.artifacts/design/{issue-number}/04-epics.md`:
+Write `.artifacts/design/{issue-key}/04-epics.md`:
 
 ```markdown
-# Epic Breakdown — {issue-number}
+# Epic Breakdown — {issue-key}
 
 ## Feature
 
@@ -110,7 +109,7 @@ Write `.artifacts/design/{issue-number}/04-epics.md`:
 {PRD Requirements column: list the primary requirements for quick reference.
  If an epic maps to more than ~8 requirements, list the most significant
  and add "See coverage matrix for full mapping." The coverage matrix
- (Step 7) is the authoritative source for requirement-to-story traceability.}
+ (Step 8) is the authoritative source for requirement-to-story traceability.}
 
 ## Dependency Order
 
@@ -128,7 +127,7 @@ Write `.artifacts/design/{issue-number}/04-epics.md`:
 #### 4b: Write Epic Files
 
 For each epic, write
-`.artifacts/design/{issue-number}/05-stories/epic-{N}-{slug}.md`:
+`.artifacts/design/{issue-key}/05-stories/epic-{N}-{slug}.md`:
 
 ```markdown
 # Epic {N}: {title}
@@ -164,11 +163,11 @@ story file has a 1:1 correspondence with a Jira Story issue — its content
 is what `/sync` will push to Jira.
 
 ```bash
-mkdir -p .artifacts/design/{issue-number}/05-stories/epic-{N}
+mkdir -p .artifacts/design/{issue-key}/05-stories/epic-{N}
 ```
 
 Write each story to
-`.artifacts/design/{issue-number}/05-stories/epic-{N}/story-{NN}-{slug}.md`:
+`.artifacts/design/{issue-key}/05-stories/epic-{N}/story-{NN}-{slug}.md`:
 
 **For `[DEV]`, `[UI]`, `[UX]`, `[QE]`, and `[CI]` stories:**
 
@@ -213,6 +212,10 @@ Epic: Epic {N} — {epic title}
 PRD Requirements: {FR-1, NFR-1}
 Design section: {§4.3 API Changes, or specific subsection}
 ```
+
+The story template above is complete as shown. Step 7c adds a
+`## Test Case References` section to each story after the testplan is
+generated.
 
 **For `[DOCS]` stories** (see `[DOCS]` story requirements below for the
 Documentation Inputs section):
@@ -346,13 +349,12 @@ renumbering existing ones.
 
 After sizing all epics, verify plausibility:
 
-1. Read the Feature's Size from `.artifacts/prd/{issue-number}/01-requirements.md`
-   (the Size field captured during PRD ingest) or from
-   `.artifacts/sizing/{issue-number}/02-assessment.md` (if the sizing
-   workflow was run in single-Feature mode). If neither exists, skip this
-   check. Note: batch-mode sizing stores assessments under a version slug
-   (e.g., `.artifacts/sizing/1-3-0/`), not per-Feature — batch assessments
-   are not automatically found by this lookup.
+1. Read the Feature's Size from the Jira Feature issue (`{issue-key}`).
+   Check the Size field (or Story Points, if Size is not set). If the
+   Jira lookup fails (authentication error, network failure, issue not
+   found), stop and report the error — do not skip silently. Skip this
+   check only if the issue was retrieved successfully and neither field
+   is set.
 
 2. Verify that the epic sizes are collectively plausible given the
    Feature's overall size.
@@ -362,22 +364,280 @@ After sizing all epics, verify plausibility:
 3. Verify no epic is sized XXL. If any is, stop and require a split
    before proceeding to Step 7.
 
-### Step 7: Write Coverage Matrix
+### Step 7: Generate Testplan
 
-Write `.artifacts/design/{issue-number}/06-coverage.md`:
+Generate `.artifacts/design/{issue-key}/07-testplan.md` containing
+behavioral test cases anchored to PRD requirements. This artifact serves
+dev teams (cross-reference against implemented tests for completeness),
+QA teams (independent coverage review without reading every story), and
+ALM export (structured for tools like Polarion).
+
+#### 7a: Derive Test Cases
+
+For each PRD requirement (FR-N, NFR-N), examine the non-`[DOCS]` stories
+that address it (from the epic/story files written in Step 5). Skip
+`[DOCS]` stories — they have documentation outcomes, not behavioral
+acceptance criteria, and should not generate test cases. If a requirement
+is addressed only by `[DOCS]` stories, record it in the Gaps section as
+"documentation-only requirement — no behavioral test cases."
+
+For each non-`[DOCS]` story:
+
+1. Read the **Acceptance Criteria** — each criterion is a candidate test
+   case or a grouping of related test cases.
+2. Read the **Testing Approach** — use it to understand what scenarios
+   are expected.
+3. Generate test cases at the behavioral/scenario level. Each test case
+   describes an observable outcome verifiable against a running system.
+   Do not generate unit-test-level entries — tracing unit tests to
+   testplan entries is impractical and fragile.
+4. After generating test cases for a story, verify that every AC on that
+   story appears in at least one test case's AC field (see AC mapping
+   rules below). If an AC has no test case, either add one or flag it
+   in the Gaps section.
+
+**Test case ID scheme:** `TC-{requirement-id}-{sequence}`, where
+`{requirement-id}` is the PRD requirement ID with the hyphen removed
+(e.g., `FR-1` → `FR1`, `NFR-3` → `NFR3`) and `{sequence}` is a
+two-digit zero-padded counter within that requirement. Examples:
+`TC-FR1-01`, `TC-FR1-02`, `TC-NFR3-01`.
+
+**Test case fields** (all required per test case; the requirement is
+identified by the parent section heading):
+
+| Field | Description |
+|-------|-------------|
+| Test Case ID and Title | H4 heading: `#### TC-{req}-{NN}: {one-line scenario description}` |
+| Story, AC, Priority, Automation | Single metadata table beneath the H4 heading |
+| Preconditions | H5 section: system state required before the test |
+| Steps | H5 section: what the tester does — numbered steps |
+| Expected Results | H5 section: observable outcomes the tester verifies |
+
+**Priority assignment:**
+- `critical` — core user workflows or data integrity
+- `high` — important but non-core requirements
+- `medium` — edge cases and secondary workflows
+- `low` — cosmetic or informational scenarios
+
+**Automation assignment:**
+- `automated` — the scenario will be verified by automated tests (e2e
+  or feature-level integration) produced by the implementing story
+- `manual` — the scenario requires human verification (visual checks,
+  hardware interaction, exploratory testing, or scenarios explicitly
+  scoped as manual in a `[QE]` story)
+
+**AC mapping:**
+- `AC` lists the acceptance criteria from the implementing story that
+  this test case validates (e.g., `AC-1`, `AC-1, AC-3`).
+- Use the numbering from the story's Acceptance Criteria section
+  (first criterion = AC-1, second = AC-2, etc.).
+- A test case must map to at least one AC. A single test case may
+  cover multiple ACs if they describe aspects of the same scenario.
+
+**Coverage target:** Every FR and NFR covered by at least one story
+should have at least one test case. Within each story, every acceptance
+criterion should be referenced by at least one test case's AC field. A
+story AC with no test case mapping is a gap — flag it in the testplan's
+Gaps section.
+
+**Negative scenarios:** Include negative/error test cases where the PRD
+or design specifies error handling behavior. Do not invent error
+scenarios beyond what the requirements and design describe.
+
+**Expected Results quality gate:** The Expected Results section must
+describe concrete, observable outcomes — not restatements of the
+acceptance criteria in vaguer terms. Banned phrases in Expected Results:
+- "works correctly", "works as expected", "works properly"
+- "handles appropriately", "handles gracefully"
+- "is validated", "is verified", "is processed"
+- "behaves as expected", "behaves properly"
+- "completes successfully", "responds correctly", "functions as expected"
+- "returns the correct value" (state the specific value)
+- "no issues", "no problems"
+- "appropriate error", "proper error" (name the specific error or code)
+
+Each expected result must state what the tester observes: a specific
+return value, status code, UI state, log message, or data change. If
+you cannot state the expected result concretely, the acceptance
+criterion or design is underspecified — flag it in the testplan's Gaps
+section rather than writing a vague test case.
+
+#### 7b: Write the Testplan
+
+Write `.artifacts/design/{issue-key}/07-testplan.md`:
 
 ```markdown
-# Coverage Matrix — {issue-number}
+# Testplan — {issue-key}
+
+## Overview
+
+- **Feature:** {feature-key} — {feature-title}
+- **Total test cases:** {N}
+- **Requirements covered:** {N} of {total FR + NFR count}
+
+## Test Cases
+
+### FR-1: {requirement description}
+
+#### TC-FR1-01: {scenario title}
+
+| Story | AC | Priority | Automation |
+|-------|-----|----------|------------|
+| Story 1.01 | AC-1 | high | automated |
+
+##### Preconditions
+
+- {system state required before the test}
+
+##### Steps
+
+1. {what the tester does}
+2. {next action}
+
+##### Expected Results
+
+- {observable outcome the tester verifies}
+
+#### TC-FR1-02: {scenario title}
+
+| Story | AC | Priority | Automation |
+|-------|-----|----------|------------|
+| Story 1.02 | AC-2 | medium | automated |
+
+##### Preconditions
+
+- {precondition}
+
+##### Steps
+
+1. {step}
+2. {step}
+
+##### Expected Results
+
+- {expected outcome}
+
+### FR-2: {requirement description}
+
+#### TC-FR2-01: {scenario title}
+
+| Story | AC | Priority | Automation |
+|-------|-----|----------|------------|
+| Story 2.01 | AC-1, AC-3 | critical | automated |
+
+##### Preconditions
+
+- {precondition}
+
+##### Steps
+
+1. {step}
+2. {step}
+
+##### Expected Results
+
+- {expected outcome}
+
+### NFR-1: {requirement description}
+
+#### TC-NFR1-01: {scenario title}
+
+| Story | AC | Priority | Automation |
+|-------|-----|----------|------------|
+| Story 1.02 | AC-1 | high | automated |
+
+##### Preconditions
+
+- {precondition}
+
+##### Steps
+
+1. {step}
+2. {step}
+
+##### Expected Results
+
+- {expected outcome}
+
+## Gaps
+
+{For each PRD requirement with stories but no test cases: why it lacks
+ coverage and a recommendation. For requirements not covered by any
+ story (already flagged in the coverage matrix): note "Not testable —
+ no implementing story."
+
+ For each story AC with no test case mapping: identify the story, the
+ uncovered AC, and a recommendation (add a test case, or justify why
+ the AC does not warrant a behavioral test case).
+
+ If no gaps: "All covered requirements have test cases and all story
+ ACs are mapped to test cases."}
+
+## Summary
+
+| Metric | Count |
+|--------|-------|
+| Total test cases | {N} |
+| Critical | {N} |
+| High | {N} |
+| Medium | {N} |
+| Low | {N} |
+| Automated | {N} |
+| Manual | {N} |
+| Requirements with test cases | {N} / {total} |
+| Requirements without test cases | {N} (see Gaps) |
+```
+
+Test cases are grouped under requirement headings (not by epic) because
+the testplan's purpose is requirement traceability. The Story field in
+each test case's metadata table links back to the epic/story structure.
+
+#### 7c: Add Test Case References to Stories
+
+After writing the testplan, add a `## Test Case References` section
+to each non-`[DOCS]` story file. For each test case in the testplan,
+its Story field identifies the implementing story. Collect all TC IDs
+for each story and write them into that story's file.
+
+Re-read each story file before writing. If the story already has a
+`## Test Case References` section (from a prior decomposition), replace
+it entirely with the current TC IDs. Do not append a second section.
+`[DOCS]` stories do not receive this section.
+
+The section format is a single `Verified by:` line with comma-separated
+TC IDs:
+
+```markdown
+## Test Case References
+
+Verified by: TC-FR1-01, TC-FR1-02, TC-NFR1-01
+```
+
+For stories with no behavioral test cases (e.g., infrastructure
+prerequisites):
+
+```markdown
+## Test Case References
+
+Verified by: None (infrastructure — no behavioral test cases)
+```
+
+### Step 8: Write Coverage Matrix
+
+Write `.artifacts/design/{issue-key}/06-coverage.md`:
+
+```markdown
+# Coverage Matrix — {issue-key}
 
 ## PRD Requirement → Epic/Story Mapping
 
-| PRD Requirement | Epic | Story | Status |
-|-----------------|------|-------|--------|
-| FR-1: {description} | Epic 1 | Story 1.01, 1.02 | Covered |
-| FR-2: {description} | Epic 2 | Story 2.01 | Covered |
-| FR-3: {description} | — | — | **GAP** |
-| NFR-1: {description} | Epic 1 | Story 1.02 | Covered |
-| NFR-2: {description} | Epic 2 | Story 2.01 | Covered |
+| PRD Requirement | Epic | Story | Test Cases | Status |
+|-----------------|------|-------|------------|--------|
+| FR-1: {description} | Epic 1 | Story 1.01, 1.02 | TC-FR1-01, TC-FR1-02 | Covered |
+| FR-2: {description} | Epic 2 | Story 2.01 | TC-FR2-01 | Covered |
+| FR-3: {description} | — | — | — | **GAP** |
+| NFR-1: {description} | Epic 1 | Story 1.02 | TC-NFR1-01 | Covered |
+| NFR-2: {description} | Epic 2 | Story 2.01 | TC-NFR2-01 | Covered |
 
 ## Gaps
 
@@ -391,7 +651,7 @@ Write `.artifacts/design/{issue-number}/06-coverage.md`:
  If none: "All stories trace to PRD requirements."}
 ```
 
-### Step 8: Verify Artifact Structure
+### Step 9: Verify Artifact Structure
 
 Quick sanity check before invoking the decomposition review. Verify:
 
@@ -400,11 +660,15 @@ Quick sanity check before invoking the decomposition review. Verify:
    `05-stories/epic-1-{slug}.md`)
 3. Each epic has a corresponding story directory with story files
 4. `06-coverage.md` exists and contains at least one mapping row
+5. `07-testplan.md` exists and contains at least one test case entry
+   (if the decomposition contains only `[DOCS]` stories, the testplan
+   may contain only gap entries and this minimum does not apply)
+6. Every non-`[DOCS]` story file has a `## Test Case References` section
 
 If structural issues are found, fix them before proceeding. Do not
 invoke a review on incomplete artifacts.
 
-### Step 9: Review Decomposition
+### Step 10: Review Decomposition
 
 Review the decomposition for structural quality and requirement
 coverage. This review operates independently from the design document —
@@ -418,15 +682,15 @@ format, and severity definitions.
 subagent for independence. Load it with:
 
 - The decomposition review protocol (`../decomposition-review.md`)
-- The PRD (use the path from `01-context.md`'s PRD Summary, falling back to
-  `.artifacts/prd/{issue-number}/03-prd.md`)
+- The PRD (use the path from `01-context.md`'s PRD Summary section)
 - All decomposition artifacts: `04-epics.md`, all
   `05-stories/epic-{N}-{slug}.md` files, all
-  `05-stories/epic-{N}/story-{NN}-{slug}.md` files, `06-coverage.md`
+  `05-stories/epic-{N}/story-{NN}-{slug}.md` files, `06-coverage.md`,
+  `07-testplan.md`
 - NOT the design document (`03-design.md`) — the reviewer evaluates
   the artifacts on their own merits
 
-Retain the subagent's ID for use in Step 11 — resuming the same
+Retain the subagent's ID for use in Step 12 — resuming the same
 reviewer gives it memory of its previous findings and concerns,
 producing more coherent follow-up reviews.
 
@@ -441,9 +705,9 @@ severity definitions from the protocol. The subagent path provides
 stronger independence; the inline path still catches issues by forcing
 a perspective shift.
 
-### Step 10: Validate and Assess Findings
+### Step 11: Validate and Assess Findings
 
-For each finding from Step 9:
+For each finding from Step 10:
 
 1. **Validate the reference.** Confirm the cited artifact file and
    section exist. Discard any finding that references a file or section
@@ -466,13 +730,13 @@ For each finding from Step 9:
 Only fix findings that add real value. Do not make changes for
 structural preferences not grounded in the evaluation criteria.
 
-### Step 11: Re-Review (if fixes were made)
+### Step 12: Re-Review (if fixes were made)
 
-If Step 10 produced changes to the decomposition artifacts:
+If Step 11 produced changes to the decomposition artifacts:
 
 1. Obtain a re-review of the updated artifacts:
 
-   **If a subagent was used in Step 9 and the runtime supports agent
+   **If a subagent was used in Step 10 and the runtime supports agent
    resumption:** Resume the same reviewer agent. Send it the updated
    artifacts and a summary of fixes applied. This gives the reviewer
    memory of its original findings and lets it verify they were
@@ -492,13 +756,13 @@ If Step 10 produced changes to the decomposition artifacts:
    - Whether fixes were applied correctly
    - Whether fixes introduced new issues
 2. If new issues are found, fix them following the same validate-and-
-   assess procedure from Step 10
+   assess procedure from Step 11
 3. Cap at 2 review-fix rounds total. Decomposition fixes are structural
    and less likely than code fixes to need multiple iterations.
 
-If no fixes were needed in Step 10, the review passes immediately.
+If no fixes were needed in Step 11, the review passes immediately.
 
-### Step 12: Report Review Summary
+### Step 13: Report Review Summary
 
 ```markdown
 ## Decomposition Review Summary
@@ -513,7 +777,7 @@ If no fixes were needed in Step 10, the review passes immediately.
 list them with their file, section, and issue description.}
 ```
 
-### Step 13: Present to User
+### Step 14: Present to User
 
 Present the decomposition and highlight:
 - Number of epics and stories
@@ -521,7 +785,7 @@ Present the decomposition and highlight:
 - Any coverage gaps
 - Stories that might need size adjustment (too large or too small)
 - Any assumptions or judgment calls in the decomposition
-- Decomposition review summary (from Step 12)
+- Decomposition review summary (from Step 13)
 
 If the decomposition review gate reported FLAG, present the unfixed
 CRITICAL/HIGH findings and ask the user to decide how to handle them.
@@ -530,10 +794,11 @@ should not resolve them unilaterally.
 
 ## Output
 
-- `.artifacts/design/{issue-number}/04-epics.md` (epic metadata and ordering)
-- `.artifacts/design/{issue-number}/05-stories/epic-{N}-{slug}.md` (one per epic)
-- `.artifacts/design/{issue-number}/05-stories/epic-{N}/story-{NN}-{slug}.md` (one per story)
-- `.artifacts/design/{issue-number}/06-coverage.md`
+- `.artifacts/design/{issue-key}/04-epics.md` (epic metadata and ordering)
+- `.artifacts/design/{issue-key}/05-stories/epic-{N}-{slug}.md` (one per epic)
+- `.artifacts/design/{issue-key}/05-stories/epic-{N}/story-{NN}-{slug}.md` (one per story)
+- `.artifacts/design/{issue-key}/06-coverage.md`
+- `.artifacts/design/{issue-key}/07-testplan.md`
 
 ## When This Phase Is Done
 

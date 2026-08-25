@@ -30,27 +30,17 @@ must be traceable to a PRD requirement or explicitly flagged as an assumption.
 
 ### Step 1: Locate the Template
 
-Check for a project-level template override before falling back to the
-workflow default. Use the first match found:
-
-1. **Project CLAUDE.md / AGENTS.md** — if the project's AI config specifies
-   a design template path, use it
-2. **`.design/templates/design.md`** — conventional project-level override
-   at the repo root
-3. **`../templates/design.md`** — workflow's built-in default
-
-The same lookup applies to section guidance: check for
-`.design/templates/section-guidance.md` alongside a project-level template,
-then fall back to `../templates/section-guidance.md`.
+Read and follow `../../_shared/recipes/template-override-resolution.md`
+with `WORKFLOW=design`, `TEMPLATE_FILE=design.md`.
 
 ### Step 2: Read Source Material
 
 Read these files in order:
-1. `.artifacts/design/{issue-number}/01-context.md` (architectural context)
-2. `.artifacts/design/{issue-number}/02-research.md` (if exists — design research findings)
-3. The PRD — use the path recorded in `01-context.md`'s PRD Summary section.
-   If not recorded there, fall back to `.artifacts/prd/{issue-number}/03-prd.md`
-4. `.artifacts/prd/{issue-number}/02-clarifications.md` (if exists — for locked decisions)
+1. `.artifacts/design/{issue-key}/01-context.md` (architectural context)
+2. `.artifacts/design/{issue-key}/02-research.md` (if exists — design research findings)
+3. The PRD — use the path recorded in `01-context.md`'s PRD Summary section
+4. Clarifications — use the path recorded in `01-context.md`'s PRD Summary
+   section (if it lists a clarifications path). Read for locked decisions.
 5. The design document template (from Step 1)
 6. The section guidance (from Step 1)
 
@@ -151,15 +141,15 @@ Before self-review, systematically verify that nothing was lost between
 source material and design document:
 
 1. **Requirements coverage:** Re-read the PRD (use the path from
-   `01-context.md`'s PRD Summary, falling back to
-   `.artifacts/prd/{issue-number}/03-prd.md`). For each functional
+   `01-context.md`'s PRD Summary section). For each functional
    requirement (FR-1, FR-2, ...) and non-functional requirement (NFR-1,
    NFR-2, ...), confirm it is addressed in the design document. If a
    requirement has no corresponding design element, either add it or
    note the gap in the Open Questions section with a reason.
 
-2. **Clarification incorporation:** Re-read `02-clarifications.md` (if
-   it exists). For each answered question, confirm the answer is reflected
+2. **Clarification incorporation:** Re-read the clarifications file (use
+   the path from `01-context.md`'s PRD Summary section, if one was
+   recorded). For each answered question, confirm the answer is reflected
    in the design. Pay particular attention to answers that added
    constraints or changed scope — these may affect architectural decisions
    even if they weren't recorded as formal locked decisions.
@@ -218,10 +208,10 @@ Before presenting the design document, verify:
 
 ### Step 8: Write Artifact
 
-Save the design document to `.artifacts/design/{issue-number}/03-design.md`.
+Save the design document to `.artifacts/design/{issue-key}/03-design.md`.
 
 Read and follow `../../_shared/recipes/capture-provenance-event.md` with
-`WORKFLOW=design`, `ISSUE_NUMBER={issue-number}`, `PHASE=draft`,
+`WORKFLOW=design`, `ISSUE_KEY={issue-key}`, `PHASE=draft`,
 `AUTHORING_MODE=skill`.
 
 ### Step 9: Present to User
@@ -235,8 +225,8 @@ Show the user the complete design document and highlight:
 
 ## Output
 
-- `.artifacts/design/{issue-number}/03-design.md`
-- `.artifacts/design/{issue-number}/provenance.json`
+- `.artifacts/design/{issue-key}/03-design.md`
+- `.artifacts/design/{issue-key}/provenance.json`
 
 ## When This Phase Is Done
 

@@ -30,9 +30,10 @@ re-run checks, and repeat until everything passes.
 ### Step 1: Read Context
 
 Read:
-1. `.artifacts/e2e/{jira-key}/01-context.md` (validation profile and e2e infrastructure)
-2. `.artifacts/e2e/{jira-key}/02-plan.md` (what was planned)
-3. `.artifacts/e2e/{jira-key}/04-impl-report.md` (implementation status)
+1. `.artifacts/e2e/{issue-key}/01-context.md` (validation profile and e2e infrastructure)
+2. `.artifacts/e2e/{issue-key}/02-plan.md` (what was planned)
+3. `.artifacts/e2e/{issue-key}/04-impl-report.md` (implementation status)
+4. `.artifacts/e2e/{issue-key}/testplan.md` (story-scoped testplan, if exists)
 
 Extract the validation profile's pre-PR checks list and the e2e test
 execution command.
@@ -78,7 +79,7 @@ If output is non-empty, stop and ask the user how to proceed (commit,
 stash, or abort) before continuing.
 
 Check whether a PR has already been created by looking for
-`.artifacts/e2e/{jira-key}/publish-metadata.json`.
+`.artifacts/e2e/{issue-key}/publish-metadata.json`.
 
 **If no PR exists yet**, offer to rebase:
 
@@ -185,7 +186,7 @@ parameters:
 |-----------|-------|
 | DIFF_COMMAND | `git diff {local-base}...HEAD` |
 | MAX_ROUNDS | `3` |
-| CONTEXT_FILES | `.artifacts/e2e/{jira-key}/01-context.md`, `.artifacts/e2e/{jira-key}/02-plan.md` (if they exist) |
+| CONTEXT_FILES | `.artifacts/e2e/{issue-key}/01-context.md`, `.artifacts/e2e/{issue-key}/02-plan.md` (if they exist) |
 | SUPPLEMENTARY_CRITERIA | This is the full-branch validation review for e2e test code. Anti-pattern detection is already complete (Step 4) — skip those checks. Focus on test design depth: (1) **Assertion specificity** — do tests verify the actual behavioral outcome the AC describes, or just assert "no error"? (2) **Brittleness** — will tests break only when real behavior changes, or will they break when unrelated implementation details change? (3) **Test isolation** — could any test leak state (credentials, resources, configuration) that affects other suites or environments? (4) **Reference suite consistency** — does the test structure match the project's reference suite, or does it introduce divergent patterns that will confuse future contributors? |
 
 If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
@@ -198,7 +199,7 @@ git add {fixed files}
 ```
 
 ```bash
-git commit -m "{JIRA-KEY}: address validation review findings"
+git commit -m "{issue-key}: address validation review findings"
 ```
 
 ### Step 7: Acceptance Criteria Verification
@@ -230,12 +231,48 @@ covered:
    requires manual measurement) — note it as "not e2e-testable" with
    an explanation of why
 
+### Step 7b: Test Plan Verification
+
+If `.artifacts/e2e/{issue-key}/testplan.md` exists, independently verify
+that every test case has been covered by the e2e tests. This check
+re-derives the required TC ID list from `testplan.md` directly — it does
+NOT rely on the plan's task-to-TC-ID mappings or `/code`'s per-task
+reconciliation for determining which tests exist. The only information
+carried forward from the plan is the N/A rationale for test cases marked
+inapplicable. This is an intentional independent verification: if the
+plan's bookkeeping or the code phase's gate drifted from reality, this
+step catches it.
+
+If `testplan.md` does not exist and `02-plan.md` has no Test Plan
+Coverage section, skip this step entirely. However, if `02-plan.md`
+has TC mappings but `testplan.md` is missing, unreadable, or malformed
+(no parseable TC IDs), stop and report the inconsistency.
+
+1. Read `testplan.md` and extract all TC IDs. For each TC entry,
+   verify that Preconditions, Steps, and Expected Results sections
+   are present. If any entry is missing a required section, stop and
+   report the testplan as malformed.
+2. For each TC ID (except those the validate phase agrees are
+   legitimately N/A based on the rationale in the plan's Test Plan
+   Coverage matrix):
+   - Search the e2e test files on the feature branch for a test
+     scenario whose validations match the TC's Steps and Expected
+     Results.
+   - The match is behavioral, not textual — the test must exercise the
+     described scenario and assert the described outcomes.
+   - Record the test file and scenario name for each TC ID.
+3. If any TC ID lacks a corresponding test:
+   - Write the missing test following the reference suite's patterns.
+   - Commit the test following the project's commit format.
+   - Re-run the relevant checks from Step 3.
+4. Record results for the validation report.
+
 ### Step 8: Write Validation Report
 
-Write `.artifacts/e2e/{jira-key}/05-validation-report.md`:
+Write `.artifacts/e2e/{issue-key}/05-validation-report.md`:
 
 ```markdown
-# Validation Report — {jira-key}
+# Validation Report — {issue-key}
 
 ## Branch Currency
 
@@ -282,6 +319,26 @@ Write `.artifacts/e2e/{jira-key}/05-validation-report.md`:
  If any gaps: describe what's missing and what was done about it.
  If any not e2e-testable: list them with rationale.}
 
+## Test Plan Verification
+
+{Include only if testplan.md exists. Omit entirely otherwise.}
+
+| TC ID | Title | Test File | Scenario | Status |
+|-------|-------|-----------|----------|--------|
+| TC-FR1-01 | {title} | {file} | {scenario name} | covered |
+| TC-FR1-02 | {title} | {file} | {scenario name} | gap-filled |
+| TC-NFR1-01 | {title} | — | — | N/A |
+
+{Status values:
+ - covered: test scenario existed and had sufficient assertion depth
+ - gap-filled: test scenario was written during validation
+ - N/A: test case legitimately not applicable (rationale required)
+
+ If all covered: "All test plan cases verified."
+ If gaps were filled: "{N} test cases required additional tests during
+ validation."
+ If any N/A: list rationale for each.}
+
 ## Quality Review Findings
 
 {Findings from the code quality review gate (protocol criteria plus
@@ -318,12 +375,13 @@ Summarize for the user:
 - Which checks passed and which failed
 - Anti-pattern check results (clean or what was fixed)
 - Acceptance criteria coverage (all covered, or which ones have gaps)
+- Test plan verification status (all covered / gaps filled / not applicable), if testplan exists
 - Any regressions found (and whether they were fixed)
 - Overall verdict: ready for `/publish` or not
 
 ## Output
 
-- `.artifacts/e2e/{jira-key}/05-validation-report.md`
+- `.artifacts/e2e/{issue-key}/05-validation-report.md`
 - Additional test fixes (if anti-patterns or gaps were found)
 - Fix commits (if issues were found and fixed)
 

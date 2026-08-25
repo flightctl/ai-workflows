@@ -31,7 +31,7 @@ repeatable as new comments arrive.
 
 ### Step 1: Read Context and Fetch PR Comments
 
-Read `.artifacts/implement/{jira-key}/publish-metadata.json` to get the
+Read `.artifacts/implement/{issue-key}/publish-metadata.json` to get the
 PR number and `{owner}/{repo}` (the `repo` field). If metadata doesn't
 exist, tell the user that `/publish` should be run first. If the user
 provides a PR number directly, use that instead.
@@ -58,7 +58,7 @@ this will produce the fork's `{owner}/{repo}`, not the upstream's where
 the PR lives. If the resulting `gh pr view` command fails, this may be
 the cause — tell the user and ask for the correct upstream `{owner}/{repo}`.
 
-If `.artifacts/implement/{jira-key}/07-review-responses.md` already exists,
+If `.artifacts/implement/{issue-key}/07-review-responses.md` already exists,
 read it to identify previously addressed comments. Only categorize and
 propose responses for new or unaddressed comments in Step 2.
 
@@ -146,7 +146,7 @@ git add {specific files}
 ```
 
 ```bash
-git commit -m "{JIRA-KEY}: Address review feedback — {brief description}"
+git commit -m "{issue-key}: Address review feedback — {brief description}"
 ```
 
 ```bash
@@ -164,33 +164,33 @@ Use the file-writing tool (Write) to create the file — do not use a
 shell heredoc, as reply content containing the delimiter string would
 break the heredoc.
 
-Write `{approved reply text}` to `.artifacts/implement/{jira-key}/tmp-reply.md`.
+Write `{approved reply text}` to `.artifacts/implement/{issue-key}/tmp-reply.md`.
 
 **For line-level review comments** (attached to a specific file and line),
 reply in-thread:
 
 ```bash
-gh api repos/{owner}/{repo}/pulls/{pr-number}/comments/{comment-id}/replies --field body=@.artifacts/implement/{jira-key}/tmp-reply.md
+gh api repos/{owner}/{repo}/pulls/{pr-number}/comments/{comment-id}/replies --field body=@.artifacts/implement/{issue-key}/tmp-reply.md
 ```
 
 **For top-level PR comments** (general conversation comments):
 
 ```bash
-gh pr comment {pr-number} --repo {owner}/{repo} --body-file .artifacts/implement/{jira-key}/tmp-reply.md
+gh pr comment {pr-number} --repo {owner}/{repo} --body-file .artifacts/implement/{issue-key}/tmp-reply.md
 ```
 
 Clean up the temporary reply file:
 
 ```bash
-rm .artifacts/implement/{jira-key}/tmp-reply.md
+rm .artifacts/implement/{issue-key}/tmp-reply.md
 ```
 
 ### Step 5: Update Response Log
 
-Write or update `.artifacts/implement/{jira-key}/07-review-responses.md`:
+Write or update `.artifacts/implement/{issue-key}/07-review-responses.md`:
 
 ```markdown
-# Review Responses — {jira-key}
+# Review Responses — {issue-key}
 
 ## Round {N} — {date}
 
@@ -224,7 +224,7 @@ Summarize:
 
 - PR comments posted (with user approval)
 - Code changes committed and pushed (if applicable)
-- `.artifacts/implement/{jira-key}/07-review-responses.md`
+- `.artifacts/implement/{issue-key}/07-review-responses.md`
 
 ## When This Phase Is Done
 

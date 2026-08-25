@@ -56,6 +56,10 @@ DECLINED_MARKER = (
 COMMIT_ONLY_NOTE = (
     "> Authoring phases not recorded this session (commit-time snapshot only)."
 )
+ORIGIN_UNTRACKED_NOTE = (
+    "> This document's phase history does not include an initial /draft — "
+    "structure was not verified against the template from origin."
+)
 
 
 def repo_root(start: Path) -> Path | None:
@@ -256,6 +260,14 @@ def provenance_kind(events: list[dict[str, Any]]) -> str:
     return "session"
 
 
+def origin_untracked(events: list[dict[str, Any]]) -> bool:
+    if not events:
+        return False
+    if provenance_kind(events) == "commit_only":
+        return False
+    return events[0].get("phase") != "draft"
+
+
 def capture_event(
     workflow: str,
     issue: str,
@@ -356,6 +368,7 @@ def build_metrics_payload(data: dict[str, Any]) -> dict[str, Any]:
             {event.get("authoring_mode", "skill") for event in events}
         ),
         "context_changed": drift.get("context_changed", False),
+        "origin_untracked": origin_untracked(events),
     }
 
 
@@ -389,6 +402,10 @@ def build_footer(data: dict[str, Any]) -> str:
         phases = skill_phase_names(events)
         if len(phases) > 1:
             lines.append(f"Phases: {', '.join(phases)}")
+
+    if origin_untracked(events):
+        lines.append("")
+        lines.append(ORIGIN_UNTRACKED_NOTE)
 
     lines.append("")
     lines.append(metrics_comment)

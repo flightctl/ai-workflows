@@ -47,6 +47,309 @@ class ProvenanceTests(unittest.TestCase):
         events = [{"phase": "draft"}, {"phase": "commit"}]
         self.assertEqual(provenance.provenance_kind(events), "session")
 
+    def test_origin_untracked_empty_events(self) -> None:
+        self.assertFalse(provenance.origin_untracked([]))
+
+    def test_origin_untracked_false_when_first_event_is_draft(self) -> None:
+        events = [{"phase": "draft"}, {"phase": "revise"}]
+        self.assertFalse(provenance.origin_untracked(events))
+
+    def test_origin_untracked_false_when_first_event_is_commit(self) -> None:
+        events = [{"phase": "commit"}]
+        self.assertFalse(provenance.origin_untracked(events))
+
+    def test_origin_untracked_true_when_first_event_is_respond(self) -> None:
+        # Regression test for issue #94: /respond with no prior /draft or
+        # commit snapshot must be flagged as untracked origin.
+        events = [{"phase": "respond"}]
+        self.assertTrue(provenance.origin_untracked(events))
+
+    def test_origin_untracked_true_when_first_event_is_revise(self) -> None:
+        # Regression test for issue #94: /revise with no prior /draft or
+        # commit snapshot must be flagged as untracked origin.
+        events = [{"phase": "revise"}]
+        self.assertTrue(provenance.origin_untracked(events))
+
+    def test_origin_untracked_true_when_first_event_is_manual_edit(self) -> None:
+        # Regression test for issue #94: a manual-edit record (e.g. captured
+        # via record-manual-edit.md before /revise on a never-drafted
+        # document) with no prior /draft or commit snapshot must be flagged.
+        events = [{"phase": "manual-edit"}]
+        self.assertTrue(provenance.origin_untracked(events))
+
+    def test_origin_untracked_only_inspects_first_event(self) -> None:
+        # A later draft/commit event doesn't retroactively legitimize an
+        # untracked origin -- only events[0] matters.
+        events = [{"phase": "revise"}, {"phase": "draft"}]
+        self.assertTrue(provenance.origin_untracked(events))
+
+    def test_origin_untracked_true_when_commit_snapshot_then_revise(self) -> None:
+        # A commit-time safety-net snapshot (no /draft ever ran) that later
+        # picks up a real authoring event is no longer commit_only, so the
+        # commit-only disclaimer no longer applies -- the origin-untracked
+        # disclaimer must take over instead of silently disappearing.
+        events = [{"phase": "commit"}, {"phase": "revise"}]
+        self.assertEqual(provenance.provenance_kind(events), "session")
+        self.assertTrue(provenance.origin_untracked(events))
+
+    def test_origin_untracked_true_when_commit_snapshot_then_respond(self) -> None:
+        events = [{"phase": "commit"}, {"phase": "respond"}]
+        self.assertTrue(provenance.origin_untracked(events))
+
+    def test_origin_untracked_true_when_commit_snapshot_then_manual_edit(self) -> None:
+        events = [{"phase": "commit"}, {"phase": "manual-edit"}]
+        self.assertTrue(provenance.origin_untracked(events))
+
+    def test_origin_untracked_false_when_all_events_are_commit(self) -> None:
+        # A refreshed commit_only log (multiple commit snapshots, no
+        # authoring events yet) stays tracked -- its own disclaimer covers it.
+        events = [{"phase": "commit"}, {"phase": "commit"}]
+        self.assertEqual(provenance.provenance_kind(events), "commit_only")
+        self.assertFalse(provenance.origin_untracked(events))
+
+    def test_build_metrics_payload_flags_origin_untracked(self) -> None:
+        data = {
+            "workflow": "prd",
+            "events": [
+                {
+                    "phase": "respond",
+                    "authoring_mode": "skill",
+                    "workflow_version": "0.6.3",
+                    "ai_workflows": "adfad68",
+                    "source_repo": "00e78b8f",
+                    "source_repo_branch": "main",
+                }
+            ],
+            "drift": {"context_changed": False},
+        }
+        metrics = provenance.build_metrics_payload(data)
+        self.assertTrue(metrics["origin_untracked"])
+
+    def test_build_metrics_payload_origin_tracked_for_draft(self) -> None:
+        data = {
+            "workflow": "prd",
+            "events": [
+                {
+                    "phase": "draft",
+                    "authoring_mode": "skill",
+                    "workflow_version": "0.6.3",
+                    "ai_workflows": "adfad68",
+                    "source_repo": "00e78b8f",
+                    "source_repo_branch": "main",
+                }
+            ],
+            "drift": {"context_changed": False},
+        }
+        metrics = provenance.build_metrics_payload(data)
+        self.assertFalse(metrics["origin_untracked"])
+
+    def test_build_footer_flags_untracked_origin_on_respond_first_event(self) -> None:
+        # Regression test for issue #94's core reported scenario.
+        data = {
+            "workflow": "prd",
+            "events": [
+                {
+                    "phase": "respond",
+                    "authoring_mode": "skill",
+                    "workflow_version": "0.6.3",
+                    "ai_workflows": "adfad68",
+                    "source_repo": "00e78b8f",
+                    "source_repo_branch": "main",
+                }
+            ],
+            "drift": {"context_changed": False},
+        }
+        footer = provenance.build_footer(data)
+        self.assertIn("Authored: respond @ prd 0.6.3 - adfad68", footer)
+        self.assertIn(
+            "does not include an initial /draft", footer
+        )
+        self.assertIn('"origin_untracked":true', footer)
+
+    def test_build_footer_flags_untracked_origin_on_revise_first_event(self) -> None:
+        data = {
+            "workflow": "design",
+            "events": [
+                {
+                    "phase": "revise",
+                    "authoring_mode": "skill",
+                    "workflow_version": "0.6.0",
+                    "ai_workflows": "adfad68",
+                    "source_repo": "00e78b8f",
+                    "source_repo_branch": "main",
+                }
+            ],
+            "drift": {"context_changed": False},
+        }
+        footer = provenance.build_footer(data)
+        self.assertIn(
+            "does not include an initial /draft", footer
+        )
+        self.assertIn('"origin_untracked":true', footer)
+
+    def test_build_footer_flags_untracked_origin_on_manual_edit_first_event(
+        self,
+    ) -> None:
+        data = {
+            "workflow": "prd",
+            "events": [
+                {
+                    "phase": "manual-edit",
+                    "authoring_mode": "manual",
+                    "workflow_version": "0.6.3",
+                    "ai_workflows": "adfad68",
+                    "source_repo": "00e78b8f",
+                    "source_repo_branch": "main",
+                }
+            ],
+            "drift": {"context_changed": False},
+        }
+        footer = provenance.build_footer(data)
+        self.assertIn("manual-edit [manual]", footer)
+        self.assertIn(
+            "does not include an initial /draft", footer
+        )
+        self.assertIn('"origin_untracked":true', footer)
+
+    def test_build_footer_flags_untracked_origin_on_commit_then_revise(self) -> None:
+        # A never-drafted document published once (auto-captured commit
+        # snapshot), then revised: the log is no longer commit_only, so the
+        # commit-only disclaimer's job is done -- the origin-untracked
+        # disclaimer must appear instead, not silently drop out.
+        data = {
+            "workflow": "prd",
+            "events": [
+                {
+                    "phase": "commit",
+                    "authoring_mode": "skill",
+                    "workflow_version": "0.6.3",
+                    "ai_workflows": "adfad68",
+                    "source_repo": "00e78b8f",
+                    "source_repo_branch": "main",
+                },
+                {
+                    "phase": "revise",
+                    "authoring_mode": "skill",
+                    "workflow_version": "0.6.3",
+                    "ai_workflows": "adfad68",
+                    "source_repo": "00e78b8f",
+                    "source_repo_branch": "main",
+                },
+            ],
+            "drift": {"context_changed": False},
+        }
+        footer = provenance.build_footer(data)
+        self.assertIn("Authored: revise @ prd 0.6.3 - adfad68", footer)
+        self.assertIn("does not include an initial /draft", footer)
+        self.assertIn('"origin_untracked":true', footer)
+
+    def test_build_footer_no_disclaimer_for_legitimate_draft_session(self) -> None:
+        # Control case: a properly-tracked session must render unchanged,
+        # with no disclaimer and origin_untracked:false.
+        data = {
+            "workflow": "prd",
+            "events": [
+                {
+                    "phase": "draft",
+                    "authoring_mode": "skill",
+                    "workflow_version": "0.6.3",
+                    "ai_workflows": "adfad68",
+                    "source_repo": "00e78b8f",
+                    "source_repo_branch": "main",
+                }
+            ],
+            "drift": {"context_changed": False},
+        }
+        footer = provenance.build_footer(data)
+        self.assertNotIn("does not include an initial /draft", footer)
+        self.assertIn('"origin_untracked":false', footer)
+
+    def test_build_footer_commit_only_never_double_flagged(self) -> None:
+        # A commit_only log's first event is always "commit" by definition,
+        # so it must never also render the origin_untracked disclaimer.
+        data = {
+            "workflow": "prd",
+            "events": [
+                {
+                    "phase": "commit",
+                    "authoring_mode": "skill",
+                    "workflow_version": "0.6.3",
+                    "ai_workflows": "adfad68",
+                    "source_repo": "00e78b8f",
+                    "source_repo_branch": "main",
+                }
+            ],
+            "drift": {"context_changed": False},
+        }
+        footer = provenance.build_footer(data)
+        self.assertIn("commit-time snapshot only", footer)
+        self.assertNotIn("does not include an initial /draft", footer)
+        self.assertIn('"origin_untracked":false', footer)
+
+    def test_build_footer_untracked_origin_with_drift(self) -> None:
+        # Untracked origin plus environment drift: both the drift note and
+        # the origin disclaimer must appear together.
+        data = {
+            "workflow": "prd",
+            "events": [
+                {
+                    "phase": "respond",
+                    "authoring_mode": "skill",
+                    "workflow_version": "0.6.3",
+                    "ai_workflows": "adfad68",
+                    "source_repo": "abc1234",
+                    "source_repo_branch": "main",
+                },
+                {
+                    "phase": "revise",
+                    "authoring_mode": "skill",
+                    "workflow_version": "0.6.3",
+                    "ai_workflows": "adfad68",
+                    "source_repo": "00e78b8f",
+                    "source_repo_branch": "main",
+                },
+            ],
+            "drift": {"context_changed": True},
+        }
+        footer = provenance.build_footer(data)
+        self.assertIn("Context changed between respond and revise.", footer)
+        self.assertIn(
+            "does not include an initial /draft", footer
+        )
+        self.assertIn('"origin_untracked":true', footer)
+
+    def test_build_footer_untracked_origin_multi_phase_no_drift(self) -> None:
+        # Untracked origin with multiple authoring phases and no drift: the
+        # Phases line and the origin disclaimer must both appear.
+        data = {
+            "workflow": "prd",
+            "events": [
+                {
+                    "phase": "respond",
+                    "authoring_mode": "skill",
+                    "workflow_version": "0.6.3",
+                    "ai_workflows": "adfad68",
+                    "source_repo": "00e78b8f",
+                    "source_repo_branch": "main",
+                },
+                {
+                    "phase": "revise",
+                    "authoring_mode": "skill",
+                    "workflow_version": "0.6.3",
+                    "ai_workflows": "adfad68",
+                    "source_repo": "00e78b8f",
+                    "source_repo_branch": "main",
+                },
+            ],
+            "drift": {"context_changed": False},
+        }
+        footer = provenance.build_footer(data)
+        self.assertIn("Phases: respond, revise", footer)
+        self.assertIn(
+            "does not include an initial /draft", footer
+        )
+        self.assertIn('"origin_untracked":true', footer)
+
     def test_build_footer_single_event(self) -> None:
         data = {
             "workflow": "prd",

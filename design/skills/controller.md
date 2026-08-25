@@ -22,7 +22,7 @@ executing phases and handling transitions between them.
    Draft the design/architecture document using the template and section guidance.
 
 4. **Decompose** (`/decompose`) — `decompose.md`
-   Break the design into Jira-ready epics and stories with a coverage matrix.
+   Break the design into Jira-ready epics and stories with a testplan and coverage matrix.
 
 5. **Revise** (`/revise`) — `revise.md`
    Incorporate user feedback into the design document and/or task breakdown. Repeatable.
@@ -45,7 +45,7 @@ docs repo** so planning artifacts don't pollute the source tree.
 
 ### Artifact directory
 
-All working artifacts are stored in `.artifacts/design/{issue-number}/` within
+All working artifacts are stored in `.artifacts/design/{issue-key}/` within
 the source repo (this directory should be gitignored in the source repo):
 
 | Artifact | File | Written by |
@@ -56,21 +56,22 @@ the source repo (this directory should be gitignored in the source repo):
 | Provenance log | `provenance.json` | `/draft`, `/revise`, `/respond` |
 | Epic metadata | `04-epics.md` | `/decompose`, `/revise` |
 | Epic files | `05-stories/epic-{N}-{slug}.md` | `/decompose`, `/revise` |
-| Story files | `05-stories/epic-{N}/story-{NN}-{slug}.md` | `/decompose`, `/revise` |
-| Coverage matrix | `06-coverage.md` | `/decompose`, `/revise` |
-| PR description | `07-pr-description.md` | `/publish` |
+| Story files | `05-stories/epic-{N}/story-{NN}-{slug}.md` | `/decompose`, `/revise`, `/respond` |
+| Coverage matrix | `06-coverage.md` | `/decompose`, `/revise`, `/respond` |
+| Testplan | `07-testplan.md` | `/decompose`, `/revise`, `/respond` |
+| PR description | `08-pr-description.md` | `/publish` |
 | Publish metadata | `publish-metadata.json` | `/publish` |
-| Review responses | `08-review-responses.md` | `/respond` |
+| Review responses | `09-review-responses.md` | `/respond` |
 | Jira sync manifest | `sync-manifest.json` | `/sync` |
 
 ### Docs repo configuration
 
-The docs repo location is stored in `.artifacts/prd/config.json` (shared
-across all workflows for this source repo). This config is created by the
-PRD workflow's `/publish` phase the first time it runs.
+The docs repo location is stored in `.artifacts/config.json` (workspace-level
+config shared across all workflows for this source repo). This config is
+created by whichever workflow's `/publish` or `/ingest` phase runs first.
 
-If the config doesn't exist when `/publish` is invoked, the design workflow
-creates it following the same format:
+If the config doesn't exist when a phase needs it, the workflow prompts for
+the docs repo location and creates it:
 
 ```json
 {
@@ -209,8 +210,9 @@ When output quality appears to be degrading (e.g., the AI misses details,
 repeats itself, or loses track of earlier decisions), consider spawning the
 next phase as a subagent with a fresh context window. Load the subagent with
 the skill file for the phase being executed, the relevant artifact files from
-`.artifacts/design/{issue-number}/`, and any template files referenced by that
-skill (e.g., `draft.md` and `section-guidance.md` for `/draft`).
+`.artifacts/design/{issue-key}/`, and any template files referenced by that
+skill (`draft.md`, `revise.md`, and `respond.md` each resolve and use
+`design.md` and `section-guidance.md` — see `template-override-resolution.md`).
 
 This is a recommendation, not a requirement — not all AI runtimes support
 subagent spawning.
@@ -219,6 +221,6 @@ subagent spawning.
 
 - **Never auto-advance.** Always wait for the user between phases.
 - **Recommendations come from this file, not from skills.** Skills report findings; this controller decides what to recommend next.
-- **Template loading is handled by the `/draft` skill.** It checks for project-level overrides before falling back to the workflow default. See `draft.md` Step 1.
+- **Template loading is shared across `/draft`, `/revise`, and `/respond`.** Each resolves project-level overrides before falling back to the workflow default via `../../_shared/recipes/template-override-resolution.md`; none is more canonical than another.
 - **Jira is read-only until `/sync`.** The `/ingest` phase reads from Jira but never modifies it. Only `/sync` modifies Jira issues, and only with explicit user approval.
 - **Design and decomposition co-evolve.** If `/revise` changes the design, recommend re-running `/decompose`. If `/decompose` reveals design gaps, recommend `/revise`.

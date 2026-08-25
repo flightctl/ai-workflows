@@ -36,7 +36,7 @@ planning artifacts don't pollute the source tree.
 
 ### Artifact directory
 
-All working artifacts are stored in `.artifacts/prd/{issue-number}/` within the
+All working artifacts are stored in `.artifacts/prd/{issue-key}/` within the
 source repo (this directory should be gitignored in the source repo):
 
 | Artifact | File | Written by |
@@ -51,8 +51,8 @@ source repo (this directory should be gitignored in the source repo):
 
 ### Docs repo configuration
 
-The docs repo location is stored in `.artifacts/prd/config.json` (shared
-across all PRDs for this source repo):
+The docs repo location is stored in `.artifacts/config.json` (shared
+across all workflows for this source repo):
 
 ```json
 {
@@ -61,9 +61,10 @@ across all PRDs for this source repo):
 }
 ```
 
-This config is created by `/publish` the first time it runs. On subsequent
-runs, `/publish` validates that the path exists and the remote matches. If
-validation fails, it re-asks the user.
+This config is created by whichever workflow's `/publish` or `/ingest`
+phase runs first. On subsequent runs, phases that need the config validate
+that the path exists and the remote matches. If validation fails, they
+re-ask the user.
 
 `/revise` and `/respond` also read this config when they need to update the
 published copy in the docs repo.
@@ -162,8 +163,9 @@ When output quality appears to be degrading (e.g., the AI misses details,
 repeats itself, or loses track of earlier decisions), consider spawning the
 next phase as a subagent with a fresh context window. Load the subagent with
 the skill file for the phase being executed, the relevant artifact files from
-`.artifacts/prd/{issue-number}/`, and any template files referenced by that
-skill (e.g., `prd.md` and `section-guidance.md` for `/draft`).
+`.artifacts/prd/{issue-key}/`, and any template files referenced by that
+skill (`draft.md`, `revise.md`, and `respond.md` each resolve and use
+`prd.md` and `section-guidance.md` — see `template-override-resolution.md`).
 
 This is a recommendation, not a requirement — not all AI runtimes support
 subagent spawning.
@@ -172,5 +174,5 @@ subagent spawning.
 
 - **Never auto-advance.** Always wait for the user between phases.
 - **Recommendations come from this file, not from skills.** Skills report findings; this controller decides what to recommend next.
-- **Template loading is handled by the `/draft` skill.** It checks for project-level overrides before falling back to the workflow default. See `draft.md` Step 1.
+- **Template loading is shared across `/draft`, `/revise`, and `/respond`.** Each resolves project-level overrides before falling back to the workflow default via `../../_shared/recipes/template-override-resolution.md`; none is more canonical than another.
 - **Jira is read-only.** Never modify Jira issues.

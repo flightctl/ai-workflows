@@ -69,7 +69,7 @@ Every requirement gets a stable ID (FR-1, NFR-1) and a source marker indicating 
 
 Before presenting the draft, the workflow runs a coverage check (did anything from the source material get dropped?) and resolves outstanding assumptions with you.
 
-**Template overrides:** Projects can provide their own PRD template. The workflow checks these locations in order: a path specified in the project's `CLAUDE.md` or `AGENTS.md`, then `.prd/templates/prd.md` at the project root, then the built-in default.
+**Template overrides:** Projects can provide their own PRD template. `/draft`, `/revise`, and `/respond` all check these locations in order: a path specified in the project's `CLAUDE.md` or `AGENTS.md`, then `.prd/templates/prd.md` at the project root, then the built-in default.
 
 ### Revise
 
@@ -87,7 +87,7 @@ You can run `/prd:revise` as many times as needed. Each round updates the same a
 
 The workflow copies the PRD to a docs repository and creates a **draft** GitHub PR. It asks you to confirm the details first: base branch, release name, feature slug, and branch name.
 
-On first use, it asks for your docs repo location and saves the configuration to `.artifacts/prd/config.json`. Subsequent PRDs reuse this configuration without asking again.
+On first use, it asks for your docs repo location and saves the configuration to `.artifacts/config.json`. Subsequent runs (including other workflows like `/design`) reuse this configuration without asking again.
 
 The PR is always created as a draft. It includes a description with a link to the Jira issue, a summary of what the PRD covers, and guidance for reviewers on what to focus on.
 
@@ -101,7 +101,7 @@ This phase handles the PR review cycle. See the dedicated section below.
 
 ## The Artifact Trail
 
-Each PRD produces a set of numbered artifacts in `.artifacts/prd/{issue-number}/`:
+Each PRD produces a set of numbered artifacts in `.artifacts/prd/{issue-key}/`:
 
 | File | Created by | Purpose |
 |------|-----------|---------|

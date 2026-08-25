@@ -27,11 +27,11 @@ multiple rounds of revision. This phase only modifies the plan, not code.
 
 ### Step 1: Read Current Plan
 
-Read `.artifacts/implement/{jira-key}/02-plan.md`.
+Read `.artifacts/implement/{issue-key}/02-plan.md`.
 
 If the plan doesn't exist, tell the user that `/plan` should be run first.
 
-Also read `.artifacts/implement/{jira-key}/01-context.md` for reference
+Also read `.artifacts/implement/{issue-key}/01-context.md` for reference
 (acceptance criteria, validation profile).
 
 ### Step 2: Understand the Feedback
@@ -87,10 +87,11 @@ After applying changes, verify:
 - Does the test strategy still align with the tasks?
 - Do interface definitions match what the tasks describe?
 - Are commit messages still properly formatted?
+- If a Test Plan Coverage section exists: do the TC ID → Task mappings still reflect the current task breakdown? If tasks were added, removed, split, or combined, update the Covered by Task column accordingly.
 
 ### Step 5: Update Artifact
 
-Overwrite `.artifacts/implement/{jira-key}/02-plan.md` with the revised plan.
+Overwrite `.artifacts/implement/{issue-key}/02-plan.md` with the revised plan.
 
 ### Step 6: Present Changes
 
@@ -114,7 +115,7 @@ Summarize what changed:
 
 ## Output
 
-- `.artifacts/implement/{jira-key}/02-plan.md` (updated)
+- `.artifacts/implement/{issue-key}/02-plan.md` (updated)
 
 ## When This Phase Is Done
 

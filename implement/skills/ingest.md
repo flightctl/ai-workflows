@@ -33,12 +33,15 @@ The user will provide one of:
 - A Jira issue key or URL (fetch via Jira MCP)
 - A path to an existing story file from the design workflow
 
-Extract the Jira key (e.g., `EDM-1234`) and set it as the context identifier.
+Extract the full Jira issue key, including the project prefix (e.g.,
+`PROJ-1234`, not just `1234`). Use this as `{issue-key}` throughout
+the workflow — it is the context identifier for the artifact directory
+and all downstream phases.
 
 ### Step 2: Create Artifact Directory
 
 ```bash
-mkdir -p .artifacts/implement/{jira-key}
+mkdir -p .artifacts/implement/{issue-key}
 ```
 
 Verify that `.artifacts/` is covered by the project's `.gitignore`. If it
@@ -47,7 +50,7 @@ committed with the code.
 
 ### Step 2a: Check for Prior Ingest
 
-If `.artifacts/implement/{jira-key}/01-context.md` already exists, this is a
+If `.artifacts/implement/{issue-key}/01-context.md` already exists, this is a
 re-invocation. Copy the existing file to `01-context.md.prev` so it is
 preserved for the diff in Step 7a.
 
@@ -59,6 +62,8 @@ Fetch the story from Jira. Capture:
 - Acceptance criteria
 - Implementation guidance (if present)
 - Testing approach (if present)
+- Test Case References (if present — TC IDs used for testplan filtering in Step 5d)
+- Design Reference (if present — PRD requirement IDs and design section refs)
 - Story type prefix (`[DEV]`, `[UI]`, etc.)
 - Parent epic key
 - Story dependencies (linked issues — "depends on", "is blocked by")
@@ -84,29 +89,28 @@ design workflows. Fetch them from there.
 
 #### 5a: Resolve the Docs Repo
 
-Check for an existing docs repo configuration at `.artifacts/prd/config.json`.
-This config is project-level and shared across workflows (prd, design,
-implement, e2e) — a prior workflow run may have already created it.
+Check for an existing docs repo configuration at `.artifacts/config.json`.
+This config is workspace-level and shared across all workflows — a prior
+workflow run may have already created it.
 
 **If the config exists**, read it and validate:
 1. Verify the path exists on the local filesystem
 2. Verify the directory is a git repository
+3. Verify the remote URL matches the configured `docs_repo_remote`
 
-If validation fails, inform the user and re-ask for the correct values.
+If any validation fails, inform the user and re-ask for the correct values.
+Resolve `~` to an absolute path before saving. Update
+`.artifacts/config.json` with the corrected values.
 
 **If the config does not exist**, ask the user:
 - **Docs repo local path:** Where is the planning docs repo checked out?
 - **Docs repo remote:** Run `git -C "{docs_repo_path}" remote get-url origin`
   and confirm with the user
 
-Validate the path and remote, then save the config:
-
-```bash
-mkdir -p .artifacts/prd
-```
-
-Write `.artifacts/prd/config.json` with the validated `docs_repo_path` and
-`docs_repo_remote` (same format used by the prd and design workflows).
+Validate the path and remote. Resolve `~` to the user's home directory
+so the stored path is absolute. Write `.artifacts/config.json` with the
+validated `docs_repo_path` and `docs_repo_remote` (workspace-level config
+shared across all workflows).
 
 #### 5b: Find the PRD and Design Document
 
@@ -139,11 +143,92 @@ Read these from the docs repo:
    architectural decisions and locked decisions incorporated as content
 2. **PRD** (`prd.md`) — the product requirements, with locked decisions
    reflected in the requirements text
+3. **Testplan** (`testplan.md`) — behavioral test cases mapped to PRD
+   requirements. If found, proceed to Step 5d for filtering.
 
-If the docs repo documents are not found, ask the user for their location
-or proceed with only the Jira story content. The design document and PRD
-are valuable context but not strictly required — the story's acceptance
-criteria are the primary contract.
+If the design document or PRD are not found, ask the user for their
+location or proceed with only the Jira story content. The design
+document and PRD are valuable context but not strictly required — the
+story's acceptance criteria are the primary contract.
+
+#### 5d: Filter Testplan to Story Scope
+
+If `testplan.md` was found in Step 5c, filter it to the test cases
+relevant to this story. The published testplan uses Jira keys in the
+Story field in each test case's metadata table (resolved by `/sync`).
+Filter by matching the Story field against this story's Jira key
+(`{issue-key}`).
+
+If the Story field still contains local identifiers (e.g., `Story 1.01`
+instead of Jira keys), this means `/sync` has not yet been run or the
+testplan was published before sync. In this case, look for TC IDs in the
+Jira story's Test Case References section (captured in Step 3 from the
+story description) and match those TC IDs directly against the testplan
+entries.
+
+**Three-outcome gate:**
+
+| Outcome | Condition | Action |
+|---------|-----------|--------|
+| **Normal** | Matching test cases found | Write `.artifacts/implement/{issue-key}/testplan.md` |
+| **Expected zero** | No matches AND story type is `[QE]`, `[DOCS]`, `[UX]`, or `[CI]` | Note in context: "Testplan exists but has no test cases for this story type. This is expected." |
+| **Anomalous zero** | No matches AND story type is `[DEV]` or `[UI]` | Warn the user: "Testplan exists but no test cases reference this story. This may indicate a gap in the testplan or an incorrect requirement mapping." This is non-blocking. |
+
+If the story type prefix is not listed above, treat it as anomalous
+zero (warn the user, continue without `testplan.md`).
+
+For non-normal outcomes (expected zero, anomalous zero, or no
+feature-level testplan): if
+`.artifacts/implement/{issue-key}/testplan.md` exists from a prior
+ingest run, delete it. A stale story-scoped testplan
+would cause downstream gates to enforce obsolete coverage requirements.
+
+If `testplan.md` was not found in the docs repo, note "No feature-level
+testplan available" and continue. This is not an error — the testplan is
+a newer feature and older designs may not have one.
+
+**Write story-scoped testplan (Normal outcome only):**
+
+Write `.artifacts/implement/{issue-key}/testplan.md`:
+
+```markdown
+# Story Test Plan — {issue-key}
+
+- **Source:** {docs-repo-path}/testplan.md
+- **Story:** {issue-key} — {story-title}
+- **Test cases:** {count}
+
+## TC-FR1-01: {scenario title}
+
+| Requirement | AC | Priority | Automation |
+|-------------|-----|----------|------------|
+| FR-1 | AC-1 | high | automated |
+
+### Preconditions
+
+- {precondition}
+
+### Steps
+
+1. {step}
+2. {step}
+
+### Expected Results
+
+- {expected outcome}
+
+## TC-FR1-02: {scenario title}
+
+{... same structure for each test case ...}
+```
+
+Each test case becomes an H2 heading with the same structure as the
+feature-level testplan (metadata table, Preconditions, Steps, Expected
+Results as sub-headings). Heading levels are shifted up by two because
+the requirement-grouping layer and the Test Cases section are removed.
+The Story field is omitted from the metadata table (redundant — all
+entries are for this story). The Requirement ID is included in the
+metadata table for traceability back to the feature-level testplan.
 
 ### Step 6: Explore the Codebase
 
@@ -209,16 +294,16 @@ Compile all findings into the structure below. If this is a re-invocation
 compiled content and proceed to Step 7a first.
 
 If this is a first invocation, write
-`.artifacts/implement/{jira-key}/01-context.md` with this structure:
+`.artifacts/implement/{issue-key}/01-context.md` with this structure:
 
 ```markdown
-# Story Context — {jira-key}
+# Story Context — {issue-key}
 
 ## Story Summary
 
 - **Title:** {title}
 - **Type:** {story type prefix, e.g., [DEV]}
-- **Jira:** {jira-key}
+- **Jira:** {issue-key}
 - **Epic:** {parent epic key and title}
 - **Feature:** {parent feature key, if known}
 
@@ -261,6 +346,24 @@ If this is a first invocation, write
 
 {Which FR-N and NFR-N requirements this story addresses, from the
  coverage matrix or story metadata.}
+
+### Story Test Plan
+
+{If story-scoped testplan was written: "Story-scoped test plan written
+ to `.artifacts/implement/{issue-key}/testplan.md` with {N} test cases.
+ TC IDs: {comma-separated list}."
+
+ If feature-level testplan exists but no matches (expected):
+ "Feature-level testplan found in docs repo but no test cases match
+ this {story-type} story (expected). No story-scoped testplan written."
+
+ If feature-level testplan exists but no matches (anomalous):
+ "Feature-level testplan found in docs repo but no test cases reference
+ this {story-type} story (anomalous — flagged during ingest). No
+ story-scoped testplan written."
+
+ If no feature-level testplan in docs repo: "No feature-level testplan
+ available in docs repo. No story-scoped testplan written."}
 
 ## Codebase Context
 
@@ -380,7 +483,8 @@ what changes were found and that the existing context was preserved.
 
 ## Output
 
-- `.artifacts/implement/{jira-key}/01-context.md`
+- `.artifacts/implement/{issue-key}/01-context.md`
+- `.artifacts/implement/{issue-key}/testplan.md` (if testplan exists with matching test cases)
 
 ## When This Phase Is Done
 
@@ -389,6 +493,7 @@ Report your findings:
 - Affected components and current patterns
 - Validation profile summary
 - Dependency warnings (if any)
+- Story test plan status (test cases found / expected zero / anomalous zero / no testplan)
 - Assessment of readiness for `/plan`
 
 Then **re-read the controller** (`controller.md`) for next-step guidance.

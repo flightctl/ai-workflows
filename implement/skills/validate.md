@@ -30,9 +30,10 @@ and repeat until everything passes.
 ### Step 1: Read Context
 
 Read:
-1. `.artifacts/implement/{jira-key}/01-context.md` (validation profile)
-2. `.artifacts/implement/{jira-key}/02-plan.md` (what was implemented)
-3. `.artifacts/implement/{jira-key}/04-impl-report.md` (implementation status)
+1. `.artifacts/implement/{issue-key}/01-context.md` (validation profile)
+2. `.artifacts/implement/{issue-key}/02-plan.md` (what was implemented)
+3. `.artifacts/implement/{issue-key}/04-impl-report.md` (implementation status)
+4. `.artifacts/implement/{issue-key}/testplan.md` (story-scoped testplan, if exists)
 
 Extract the validation profile's pre-PR checks list.
 
@@ -69,7 +70,7 @@ git rev-list --count HEAD..origin/{local-base}
 ```
 
 If the branch is behind base, check whether a PR has already been
-created by looking for `.artifacts/implement/{jira-key}/publish-metadata.json`.
+created by looking for `.artifacts/implement/{issue-key}/publish-metadata.json`.
 
 **If no PR exists yet** (pre-publish), offer to rebase:
 
@@ -195,7 +196,7 @@ parameters:
 |-----------|-------|
 | DIFF_COMMAND | `git diff {local-base}...HEAD` |
 | MAX_ROUNDS | `3` |
-| CONTEXT_FILES | `.artifacts/implement/{jira-key}/01-context.md`, `.artifacts/implement/{jira-key}/02-plan.md` (if they exist) |
+| CONTEXT_FILES | `.artifacts/implement/{issue-key}/01-context.md`, `.artifacts/implement/{issue-key}/02-plan.md` (if they exist) |
 | SUPPLEMENTARY_CRITERIA | This is the full-branch validation review — the last quality gate before PR creation. The reviewer has the complete diff, not a per-task slice. In addition to the standard protocol criteria, evaluate: (1) **Backward compatibility** — does the change modify public APIs, error formats, configuration, or wire protocols? If so, is it backward-compatible or is the break documented and justified? (2) **Completeness across call sites** — if the story introduces a guard, wrapper, or handling pattern in one location, search the codebase for similar patterns needing the same treatment. A pattern applied to 7 of 8 identical call sites is itself a bug. |
 
 If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
@@ -210,7 +211,7 @@ git add {fixed files}
 ```
 
 ```bash
-git commit -m "{JIRA-KEY}: address validation review findings"
+git commit -m "{issue-key}: address validation review findings"
 ```
 
 ### Step 7: Acceptance Criteria Verification
@@ -245,12 +246,48 @@ satisfied:
    it requires manual verification or describes a UX quality) — note
    it as "requires manual verification" with an explanation of why
 
+### Step 7b: Test Plan Verification
+
+If `.artifacts/implement/{issue-key}/testplan.md` exists, independently
+verify that every test case has been implemented. This check re-derives
+the required TC ID list from `testplan.md` directly — it does NOT rely
+on the plan's task-to-TC-ID mappings or `/code`'s per-task reconciliation
+for determining which tests exist. The only information carried forward
+from the plan is the N/A rationale for test cases marked inapplicable.
+This is an intentional independent verification: if the plan's
+bookkeeping or the code phase's gate drifted from reality, this step
+catches it.
+
+If `testplan.md` does not exist and `02-plan.md` has no Test Plan
+Coverage section, skip this step entirely. However, if `02-plan.md`
+has TC mappings but `testplan.md` is missing, unreadable, or malformed
+(no parseable TC IDs), stop and report the inconsistency.
+
+1. Read `testplan.md` and extract all TC IDs. For each TC entry,
+   verify that Preconditions, Steps, and Expected Results sections
+   are present. If any entry is missing a required section, stop and
+   report the testplan as malformed.
+2. For each TC ID (except those the validate phase agrees are
+   legitimately N/A based on the rationale in the plan's Test Plan
+   Coverage matrix):
+   - Search the test files on the feature branch for a test whose
+     scenario matches the TC's Steps and whose assertions match the
+     Expected Results.
+   - The match is behavioral, not textual — the test must exercise the
+     described scenario and assert the described outcomes.
+   - Record the test file and test name for each TC ID.
+3. If any TC ID lacks a corresponding test:
+   - Write the missing test following contract-based testing standards.
+   - Commit the test following the project's commit format.
+   - Re-run the relevant checks from Step 3.
+4. Record results for the validation report.
+
 ### Step 8: Write Validation Report
 
-Write `.artifacts/implement/{jira-key}/05-validation-report.md`:
+Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
 
 ```markdown
-# Validation Report — {jira-key}
+# Validation Report — {issue-key}
 
 ## Branch Currency
 
@@ -313,6 +350,26 @@ Write `.artifacts/implement/{jira-key}/05-validation-report.md`:
  If any gaps: describe what's missing and what was done about it.
  If any require manual verification: list them with rationale.}
 
+## Test Plan Verification
+
+{Include only if testplan.md exists. Omit entirely otherwise.}
+
+| TC ID | Title | Test File | Test Name | Status |
+|-------|-------|-----------|-----------|--------|
+| TC-FR1-01 | {title} | {file} | {test name} | covered |
+| TC-FR1-02 | {title} | {file} | {test name} | gap-filled |
+| TC-NFR1-01 | {title} | — | — | N/A |
+
+{Status values:
+ - covered: test existed and had sufficient assertion depth
+ - gap-filled: test was written during validation
+ - N/A: test case legitimately not applicable (rationale required)
+
+ If all covered: "All test plan cases verified."
+ If gaps were filled: "{N} test cases required additional tests during
+ validation."
+ If any N/A: list rationale for each.}
+
 ## Quality Review Findings
 
 {Findings from the code quality review gate (protocol criteria plus
@@ -349,13 +406,14 @@ Summarize for the user:
 - Which checks passed and which failed
 - Coverage assessment (behavioral, not numeric)
 - Acceptance criteria status (all satisfied, or which ones have gaps)
+- Test plan verification status (all covered / gaps filled / not applicable), if testplan exists
 - Any tests added during validation
 - Any regressions found (and whether they were fixed)
 - Overall verdict: ready for `/publish` or not
 
 ## Output
 
-- `.artifacts/implement/{jira-key}/05-validation-report.md`
+- `.artifacts/implement/{issue-key}/05-validation-report.md`
 - Additional test files (if coverage gaps were found)
 - Fix commits (if issues were found and fixed)
 

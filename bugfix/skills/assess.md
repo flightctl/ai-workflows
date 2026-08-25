@@ -94,6 +94,33 @@ be determined.
 | Symptoms | One-line user-visible symptom (e.g., "Save returns 500") |
 | Environment | OS, browser, version, cluster — only if stated |
 
+### Checkpoint: Confirm Understanding
+
+Before investing in source-code exploration, pause and present your
+understanding to the user:
+
+- **Evidence:** what the bug report explicitly states — error messages,
+  stack traces, reproduction steps, affected component
+- **Assumptions:** what you inferred that isn't directly stated — which
+  code area is likely involved, what the failure mode probably is
+- **Unknowns:** what's missing or ambiguous — unclear repro steps,
+  unspecified environment, vague symptoms
+- The error signature table from Step 3
+- The area of code you plan to investigate based on the bug report, and why
+
+Then ask the user to confirm or redirect.
+
+**Handling the response:**
+
+- **User confirms** — proceed to Step 4.
+- **User redirects** ("no, look at X instead") — evaluate the redirect
+  against the evidence you have. If it aligns, incorporate it and proceed.
+  If it contradicts what the bug report shows, say so — explain what you
+  found and why your original direction may be more accurate. Reach
+  agreement before proceeding.
+- **User rejects without a redirect** — ask what to adjust. Do not
+  proceed past this checkpoint until the user confirms direction.
+
 ### Step 4: Source-Code Exploration
 
 Explore the local repository to build source-level context for the bug. This
@@ -156,11 +183,19 @@ Assign exactly one recommendation:
 | **ESCALATE** | Needs architectural decision, cross-team coordination, or security review |
 | **WONT_FIX** | Valid but out of scope, cost-prohibitive, or the affected feature is being deprecated |
 
+When a bug qualifies for both FIX_NOW and AUTO_FIX, assign AUTO_FIX — a well-described, automatable bug gets fixed fastest by the bot, which satisfies the urgency that FIX_NOW signals.
+
 Provide a **reason** (1–2 sentences) and **confidence** (High / Medium / Low).
 
 #### AUTO_FIX Likelihood
 
-Only when recommendation is AUTO_FIX. Score 0–100 using these bands, then
+Only when recommendation is AUTO_FIX. AUTO_FIX evaluates whether the bug is
+technically amenable to automated fixing — clear root cause, bounded scope,
+testable fix. Do not factor in workflow state such as existing PRs, prior fix
+attempts, open branches, or previous bot assessments. Those are operational
+concerns for the caller, not indicators of technical feasibility.
+
+Score 0–100 using these bands, then
 adjust based on source-code complexity from Step 4d:
 
 | Band | Description-quality criteria | Code-level adjustments |

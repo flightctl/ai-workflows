@@ -125,6 +125,8 @@ Assign exactly one recommendation per issue:
 | **ESCALATE** | Needs architectural decision, cross-team coordination, or security review |
 | **WONT_FIX** | Valid but out of scope, cost-prohibitive, or the affected feature is being deprecated |
 
+When a bug qualifies for both FIX_NOW and AUTO_FIX, assign AUTO_FIX — a well-described, automatable bug gets fixed fastest by the bot, which satisfies the urgency that FIX_NOW signals.
+
 #### Priority Mismatch Detection
 
 For each issue that has an assigned priority, compare it against the severity implied by the description. Flag a mismatch when there is a significant gap (1+ priority levels). Skip issues without a priority (those already get `suggestedPriority`).
@@ -148,6 +150,12 @@ Signals that indicate the description severity differs from the assigned priorit
 Set `priorityMismatch` to `null` when the assigned priority reasonably matches the description.
 
 #### AUTO_FIX Likelihood Criteria
+
+AUTO_FIX evaluates whether the bug is technically amenable to automated
+fixing — clear root cause, bounded scope, testable fix. Do not factor in
+workflow state such as existing PRs, prior fix attempts, open branches, or
+previous bot assessments. Those are operational concerns for the caller, not
+indicators of technical feasibility.
 
 When assigning `autoFixLikelihood`, consider:
 

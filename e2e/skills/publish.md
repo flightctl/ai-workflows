@@ -29,7 +29,7 @@ user before taking action.
 
 Verify readiness:
 
-1. Read `.artifacts/e2e/{jira-key}/05-validation-report.md`. Check
+1. Read `.artifacts/e2e/{issue-key}/05-validation-report.md`. Check
    that the `## Result` section contains `PASS`. If the file doesn't exist,
    the `## Result` section is missing, or it contains `FAIL`, tell the user
    that `/validate` should be run (or re-run) first.
@@ -76,7 +76,7 @@ parameters:
 |-----------|-------|
 | DIFF_COMMAND | `git diff {local-base}...HEAD` |
 | MAX_ROUNDS | `3` |
-| CONTEXT_FILES | `.artifacts/e2e/{jira-key}/01-context.md`, `.artifacts/e2e/{jira-key}/02-plan.md` (if they exist) |
+| CONTEXT_FILES | `.artifacts/e2e/{issue-key}/01-context.md`, `.artifacts/e2e/{issue-key}/02-plan.md` (if they exist) |
 | SUPPLEMENTARY_CRITERIA | This is a cross-cutting review. Each sub-task was already reviewed individually. Focus on inter-task issues: (1) Cross-test consistency (setup/teardown patterns, assertion style). (2) Shared fixtures or helpers that emerged across tasks. (3) Label and tag consistency across test files. (4) Pattern drift between tests written in different tasks. Skip issues already caught per-task: individual test correctness, per-test anti-pattern checks, single-task infrastructure usage. |
 
 If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
@@ -91,7 +91,7 @@ git add {fixed files}
 ```
 
 ```bash
-git commit -m "{JIRA-KEY}: address cross-cutting review findings"
+git commit -m "{issue-key}: address cross-cutting review findings"
 ```
 
 ### Step 3: Confirm Details
@@ -108,7 +108,7 @@ git log --oneline {local-base}..HEAD
 ```
 
 - **PR title:** Use the title format from the **PR Conventions** section of
-  `01-context.md` (typically `{JIRA-KEY}: {story title}`)
+  `01-context.md` (typically `{issue-key}: {story title}`)
 
 Confirm with the user before proceeding.
 
@@ -127,12 +127,12 @@ Check the **PR Conventions** section of `01-context.md`:
 - If no project template exists, use the default template below.
 
 In either case, save the result to
-`.artifacts/e2e/{jira-key}/06-pr-description.md`.
+`.artifacts/e2e/{issue-key}/06-pr-description.md`.
 
 **Default template** (used when the project has no PR template):
 
 ```markdown
-## {JIRA-KEY}: {story title}
+## {issue-key}: {story title}
 
 **Jira:** {jira-link}
 **Story type:** [QE]
@@ -168,7 +168,7 @@ whether this is a fork-based workflow.
 `{upstream-owner}/{repo}`):
 
 ```bash
-gh pr create --draft --repo {upstream-owner}/{repo} --base {pr-target} --head {fork-owner}:{branch-name} --title "{JIRA-KEY}: {story title}" --body-file .artifacts/e2e/{jira-key}/06-pr-description.md
+gh pr create --draft --repo {upstream-owner}/{repo} --base {pr-target} --head {fork-owner}:{branch-name} --title "{issue-key}: {story title}" --body-file .artifacts/e2e/{issue-key}/06-pr-description.md
 ```
 
 The `--repo` flag targets the upstream repository (where the PR lives),
@@ -178,7 +178,7 @@ branch (on the fork).
 **If the repo is a direct clone** (not a fork):
 
 ```bash
-gh pr create --draft --base {pr-target} --head {branch-name} --title "{JIRA-KEY}: {story title}" --body-file .artifacts/e2e/{jira-key}/06-pr-description.md
+gh pr create --draft --base {pr-target} --head {branch-name} --title "{issue-key}: {story title}" --body-file .artifacts/e2e/{issue-key}/06-pr-description.md
 ```
 
 Parse the PR number and URL from the `gh pr create` output. The command
@@ -191,7 +191,7 @@ Read `{owner}/{repo}` from the **Origin** field of the Repository
 Topology section of `01-context.md`. If the repo is a fork, also read
 the **Upstream** field.
 
-Write `.artifacts/e2e/{jira-key}/publish-metadata.json`.
+Write `.artifacts/e2e/{issue-key}/publish-metadata.json`.
 
 The `repo` field always refers to where the PR lives. The `origin` field
 records the repo that was pushed to.
@@ -206,7 +206,7 @@ records the repo that was pushed to.
   "base": "{pr-target}",
   "pr_number": {pr-number},
   "pr_url": "{url from gh pr create output}",
-  "jira_key": "{jira-key}"
+  "jira_key": "{issue-key}"
 }
 ```
 
@@ -220,7 +220,7 @@ records the repo that was pushed to.
   "base": "{pr-target}",
   "pr_number": {pr-number},
   "pr_url": "{url from gh pr create output}",
-  "jira_key": "{jira-key}"
+  "jira_key": "{issue-key}"
 }
 ```
 
@@ -236,8 +236,8 @@ Present:
 
 - Feature branch pushed to remote
 - Draft PR created
-- `.artifacts/e2e/{jira-key}/06-pr-description.md`
-- `.artifacts/e2e/{jira-key}/publish-metadata.json`
+- `.artifacts/e2e/{issue-key}/06-pr-description.md`
+- `.artifacts/e2e/{issue-key}/publish-metadata.json`
 
 ## When This Phase Is Done
 
