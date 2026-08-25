@@ -108,10 +108,11 @@ runtime for validation and use.
 **If the config exists**, resolve the relative path to absolute (relative to
 the source-repository root), then validate: the path exists, it is a git
 repository, and its remote URL matches `docs_repo_remote`. If validation fails,
-tell the researcher and re-ask for the correct path and remote. Convert the new
-path to relative (from source-repository root) and persist **both** the
-corrected `docs_repo_path` and replacement `docs_repo_remote` to
-`.artifacts/config.json`.
+tell the researcher and re-ask for the correct path and remote. Revalidate the
+new path and remote using the same checks (path exists, is a git repository,
+remote URL matches). After successful validation, convert the new path to
+relative (from source-repository root) and persist **both** the corrected
+`docs_repo_path` and replacement `docs_repo_remote` to `.artifacts/config.json`.
 
 **If the config does not exist**, ask the researcher for the docs repo local
 path and remote, validate them (resolve `~` first), then convert the path to
