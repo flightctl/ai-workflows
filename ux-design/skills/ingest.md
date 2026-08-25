@@ -118,9 +118,12 @@ relative (from source-repository root) and persist **both** the corrected
 path and remote, validate them (resolve `~` first), then convert the path to
 relative (from source-repository root) and write `.artifacts/config.json`.
 
-Example: if the source-repository root is `/home/user/src/myproject` and the
-docs repo is at `/home/user/src/myproject-docs`, store `../myproject-docs` in
-`.artifacts/config.json`, not the absolute path.
+Example conversion:
+```
+Source repository root: /home/user/src/myproject
+Docs repository path:   /home/user/src/myproject-docs
+Store in config.json:   ../myproject-docs
+```
 
 #### Find and read the documents
 
