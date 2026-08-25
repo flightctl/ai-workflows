@@ -6,7 +6,7 @@ analysis phase and AI-generated synthesis, producing a single self-contained
 HTML file that can be opened in any browser.
 
 Usage:
-    render_report.py --analyzed PATH --template PATH --jira-url URL
+    render_report.py --analyzed PATH --template PATH --issues PATH
                      --ai-input PATH --output PATH [--project-key KEY]
 
 Exit codes:
@@ -91,6 +91,26 @@ def extract_project_key(issues: list[dict]) -> str | None:
     if "-" in key:
         return key.rsplit("-", 1)[0]
     return None
+
+
+def extract_jira_base_url(issues_data: Any) -> str:
+    """Return the Jira instance base URL recorded by the /scan phase.
+
+    The URL is read from the ``jiraBaseUrl`` field of issues.json rather
+    than being passed on the command line. A value that originates from
+    the Jira server's ``self`` links must never be interpolated into a
+    shell command by the agent — reading it here keeps that
+    server-controlled data out of shell source entirely.
+    """
+    url = issues_data.get("jiraBaseUrl") if isinstance(issues_data, dict) else None
+    if not isinstance(url, str) or not url.strip():
+        print(
+            "Error: issues.json is missing a 'jiraBaseUrl' string; "
+            "re-run /scan or add the field",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    return url
 
 
 def _json_for_script_block(data: Any) -> str:
@@ -204,9 +224,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Path to the HTML template (templates/report.html)",
     )
     parser.add_argument(
-        "--jira-url",
+        "--issues",
+        type=Path,
         required=True,
-        help="Jira instance base URL (e.g., https://issues.redhat.com)",
+        help=(
+            "Path to issues.json from /scan; the Jira base URL is read "
+            "from its 'jiraBaseUrl' field"
+        ),
     )
     parser.add_argument(
         "--ai-input",
@@ -238,13 +262,16 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
     analyzed = _read_json(args.analyzed, "analyzed.json")
+    issues_data = _read_json(args.issues, "issues.json")
     ai_input = _read_json(args.ai_input, "AI input")
     template = _read_text(args.template, "HTML template")
+
+    jira_url = extract_jira_base_url(issues_data)
 
     replacements = build_replacements(
         analyzed=analyzed,
         ai_input=ai_input,
-        jira_url=args.jira_url,
+        jira_url=jira_url,
         project_key=args.project_key,
     )
 

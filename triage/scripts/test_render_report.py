@@ -65,6 +65,12 @@ SAMPLE_AI_INPUT = {
     "releaseRisk": SAMPLE_RELEASE_RISK,
 }
 
+SAMPLE_ISSUES_DOC = {
+    "project": "EDM",
+    "jiraBaseUrl": "https://redhat.atlassian.net",
+    "issues": SAMPLE_ISSUES,
+}
+
 
 def _write_json(directory: Path, name: str, data: object) -> Path:
     """Write a JSON file into a directory and return its path."""
@@ -107,12 +113,42 @@ class TestExtractProjectKey(unittest.TestCase):
         self.assertIsNone(render_report.extract_project_key([{"summary": "x"}]))
 
 
+class TestExtractJiraBaseUrl(unittest.TestCase):
+    def test_reads_field(self) -> None:
+        self.assertEqual(
+            render_report.extract_jira_base_url(
+                {"jiraBaseUrl": "https://redhat.atlassian.net"}
+            ),
+            "https://redhat.atlassian.net",
+        )
+
+    def test_missing_field_exits_1(self) -> None:
+        with self.assertRaises(SystemExit) as ctx:
+            render_report.extract_jira_base_url({"project": "EDM"})
+        self.assertEqual(ctx.exception.code, 1)
+
+    def test_empty_string_exits_1(self) -> None:
+        with self.assertRaises(SystemExit) as ctx:
+            render_report.extract_jira_base_url({"jiraBaseUrl": "   "})
+        self.assertEqual(ctx.exception.code, 1)
+
+    def test_non_string_exits_1(self) -> None:
+        with self.assertRaises(SystemExit) as ctx:
+            render_report.extract_jira_base_url({"jiraBaseUrl": 42})
+        self.assertEqual(ctx.exception.code, 1)
+
+    def test_non_dict_exits_1(self) -> None:
+        with self.assertRaises(SystemExit) as ctx:
+            render_report.extract_jira_base_url(["not", "a", "dict"])
+        self.assertEqual(ctx.exception.code, 1)
+
+
 class TestBuildReplacements(unittest.TestCase):
     def setUp(self) -> None:
         self.replacements = render_report.build_replacements(
             analyzed=SAMPLE_ANALYZED,
             ai_input=SAMPLE_AI_INPUT,
-            jira_url="https://issues.redhat.com/",
+            jira_url="https://redhat.atlassian.net/",
         )
 
     def test_project_key_derived(self) -> None:
@@ -130,7 +166,7 @@ class TestBuildReplacements(unittest.TestCase):
     def test_jira_url_trailing_slash_stripped(self) -> None:
         self.assertEqual(
             self.replacements["JIRA_BASE_URL"],
-            "https://issues.redhat.com",
+            "https://redhat.atlassian.net",
         )
 
     def test_total_issues_is_string(self) -> None:
@@ -242,7 +278,7 @@ class TestRender(unittest.TestCase):
         replacements = render_report.build_replacements(
             analyzed=SAMPLE_ANALYZED,
             ai_input=SAMPLE_AI_INPUT,
-            jira_url="https://issues.redhat.com",
+            jira_url="https://redhat.atlassian.net",
         )
         html, _ = render_report.render(MINIMAL_TEMPLATE, replacements)
 
@@ -257,12 +293,12 @@ class TestRender(unittest.TestCase):
         replacements = render_report.build_replacements(
             analyzed=SAMPLE_ANALYZED,
             ai_input=SAMPLE_AI_INPUT,
-            jira_url="https://issues.redhat.com",
+            jira_url="https://redhat.atlassian.net",
         )
         html, _ = render_report.render(MINIMAL_TEMPLATE, replacements)
 
         self.assertIn("EDM", html)
-        self.assertIn("issues.redhat.com", html)
+        self.assertIn("redhat.atlassian.net", html)
         self.assertIn("EDM-101", html)
         self.assertIn("Bug one", html)
 
@@ -349,16 +385,19 @@ class TestMain(unittest.TestCase):
             _write_json(tmpdir, "ai-input.json", SAMPLE_AI_INPUT)
         if "template" not in overrides:
             _write_text(tmpdir, "template.html", MINIMAL_TEMPLATE)
+        if "issues" not in overrides:
+            _write_json(tmpdir, "issues.json", SAMPLE_ISSUES_DOC)
 
         analyzed_path = overrides.get("analyzed", str(tmpdir / "analyzed.json"))
         ai_input_path = overrides.get("ai_input", str(tmpdir / "ai-input.json"))
         template_path = overrides.get("template", str(tmpdir / "template.html"))
+        issues_path = overrides.get("issues", str(tmpdir / "issues.json"))
         output_path = overrides.get("output", str(tmpdir / "output" / "report.html"))
 
         argv = [
             "--analyzed", analyzed_path,
             "--template", template_path,
-            "--jira-url", overrides.get("jira_url", "https://issues.redhat.com"),
+            "--issues", issues_path,
             "--ai-input", ai_input_path,
             "--output", output_path,
         ]
@@ -414,6 +453,21 @@ class TestMain(unittest.TestCase):
                 self._run(Path(tmpdir), analyzed=str(bad))
             self.assertEqual(ctx.exception.code, 1)
 
+    def test_missing_issues_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with self.assertRaises(SystemExit) as ctx:
+                self._run(Path(tmpdir), issues="/nonexistent/issues.json")
+            self.assertEqual(ctx.exception.code, 1)
+
+    def test_missing_jira_base_url_field(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            no_url = _write_json(
+                Path(tmpdir), "issues.json", {"project": "EDM", "issues": []}
+            )
+            with self.assertRaises(SystemExit) as ctx:
+                self._run(Path(tmpdir), issues=str(no_url))
+            self.assertEqual(ctx.exception.code, 1)
+
     def test_null_release_risk_renders_correctly(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             ai_input = {"executiveSummary": [], "releaseRisk": None}
@@ -433,12 +487,13 @@ class TestMain(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             analyzed_path = _write_json(Path(tmpdir), "analyzed.json", SAMPLE_ANALYZED)
             ai_path = _write_json(Path(tmpdir), "ai-input.json", SAMPLE_AI_INPUT)
+            issues_path = _write_json(Path(tmpdir), "issues.json", SAMPLE_ISSUES_DOC)
             output_path = Path(tmpdir) / "report.html"
 
             rc = render_report.main([
                 "--analyzed", str(analyzed_path),
                 "--template", str(real_template),
-                "--jira-url", "https://issues.redhat.com",
+                "--issues", str(issues_path),
                 "--ai-input", str(ai_path),
                 "--output", str(output_path),
             ])

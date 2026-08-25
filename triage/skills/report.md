@@ -15,7 +15,7 @@ the script to produce the final HTML.
 ## Allowed Tools
 
 - **Jira MCP:** none — this phase works entirely from local artifact data
-- **Local:** read `analyzed.json`, read `issues.json` (for Jira base URL), write `ai-synthesis.json`, run `render_report.py`, read script output
+- **Local:** read `analyzed.json`, read/update `issues.json` (renderer reads `jiraBaseUrl` from it), write `ai-synthesis.json`, run `render_report.py`, read script output
 - **Prohibited:** all Jira tools (no MCP calls in this phase)
 
 ## Prerequisites
@@ -28,13 +28,13 @@ If the file is missing, tell the user to run `/analyze` first.
 
 ## Process
 
-### Step 1: Locate Inputs and Determine Jira Base URL
+### Step 1: Locate Inputs and Confirm Jira Base URL
 
-Read the analyzed issues from `.artifacts/triage/{PROJECT}/analyzed.json`.
+Confirm that `.artifacts/triage/{PROJECT}/analyzed.json` exists (from `/analyze`).
 
-The report links each issue key to its Jira page. To build these links, you need the Jira instance base URL (e.g. `https://mycompany.atlassian.net`).
+The report links each issue key to its Jira page. To build those links, the renderer reads the Jira instance base URL (e.g. `https://redhat.atlassian.net`) directly from the `jiraBaseUrl` field of `.artifacts/triage/{PROJECT}/issues.json`, written by `/scan`. You do not pass the URL on the command line.
 
-The base URL should already be known from the `/scan` phase (extracted from `self` links in the `jira_search` response). Check if it was saved in `.artifacts/triage/{PROJECT}/issues.json` (the `jiraBaseUrl` field written by `/scan`). If not available, ask the user for their Jira instance URL. Do **not** call any Jira MCP tools in this phase.
+Confirm `issues.json` has a non-empty `jiraBaseUrl`. If it is missing (older scan, or `/scan` could not derive it), ask the user for their Jira instance URL and write it into the `jiraBaseUrl` field of `issues.json` — never interpolate it into the shell command below. Do **not** call any Jira MCP tools in this phase.
 
 ### Step 2: Synthesize Executive Summary & Release Risk Assessment
 
@@ -160,7 +160,7 @@ canonical resolution instructions). The `--analyzed`, `--ai-input`, and
 python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/render_report.py" \
   --analyzed .artifacts/triage/{PROJECT}/analyzed.json \
   --template "{AI_WORKFLOWS_ROOT}/triage/templates/report.html" \
-  --jira-url "{JIRA_BASE_URL}" \
+  --issues .artifacts/triage/{PROJECT}/issues.json \
   --ai-input .artifacts/triage/{PROJECT}/ai-synthesis.json \
   --output .artifacts/triage/{PROJECT}/report.html
 ```
