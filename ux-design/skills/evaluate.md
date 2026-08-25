@@ -117,8 +117,9 @@ skill execution might have changed directory, explicitly change back to the
 source-repository root before invoking, then use the relative path:
 
 ```bash
-cd "$(git rev-parse --show-toplevel)"
-/uxd-research-heuristic-eval "<prototype URL or screenshots dir>" \
+REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "Failed to find repository root"; exit 1; }
+cd "$REPO_ROOT"
+uxd-research-heuristic-eval "<prototype URL or screenshots dir>" \
   --framework "<chosen>" --review none \
   --project ".artifacts/ux-design/{issue-key}/04-eval-raw"
 ```
