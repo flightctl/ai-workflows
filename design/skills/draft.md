@@ -412,6 +412,7 @@ Before presenting the testplan, verify:
 - [ ] All test case fields are complete (heading, metadata table, Preconditions, Steps, Expected Results)
 - [ ] Gap analysis is accurate — requirement and IC coverage gaps are identified with rationale
 - [ ] Test case IDs follow the scheme (`TC-{req}-{NN}`) with no duplicates
+- [ ] Each test case's `TC-{req}-{NN}` prefix matches the PRD requirement heading it is grouped under (a `TC-FR2-*` case never appears under `### FR-1`)
 - [ ] The Overview counts and Summary table are accurate
 
 #### 9d: Write Artifact

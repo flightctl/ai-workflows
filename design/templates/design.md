@@ -92,7 +92,8 @@ If straightforward: state that briefly.}
 # 5. Interface Changes
 
 {Concrete observable changes the system introduces — new API endpoints,
-modified CLI commands, changed UI behaviors, configuration changes. Each
+modified CLI commands, changed UI behaviors, configuration changes, event
+surfaces, and new or changed data formats. Each
 IC is numbered and references the PRD requirement(s) it satisfies. The
 mapping is many-to-many: one requirement may produce multiple ICs, and
 one IC may satisfy multiple requirements. IC numbers are immutable once assigned and must never be reused. Edits

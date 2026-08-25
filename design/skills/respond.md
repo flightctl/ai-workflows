@@ -104,12 +104,12 @@ Present each comment with a proposed response:
 **Proposed response:** {your suggested reply}
 **Design change needed:** Yes — update Section 4.1 architecture
 
-### Comment 2 — {reviewer} on Open Questions (question 8.2)
+### Comment 2 — {reviewer} on Open Questions (question 9.2)
 > {quoted comment text}
 
 **Category:** Open question resolution
 **Proposed resolution:** {synthesized answer from reviewer discussion}
-**Design change needed:** Yes — incorporate into Section {N}, remove open question 8.2
+**Design change needed:** Yes — incorporate into Section {N}, remove open question 9.2
 
 ### Comment 3 — {reviewer} on testplan.md, TC-FR2-01
 > {quoted comment text}
