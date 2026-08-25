@@ -145,12 +145,12 @@ After applying changes, verify:
   test cases anchored to changed requirements. Update TC IDs if
   requirement IDs changed.
 - If test cases were added, removed, or modified, **or** if design
-  Interface Changes (§5) were added or removed: recompute the
+  Interface Changes (§5) were added, removed, or renamed: recompute the
   testplan's Overview counts and Summary table. Rebuild the Gaps
   section from the current requirement-to-TC and IC-to-TC mappings.
-  Adding or removing an IC changes the "Interface changes covered"
-  totals and the Interface Change Coverage Gaps even when no test
-  case is edited.
+  Adding, removing, or renaming an IC changes the "Interface changes
+  covered" totals or the identifiers in the Interface Change Coverage
+  Gaps even when no test case is edited.
 - If design Interface Changes (§5) were added, removed, or renamed:
   first, record the affected story paths and their current `Interface
   Changes` mappings (needed for the `Validated by` cascade below —

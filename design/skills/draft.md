@@ -409,15 +409,20 @@ Before presenting the testplan, verify:
 - [ ] Every IC named in an Interface Change Coverage Gap entry exists in §5
 - [ ] Expected Results contain no banned vague phrases
 - [ ] Priority assignment is consistent (critical for core workflows, not everything marked high)
-- [ ] All test case fields are complete (heading, metadata table, Preconditions, Steps, Expected Results)
+- [ ] All test case fields are present and non-empty — heading, metadata table, Preconditions, Steps, and Expected Results — with actionable Preconditions and Steps (not placeholder or empty headings)
 - [ ] Gap analysis is accurate — requirement and IC coverage gaps are identified with rationale
 - [ ] Test case IDs follow the scheme (`TC-{req}-{NN}`) with no duplicates
 - [ ] Each test case's `TC-{req}-{NN}` prefix matches the PRD requirement heading it is grouped under (a `TC-FR2-*` case never appears under `### FR-1`)
+- [ ] Every `### FR-*` / `### NFR-*` requirement heading matches a real PRD requirement, and every PRD requirement appears exactly once — either as a requirement heading with test cases or in the Requirement Coverage Gaps section
 - [ ] The Overview counts and Summary table are accurate
 
 #### 9d: Write Artifact
 
 Save the testplan to `.artifacts/design/{issue-key}/04-testplan.md`.
+
+The Overview counts, Gaps sections, and Summary table written in Step 9b
+are the canonical testplan summary. Step 10 presents those already-written
+values — it does not recompute counts or coverage after the fact.
 
 Provenance was already captured in Step 8 for the entire `/draft` phase —
 no additional provenance call is needed here.
@@ -430,8 +435,9 @@ Show the user the complete design document and highlight:
 - Areas where multiple approaches were viable and why you chose the one you did
 - Sections where confidence is lower — suggest the user capture these as
   open questions or TBD markers if they warrant reviewer attention
-- Testplan summary: total test cases, requirement coverage, IC coverage
-- Any testplan gaps (requirements or ICs without test cases)
+- Testplan summary — read from the Overview and Summary table already
+  written in Step 9b: total test cases, requirement coverage, IC coverage
+- Any testplan gaps recorded in Step 9b (requirements or ICs without test cases)
 
 ## Output
 

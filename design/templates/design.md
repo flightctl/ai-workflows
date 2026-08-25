@@ -103,7 +103,7 @@ numbers retired — gaps in numbering are expected.}
 
 ## IC-1: {short description of the interface change}
 
-**Requirements:** {FR-N, FR-M}
+**Requirements:** {FR-N, NFR-M}
 
 {What this interface change does, how it is invoked, and key behaviors.
 Enough detail to derive test cases from.}
