@@ -54,7 +54,16 @@ For each blocking link: `jira_get_issue` (narrow fields) + `git log --oneline --
 
 ### 5. Upstream docs
 
-**5a.** Read `.artifacts/config.json` if present; validate path + git remote. Else ask for docs repo path/remote and write the config.
+**5a.** Check `.artifacts/config.json` (workspace-level, shared across workflows).
+
+If it exists, Read it and validate:
+1. Path exists on disk
+2. Directory is a git repo
+3. `git remote get-url origin` matches `docs_repo_remote`
+
+If any check fails, tell the user and re-ask. Resolve `~` to an absolute path before saving.
+
+If it does not exist, ask for docs repo local path and remote. Resolve `~` to absolute. Write `.artifacts/config.json` with `docs_repo_path` and `docs_repo_remote`.
 
 **5b.** Feature directory: `find "{docs_repo_path}" -type d -name "*{feature-key}*"` using keys from the story payload. Ask the user only if not found.
 
@@ -84,9 +93,20 @@ No feature testplan: note and continue.
 - Stack: `git branch --show-current`, `git log --oneline -8`, `gh stack view --json`. No `.git/` listing.
 - Topology: parse `{owner}/{repo}` from `git remote get-url origin` (never substitute a well-known upstream name). Then `gh repo view {owner}/{repo} --json isFork,parent`. If `gh` fails, ask the user whether this is a fork and, if so, for upstream `{owner}/{repo}`.
 
-**Validation cache:** If `.artifacts/implement/_validation-profile.md` exists and meta hashes/mtimes for `AGENTS.md`, Makefile, `.github/workflows/*.yml` and `*.yaml`, `CONTRIBUTING.md` match, merge the profile into the in-memory context draft, skip config Reads, and do not Write `01-context.md` until Step 7 or Step 7a. Else one discovery pass: bounded Greps of present `AGENTS.md` and `CONTRIBUTING.md` (unless already in session) for lint/test/coverage commands, one Makefile grep, plus CI filenames via `git ls-files '.github/workflows/*.yml' '.github/workflows/*.yaml'`. For each listed workflow, Grep command-bearing keys (`run:`, `make`, lint/test targets) — not full workflow bodies. Then Write cache files **once**.
+**Validation cache:** If `.artifacts/implement/_validation-profile.md` exists and `.meta.json` hashes/mtimes still match, merge the profile into the in-memory context draft, skip config Reads, and do not Write `01-context.md` until Step 7 or Step 7a. Else one discovery pass: bounded Greps of present `AGENTS.md` and `CONTRIBUTING.md` (unless already in session) for lint/test/coverage commands, one Makefile grep, plus CI filenames via `git ls-files '.github/workflows/*.yml' '.github/workflows/*.yaml'`. For each listed workflow, Grep command-bearing keys (`run:`, `make`, lint/test targets) — not full workflow bodies. Then Write cache files **once**.
 
 Skip `AGENTS.md` and `CONTRIBUTING.md` Reads if already in session. Path-only for PR template unless the body is required.
+
+`.artifacts/implement/.meta.json` schema (write **once** on cache miss; compare these keys on hit):
+
+```json
+{
+  "AGENTS.md": {"mtime": "{unix}", "sha256": "{hex or empty}"},
+  "CONTRIBUTING.md": {"mtime": "{unix}", "sha256": "{hex or empty}"},
+  "Makefile": {"mtime": "{unix}", "sha256": "{hex or empty}"},
+  "ci_workflows": ["{filenames from git ls-files}"]
+}
+```
 
 Record components as path + signature + test path. `/plan` opens cited files.
 
@@ -105,11 +125,28 @@ If first ingest: Read `../templates/01-context.md` **once**, fill it tightly (mu
 
 ### 7a. Re-ingest diff
 
-Diff vs `.prev`. If downstream `02-plan.md` etc. exist, list them. Wait for confirmation, then Write once or abort.
+Diff compiled content vs `.prev`. Focus on:
+- Acceptance criteria
+- Implementation guidance or testing approach
+- Dependency status
+- New components or patterns
+- Validation profile
+
+If `02-plan.md` or later artifacts exist, list them. Wait for confirmation. If confirmed, Write `01-context.md` **once** and delete `.prev`. If declined, delete `.prev` and stop without overwriting.
 
 ### 8. Report
 
-8–12 lines. Do not paste `01-context.md`. Point at the file. Frame open questions as `/plan` work.
+8–12 lines. Do not paste `01-context.md`. Point at the file. Include:
+- Story scope and key ACs
+- Design/PRD loaded (or missing)
+- Dependency warnings
+- Affected components
+- Validation cache hit/miss and profile summary
+- Testplan status (matches / expected zero / anomalous zero / none)
+- Open questions as `/plan` work, not blockers
+- Readiness for `/plan`
+
+If the user declined overwrite in 7a, report the diff and that existing context was kept.
 
 ## Output
 
@@ -119,4 +156,4 @@ Diff vs `.prev`. If downstream `02-plan.md` etc. exist, list them. Wait for conf
 
 ## Done
 
-Report scope, components, validation cache hit/miss, dep warnings, testplan status, readiness for `/plan`. Follow `controller.md` only if already in session.
+Follow `controller.md` only if already in session.
