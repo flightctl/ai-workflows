@@ -110,14 +110,20 @@ memory in place of real input — either would produce an evaluation of somethin
 other than the prototype.
 
 **Invocation.** Run the skill in agent-operated mode so its own researcher gate
-is deferred to this workflow's single combined gate in Step 7. The `--project`
-path must be resolved from the source-repository root; if the skill execution
-changes directory, use an absolute path constructed from the workspace root:
+is deferred to this workflow's single combined gate in Step 7.
+
+Capture the source-repository root before invoking the skill, then construct an
+absolute `--project` path from that root so the path remains correct even if the
+skill execution changes directory:
+
+```bash
+SOURCE_ROOT=$(pwd)
+```
 
 ```
 /uxd-research-heuristic-eval "<prototype URL or screenshots dir>" \
   --framework "<chosen>" --review none \
-  --project "$(pwd)/.artifacts/ux-design/{issue-key}/04-eval-raw"
+  --project "${SOURCE_ROOT}/.artifacts/ux-design/{issue-key}/04-eval-raw"
 ```
 
 `--review none` requires `--framework` (it activates the skill's Mode B), so
