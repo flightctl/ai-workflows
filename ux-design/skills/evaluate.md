@@ -112,18 +112,15 @@ other than the prototype.
 **Invocation.** Run the skill in agent-operated mode so its own researcher gate
 is deferred to this workflow's single combined gate in Step 7.
 
-Capture the source-repository root before invoking the skill, then construct an
-absolute `--project` path from that root so the path remains correct even if the
-skill execution changes directory:
+The `--project` path must be relative to the source-repository root. If the
+skill execution might have changed directory, explicitly change back to the
+source-repository root before invoking, then use the relative path:
 
 ```bash
-SOURCE_ROOT=$(pwd)
-```
-
-```
+cd "$(git rev-parse --show-toplevel)"
 /uxd-research-heuristic-eval "<prototype URL or screenshots dir>" \
   --framework "<chosen>" --review none \
-  --project "${SOURCE_ROOT}/.artifacts/ux-design/{issue-key}/04-eval-raw"
+  --project ".artifacts/ux-design/{issue-key}/04-eval-raw"
 ```
 
 `--review none` requires `--framework` (it activates the skill's Mode B), so
