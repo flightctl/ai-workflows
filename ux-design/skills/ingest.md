@@ -106,17 +106,19 @@ the config is portable across machines. Resolve it to an absolute path at
 runtime for validation and use.
 
 **If the config exists**, resolve the relative path to absolute (relative to
-the workspace root), then validate: the path exists, it is a git repository,
-and its remote URL matches `docs_repo_remote`. If validation fails, tell the
-researcher and re-ask for the correct values. Convert the new path to relative
-(from workspace root) and update `.artifacts/config.json`.
+the source-repository root), then validate: the path exists, it is a git
+repository, and its remote URL matches `docs_repo_remote`. If validation fails,
+tell the researcher and re-ask for the correct path and remote. Convert the new
+path to relative (from source-repository root) and persist **both** the
+corrected `docs_repo_path` and replacement `docs_repo_remote` to
+`.artifacts/config.json`.
 
 **If the config does not exist**, ask the researcher for the docs repo local
 path and remote, validate them (resolve `~` first), then convert the path to
-relative (from workspace root) and write `.artifacts/config.json`.
+relative (from source-repository root) and write `.artifacts/config.json`.
 
-Example: if the workspace root is `/home/user/src/myproject` and the docs repo
-is at `/home/user/src/myproject-docs`, store `../myproject-docs` in
+Example: if the source-repository root is `/home/user/src/myproject` and the
+docs repo is at `/home/user/src/myproject-docs`, store `../myproject-docs` in
 `.artifacts/config.json`, not the absolute path.
 
 #### Find and read the documents

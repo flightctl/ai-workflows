@@ -8,9 +8,6 @@ description: >-
   document, and sibling stories from shared locations so the design is
   grounded in real personas, non-functional requirements, and technical
   constraints.
-  Useful for creating prototypes for evaluation, running heuristic
-  evaluations, or preparing design handoffs.
-  Activated by commands: /ingest, /research, /prototype, /evaluate, /handoff, /revise, /publish, /respond.
   Activated by commands: /ingest, /research, /prototype, /evaluate, /handoff, /revise, /publish, /respond.
 ---
 # UX Design Workflow Orchestrator
