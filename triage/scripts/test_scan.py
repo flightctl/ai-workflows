@@ -247,6 +247,17 @@ class TestExtractText(unittest.TestCase):
         }
         self.assertEqual(scan.extract_text(doc), "print('hi')")
 
+    def test_hard_break_becomes_newline(self) -> None:
+        doc = {
+            "type": "paragraph",
+            "content": [
+                {"type": "text", "text": "line one"},
+                {"type": "hardBreak"},
+                {"type": "text", "text": "line two"},
+            ],
+        }
+        self.assertEqual(scan.extract_text(doc), "line one\nline two")
+
 
 # ---------------------------------------------------------------------------
 # _name_or_default — pure function tests
@@ -374,6 +385,19 @@ class TestNormalizeIssue(unittest.TestCase):
     def test_components_with_non_dict_entries_filtered(self) -> None:
         raw = {"key": "EDM-107", "fields": {
             "components": [{"name": "UI"}, "stray string", {"name": "API"}],
+        }}
+        result = scan.normalize_issue(raw)
+        self.assertEqual(result["components"], ["UI", "API"])
+
+    def test_components_with_empty_or_missing_names_filtered(self) -> None:
+        raw = {"key": "EDM-108", "fields": {
+            "components": [
+                {"name": "UI"},
+                {},
+                {"name": None},
+                {"name": ""},
+                {"name": "API"},
+            ],
         }}
         result = scan.normalize_issue(raw)
         self.assertEqual(result["components"], ["UI", "API"])
@@ -570,6 +594,38 @@ class TestFetchAllIssues(unittest.TestCase):
             scan.fetch_all_issues(stuck_search, "project = EDM", "summary")
         self.assertIn("did not advance", str(ctx.exception))
 
+    def test_non_dict_response_raises(self) -> None:
+        def search(jql: str, fields: str, max_results: int = scan.PAGE_SIZE):
+            return ["not", "a", "dict"]
+
+        with self.assertRaises(scan.ScanError) as ctx:
+            scan.fetch_all_issues(search, "project = EDM", "summary")
+        self.assertIn("malformed", str(ctx.exception))
+
+    def test_non_list_issues_raises(self) -> None:
+        def search(jql: str, fields: str, max_results: int = scan.PAGE_SIZE) -> dict:
+            return {"issues": "unexpected"}
+
+        with self.assertRaises(scan.ScanError) as ctx:
+            scan.fetch_all_issues(search, "project = EDM", "summary")
+        self.assertIn("malformed", str(ctx.exception))
+
+    def test_issue_without_key_raises(self) -> None:
+        def search(jql: str, fields: str, max_results: int = scan.PAGE_SIZE) -> dict:
+            return _search_response([{"fields": {"summary": "no key"}}])
+
+        with self.assertRaises(scan.ScanError) as ctx:
+            scan.fetch_all_issues(search, "project = EDM", "summary")
+        self.assertIn("valid key", str(ctx.exception))
+
+    def test_non_dict_issue_raises(self) -> None:
+        def search(jql: str, fields: str, max_results: int = scan.PAGE_SIZE) -> dict:
+            return _search_response(["EDM-1"])
+
+        with self.assertRaises(scan.ScanError) as ctx:
+            scan.fetch_all_issues(search, "project = EDM", "summary")
+        self.assertIn("valid key", str(ctx.exception))
+
 
 # ---------------------------------------------------------------------------
 # main — integration tests
@@ -734,6 +790,28 @@ class TestMain(unittest.TestCase):
         self.assertEqual(issue["labels"], ["regression"])
         self.assertEqual(issue["components"], ["Backend"])
 
+    def test_output_write_failure_returns_1(self) -> None:
+        def fake_jira_search(
+            base_url: str,
+            auth_header: str,
+            jql: str,
+            fields: str,
+            max_results: int = scan.PAGE_SIZE,
+        ) -> dict:
+            return _search_response([])
+
+        def failing_write(path: Path, data: dict) -> None:
+            raise OSError("disk full")
+
+        argv = ["EDM", "--output-dir", str(self._output_dir)]
+        with (
+            patch.dict(os.environ, self._ENV, clear=True),
+            patch.object(scan, "jira_search", fake_jira_search),
+            patch.object(scan, "write_json_file", failing_write),
+        ):
+            code = scan.main(argv)
+        self.assertEqual(code, 1)
+
     def test_multi_page_scan(self) -> None:
         page1 = [_raw_issue(f"EDM-{i}") for i in range(1, scan.PAGE_SIZE + 1)]
         page2 = [_raw_issue(f"EDM-{scan.PAGE_SIZE + 1}")]
@@ -824,6 +902,14 @@ class TestValidateJiraUrl(unittest.TestCase):
         with self.assertRaises(scan.ScanError) as ctx:
             scan.validate_jira_url("https://jira.example.com#section")
         self.assertIn("fragment", str(ctx.exception))
+
+    def test_valid_port_accepted(self) -> None:
+        scan.validate_jira_url("https://jira.example.com:8443")
+
+    def test_invalid_port_rejected(self) -> None:
+        with self.assertRaises(scan.ScanError) as ctx:
+            scan.validate_jira_url("https://jira.example.com:abc")
+        self.assertIn("port", str(ctx.exception))
 
 
 # ---------------------------------------------------------------------------

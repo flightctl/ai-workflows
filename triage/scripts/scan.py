@@ -150,6 +150,13 @@ def validate_jira_url(url: str) -> None:
         raise ScanError("JIRA_URL must not contain credentials")
     if parsed.fragment:
         raise ScanError("JIRA_URL must not contain a fragment")
+    # Accessing .port parses (and validates) the port; a non-numeric
+    # port raises ValueError here rather than as an opaque InvalidURL
+    # deep inside urllib when the request is later issued.
+    try:
+        _ = parsed.port
+    except ValueError as exc:
+        raise ScanError(f"JIRA_URL has an invalid port: {exc}") from exc
 
 
 def build_auth_header(token: str, email: str | None = None) -> str:
@@ -215,9 +222,19 @@ def fetch_all_issues(
         jql += " ORDER BY key ASC"
 
         data = search_fn(jql, fields, PAGE_SIZE)
-        page = data.get("issues", [])
+        if not isinstance(data, dict) or not isinstance(data.get("issues"), list):
+            raise ScanError("Jira returned a malformed search response")
+        page = data["issues"]
         if not page:
             break
+
+        for issue in page:
+            if (
+                not isinstance(issue, dict)
+                or not isinstance(issue.get("key"), str)
+                or not issue["key"]
+            ):
+                raise ScanError("Jira returned an issue without a valid key")
 
         all_issues.extend(page)
         new_key = page[-1]["key"]
@@ -249,7 +266,7 @@ def extract_text(value: Any) -> str:
 
     Handles Jira's Atlassian Document Format by recursively walking
     content nodes and concatenating text leaves, with newlines between
-    block-level elements.
+    block-level elements and for inline hard breaks.
     """
     if value is None:
         return ""
@@ -259,6 +276,8 @@ def extract_text(value: Any) -> str:
         node_type = value.get("type")
         if node_type == "text":
             return value.get("text", "")
+        if node_type == "hardBreak":
+            return "\n"
         parts = [extract_text(c) for c in value.get("content", [])]
         if node_type in _ADF_BLOCK_CONTAINERS:
             return "\n".join(p for p in parts if p)
@@ -300,9 +319,11 @@ def normalize_issue(
         "updated": fields.get("updated", ""),
         "labels": fields.get("labels", []),
         "components": [
-            _name_or_default(c)
+            name
             for c in fields.get("components", [])
             if isinstance(c, dict)
+            and isinstance(name := c.get("name"), str)
+            and name
         ],
         "description": extract_text(fields.get("description")),
     }
@@ -449,17 +470,21 @@ def main(argv: list[str] | None = None) -> int:
     issues_path = output_dir / "issues.json"
     resolved_path = output_dir / "resolved.json"
 
-    write_json_file(
-        issues_path,
-        build_output(project, jira_url, unresolved, scanned_at),
-    )
-    write_json_file(
-        resolved_path,
-        build_output(
-            project, jira_url, resolved, scanned_at,
-            window_days=window_days,
-        ),
-    )
+    try:
+        write_json_file(
+            issues_path,
+            build_output(project, jira_url, unresolved, scanned_at),
+        )
+        write_json_file(
+            resolved_path,
+            build_output(
+                project, jira_url, resolved, scanned_at,
+                window_days=window_days,
+            ),
+        )
+    except OSError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
 
     print(f"Scan complete: {len(unresolved)} unresolved bugs in {project}")
     print(f"Resolved (last {window_days} days): {len(resolved)} bugs")
