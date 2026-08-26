@@ -7,6 +7,11 @@
 - Preserve the user's intent: rebasing reorganizes history but must not silently drop commits.
 - Keep the user informed at every decision point that requires their input.
 
+## Shared Content Rules
+
+Read and follow `../_shared/content-rules.md` for generated-content rules. Those standards apply to all
+artifacts and published output from this workflow.
+
 ## Hard Limits
 
 - Never push directly to `main`, `master`, `develop`, or any branch designated as a PR target.

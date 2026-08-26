@@ -26,6 +26,11 @@ Artifacts go in `.artifacts/bugfix/{issue}`.
 - Don't assume tools are missing. Check for version managers (e.g. `uv`, `pyenv`, `nvm`) before concluding a runtime isn't available.
 - **Be thorough and complete**: When fixing bugs involving states, phases, or conditions, search the codebase to identify the complete set of possible values. Don't assume you know all variants. When features interact (e.g., polling + pagination), research and understand their interactions before implementing.
 
+## Shared Content Rules
+
+Read and follow `../_shared/content-rules.md` for generated-content rules. Those standards apply to all
+artifacts and published output from this workflow.
+
 ## Hard Limits
 
 - No direct commits to `main` — always use feature branches
@@ -33,7 +38,6 @@ Artifacts go in `.artifacts/bugfix/{issue}`.
 - No force-push, hard reset, or destructive git operations
 - No modifying security-critical code without human review
 - No skipping CI checks (`--no-verify`, `--no-gpg-sign`)
-- **No personal names in generated content.** Replace references to individuals from Jira tickets, comments, or other source material with role-based descriptions (e.g., "the reporter noted…", "the reviewer identified…") or drop the attribution and state the finding directly. This applies to code comments, commit messages, PR descriptions, release notes, and any other generated artifacts.
 
 ## Safety
 
