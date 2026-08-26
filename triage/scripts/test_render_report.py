@@ -331,6 +331,30 @@ class TestRender(unittest.TestCase):
         self.assertIn("{ISSUES_JSON}", html)
         self.assertEqual(missing, ["ISSUES_JSON"])
 
+    def test_undeclared_template_token_reported(self) -> None:
+        """An ALL-CAPS brace token that is not a declared placeholder
+        (template/script drift) is reported rather than emitted raw."""
+        replacements = render_report.build_replacements(
+            analyzed=SAMPLE_ANALYZED,
+            ai_input=SAMPLE_AI_INPUT,
+            jira_url="https://redhat.atlassian.net",
+        )
+        template = MINIMAL_TEMPLATE + "<p>{RELEASE_RISK}</p>"
+        _, missing = render_report.render(template, replacements)
+        self.assertIn("RELEASE_RISK", missing)
+
+    def test_undeclared_token_in_data_not_flagged(self) -> None:
+        """An undeclared-shaped token appearing only in issue data (a
+        replacement value, not the template) must not be flagged."""
+        issues = [{"key": "X-1", "summary": "See {RELEASE_RISK} for details"}]
+        replacements = render_report.build_replacements(
+            analyzed={"issues": issues, "clusters": [], "keyRecommendations": []},
+            ai_input=SAMPLE_AI_INPUT,
+            jira_url="https://redhat.atlassian.net",
+        )
+        _, missing = render_report.render(MINIMAL_TEMPLATE, replacements)
+        self.assertEqual(missing, [])
+
 
 class TestRenderMissingDetection(unittest.TestCase):
     """Verify that render() reports missing placeholders without being
@@ -467,6 +491,34 @@ class TestMain(unittest.TestCase):
             with self.assertRaises(SystemExit) as ctx:
                 self._run(Path(tmpdir), issues=str(no_url))
             self.assertEqual(ctx.exception.code, 1)
+
+    def test_invalid_utf8_json_input(self) -> None:
+        """Malformed UTF-8 in a JSON input yields exit 1, not a traceback."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bad = Path(tmpdir) / "bad-utf8.json"
+            bad.write_bytes(b"\xff\xfe not valid utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                self._run(Path(tmpdir), analyzed=str(bad))
+            self.assertEqual(ctx.exception.code, 1)
+
+    def test_invalid_utf8_template(self) -> None:
+        """Malformed UTF-8 in the template yields exit 1, not a traceback."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bad = Path(tmpdir) / "bad-utf8.html"
+            bad.write_bytes(b"\xff\xfe<title>{PROJECT_KEY}</title>")
+            with self.assertRaises(SystemExit) as ctx:
+                self._run(Path(tmpdir), template=str(bad))
+            self.assertEqual(ctx.exception.code, 1)
+
+    def test_undeclared_template_token_fails(self) -> None:
+        """A template with an undeclared token exits 2 (template/script
+        mismatch) rather than writing a report with a raw {TOKEN}."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            drifted = _write_text(
+                Path(tmpdir), "drifted.html", MINIMAL_TEMPLATE + "<p>{RELEASE_RISK}</p>"
+            )
+            rc = self._run(Path(tmpdir), template=str(drifted))
+            self.assertEqual(rc, 2)
 
     def test_null_release_risk_renders_correctly(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -45,6 +45,13 @@ _PLACEHOLDER_RE = re.compile(
     r"\{(" + "|".join(re.escape(p) for p in ALL_PLACEHOLDERS) + r")\}"
 )
 
+# Matches any ALL-CAPS token in braces (e.g. {RELEASE_RISK}).  Used only
+# to scan the template for tokens that are NOT declared in
+# ALL_PLACEHOLDERS — i.e. template/script drift such as a typo'd
+# {RELEASE_RISK} for {RELEASE_RISK_JSON}.  Never run against replacement
+# values, so placeholder-shaped text in issue data is not misread.
+_TEMPLATE_TOKEN_RE = re.compile(r"\{([A-Z][A-Z0-9_]*)\}")
+
 
 def _read_json(path: Path, label: str) -> Any:
     """Read and parse a JSON file, raising SystemExit on failure."""
@@ -53,7 +60,7 @@ def _read_json(path: Path, label: str) -> Any:
     except FileNotFoundError:
         print(f"Error: {label} not found: {path}", file=sys.stderr)
         raise SystemExit(1)
-    except OSError as exc:
+    except (OSError, UnicodeError) as exc:
         print(f"Error: cannot read {label}: {exc}", file=sys.stderr)
         raise SystemExit(1)
 
@@ -71,7 +78,7 @@ def _read_text(path: Path, label: str) -> str:
     except FileNotFoundError:
         print(f"Error: {label} not found: {path}", file=sys.stderr)
         raise SystemExit(1)
-    except OSError as exc:
+    except (OSError, UnicodeError) as exc:
         print(f"Error: cannot read {label}: {exc}", file=sys.stderr)
         raise SystemExit(1)
 
@@ -93,7 +100,7 @@ def extract_project_key(issues: list[dict]) -> str | None:
     return None
 
 
-def extract_jira_base_url(issues_data: Any) -> str:
+def extract_jira_base_url(issues_data: object) -> str:
     """Return the Jira instance base URL recorded by the /scan phase.
 
     The URL is read from the ``jiraBaseUrl`` field of issues.json rather
@@ -183,16 +190,22 @@ def build_replacements(
 
 def render(template: str, replacements: dict[str, str]) -> tuple[str, list[str]]:
     """Replace placeholder tokens in the template, returning the result
-    and any placeholders that had no corresponding replacement value.
+    and any tokens the caller must treat as a failure.
 
     Uses a single regex pass to replace all known placeholders at once,
     avoiding accidental double-replacement when a replacement value
     happens to contain a placeholder-shaped string.
 
-    Missing placeholders are tracked during rendering rather than by
-    scanning the final output, so replacement values that happen to
-    contain placeholder-shaped text (e.g., a Jira summary containing
-    ``{PROJECT_KEY}``) are never flagged as unreplaced.
+    Two problem classes are reported through the returned ``missing``
+    list, both detected against the template (not the final output), so
+    replacement values that happen to contain placeholder-shaped text
+    (e.g., a Jira summary containing ``{PROJECT_KEY}``) are never flagged:
+
+    * a declared placeholder with no corresponding replacement value; and
+    * an ALL-CAPS brace token in the template that is not a declared
+      placeholder at all (template/script drift, e.g. a typo'd
+      ``{RELEASE_RISK}`` for ``{RELEASE_RISK_JSON}``), which the narrow
+      substitution pass would otherwise leave in the output verbatim.
     """
     missing: list[str] = []
 
@@ -204,6 +217,13 @@ def render(template: str, replacements: dict[str, str]) -> tuple[str, list[str]]
         return match.group(0)
 
     rendered = _PLACEHOLDER_RE.sub(_sub, template)
+
+    unknown = {
+        match.group(1)
+        for match in _TEMPLATE_TOKEN_RE.finditer(template)
+        if match.group(1) not in ALL_PLACEHOLDERS
+    }
+    missing.extend(sorted(unknown))
     return rendered, missing
 
 
