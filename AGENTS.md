@@ -70,7 +70,7 @@ _shared/
     validation-gate.md            # Pre-commit build/test/lint discovery gate (used by bugfix)
 ```
 
-Recipes are self-contained, parameterized procedures that workflows reference via relative path (e.g., `../../_shared/recipes/self-review-gate.md` from `skills/`). Workflows may also reference shared files from `guidelines.md`, `templates/`, `prompts/`, `scripts/`, and other behavioral markdown — all such references count as consumers for the shared-file cascade (see Workflow Versioning). The **prd** and **design** workflows use the provenance recipes on `/draft`, `/revise`, `/respond` (capture) and `/publish` plus docs-sync paths (render). See `_shared/provenance-schema.md` for the published footer format.
+Recipes are self-contained, parameterized procedures that workflows reference via relative path (e.g., `../../_shared/recipes/self-review-gate.md` from `skills/`). Workflows may also reference shared files from `guidelines.md`, `templates/`, `prompts/`, `scripts/`, and other behavioral markdown — all such references count as consumers for the shared-file cascade (see Workflow Versioning). The **prd** and **design** workflows use the provenance recipes on `/draft`, `/revise`, `/respond` (capture) and `/publish` plus docs-sync paths (render). The **ux-design** workflow uses them on `/handoff`, `/revise`, `/respond` (capture) and `/publish` plus `/respond` (render). See `_shared/provenance-schema.md` for the published footer format.
 
 ### File Reference Conventions
 
