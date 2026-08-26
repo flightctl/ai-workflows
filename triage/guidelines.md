@@ -44,7 +44,7 @@ artifacts and published output from this workflow.
 | Start   | `jira_search`                       | `mkdir` (create artifact dir)  |
 | Scan    | `jira_search`                       | Write `issues.json` and `resolved.json` |
 | Analyze | none                                | Read `issues.json`, read `resolved.json` (if present), write `analyzed.json` |
-| Report  | none                                | Read `analyzed.json`, read `templates/report.html`, write `report.html` |
+| Report  | none                                | Read `analyzed.json`, read/update `issues.json` (renderer reads `jiraBaseUrl` from it); run `render_report.py`; write `ai-synthesis.json`, `report.html` |
 | Assess (`/assess`) | `jira_search`              | Optionally read `issues.json`; no required artifact writes |
 
 Any tool not listed above is **prohibited** in that phase. If a phase needs data not available through its allowed tools, stop and ask the user.
