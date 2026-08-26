@@ -1,10 +1,11 @@
 ---
 name: design
-version: 0.8.1
+version: 0.9.0
 description: >-
   Design-and-decompose workflow that takes a PRD, researches the problem space,
-  drafts a technical design document, decomposes work into Jira-ready epics and
-  stories, and manages review via GitHub PRs.
+  drafts a technical design document with a requirement-anchored testplan,
+  decomposes work into Jira-ready epics and stories, and manages review via
+  GitHub PRs.
   Use when creating design documents, researching external integrations or
   standards, breaking features into epics/stories, or syncing task breakdowns
   to Jira.

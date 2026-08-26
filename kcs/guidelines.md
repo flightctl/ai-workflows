@@ -19,13 +19,17 @@ Artifacts go in `.artifacts/kcs/{issue-key}/`.
 - Keep articles focused on a single issue. One symptom, one root cause, one resolution.
 - The article must be useful to a support engineer or customer who has never seen the bug before.
 
+## Shared Content Rules
+
+Read and follow `../_shared/content-rules.md` for generated-content rules. Those standards apply to all
+artifacts and published output from this workflow.
+
 ## Hard Limits
 
 - No internal links in customer-facing sections (Title, Issue, Environment, Diagnostic Steps, Resolution). Jira links belong only in Root Cause or Private Notes.
 - No personal pronouns ("I", "me", "we", "myself") anywhere in the article.
 - No content without a source — every claim must trace to the Jira ticket, logs, or user input.
 - No fabricated diagnostic steps or resolution procedures. If you do not have the exact commands or steps, ask the user.
-- **No personal names in generated content.** Replace references to individuals from Jira tickets, comments, or other source material with role-based descriptions (e.g., "the security reviewer noted…", "the reporter described…"). When the person's role is unknown, use a generic attribution ("a reviewer noted…", "feedback identified…") or drop the attribution and state the finding directly.
 - No auto-advancing between phases. Always wait for the user.
 
 ## Safety

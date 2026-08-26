@@ -16,6 +16,11 @@
 - **Research is evidence-based.** When `/research` is used, every claim must be verified via web search and cite its source. Training data is hypothesis, not fact — verify before asserting. Use the source confidence hierarchy (HIGH/MEDIUM/LOW) defined in the research skill.
 - **Research is conditional.** Not every design needs a research phase. `/research` is recommended when the PRD involves external integrations, standards, unfamiliar domains, or third-party solution evaluation. Purely internal features skip directly to `/draft`.
 
+## Shared Content Rules
+
+Read and follow `../_shared/content-rules.md` for generated-content rules. Those standards apply to all
+artifacts and published output from this workflow.
+
 ## Hard Limits
 
 - No fabricated requirements. Every design decision, schema change, and API addition must trace to a PRD requirement or user direction.
@@ -25,11 +30,10 @@
 - **No scope reduction.** Never silently simplify, defer to "v2", use "placeholder", or say "future enhancement" to reduce scope. If scope won't fit, propose a split — don't reduce.
 - Locked decisions from PRD clarification are binding. No phase may contradict a locked decision without explicit user override.
 - No committing to `main` directly. Use feature branches for `/publish`.
-- **No personal names in generated content.** Replace references to individuals from Jira tickets, comments, or other source material with role-based descriptions (e.g., "the security reviewer noted…", "the reporter described…"). When the person's role is unknown, use a generic attribution ("a reviewer noted…", "feedback identified…") or drop the attribution and state the finding directly. Author metadata fields are exempt — they identify the document author, not referenced individuals.
 
 ## Safety
 
-- Show your work before finalizing. After `/draft` and `/decompose`, present artifacts for review — do not assume they're ready.
+- Show your work before finalizing. After `/draft` (design document and testplan) and `/decompose` (epics, stories, coverage matrix), present artifacts for review — do not assume they're ready.
 - Indicate confidence when making architectural recommendations. Flag sections where you made judgment calls vs. sections driven directly by requirements.
 - Flag assumptions explicitly. If the PRD doesn't specify something and you filled it in, mark it as an assumption.
 - Before `/publish`, confirm the target repository, branch, and PR details with the user.

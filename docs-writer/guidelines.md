@@ -22,13 +22,17 @@ Artifacts go in `.artifacts/${ticket_id}/`.
 - When something doesn't fit the plan, say so and recommend adjustments.
 - Don't assume tools are missing. Check for Vale, AsciiDoctor, and container runtimes before concluding they aren't available.
 
+## Shared Content Rules
+
+Read and follow `../_shared/content-rules.md` for generated-content rules. Those standards apply to all
+artifacts and published output from this workflow.
+
 ## Hard Limits
 
 - No hardcoded product names — always use AsciiDoc attributes (`{rhem}`, `{ocp}`, `{rhel}`)
 - No content without a source — every statement must trace back to Jira, code diffs, or user input
 - No modifying files outside the plan — only change files listed in the artifact
 - No skipping the approval gate — the plan must be approved before drafting
-- **No personal names in generated content.** Replace references to individuals from Jira tickets, comments, or other source material with role-based descriptions (e.g., "the security reviewer noted…", "the reporter described…"). When the person's role is unknown, use a generic attribution ("a reviewer noted…", "feedback identified…") or drop the attribution and state the finding directly.
 
 ## Safety
 
