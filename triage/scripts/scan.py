@@ -129,6 +129,13 @@ def _http_get(url: str, headers: dict[str, str]) -> bytes:
 
 _PROJECT_KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]+$")
 
+# A Jira issue key is a project key, a hyphen, and a positive integer
+# (e.g. EDM-123). Keys are echoed back from the API and interpolated into
+# the JQL cursor (``AND key > '{last_key}'``); validating the grammar
+# guarantees a key can never contain a quote that would break out of the
+# string literal, so no separate JQL escaping is required.
+_ISSUE_KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]+-[0-9]+$")
+
 
 def validate_project_key(key: str) -> None:
     """Reject values that don't match Jira's project key grammar."""
@@ -251,6 +258,13 @@ def fetch_all_issues(
                 or not issue["key"]
             ):
                 raise ScanError("Jira returned an issue without a valid key")
+            # Reject anything that isn't a well-formed issue key before it
+            # reaches the JQL cursor — defends against a hostile/malformed
+            # key breaking out of the ``key > '...'`` string literal.
+            if not _ISSUE_KEY_RE.match(issue["key"]):
+                raise ScanError(
+                    f"Jira returned an issue with a malformed key: {issue['key']!r}"
+                )
 
         all_issues.extend(page)
         new_key = page[-1]["key"]

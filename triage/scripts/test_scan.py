@@ -654,6 +654,22 @@ class TestFetchAllIssues(unittest.TestCase):
             scan.fetch_all_issues(search, "project = EDM", "summary")
         self.assertIn("valid key", str(ctx.exception))
 
+    def test_malformed_key_raises_before_next_search(self) -> None:
+        # A key that isn't a well-formed issue key must be rejected before it
+        # can be interpolated into the JQL cursor (guards against a quote in
+        # the key breaking out of the key > '...' string literal).
+        calls: list[str] = []
+
+        def search(jql: str, fields: str, max_results: int = scan.PAGE_SIZE) -> dict:
+            calls.append(jql)
+            return _search_response([_raw_issue("EDM-1' OR key > 'A")])
+
+        with self.assertRaises(scan.ScanError) as ctx:
+            scan.fetch_all_issues(search, "project = EDM", "summary")
+        self.assertIn("malformed key", str(ctx.exception))
+        # The scan stopped after the first request; no second (injected) query.
+        self.assertEqual(len(calls), 1)
+
 
 # ---------------------------------------------------------------------------
 # main — integration tests
