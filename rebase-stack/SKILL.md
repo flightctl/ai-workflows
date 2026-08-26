@@ -1,6 +1,6 @@
 ---
 name: rebase-stack
-version: 0.1.0
+version: 0.2.0
 description: >-
   Rebases a stacked-branch chain onto an updated base branch using gh-stack,
   guides through conflict resolution if needed, validates each branch, and

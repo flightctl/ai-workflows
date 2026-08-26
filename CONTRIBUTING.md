@@ -196,13 +196,25 @@ Behavioral files: `SKILL.md` body, `guidelines.md`, `skills/*.md`,
 ### Shared file cascade
 
 When a file in `_shared/` changes, PATCH-bump every workflow that
-references it. Search by basename (e.g., `self-review-gate` for
-`_shared/recipes/self-review-gate.md`):
+references it — including references in templates, prompts, scripts,
+and other behavioral markdown listed above. Search by basename (e.g.,
+`self-review-gate` for `_shared/recipes/self-review-gate.md`, or
+`content-rules` for `_shared/content-rules.md`):
 
 ```bash
-grep -rl "<basename-without-extension>" */skills/*.md */commands/*.md \
-  */guidelines.md | sed 's|/.*||' | sort -u
+grep -rl "<basename-without-extension>" \
+  */guidelines.md \
+  */skills/*.md \
+  */commands/*.md \
+  */templates/*.md \
+  */prompts/*.md \
+  */scripts/* \
+  2>/dev/null | sed 's|/.*||' | sort -u
 ```
+
+Also check root-level workflow `.md` files read during execution (e.g.,
+`design/decomposition-review.md`). See `.github/scripts/validate-versions.sh`
+for the full cascade check used in CI.
 
 ### Commit convention
 

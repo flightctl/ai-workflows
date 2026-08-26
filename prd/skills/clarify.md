@@ -24,6 +24,7 @@ and what's still open. Know when to stop.
 - **Batch questions.** Ask 3-5 related questions at a time. Don't dump 20 questions or ask one at a time.
 - **Track state.** After each round, update the clarification log so progress is visible.
 - **Know when to stop.** You have exit criteria (below). When they're met, say so.
+- **Content rules.** Follow `../../_shared/content-rules.md` in questions and the clarification log, including when quoting or summarizing source material.
 
 ## Process
 

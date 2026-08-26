@@ -21,6 +21,11 @@
 
   Code comments, commit messages, PR descriptions, and test names describe what the code does now. A reader who has never seen the design document or the prior codebase must find every comment useful. Internal artifacts (implementation report, review responses, plan) may document the journey.
 
+## Shared Content Rules
+
+Read and follow `../_shared/content-rules.md` for generated-content rules. Those standards apply to all
+artifacts and published output from this workflow.
+
 ## Hard Limits
 
 - No fabricated implementations. Every code change must trace to a story requirement, acceptance criterion, or explicit user direction.
@@ -31,7 +36,6 @@
 - **No test shortcuts.** Do not write tests that test implementation details, mock internal logic, or exist solely to increase coverage numbers. Every test must validate a behavioral contract through a public interface.
 - No committing to `main` directly. Use a feature branch.
 - No force-push or destructive git operations.
-- **No personal names in generated content.** Replace references to individuals from Jira tickets, comments, or other source material with role-based descriptions (e.g., "the reviewer noted…", "the reporter described…") or drop the attribution and state the finding directly. This applies to code comments, commit messages, PR descriptions, and any other generated artifacts.
 
 ## Safety
 
