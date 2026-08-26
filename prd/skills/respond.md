@@ -29,9 +29,15 @@ repeatable as new comments arrive.
 
 ### Step 1: Resolve Docs Repo and Fetch PR Comments
 
-Read `.artifacts/prd/config.json` to get the docs repo path and
-`.artifacts/prd/{issue-number}/publish-metadata.json` to get the PR
-number and file path. If either file doesn't exist, tell the user that
+Read and follow `../../_shared/recipes/template-override-resolution.md`
+with `WORKFLOW=prd`, `TEMPLATE_FILE=prd.md`. Per that recipe's "Using the
+Resolved Files" guidance, treat the examples below (e.g., "NFR-3",
+"non-goal") as illustrations of the built-in template only.
+
+Read `.artifacts/config.json` to get the docs repo path and
+`.artifacts/prd/{issue-key}/publish-metadata.json` to get the PR
+number, file path, and `{branch-name}` (from the `branch` field). If
+either file doesn't exist, tell the user that
 `/publish` should be run first.
 
 Determine `{owner}/{repo}` from the `docs_repo_remote` in the config.
@@ -110,15 +116,16 @@ Wait for the user to approve, modify, or reject each response.
 
 ### Step 4: Apply Approved Changes
 
-If the user edited `.artifacts/prd/{issue-number}/03-prd.md` manually since the
+If the user edited `.artifacts/prd/{issue-key}/03-prd.md` manually since the
 last workflow phase, read and follow
 `../../_shared/recipes/record-manual-edit.md` with `WORKFLOW=prd` and
-`ISSUE_NUMBER={issue-number}` before applying changes.
+`ISSUE_KEY={issue-key}` before applying changes.
 
 **Check locked decisions:** Before applying any PRD change — whether a
-direct edit or an open question resolution — read the "Locked Decisions"
-section of `.artifacts/prd/{issue-number}/02-clarifications.md` (if it
-exists). If a requested change contradicts a locked decision, flag the
+direct edit or an open question resolution — read the locked decisions
+from `.artifacts/prd/{issue-key}/02-clarifications.md` (if it exists).
+Locked decisions appear as `#### Decision (D{N})` sections within Q&A
+entries. If a requested change contradicts a locked decision, flag the
 conflict to the user rather than applying the change — locked decisions
 are binding and cannot be overridden without explicit user approval.
 
@@ -130,39 +137,58 @@ limit in `../guidelines.md`. Do not incorporate design details into the PRD.
 
 #### Resolving open questions
 
-When reviewer comments relate to an open question from the Open Questions section,
+The resolved section guidance (from Step 1) determines whether the current
+template tracks open questions as a distinct section (like the built-in
+template's "Open Questions") or some other way (or not at all). When
+reviewer comments relate to an unresolved question or gap in the document,
 synthesize the discussion into a proposed resolution:
 
-1. Identify which open question subsection the discussion relates to.
+1. If the template has a distinct open-questions section, identify which
+   entry the discussion relates to. Otherwise, identify the gap the
+   discussion is resolving directly from the comment thread.
 2. Read the full thread — there may be multiple reviewers with differing
    views. Synthesize the discussion into a single proposed resolution.
    Do not assume a single comment is the final answer. If reviewers
    disagree and no consensus is apparent, present the competing positions
    to the user and ask them to decide rather than fabricating a
    compromise that nobody advocated.
-3. Determine the appropriate target section based on the **Impact** field
-   of the open question — e.g., a scope decision becomes a non-goal in
-   Section 2.3, a constraint goes into NFRs in Section 3.2, a requirement
-   clarification updates the relevant FR in Section 3.1.
-4. Present the proposed resolution to the user: show which open question
-   is being resolved, the synthesized answer, where it will be placed in
-   the PRD, and the proposed text. The user may approve, correct, or
-   rewrite the synthesis.
+3. If a distinct open-question entry exists, determine the target section
+   based on its **Impact** field and the resolved template's actual
+   structure — e.g., in the built-in template, a scope decision becomes a
+   non-goal, a constraint goes into NFRs, and a requirement clarification
+   updates the relevant FR. A project override may map these differently
+   (or have no numbered requirement IDs at all — see the section
+   guidance). Otherwise (no such entry — the gap was identified directly
+   from the comment thread per item 1 above), determine the target
+   section from the resolved section guidance and the nature of the gap;
+   there is no **Impact** field to consult.
+4. Present the proposed resolution to the user: show what is being
+   resolved, the synthesized answer, where it will be placed in the PRD,
+   and the proposed text. The user may approve, correct, or rewrite the
+   synthesis.
 5. After user approval, incorporate the answer into the target section,
    writing it in final form as if it was always the intent (do not
    narrate the resolution).
-6. Remove the resolved entry from the Open Questions section.
-7. If the Open Questions section is now empty, remove the entire section (heading and
-   introductory text) from the PRD. Renumber any subsequent sections to close the gap.
+6. If the resolved template tracks unresolved items in a structured
+   location — a distinct open-questions section, or another location the
+   section guidance identifies (e.g., an inline marker, a combined
+   risks/open-items table) — remove or retire the resolved entry there
+   once its answer has been incorporated into the target section. If
+   removing the entry leaves a section empty, remove the section (heading
+   and introductory text) only if the resolved template doesn't require it
+   to remain present. Renumber subsequent sections to close the gap only
+   if the resolved template numbers sections positionally; otherwise leave
+   section numbers/headings as-is. Either way, fix any cross-references
+   that pointed at the removed content.
 
-**Update the local artifact:** Update `.artifacts/prd/{issue-number}/03-prd.md`
+**Update the local artifact:** Update `.artifacts/prd/{issue-key}/03-prd.md`
 in the source repo.
 
 Read and follow `../../_shared/recipes/capture-provenance-event.md` with
-`WORKFLOW=prd`, `ISSUE_NUMBER={issue-number}`, `PHASE=respond`,
+`WORKFLOW=prd`, `ISSUE_KEY={issue-key}`, `PHASE=respond`,
 `AUTHORING_MODE=skill`.
 
-**Update the docs repo copy:** Read `.artifacts/prd/{issue-number}/publish-metadata.json`
+**Update the docs repo copy:** Read `.artifacts/prd/{issue-key}/publish-metadata.json`
 to get `{prd-file-path}` (the PRD's location within the docs repo). If the
 metadata file doesn't exist, ask the user for the file path within the docs
 repo. If they provide it, write it to `publish-metadata.json` so subsequent
@@ -170,7 +196,7 @@ runs don't re-ask, then proceed with the docs repo update. If they cannot
 provide it, skip the docs repo update.
 
 Copy the updated artifact to the docs repo and commit. All git operations use
-the docs repo path from `.artifacts/prd/config.json`.
+the docs repo path from `.artifacts/config.json`.
 
 Fetch the latest state from the remote and verify the working tree is clean:
 
@@ -190,10 +216,10 @@ Ensure the correct branch is checked out:
 git -C "{docs_repo_path}" branch --show-current
 ```
 
-If not on `prd/{issue-number}`, check it out:
+If not on `{branch-name}`, check it out:
 
 ```bash
-git -C "{docs_repo_path}" checkout prd/{issue-number}
+git -C "{docs_repo_path}" checkout {branch-name}
 ```
 
 Fast-forward the local branch if the remote is ahead:
@@ -212,11 +238,11 @@ mkdir -p "{docs_repo_path}/$(dirname "{prd-file-path}")"
 ```
 
 ```bash
-cp ".artifacts/prd/{issue-number}/03-prd.md" "{docs_repo_path}/{prd-file-path}"
+cp ".artifacts/prd/{issue-key}/03-prd.md" "{docs_repo_path}/{prd-file-path}"
 ```
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
-`WORKFLOW=prd`, `ISSUE_NUMBER={issue-number}`,
+`WORKFLOW=prd`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{docs_repo_path}/{prd-file-path}"`.
 
 ```bash
@@ -224,7 +250,7 @@ git -C "{docs_repo_path}" add "{prd-file-path}"
 ```
 
 ```bash
-git -C "{docs_repo_path}" commit -m "PRD {issue-number}: address review feedback"
+git -C "{docs_repo_path}" commit -m "PRD {issue-key}: address review feedback"
 ```
 
 ```bash
@@ -242,7 +268,7 @@ For comments that only need a reply (no PRD changes), post the reply directly.
 Write the reply to a temp file to avoid shell metacharacter issues:
 
 ```bash
-cat > .artifacts/prd/{issue-number}/tmp-reply.md << 'REPLY_EOF'
+cat > .artifacts/prd/{issue-key}/tmp-reply.md << 'REPLY_EOF'
 {approved reply text}
 REPLY_EOF
 ```
@@ -253,28 +279,28 @@ line), reply in-thread so the response appears alongside the original
 comment:
 
 ```bash
-gh api repos/{owner}/{repo}/pulls/{pr-number}/comments/{comment-id}/replies --field body=@.artifacts/prd/{issue-number}/tmp-reply.md
+gh api repos/{owner}/{repo}/pulls/{pr-number}/comments/{comment-id}/replies --field body=@.artifacts/prd/{issue-key}/tmp-reply.md
 ```
 
 **For top-level PR comments** (those from `gh pr view --json comments` —
 general conversation comments), use:
 
 ```bash
-gh pr comment {pr-number} --repo {owner}/{repo} --body-file .artifacts/prd/{issue-number}/tmp-reply.md
+gh pr comment {pr-number} --repo {owner}/{repo} --body-file .artifacts/prd/{issue-key}/tmp-reply.md
 ```
 
 Delete the temp file after posting:
 
 ```bash
-rm .artifacts/prd/{issue-number}/tmp-reply.md
+rm .artifacts/prd/{issue-key}/tmp-reply.md
 ```
 
 ### Step 5: Update Response Log
 
-Write or update `.artifacts/prd/{issue-number}/05-review-responses.md`:
+Write or update `.artifacts/prd/{issue-key}/05-review-responses.md`:
 
 ```markdown
-# Review Responses — {issue-number}
+# Review Responses — {issue-key}
 
 ## Round {N} — {date}
 
@@ -302,8 +328,8 @@ Summarize:
 ## Output
 
 - PR comments posted (with user approval)
-- `.artifacts/prd/{issue-number}/03-prd.md` (updated if needed)
-- `.artifacts/prd/{issue-number}/05-review-responses.md`
+- `.artifacts/prd/{issue-key}/03-prd.md` (updated if needed)
+- `.artifacts/prd/{issue-key}/05-review-responses.md`
 
 ## When This Phase Is Done
 

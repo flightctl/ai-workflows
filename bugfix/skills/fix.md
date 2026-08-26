@@ -26,6 +26,36 @@ Implement targeted bug fixes that resolve the underlying issue without introduci
 - Plan for backward compatibility if needed
 - Identify any configuration or migration requirements
 
+### Checkpoint: Confirm Approach
+
+Before creating a branch or writing any code, pause and present to the
+user:
+
+- The fix approach you plan to take, based on the root cause analysis
+- Which files you expect to modify and why
+- The expected scope of changes (single function, multiple files, etc.)
+- **Evidence:** findings from the root cause analysis that support this
+  approach
+- **Assumptions:** any inferences about the fix that aren't directly
+  established by the diagnosis (e.g., that no other callers are affected,
+  that backward compatibility is preserved)
+- **Unknowns:** facts that still need confirmation before or during
+  implementation
+- **Risks:** anything that could go wrong with this approach
+
+Then ask the user to confirm or redirect.
+
+**Handling the response:**
+
+- **User confirms** — proceed to Step 2.
+- **User redirects** ("use a different approach" or "fix it in X
+  instead") — evaluate the redirect against the root cause analysis and
+  what you see in the code. If it aligns, incorporate it and proceed. If
+  it contradicts the diagnosis or introduces risk, say so — explain your
+  reasoning and reach agreement before proceeding.
+- **User rejects without a redirect** — ask what to adjust. Do not
+  proceed past this checkpoint until the user confirms the approach.
+
 ### Step 2: Create Feature Branch
 
 - If a branch was specified (e.g. by the user or via the unattended `branch` setting), use it as-is — do not create a new branch

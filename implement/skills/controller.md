@@ -36,17 +36,18 @@ workflow by executing phases and handling transitions between them.
 ## Workspace
 
 All work happens in the **source repo** — this workflow modifies code directly.
-Planning artifacts live in `.artifacts/implement/{jira-key}/` (gitignored).
+Planning artifacts live in `.artifacts/implement/{issue-key}/` (gitignored).
 Code changes live on a feature branch in the source repo.
 
 ### Artifact directory
 
-All working artifacts are stored in `.artifacts/implement/{jira-key}/` within
+All working artifacts are stored in `.artifacts/implement/{issue-key}/` within
 the source repo:
 
 | Artifact | File | Written by |
 |----------|------|------------|
 | Story context | `01-context.md` | `/ingest` |
+| Story testplan | `testplan.md` | `/ingest` (when test cases match) |
 | Implementation plan | `02-plan.md` | `/plan`, `/revise`, `/code` |
 | Test report | `03-test-report.md` | `/code` |
 | Implementation report | `04-impl-report.md` | `/code` |
@@ -124,8 +125,14 @@ Other options:
 ## Starting the Workflow
 
 Before dispatching any phase, check if the project has its own `AGENTS.md`
-or `CLAUDE.md`. If so, read it — it may contain project-specific conventions,
-testing standards, or other guidance that affects how the workflow operates.
+or `CLAUDE.md`. If they are **already in this session** (workspace rules
+or a prior read), do not re-read them. Otherwise read them — they may
+contain project-specific conventions, testing standards, or other
+guidance that affects how the workflow operates.
+
+For **ingest**, do not load `guidelines.md`. Those rules apply to
+`/plan` and `/code`. Do not glob the implement workflow directory.
+Do not call `GetDynamicTools`. Write each ingest artifact path once.
 
 When the user provides a Jira issue key or URL:
 1. Execute the **ingest** phase
@@ -153,7 +160,7 @@ misses details, repeats itself, or loses track of earlier decisions),
 consider spawning the next phase as a subagent with a fresh context window.
 This is self-monitoring by the AI, not something a human operator watches. Load the subagent with
 the skill file for the phase being executed, the relevant artifact files from
-`.artifacts/implement/{jira-key}/`, and the project's `AGENTS.md`/`CLAUDE.md`.
+`.artifacts/implement/{issue-key}/`, and the project's `AGENTS.md`/`CLAUDE.md`.
 
 This is a recommendation, not a requirement — not all AI runtimes support
 subagent spawning.

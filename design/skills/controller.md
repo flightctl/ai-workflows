@@ -45,7 +45,7 @@ docs repo** so planning artifacts don't pollute the source tree.
 
 ### Artifact directory
 
-All working artifacts are stored in `.artifacts/design/{issue-number}/` within
+All working artifacts are stored in `.artifacts/design/{issue-key}/` within
 the source repo (this directory should be gitignored in the source repo):
 
 | Artifact | File | Written by |
@@ -53,24 +53,25 @@ the source repo (this directory should be gitignored in the source repo):
 | Architectural context | `01-context.md` | `/ingest` |
 | Design research | `02-research.md` | `/research` |
 | Design document | `03-design.md` | `/draft`, `/revise`, `/respond` |
+| Testplan | `04-testplan.md` | `/draft`, `/revise`, `/respond` |
 | Provenance log | `provenance.json` | `/draft`, `/revise`, `/respond` |
-| Epic metadata | `04-epics.md` | `/decompose`, `/revise` |
-| Epic files | `05-stories/epic-{N}-{slug}.md` | `/decompose`, `/revise` |
-| Story files | `05-stories/epic-{N}/story-{NN}-{slug}.md` | `/decompose`, `/revise` |
-| Coverage matrix | `06-coverage.md` | `/decompose`, `/revise` |
-| PR description | `07-pr-description.md` | `/publish` |
+| Epic metadata | `05-epics.md` | `/decompose`, `/revise` |
+| Epic files | `06-stories/epic-{N}-{slug}.md` | `/decompose`, `/revise` |
+| Story files | `06-stories/epic-{N}/story-{NN}-{slug}.md` | `/decompose`, `/revise`, `/respond` |
+| Coverage matrix | `07-coverage.md` | `/decompose`, `/revise` |
+| PR description | `08-pr-description.md` | `/publish` |
 | Publish metadata | `publish-metadata.json` | `/publish` |
-| Review responses | `08-review-responses.md` | `/respond` |
+| Review responses | `09-review-responses.md` | `/respond` |
 | Jira sync manifest | `sync-manifest.json` | `/sync` |
 
 ### Docs repo configuration
 
-The docs repo location is stored in `.artifacts/prd/config.json` (shared
-across all workflows for this source repo). This config is created by the
-PRD workflow's `/publish` phase the first time it runs.
+The docs repo location is stored in `.artifacts/config.json` (workspace-level
+config shared across all workflows for this source repo). This config is
+created by whichever workflow's `/publish` or `/ingest` phase runs first.
 
-If the config doesn't exist when `/publish` is invoked, the design workflow
-creates it following the same format:
+If the config doesn't exist when a phase needs it, the workflow prompts for
+the docs repo location and creates it:
 
 ```json
 {
@@ -116,8 +117,8 @@ Research is in brackets because it is conditional — not every design needs it.
 
 - `/ingest` completed → recommend `/research` or `/draft` (see "When to Recommend Research" below)
 - `/research` completed → recommend `/draft`
-- `/draft` completed → recommend `/decompose` (decomposition validates the design)
-- `/decompose` completed → recommend `/revise` for user review of both documents
+- `/draft` completed → recommend `/decompose` (decomposition validates the design), unless deferral signals are present (see "When to Recommend Deferring `/decompose`" below), in which case recommend `/publish` directly. Note that the testplan was generated alongside the design document either way.
+- `/decompose` completed → recommend `/revise` for user review of the decomposition
 - `/revise` completed (user satisfied) → recommend `/publish`, or another `/revise` round
 - `/publish` completed → recommend `/respond` when review comments arrive
 - `/respond` completed → recommend another `/respond` round, or `/sync` if approved
@@ -146,13 +147,59 @@ Other options:
 - /draft — if you already have sufficient domain knowledge to draft the design
 ```
 
+**When to recommend deferring `/decompose`:**
+
+`/decompose` is expensive: it writes every epic and story file, then runs a
+subagent review with up to 2 fix-and-re-review rounds. Running it right
+after `/draft` pays that cost once as a design-validation step — but if the
+design changes substantially during `/revise` or `/respond`, the controller
+recommends re-running `/decompose` from scratch, paying that cost again.
+Whether this is worth it depends on how much churn the design is likely to
+see, which varies per feature.
+
+After `/draft` completes, recommend deferring `/decompose` until after the
+`/revise`/`/publish`/`/respond` loop stabilizes (i.e., recommend `/publish`
+directly) when any of these signals are present:
+- The design document has several unresolved `[Assumption: ...]` markers
+  or Open Questions with significant **Impact** — these are likely to shift
+  during review
+- `02-research.md` exists and flagged multiple viable approaches with no
+  clear winner, or the chosen approach deviates from the research
+  recommendation
+- This is the first design in the codebase for this problem domain, or the
+  design proposes a new architectural pattern not yet established
+- The user signals the design is contentious or likely to see significant
+  review pushback
+
+When none of these signals are present (few or no open items, a
+straightforward extension of established patterns), recommend `/decompose`
+directly — early decomposition catches structural design gaps before a
+review cycle is spent on them, and reviewers can see the epic/story scope
+alongside the design during `/respond`.
+
+When recommending deferral, explain which signals you detected and note the
+trade-off:
+
+```text
+Recommended next step: /publish — the design has 3 open questions with
+architectural impact (§9.1, §9.2, §9.3) that reviewers are likely to weigh
+in on. Decomposing now risks a full re-run if their answers change the
+design. Recommend deferring /decompose until after /respond stabilizes.
+
+Other options:
+- /decompose — if you'd rather validate decomposability now and accept the
+  risk of re-running it later
+- /revise — if you want to resolve the open questions yourself first
+```
+
 **Looping back:**
 
 - `/draft` reveals PRD gaps → suggest the user switch to the **prd** workflow and run its `/clarify` phase to resolve them
 - `/draft` reveals research gaps (e.g., an integration approach turns out to be more complex than assumed) → offer `/research` to investigate before continuing
 - `/decompose` reveals design gaps → offer `/revise` to fix the design before continuing
-- `/revise` changes the design → offer `/decompose` to regenerate the task breakdown
+- `/revise` changes the design → offer `/decompose` to regenerate the task breakdown (or, if decomposition hasn't happened yet because it was deferred, no action needed — it will run fresh against the revised design)
 - `/respond` reveals the need for significant design changes → offer `/revise`
+- `/respond` stabilizes with `/decompose` still deferred → recommend `/decompose` now, immediately before `/sync`
 
 **Skipping:**
 
@@ -160,6 +207,10 @@ Other options:
 - `/research` is always skippable — the user can go directly to `/draft` if they have sufficient domain knowledge
 - If the design is for internal use only, `/publish` and `/respond` may be skipped
 - If Jira sync isn't needed, `/sync` may be skipped
+- `/decompose` may be deferred past `/publish`/`/respond` and run just
+  before `/sync` instead — see "When to recommend deferring `/decompose`"
+  above. This is a per-feature judgment call, not a fixed position in the
+  phase list.
 
 ### How to Present Options
 
@@ -209,8 +260,9 @@ When output quality appears to be degrading (e.g., the AI misses details,
 repeats itself, or loses track of earlier decisions), consider spawning the
 next phase as a subagent with a fresh context window. Load the subagent with
 the skill file for the phase being executed, the relevant artifact files from
-`.artifacts/design/{issue-number}/`, and any template files referenced by that
-skill (e.g., `draft.md` and `section-guidance.md` for `/draft`).
+`.artifacts/design/{issue-key}/`, and any template files referenced by that
+skill (`draft.md`, `revise.md`, and `respond.md` each resolve and use
+`design.md` and `section-guidance.md` — see `template-override-resolution.md`).
 
 This is a recommendation, not a requirement — not all AI runtimes support
 subagent spawning.
@@ -219,6 +271,6 @@ subagent spawning.
 
 - **Never auto-advance.** Always wait for the user between phases.
 - **Recommendations come from this file, not from skills.** Skills report findings; this controller decides what to recommend next.
-- **Template loading is handled by the `/draft` skill.** It checks for project-level overrides before falling back to the workflow default. See `draft.md` Step 1.
+- **Template loading is shared across `/draft`, `/revise`, and `/respond`.** Each resolves project-level overrides before falling back to the workflow default via `../../_shared/recipes/template-override-resolution.md`; none is more canonical than another.
 - **Jira is read-only until `/sync`.** The `/ingest` phase reads from Jira but never modifies it. Only `/sync` modifies Jira issues, and only with explicit user approval.
 - **Design and decomposition co-evolve.** If `/revise` changes the design, recommend re-running `/decompose`. If `/decompose` reveals design gaps, recommend `/revise`.

@@ -65,6 +65,7 @@ _shared/
     record-manual-edit.md         # Tier 3 manual-edit attribution (wraps capture recipe)
     render-provenance-footer.md   # Render durable footer into docs-repo markdown before commit
     self-review-gate.md           # Pre-PR self-review quality gate (used by bugfix, implement, e2e, cve-fix)
+    validation-gate.md            # Pre-commit build/test/lint discovery gate (used by bugfix)
 ```
 
 Recipes are self-contained, parameterized procedures that workflows reference via relative path (e.g., `../../_shared/recipes/self-review-gate.md` from `skills/`). The **prd** and **design** workflows use the provenance recipes on `/draft`, `/revise`, `/respond` (capture) and `/publish` plus docs-sync paths (render). See `_shared/provenance-schema.md` for the published footer format.
@@ -84,6 +85,7 @@ Critical for symlink resolution:
 4. **No auto-advance in attended mode**: Workflows wait for user input between phases unless an explicit unattended mode is documented for that workflow
 5. **Artifact persistence**: All significant outputs saved to `.artifacts/{workflow-name}/{context}/`
 6. **Read-only reviews**: skill-reviewer never modifies target skill files during review
+7. **Artifact isolation**: `.artifacts/{workflow-name}/` is each workflow's private state. Other workflows must never read from or write to another workflow's artifact directory. The shared interfaces between workflows are: Jira (canonical source for issue data), published docs repo files (PRDs, designs, testplans), and workspace-level config at `.artifacts/config.json`
 
 ## Workflow Versioning
 
@@ -148,7 +150,8 @@ ai-workflows/
 │       ├── phase-override-resolution.md  # Project-level phase override lookup
 │       ├── record-manual-edit.md
 │       ├── render-provenance-footer.md
-│       └── self-review-gate.md  # Pre-PR self-review quality gate
+│       ├── self-review-gate.md  # Pre-PR self-review quality gate
+│       └── validation-gate.md   # Pre-commit build/test/lint discovery gate
 ├── ai-ready/                  # Workflows (auto-discovered via SKILL.md)
 ├── bugfix/
 ├── code-review/

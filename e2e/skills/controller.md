@@ -38,12 +38,12 @@ between them.
 ## Workspace
 
 All work happens in the **source repo** — this workflow modifies test code
-directly. Planning artifacts live in `.artifacts/e2e/{jira-key}/` (gitignored).
+directly. Planning artifacts live in `.artifacts/e2e/{issue-key}/` (gitignored).
 Test code changes live on a feature branch in the source repo.
 
 ### Artifact directory
 
-All working artifacts are stored in `.artifacts/e2e/{jira-key}/` within
+All working artifacts are stored in `.artifacts/e2e/{issue-key}/` within
 the source repo:
 
 | Artifact | File | Written by |
@@ -156,7 +156,7 @@ misses details, repeats itself, or loses track of earlier decisions),
 consider spawning the next phase as a subagent with a fresh context window.
 This is self-monitoring by the AI, not something a human operator watches. Load the subagent with
 the skill file for the phase being executed, the relevant artifact files from
-`.artifacts/e2e/{jira-key}/`, and the project's `AGENTS.md`/`CLAUDE.md`.
+`.artifacts/e2e/{issue-key}/`, and the project's `AGENTS.md`/`CLAUDE.md`.
 
 This is a recommendation, not a requirement — not all AI runtimes support
 subagent spawning.

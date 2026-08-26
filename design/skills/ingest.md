@@ -32,69 +32,81 @@ The user will provide one of:
 - A path to an existing PRD
 - A path to existing design context
 
-Extract the issue key and set it as the context identifier.
+Extract the full Jira issue key, including the project prefix (e.g.,
+`PROJ-1234`, not just `1234`). Use this as `{issue-key}` throughout
+the workflow — it is the context identifier for the artifact directory
+and all downstream phases.
 
 ### Step 2: Create Artifact Directory
 
 ```bash
-mkdir -p .artifacts/design/{issue-number}
-```
-
-```bash
-mkdir -p .artifacts/design/{issue-number}/05-stories
+mkdir -p .artifacts/design/{issue-key}
 ```
 
 ### Step 2a: Check for Prior Ingest
 
-If `.artifacts/design/{issue-number}/01-context.md` already exists, this
+If `.artifacts/design/{issue-key}/01-context.md` already exists, this
 is a re-invocation. Copy the existing file to
-`.artifacts/design/{issue-number}/01-context.md.prev` so it is preserved
+`.artifacts/design/{issue-key}/01-context.md.prev` so it is preserved
 for the diff in Step 6a.
 
 ### Step 3: Read the PRD
 
-Locate and read the PRD. Check in this order:
-1. `.artifacts/prd/{issue-number}/03-prd.md` (local PRD artifact from same session)
-2. Published PRD in the docs repo (see Step 3a below)
-3. A path provided by the user
+The published PRD in the docs repo is the authoritative source. Locate it
+there — do not read from `.artifacts/prd/`.
 
-If no PRD is found, tell the user and ask for the location. A PRD is the
-primary input to the design workflow.
+#### Resolve the Docs Repo
 
-Also read the clarification log if it exists:
-`.artifacts/prd/{issue-number}/02-clarifications.md`
+Read `.artifacts/config.json` for `docs_repo_path` and `docs_repo_remote`.
 
-Note any locked decisions — these are binding constraints for the design.
+**If the config exists**, validate it:
+1. Verify the path exists on the local filesystem
+2. Verify the directory is a git repository
+3. Verify the remote URL matches the configured `docs_repo_remote`
 
-### Step 3a: Locate Published PRD (Fallback)
+If any validation fails, inform the user and re-ask for the correct values.
+Resolve `~` to an absolute path before saving. Update
+`.artifacts/config.json` with the corrected values.
 
-If the local artifact (`.artifacts/prd/{issue-number}/03-prd.md`) does not
-exist — e.g., the PRD was created in a prior session, on another machine, or
-by someone else — look for the published PRD in the docs repo:
+**If the config does not exist**, ask the user for the docs repo local path
+and remote, validate them. Resolve `~` to the user's home directory so
+the stored path is absolute. Write `.artifacts/config.json`.
 
-1. Read `.artifacts/prd/config.json` to find `docs_repo_path`
-2. If config exists, read `.artifacts/prd/{issue-number}/publish-metadata.json`
-   to find `prd_file_path` (the relative path within the docs repo)
-3. Read the PRD from `{docs_repo_path}/{prd_file_path}`
+#### Find the PRD in the Docs Repo
 
-If the resolved path does not exist on disk (e.g., the docs repo is not
-cloned locally), or if no config or publish metadata exists, fall through
-to the next option in Step 3 (a path provided by the user).
+Search the docs repo for a directory whose name contains `{issue-key}`:
 
-**Note on clarification logs:** The clarification log
-(`.artifacts/prd/{issue-number}/02-clarifications.md`) is not published to
-the docs repo and only exists locally. If the PRD was created in a prior
-session and `.artifacts/` was cleaned up, locked decisions from the
-clarification log will not be available. The PRD itself should reflect all
-locked decisions in its final form, but if the user knows locked decisions
-exist that aren't captured in the PRD, ask them to provide the
-clarification log path.
+```bash
+find "{docs_repo_path}" -type d -name "*{issue-key}*"
+```
 
-Once the PRD is found, record its resolved path in
-`.artifacts/design/{issue-number}/01-context.md` (in the PRD Summary section)
-so that downstream phases (`/draft`, `/research`, `/decompose`) can read it directly from
-the authoritative location rather than relying on a local copy that could
-diverge.
+Filter matches to directories that contain a `prd.md` file.
+
+If exactly one matching directory contains `prd.md` (e.g.,
+`v2.1/delta-updates-EDM-4867/prd.md`), read it.
+
+If multiple matching directories contain `prd.md`, present them to the
+user and ask which one contains the current PRD.
+
+If no match is found (or no matches contain `prd.md`), ask the user for
+the path to the PRD. Verify that the file exists and is readable, then
+read it before continuing.
+
+#### Read Clarifications
+
+If `clarifications.md` exists in the directory containing the resolved PRD,
+read it. Note any locked decisions — these are binding constraints for the
+design.
+
+If no clarifications file exists, the PRD itself should reflect all locked
+decisions in its final form.
+
+#### Record the Resolved Paths
+
+Record the resolved PRD path (and clarifications path, if found) in
+`.artifacts/design/{issue-key}/01-context.md` (in the PRD Summary section)
+so that downstream phases (`/draft`, `/research`, `/decompose`) can read
+them directly without repeating the lookup.
 
 ### Step 4: Read Project Configuration
 
@@ -143,16 +155,17 @@ is a re-invocation (Step 2a found an existing file), **do not write the
 file yet** — hold the compiled content and proceed to Step 6a first.
 
 If this is a first invocation, write
-`.artifacts/design/{issue-number}/01-context.md` with this structure:
+`.artifacts/design/{issue-key}/01-context.md` with this structure:
 
 ```markdown
-# Architectural Context — {issue-number}
+# Architectural Context — {issue-key}
 
 ## PRD Summary
 
 - **Feature:** {title}
 - **Jira:** {issue-key}
 - **PRD:** {resolved PRD path}
+- **Clarifications:** {resolved clarifications path, or "None published"}
 
 ### Key Requirements
 
@@ -230,8 +243,9 @@ note at a high level whether the exploration found material differences
 line-by-line comparison.
 
 Then check whether downstream artifacts exist (`02-research.md`,
-`03-design.md`, `04-epics.md`, `05-stories/`, `06-coverage.md`,
-`07-pr-description.md`, `08-review-responses.md`, `sync-manifest.json`).
+`03-design.md`, `04-testplan.md`, `05-epics.md`, `06-stories/`,
+`07-coverage.md`, `08-pr-description.md`, `09-review-responses.md`,
+`sync-manifest.json`).
 If they do, tell the
 user:
 
@@ -261,7 +275,7 @@ If the user declined a re-invocation overwrite in Step 6a, report instead:
 
 ## Output
 
-- `.artifacts/design/{issue-number}/01-context.md`
+- `.artifacts/design/{issue-key}/01-context.md`
 
 ## When This Phase Is Done
 

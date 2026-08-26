@@ -91,7 +91,7 @@ graph TD
 
 ## Artifacts
 
-All artifacts are stored in `.artifacts/e2e/{jira-key}/`.
+All artifacts are stored in `.artifacts/e2e/{issue-key}/`.
 
 ```text
 .artifacts/e2e/EDM-5678/

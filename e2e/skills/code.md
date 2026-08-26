@@ -30,9 +30,10 @@ each logical unit of work independently.
 ### Step 1: Read the Plan and Context
 
 Read these files:
-1. `.artifacts/e2e/{jira-key}/02-plan.md` (test plan)
-2. `.artifacts/e2e/{jira-key}/01-context.md` (story context and e2e infrastructure)
-3. The project's `AGENTS.md` and/or `CLAUDE.md` (coding conventions)
+1. `.artifacts/e2e/{issue-key}/02-plan.md` (test plan)
+2. `.artifacts/e2e/{issue-key}/01-context.md` (story context and e2e infrastructure)
+3. `.artifacts/e2e/{issue-key}/testplan.md` (story-scoped testplan, if exists)
+4. The project's `AGENTS.md` and/or `CLAUDE.md` (coding conventions)
 
 If the plan doesn't exist, tell the user that `/plan` should be run first.
 
@@ -114,7 +115,7 @@ ask how to proceed (stash, commit, or abort) before any rebase/merge
 operation.
 
 Check whether a PR has already been created by looking for
-`.artifacts/e2e/{jira-key}/publish-metadata.json`.
+`.artifacts/e2e/{issue-key}/publish-metadata.json`.
 
 If no PR exists yet, rebase:
 
@@ -245,7 +246,7 @@ parameters:
 |-----------|-------|
 | DIFF_COMMAND | `git diff --cached` |
 | MAX_ROUNDS | `1` |
-| CONTEXT_FILES | `.artifacts/e2e/{jira-key}/01-context.md`, `.artifacts/e2e/{jira-key}/02-plan.md` (if they exist) |
+| CONTEXT_FILES | `.artifacts/e2e/{issue-key}/01-context.md`, `.artifacts/e2e/{issue-key}/02-plan.md` (if they exist) |
 | SUPPLEMENTARY_CRITERIA | Check for e2e-specific issues: (1) Anti-patterns: hardcoded sleeps, shared mutable state, missing cleanup. (2) Test infrastructure bypass: direct API calls instead of project abstractions. (3) Missing async polling: synchronous assertions on async operations. (4) Hardcoded values: inline strings/numbers instead of project-defined constants. (5) Pattern drift: deviations from the reference suite's conventions. (6) Missing labels: tests without CI-filtering labels. |
 
 If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
@@ -256,12 +257,52 @@ the task-scoped tests (Step 3c) and fast quality checks (Step 3d) to
 verify the fixes. Only proceed to commit once checks pass. Note any
 dismissed findings in the implementation report (Discoveries section).
 
+**Test plan reconciliation (if story-scoped testplan exists):**
+
+After the self-review gate passes, check whether this task's scenario(s)
+have TC IDs mapped to them in the Test Plan Coverage matrix of
+`02-plan.md`. If so, verify each mapped TC ID before proceeding to
+commit:
+
+1. For each mapped TC ID, locate its entry in `testplan.md`. If a
+   mapped TC ID does not exist in the testplan, stop and report the
+   inconsistency — the plan references a test case that the testplan
+   does not contain. Read the full test case entry (the Preconditions,
+   Steps, and Expected Results sections). If any of these sections is
+   missing, stop and report the testplan as malformed — do not attempt
+   to reconcile against an incomplete test case.
+2. Verify that the test scenario's validations assert the Expected
+   Results described in the test case. The match is behavioral, not
+   textual — the test must exercise the described scenario and assert
+   the described outcomes. The test may use project-specific assertion
+   mechanisms (e.g., Eventually/Consistently in Ginkgo, polling in
+   pytest).
+3. If a TC ID mapped to this task has no corresponding validation with
+   sufficient assertion depth, write the missing validation (Step 3b),
+   run the tests (Step 3c), run the fast quality checks (Step 3d),
+   stage the new files (`git add`), re-run the review gate, then
+   re-check.
+
+This is a hard gate — the task cannot proceed to commit until every
+mapped TC ID has coverage. A TC ID may be treated as N/A only if the
+plan's Test Plan Coverage matrix already marks it N/A with a non-empty
+rationale — the code phase must not invent N/A exemptions that the
+plan did not authorize. The testplan is a floor, not a ceiling:
+validations discovered through test design that are not tied to any
+TC ID are expected and encouraged.
+
+If no story-scoped testplan exists and `02-plan.md` has no Test Plan
+Coverage section, skip this check. However, if `02-plan.md` has TC
+mappings but `testplan.md` is missing, unreadable, or malformed (no
+parseable TC IDs), stop and report the inconsistency — the plan
+references a testplan that the code phase cannot use.
+
 #### 3f: Commit
 
 The changes are already staged from Step 3e. Create the commit:
 
 ```bash
-git commit -m "{JIRA-KEY}: {task description}"
+git commit -m "{issue-key}: {task description}"
 ```
 
 Follow the commit format from the **Commit Format** section of
@@ -315,7 +356,7 @@ If output is non-empty, stop and ask the user how to proceed (commit,
 stash, or abort) before continuing.
 
 Check whether a PR has already been created by looking for
-`.artifacts/e2e/{jira-key}/publish-metadata.json`.
+`.artifacts/e2e/{issue-key}/publish-metadata.json`.
 
 **If no PR exists yet**, rebase:
 
@@ -369,10 +410,10 @@ During test implementation, you may encounter unexpected situations:
 
 After all tasks are complete (or if interrupted), write:
 
-**Test report** (`.artifacts/e2e/{jira-key}/03-test-report.md`):
+**Test report** (`.artifacts/e2e/{issue-key}/03-test-report.md`):
 
 ```markdown
-# E2E Test Report — {jira-key}
+# E2E Test Report — {issue-key}
 
 ## Tests Written
 
@@ -398,15 +439,34 @@ After all tasks are complete (or if interrupted), write:
  are self-starting, note that. If tests run against a pre-existing
  environment: "Tests run against {environment}."}
 
+## Test Plan Reconciliation
+
+{Include only if story-scoped testplan exists. Omit entirely otherwise.}
+
+| TC ID | Title | Outcome | Notes |
+|-------|-------|---------|-------|
+| TC-FR1-01 | {title} | verified | Scenario validation matched |
+| TC-FR1-02 | {title} | written | Validation added during task execution |
+| TC-NFR1-01 | {title} | N/A | See Deviations from Plan |
+
+{Every TC ID mapped to a scenario in the Test Plan Coverage matrix must
+ appear exactly once. Outcome values:
+ - verified: validation existed and had sufficient assertion depth
+ - written: validation was written to satisfy this TC ID
+ - strengthened: validation existed but lacked assertions; added them
+ - N/A: test case marked inapplicable in the plan's Test Plan Coverage
+   matrix with a non-empty rationale (explain in Notes and in
+   Deviations from Plan — code phase cannot invent N/A exemptions)}
+
 ## Notes
 
 {Any qualitative observations about test coverage, gaps, or patterns.}
 ```
 
-**Implementation report** (`.artifacts/e2e/{jira-key}/04-impl-report.md`):
+**Implementation report** (`.artifacts/e2e/{issue-key}/04-impl-report.md`):
 
 ```markdown
-# Implementation Report — {jira-key}
+# Implementation Report — {issue-key}
 
 ## Changes Summary
 
@@ -443,9 +503,9 @@ After all tasks are complete (or if interrupted), write:
 
 - Test files in the source repo (on the feature branch)
 - Incremental commits (following the project's commit format)
-- `.artifacts/e2e/{jira-key}/02-plan.md` (updated with task status)
-- `.artifacts/e2e/{jira-key}/03-test-report.md`
-- `.artifacts/e2e/{jira-key}/04-impl-report.md`
+- `.artifacts/e2e/{issue-key}/02-plan.md` (updated with task status)
+- `.artifacts/e2e/{issue-key}/03-test-report.md`
+- `.artifacts/e2e/{issue-key}/04-impl-report.md`
 
 ## When This Phase Is Done
 

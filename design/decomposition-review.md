@@ -7,12 +7,16 @@ whether the reviewer is a subagent or the decomposer performing inline
 self-review.
 
 The reviewer receives the PRD and the decomposition artifacts (epics,
-stories, coverage matrix) but intentionally does **not** receive the
-design document. This is the independence property: the reviewer
-evaluates what the artifacts actually say, not what the decomposer
-intended. If a story's acceptance criteria are unclear without
-cross-referencing the design document, that is a real finding — the
-implementor needs self-contained acceptance criteria. Stories are
+stories, coverage matrix) and the testplan (for cross-reference
+checking), but intentionally does **not** receive the design document.
+This is the independence property: the reviewer evaluates what the
+artifacts actually say, not what the decomposer intended. The testplan
+is included for implementation traceability verification — confirming
+that stories reference valid test cases and interface changes — not for
+testplan content review (content quality was verified during `/draft`).
+If a story's acceptance criteria are unclear without cross-referencing
+the design document, that is a real finding — the implementor needs
+self-contained acceptance criteria. Stories are
 designed to be read alongside the design document during implementation
 (Implementation Guidance sections may reference design sections by
 number), so design-section references in Implementation Guidance are
@@ -61,7 +65,7 @@ expected and should not be flagged as a clarity problem.
 Evaluate the decomposition against these categories, prioritized by
 impact:
 
-1. **Requirement Coverage** — Does the coverage matrix (`06-coverage.md`)
+1. **Requirement Coverage** — Does the coverage matrix (`07-coverage.md`)
    map every FR and NFR from the PRD? Do story acceptance criteria
    collectively cover the PRD's acceptance criteria, not just the FR/NFR
    descriptions? Are there stories without PRD traceability — and if so,
@@ -99,14 +103,35 @@ impact:
    story fall back to "manual validation" or "document procedure for QE"
    where an automated test could be written?
 
-5. **Integration Stability** — Would implementing all stories in
+5. **Implementation Traceability** — Do stories correctly reference the
+   interface changes they implement and the test cases that validate
+   them? Derive the universe of ICs and TCs from the testplan
+   (`04-testplan.md`): collect ICs from test case metadata tables and
+   from the IC coverage gaps section. Verify: every story's `Interface
+   Changes:` ICs exist in the testplan (as test case IC references or
+   IC coverage gap entries). Every story's `Validated by:` TCs exist in
+   the testplan. Every IC referenced in the testplan has at least one
+   implementing story — an IC with no story is designed but
+   unimplemented work. Every TC that references an IC has at least one
+   story whose `Interface Changes` include that IC — a test case that
+   nothing implements is a gap in the decomposition, not the testplan.
+   For cross-cutting test cases with `Interface Change: —`, verify
+   that at least one story whose PRD Requirements include the test
+   case's requirement has it in its `Validated by` line — these TCs
+   use requirement-based matching instead of IC overlap.
+   No story claims to implement an IC that doesn't appear in the
+   testplan. No story references a TC that doesn't exist in the
+   testplan. Infrastructure stories with `Interface Changes: None` and
+   `Validated by: None` are acceptable if justified.
+
+6. **Integration Stability** — Would implementing all stories in
    dependency order produce a working feature end-to-end? Does any
    integration work fall between stories — work that is needed but not
    captured in any story? Are story dependencies documented and
    complete? Does each story leave the system in a stable state (all
    tests passing after merge)?
 
-6. **Documentation** — Do `[DOCS]` stories use the `[DOCS]` template
+7. **Documentation** — Do `[DOCS]` stories use the `[DOCS]` template
    (Documentation Scope and Documentation Inputs instead of
    Implementation Guidance and Testing Approach)? Does the Documentation
    Scope describe what the reader needs to understand without prescribing
@@ -121,9 +146,10 @@ impact:
 Each finding must include:
 
 - **File:** artifact file path (e.g.,
-  `05-stories/epic-1/story-02-add-validation.md`)
+  `06-stories/epic-1/story-02-add-validation.md`)
 - **Section:** section within the artifact (e.g., "Acceptance Criteria",
-  "Dependencies", "Testing Approach", "Documentation Scope")
+  "Dependencies", "Testing Approach", "Design Reference",
+  "Documentation Scope")
 - **Severity:** CRITICAL | HIGH | MEDIUM | LOW
 - **Category:** one of the evaluation criteria above
 - **Issue:** what the problem is
@@ -131,16 +157,18 @@ Each finding must include:
 
 Findings that cannot cite a specific file and section in the actual
 artifacts must be discarded — they indicate hallucinated references.
-Coverage matrix findings should cite `06-coverage.md` and the specific
-row or gap.
+Coverage matrix findings should cite `07-coverage.md` and the specific
+row or gap. Testplan cross-reference findings should cite `04-testplan.md`
+and the specific test case entry, or the story file and its Design
+Reference section.
 
 ## Severity Definitions
 
 | Severity | Meaning | Action |
 |----------|---------|--------|
-| CRITICAL | Would cause incorrect implementation — missing requirements, contradictory acceptance criteria, broken dependency chain, scope reduction | Must fix before presenting |
-| HIGH | Would cause rework — story too large to review in a single PR, missing testing commitment, integration gap between stories, `[QE]` story duplicating `[DEV]` test scope | Should fix before presenting |
-| MEDIUM | Would reduce clarity — vague acceptance criteria, imprecise implementation guidance or documentation scope, sizing concerns, minor coverage matrix inconsistencies | Fix if it adds value |
+| CRITICAL | Would cause incorrect implementation — missing requirements, contradictory acceptance criteria, broken dependency chain, scope reduction, stories referencing non-existent ICs or TCs, ICs with no implementing story | Must fix before presenting |
+| HIGH | Would cause rework — story too large to review in a single PR, missing testing commitment, integration gap between stories, `[QE]` story duplicating `[DEV]` test scope, stories missing Interface Changes or Validated by references | Should fix before presenting |
+| MEDIUM | Would reduce clarity — vague acceptance criteria, imprecise implementation guidance or documentation scope, sizing concerns, minor coverage matrix inconsistencies, minor IC or TC reference inconsistencies | Fix if it adds value |
 | LOW | Structural improvements — naming consistency, ordering suggestions, documentation clarity | Fix only if clearly valuable |
 
 ## Validation Rules
@@ -150,7 +178,7 @@ every finding:
 
 1. **Verify file references.** Confirm the cited artifact file exists in
    the decomposition output (under
-   `.artifacts/design/{issue-number}/`).
+   `.artifacts/design/{issue-key}/`).
 2. **Verify section references.** Confirm the cited section exists in
    the artifact file (e.g., an "Acceptance Criteria" heading actually
    appears in the story file).

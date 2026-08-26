@@ -29,11 +29,24 @@ review checkpoint before any code is written.
 ### Step 1: Read Source Material
 
 Read these files in order:
-1. `.artifacts/implement/{jira-key}/01-context.md` (story context)
-2. The project's `AGENTS.md` and/or `CLAUDE.md` (coding conventions)
+1. `.artifacts/implement/{issue-key}/01-context.md` (story context)
+2. `.artifacts/implement/{issue-key}/testplan.md` (story-scoped testplan, if exists)
+3. The project's `AGENTS.md` and/or `CLAUDE.md` (coding conventions)
 
 If `01-context.md` doesn't exist, tell the user that `/ingest` should be
 run first.
+
+Then open **citations only** from `01-context.md` (ingest is an index; this is where the files are read):
+
+1. Each `[Design: §…]` (or equivalent) → that path + heading range. Do not Read the rest of the design doc.
+2. Cited source/test paths (Affected Components + Cited, not opened) as needed to name types. Signature `offset`/`limit` slices, not whole files.
+3. Cap **≤12** cited source Reads total (bootstrap reads of `01-context.md`, `testplan.md`, and `AGENTS.md`/`CLAUDE.md` do not count). Skip a citation if it is not needed to lock a task or interface.
+4. Do not glob, repo-wide grep, Jira, or unrelated sibling artifacts. Read the required `testplan.md` when it exists. Do not re-run ingest exploration.
+5. Classify each ingest open question (ingest is an index, not a spec). Do **not** treat ingest text as a complete contract:
+   - **Already specified:** citations (or an unambiguous AC) define the parse path, type, or behavior → **Locked decision**.
+   - **Implementer default:** unspecified but `/code` needs a choice (timeout number, binary pin, field name that must match an existing pattern). Lock a default that matches cited neighboring code; note it is a default `/revise` may change. Do not leave it open.
+   - **Product fork:** spec vs AC, or two product-legal behaviors. Keep under **Open Questions**. Follow AC in the tasks until the user picks. Do not silently lock the design side.
+6. Do not paste opened file bodies into `02-plan.md` (signatures and decisions only).
 
 ### Step 2: Determine Local Base and PR Target
 
@@ -81,10 +94,10 @@ Before writing the plan, create a mental map:
 
 ### Step 4: Write the Implementation Plan
 
-Write `.artifacts/implement/{jira-key}/02-plan.md` with this structure:
+Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
 
 ```markdown
-# Implementation Plan — {jira-key}
+# Implementation Plan — {issue-key}
 
 ## Summary
 
@@ -92,9 +105,13 @@ Write `.artifacts/implement/{jira-key}/02-plan.md` with this structure:
 
 ## Branch
 
-- **Name:** {jira-key}-{short-slug} (e.g., EDM-1234-fleet-rollback)
+- **Name:** {issue-key}-{short-slug} (e.g., EDM-1234-fleet-rollback)
 - **Local Base:** {branch confirmed in Step 2 — used for rebasing during /code and /validate}
 - **PR Target:** {branch confirmed in Step 2 — used as --base in gh pr create; typically `main`}
+
+## Locked Decisions
+
+{Ingest gaps resolved as “already specified” or “implementer default.” Each bullet: decision + one-line why (citation or “default, match {existing pattern}”). Product forks do not belong here.}
 
 ## Interface Definitions
 
@@ -174,6 +191,24 @@ Write `.artifacts/implement/{jira-key}/02-plan.md` with this structure:
 
 {Every AC must appear in at least one task. Flag any gaps.}
 
+## Test Plan Coverage
+
+{Include this section only if `.artifacts/implement/{issue-key}/testplan.md`
+ exists. If no story-scoped testplan: omit this section entirely.}
+
+| TC ID | Title | Covered by Task | Notes |
+|-------|-------|-----------------|-------|
+| TC-FR1-01 | {title} | Task 2 | |
+| TC-FR1-02 | {title} | Task 3 | |
+| TC-NFR1-01 | {title} | N/A | {rationale} |
+
+{Every TC ID from testplan.md must appear. Each must be assigned to a
+ task or marked N/A with a rationale (e.g., "NFR verified by load test
+ infrastructure, not unit/integration tests"). This is a set-diff gate:
+ compute the difference between the set of TC IDs in testplan.md and
+ the set assigned to tasks or marked N/A. If the difference is
+ non-empty, the plan is incomplete — resolve before proceeding.}
+
 ## Risk Assessment
 
 {Things the plan author is uncertain about. Ordered by impact.}
@@ -182,8 +217,8 @@ Write `.artifacts/implement/{jira-key}/02-plan.md` with this structure:
 
 ## Open Questions
 
-{Questions that need resolution before or during implementation. These
- may be carried forward from the ingest phase's open questions.}
+{Product forks only — spec vs AC or two product-legal behaviors. Not
+ implementer defaults. If none: “None — `/code` can proceed.”}
 ```
 
 ### Step 5: Self-Review
@@ -201,6 +236,10 @@ Before presenting the plan, verify:
 - [ ] No tasks modify code outside the story's scope
 - [ ] Task count is reasonable — if you have more than 10 tasks, consider whether the story needs re-scoping
 - [ ] The plan is achievable — no tasks depend on unavailable infrastructure or unmerged code
+- [ ] If story-scoped testplan exists: every TC ID is assigned to a task or marked N/A with rationale (Test Plan Coverage set-diff is clean)
+- [ ] Every ingest open question is a locked decision (specified or implementer default) or a product fork still listed
+- [ ] Open Questions contains only product forks, not pins/timeouts/names `/code` could default
+- [ ] Cited Reads stayed within the cap; `02-plan.md` has no pasted file bodies
 
 ### Step 6: Present to User
 
@@ -213,7 +252,7 @@ Show the user the complete plan and highlight:
 
 ## Output
 
-- `.artifacts/implement/{jira-key}/02-plan.md`
+- `.artifacts/implement/{issue-key}/02-plan.md`
 
 ## When This Phase Is Done
 

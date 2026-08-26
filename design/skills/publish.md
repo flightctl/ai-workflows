@@ -25,13 +25,13 @@ the user before taking action.
 
 ### Step 1: Read the Design Document
 
-Read `.artifacts/design/{issue-number}/03-design.md`.
+Read `.artifacts/design/{issue-key}/03-design.md`.
 
 If the file doesn't exist, tell the user that `/draft` should be run first.
 
 ### Step 2: Resolve Docs Repo
 
-Check for an existing docs repo configuration at `.artifacts/prd/config.json`.
+Check for an existing docs repo configuration at `.artifacts/config.json`.
 
 **If the config exists**, read it and validate:
 
@@ -40,7 +40,8 @@ Check for an existing docs repo configuration at `.artifacts/prd/config.json`.
 3. Verify the remote URL matches the configured `docs_repo_remote`
 
 If any validation fails, inform the user what failed and re-ask for the
-correct values.
+correct values. Resolve `~` to an absolute path before saving. Update
+`.artifacts/config.json` with the corrected values.
 
 **If the config does not exist**, ask the user:
 
@@ -49,14 +50,9 @@ correct values.
 - **Docs repo remote:** Run `git -C "{docs_repo_path}" remote get-url origin`
   and confirm the result with the user before proceeding
 
-Validate the path and remote, then save the config:
-
-```bash
-mkdir -p .artifacts/prd
-```
-
-Write `.artifacts/prd/config.json` with the validated `docs_repo_path` and
-`docs_repo_remote`.
+Validate the path and remote. Resolve `~` to the user's home directory
+so the stored path is absolute. Write `.artifacts/config.json` with the
+validated `docs_repo_path` and `docs_repo_remote`.
 
 ### Step 3: Pre-Flight Checks
 
@@ -77,7 +73,7 @@ git -C "{docs_repo_path}" status
 ```
 
 Provenance at publish time:
-- If `.artifacts/design/{issue-number}/provenance.json` exists from `/draft`, `/revise`,
+- If `.artifacts/design/{issue-key}/provenance.json` exists from `/draft`, `/revise`,
   or `/respond`, the footer reflects the full authoring session (`provenance_kind:
   session`).
 - If the log is missing, the render recipe **auto-captures a commit-time snapshot**
@@ -86,21 +82,33 @@ Provenance at publish time:
 - Only if the user explicitly declines provenance, pass `ALLOW_MISSING=yes` to strip
   the footer and record `provenance_kind: declined` (no human-readable block).
 
-Check for PRD publish metadata at
-`.artifacts/prd/{issue-number}/publish-metadata.json`. If it exists, read
-the `release` and `feature` values and propose them as defaults below.
+Search the docs repo for a published PRD directory containing
+`{issue-key}`:
+
+```bash
+find "{docs_repo_path}" -type d -name "*{issue-key}*"
+```
+
+Filter matches to directories that contain a `prd.md` file.
+
+If exactly one matching directory contains `prd.md` (e.g.,
+`v2.1/delta-updates-EDM-4867`), parse the path to extract `release` (first
+path component under the docs repo root) and `feature` (second component)
+and propose them as defaults below. If multiple matches contain `prd.md`,
+present them to the user and ask which one to use.
 
 Confirm with the user:
 - **Base branch:** Which branch should the PR target? (usually `main`)
 - **Release:** Which release is this for? (e.g., `v2.1`, `2026-Q2`).
-  If PRD publish metadata exists, propose its `release` value as the
-  default. Otherwise, if the Jira issue has a fix version, suggest that.
+  If a PRD directory was found, propose the extracted `release` value as
+  the default. Otherwise, if the Jira issue has a fix version, suggest that.
 - **Feature:** A short, lowercase, hyphenated slug for the feature
   directory, with the Jira issue key appended (e.g., `port-mappings-EDM-1471`).
-  If PRD publish metadata exists, propose its `feature` value as the
-  default. Otherwise, suggest a slug derived from the Jira issue summary
+  If a PRD directory was found, propose the extracted `feature` value as
+  the default. Otherwise, suggest a slug derived from the Jira issue summary
   with the issue key appended. Ask for **just the slug**, not a full path.
-- **Branch name:** Propose `design/{issue-number}` and let the user override
+- **Branch name:** Propose `design/{issue-key}` and let the user override.
+  Use the confirmed value as `{branch-name}` in all subsequent steps.
 
 These values determine the design document file path in the docs repo:
 `{release}/{feature}/design.md`. The filename is always `design.md` —
@@ -111,10 +119,18 @@ placed alongside the PRD (`prd.md`) if one was published previously.
 All git operations run against the **docs repo**. Use
 `git -C "{docs_repo_path}"` for all commands.
 
+Verify the docs repo is clean before modifying it:
+
+```bash
+git -C "{docs_repo_path}" status
+```
+
+If there are uncommitted changes, ask the user before continuing.
+
 Check if the branch already exists:
 
 ```bash
-git -C "{docs_repo_path}" branch --list design/{issue-number}
+git -C "{docs_repo_path}" branch --list {branch-name}
 ```
 
 ```bash
@@ -122,20 +138,20 @@ git -C "{docs_repo_path}" fetch origin
 ```
 
 ```bash
-git -C "{docs_repo_path}" branch -r --list origin/design/{issue-number}
+git -C "{docs_repo_path}" branch -r --list origin/{branch-name}
 ```
 
 Depending on results:
 
 ```bash
 # If branch exists locally:
-git -C "{docs_repo_path}" checkout design/{issue-number}
+git -C "{docs_repo_path}" checkout {branch-name}
 
 # If branch does not exist locally but exists on remote:
-git -C "{docs_repo_path}" checkout -b design/{issue-number} origin/design/{issue-number}
+git -C "{docs_repo_path}" checkout -b {branch-name} origin/{branch-name}
 
 # If branch doesn't exist at all:
-git -C "{docs_repo_path}" checkout -b design/{issue-number}
+git -C "{docs_repo_path}" checkout -b {branch-name}
 ```
 
 Copy the design document artifact to the docs repo:
@@ -145,35 +161,63 @@ mkdir -p "{docs_repo_path}/{release}/{feature}"
 ```
 
 ```bash
-cp ".artifacts/design/{issue-number}/03-design.md" "{docs_repo_path}/{release}/{feature}/design.md"
+cp ".artifacts/design/{issue-key}/03-design.md" "{docs_repo_path}/{release}/{feature}/design.md"
 ```
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
-`WORKFLOW=design`, `ISSUE_NUMBER={issue-number}`,
+`WORKFLOW=design`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{docs_repo_path}/{release}/{feature}/design.md"`.
 
 ```bash
 git -C "{docs_repo_path}" add "{release}/{feature}/design.md"
 ```
 
+**Testplan publication:**
+
+**If `04-testplan.md` does not exist:** check whether a previously
+published testplan exists at
+`{docs_repo_path}/{release}/{feature}/testplan.md`. If it does, remove
+it:
+
 ```bash
-git -C "{docs_repo_path}" commit -m "Add design document for {issue-number}: {title}"
+git -C "{docs_repo_path}" rm -- "{release}/{feature}/testplan.md"
+```
+
+Commit with the design-only message (regardless of whether a stale
+testplan was removed) and skip to Step 5:
+
+```bash
+git -C "{docs_repo_path}" commit -m "Add design document for {issue-key}: {title}"
+```
+
+**If `04-testplan.md` exists**, copy it to the docs repo:
+
+```bash
+cp ".artifacts/design/{issue-key}/04-testplan.md" "{docs_repo_path}/{release}/{feature}/testplan.md"
+```
+
+```bash
+git -C "{docs_repo_path}" add "{release}/{feature}/testplan.md"
+```
+
+```bash
+git -C "{docs_repo_path}" commit -m "Add design document and testplan for {issue-key}: {title}"
 ```
 
 ### Step 5: Push and Create PR
 
 ```bash
-git -C "{docs_repo_path}" push -u origin design/{issue-number}
+git -C "{docs_repo_path}" push -u origin {branch-name}
 ```
 
 Read the design document and identify specific areas that warrant reviewer
 attention:
-- Open questions from Section 8 (list each by title)
+- Open questions from Section 9 (list each by title)
 - Sections with remaining TBD markers
 - Key architectural decisions that have significant trade-offs
 
 Prepare the PR description and save it to
-`.artifacts/design/{issue-number}/07-pr-description.md`:
+`.artifacts/design/{issue-key}/08-pr-description.md`:
 
 ```markdown
 ## Design: {title}
@@ -189,20 +233,44 @@ Prepare the PR description and save it to
 markers, or significant trade-offs, list each as a bullet. If none
 exist, write "General review — no specific items flagged."}
 
+### Documents
+- `design.md` — technical design document
+{If `04-testplan.md` was published, add:
+- `testplan.md` — behavioral test cases mapped to PRD requirements
+Otherwise, omit the testplan bullet entirely.}
+
 ### How to Review
 - Comment inline on specific sections
 - Approve when the design accurately reflects a viable implementation approach
 ```
 
-Determine `{owner}/{repo}` from `docs_repo_remote`, then create the draft PR:
+Determine `{owner}/{repo}` from `docs_repo_remote`, then create the
+draft PR. Set `{pr-title}` based on whether `{issue-key}` is a Jira
+key: if yes, use `{issue-key}: Design - {title}`; otherwise use
+`Design: {title}`.
 
 ```bash
-gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head design/{issue-number} --title "Design: {title}" --body-file .artifacts/design/{issue-number}/07-pr-description.md
+gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head {branch-name} --title "{pr-title}" --body-file .artifacts/design/{issue-key}/08-pr-description.md
 ```
 
 ### Step 6: Save Publish Metadata
 
-Write `.artifacts/design/{issue-number}/publish-metadata.json`:
+Write `.artifacts/design/{issue-key}/publish-metadata.json`:
+
+If `04-testplan.md` was published:
+
+```json
+{
+  "release": "{release}",
+  "feature": "{feature}",
+  "design_file_path": "{release}/{feature}/design.md",
+  "testplan_file_path": "{release}/{feature}/testplan.md",
+  "pr_number": {pr-number},
+  "branch": "{branch-name}"
+}
+```
+
+If no testplan was published, omit `testplan_file_path` entirely:
 
 ```json
 {
@@ -210,7 +278,7 @@ Write `.artifacts/design/{issue-number}/publish-metadata.json`:
   "feature": "{feature}",
   "design_file_path": "{release}/{feature}/design.md",
   "pr_number": {pr-number},
-  "branch": "design/{issue-number}"
+  "branch": "{branch-name}"
 }
 ```
 
@@ -224,11 +292,11 @@ Present:
 
 ## Output
 
-- `.artifacts/prd/config.json` (created if it didn't exist)
-- `.artifacts/design/{issue-number}/publish-metadata.json`
+- `.artifacts/config.json` (workspace-level config, created if it didn't exist)
+- `.artifacts/design/{issue-key}/publish-metadata.json`
 - Design document committed and pushed to feature branch in the docs repo
 - Draft PR created against the docs repo
-- `.artifacts/design/{issue-number}/07-pr-description.md`
+- `.artifacts/design/{issue-key}/08-pr-description.md`
 
 ## When This Phase Is Done
 

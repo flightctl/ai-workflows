@@ -58,15 +58,15 @@ yet or failed to create), leave the local identifier, annotate it with
 ### Step 1: Read Decomposition Artifacts and Detect Changes
 
 Read these files:
-1. `.artifacts/design/{issue-number}/04-epics.md` (epic metadata and ordering)
-2. `.artifacts/design/{issue-number}/05-stories/epic-*.md` (individual epic files)
-3. `.artifacts/design/{issue-number}/05-stories/epic-*/story-*.md` (all story files)
-4. `.artifacts/design/{issue-number}/03-design.md` (for the Jira link and title)
+1. `.artifacts/design/{issue-key}/05-epics.md` (epic metadata and ordering)
+2. `.artifacts/design/{issue-key}/06-stories/epic-*.md` (individual epic files)
+3. `.artifacts/design/{issue-key}/06-stories/epic-*/story-*.md` (all story files)
+4. `.artifacts/design/{issue-key}/03-design.md` (for the Jira link and title)
 
 If these don't exist, tell the user that `/decompose` should be run first.
 
 Check for an existing sync manifest at
-`.artifacts/design/{issue-number}/sync-manifest.json`.
+`.artifacts/design/{issue-key}/sync-manifest.json`.
 
 #### If no manifest exists
 
@@ -192,7 +192,7 @@ Confirm with the user:
 Present a preview of all planned operations:
 
 ```markdown
-## Jira Sync Preview — {issue-number}
+## Jira Sync Preview — {issue-key}
 
 ### Feature: {feature-key} — {title}
 
@@ -289,7 +289,7 @@ For each new epic, create a Jira issue:
 ```markdown
 ## Summary
 
-{summary from the epic file (05-stories/epic-{N}-{slug}.md)}
+{summary from the epic file (06-stories/epic-{N}-{slug}.md)}
 
 ## Acceptance Criteria
 
@@ -429,6 +429,8 @@ Design document: {link to design doc PR or file}
 Epic: {epic jira key}
 PRD Requirements: {requirement IDs}
 Design section: {§reference}
+Interface Changes: {IC-1, IC-2 — from story file, preserved as-is}
+Validated by: {TC-FR1-01, TC-FR3-02 — from story file, preserved as-is}
 ```
 
 **For `[DOCS]` stories:**
@@ -487,11 +489,42 @@ wasn't created or failed), skip the link and note it for the user. These
 links enable downstream workflows (e.g., docs-writer) to traverse the
 dependency chain via the Jira API.
 
-For each dependency, create a link where the current story **depends on**
-the dependency story. Try the Jira "Dependency" link type first
-(relationship `"depends on"` / `"is depended on by"`). If the API
-returns an error indicating the link type is not available, fall back to
-"Blocks" (where the dependency story **blocks** the current story).
+For each dependency, the semantic relationship is:
+
+> The **current story** depends on the **dependency story**.
+> Equivalently: the **dependency story** blocks the **current story**.
+
+**Link type selection:** Try the "Dependency" link type first
+(`"depends on"` / `"is depended on by"`). If the Jira instance does
+not have this type, fall back to "Blocks"
+(`"blocks"` / `"is blocked by"`).
+
+**Example:** If Story 1.02's artifact lists `Dependencies: Story 1.01`,
+then Story 1.01 must finish before Story 1.02 can begin. After link
+creation, Jira should show (depending on which link type was used):
+
+Using "Dependency":
+- On Story 1.01's issue: **"is depended on by"** Story 1.02
+- On Story 1.02's issue: **"depends on"** Story 1.01
+
+Using "Blocks" (fallback):
+- On Story 1.01's issue: **"blocks"** Story 1.02
+- On Story 1.02's issue: **"is blocked by"** Story 1.01
+
+**Getting the direction right:** Jira link-creation APIs use directional
+fields (e.g., `inwardIssue` / `outwardIssue`) whose meaning varies by
+link type. Using the link type definition already retrieved above, read
+the chosen type's inward and outward descriptions and assign the
+dependency story's key and the current story's key to whichever fields
+produce the expected display above. **After creating the first
+dependency link in a sync run, read the current story's issue links
+back from Jira, find the link matching the dependency story's key and
+the selected link type, and verify its direction matches the expected
+display. If the direction is wrong, delete the link, swap the field
+assignments, recreate it, and re-verify. If the retry also fails, log
+the failure and continue with the remaining links (same as any other
+link failure).**
+
 Issue link creation is a separate Jira operation — use the Jira CLI or
 MCP server to create the link.
 
@@ -513,10 +546,14 @@ the Jira key from the manifest:
 - **Summary:** re-read the `[{prefix}] {story title}` from the current file
 - **Description:** re-render the full description from the current file
   content (same template as creation above), resolving all references
-- **Issue links:** read the Jira issue's current issue links and compare
-  against the artifact file's dependency list. Remove links that no
-  longer appear in the artifact and create new links for added
-  dependencies.
+- **Issue links:** read the Jira issue's current issue links and filter
+  to only those matching the link type selected in Step 5a (either
+  "Dependency" or "Blocks", whichever was used during creation).
+  Compare these filtered links against the artifact file's dependency
+  list. Remove links whose dependency stories no longer appear in the
+  artifact and create new links for added dependencies, using the same
+  link type and direction mapping as Step 5a. Do not touch issue links
+  of other types.
 
 Update only the sync-owned fields. Do not touch status, assignee, or
 other Jira-managed fields.
@@ -616,7 +653,7 @@ local `.artifacts/` files who needs to find the corresponding Jira issue:
 ## Output
 
 - Jira epics and stories created, updated, or closed (with user approval)
-- `.artifacts/design/{issue-number}/sync-manifest.json` (v2 schema)
+- `.artifacts/design/{issue-key}/sync-manifest.json` (v2 schema)
 
 ## When This Phase Is Done
 
