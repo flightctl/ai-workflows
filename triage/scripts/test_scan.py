@@ -271,6 +271,15 @@ class TestNameOrDefault(unittest.TestCase):
     def test_dict_missing_key(self) -> None:
         self.assertEqual(scan._name_or_default({"id": "1"}), "")
 
+    def test_present_but_null_returns_default(self) -> None:
+        # Jira returns e.g. {"name": null} for an unset priority; the
+        # default must win over the null so output stays string-typed.
+        self.assertEqual(scan._name_or_default({"name": None}), "")
+        self.assertEqual(
+            scan._name_or_default({"displayName": None}, "displayName", "Unassigned"),
+            "Unassigned",
+        )
+
     def test_dict_custom_key(self) -> None:
         self.assertEqual(
             scan._name_or_default({"displayName": "Alice"}, "displayName"),
@@ -552,7 +561,9 @@ class TestFetchAllIssues(unittest.TestCase):
         search = _fake_search([page1, page2])
         scan.fetch_all_issues(search, "project = EDM", "summary")
 
-        self.assertEqual(len(search.call_log), 2)
+        # Three calls: page1, page2 (short, no longer terminal), then the
+        # empty page that actually ends the scan.
+        self.assertEqual(len(search.call_log), 3)
         self.assertNotIn("key >", search.call_log[0])
         self.assertIn(f"key > 'EDM-{scan.PAGE_SIZE}'", search.call_log[1])
 
@@ -572,6 +583,23 @@ class TestFetchAllIssues(unittest.TestCase):
         result = scan.fetch_all_issues(search, "project = EDM", "summary")
         self.assertEqual(len(result), scan.PAGE_SIZE)
         self.assertEqual(len(search.call_log), 2)
+
+    def test_short_page_midstream_not_terminal(self) -> None:
+        # The /rest/api/3/search/jql endpoint may return fewer than
+        # max_results even when more results exist. A short page mid-stream
+        # must not end the scan, or later issues are silently dropped.
+        page1 = [_raw_issue(f"EDM-{i}") for i in range(1, scan.PAGE_SIZE + 1)]
+        short = [_raw_issue(f"EDM-{scan.PAGE_SIZE + i}") for i in range(1, 4)]
+        page3 = [_raw_issue(f"EDM-{scan.PAGE_SIZE + 4}")]
+        search = _fake_search([page1, short, page3])
+
+        result = scan.fetch_all_issues(search, "project = EDM", "summary")
+
+        keys = [r["key"] for r in result]
+        self.assertEqual(len(keys), scan.PAGE_SIZE + 4)
+        # Both the short mid-stream page and the page after it survive.
+        self.assertIn(f"EDM-{scan.PAGE_SIZE + 1}", keys)
+        self.assertIn(f"EDM-{scan.PAGE_SIZE + 4}", keys)
 
     def test_deduplication(self) -> None:
         issues = [
@@ -686,7 +714,9 @@ class TestMain(unittest.TestCase):
                 resolutiondate="2026-01-20T14:00:00.000+0000",
             ),
         ]
-        code = self._run_main([unresolved, resolved])
+        # An empty page terminates the unresolved fetch before the resolved
+        # fetch begins (both share the mocked search's page iterator).
+        code = self._run_main([unresolved, [], resolved])
 
         self.assertEqual(code, 0)
         self.assertTrue((self._output_dir / "issues.json").is_file())
@@ -1003,6 +1033,17 @@ class TestParseArgs(unittest.TestCase):
     def test_missing_project_exits(self) -> None:
         with self.assertRaises(SystemExit):
             scan.parse_args([])
+
+    def test_zero_window_days_accepted(self) -> None:
+        args = scan.parse_args(["EDM", "--window-days", "0"])
+        self.assertEqual(args.window_days, 0)
+
+    def test_negative_window_days_rejected(self) -> None:
+        # A negative window would build malformed JQL (resolved >= --5d);
+        # argparse must reject it up front with usage exit code 2.
+        with self.assertRaises(SystemExit) as ctx:
+            scan.parse_args(["EDM", "--window-days", "-5"])
+        self.assertEqual(ctx.exception.code, 2)
 
 
 if __name__ == "__main__":

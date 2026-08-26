@@ -223,7 +223,10 @@ def fetch_all_issues(
 
     ``search_fn(jql, fields, max_results)`` is called repeatedly with
     ``AND key > '{last_key}' ORDER BY key ASC`` appended to the base JQL
-    until a page returns fewer than PAGE_SIZE results.
+    until a page comes back empty. Termination does not rely on a page
+    being full: the ``/rest/api/3/search/jql`` endpoint may return fewer
+    than ``max_results`` even when more results exist, so a short page is
+    not treated as the last one.
     """
     all_issues: list[dict[str, Any]] = []
     last_key = ""
@@ -256,9 +259,6 @@ def fetch_all_issues(
                 f"Pagination cursor did not advance (stuck at {last_key})"
             )
         last_key = new_key
-
-        if len(page) < PAGE_SIZE:
-            break
 
     seen: set[str] = set()
     deduped: list[dict[str, Any]] = []
@@ -307,7 +307,10 @@ def extract_text(value: Any) -> str:
 def _name_or_default(field: Any, key: str = "name", default: str = "") -> str:
     """Extract a named attribute from a Jira object field, or return default."""
     if isinstance(field, dict):
-        return field.get(key, default)
+        # `or default` (not get's default arg) so a present-but-null value
+        # — Jira returns e.g. {"name": null} for an unset priority — still
+        # yields the string default rather than None.
+        return field.get(key) or default
     return default
 
 
@@ -404,6 +407,18 @@ def write_json_file(path: Path, data: dict[str, Any]) -> None:
 # CLI
 # ---------------------------------------------------------------------------
 
+def _non_negative_int(value: str) -> int:
+    """argparse type: reject negatives so --window-days can't build bad JQL.
+
+    A negative value would produce ``resolved >= --5d``, which fails as an
+    opaque Jira API error far from the cause; catch it at parse time instead.
+    """
+    ivalue = int(value)
+    if ivalue < 0:
+        raise argparse.ArgumentTypeError(f"must be non-negative (got {ivalue})")
+    return ivalue
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Scan Jira for unresolved and recently resolved bugs.",
@@ -414,7 +429,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--window-days",
-        type=int,
+        type=_non_negative_int,
         default=90,
         help="Number of days to look back for resolved bugs (default: 90)",
     )
