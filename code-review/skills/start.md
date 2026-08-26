@@ -93,11 +93,11 @@ Warn if `.artifacts/` is not gitignored.
 ### Step 4: Discover Project Context
 
 **Cache:** If `.artifacts/code-review/_reviewer-profile.md` exists and
-`.artifacts/code-review/.meta.json` `skill_version` is `0.3.0` and
+`.artifacts/code-review/.meta.json` `skill_version` is `0.4.0` and
 hashes/mtimes for `AGENTS.md`/`CLAUDE.md`, `CONTRIBUTING.md`, Makefile
 (or equivalent), and CI workflow filenames still match, copy the cache
 into `{branch}/00-reviewer-profile.md` and skip convention Reads.
-Missing `skill_version` (pre-0.3.0 caches) is a miss.
+Missing `skill_version` (pre-0.4.0 caches) is a miss.
 
 **Miss:** One discovery pass. Skip `AGENTS.md`/`CLAUDE.md` if already in
 this session — copy applicable conventions into the profile from session
@@ -120,7 +120,7 @@ invalidates old caches):
 
 ```json
 {
-  "skill_version": "0.3.0",
+  "skill_version": "0.4.0",
   "AGENTS.md": {"mtime": "{unix}", "sha256": "{hex or empty}"},
   "CLAUDE.md": {"mtime": "{unix}", "sha256": "{hex or empty}"},
   "CONTRIBUTING.md": {"mtime": "{unix}", "sha256": "{hex or empty}"},
@@ -233,11 +233,13 @@ Read the review file and work through **every** finding.
 
 #### 7a: Validate finding references
 
-AI reviewers hallucinate file paths and line numbers. For each finding,
-confirm the cited file is on the name-status / untracked list, the
-location (line range or function) exists in the current file, and the
-cite is in scope of this change. Discard findings that fail any check.
-Note discards internally, not in the user-facing table.
+For each finding, confirm that the cited file and location actually exist
+in the change. AI reviewers hallucinate file paths and line numbers. If a
+finding references a file that was not changed (not on the name-status /
+untracked list and not a path the reviewer Read), or a location that does
+not exist, discard it — do not present it to the user. Note discarded
+findings and why in your internal assessment (not in the user-facing
+table).
 
 #### 7b: Assess on value
 
@@ -317,8 +319,8 @@ Once the user states decisions, persist them to
 {
   "round": 1,
   "decisions": [
-    {"finding": 1, "decision": "accept", "guidance": null},
-    {"finding": 2, "decision": "reject", "reason": "user rationale"}
+    {"finding": 1, "title": "{short title}", "file": "{path}", "location": "{line or function}", "decision": "accept", "guidance": null},
+    {"finding": 2, "title": "{short title}", "file": "{path}", "location": "{line or function}", "decision": "reject", "reason": "user rationale"}
   ]
 }
 ```

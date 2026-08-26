@@ -264,10 +264,12 @@ changed this round only if its hash differs — being listed again in
 
 Build a short **already decided** list from **every**
 `decisions-*.json` in the branch artifact directory, not only the latest
-round. Compact entries: file, location, accept/reject. Key by file +
-location. A finding rejected in round 1 stays settled in later rounds.
-Unattended mode must not accept a previously rejected finding unless
-that file's hash changed this round and the new review re-raised it.
+round. Compact entries: finding number, title, file, location,
+accept/reject. Key by file + location + title — two findings at the same
+location are distinct if their titles differ. A finding rejected in
+round 1 stays settled in later rounds. Unattended mode must not accept a
+previously rejected finding unless that file's hash changed this round
+and the new review re-raised it with a different title.
 
 **Hunk Reads (reviewer and sequential fallback):** For each relevant
 **tracked** path in the **full current** index, Read ~80 lines around
@@ -321,12 +323,13 @@ one writer. Do not overwrite the subagent file.
 
 #### 7a: Validate finding references
 
-AI reviewers hallucinate file paths and line numbers. For each finding,
-confirm the cited file is on the name-status / untracked list (or a path
-the reviewer Read), the location (line range or function) exists in the
-current file, and the cite is in scope of this change. Discard findings
-that fail any check. Note discards internally, not in the user-facing
-table.
+For each finding, confirm that the cited file and location actually exist
+in the change. AI reviewers hallucinate file paths and line numbers. If a
+finding references a file that was not changed (not on the name-status /
+untracked list and not a path the reviewer Read), or a location that does
+not exist, discard it — do not present it to the user. Note discarded
+findings and why in your internal assessment (not in the user-facing
+table).
 
 ### Step 8: Update Metadata
 
@@ -475,7 +478,7 @@ unattended means the user delegated decisions, not visibility. Then:
    escalate to the user (same guardrail as `/start`).
 2. Otherwise, treat the implementor's recommendations as decisions,
    except do not accept a finding that matches a prior reject (same
-   file + location) unless that file's hash changed this round.
+   file + location + title) unless that file's hash changed this round.
    Persist them to `decisions-{NNN}.json`, and loop back to Step 3 to
    implement the next round.
 

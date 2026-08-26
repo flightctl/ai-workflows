@@ -18,15 +18,13 @@ Repeat the following block for each finding, incrementing
 - **Suggestion:** {concrete, actionable fix}
 
 ## Questions
-{questions the reviewer has about design intent, expected behavior,
-or context that would affect the review. These are not findings —
-they are requests for clarification.}
+
+Repeat the following block for each question. If there are no
+questions, omit this section.
 
 - **File:** {file path}
 - **Location:** {line range or function name}
 - **Question:** {what the reviewer wants to understand}
-
-{If no questions: omit this section.}
 
 ## Verdict
 {APPROVED | CHANGES_REQUESTED}
