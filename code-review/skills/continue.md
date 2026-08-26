@@ -232,11 +232,13 @@ Clean it up before handing it to the reviewer.
 
 ### Step 7: Obtain Re-Review
 
-Obtain a fresh review of the current state. Spawn a **new, independent**
-reviewer (do not resume a prior reviewer — that would reload dumped
-history). Do **not** pass `AGENTS.md`, `guidelines.md`, the raw patch, or
-historical `code-review-*.md` / `review-response-*.md` files other than
-the latest round.
+Obtain a fresh review of the **full current** uncommitted change, not
+only the files touched in this `/continue` round. Last-round delta is
+not the review scope. Spawn a **new, independent** reviewer (do not
+resume a prior reviewer — that would reload dumped history). Do **not**
+pass `AGENTS.md`, `guidelines.md`, the raw patch, or historical
+`code-review-*.md` / `review-response-*.md` files other than the latest
+round.
 
 Capture a **diff index** (do not dump `git diff HEAD`):
 
@@ -246,12 +248,27 @@ git diff HEAD --name-status
 git ls-files --others --exclude-standard
 ```
 
+If any of these commands fail, or they return empty when `git status`
+shows changes, stop and report the error. Do not review with an
+incomplete index.
+
+Write `{branch}/diff-index-{NNN}.json` **once** (same schema as start's
+`diff-index-001.json`, with this round's number). Compare each path's
+`hashes` entry to the previous round's `diff-index-*.json`. A file
+changed this round only if its hash differs — being listed again in
+`git diff HEAD --name-status` is not enough.
+
 Build a short **already decided** list from the latest round: finding id
 and accept/reject only.
 
 **Hunk Reads (reviewer and sequential fallback):** For each relevant
-path, Read ~80 lines around changed lines (`offset`/`limit`). Cap **≤20**
-hunk Reads. Skip generated, vendor, and lockfile paths.
+path in the **full current** index, Read ~80 lines around changed lines
+(`offset`/`limit`). Cap **≤20** hunk Reads. Skip generated, vendor, and
+lockfile paths. The slice is for context, not isolation: does a new
+function duplicate existing functionality? Is the error handling
+consistent with the rest of the file? Does the change interact correctly
+with surrounding code? If the cap is hit, list files that got only
+`--stat` coverage in the review summary.
 
 **If the AI runtime supports subagents:** Spawn a subagent. Load **only**:
 
@@ -267,28 +284,33 @@ Store any new agent ID in the metadata.
 
 **If subagents are not available:** Read `../../_shared/review-protocol.md`
 (not `guidelines.md`) and review sequentially. Same hunk-Read rules.
+Evaluate the code as if you did not write it.
 
 The reviewer should evaluate all categories in
 `../../_shared/review-protocol.md` and additionally:
 
 - Verify that accepted findings were addressed correctly
 - Check whether the changes introduced new issues
-- Re-check **rejected** findings only if that finding's file appears in
-  the current name-status index (hunks changed). Do not re-argue settled
-  rejects on unchanged files
+- Re-check **rejected** findings only if that finding's file **hash
+  changed this round**. Do not re-argue settled rejects on files that
+  are still in `git diff HEAD` but were not modified this round
 - Issue a verdict: APPROVED or CHANGES_REQUESTED
 
 Parent Reads `../templates/code-review.md` **once**. Instruct the
 subagent to write
 `.artifacts/code-review/{branch}/code-review-{NNN}.md` (incremented
-number) using that skeleton. If reviewing sequentially, Write that file
-**once** from the template.
+number) using that skeleton. The subagent writes that file. The parent
+writes it **only** when reviewing sequentially (no subagent). Exactly
+one writer. Do not overwrite the subagent file.
 
 #### 7a: Validate finding references
 
-Same as `/start` Step 7a: every finding must cite a path from the
-name-status / untracked list (or a path the reviewer Read). Drop or
-rewrite findings that cite files outside the change.
+AI reviewers hallucinate file paths and line numbers. For each finding,
+confirm the cited file is on the name-status / untracked list (or a path
+the reviewer Read), the location (line range or function) exists in the
+current file, and the cite is in scope of this change. Discard findings
+that fail any check. Note discards internally, not in the user-facing
+table.
 
 ### Step 8: Update Metadata
 
@@ -385,7 +407,9 @@ the "APPROVED with no findings" path above) before proceeding to Step 10.
 
 In **unattended mode**, still present the approval and suggestions table
 — the user can interrupt at any time, and the table gives them the
-information to decide whether to do so. Then: if any remaining
+information to decide whether to do so. Do not skip the table because
+the mode is unattended; unattended means the user delegated decisions,
+not visibility. Then: if any remaining
 suggestions have an "Agree" assessment, persist the decisions to
 `decisions-{NNN}.json` and loop back to Step 3 to implement them. If all
 remaining suggestions are assessed as "Disagree", compile
@@ -408,9 +432,18 @@ In **attended mode**, present the decision table and wait:
 
 | # | Severity | Category | Finding | Implementor Assessment | Recommendation |
 |---|----------|----------|---------|----------------------|----------------|
-...
+| 1 | HIGH | Correctness | {short description} | Agree -- {rationale} | Accept |
+| 2 | MEDIUM | Conventions | {short description} | Disagree -- {rationale} | Reject |
+| 3 | LOW | Naming | {short description} | Agree -- adds clarity | Accept |
+| 4 | LOW | Naming | {short description} | Disagree -- current name is idiomatic for this codebase | Reject |
 
-Review the table and let me know your decisions, then run /continue.
+Review the table and let me know your decisions. You can:
+- Accept all recommendations as-is
+- Override any specific recommendation (e.g., "reject #1, accept #2")
+- Add guidance for how a finding should be addressed
+- Correct or supplement any question answers
+
+Then run /continue to implement the accepted changes.
 ```
 
 Once the user states decisions, persist them to
@@ -419,7 +452,8 @@ Once the user states decisions, persist them to
 
 In **unattended mode**, still present the decision table — the user can
 interrupt at any time, and the table gives them the information to decide
-whether to do so. Then:
+whether to do so. Do not skip the table because the mode is unattended;
+unattended means the user delegated decisions, not visibility. Then:
 
 1. If any CRITICAL finding has a "Disagree" assessment, stop and
    escalate to the user (same guardrail as `/start`).
@@ -448,6 +482,7 @@ Tell the user the review is complete and artifacts have been cleaned up.
 ## Output
 
 - `.artifacts/code-review/{branch}/review-response-{NNN}.md`
+- `.artifacts/code-review/{branch}/diff-index-{NNN}.json`
 - `.artifacts/code-review/{branch}/code-review-{NNN}.md`
 - `.artifacts/code-review/{branch}/decisions-{NNN}.json`
 - Updated `review-metadata.json`

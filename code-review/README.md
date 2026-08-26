@@ -60,7 +60,7 @@ No external services (Jira, GitHub CLI) are required. The workflow operates enti
 
 ### Project Discovery
 
-On first run, the workflow reads the project's AGENTS.md, CLAUDE.md, CONTRIBUTING.md, linting configs, and CI workflow filenames to build a reviewer profile. The profile is cached; the reviewer sees an index and hunk slices, not a dump. No manual initialization needed.
+On first run, the workflow reads the project's AGENTS.md, CLAUDE.md, CONTRIBUTING.md, linting configs, and CI workflow filenames to build a reviewer profile. The profile is cached at `.artifacts/code-review/` (not under `{branch}/`) so it survives review cleanup. `.meta.json` includes `skill_version`; a mismatch is a cache miss. The reviewer sees an index and hunk slices, not a dump. If more than 20 files need hunk Reads, remaining files get `--stat` coverage only; those paths are listed in the change summary. No manual initialization needed.
 
 ### The Decision Table
 
@@ -97,7 +97,8 @@ All artifacts are stored in `.artifacts/code-review/{branch}/`.
   .meta.json
   feature-xyz/
     00-reviewer-profile.md   (project conventions and review focus)
-    01-change-summary.md     (what changed, files affected)
+    01-change-summary.md     (what changed, files affected, stat-only coverage)
+    diff-index-001.json      (name-status + hashes; compared on re-review)
     review-metadata.json     (iteration count, state, timestamps)
     decisions-001.json       (user decisions per round)
     code-review-001.md       (initial review)

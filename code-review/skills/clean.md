@@ -56,6 +56,7 @@ Branch: {branch}
 |------|-------------|
 | 00-reviewer-profile.md | Project reviewer profile |
 | 01-change-summary.md | Change summary |
+| diff-index-001.json | Diff index round 1 |
 | code-review-001.md | Review round 1 |
 | review-response-001.md | Response round 1 |
 | decisions-001.json | Decisions round 1 |

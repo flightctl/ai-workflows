@@ -5,7 +5,9 @@
 
 ## Findings
 
-### Finding 1: {short title}
+Repeat the following block for each finding, incrementing N:
+
+### Finding {N}: {short title}
 - **File:** {file path}
 - **Location:** {line range or function name, as applicable}
 - **Severity:** {CRITICAL | HIGH | MEDIUM | LOW}

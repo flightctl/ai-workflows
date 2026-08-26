@@ -21,6 +21,14 @@ accomplish and why}
 
 {If no files excluded: "None -- all changed files are relevant."}
 
+## Stat-only Coverage
+
+| File | Reason |
+|------|--------|
+| {file path} | {hunk-Read cap reached, or generated/vendor/lock} |
+
+{If every file under review got a hunk Read: "None -- all files under review were inspected via hunk Reads."}
+
 ## Key Design Decisions
 {rationale behind significant choices — why this approach over
 alternatives, trade-offs considered. If there are no notable design
