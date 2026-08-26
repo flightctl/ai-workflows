@@ -1,6 +1,6 @@
 ---
 name: ai-ready
-version: 0.3.0
+version: 0.4.0
 description: Scans a codebase structure, audits AI convention files, and creates or updates AGENTS.md with project-specific build commands, test patterns, and coding standards. Use when onboarding a project for AI agents, setting up AI instructions, after significant codebase changes, or to audit AI convention files like AGENTS.md or .cursorrules.
 ---
 # AI-Ready Workflow
