@@ -89,7 +89,12 @@ When the reviewer approves and the user confirms, all artifacts in `.artifacts/c
 
 ## Artifacts
 
-All artifacts are stored in `.artifacts/code-review/{branch}/`.
+Review artifacts for a given branch live in
+`.artifacts/code-review/{branch}/`. The reviewer-profile cache
+(`_reviewer-profile.md` and `.meta.json`) lives at
+`.artifacts/code-review/` (workflow root, not under `{branch}/`) so it
+survives cleanup. Do not place or remove the cache under the branch
+directory.
 
 ```text
 .artifacts/code-review/

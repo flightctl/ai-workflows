@@ -1,13 +1,14 @@
-# Code Review -- Round {N}
+# Code Review -- Round {round}
 
 ## Summary
 {2-3 sentence overall assessment}
 
 ## Findings
 
-Repeat the following block for each finding, incrementing N:
+Repeat the following block for each finding, incrementing
+`{finding_number}` only. Do not change `{round}`.
 
-### Finding {N}: {short title}
+### Finding {finding_number}: {short title}
 - **File:** {file path}
 - **Location:** {line range or function name, as applicable}
 - **Severity:** {CRITICAL | HIGH | MEDIUM | LOW}

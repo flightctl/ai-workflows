@@ -9,11 +9,15 @@ accomplish and why}
 
 ## Files Under Review
 
+Repeat the table row for every file under review.
+
 | Status | File | Purpose of Change |
 |--------|------|-------------------|
 | {M/A/D/R/new} | {file path} | {what changed in this file and why} |
 
 ## Excluded Files
+
+Repeat the table row for every excluded file.
 
 | File | Reason |
 |------|--------|
@@ -22,6 +26,8 @@ accomplish and why}
 {If no files excluded: "None -- all changed files are relevant."}
 
 ## Stat-only Coverage
+
+Repeat the table row for every stat-only file.
 
 | File | Reason |
 |------|--------|

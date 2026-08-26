@@ -45,7 +45,10 @@ List all files in the artifact directory:
 ls -la .artifacts/code-review/{branch}/
 ```
 
-Present the list to the user:
+Present the list to the user. Use the files `ls` actually returned — the
+table below is a shape example, not an exhaustive list. Include every
+`diff-index-{NNN}.json`, `code-review-{NNN}.md`, `review-response-{NNN}.md`,
+and `decisions-{NNN}.json` that exists.
 
 ```markdown
 ## Review artifacts to remove
@@ -56,10 +59,10 @@ Branch: {branch}
 |------|-------------|
 | 00-reviewer-profile.md | Project reviewer profile |
 | 01-change-summary.md | Change summary |
-| diff-index-001.json | Diff index round 1 |
-| code-review-001.md | Review round 1 |
-| review-response-001.md | Response round 1 |
-| decisions-001.json | Decisions round 1 |
+| diff-index-{NNN}.json | Diff index (every round) |
+| code-review-{NNN}.md | Review (every round) |
+| review-response-{NNN}.md | Response (every round) |
+| decisions-{NNN}.json | Decisions (every round) |
 | review-metadata.json | Review state |
 
 Confirm removal? (This cannot be undone.)

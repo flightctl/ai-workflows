@@ -141,9 +141,13 @@ git ls-files --others --exclude-standard
 
 Do **not** run unfiltered `git diff HEAD` into the transcript.
 
-If any of these commands fail, or they return empty when `git status`
-shows changes, stop and report the error. Do not review with an
-incomplete index.
+If any of these commands fail (non-zero exit), stop and report the
+error. Do not review with an incomplete index.
+
+`git diff HEAD --stat` and `--name-status` are empty when the workspace
+has only untracked files. That is not a failure. Combine tracked
+name-status with untracked paths. If the combined index is empty, tell
+the user there is nothing to review and stop.
 
 If there are no uncommitted changes and no untracked files, tell the user
 and stop.
@@ -183,13 +187,21 @@ re-review):
 Review with a fresh perspective, independent of the implementor.
 Evaluate the code as if you did not write it.
 
-**Hunk Reads (reviewer and sequential fallback):** For each relevant path,
-Read ~80 lines around changed lines (`offset`/`limit`). Cap **≤20** hunk
-Reads. Do not Read whole large files. The slice is for context, not
-isolation: does a new function duplicate existing functionality? Is the
-error handling consistent with the rest of the file? Does the change
-interact correctly with surrounding code? If the cap is hit, list files
-that got only `--stat` coverage in the change summary and the review
+**Hunk Reads (reviewer and sequential fallback):** For each relevant
+**tracked** path, Read ~80 lines around changed lines (`offset`/`limit`).
+Cap **≤20** hunk Reads. Do not Read whole large files. The slice is for
+context, not isolation: does a new function duplicate existing
+functionality? Is the error handling consistent with the rest of the
+file? Does the change interact correctly with surrounding code?
+
+**Untracked files:** They have no `git diff HEAD` hunks. For each
+relevant untracked path, Read the first ~80 lines (`limit` 80). If that
+chunk is not enough to understand the file's purpose, one additional
+~80-line continuation. Each of these Reads counts toward the ≤20 cap.
+Do not Read whole large untracked files.
+
+If the cap is hit, list files that got only `--stat` coverage (tracked)
+or no content Read (untracked) in the change summary and the review
 summary.
 
 **If the AI runtime supports subagents:** Spawn a subagent. Load **only**:
@@ -198,16 +210,16 @@ summary.
 - the name-status / stat index (not the patch)
 - `../../_shared/review-protocol.md`
 
-Do **not** pass `AGENTS.md`, `guidelines.md`, or raw `git diff HEAD`.
+Do **not** pass `AGENTS.md`, `../guidelines.md`, or raw `git diff HEAD`.
 Parent Reads `../templates/code-review.md` **once**. Instruct the
 subagent to write findings to
 `.artifacts/code-review/{branch}/code-review-001.md` using that
 skeleton, then return.
 
 **If subagents are not available:** Read `../../_shared/review-protocol.md`
-(not `guidelines.md`) and review sequentially. Same hunk-Read rules.
+(not `../guidelines.md`) and review sequentially. Same hunk-Read rules.
 
-Evaluate all categories in `_shared/review-protocol.md`. If the user
+Evaluate all categories in `../../_shared/review-protocol.md`. If the user
 provided focus guidance, prioritize those areas but still report CRITICAL
 and HIGH findings elsewhere.
 

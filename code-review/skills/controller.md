@@ -118,8 +118,8 @@ or a prior read), do not re-read them. Otherwise read them — they may
 contain project-specific conventions, testing standards, or other
 guidance that affects how the review operates.
 
-For **start**, do not load `guidelines.md` into the reviewer. Those rules
-apply to the parent; the reviewer reads `_shared/review-protocol.md`.
+For **start**, do not load `../guidelines.md` into the reviewer. Those rules
+apply to the parent; the reviewer reads `../../_shared/review-protocol.md`.
 Do not glob the code-review workflow directory. Do not call
 `GetDynamicTools`.
 
@@ -151,7 +151,7 @@ There are two distinct uses of subagents in this workflow:
 1. **Reviewer subagents** (start.md Step 6, continue.md Step 7): The
    reviewer runs as a subagent to ensure independence from the
    implementor. Load profile, summary, diff index, and
-   `_shared/review-protocol.md` — not `guidelines.md`, `AGENTS.md`, or
+   `../../_shared/review-protocol.md` — not `../guidelines.md`, `AGENTS.md`, or
    a raw patch. This is the primary subagent pattern and is described
    in the skill files themselves.
 
