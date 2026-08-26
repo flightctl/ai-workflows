@@ -141,14 +141,27 @@ def validate_project_key(key: str) -> None:
 
 def validate_jira_url(url: str) -> None:
     """Reject URLs that would send credentials over cleartext or to unexpected destinations."""
-    parsed = urllib.parse.urlparse(url)
-    if parsed.scheme != "https":
-        raise ScanError(f"JIRA_URL must use https (got {parsed.scheme!r})")
-    if not parsed.hostname:
+    # urlparse and its netloc-derived attributes (hostname/username/…) parse
+    # lazily; a malformed URL such as an unterminated IPv6 literal raises
+    # ValueError on access rather than at parse time. Convert those to
+    # ScanError so callers see a clean message instead of a raw traceback.
+    try:
+        parsed = urllib.parse.urlparse(url)
+        scheme = parsed.scheme
+        hostname = parsed.hostname
+        username = parsed.username
+        password = parsed.password
+        fragment = parsed.fragment
+    except ValueError as exc:
+        raise ScanError(f"JIRA_URL is malformed: {exc}") from exc
+
+    if scheme != "https":
+        raise ScanError(f"JIRA_URL must use https (got {scheme!r})")
+    if not hostname:
         raise ScanError("JIRA_URL has no hostname")
-    if parsed.username or parsed.password:
+    if username or password:
         raise ScanError("JIRA_URL must not contain credentials")
-    if parsed.fragment:
+    if fragment:
         raise ScanError("JIRA_URL must not contain a fragment")
     # Accessing .port parses (and validates) the port; a non-numeric
     # port raises ValueError here rather than as an opaque InvalidURL

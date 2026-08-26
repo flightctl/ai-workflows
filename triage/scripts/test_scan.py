@@ -911,6 +911,16 @@ class TestValidateJiraUrl(unittest.TestCase):
             scan.validate_jira_url("https://jira.example.com:abc")
         self.assertIn("port", str(ctx.exception))
 
+    def test_malformed_url_rejected(self) -> None:
+        # An unterminated IPv6 literal raises ValueError on attribute
+        # access; it must surface as ScanError, not a raw traceback.
+        with self.assertRaises(scan.ScanError) as ctx:
+            scan.validate_jira_url("https://[::1")
+        self.assertIn("malformed", str(ctx.exception))
+
+    def test_bracketed_ipv6_with_port_accepted(self) -> None:
+        scan.validate_jira_url("https://[::1]:8443")
+
 
 # ---------------------------------------------------------------------------
 # _retry_delay — pure function tests
