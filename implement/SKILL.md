@@ -1,6 +1,6 @@
 ---
 name: implement
-version: 0.6.0
+version: 0.7.0
 description: >-
   Story-to-code workflow that takes a Jira Story, plans the implementation,
   writes contract-based tests and production code via TDD, validates against
@@ -13,7 +13,7 @@ description: >-
 ## Quick Start
 
 1. If the user invoked a specific command (e.g., `/plan`, `/code`), read
-   `commands/{command}.md` and follow it.
+   the matching file in commands/ and follow it.
 2. Otherwise, read `skills/controller.md` to load the workflow controller:
    - If the user provided a Jira issue key or URL, execute the `/ingest` phase
    - Otherwise, execute the first phase the user requests
