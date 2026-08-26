@@ -29,7 +29,7 @@
 
 ## Safety
 
-- Show your work before finalizing. After `/draft` and `/decompose`, present artifacts for review — do not assume they're ready.
+- Show your work before finalizing. After `/draft` (design document and testplan) and `/decompose` (epics, stories, coverage matrix), present artifacts for review — do not assume they're ready.
 - Indicate confidence when making architectural recommendations. Flag sections where you made judgment calls vs. sections driven directly by requirements.
 - Flag assumptions explicitly. If the PRD doesn't specify something and you filled it in, mark it as an assumption.
 - Before `/publish`, confirm the target repository, branch, and PR details with the user.

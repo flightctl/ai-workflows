@@ -8,9 +8,9 @@ One `## {tc-id}` section per filtered story test case:
 
 ## {tc-id}: {scenario title}
 
-| Requirement | AC | Priority | Automation |
-|-------------|-----|----------|------------|
-| {requirement-id} | {ac-id} | {priority} | {automation} |
+| Requirement | Interface Change | Priority | Automation |
+|-------------|------------------|----------|------------|
+| {requirement-id} | {interface-change-id} | {priority} | {automation} |
 
 ### Preconditions
 
