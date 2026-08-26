@@ -43,10 +43,6 @@ and all downstream phases.
 mkdir -p .artifacts/design/{issue-key}
 ```
 
-```bash
-mkdir -p .artifacts/design/{issue-key}/05-stories
-```
-
 ### Step 2a: Check for Prior Ingest
 
 If `.artifacts/design/{issue-key}/01-context.md` already exists, this
@@ -247,8 +243,8 @@ note at a high level whether the exploration found material differences
 line-by-line comparison.
 
 Then check whether downstream artifacts exist (`02-research.md`,
-`03-design.md`, `04-epics.md`, `05-stories/`, `06-coverage.md`,
-`07-testplan.md`, `08-pr-description.md`, `09-review-responses.md`,
+`03-design.md`, `04-testplan.md`, `05-epics.md`, `06-stories/`,
+`07-coverage.md`, `08-pr-description.md`, `09-review-responses.md`,
 `sync-manifest.json`).
 If they do, tell the
 user:

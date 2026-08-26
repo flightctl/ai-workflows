@@ -107,26 +107,35 @@ This is the core section. All subsections (4.1–4.8) are required. If a subsect
 - Do not over-design for hypothetical requirements. Focus on decisions that would be expensive to change later.
 - If the feature is straightforward: one paragraph stating that and why.
 
-### 5. Alternatives Considered
+### 5. Interface Changes
+
+- Enumerate every concrete system surface that changes: new API endpoints, modified CLI commands, changed UI behaviors, configuration changes, new event types, new or changed data formats.
+- Each IC gets its own subsection (`## IC-1: {short description}`) with a **Requirements** line mapping it to the PRD requirements it satisfies (many-to-many — one IC may satisfy multiple requirements, and one requirement may produce multiple ICs).
+- The description must be specific enough to derive test cases from. Name the endpoint path, CLI subcommand, config key, or UI element, and summarize its purpose — but point to the relevant §4.x subsection for full detail (e.g., "See §4.3 for the request/response schema"). §5 exists for the enumeration and requirement mapping, not to duplicate the design detail already in §4. Between the IC description and the referenced §4.x content, a test engineer should have enough context to write a test case.
+- IC numbers are immutable once assigned and must never be reused. Edits to the design may add new ICs (with the next unused number) but must not renumber existing ones. When an IC is removed during revision, delete it from §5 and retire its number — gaps in numbering are expected and indicate removed ICs. This stability enables stable test case IDs (`TC-FR1-01` exercising `IC-3`) and story references (`Interface Changes: IC-1, IC-2`) across revisions. Any reference to an IC number must be validatable against §5 — if the IC doesn't exist, the reference is stale.
+- For requirements that produce no observable interface change (purely internal refactors, performance optimizations with no API surface), note this explicitly in the section with a brief rationale: "FR-5 is satisfied by internal changes to the scheduling algorithm with no new or modified interfaces."
+- During initial drafting, order ICs by the requirement they primarily satisfy, not by technical layer. If IC-1 and IC-2 both serve FR-3, place them together. During revisions, preserve existing IC order and append new ICs with the next unused number.
+
+### 6. Alternatives Considered
 
 - At least one alternative for each non-trivial design decision.
 - Include "Do nothing" if applicable.
 - For each: brief description, specific pros, specific cons, rejection reason.
 - Be honest about trade-offs — don't make the chosen approach look artificially superior.
 
-### 6. Observability and Monitoring
+### 7. Observability and Monitoring
 
 - List new metrics, events, alerts, tracing spans, or structured log events.
 - If none: "No new observability changes. Existing monitoring mechanisms apply."
 
-### 7. Impact and Compatibility
+### 8. Impact and Compatibility
 
 - State whether changes are backward-compatible.
 - Note migration requirements (schema, data, configuration).
 - Note version compatibility constraints between components.
 - If purely additive: state that clearly.
 
-### 8. Open Questions
+### 9. Open Questions
 
 - Each open question gets its own numbered subsection with **Owner** (person or team who should answer) and **Impact** (which section or decision the answer affects). Derive the Owner from the source material — do not default to the document's Author(s). If not evident, write "To be determined."
 - **Frame as clear, answerable questions.** Write "Should the backup archive include a file manifest, or is a SHA256 checksum sufficient?" not "To be determined — archive validation approach."

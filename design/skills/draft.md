@@ -193,6 +193,7 @@ Before presenting the design document, verify:
 - [ ] Every design decision traces to a PRD requirement, research finding, codebase pattern, or is flagged as `[Assumption]` — source markers follow the consolidation rule (no redundant tags for the primary PRD)
 - [ ] Goals are design-scoped (implementation constraints, not product outcomes)
 - [ ] No sections are empty — sections with no impact say so explicitly
+- [ ] §5 Interface Changes enumerates every new or changed API endpoint, CLI command, UI behavior, configuration option, event surface, and data format, each mapped to its PRD requirement(s). Omitting a real interface surface here produces missing test cases in Step 9. (A requirement with no interface surface — a purely internal change — is not an omission; it needs no IC and is tested via the `—` path in Step 9a.)
 - [ ] Every Mermaid diagram has accompanying narrative explanation
 - [ ] API changes include validation rules and concrete examples where helpful
 - [ ] Data model changes show field names, types, and constraints
@@ -214,7 +215,219 @@ Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 `WORKFLOW=design`, `ISSUE_KEY={issue-key}`, `PHASE=draft`,
 `AUTHORING_MODE=skill`.
 
-### Step 9: Present to User
+### Step 9: Generate Testplan
+
+Generate a behavioral testplan anchored to PRD requirements and derived
+through the design's Interface Changes (§5). The testplan validates that
+the design covers the PRD's specified behavior and that every interface
+change is exercised by at least one test case. This artifact is reviewed
+alongside the design document and does not reference stories (which do
+not exist yet).
+
+#### 9a: Derive Test Cases
+
+For each PRD requirement (FR-N, NFR-N), derive test cases:
+
+**Functional requirements with IC mapping:** Identify the Interface
+Changes (IC-N) from §5 that satisfy the requirement. For each IC,
+generate test cases that exercise the concrete system surface it
+describes — the API endpoint, CLI command, UI behavior, or
+configuration change. Use the IC description's inputs, outputs, and
+key behaviors as the basis for test scenarios.
+
+**Non-functional or cross-cutting requirements:** For requirements
+without a direct IC mapping (performance, security, availability, or
+requirements satisfied by internal changes with no new interface),
+derive test cases from the requirement text and the relevant design
+sections directly.
+
+**Test case ID scheme:** `TC-{requirement-id}-{sequence}`, where
+`{requirement-id}` is the PRD requirement ID with the hyphen removed
+(e.g., `FR-1` → `FR1`, `NFR-3` → `NFR3`) and `{sequence}` is a
+two-digit zero-padded counter within that requirement. Examples:
+`TC-FR1-01`, `TC-FR1-02`, `TC-NFR3-01`.
+
+**Test case fields** (all required per test case; the requirement is
+identified by the parent section heading):
+
+| Field | Description |
+|-------|-------------|
+| Test Case ID and Title | H4 heading: `#### TC-{req}-{NN}: {one-line scenario description}` |
+| Interface Change, Priority, Automation | Single metadata table beneath the H4 heading |
+
+The metadata table uses this format:
+
+| Interface Change | Priority | Automation |
+|-----------------|----------|------------|
+| IC-{N} | {priority} | {automation} |
+
+For any requirement without a direct IC mapping (cross-cutting NFRs
+or FRs satisfied only by internal changes), use `—` in the Interface
+Change field.
+
+**Priority assignment:**
+- `critical` — core user workflows or data integrity
+- `high` — important but non-core requirements
+- `medium` — edge cases and secondary workflows
+- `low` — cosmetic or informational scenarios
+
+**Automation assignment:**
+- `automated` — the scenario can be verified by automated tests
+- `manual` — the scenario requires human verification (visual checks,
+  hardware interaction, exploratory testing)
+
+**Coverage target:** Every FR and NFR should have at least one test
+case. Every IC should be exercised by at least one test case. An IC
+with no test case is either a testplan gap or an unnecessary interface
+change in the design.
+
+**Negative scenarios:** Include negative/error test cases where the PRD
+or design specifies error handling behavior. Do not invent error
+scenarios beyond what the requirements and design describe.
+
+**Expected Results quality gate:** The Expected Results section must
+describe concrete, observable outcomes — not restatements of the
+requirements in vaguer terms. Banned phrases in Expected Results:
+- "works correctly", "works as expected", "works properly"
+- "handles appropriately", "handles gracefully"
+- "is validated", "is verified", "is processed"
+- "behaves as expected", "behaves properly"
+- "completes successfully", "responds correctly", "functions as expected"
+- "returns the correct value" (state the specific value)
+- "no issues", "no problems"
+- "appropriate error", "proper error" (name the specific error or code)
+
+Each expected result must state what the tester observes: a specific
+return value, status code, UI state, log message, or data change. If
+you cannot state the expected result concretely, the requirement or
+design is underspecified — flag it in the testplan's Gaps section
+rather than writing a vague test case.
+
+#### 9b: Write the Testplan
+
+Write `.artifacts/design/{issue-key}/04-testplan.md`:
+
+```markdown
+# Testplan — {issue-key}
+
+## Overview
+
+- **Feature:** {feature-key} — {feature-title}
+- **Total test cases:** {N}
+- **Requirements covered:** {N} of {total FR + NFR count}
+- **Interface changes covered:** {N} of {total IC count}
+
+## Test Cases
+
+### FR-1: {requirement description}
+
+#### TC-FR1-01: {scenario title}
+
+| Interface Change | Priority | Automation |
+|-----------------|----------|------------|
+| IC-1 | high | automated |
+
+##### Preconditions
+
+- {system state required before the test}
+
+##### Steps
+
+1. {what the tester does}
+2. {next action}
+
+##### Expected Results
+
+- {observable outcome the tester verifies}
+
+### NFR-1: {requirement description}
+
+#### TC-NFR1-01: {scenario title}
+
+| Interface Change | Priority | Automation |
+|-----------------|----------|------------|
+| — | high | manual |
+
+##### Preconditions
+
+- {precondition}
+
+##### Steps
+
+1. {step}
+2. {step}
+
+##### Expected Results
+
+- {expected outcome}
+
+## Gaps
+
+### Requirement Coverage Gaps
+
+{For each PRD requirement with no test cases: why it lacks coverage and
+ a recommendation (e.g., "FR-5 is satisfied by internal changes with no
+ observable interface — no behavioral test case is applicable").
+
+ If no gaps: "All PRD requirements have test cases."}
+
+### Interface Change Coverage Gaps
+
+{For each IC not exercised by any test case: why it lacks coverage and
+ a recommendation. An untested IC is either a testplan gap or an
+ unnecessary interface change in the design.
+
+ If no gaps: "All interface changes are exercised by test cases."}
+
+## Summary
+
+| Metric | Count |
+|--------|-------|
+| Total test cases | {N} |
+| Critical | {N} |
+| High | {N} |
+| Medium | {N} |
+| Low | {N} |
+| Automated | {N} |
+| Manual | {N} |
+| Requirements with test cases | {N} / {total} |
+| Interface changes with test cases | {N} / {total} |
+```
+
+Test cases are grouped under requirement headings because the
+testplan's purpose is requirement traceability. The Interface Change
+field in each test case's metadata table links to the design's §5.
+
+#### 9c: Self-Review
+
+Before presenting the testplan, verify:
+
+- [ ] Every FR and NFR has a test case or a documented Requirement Coverage Gap with rationale
+- [ ] Every IC from §5 has a test case or a documented Interface Change Coverage Gap with rationale
+- [ ] Every non-`—` Interface Change value matches an IC defined in §5, and that IC's `Requirements` line includes the test case's requirement
+- [ ] Every `—` Interface Change value is used only for a requirement without a direct IC mapping
+- [ ] Every IC named in an Interface Change Coverage Gap entry exists in §5
+- [ ] Expected Results contain no banned vague phrases
+- [ ] Priority assignment follows the Step 9a criteria (`critical` = core workflows or data integrity; `high` = important non-core; `medium` = edge cases and secondary workflows; `low` = cosmetic or informational) and is not defaulted to `high` across the board
+- [ ] All test case fields are present and non-empty — heading, metadata table, Preconditions, Steps, and Expected Results — with actionable Preconditions and Steps (not placeholder or empty headings)
+- [ ] Gap analysis is accurate — requirement and IC coverage gaps are identified with rationale
+- [ ] Test case IDs follow the scheme (`TC-{req}-{NN}`) with no duplicates
+- [ ] Each test case's `TC-{req}-{NN}` prefix matches the PRD requirement heading it is grouped under (a `TC-FR2-*` case never appears under `### FR-1`)
+- [ ] Every `### FR-*` / `### NFR-*` requirement heading matches a real PRD requirement, and every PRD requirement appears exactly once — either as a requirement heading with test cases or in the Requirement Coverage Gaps section
+- [ ] The Overview counts and Summary table are accurate
+
+#### 9d: Write Artifact
+
+Save the testplan to `.artifacts/design/{issue-key}/04-testplan.md`.
+
+The Overview counts, Gaps sections, and Summary table written in Step 9b
+are the canonical testplan summary. Step 10 presents those already-written
+values — it does not recompute counts or coverage after the fact.
+
+Provenance was already captured in Step 8 for the entire `/draft` phase —
+no additional provenance call is needed here.
+
+### Step 10: Present to User
 
 Show the user the complete design document and highlight:
 - Key architectural decisions and their rationale
@@ -222,16 +435,21 @@ Show the user the complete design document and highlight:
 - Areas where multiple approaches were viable and why you chose the one you did
 - Sections where confidence is lower — suggest the user capture these as
   open questions or TBD markers if they warrant reviewer attention
+- Testplan summary — read from the Overview and Summary table already
+  written in Step 9b: total test cases, requirement coverage, IC coverage
+- Any testplan gaps recorded in Step 9b (requirements or ICs without test cases)
 
 ## Output
 
 - `.artifacts/design/{issue-key}/03-design.md`
+- `.artifacts/design/{issue-key}/04-testplan.md`
 - `.artifacts/design/{issue-key}/provenance.json`
 
 ## When This Phase Is Done
 
 Report your results:
 - The design document has been written and saved
+- The testplan has been generated with {test-case-count} test cases covering {requirement-count} requirements and {interface-change-count} ICs
 - Highlight key decisions, assumptions, and open questions
 - Note overall confidence in the document's completeness
 

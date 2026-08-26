@@ -46,7 +46,7 @@ If `01-context.md` exists (re-ingest): copy to `01-context.md.prev` **before** e
 
 ### 3. Fetch the Jira story
 
-One `jira_get_issue` for the story. Capture summary, description, AC, guidance, testing notes, TC refs, design refs, type prefix, parent key, blocking links, fix version/sprint.
+One `jira_get_issue` for the story. Capture summary, description, AC, guidance, testing notes, `Validated by` TC IDs and `PRD Requirements` from the Design Reference (used to filter the testplan in 5d), design refs, type prefix, parent key, blocking links, fix version/sprint.
 
 ### 4. Dependencies
 
@@ -72,7 +72,7 @@ If it does not exist, ask for docs repo local path and remote. Resolve `~` to ab
 2. Read matching heading ranges (`offset`/`limit`).
 3. If nothing hits, Read the first ~80 lines of `design.md` (TOC) and grep TOC entries — still not the rest.
 
-**5d.** Filter testplan from grep hits (Story field = `{issue-key}`, else TC IDs from the Jira description).
+**5d.** Filter the testplan to this story's scope. Match the story's `Validated by` TC IDs (captured in Step 3) against the testplan's test-case headings. If `Validated by` is missing, empty, or `None` (no TC IDs), fall back to requirement match: collect every test case whose requirement heading matches a `PRD Requirements` ID from the story's Design Reference.
 
 | Outcome | Condition | Action |
 |---------|-----------|--------|

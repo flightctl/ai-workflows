@@ -89,17 +89,36 @@ Describe:
 {How the design accommodates future enhancements without over-engineering.
 If straightforward: state that briefly.}
 
-# 5. Alternatives Considered
+# 5. Interface Changes
+
+{Concrete observable changes the system introduces — new API endpoints,
+modified CLI commands, changed UI behaviors, configuration changes, event
+surfaces, and new or changed data formats. Each
+IC is numbered and references the PRD requirement(s) it satisfies. The
+mapping is many-to-many: one requirement may produce multiple ICs, and
+one IC may satisfy multiple requirements. IC numbers are immutable once assigned and must never be reused. Edits
+may add new ICs (with the next unused number) but must not renumber
+existing ones. Removed ICs are deleted from this section and their
+numbers retired — gaps in numbering are expected.}
+
+## IC-1: {short description of the interface change}
+
+**Requirements:** {FR-N, NFR-M}
+
+{What this interface change does, how it is invoked, and key behaviors.
+Enough detail to derive test cases from.}
+
+# 6. Alternatives Considered
 
 {Other approaches evaluated and why they were not selected. Include at least
 one alternative for each non-trivial design decision.}
 
-# 6. Observability and Monitoring
+# 7. Observability and Monitoring
 
 {New metrics, events, alerts, tracing spans, or log events.
 If none: "No new observability changes. Existing monitoring mechanisms apply."}
 
-# 7. Impact and Compatibility
+# 8. Impact and Compatibility
 
 Note any:
 
@@ -108,14 +127,14 @@ Note any:
 - Changes to existing APIs or workflows
 - Version compatibility considerations
 
-# 8. Open Questions
+# 9. Open Questions
 <!-- Optional: omit if no open questions remain after drafting -->
 
 Questions for reviewers to resolve during PR review. Once answered, the
 resolution will be incorporated into the relevant section above and the
 entry removed.
 
-## 8.1 {Clear, answerable question directed at reviewers}
+## 9.1 {Clear, answerable question directed at reviewers}
 
 - **Owner:** {person or team who should answer}
 - **Impact:** {which section or decision this answer affects}
