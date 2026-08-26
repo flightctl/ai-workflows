@@ -24,6 +24,11 @@ Artifacts go in `.artifacts/triage/{project}/`.
 - AUTO_FIX and NEEDS_INFO are mutually exclusive — a bug without sufficient detail can never be a candidate for automated fixing
 - AUTO_FIX likelihood percentages reflect honest assessment of bot success probability, not optimism
 
+## Shared Content Rules
+
+Read and follow `../_shared/content-rules.md` for generated-content rules. Those standards apply to all
+artifacts and published output from this workflow.
+
 ## Hard Limits
 
 - **No Jira writes** — this workflow must not create, update, close, or comment on any Jira issue
@@ -39,7 +44,7 @@ Artifacts go in `.artifacts/triage/{project}/`.
 | Start   | `jira_search`                       | `mkdir` (create artifact dir)  |
 | Scan    | none (script calls REST API directly) | Run `scripts/scan.py`; read stdout/stderr |
 | Analyze | none                                | Read `issues.json`, read `resolved.json` (if present), write `analyzed.json` |
-| Report  | none                                | Read `analyzed.json`, read `templates/report.html`, write `report.html` |
+| Report  | none                                | Read `analyzed.json`, read/update `issues.json` (renderer reads `jiraBaseUrl` from it); run `render_report.py`; write `ai-synthesis.json`, `report.html` |
 | Assess (`/assess`) | `jira_search`              | Optionally read `issues.json`; no required artifact writes |
 
 Any tool not listed above is **prohibited** in that phase. If a phase needs data not available through its allowed tools, stop and ask the user.

@@ -28,6 +28,43 @@ info() {
   echo "INFO: $1"
 }
 
+# Find workflow directories that reference a shared-file basename in behavioral
+# markdown, including root-level workflow .md files (e.g., design/decomposition-review.md).
+find_workflows_referencing() {
+  local base="$1"
+  local workflows=""
+
+  local from_grep
+  from_grep=$(grep -rl "$base" \
+    -- \
+    */guidelines.md \
+    */skills/*.md \
+    */commands/*.md \
+    */templates/*.md \
+    */prompts/*.md \
+    */scripts/* \
+    2>/dev/null | sed 's|/.*||' | sort -u || true)
+  if [ -n "$from_grep" ]; then
+    workflows="$from_grep"
+  fi
+
+  for wf_dir in */; do
+    wf="${wf_dir%/}"
+    [ -f "$wf/SKILL.md" ] || continue
+    for root_md in "$wf"/*.md; do
+      [ -f "$root_md" ] || continue
+      case "$(basename "$root_md")" in
+        SKILL.md|README.md|GUIDE.md|guidelines.md) continue ;;
+      esac
+      if grep -q "$base" "$root_md" 2>/dev/null; then
+        workflows=$(printf '%s\n%s' "$workflows" "$wf" | sort -u)
+      fi
+    done
+  done
+
+  printf '%s\n' "$workflows" | sed '/^$/d'
+}
+
 # ---------------------------------------------------------------------------
 # 1. Determine base ref
 # ---------------------------------------------------------------------------
@@ -230,27 +267,7 @@ for shared_file in "${!shared_changed[@]}"; do
 
   referencing_workflows=""
 
-  # Direct references in standard behavioral locations
-  direct=$(grep -rl "$base" */skills/*.md */commands/*.md */guidelines.md \
-    2>/dev/null | sed 's|/.*||' | sort -u || true)
-  if [ -n "$direct" ]; then
-    referencing_workflows="$direct"
-  fi
-
-  # Also check root-level workflow .md files (e.g., design/decomposition-review.md)
-  for wf_dir in */; do
-    wf="${wf_dir%/}"
-    [ -f "$wf/SKILL.md" ] || continue
-    for root_md in "$wf"/*.md; do
-      [ -f "$root_md" ] || continue
-      case "$(basename "$root_md")" in
-        SKILL.md|README.md|GUIDE.md|guidelines.md) continue ;;
-      esac
-      if grep -q "$base" "$root_md" 2>/dev/null; then
-        referencing_workflows=$(printf '%s\n%s' "$referencing_workflows" "$wf" | sort -u)
-      fi
-    done
-  done
+  referencing_workflows=$(find_workflows_referencing "$base")
 
   for wf in $referencing_workflows; do
     [ -n "$wf" ] || continue
@@ -265,8 +282,7 @@ for shared_file in "${!shared_changed[@]}"; do
   for trans in $transitive_shared; do
     [ "$trans" = "$shared_file" ] && continue
     trans_base=$(basename "$trans" .md)
-    trans_workflows=$(grep -rl "$trans_base" */skills/*.md */commands/*.md \
-      */guidelines.md 2>/dev/null | sed 's|/.*||' | sort -u || true)
+    trans_workflows=$(find_workflows_referencing "$trans_base")
     for tw in $trans_workflows; do
       [ -f "$tw/SKILL.md" ] || continue
       if [ -z "${workflow_version_bumped[$tw]:-}" ]; then

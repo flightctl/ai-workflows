@@ -8,6 +8,11 @@
 - **Relative calibration.** In batch mode, compare Features against each other. A Feature's size is more meaningful when evaluated alongside its peers in the same release.
 - **Team breakdown is required.** Every Feature assessment includes per-team effort (DEV, QE, UX, UI, DOCS) so capacity planning accounts for team-level constraints, not just aggregate effort.
 
+## Shared Content Rules
+
+Read and follow `../_shared/content-rules.md` for generated-content rules. Those standards apply to all
+artifacts and published output from this workflow.
+
 ## Hard Limits
 
 - No fabricated sizes. Every size must be justified by the rubric's heuristics applied to the Feature's actual content and codebase impact.
@@ -15,7 +20,6 @@
 - No Jira writes without explicit user approval and a dry-run preview first.
 - **XXL is never committed.** If a Feature is assessed as XXL, it must be split. Do not write XXL to Jira — recommend the user split first.
 - No scope reduction. If a Feature doesn't fit, flag it as XXL and recommend splitting — don't silently reduce its scope to make it fit a smaller size.
-- **No personal names in generated content.** Replace references to individuals from Jira tickets or comments with role-based descriptions (e.g., "the feature owner noted…", "the team lead identified…") or drop the attribution and state the finding directly.
 
 ## Safety
 

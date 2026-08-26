@@ -16,13 +16,17 @@ Artifacts go in `.artifacts/skill-reviewer/{skill-name}/`.
 - Distinguish between blockers (must fix) and suggestions (nice to have).
 - Offload mechanical checks to `scripts/pre-review-checks.py` when available — focus reviewer attention on judgment calls that require reading comprehension and context.
 
+## Shared Content Rules
+
+Read and follow `../_shared/content-rules.md` for generated-content rules. Those standards apply to all
+artifacts and published output from this workflow.
+
 ## Hard Limits
 
 - No modifying the target skill's files during the review phase — the review itself is read-only. Fixing findings afterward is a separate user-initiated action.
 - No skipping files — every file in the skill directory must be read
 - No forming opinions before reading all files
 - No rubber-stamping — if there are real problems, report them
-- **No personal names in generated content.** Replace references to individuals with role-based descriptions or drop the attribution and state the finding directly.
 
 ## Safety
 
