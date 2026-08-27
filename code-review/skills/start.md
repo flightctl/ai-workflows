@@ -297,8 +297,17 @@ Present **every** finding — do not silently drop any, including LOW.
 - Reject {N} findings ({list numbers}) -- {brief summary of why these don't add value}
 ```
 
-If the reviewer included Questions, present them below the table with
-proposed answers.
+If the reviewer included Questions, present them separately below the
+findings table with proposed answers:
+
+```markdown
+## Reviewer Questions
+
+**Q1:** {question text} ({file}:{location})
+**Proposed answer:** {your answer based on the code and design intent}
+
+**Q2:** ...
+```
 
 Then prompt the user:
 
@@ -320,7 +329,8 @@ Once the user states decisions, persist them to
   "round": 1,
   "decisions": [
     {"finding": 1, "title": "{short title}", "file": "{path}", "location": "{line or function}", "decision": "accept", "guidance": null},
-    {"finding": 2, "title": "{short title}", "file": "{path}", "location": "{line or function}", "decision": "reject", "reason": "user rationale"}
+    {"finding": 2, "title": "{short title}", "file": "{path}", "location": "{line or function}", "decision": "reject", "reason": "user rationale"},
+    {"finding": 3, "title": "{short title}", "file": "{path}", "location": "{line or function}", "decision": "accept", "guidance": "use approach X"}
   ]
 }
 ```
@@ -337,7 +347,9 @@ means the user delegated decisions, not visibility.
 
 After presenting:
 
-1. If any CRITICAL finding has a "Disagree" assessment, stop and escalate.
+1. If any CRITICAL finding has a "Disagree" assessment, stop and
+   escalate to the user — present the finding and explain the
+   disagreement. Wait for the user to decide.
 2. Otherwise treat Agree / Partially agree as Accept and Disagree as
    Reject, persist `decisions-{NNN}.json`, and proceed to `/continue`.
 

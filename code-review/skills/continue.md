@@ -475,7 +475,9 @@ whether to do so. Do not skip the table because the mode is unattended;
 unattended means the user delegated decisions, not visibility. Then:
 
 1. If any CRITICAL finding has a "Disagree" assessment, stop and
-   escalate to the user (same guardrail as `/start`).
+   escalate to the user — present the finding and explain the
+   disagreement. Wait for the user to decide (same guardrail as
+   `/start`).
 2. Otherwise, treat the implementor's recommendations as decisions,
    except do not accept a finding that matches a prior reject (same
    file + location + title) unless that file's hash changed this round.
