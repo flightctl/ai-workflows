@@ -131,6 +131,70 @@ ensure_repo_linked() {
   echo "  Linked $INSTALL_DIR -> $REPO_DIR"
 }
 
+UXD_REPO="https://github.com/rh-uxd/ai-helpers.git"
+UXD_SHA="ad44b9c92c89730da5191487d0ff82af09b41366"
+UXD_DIR="${HOME}/.uxd-ai-skills"
+UXD_PLUGINS=(uxd-workshop)
+
+# Install UXD AI Skills via git clone + symlinks (AI-agnostic; works for all
+# tools). Called at the end of each install target when ux-design is in scope.
+install_uxd_skills() {
+  local skills_dir="$1"
+
+  # Only install if ux-design is in the workflow set being installed
+  local has_ux_design=false
+  for wf in "${WORKFLOWS[@]}"; do
+    [[ "$wf" == "ux-design" ]] && has_ux_design=true
+  done
+  "$has_ux_design" || return 0
+
+  if [[ ! -d "$UXD_DIR" ]]; then
+    echo "  Cloning UXD AI Skills repo (${UXD_SHA:0:7})..."
+    git clone "$UXD_REPO" "$UXD_DIR" 2>/dev/null || {
+      echo "  Error: could not clone UXD AI Skills repo — ux-design workflow requires it" >&2
+      echo "  Check network access to github.com and re-run install." >&2
+      return 1
+    }
+    git -C "$UXD_DIR" checkout "$UXD_SHA" 2>/dev/null || {
+      echo "  Error: could not check out UXD AI Skills commit ${UXD_SHA:0:7}" >&2
+      return 1
+    }
+  else
+    # Existing install: make sure it is on the pinned SHA. Fetch first in case
+    # the local clone predates the pinned commit; a fetch failure is non-fatal
+    # only when the commit is already present locally.
+    if ! git -C "$UXD_DIR" cat-file -e "${UXD_SHA}^{commit}" 2>/dev/null; then
+      echo "  Fetching UXD AI Skills updates (${UXD_SHA:0:7})..."
+      git -C "$UXD_DIR" fetch origin 2>/dev/null || {
+        echo "  Error: could not fetch UXD AI Skills commit ${UXD_SHA:0:7}" >&2
+        echo "  Check network access to github.com and re-run install." >&2
+        return 1
+      }
+    fi
+    git -C "$UXD_DIR" checkout "$UXD_SHA" 2>/dev/null || {
+      echo "  Error: could not check out UXD AI Skills commit ${UXD_SHA:0:7}" >&2
+      return 1
+    }
+  fi
+
+  for plugin in "${UXD_PLUGINS[@]}"; do
+    local plugin_skills="${UXD_DIR}/plugins/${plugin}/skills"
+    [[ -d "$plugin_skills" ]] || continue
+    for skill_dir in "${plugin_skills}"/*/; do
+      [[ -d "$skill_dir" ]] || continue
+      local skill_name
+      skill_name="$(basename "$skill_dir")"
+      local target="${skills_dir}/${skill_name}"
+      if [[ -e "$target" && ! -L "$target" ]]; then
+        echo "  Warning: ${target} exists and is not a symlink; skipping" >&2
+        continue
+      fi
+      ln -sfn "$skill_dir" "$target"
+      echo "  Linked ${target} -> ${skill_dir}  (uxd)"
+    done
+  done
+}
+
 install_shared() {
   local target_dir="$1"
   if [[ ! -d "${INSTALL_DIR}/_shared" ]]; then
@@ -203,6 +267,7 @@ install_cursor() {
     echo "  Linked ${SKILLS_DIR}/${wf} -> ${INSTALL_DIR}/${wf}  ($SCOPE)"
   done
   generate_cursor_commands "$CMDS_DIR"
+  install_uxd_skills "$SKILLS_DIR"
 }
 
 install_claude() {
@@ -277,6 +342,7 @@ install_claude() {
       echo "  Removed stale commands symlink ${CMDS_DIR}/${wf}  ($SCOPE)"
     fi
   done
+  install_uxd_skills "$SKILLS_DIR"
 }
 
 install_gemini() {
@@ -292,6 +358,7 @@ install_gemini() {
     ln -sfn "${INSTALL_DIR}/${wf}" "${SKILLS_DIR}/${wf}"
     echo "  Linked ${SKILLS_DIR}/${wf} -> ${INSTALL_DIR}/${wf}  ($SCOPE)"
   done
+  install_uxd_skills "$SKILLS_DIR"
 }
 
 # Offer a daily systemd --user notifier (Linux desktop). Default: no.

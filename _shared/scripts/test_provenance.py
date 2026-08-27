@@ -107,6 +107,46 @@ class ProvenanceTests(unittest.TestCase):
         self.assertEqual(provenance.provenance_kind(events), "commit_only")
         self.assertFalse(provenance.origin_untracked(events))
 
+    def test_origin_untracked_false_for_ux_design_handoff_first(self) -> None:
+        # ux-design originates its document in /handoff (not /draft), so a
+        # handoff-first log is a tracked origin and must NOT be flagged.
+        events = [{"phase": "handoff"}, {"phase": "revise"}]
+        self.assertFalse(provenance.origin_untracked(events, "ux-design"))
+
+    def test_origin_untracked_true_for_ux_design_revise_first(self) -> None:
+        # ux-design entered at /revise with no prior /handoff is untracked.
+        events = [{"phase": "revise"}]
+        self.assertTrue(provenance.origin_untracked(events, "ux-design"))
+
+    def test_origin_untracked_true_for_prd_handoff_first(self) -> None:
+        # 'handoff' is not prd's origin phase, so a handoff-first prd log is
+        # still untracked -- the per-workflow origin must not leak across.
+        events = [{"phase": "handoff"}]
+        self.assertTrue(provenance.origin_untracked(events, "prd"))
+
+    def test_origin_untracked_note_names_workflow_origin_phase(self) -> None:
+        ux_note = provenance.origin_untracked_note("ux-design")
+        self.assertIn("/handoff", ux_note)
+        # ux-design has no template step, so note should not mention "template"
+        self.assertNotIn("template", ux_note)
+
+        prd_note = provenance.origin_untracked_note("prd")
+        self.assertIn("/draft", prd_note)
+        self.assertIn("template", prd_note)  # prd/design DO have templates
+
+        self.assertIn("/draft", provenance.origin_untracked_note())
+
+    def test_workflow_phase_validation_rejects_invalid_combinations(self) -> None:
+        # prd/design don't have 'handoff' phase
+        with self.assertRaises(ValueError) as cm:
+            provenance.capture_event("prd", "TEST-123", "handoff", "skill")
+        self.assertIn("not valid for workflow 'prd'", str(cm.exception))
+
+        # ux-design doesn't have 'draft' phase
+        with self.assertRaises(ValueError) as cm:
+            provenance.capture_event("ux-design", "TEST-456", "draft", "skill")
+        self.assertIn("not valid for workflow 'ux-design'", str(cm.exception))
+
     def test_build_metrics_payload_flags_origin_untracked(self) -> None:
         data = {
             "workflow": "prd",

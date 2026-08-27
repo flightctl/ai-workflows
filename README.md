@@ -48,6 +48,9 @@ Reusable AI coding workflows a team member can install globally or per-project, 
 - **Skill Reviewer** -- Meta-workflow that audits AI skill directories against eight quality dimensions.
   See [skill-reviewer/README.md](skill-reviewer/README.md).
 
+- **UX Design** -- UX design workflow: ingest a feature request, conduct user research, generate prototypes, run heuristic evaluation, and produce a validated design handoff for the `ui-design` workflow.
+  See [ux-design/README.md](ux-design/README.md).
+
 ## How It Works
 
 Each workflow is a directory with a `SKILL.md` (the mandatory entry point), optional phase skills under `skills/`, and optional command wrappers under `commands/` -- all plain markdown, no IDE-specific syntax. Some workflows also include a `skills/controller.md` for phase dispatch, but this is an optional pattern. The installer auto-discovers every directory that contains a `SKILL.md`.
