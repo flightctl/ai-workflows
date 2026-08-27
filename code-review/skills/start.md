@@ -169,7 +169,14 @@ Read `../templates/01-change-summary.md` **once**, fill it, Write
 `{branch}/01-change-summary.md` **once**.
 
 Write `{branch}/diff-index-001.json` **once** (continue compares this on
-re-review):
+re-review). Hash source depends on `--name-status`:
+
+- **M / A / untracked (U):** `git hash-object` of the working-tree file.
+  Key is the path.
+- **D:** there is no working-tree file. Hash the HEAD blob
+  (`git rev-parse HEAD:{path}`). Key is the deleted path.
+- **R:** key the new path; set `from` to the old path; hash the new
+  working-tree file.
 
 ```json
 {
@@ -177,7 +184,11 @@ re-review):
   "name_status": ["{git diff HEAD --name-status lines}"],
   "untracked": ["{git ls-files --others --exclude-standard paths}"],
   "hashes": {
-    "{path}": "{git hash-object output}"
+    "{path}": {
+      "status": "{M|A|D|R|U}",
+      "hash": "{blob}",
+      "from": "{old path if R, else omit}"
+    }
   }
 }
 ```
@@ -209,6 +220,7 @@ summary.
 - `01-change-summary.md`
 - the name-status / stat index (not the patch)
 - `../../_shared/review-protocol.md`
+- `../templates/code-review.md`
 
 Do **not** pass `AGENTS.md`, `../guidelines.md`, or raw `git diff HEAD`.
 Parent Reads `../templates/code-review.md` **once**. Instruct the
@@ -236,10 +248,11 @@ Read the review file and work through **every** finding.
 For each finding, confirm that the cited file and location actually exist
 in the change. AI reviewers hallucinate file paths and line numbers. If a
 finding references a file that was not changed (not on the name-status /
-untracked list and not a path the reviewer Read), or a location that does
-not exist, discard it — do not present it to the user. Note discarded
-findings and why in your internal assessment (not in the user-facing
-table).
+untracked list), discard it — a context Read of a neighboring file is
+not enough. If the location does not exist, or does not overlap the
+changed lines (tracked) or the Read chunks (untracked), discard it. Do
+not present discarded findings to the user. Note discarded findings and
+why in your internal assessment (not in the user-facing table).
 
 #### 7b: Assess on value
 
@@ -322,15 +335,17 @@ Then run /continue to implement the accepted changes.
 ```
 
 Once the user states decisions, persist them to
-`.artifacts/code-review/{branch}/decisions-{NNN}.json`:
+`.artifacts/code-review/{branch}/decisions-{NNN}.json`. Set `id` to
+`{file}|{location}|{title}`; if two findings in this round would share
+that string, append `#{finding_number}`.
 
 ```json
 {
   "round": 1,
   "decisions": [
-    {"finding": 1, "title": "{short title}", "file": "{path}", "location": "{line or function}", "decision": "accept", "guidance": null},
-    {"finding": 2, "title": "{short title}", "file": "{path}", "location": "{line or function}", "decision": "reject", "reason": "user rationale"},
-    {"finding": 3, "title": "{short title}", "file": "{path}", "location": "{line or function}", "decision": "accept", "guidance": "use approach X"}
+    {"finding": 1, "id": "{file}|{location}|{title}", "title": "{short title}", "file": "{path}", "location": "{line or function}", "decision": "accept", "guidance": null},
+    {"finding": 2, "id": "{file}|{location}|{title}", "title": "{short title}", "file": "{path}", "location": "{line or function}", "decision": "reject", "reason": "user rationale"},
+    {"finding": 3, "id": "{file}|{location}|{title}", "title": "{short title}", "file": "{path}", "location": "{line or function}", "decision": "accept", "guidance": "use approach X"}
   ]
 }
 ```

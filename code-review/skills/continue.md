@@ -258,18 +258,20 @@ the user there is nothing to review and stop.
 
 Write `{branch}/diff-index-{NNN}.json` **once** (same schema as start's
 `diff-index-001.json`, with this round's number). Compare each path's
-`hashes` entry to the previous round's `diff-index-*.json`. A file
-changed this round only if its hash differs — being listed again in
-`git diff HEAD --name-status` is not enough.
+hash entry to the previous round's `diff-index-*.json` using the same
+status-aware keys (`D` = HEAD blob, `R` = new path + `from`). A file
+changed this round only if its key is new or its `hash` / `status` /
+`from` differs — being listed again in `git diff HEAD --name-status` is
+not enough.
 
 Build a short **already decided** list from **every**
 `decisions-*.json` in the branch artifact directory, not only the latest
-round. Compact entries: finding number, title, file, location,
-accept/reject. Key by file + location + title — two findings at the same
-location are distinct if their titles differ. A finding rejected in
-round 1 stays settled in later rounds. Unattended mode must not accept a
-previously rejected finding unless that file's hash changed this round
-and the new review re-raised it with a different title.
+round. Compact entries: `id`, accept/reject. `id` is
+`{file}|{location}|{title}`; if two findings in the same round would
+share that string, append `#{finding_number}`. Record `id` in every
+decisions file. Both the already-decided list and unattended matching
+use this `id` only. A finding rejected in round 1 stays settled in later
+rounds if the `id` matches. Do not accept a previously rejected `id`.
 
 **Hunk Reads (reviewer and sequential fallback):** For each relevant
 **tracked** path in the **full current** index, Read ~80 lines around
@@ -294,6 +296,7 @@ or no content Read (untracked) in the review summary.
 - `01-change-summary.md`
 - the name-status / stat index (not the patch)
 - `../../_shared/review-protocol.md`
+- `../templates/code-review.md`
 - the **latest** `code-review-{NNN}.md`
 - the **latest** `review-response-{NNN}.md`
 - the **already decided** list
@@ -326,10 +329,11 @@ one writer. Do not overwrite the subagent file.
 For each finding, confirm that the cited file and location actually exist
 in the change. AI reviewers hallucinate file paths and line numbers. If a
 finding references a file that was not changed (not on the name-status /
-untracked list and not a path the reviewer Read), or a location that does
-not exist, discard it — do not present it to the user. Note discarded
-findings and why in your internal assessment (not in the user-facing
-table).
+untracked list), discard it — a context Read of a neighboring file is
+not enough. If the location does not exist, or does not overlap the
+changed lines (tracked) or the Read chunks (untracked), discard it. Do
+not present discarded findings to the user. Note discarded findings and
+why in your internal assessment (not in the user-facing table).
 
 ### Step 8: Update Metadata
 
@@ -479,8 +483,7 @@ unattended means the user delegated decisions, not visibility. Then:
    disagreement. Wait for the user to decide (same guardrail as
    `/start`).
 2. Otherwise, treat the implementor's recommendations as decisions,
-   except do not accept a finding that matches a prior reject (same
-   file + location + title) unless that file's hash changed this round.
+   except do not accept a finding whose `id` matches a prior reject.
    Persist them to `decisions-{NNN}.json`, and loop back to Step 3 to
    implement the next round.
 
