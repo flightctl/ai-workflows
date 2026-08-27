@@ -1,6 +1,6 @@
 ---
 name: triage
-version: 0.4.1
+version: 0.5.1
 description: >-
   Bulk-triage unresolved Jira bugs with AI-driven recommendations and an
   interactive HTML report. Scan also loads recently resolved bugs for regression

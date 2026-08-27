@@ -34,7 +34,7 @@ artifacts and published output from this workflow.
 - **No Jira writes** — this workflow must not create, update, close, or comment on any Jira issue
 - **No fabricated data** — if a field is missing from the Jira response, report it as missing; never invent values
 - **No skipping issues** — every unresolved bug in the scan results must appear in the analysis and report
-- **Read-only MCP tools only** — each phase declares its allowed tools; never call a tool outside that list. No phase may use write-oriented Jira tools (`jira_create_issue`, `jira_update_issue`, `jira_delete_issue`, `jira_transition_issue`, `jira_add_comment`, `jira_add_worklog`, `jira_create_issue_link`, etc.)
+- **Read-only Jira access only** — each phase declares its allowed tools; never call a tool outside that list. The read-only restriction covers both Jira MCP tools and the approved `scripts/scan.py` REST client, which issues only `GET /rest/api/3/search/jql`. No phase may use write-oriented Jira tools (`jira_create_issue`, `jira_update_issue`, `jira_delete_issue`, `jira_transition_issue`, `jira_add_comment`, `jira_add_worklog`, `jira_create_issue_link`, etc.)
 
 ## Allowed Tools Per Phase
 
@@ -42,7 +42,7 @@ artifacts and published output from this workflow.
 |---------|-------------------------------------|--------------------------------|
 | Run     | Per phase below                     | Per phase below                |
 | Start   | `jira_search`                       | `mkdir` (create artifact dir)  |
-| Scan    | `jira_search`                       | Write `issues.json` and `resolved.json` |
+| Scan    | none (script calls REST API directly) | Run `scripts/scan.py`; read stdout/stderr |
 | Analyze | none                                | Read `issues.json`, read `resolved.json` (if present), write `analyzed.json` |
 | Report  | none                                | Read `analyzed.json`, read/update `issues.json` (renderer reads `jiraBaseUrl` from it); run `render_report.py`; write `ai-synthesis.json`, `report.html` |
 | Assess (`/assess`) | `jira_search`              | Optionally read `issues.json`; no required artifact writes |
