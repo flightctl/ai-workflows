@@ -14,6 +14,15 @@ permissions:
   contents: read
 
 jobs:
+  installer-tests:
+    name: Installer Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: bash .github/scripts/test-install.sh
+
   unit-tests:
     name: Unit Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest

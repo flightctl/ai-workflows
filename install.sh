@@ -15,8 +15,10 @@
 #   ./install.sh claude --project [path]                 # project-level Claude Code reference
 #   ./install.sh gemini                                  # user-level Gemini CLI skill symlinks
 #   ./install.sh gemini --project [path]                 # project-level Gemini CLI skill symlinks
-#   ./install.sh all                                     # user-level Cursor + Claude + Gemini
-#   ./install.sh all --project [path]                    # project-level Cursor + Claude + Gemini
+#   ./install.sh codex                                   # user-level Codex skill symlinks
+#   ./install.sh codex --project [path]                  # project-level Codex skill symlinks
+#   ./install.sh all                                     # user-level, all environments
+#   ./install.sh all --project [path]                    # project-level, all environments
 #   ./install.sh --list                                  # list available packages
 #   ./install.sh cursor --with-update-timer              # also enable daily update notifier
 #   ./install.sh cursor --no-update-timer                # skip the update-notifier prompt
@@ -341,6 +343,23 @@ install_gemini() {
   done
 }
 
+install_codex() {
+  if [[ "$SCOPE" == "project" ]]; then
+    SKILLS_DIR="${PROJECT_ROOT}/.agents/skills"
+  else
+    SKILLS_DIR="${HOME}/.agents/skills"
+  fi
+
+  mkdir -p "$SKILLS_DIR"
+  install_shared "$SKILLS_DIR"
+  for wf in "${PACKAGES[@]}"; do
+    local wf_dir
+    wf_dir="$(package_dir "$wf")"
+    ln -sfn "$wf_dir" "${SKILLS_DIR}/${wf}"
+    echo "  Linked ${SKILLS_DIR}/${wf} -> ${wf_dir}  ($SCOPE)"
+  done
+}
+
 # Offer a daily systemd --user notifier (Linux desktop). Default: no.
 maybe_offer_update_timer() {
   local installer="${REPO_DIR}/hack/install-update-timer.sh"
@@ -422,25 +441,30 @@ case "$TARGET" in
   gemini)
     install_gemini
     ;;
+  codex)
+    install_codex
+    ;;
   all)
     install_cursor
     install_claude
     install_gemini
+    install_codex
     ;;
   *)
-    echo "Usage: $0 <cursor|claude|gemini|all> [--packages name1,name2] [--project [path]]" >&2
+    echo "Usage: $0 <cursor|claude|gemini|codex|all> [--packages name1,name2] [--project [path]]" >&2
     echo "" >&2
     echo "Targets:" >&2
     echo "  cursor   Cursor skill symlinks" >&2
     echo "  claude   Claude Code instruction references" >&2
     echo "  gemini   Gemini CLI skill symlinks" >&2
-    echo "  all      Cursor + Claude + Gemini" >&2
+    echo "  codex    Codex skill symlinks" >&2
+    echo "  all      Cursor + Claude + Gemini + Codex" >&2
     echo "" >&2
     echo "Options:" >&2
     echo "  --packages names      install only the listed packages (comma-separated)" >&2
     echo "                         defaults to all available packages" >&2
     echo "  --workflows names     deprecated alias for --packages" >&2
-    echo "  --project [path]      project-level (.cursor/skills/, .claude/, .gemini/skills/)" >&2
+    echo "  --project [path]      project-level (.cursor/skills/, .claude/, .gemini/skills/, .agents/skills/)" >&2
     echo "                         path defaults to current directory" >&2
     echo "  --with-update-timer   enable daily Linux update notifier (no prompt)" >&2
     echo "  --no-update-timer     skip the update-notifier prompt" >&2

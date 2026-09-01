@@ -9,9 +9,11 @@
 #   ./uninstall.sh cursor --packages bugfix              # user-level Cursor, specific package
 #   ./uninstall.sh claude                                # user-level Claude only
 #   ./uninstall.sh gemini                                # user-level Gemini only
+#   ./uninstall.sh codex                                 # user-level Codex only
 #   ./uninstall.sh cursor --project [path]               # project-level Cursor only
 #   ./uninstall.sh claude --project [path]               # project-level Claude only
 #   ./uninstall.sh gemini --project [path]               # project-level Gemini only
+#   ./uninstall.sh codex --project [path]                # project-level Codex only
 #   ./uninstall.sh all --project [path]                  # project-level everything
 #   ./uninstall.sh --list                                # list available packages
 
@@ -134,10 +136,11 @@ uninstall_shared() {
   fi
 }
 
-has_remaining_workflows() {
+has_remaining_packages() {
   local target_dir="$1"
   [[ -d "$target_dir" ]] || return 1
   for item in "$target_dir"/*/; do
+    [[ "$(basename "${item%/}")" == "_shared" ]] && continue
     [[ -L "${item%/}" ]] && return 0
   done
   return 1
@@ -190,7 +193,7 @@ uninstall_cursor() {
       echo "  Warning: $LINK exists but is not a symlink; skipping" >&2
     fi
   done
-  if [[ "$SELECTIVE" == true ]] && ! has_remaining_workflows "$SKILLS_DIR"; then
+  if [[ "$SELECTIVE" == true ]] && ! has_remaining_packages "$SKILLS_DIR"; then
     uninstall_shared "$SKILLS_DIR"
   fi
 }
@@ -244,7 +247,7 @@ uninstall_claude() {
       echo "  Warning: $LINK exists but is not a symlink; skipping" >&2
     fi
   done
-  if [[ "$SELECTIVE" == true ]] && ! has_remaining_workflows "$SKILLS_DIR"; then
+  if [[ "$SELECTIVE" == true ]] && ! has_remaining_packages "$SKILLS_DIR"; then
     uninstall_shared "$SKILLS_DIR"
   fi
 
@@ -278,7 +281,31 @@ uninstall_gemini() {
       echo "  Warning: $LINK exists but is not a symlink; skipping" >&2
     fi
   done
-  if [[ "$SELECTIVE" == true ]] && ! has_remaining_workflows "$SKILLS_DIR"; then
+  if [[ "$SELECTIVE" == true ]] && ! has_remaining_packages "$SKILLS_DIR"; then
+    uninstall_shared "$SKILLS_DIR"
+  fi
+}
+
+uninstall_codex() {
+  if [[ "$SCOPE" == "project" ]]; then
+    SKILLS_DIR="${PROJECT_ROOT}/.agents/skills"
+  else
+    SKILLS_DIR="${HOME}/.agents/skills"
+  fi
+
+  if [[ "$SELECTIVE" == false ]]; then
+    uninstall_shared "$SKILLS_DIR"
+  fi
+  for wf in "${PACKAGES[@]}"; do
+    LINK="${SKILLS_DIR}/${wf}"
+    if [[ -L "$LINK" ]]; then
+      rm -f "$LINK"
+      echo "  Removed $LINK"
+    elif [[ -e "$LINK" ]]; then
+      echo "  Warning: $LINK exists but is not a symlink; skipping" >&2
+    fi
+  done
+  if [[ "$SELECTIVE" == true ]] && ! has_remaining_packages "$SKILLS_DIR"; then
     uninstall_shared "$SKILLS_DIR"
   fi
 }
@@ -299,6 +326,7 @@ case "$TARGET" in
     uninstall_cursor
     uninstall_claude
     uninstall_gemini
+    uninstall_codex
     if [[ "$SCOPE" == "user" && "$SELECTIVE" == false ]]; then
       if [[ -x "${REPO_DIR}/hack/install-update-timer.sh" ]]; then
         if ! "${REPO_DIR}/hack/install-update-timer.sh" --remove; then
@@ -317,14 +345,17 @@ case "$TARGET" in
   gemini)
     uninstall_gemini
     ;;
+  codex)
+    uninstall_codex
+    ;;
   *)
-    echo "Usage: $0 <all|cursor|claude|gemini> [--packages name1,name2] [--project [path]]" >&2
+    echo "Usage: $0 <all|cursor|claude|gemini|codex> [--packages name1,name2] [--project [path]]" >&2
     echo "" >&2
     echo "Options:" >&2
     echo "  --packages names      uninstall only the listed packages (comma-separated)" >&2
     echo "                         defaults to all packages" >&2
     echo "  --workflows names     deprecated alias for --packages" >&2
-    echo "  --project [path]      project-level (.cursor/skills/, .claude/, .gemini/skills/)" >&2
+    echo "  --project [path]      project-level (.cursor/skills/, .claude/, .gemini/skills/, .agents/skills/)" >&2
     echo "                         path defaults to current directory" >&2
     echo "  --list                list available workflows and exit" >&2
     exit 1

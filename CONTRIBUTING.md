@@ -240,6 +240,12 @@ either form.
 
 Cursor scans both project-level (`.cursor/commands/`) and user-level (`~/.cursor/commands/`) directories, so commands work at either scope. No manifest file is needed — uninstall identifies generated commands by matching `{workflow}-*.md` filenames against existing `commands/*.md` source files.
 
+**Codex integration**: The installer symlinks each selected workflow or simple
+skill into `~/.agents/skills/{name}/` for user scope or
+`.agents/skills/{name}/` for project scope. Codex follows skill-directory
+symlinks and invokes workflow phases through the selected workflow's controller,
+for example `$bugfix assess`.
+
 **Note on symlinks**: The skill symlinks (`.cursor/skills/{workflow}/` -> `~/.ai-workflows/{workflow}`) depend on Cursor following symlinks for top-level skill discovery. There are [reported issues](https://forum.cursor.com/t/cursor-doesnt-follow-symlinks-to-discover-skills/149693) with this in some Cursor versions. The generated command files avoid this problem by using absolute paths to `$INSTALL_DIR`, so the slash commands work independently of symlink resolution.
 
 **Uninstall** (`uninstall.sh`) mirrors the install logic with removal. For Cursor, it removes generated command files by matching `{workflow}-{phase}.md` against the source workflow's `commands/` directory to avoid removing unrelated files. Selective uninstall (`--packages`) only removes commands belonging to the specified packages. The legacy `--workflows` option remains as a deprecated alias.

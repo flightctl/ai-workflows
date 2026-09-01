@@ -4,7 +4,7 @@ This file provides guidance to AI coding assistants when working with this repos
 
 ## Project Overview
 
-This repository contains reusable AI coding workflows and focused skills that can be installed globally or per-project in any environment (Cursor, Claude Code, Gemini). Each package is a self-contained directory with structured markdown files that AI agents can read and execute.
+This repository contains reusable AI coding workflows and focused skills that can be installed globally or per-project in any environment (Cursor, Claude Code, Gemini, Codex). Each package is a self-contained directory with structured markdown files that AI agents can read and execute.
 
 **Current simple skills:**
 - **report-bug** — Configurable, evidence-based Jira Bug reporting with explicit confirmation
@@ -177,7 +177,8 @@ Do not make a separate commit for the version bump.
 
 ## Installation
 
-Install with `./install.sh <target>` (targets: `cursor`, `claude`, `gemini`, `all`). See README.md for scopes, options, and uninstall instructions.
+Install with `./install.sh <target>` (targets: `cursor`, `claude`, `gemini`,
+`codex`, `all`). See README.md for scopes, options, and uninstall instructions.
 
 ## Development
 

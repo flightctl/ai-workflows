@@ -156,6 +156,20 @@ cd ai-workflows
 ./install.sh claude --project /path/to/project
 ```
 
+### Codex
+
+**User-level:**
+
+```bash
+./install.sh codex
+```
+
+**Project-level:**
+
+```bash
+./install.sh codex --project /path/to/project
+```
+
 ### All Environments at Once
 
 ```bash
@@ -199,14 +213,15 @@ For project-level Cursor installs, add the generated commands directory to `.git
 .cursor/commands/
 ```
 
-The skill symlinks under `.cursor/skills/` may also need ignoring depending on your project's conventions.
+The skill symlinks under `.cursor/skills/` and `.agents/skills/` may also need
+ignoring depending on your project's conventions.
 
 ## Scopes
 
-| Scope | Cursor | Claude Code |
-|-------|--------|-------------|
-| **User** (default) | `~/.cursor/skills/<workflow>` + `~/.cursor/commands/` | `~/.claude/CLAUDE.md` |
-| **Project** (`--project`) | `.cursor/skills/<workflow>` + `.cursor/commands/` | `.claude/CLAUDE.md` |
+| Scope | Cursor | Claude Code | Gemini | Codex |
+|-------|--------|-------------|--------|-------|
+| **User** (default) | `~/.cursor/skills/<package>` + `~/.cursor/commands/` | `~/.claude/CLAUDE.md` | `~/.gemini/skills/<package>` | `~/.agents/skills/<package>` |
+| **Project** (`--project`) | `.cursor/skills/<package>` + `.cursor/commands/` | `.claude/CLAUDE.md` | `.gemini/skills/<package>` | `.agents/skills/<package>` |
 
 ## Usage
 
@@ -227,6 +242,17 @@ The installer generates flat command files in `.cursor/commands/` so each phase 
 - `/docs-writer-gather`, `/docs-writer-plan`, `/docs-writer-draft`, ...
 
 Cursor scans both project-level (`.cursor/commands/`) and user-level (`~/.cursor/commands/`) directories. Commands are plain `.md` files — no manifest or wrapper directories needed. They are created by `install.sh` and cleaned up by `uninstall.sh`.
+
+### Codex
+
+Invoke a package as a skill and pass the workflow phase as context:
+
+- `$bugfix assess EDM-123`
+- `$design ingest PRD-123`
+- `$report-bug`
+
+Codex discovers user-level and repository-level skill symlinks automatically;
+see [Where Codex loads local skills](https://developers.openai.com/codex/skills#where-codex-loads-local-skills).
 
 ## Updating
 
@@ -253,6 +279,7 @@ On Linux desktops with systemd user sessions and `notify-send`, `install.sh` can
 ```bash
 ./uninstall.sh                                          # user-level everything
 ./uninstall.sh cursor                                   # user-level Cursor only
+./uninstall.sh codex                                    # user-level Codex only
 ./uninstall.sh cursor --packages bugfix                 # remove specific package
 ./uninstall.sh cursor --project /path/to/proj           # project-level Cursor
 ./uninstall.sh all --project /path/to/proj              # project-level everything
