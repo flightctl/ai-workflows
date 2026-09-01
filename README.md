@@ -179,7 +179,7 @@ cd ai-workflows
 
 ### Selective Installation
 
-Each workflow is intended for a specific project or use case:
+Each workflow or skill is intended for a specific project or use case:
 
 - **bugfix** -- the **Flight Control** projects ([flightctl](https://github.com/flightctl/flightctl), [flightctl-ui](https://github.com/flightctl/flightctl-ui))
 - **code-review** -- any project; reviews uncommitted changes against discovered project conventions
