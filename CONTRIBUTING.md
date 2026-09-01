@@ -20,7 +20,8 @@ description: Briefly state what the package does and when to use it.
   [Versioning](#versioning).
 - `description`: concise third-person discovery text describing both the
   capability and when it applies.
-- Body: keep under 30 lines and use relative links for progressive disclosure.
+- Keep the entire `SKILL.md`, including frontmatter, under 30 lines and use
+  relative links for progressive disclosure.
 
 Include only purpose, routing, essential constraints, and links needed whenever
 the package runs. Put conditional or detailed procedures in the package's
@@ -49,7 +50,9 @@ Project-level phase overrides (in the consuming repo):
       phase-name.md     # Overrides the built-in phase skill (see "Phase Overrides" below)
 ```
 
-The installer auto-discovers any directory with a `SKILL.md`. No script changes are needed when adding a workflow.
+The installer auto-discovers top-level `*/SKILL.md` workflows and
+`skills/*/SKILL.md` simple skills. No script changes are needed when adding a
+workflow.
 
 ## Adding a New Workflow
 
@@ -293,6 +296,7 @@ and other behavioral markdown listed above. Search by basename (e.g.,
 
 ```bash
 grep -rl "<basename-without-extension>" \
+  */SKILL.md \
   */guidelines.md \
   */skills/*.md \
   */commands/*.md \

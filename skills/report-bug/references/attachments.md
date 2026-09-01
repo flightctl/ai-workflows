@@ -36,9 +36,12 @@ account identifiers, and unrelated confidential content.
 - **Screenshots:** crop or redact unrelated windows, notifications, usernames,
   URLs, identifiers, and secrets. If safe editing is unavailable, ask the user
   for a sanitized image or omit it.
-- **Archives/binary files:** do not assume their contents are safe. Inspect the
-  file listing and relevant contents with bounded extraction in a temporary
-  directory, or ask the user to provide a reviewable form.
+- **Archives/binary files:** do not assume their contents are safe. Before
+  extraction, enforce entry-count and expanded-size limits; reject absolute or
+  parent-traversal paths, symlinks, and hard links. Extract into a secure
+  temporary directory only after verifying every canonical destination remains
+  inside it, then inspect the listing and relevant contents. Otherwise, ask the
+  user to provide a reviewable form.
 
 Never modify the original. Create a clearly named sanitized derivative in a
 securely created, owner-only temporary directory outside the repository and its

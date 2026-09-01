@@ -146,6 +146,7 @@ bump". Find affected workflows by searching for the basename (e.g.,
 
 ```bash
 grep -rl "<basename-without-extension>" \
+  */SKILL.md \
   */guidelines.md \
   */skills/*.md \
   */commands/*.md \

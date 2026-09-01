@@ -1,8 +1,8 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 # CodeRabbit configuration for ai-workflows
 #
-# This repo contains structured markdown workflows that AI agents read and
-# execute. The configuration has two layers:
+# This repo contains structured Markdown workflows and simple skills that AI
+# agents read and execute. The configuration has two layers:
 #
 #   1. Domain-specific rules — enforce the project's own quality standards
 #      (skill-reviewer dimensions, CONTRIBUTING.md conventions, AGENTS.md
@@ -18,7 +18,7 @@
 #
 language: "en-US"
 tone_instructions: >-
-  Review AI workflow skill files for structural correctness, instruction
+  Review AI workflow and simple-skill files for structural correctness, instruction
   clarity, and cross-file consistency. For scripts and CI configs, also
   apply a security lens. Flag ambiguity that would cause an AI agent to
   produce wrong output on first try.
@@ -29,10 +29,10 @@ reviews:
   request_changes_workflow: false
   high_level_summary: true
   high_level_summary_instructions: >-
-    Summarize changes in terms of which workflows are affected, what
+    Summarize changes in terms of which packages are affected, what
     structural or behavioral changes were made to skills/commands/guidelines,
     and whether the changes affect shared resources (_shared/) or
-    cross-workflow conventions.
+    cross-package conventions.
   collapse_walkthrough: false
   sequence_diagrams: false
   review_details: true
@@ -69,6 +69,12 @@ reviews:
       instructions: >-
         Apply when the PR adds a new top-level directory containing a SKILL.md.
         New workflows require AGENTS.md and README.md cross-reference updates.
+
+    - label: "new-simple-skill"
+      instructions: >-
+        Apply when the PR adds skills/*/SKILL.md. Simple skills require
+        AGENTS.md and README.md cross-reference updates, but do not require
+        workflow phases, commands, guidelines.md, or a package README.
 
     - label: "shared-resources"
       instructions: >-
@@ -108,7 +114,7 @@ reviews:
     # ══════════════════════════════════════════════════════════════
 
     # ── SKILL.md entry points ───────────────────────────────────
-    - path: "**/SKILL.md"
+    - path: "*/SKILL.md"
       instructions: |
         SKILL.md review (ai-workflows conventions):
         - YAML frontmatter required: opening/closing --- delimiters
@@ -123,8 +129,21 @@ reviews:
         - No IDE-specific syntax — plain markdown only
         - Verify every file path reference resolves to an existing file
 
+    - path: "skills/*/SKILL.md"
+      instructions: |
+        Simple-skill SKILL.md review (ai-workflows conventions):
+        - YAML frontmatter is required with name, version, and a concise
+          discovery description that says what the skill does and when to use it
+        - Total file length must be under 30 lines, including frontmatter
+        - Keep the entry point focused; put conditional detail in references/
+        - Verify relative resource references resolve from the skill directory
+        - Do not require phases, commands, a controller, guidelines.md, a README,
+          slash-command activation, or artifact persistence
+        - External mutations must have explicit approval and bounded scope
+        - No IDE-specific syntax
+
     # ── Command wrappers ────────────────────────────────────────
-    - path: "**/commands/*.md"
+    - path: "*/commands/*.md"
       instructions: |
         Command file review (ai-workflows conventions):
         - YAML frontmatter required with name and description fields
@@ -141,7 +160,7 @@ reviews:
         - No IDE-specific syntax
 
     # ── Phase skill files ───────────────────────────────────────
-    - path: "**/skills/*.md"
+    - path: "*/skills/*.md"
       instructions: |
         Phase skill review (ai-workflows conventions):
         - Maximum 10 steps per skill invocation — flag if exceeded
@@ -170,7 +189,7 @@ reviews:
         - If the file has YAML frontmatter, name and description are required
 
     # ── Guidelines files ────────────────────────────────────────
-    - path: "**/guidelines.md"
+    - path: "*/guidelines.md"
       instructions: |
         Guidelines review (ai-workflows conventions):
         - Must contain: Principles, Hard Limits, Safety, Quality, and
@@ -201,9 +220,9 @@ reviews:
     - path: "_shared/**"
       instructions: |
         Shared resource review (ai-workflows conventions):
-        - Shared resources are referenced by multiple workflows —
+        - Shared resources may be referenced by multiple packages —
           changes here have cross-cutting impact. Verify that all
-          consuming workflows are identified
+          consuming workflows and simple skills are identified
         - Recipes must be self-contained and parameterized (using
           uppercase PLACEHOLDER names for caller-provided values)
         - References TO shared resources from workflow skills must use
@@ -212,7 +231,7 @@ reviews:
           enough for all consumers
 
     # ── Templates and prompts ───────────────────────────────────
-    - path: "**/{templates,prompts}/*.md"
+    - path: "*/{templates,prompts}/*.md"
       instructions: |
         Template/prompt review (ai-workflows conventions):
         - Templates use {placeholder} syntax for caller-filled values —
@@ -224,7 +243,7 @@ reviews:
         - No absolute paths in templates
 
     # ── Workflow scripts ────────────────────────────────────────
-    - path: "**/scripts/*.py"
+    - path: "*/scripts/*.py"
       instructions: |
         Workflow script review (ai-workflows conventions):
         - Scripts must be invoked by skill files, not by users directly
@@ -236,13 +255,42 @@ reviews:
         - No hardcoded absolute paths — derive paths relative to
           script location
 
+    - path: "skills/*/references/*.md"
+      instructions: |
+        Simple-skill reference review (ai-workflows conventions):
+        - References contain focused, conditionally loaded instructions
+        - Contracts, terminology, permissions, and failure behavior must remain
+          consistent across the entry point and other referenced files
+        - Package-resource references must be relative and resolve; runtime data
+          paths such as user-selected attachments may be absolute
+        - State-changing operations require an exact preview and explicit approval
+
+    - path: "skills/*/templates/*.md"
+      instructions: |
+        Simple-skill template review (ai-workflows conventions):
+        - Follow the placeholder grammar documented by the owning skill; do not
+          assume workflow {placeholder} syntax or .artifacts/ output
+        - Verify required placeholders and omission behavior against the renderer
+        - Templates for embedded content may intentionally begin below H1
+
+    - path: "skills/*/scripts/*.py"
+      instructions: |
+        Simple-skill script review (ai-workflows conventions):
+        - Treat scripts as maintained code: deterministic behavior, validated
+          inputs, clear failures, documented CLI/exit status, and unit tests
+        - Scripts must work through symlinked installations and avoid hardcoded
+          installation paths
+        - A script may be invoked by the skill and exposed as a documented CLI
+          helper; do not require workflow phase dispatch
+
     # ── Shell scripts ───────────────────────────────────────────
     - path: "**/*.sh"
       instructions: |
         Shell script review (ai-workflows conventions):
-        - Must use set -euo pipefail for safety
+        - Follow the repository's established error-handling mode; quote variable
+          expansions and handle pipeline/unset-variable risks where they occur
         - install.sh and uninstall.sh: verify auto-discovery logic
-          (scanning for */SKILL.md) is correct
+          (scanning for */SKILL.md and skills/*/SKILL.md) is correct
         - validate-structure.sh: verify checks match current
           CONTRIBUTING.md conventions
         - No hardcoded workflow lists — rely on SKILL.md auto-discovery
@@ -250,9 +298,10 @@ reviews:
     # ── Cross-workflow markdown consistency ──────────────────────
     - path: "**/*.md"
       instructions: |
-        Cross-workflow consistency (ai-workflows conventions):
-        - All file references must be relative paths (never absolute) —
-          this is critical for symlink compatibility
+        Cross-package consistency (ai-workflows conventions):
+        - Package-resource references that an agent follows must be relative for
+          symlink compatibility. Do not apply this to runtime/user data paths,
+          URLs, issue keys, or illustrative attachment manifests
         - No IDE-specific syntax (Cursor-specific, VS Code-specific, etc.)
         - Consistent terminology within a workflow: pick one term, stick
           with it
@@ -260,7 +309,7 @@ reviews:
           consumer files (e.g., if a field is defined in one phase skill
           and consumed in another, names and types must agree)
         - No verbatim duplication of multi-line instruction blocks
-          across SKILL.md, guidelines.md, and controller.md — each has
+          across workflow SKILL.md, guidelines.md, and controller.md — each has
           a distinct role (shared phase names and brief references are
           expected cross-referencing, not duplication)
 
@@ -619,6 +668,8 @@ reviews:
           and must use relative paths only. Paths inside fenced code
           blocks that are clearly examples (containing "example", "e.g.",
           or placeholder usernames like /home/user/) are exempt.
+          This check does not apply to runtime/user data paths in simple-skill
+          references, such as an attachment selected for upload.
         mode: "error"
 
       - name: "skill-md-under-30-lines"
@@ -632,7 +683,7 @@ reviews:
 
       - name: "command-colon-notation"
         instructions: |
-          For any file in a commands/ directory, verify the YAML
+          For any top-level workflow file matching */commands/*.md, verify the YAML
           frontmatter name field uses colon notation matching the
           pattern {workflow-name}:{phase-name} (e.g., bugfix:assess,
           design:ingest). The workflow-name must match the parent
@@ -643,13 +694,15 @@ reviews:
 
       - name: "no-orphaned-references"
         instructions: |
-          For any changed markdown file in a workflow directory, verify
+          For any changed markdown file in a top-level workflow directory, verify
           that file path references (backtick-quoted paths like
           `../skills/controller.md` or `guidelines.md`) point to files
           that exist. Flag references to files that don't exist (dangling
           references). Also flag skill or command files that exist but
           are never referenced from SKILL.md, controller.md, or any
-          command file (orphaned files).
+          command file (orphaned files). For skills/* simple skills, require
+          only that supporting resources are reachable from SKILL.md or another
+          reachable reference; do not require workflow-specific files.
         mode: "warning"
 
       - name: "no-content-duplication"
@@ -669,7 +722,8 @@ reviews:
 
       - name: "step-sequencing"
         instructions: |
-          For any changed skills/*.md file, verify that main steps are
+          For any changed top-level workflow file matching */skills/*.md, verify
+          that main steps are
           numbered sequentially (Step 1, Step 2, Step 3... or ## Step 1,
           ## Step 2...). Flag: gaps in numbering (1, 2, 4), duplicate
           numbers (two Step 3s), and any skill with more than 10 main

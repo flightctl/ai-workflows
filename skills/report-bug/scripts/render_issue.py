@@ -223,7 +223,7 @@ def escape_markdown(text: str) -> str:
     """Escape plain text so the confirmation preview cannot treat it as markup."""
     escaped_lines = []
     for line in text.split("\n"):
-        escaped = re.sub(r"([\\`*_[\]<>#])", r"\\\1", line)
+        escaped = re.sub(r"([\\`*_[\]<>#~=])", r"\\\1", line)
         escaped = re.sub(r"^( {0,3})([-+])(?=\s)", r"\1\\\2", escaped)
         escaped = re.sub(r"^( {0,3})(\d{1,9})([.)])(?=\s)", r"\1\2\\\3", escaped)
         if re.fullmatch(r" {0,3}(?:-\s*){3,}", escaped):
@@ -412,7 +412,7 @@ def render_adf(
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Run the command-line renderer and return a process exit code."""
+    """Run the renderer; return 0 on success or 2 for input/template/file errors."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--template", required=True, type=Path)

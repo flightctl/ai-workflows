@@ -187,8 +187,9 @@ Do not request creation confirmation until all of the following are true:
   report clearly explains why reliable steps cannot yet be provided;
 - the report distinguishes observed frequency from the source and independent
   verification status of its written steps;
-- impact claims justify the selected Severity without exaggeration and the
-  value exists in the target project's live metadata;
+- impact claims justify the selected Severity without exaggeration; when a
+  dedicated Severity field is used, its mapped value exists in live metadata,
+  otherwise the Description contains the labeled level and justification;
 - exact diagnostic signals and environment/version are included when known;
 - unknowns and intermittency are explicit;
 - no proposed fix is presented as fact and no unsupported root cause is claimed;

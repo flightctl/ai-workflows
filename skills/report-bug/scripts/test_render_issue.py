@@ -155,7 +155,8 @@ class RenderIssueTests(unittest.TestCase):
     def test_line_leading_markdown_blocks_are_escaped_in_preview(self):
         raw = self.raw_model()
         raw["actual_results"] = (
-            "- item\n+ item\n1. item\n2) item\n---\n> quote\n# heading"
+            "- item\n+ item\n1. item\n2) item\n---\n> quote\n# heading\n"
+            "~~strike~~\nheading\n==="
         )
         output = render_issue.render_markdown(
             self.blocks(),
@@ -169,6 +170,8 @@ class RenderIssueTests(unittest.TestCase):
             r"\---",
             r"\> quote",
             r"\# heading",
+            r"\~\~strike\~\~",
+            r"\=\=\=",
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, output)

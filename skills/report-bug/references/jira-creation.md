@@ -42,17 +42,23 @@ approval.
 ## Create once
 
 Submit the approved Summary, Description, configured Environment and Severity
-fields when available, validated parent, user-confirmed Affects Version,
+fields when available, validated parent, user-confirmed Affects Version when
+the target exposes the configured field,
 explicitly requested assignee, and other approved optional fields. Omit Priority
 from every request so the target Jira applies its unset/default value for
 triage. Never submit Fix Version or Target Version.
 
-Prefer an integration that returns the created issue key atomically. An MCP or
+Prefer an integration that returns the created issue key atomically. Before the
+confirmation preview, discover or configure the target's supported create
+endpoint and rich-text representation, and disclose them in the transport
+plan. An MCP or
 native create tool must support every approved field; do not silently drop a
-field because its schema is inconvenient. With the REST API, send one
-`POST /rest/api/3/issue`; render Description as ADF by following
-[rendering.md](rendering.md), and use the same structured approach for other
-rich-text fields. Encode custom select fields as their resolved option IDs.
+field because its schema is inconvenient. For verified Jira Cloud REST v3, send
+one `POST /rest/api/3/issue` and render Description as ADF by following
+[rendering.md](rendering.md). For other Jira deployments, use only a documented
+endpoint and description representation supported by that target; otherwise
+choose a capable MCP/CLI transport or stop. Use the same resolved contract for
+other rich-text fields. Encode custom select fields as their resolved option IDs.
 Keep credentials out of command arguments, logs, artifacts, and output.
 
 No client-side technique makes creation exactly-once across every supported Jira

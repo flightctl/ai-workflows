@@ -249,7 +249,8 @@ uninstall_claude() {
   fi
 
   # Remove the marker if no workflow references remain
-  if grep -qF "$MARKER" "$CLAUDE_MD" && ! grep -q "^For .* workflows, read and follow" "$CLAUDE_MD"; then
+  if grep -qF "$MARKER" "$CLAUDE_MD" && \
+     ! grep -Eq "^For .*( workflows)?, read and follow" "$CLAUDE_MD"; then
     grep -vF "$MARKER" "$CLAUDE_MD" > "${CLAUDE_MD}.tmp" && mv "${CLAUDE_MD}.tmp" "$CLAUDE_MD"
     # strip trailing blank lines (portable -- no GNU sed -i)
     awk '{lines[NR]=$0} END{e=NR; while(e>0&&lines[e]=="") e--; for(i=1;i<=e;i++) print lines[i]}' \

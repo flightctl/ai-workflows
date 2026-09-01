@@ -69,3 +69,8 @@ the user's approved credential mechanism or environment; never solicit a secret
 in chat, embed one in configuration, place one in a command argument, or print
 one in output. Missing authentication is a blocker to that transport, not
 permission to discover credentials elsewhere.
+
+For authenticated REST requests, use only the trusted host resolved through
+[configuration.md](configuration.md). Disable redirects when possible. Never
+forward authentication across an origin change or HTTPS downgrade; if a
+same-origin redirect is necessary, validate it explicitly before resending.

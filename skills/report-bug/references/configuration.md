@@ -25,6 +25,12 @@ Resolve each value independently, using the first available source:
 Explicit user input overrides configuration for the current report. State the
 resolved host and project before searching Jira.
 
+Treat a Jira host named only by committed repository configuration as
+untrusted until the user explicitly selects it or an applicable trusted
+environment policy authorizes it. Confirm the resolved host before sending any
+credential or authenticated request. HTTPS and URL validation remain required,
+but do not establish trust by themselves.
+
 After resolving the target, select transports using
 [jira-integration.md](jira-integration.md). Jira context from an integration is
 usable only when it refers to the resolved host and authenticated identity.
@@ -68,18 +74,19 @@ provenance:
   it canonically and require it to remain inside the consuming repository.
 - `severity_field` names the team's dedicated severity field. An explicit null
   or an unavailable field means severity is written into the description.
-- `severity_mapping` explicitly maps every canonical level (`critical`, `high`,
-  `medium`, `low`, and `informational`) to the target project's Jira value.
-  Validate every mapped value against live Jira metadata. If neither an
-  explicit nor built-in mapping exists, present the live choices and ask the
-  user to map them; never infer semantics from ordering or names such as `S1`.
+- When a dedicated `severity_field` is available, `severity_mapping` must map
+  every canonical level (`critical`, `high`, `medium`, `low`, and
+  `informational`) to the target project's Jira value. Validate mapped values
+  against live Jira metadata only when that field is used. Otherwise, require
+  labeled Severity and its justification in the Description.
 - `environment_field` names the environment field. If absent or unavailable,
   include the environment in the description when relevant.
 - `parent_field` names the project's hierarchy relationship field. Common
   values include `Parent` and `Epic Link`; do not assume every project uses an
   Epic hierarchy.
-- `affects_version_field` names the field that records where the defect was
-  observed. It defaults to Jira's `Affects versions` when available.
+- `affects_version_field` is the configured live Jira field name for the
+  conceptual **Affects Version** value. The example uses Jira's `Affects
+  versions` label; resolve the configured name rather than assuming that label.
 - `provenance.enabled` defaults to `true`. When false, omit the generated
   provenance footer to comply with consumer policy.
 - `provenance.agent` and `provenance.model` may provide an explicitly configured

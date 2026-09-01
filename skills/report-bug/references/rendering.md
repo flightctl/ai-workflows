@@ -1,7 +1,7 @@
 # Structured Rendering
 
 The canonical description is structured JSON, not Markdown or ADF. Use
-`scripts/render_issue.py` to render the confirmation preview and Jira ADF from
+`../scripts/render_issue.py` to render the confirmation preview and Jira ADF from
 the same input. Do not hand-convert Markdown to ADF.
 
 ## Input model
@@ -22,13 +22,14 @@ the same input. Do not hand-convert Markdown to ADF.
 Five fields are required and non-empty: `description`, `reproducibility`,
 `steps`, `actual_results`, and `expected_results`. `steps` is a non-empty array
 of strings. `diagnostics` and `links` are optional arrays. Keep separate Jira
-fields outside this model unless a custom template intentionally includes the
-optional `{{environment}}` or `{{severity}}` scalar.
+fields outside this model. Populate optional `environment` or `severity` only
+when a custom template, or the documented no-dedicated-field fallback, includes
+the corresponding `{{environment}}` or `{{severity}}` placeholder.
 
 `assistant` is optional provenance metadata, not report content. Populate
 `agent` and `model` only from authoritative runtime identity or explicit
 consumer configuration. The renderer reads the skill name and version directly
-from `SKILL.md` and appends a vendor-neutral footer. Use `--no-provenance` only
+from `../SKILL.md` and appends a vendor-neutral footer. Use `--no-provenance` only
 when consumer policy disables it. When assistant identity is absent, the footer
 identifies only AI assistance and the skill version.
 
@@ -39,7 +40,7 @@ ADF disclosure required for Jira descriptions.
 
 ## Templates
 
-The default is `templates/default.md`. Consumer templates may contain ATX
+The default is `../templates/default.md`. Consumer templates may contain ATX
 headings, plain literal paragraphs, and supported placeholders on lines by
 themselves. Required placeholders, exactly once, are `description`,
 `reproducibility`, `steps`, `actual_results`, and `expected_results`. Optional
@@ -53,15 +54,16 @@ plain text are escaped in the preview and emitted as literal ADF text.
 ## Commands
 
 Python 3.10 or newer is required. Resolve `{REPORT_BUG_SKILL}` to the installed
-skill directory. Create a temporary directory with the platform's secure
+skill directory and `{RESOLVED_TEMPLATE}` through the template-selection rules
+in [configuration.md](configuration.md). Create a temporary directory with the platform's secure
 temporary-directory facility, ensure it is accessible only to the current user,
 and write the structured model there with owner-only permissions:
 
 ```bash
 python3 "{REPORT_BUG_SKILL}/scripts/render_issue.py" \
-  --input "{TEMP_DIR}/issue.json" --template template.md --format markdown
+  --input "{TEMP_DIR}/issue.json" --template "{RESOLVED_TEMPLATE}" --format markdown
 python3 "{REPORT_BUG_SKILL}/scripts/render_issue.py" \
-  --input "{TEMP_DIR}/issue.json" --template template.md --format adf
+  --input "{TEMP_DIR}/issue.json" --template "{RESOLVED_TEMPLATE}" --format adf
 ```
 
 Use Markdown only for confirmation and ADF for a transport that accepts ADF. If
