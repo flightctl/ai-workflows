@@ -48,6 +48,19 @@ find_workflows_referencing() {
     workflows="$from_grep"
   fi
 
+  local from_simple_skills
+  from_simple_skills=$(grep -rl "$base" \
+    -- \
+    skills/*/SKILL.md \
+    skills/*/references/*.md \
+    skills/*/templates/* \
+    skills/*/prompts/*.md \
+    skills/*/scripts/* \
+    2>/dev/null | sed -E 's|^(skills/[^/]+)/.*|\1|' | sort -u || true)
+  if [ -n "$from_simple_skills" ]; then
+    workflows=$(printf '%s\n%s' "$workflows" "$from_simple_skills" | sort -u)
+  fi
+
   for wf_dir in */; do
     wf="${wf_dir%/}"
     [ -f "$wf/SKILL.md" ] || continue
@@ -112,7 +125,7 @@ semver_lt() {
 is_behavioral() {
   local file="$1"
   case "$file" in
-    */skills/*.md|*/commands/*.md|*/guidelines.md)
+    */skills/*.md|*/commands/*.md|*/guidelines.md|skills/*/references/*)
       return 0 ;;
     */templates/*|*/prompts/*|*/scripts/*)
       return 0 ;;
@@ -146,9 +159,17 @@ is_behavioral() {
 # ---------------------------------------------------------------------------
 # 5. Static: all SKILL.md files must have valid semver
 # ---------------------------------------------------------------------------
-for skill in */SKILL.md; do
+package_names=()
+for skill in */SKILL.md skills/*/SKILL.md; do
   [ -f "$skill" ] || continue
   wf=$(dirname "$skill")
+  package_name=$(basename "$wf")
+  for existing_name in "${package_names[@]}"; do
+    if [ "$existing_name" = "$package_name" ]; then
+      fail "duplicate workflow/skill name '$package_name'"
+    fi
+  done
+  package_names+=("$package_name")
   ver=$(sed -n 's/^version: *//p' "$skill")
   if [ -z "$ver" ]; then
     fail "$wf: SKILL.md missing version field"
@@ -192,6 +213,11 @@ for file in "${CHANGED_FILES[@]}"; do
   fi
 
   wf="${file%%/*}"
+  if [[ "$file" == skills/*/* ]]; then
+    skill_rest="${file#skills/}"
+    candidate="skills/${skill_rest%%/*}"
+    [ -f "$candidate/SKILL.md" ] && wf="$candidate"
+  fi
   [ -f "$wf/SKILL.md" ] || continue
 
   if is_behavioral "$file"; then
@@ -233,6 +259,11 @@ done
 # ---------------------------------------------------------------------------
 for file in "${CHANGED_FILES[@]}"; do
   wf="${file%%/*}"
+  if [[ "$file" == skills/*/* ]]; then
+    skill_rest="${file#skills/}"
+    candidate="skills/${skill_rest%%/*}"
+    [ -f "$candidate/SKILL.md" ] && wf="$candidate"
+  fi
   [ -f "$wf/SKILL.md" ] || continue
 
   if ! [ -f "$file" ] && git show "$MERGE_BASE:$file" >/dev/null 2>&1; then

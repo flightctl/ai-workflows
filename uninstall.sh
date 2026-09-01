@@ -1,37 +1,60 @@
 #!/usr/bin/env bash
 # Uninstall ai-workflows (remove symlinks and references).
-# Automatically discovers all installed workflow directories.
+# Automatically discovers all installed package directories.
 #
 # Usage:
 #   ./uninstall.sh                                       # remove user-level everything
 #   ./uninstall.sh all                                   # same
 #   ./uninstall.sh cursor                                # user-level Cursor only
-#   ./uninstall.sh cursor --workflows bugfix             # user-level Cursor, specific workflow
+#   ./uninstall.sh cursor --packages bugfix              # user-level Cursor, specific package
 #   ./uninstall.sh claude                                # user-level Claude only
 #   ./uninstall.sh gemini                                # user-level Gemini only
 #   ./uninstall.sh cursor --project [path]               # project-level Cursor only
 #   ./uninstall.sh claude --project [path]               # project-level Claude only
 #   ./uninstall.sh gemini --project [path]               # project-level Gemini only
 #   ./uninstall.sh all --project [path]                  # project-level everything
-#   ./uninstall.sh --list                                # list available workflows
+#   ./uninstall.sh --list                                # list available packages
 
 set -e
 
 INSTALL_DIR="${HOME}/.ai-workflows"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# --- discover all available workflows ---
-ALL_WORKFLOWS=()
-for skill in "$REPO_DIR"/*/SKILL.md; do
+# --- discover all available packages ---
+ALL_PACKAGES=()
+ALL_PACKAGE_PATHS=()
+for skill in "$REPO_DIR"/*/SKILL.md "$REPO_DIR"/skills/*/SKILL.md; do
   [[ -f "$skill" ]] || continue
-  ALL_WORKFLOWS+=("$(basename "$(dirname "$skill")")")
+  package_name="$(basename "$(dirname "$skill")")"
+  package_path="$(dirname "${skill#"$REPO_DIR"/}")"
+  for existing_name in "${ALL_PACKAGES[@]}"; do
+    if [[ "$existing_name" == "$package_name" ]]; then
+      echo "Error: duplicate workflow/skill name '$package_name'" >&2
+      echo "Package names must be unique across top-level workflows and skills/." >&2
+      exit 1
+    fi
+  done
+  ALL_PACKAGES+=("$package_name")
+  ALL_PACKAGE_PATHS+=("$package_path")
 done
+
+package_dir() {
+  local name="$1"
+  local index
+  for index in "${!ALL_PACKAGES[@]}"; do
+    if [[ "${ALL_PACKAGES[$index]}" == "$name" ]]; then
+      printf '%s' "${INSTALL_DIR}/${ALL_PACKAGE_PATHS[$index]}"
+      return 0
+    fi
+  done
+  return 1
+}
 
 # --- handle --list early ---
 for arg in "$@"; do
   if [[ "$arg" == "--list" ]]; then
-    echo "Available workflows:"
-    for wf in "${ALL_WORKFLOWS[@]}"; do
+    echo "Available packages:"
+    for wf in "${ALL_PACKAGES[@]}"; do
       echo "  $wf"
     done
     exit 0
@@ -42,7 +65,7 @@ done
 TARGET="${1:-all}"
 SCOPE="user"
 PROJECT_ROOT=""
-SELECTED_WORKFLOWS=()
+SELECTED_PACKAGES=()
 
 shift 2>/dev/null || true
 while [[ $# -gt 0 ]]; do
@@ -54,13 +77,17 @@ while [[ $# -gt 0 ]]; do
         shift
       fi
       ;;
-    --workflows)
+    --packages|--workflows)
+      selector_flag="$1"
+      if [[ "$selector_flag" == "--workflows" ]]; then
+        echo "Warning: --workflows is deprecated; use --packages." >&2
+      fi
       if [[ -n "${2:-}" && "${2:0:1}" != "-" ]]; then
-        IFS=',' read -ra _wfs <<< "$2"
-        SELECTED_WORKFLOWS+=("${_wfs[@]}")
+        IFS=',' read -ra _packages <<< "$2"
+        SELECTED_PACKAGES+=("${_packages[@]}")
         shift
       else
-        echo "Error: --workflows requires a comma-separated list of workflow names" >&2
+        echo "Error: ${selector_flag} requires a comma-separated list of package names" >&2
         exit 1
       fi
       ;;
@@ -72,29 +99,29 @@ if [[ "$SCOPE" == "project" && -z "$PROJECT_ROOT" ]]; then
   PROJECT_ROOT="$(pwd)"
 fi
 
-# --- resolve final workflow list ---
-if [[ ${#SELECTED_WORKFLOWS[@]} -gt 0 ]]; then
-  WORKFLOWS=()
-  for sel in "${SELECTED_WORKFLOWS[@]}"; do
+# --- resolve final package list ---
+if [[ ${#SELECTED_PACKAGES[@]} -gt 0 ]]; then
+  PACKAGES=()
+  for sel in "${SELECTED_PACKAGES[@]}"; do
     found=false
-    for avail in "${ALL_WORKFLOWS[@]}"; do
+    for avail in "${ALL_PACKAGES[@]}"; do
       if [[ "$sel" == "$avail" ]]; then
         found=true
         break
       fi
     done
     if [[ "$found" == false ]]; then
-      echo "Error: unknown workflow '$sel'" >&2
-      echo "Available workflows: ${ALL_WORKFLOWS[*]}" >&2
+      echo "Error: unknown package '$sel'" >&2
+      echo "Available packages: ${ALL_PACKAGES[*]}" >&2
       exit 1
     fi
-    WORKFLOWS+=("$sel")
+    PACKAGES+=("$sel")
   done
 else
-  WORKFLOWS=("${ALL_WORKFLOWS[@]}")
+  PACKAGES=("${ALL_PACKAGES[@]}")
 fi
 
-SELECTIVE=$([[ ${#SELECTED_WORKFLOWS[@]} -gt 0 ]] && echo true || echo false)
+SELECTIVE=$([[ ${#SELECTED_PACKAGES[@]} -gt 0 ]] && echo true || echo false)
 
 # --- helpers ---
 
@@ -122,13 +149,15 @@ remove_cursor_commands() {
 
   [[ -d "$cmds_dir" ]] || return 0
 
-  for wf in "${WORKFLOWS[@]}"; do
+  for wf in "${PACKAGES[@]}"; do
+    local wf_dir
+    wf_dir="$(package_dir "$wf")"
     for cmd_file in "${cmds_dir}/${wf}"-*.md; do
       [[ -f "$cmd_file" ]] || continue
       local base
       base="$(basename "$cmd_file" .md)"
       local suffix="${base#"${wf}-"}"
-      if [[ -f "${INSTALL_DIR}/${wf}/commands/${suffix}.md" ]]; then
+      if [[ -f "${wf_dir}/commands/${suffix}.md" ]]; then
         rm -f "$cmd_file"
         removed=$((removed + 1))
       fi
@@ -136,6 +165,7 @@ remove_cursor_commands() {
   done
 
   [[ $removed -gt 0 ]] && echo "  Removed ${removed} command(s) from ${cmds_dir}  ($SCOPE)"
+  return 0
 }
 
 uninstall_cursor() {
@@ -151,7 +181,7 @@ uninstall_cursor() {
   if [[ "$SELECTIVE" == false ]]; then
     uninstall_shared "$SKILLS_DIR"
   fi
-  for wf in "${WORKFLOWS[@]}"; do
+  for wf in "${PACKAGES[@]}"; do
     LINK="${SKILLS_DIR}/${wf}"
     if [[ -L "$LINK" ]]; then
       rm -f "$LINK"
@@ -178,12 +208,17 @@ uninstall_claude() {
 
   MARKER="# ai-workflows"
 
-  for wf in "${WORKFLOWS[@]}"; do
+  for wf in "${PACKAGES[@]}"; do
     REMOVE_LINES=()
+    local wf_dir
+    wf_dir="$(package_dir "$wf")"
     if [[ "$SCOPE" == "project" ]]; then
+      REMOVE_LINES+=("For ${wf}, read and follow ${wf_dir}/SKILL.md")
       REMOVE_LINES+=("For ${wf} workflows, read and follow ${INSTALL_DIR}/${wf}/SKILL.md")
       REMOVE_LINES+=("For ${wf} workflows, read and follow ${INSTALL_DIR}/${wf}/skills/controller.md")
     else
+      REMOVE_LINES+=("For ${wf}, read and follow ~/.ai-workflows/${wf}/SKILL.md")
+      REMOVE_LINES+=("For ${wf}, read and follow ~/.ai-workflows/skills/${wf}/SKILL.md")
       REMOVE_LINES+=("For ${wf} workflows, read and follow ~/.ai-workflows/${wf}/SKILL.md")
       REMOVE_LINES+=("For ${wf} workflows, read and follow ~/.ai-workflows/${wf}/skills/controller.md")
     fi
@@ -200,7 +235,7 @@ uninstall_claude() {
   if [[ "$SELECTIVE" == false ]]; then
     uninstall_shared "$SKILLS_DIR"
   fi
-  for wf in "${WORKFLOWS[@]}"; do
+  for wf in "${PACKAGES[@]}"; do
     LINK="${SKILLS_DIR}/${wf}"
     if [[ -L "$LINK" ]]; then
       rm -f "$LINK"
@@ -233,7 +268,7 @@ uninstall_gemini() {
   if [[ "$SELECTIVE" == false ]]; then
     uninstall_shared "$SKILLS_DIR"
   fi
-  for wf in "${WORKFLOWS[@]}"; do
+  for wf in "${PACKAGES[@]}"; do
     LINK="${SKILLS_DIR}/${wf}"
     if [[ -L "$LINK" ]]; then
       rm -f "$LINK"
@@ -282,11 +317,12 @@ case "$TARGET" in
     uninstall_gemini
     ;;
   *)
-    echo "Usage: $0 <all|cursor|claude|gemini> [--workflows wf1,wf2] [--project [path]]" >&2
+    echo "Usage: $0 <all|cursor|claude|gemini> [--packages name1,name2] [--project [path]]" >&2
     echo "" >&2
     echo "Options:" >&2
-    echo "  --workflows wf1,wf2   uninstall only the listed workflows (comma-separated)" >&2
-    echo "                         defaults to all workflows" >&2
+    echo "  --packages names      uninstall only the listed packages (comma-separated)" >&2
+    echo "                         defaults to all packages" >&2
+    echo "  --workflows names     deprecated alias for --packages" >&2
     echo "  --project [path]      project-level (.cursor/skills/, .claude/, .gemini/skills/)" >&2
     echo "                         path defaults to current directory" >&2
     echo "  --list                list available workflows and exit" >&2

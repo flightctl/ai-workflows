@@ -1,5 +1,31 @@
 # Contributing
 
+## SKILL.md Conventions
+
+Every workflow and simple skill has a thin `SKILL.md` entry point with YAML
+frontmatter:
+
+```yaml
+---
+name: package-name
+version: 0.1.0
+description: Briefly state what the package does and when to use it.
+---
+```
+
+- `name`: lowercase letters, digits, and hyphens; maximum 64 characters; must
+  match the package directory basename and be unique across workflows and
+  simple skills.
+- `version`: semantic version (`X.Y.Z`). New packages start at `0.1.0`; see
+  [Versioning](#versioning).
+- `description`: concise third-person discovery text describing both the
+  capability and when it applies.
+- Body: keep under 30 lines and use relative links for progressive disclosure.
+
+Include only purpose, routing, essential constraints, and links needed whenever
+the package runs. Put conditional or detailed procedures in the package's
+supporting files.
+
 ## Workflow Structure
 
 Every workflow is a directory at the repo root containing:
@@ -32,21 +58,12 @@ The installer auto-discovers any directory with a `SKILL.md`. No script changes 
 3. Run `./install.sh cursor` (or `all`) to verify it gets picked up.
 4. Submit a PR.
 
-### SKILL.md
+### Workflow SKILL.md
 
-The `SKILL.md` is the entry point. Keep it thin -- phase overview and a reference to `guidelines.md`. Cursor uses the YAML frontmatter for skill discovery.
-
-```yaml
----
-name: workflow-name
-version: 0.1.0
-description: Brief description. Include trigger terms so the agent knows when to use it.
----
-```
-
-- `name`: lowercase, hyphens only, max 64 chars.
-- `version`: semantic version (X.Y.Z). New workflows start at `0.1.0`. See [Versioning](#versioning).
-- `description`: what the workflow does and when to use it. Write in third person.
+Follow the shared [SKILL.md conventions](#skillmd-conventions). The workflow
+entry point gives a short phase overview and routes to `guidelines.md` and,
+when present, `skills/controller.md`. Phase implementation details belong in
+the phase files, not the entry point.
 
 ### guidelines.md
 
@@ -135,49 +152,120 @@ my-project/
 └── ...
 ```
 
+## Simple Skills
+
+### Structure
+
+Focused, non-phased skills live under `skills/`:
+
+```
+skills/
+  skill-name/
+    SKILL.md
+    references/          # Optional conditional detail
+    templates/           # Optional generated-content templates
+    scripts/             # Optional deterministic helpers
+```
+
+Keep the entry point thin and add only resources the skill actually uses. The
+installer discovers `skills/*/SKILL.md` and installs each skill by its basename.
+That basename must be unique across both top-level workflows and `skills/`; the
+installer and CI reject collisions rather than choosing one package silently.
+Consumer-specific skill configuration belongs under
+`.workflows/{skill-name}/` in the consuming repository; do not place credentials
+there.
+
+### Adding a New Simple Skill
+
+1. Create `skills/{skill-name}/` using a globally unique lowercase name.
+2. Add `SKILL.md` following the shared entry-point conventions.
+3. Add only the references, templates, scripts, and tests required by the skill.
+4. Add the skill to `README.md` and `AGENTS.md`.
+5. Run relevant script tests and linters, then verify selective install and
+   uninstall with `--packages {skill-name}`.
+6. Submit a PR.
+
+### Simple Skill SKILL.md
+
+Follow the shared [SKILL.md conventions](#skillmd-conventions). State the
+focused outcome, trigger conditions, essential safety or permission boundaries,
+and routing to supporting resources. Do not add workflow phases, controllers,
+or transition language to a task that has no genuine phase model.
+
+### References and Templates
+
+Use `references/` for detailed schemas, policies, or conditional procedures.
+The entry point must link every reference that an agent may need and state when
+to read it. Keep each rule in one authoritative location.
+
+Use `templates/` for generated-output structure. Document the template contract,
+supported customization, and failure behavior. Treat template changes as
+behavioral changes requiring a version bump after the initial version is
+committed.
+
+### Scripts and Tests
+
+Add a script when deterministic execution materially improves correctness or
+avoids repeatedly reconstructing fragile logic. Scripts are maintained code:
+document their interface, fail clearly, avoid unnecessary dependencies, and
+follow repository language conventions. Add unit tests for meaningful behavior
+and wire new suites into CI; tests that run only locally are insufficient.
+
+### Consumer Configuration
+
+Consumer-owned configuration belongs at `.workflows/{skill-name}/` in the
+consuming repository. Document its schema, precedence, validation, and security
+boundaries. Never store credentials there. Applicable `AGENTS.md` instructions
+remain authoritative according to their normal directory scope.
+
 ## Installation Internals
 
-The installer (`install.sh`) auto-discovers workflows by scanning for `*/SKILL.md` at the repo root. No script changes are needed when adding a workflow.
+The installer (`install.sh`) auto-discovers workflows from `*/SKILL.md` and
+simple skills from `skills/*/SKILL.md`. No script changes are needed when adding
+either form.
 
 **Claude Code integration**: The installer:
-1. Appends workflow references to `CLAUDE.md` (or `.claude/CLAUDE.md` for project-level) beneath the `# ai-workflows` marker
-2. Symlinks workflows into the Claude skills directory (or `.claude/skills/` for project-level) for slash command discovery
+1. Appends package references to `CLAUDE.md` (or `.claude/CLAUDE.md` for project-level) beneath the `# ai-workflows` marker
+2. Symlinks workflows and simple skills into the Claude skills directory (or `.claude/skills/` for project-level) for discovery
 3. Symlinks each workflow's `commands/` directory into `.claude/commands/` so phases are discoverable as `/{workflow}:{command}` slash commands (e.g., `/bugfix:assess`, `/cve-fix:patch`)
 4. Removes stale references (old controller.md paths) to avoid duplicates
 
 **Cursor integration**: Cursor uses two discovery mechanisms — skills (`SKILL.md` in `.cursor/skills/*/`) and commands (`.md` files in `.cursor/commands/`). The installer uses both:
 
-1. Symlinks each workflow directory into `.cursor/skills/{workflow}/` for top-level skill discovery
+1. Symlinks each selected workflow or simple skill into `.cursor/skills/{name}/` for discovery
 2. For each `commands/{phase}.md` in a workflow, generates a command file `.cursor/commands/{workflow}-{phase}.md` — a thin dispatch prompt that reads the workflow's controller and dispatches the phase
 
 Cursor scans both project-level (`.cursor/commands/`) and user-level (`~/.cursor/commands/`) directories, so commands work at either scope. No manifest file is needed — uninstall identifies generated commands by matching `{workflow}-*.md` filenames against existing `commands/*.md` source files.
 
 **Note on symlinks**: The skill symlinks (`.cursor/skills/{workflow}/` -> `~/.ai-workflows/{workflow}`) depend on Cursor following symlinks for top-level skill discovery. There are [reported issues](https://forum.cursor.com/t/cursor-doesnt-follow-symlinks-to-discover-skills/149693) with this in some Cursor versions. The generated command files avoid this problem by using absolute paths to `$INSTALL_DIR`, so the slash commands work independently of symlink resolution.
 
-**Uninstall** (`uninstall.sh`) mirrors the install logic with removal. For Cursor, it removes generated command files by matching `{workflow}-{phase}.md` against the source workflow's `commands/` directory to avoid removing unrelated files. Selective uninstall (`--workflows`) only removes commands belonging to the specified workflows.
+**Uninstall** (`uninstall.sh`) mirrors the install logic with removal. For Cursor, it removes generated command files by matching `{workflow}-{phase}.md` against the source workflow's `commands/` directory to avoid removing unrelated files. Selective uninstall (`--packages`) only removes commands belonging to the specified packages. The legacy `--workflows` option remains as a deprecated alias.
 
 ## Testing Your Changes
 
 1. Install locally: `./install.sh cursor` (or `all`).
-2. Open a Cursor project and reference `@your-workflow` to verify Cursor discovers it.
-3. Run through at least one phase to confirm the controller dispatches correctly.
-4. Uninstall and reinstall to verify clean teardown: `./uninstall.sh && ./install.sh cursor`.
+2. Open a Cursor project and reference the package to verify discovery.
+3. For a workflow, run at least one phase and verify controller dispatch. For a
+   simple skill, exercise its primary behavior and permission gates.
+4. Run every changed script's tests and the same checks configured in CI.
+5. Uninstall and reinstall to verify clean teardown: `./uninstall.sh && ./install.sh cursor`.
 
 ## Style
 
-- Workflow content is plain markdown -- no IDE-specific syntax.
-- Keep `SKILL.md` under 30 lines. Use progressive disclosure (`guidelines.md`, `README.md`) for details.
-- Use consistent terminology within a workflow. Pick one term and stick with it.
-- Don't duplicate content between `SKILL.md`, `guidelines.md`, and `controller.md` (when present). Each file has a distinct role.
+- Package content is plain markdown -- no IDE-specific syntax.
+- Keep `SKILL.md` under 30 lines and use progressive disclosure for details.
+- Use consistent terminology within a package. Pick one term and stick with it.
+- Do not duplicate rules across entry points, guidelines, controllers, and
+  references. Each file has a distinct role.
 
 ## Versioning
 
-Every workflow has a semantic version in its `SKILL.md` frontmatter.
+Every workflow and simple skill has a semantic version in its `SKILL.md` frontmatter.
 Shared files in `_shared/` also carry versions in their frontmatter.
 Versions enable the observability system to segment telemetry at
 version boundaries and measure whether instruction rewrites improve
-confusion rates. New workflows start at `0.1.0` and graduate to
-`1.0.0` once their phase structure stabilizes.
+confusion rates. New packages start at `0.1.0` and graduate to
+`1.0.0` once their public behavior and interfaces stabilize.
 
 ### When to bump
 
@@ -186,16 +274,18 @@ confusion rates. New workflows start at `0.1.0` and graduate to
 | Non-behavioral | None | README.md edits |
 | Typo fix, wording clarification | PATCH | Fix spelling in step instructions |
 | Behavioral change | MINOR | Add/change/reorder steps, modify rules, change templates |
-| Breaking change | MAJOR | Remove/rename phases or commands |
+| Breaking change | MAJOR | Remove/rename phases, commands, configuration keys, or other public interfaces |
 
 Behavioral files: `SKILL.md` body, `guidelines.md`, `skills/*.md`,
 `commands/*.md`, `templates/*`, `prompts/*`, `scripts/*`,
 `_shared/**/*.md`, and root-level `.md` files read during execution
-(e.g., `design/decomposition-review.md`).
+(e.g., `design/decomposition-review.md`). For simple skills, this includes
+`skills/{skill-name}/SKILL.md`, `references/*`, `templates/*`, `prompts/*`,
+`scripts/*`, and other files read or executed by the skill.
 
 ### Shared file cascade
 
-When a file in `_shared/` changes, PATCH-bump every workflow that
+When a file in `_shared/` changes, PATCH-bump every workflow or simple skill that
 references it — including references in templates, prompts, scripts,
 and other behavioral markdown listed above. Search by basename (e.g.,
 `self-review-gate` for `_shared/recipes/self-review-gate.md`, or
@@ -210,11 +300,19 @@ grep -rl "<basename-without-extension>" \
   */prompts/*.md \
   */scripts/* \
   2>/dev/null | sed 's|/.*||' | sort -u
+
+grep -rl "<basename-without-extension>" \
+  skills/*/SKILL.md \
+  skills/*/references/*.md \
+  skills/*/templates/* \
+  skills/*/prompts/*.md \
+  skills/*/scripts/* \
+  2>/dev/null | sed -E 's|^(skills/[^/]+)/.*|\1|' | sort -u
 ```
 
-Also check root-level workflow `.md` files read during execution (e.g.,
-`design/decomposition-review.md`). See `.github/scripts/validate-versions.sh`
-for the full cascade check used in CI.
+Also check simple-skill resources and root-level workflow `.md` files read
+during execution (e.g., `design/decomposition-review.md`). See
+`.github/scripts/validate-versions.sh` for the full cascade check used in CI.
 
 ### Commit convention
 
@@ -227,6 +325,7 @@ Tags are created automatically when version bumps merge to main via
 the `tag-versions.yaml` workflow. Tag formats:
 
 - Workflows: `{workflow}/v{version}` (e.g., `design/v1.3.0`)
+- Simple skills: `{skill}/v{version}` (e.g., `report-bug/v0.1.0`)
 - Shared files: `_shared/{name}/v{version}` (e.g., `_shared/self-review-gate/v0.1.1`)
 
 Manual fallback:
@@ -238,20 +337,25 @@ git push origin design/v1.3.0
 
 ## Scripts
 
-Some workflows include a `scripts/` directory for scripts that offload deterministic work from the LLM — validation, data transformation, file discovery, or any operation better handled by code than by prompt. The `scripts/` directory is optional and follows these conventions:
+Some packages include a `scripts/` directory for deterministic validation,
+transformation, discovery, or other operations better handled by code than by
+prompt. The directory is optional and follows these conventions:
 
-- Scripts are invoked by the workflow's skill files, not by users directly
-- Scripts must work when the workflow is installed via symlink (`scripts/` under the workflow root)
+- Scripts are invoked by package instructions, not by users directly unless the
+  package explicitly documents a supported CLI
+- Scripts must work when the package is installed via symlink
 - Exit codes follow two conventions depending on the script's purpose:
   - **Report scripts** (e.g., pre-review checks): `exit 0` = informational (findings reported but workflow continues), `exit 1` = halt (workflow should stop and surface the failure). Scripts that only report findings should always exit 0.
   - **Search/query scripts** (e.g., checking for existing PRs): May define their own exit code semantics in their docstrings (e.g., 0 = match found, 1 = no match, 2 = error). The docstring is the source of truth for these scripts.
 - Use Python 3 or bash — whichever fits the task
 
-Currently, `skill-reviewer/scripts/` and `cve-fix/scripts/` use this pattern.
+Currently, workflow scripts and `skills/report-bug/scripts/` use this pattern.
 
 ## Prompts
 
-Some workflows include a `prompts/` directory for prompt templates given to sub-agents that perform delegated work — structured reading, analysis, or exploration that benefits from a fresh context window. The `prompts/` directory is optional and follows these conventions:
+Packages may include a `prompts/` directory for templates given to sub-agents
+that perform delegated work. The directory is optional and follows these
+conventions:
 
 - Prompt templates are self-contained — the sub-agent receives only the prompt, not the caller's context
 - Templates use `{placeholder}` syntax for values the caller fills in before spawning the sub-agent
