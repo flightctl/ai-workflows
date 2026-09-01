@@ -21,7 +21,7 @@
 #   ./install.sh cursor --with-update-timer              # also enable daily update notifier
 #   ./install.sh cursor --no-update-timer                # skip the update-notifier prompt
 
-set -e
+set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="${HOME}/.ai-workflows"
@@ -38,7 +38,7 @@ done
 for arg in "$@"; do
   if [[ "$arg" == "--list" ]]; then
     echo "Available workflows:"
-    for wf in "${ALL_WORKFLOWS[@]}"; do
+    for wf in ${ALL_WORKFLOWS[@]+"${ALL_WORKFLOWS[@]}"}; do
       echo "  $wf"
     done
     exit 0
@@ -104,7 +104,7 @@ if [[ ${#SELECTED_WORKFLOWS[@]} -gt 0 ]]; then
     WORKFLOWS+=("$sel")
   done
 else
-  WORKFLOWS=("${ALL_WORKFLOWS[@]}")
+  WORKFLOWS=(${ALL_WORKFLOWS[@]+"${ALL_WORKFLOWS[@]}"})
 fi
 
 if [[ ${#WORKFLOWS[@]} -eq 0 ]]; then
@@ -129,6 +129,57 @@ ensure_repo_linked() {
 
   ln -sfn "$REPO_DIR" "$INSTALL_DIR"
   echo "  Linked $INSTALL_DIR -> $REPO_DIR"
+}
+
+UXD_REPO="https://github.com/rh-uxd/ai-helpers.git"
+UXD_DIR="${HOME}/.uxd-ai-skills"
+UXD_MARKETPLACE="rh-uxd/ai-helpers"
+
+# UXD AI Skills — plugins used by workflows.
+# uxd-workshop: ux-design/*
+UXD_PLUGINS=(uxd-workshop)
+
+workflow_selected() {
+  local name="$1"
+  for wf in "${WORKFLOWS[@]}"; do
+    [[ "$wf" == "$name" ]] && return 0
+  done
+  return 1
+}
+
+ensure_uxd_repo() {
+  if [[ -d "$UXD_DIR" ]]; then
+    echo "  UXD AI Skills repo already cloned at $UXD_DIR"
+    return
+  fi
+  echo "  Cloning UXD AI Skills repo..."
+  git clone --depth 1 "$UXD_REPO" "$UXD_DIR" 2>/dev/null || {
+    echo "  Warning: could not clone UXD AI Skills repo; skipping" >&2
+    return 1
+  }
+}
+
+install_uxd_skills() {
+  local skills_dir="$1"
+  ensure_uxd_repo || return
+
+  for plugin in "${UXD_PLUGINS[@]}"; do
+    local plugin_skills
+    if [[ "$plugin" == pf-* ]]; then
+      plugin_skills="${UXD_DIR}/plugins/patternfly/${plugin}/skills"
+    else
+      plugin_skills="${UXD_DIR}/plugins/${plugin}/skills"
+    fi
+    [[ -d "$plugin_skills" ]] || continue
+
+    for skill_dir in "${plugin_skills}"/*/; do
+      [[ -d "$skill_dir" ]] || continue
+      local skill_name
+      skill_name="$(basename "$skill_dir")"
+      ln -sfn "$skill_dir" "${skills_dir}/${skill_name}"
+      echo "  Linked ${skills_dir}/${skill_name} -> ${skill_dir}  (uxd)"
+    done
+  done
 }
 
 install_shared() {
@@ -203,6 +254,9 @@ install_cursor() {
     echo "  Linked ${SKILLS_DIR}/${wf} -> ${INSTALL_DIR}/${wf}  ($SCOPE)"
   done
   generate_cursor_commands "$CMDS_DIR"
+  if workflow_selected "ux-design"; then
+    install_uxd_skills "$SKILLS_DIR"
+  fi
 }
 
 install_claude() {
@@ -277,6 +331,10 @@ install_claude() {
       echo "  Removed stale commands symlink ${CMDS_DIR}/${wf}  ($SCOPE)"
     fi
   done
+
+  if workflow_selected "ux-design"; then
+    install_uxd_skills "$SKILLS_DIR"
+  fi
 }
 
 install_gemini() {
@@ -292,6 +350,9 @@ install_gemini() {
     ln -sfn "${INSTALL_DIR}/${wf}" "${SKILLS_DIR}/${wf}"
     echo "  Linked ${SKILLS_DIR}/${wf} -> ${INSTALL_DIR}/${wf}  ($SCOPE)"
   done
+  if workflow_selected "ux-design"; then
+    install_uxd_skills "$SKILLS_DIR"
+  fi
 }
 
 # Offer a daily systemd --user notifier (Linux desktop). Default: no.
