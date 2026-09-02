@@ -1,0 +1,3 @@
+config:
+  # Jira description templates intentionally begin below the issue Summary.
+  MD041: false

@@ -1,8 +1,20 @@
 # AI Workflows
 
-Reusable AI coding workflows a team member can install globally or per-project, in any environment: Cursor, Claude Code, and others.
+Reusable AI coding workflows and focused skills a team member can install globally or per-project, in any environment: Cursor, Claude Code, and others.
 
 ## What's Included
+
+### Skills
+
+- **Report Bug** -- Drafts an evidence-based Jira Bug, supports consumer-owned
+  project templates and field vocabulary with an EDM-style fallback,
+  distinguishes Severity from triage-owned Priority, checks
+  duplicate/regression context, supports explicitly reviewed optional
+  attachments, works through Jira MCP, CLI, or REST capabilities, and creates
+  the issue only after confirmation.
+  See [skills/report-bug/SKILL.md](skills/report-bug/SKILL.md).
+
+### Workflows
 
 - **Bugfix** -- Systematic bug resolution: assess the report, reproduce, diagnose root cause, fix, test, review, document, and submit a PR. Supports iterative PR feedback and an unattended mode.
   Used in the **Flight Control** projects ([flightctl](https://github.com/flightctl/flightctl), [flightctl-ui](https://github.com/flightctl/flightctl-ui)).
@@ -50,7 +62,10 @@ Reusable AI coding workflows a team member can install globally or per-project, 
 
 ## How It Works
 
-Each workflow is a directory with a `SKILL.md` (the mandatory entry point), optional phase skills under `skills/`, and optional command wrappers under `commands/` -- all plain markdown, no IDE-specific syntax. Some workflows also include a `skills/controller.md` for phase dispatch, but this is an optional pattern. The installer auto-discovers every directory that contains a `SKILL.md`.
+Each workflow is a top-level directory with a `SKILL.md`, while focused skills
+live under `skills/<name>/`. Both use plain markdown with no IDE-specific
+syntax. Workflows may add phase skills and commands; simple skills use only the
+supporting references or scripts they need. The installer discovers both forms.
 
 ```
 ~/.ai-workflows/  (symlink to your clone)
@@ -58,9 +73,51 @@ Each workflow is a directory with a `SKILL.md` (the mandatory entry point), opti
     SKILL.md, skills/, commands/
   docs-writer/
     SKILL.md, skills/, commands/
+  skills/
+    report-bug/
+      SKILL.md, references/
 ```
 
 `git pull` updates everything instantly through the symlink.
+
+### Configuring Report Bug
+
+`report-bug` derives its Jira target from the request, applicable project
+`AGENTS.md`, issue context, or the consuming repository. Teams can commit
+`.workflows/report-bug/config.yaml` and an optional Markdown template:
+
+```yaml
+jira_url: https://example.atlassian.net
+project: TEAM
+issue_type: Bug
+template: template.md
+severity_field: Severity
+severity_mapping:
+  critical: Critical
+  high: High
+  medium: Medium
+  low: Low
+  informational: Informational
+environment_field: Environment
+parent_field: Parent
+affects_version_field: Affects versions
+provenance:
+  enabled: true
+  agent: null
+  model: null
+```
+
+Without consumer configuration, the skill prompts for unresolved target
+details and offers the EDM project and EDM-style template as an opinionated
+fallback; it never selects that target silently.
+Priority is always left unset for triage. Parent relationships are validated,
+Affects Version requires confirmation, and assignee is set only when requested;
+Fix Version and Target Version remain planning decisions.
+The skill is attended by design: creating a bug, adding evidence to a matching
+issue, and uploading attachments each require an explicit preview and approval.
+Generated descriptions identify the skill and version. Agent/model identity is
+included only when the runtime exposes it authoritatively or configuration names
+it explicitly.
 
 ## Installation
 
@@ -99,6 +156,20 @@ cd ai-workflows
 ./install.sh claude --project /path/to/project
 ```
 
+### Codex
+
+**User-level:**
+
+```bash
+./install.sh codex
+```
+
+**Project-level:**
+
+```bash
+./install.sh codex --project /path/to/project
+```
+
 ### All Environments at Once
 
 ```bash
@@ -108,7 +179,7 @@ cd ai-workflows
 
 ### Selective Installation
 
-Each workflow is intended for a specific project or use case:
+Each workflow or skill is intended for a specific project or use case:
 
 - **bugfix** -- the **Flight Control** projects ([flightctl](https://github.com/flightctl/flightctl), [flightctl-ui](https://github.com/flightctl/flightctl-ui))
 - **code-review** -- any project; reviews uncommitted changes against discovered project conventions
@@ -123,14 +194,18 @@ Each workflow is intended for a specific project or use case:
 - **triage** -- teams that want bulk Jira triage, categorization, and HTML reports from this repo or a clone
 - **sizing** -- teams sizing Features for cycle planning using T-shirt sizes with per-team effort breakdowns
 - **skill-reviewer** -- reviewing or standardizing Cursor/agent skills and skill packs (structure, clarity, completeness)
+- **report-bug** -- filing complete Jira bugs with consumer-configurable targets and templates while leaving Priority for triage
 
-Use `--workflows` to install only the workflows relevant to a given project:
+Use `--packages` to install only the named workflows or skills:
 
 ```bash
-./install.sh cursor --project ~/flightctl --workflows bugfix
-./install.sh cursor --project ~/edge-manager --workflows docs-writer
-./install.sh --list                       # show available workflows
+./install.sh cursor --project ~/flightctl --packages bugfix
+./install.sh cursor --project ~/edge-manager --packages docs-writer
+./install.sh cursor --packages report-bug
+./install.sh --list                       # show available workflows and skills
 ```
+
+The former `--workflows` selector remains available as a deprecated alias.
 
 For project-level Cursor installs, add the generated commands directory to `.gitignore`:
 
@@ -138,14 +213,15 @@ For project-level Cursor installs, add the generated commands directory to `.git
 .cursor/commands/
 ```
 
-The skill symlinks under `.cursor/skills/` may also need ignoring depending on your project's conventions.
+The skill symlinks under `.cursor/skills/` and `.agents/skills/` may also need
+ignoring depending on your project's conventions.
 
 ## Scopes
 
-| Scope | Cursor | Claude Code |
-|-------|--------|-------------|
-| **User** (default) | `~/.cursor/skills/<workflow>` + `~/.cursor/commands/` | `~/.claude/CLAUDE.md` |
-| **Project** (`--project`) | `.cursor/skills/<workflow>` + `.cursor/commands/` | `.claude/CLAUDE.md` |
+| Scope | Cursor | Claude Code | Gemini | Codex |
+|-------|--------|-------------|--------|-------|
+| **User** (default) | `~/.cursor/skills/<package>` + `~/.cursor/commands/` | `~/.claude/CLAUDE.md` | `~/.gemini/skills/<package>` | `~/.agents/skills/<package>` |
+| **Project** (`--project`) | `.cursor/skills/<package>` + `.cursor/commands/` | `.claude/CLAUDE.md` | `.gemini/skills/<package>` | `.agents/skills/<package>` |
 
 ## Usage
 
@@ -166,6 +242,17 @@ The installer generates flat command files in `.cursor/commands/` so each phase 
 - `/docs-writer-gather`, `/docs-writer-plan`, `/docs-writer-draft`, ...
 
 Cursor scans both project-level (`.cursor/commands/`) and user-level (`~/.cursor/commands/`) directories. Commands are plain `.md` files — no manifest or wrapper directories needed. They are created by `install.sh` and cleaned up by `uninstall.sh`.
+
+### Codex
+
+Invoke a package as a skill and pass the workflow phase as context:
+
+- `$bugfix assess EDM-123`
+- `$design ingest PRD-123`
+- `$report-bug`
+
+Codex discovers user-level and repository-level skill symlinks automatically;
+see [Where Codex loads local skills](https://developers.openai.com/codex/skills#where-codex-loads-local-skills).
 
 ## Updating
 
@@ -192,7 +279,8 @@ On Linux desktops with systemd user sessions and `notify-send`, `install.sh` can
 ```bash
 ./uninstall.sh                                          # user-level everything
 ./uninstall.sh cursor                                   # user-level Cursor only
-./uninstall.sh cursor --workflows bugfix                # remove specific workflow
+./uninstall.sh codex                                    # user-level Codex only
+./uninstall.sh cursor --packages bugfix                 # remove specific package
 ./uninstall.sh cursor --project /path/to/proj           # project-level Cursor
 ./uninstall.sh all --project /path/to/proj              # project-level everything
 ```
