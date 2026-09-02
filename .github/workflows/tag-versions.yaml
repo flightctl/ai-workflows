@@ -31,11 +31,19 @@ jobs:
           fi
 
           NEW_TAGS=()
+          PACKAGE_NAMES=()
 
           # Tag workflow version bumps
-          for skill in */SKILL.md; do
+          for skill in */SKILL.md skills/*/SKILL.md; do
             [ -f "$skill" ] || continue
-            wf=$(dirname "$skill")
+            wf=$(basename "$(dirname "$skill")")
+            for existing_name in "${PACKAGE_NAMES[@]}"; do
+              if [ "$existing_name" = "$wf" ]; then
+                echo "Duplicate workflow/skill name '$wf'; refusing ambiguous tags" >&2
+                exit 1
+              fi
+            done
+            PACKAGE_NAMES+=("$wf")
             new_ver=$(sed -n 's/^version: *//p' "$skill")
             old_ver=$(git show "$PARENT:$skill" 2>/dev/null \
               | sed -n 's/^version: *//p' || echo "")

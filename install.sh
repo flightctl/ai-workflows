@@ -1,23 +1,25 @@
 #!/usr/bin/env bash
 # Install ai-workflows via symlinks.
-# Automatically discovers all workflow directories (any dir with a SKILL.md).
+# Automatically discovers workflows and simple skills (any supported dir with a SKILL.md).
 #
 # Scope:
 #   User-level (default) — available in all your projects
 #   Project-level         — committed / shared with a specific repo
 #
 # Usage:
-#   ./install.sh cursor                                  # user-level, all workflows
-#   ./install.sh cursor --workflows bugfix               # user-level, specific workflow
-#   ./install.sh cursor --workflows bugfix,docs-writer   # user-level, multiple workflows
-#   ./install.sh cursor --project [path]                 # project-level, all workflows
+#   ./install.sh cursor                                  # user-level, all packages
+#   ./install.sh cursor --packages bugfix                # user-level, specific package
+#   ./install.sh cursor --packages bugfix,report-bug     # user-level, multiple packages
+#   ./install.sh cursor --project [path]                 # project-level, all packages
 #   ./install.sh claude                                  # user-level Claude Code reference
 #   ./install.sh claude --project [path]                 # project-level Claude Code reference
 #   ./install.sh gemini                                  # user-level Gemini CLI skill symlinks
 #   ./install.sh gemini --project [path]                 # project-level Gemini CLI skill symlinks
-#   ./install.sh all                                     # user-level Cursor + Claude + Gemini
-#   ./install.sh all --project [path]                    # project-level Cursor + Claude + Gemini
-#   ./install.sh --list                                  # list available workflows
+#   ./install.sh codex                                   # user-level Codex skill symlinks
+#   ./install.sh codex --project [path]                  # project-level Codex skill symlinks
+#   ./install.sh all                                     # user-level, all environments
+#   ./install.sh all --project [path]                    # project-level, all environments
+#   ./install.sh --list                                  # list available packages
 #   ./install.sh cursor --with-update-timer              # also enable daily update notifier
 #   ./install.sh cursor --no-update-timer                # skip the update-notifier prompt
 
@@ -27,19 +29,42 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="${HOME}/.ai-workflows"
 UPDATE_TIMER="ask" # ask | yes | no
 
-# --- discover all available workflows ---
-ALL_WORKFLOWS=()
-for skill in "$REPO_DIR"/*/SKILL.md; do
+# --- discover all available packages ---
+ALL_PACKAGES=()
+ALL_PACKAGE_PATHS=()
+for skill in "$REPO_DIR"/*/SKILL.md "$REPO_DIR"/skills/*/SKILL.md; do
   [[ -f "$skill" ]] || continue
-  ALL_WORKFLOWS+=("$(basename "$(dirname "$skill")")")
+  package_name="$(basename "$(dirname "$skill")")"
+  package_path="$(dirname "${skill#"$REPO_DIR"/}")"
+  for existing_name in "${ALL_PACKAGES[@]}"; do
+    if [[ "$existing_name" == "$package_name" ]]; then
+      echo "Error: duplicate package name '$package_name'" >&2
+      echo "Package names must be unique across top-level workflows and skills/." >&2
+      exit 1
+    fi
+  done
+  ALL_PACKAGES+=("$package_name")
+  ALL_PACKAGE_PATHS+=("$package_path")
 done
+
+resolve_package_dir() {
+  local name="$1"
+  local index
+  for index in "${!ALL_PACKAGES[@]}"; do
+    if [[ "${ALL_PACKAGES[$index]}" == "$name" ]]; then
+      printf '%s' "${INSTALL_DIR}/${ALL_PACKAGE_PATHS[$index]}"
+      return 0
+    fi
+  done
+  return 1
+}
 
 # --- handle --list early ---
 for arg in "$@"; do
   if [[ "$arg" == "--list" ]]; then
-    echo "Available workflows:"
-    for wf in "${ALL_WORKFLOWS[@]}"; do
-      echo "  $wf"
+    echo "Available packages:"
+    for package in "${ALL_PACKAGES[@]}"; do
+      echo "  $package"
     done
     exit 0
   fi
@@ -49,7 +74,7 @@ done
 TARGET="${1:-cursor}"
 SCOPE="user"
 PROJECT_ROOT=""
-SELECTED_WORKFLOWS=()
+SELECTED_PACKAGES=()
 
 shift 2>/dev/null || true
 while [[ $# -gt 0 ]]; do
@@ -61,13 +86,17 @@ while [[ $# -gt 0 ]]; do
         shift
       fi
       ;;
-    --workflows)
+    --packages|--workflows)
+      selector_flag="$1"
+      if [[ "$selector_flag" == "--workflows" ]]; then
+        echo "Warning: --workflows is deprecated; use --packages." >&2
+      fi
       if [[ -n "${2:-}" && "${2:0:1}" != "-" ]]; then
-        IFS=',' read -ra _wfs <<< "$2"
-        SELECTED_WORKFLOWS+=("${_wfs[@]}")
+        IFS=',' read -ra _packages <<< "$2"
+        SELECTED_PACKAGES+=("${_packages[@]}")
         shift
       else
-        echo "Error: --workflows requires a comma-separated list of workflow names" >&2
+        echo "Error: ${selector_flag} requires a comma-separated list of package names" >&2
         exit 1
       fi
       ;;
@@ -85,30 +114,30 @@ if [[ "$SCOPE" == "project" && -z "$PROJECT_ROOT" ]]; then
   PROJECT_ROOT="$(pwd)"
 fi
 
-# --- resolve final workflow list ---
-if [[ ${#SELECTED_WORKFLOWS[@]} -gt 0 ]]; then
-  WORKFLOWS=()
-  for sel in "${SELECTED_WORKFLOWS[@]}"; do
+# --- resolve final package list ---
+if [[ ${#SELECTED_PACKAGES[@]} -gt 0 ]]; then
+  PACKAGES=()
+  for sel in "${SELECTED_PACKAGES[@]}"; do
     found=false
-    for avail in "${ALL_WORKFLOWS[@]}"; do
+    for avail in "${ALL_PACKAGES[@]}"; do
       if [[ "$sel" == "$avail" ]]; then
         found=true
         break
       fi
     done
     if [[ "$found" == false ]]; then
-      echo "Error: unknown workflow '$sel'" >&2
-      echo "Available workflows: ${ALL_WORKFLOWS[*]}" >&2
+      echo "Error: unknown package '$sel'" >&2
+      echo "Available packages: ${ALL_PACKAGES[*]}" >&2
       exit 1
     fi
-    WORKFLOWS+=("$sel")
+    PACKAGES+=("$sel")
   done
 else
-  WORKFLOWS=("${ALL_WORKFLOWS[@]}")
+  PACKAGES=("${ALL_PACKAGES[@]}")
 fi
 
-if [[ ${#WORKFLOWS[@]} -eq 0 ]]; then
-  echo "Error: no workflows found (directories with SKILL.md)" >&2
+if [[ ${#PACKAGES[@]} -eq 0 ]]; then
+  echo "Error: no packages found (directories with SKILL.md)" >&2
   exit 1
 fi
 
@@ -148,33 +177,34 @@ generate_cursor_commands() {
   local cmds_dir="$1"
   local generated=0
 
-  for wf in "${WORKFLOWS[@]}"; do
-    local wf_dir="${INSTALL_DIR}/${wf}"
-    [[ -d "${wf_dir}/commands" ]] || continue
+  for package in "${PACKAGES[@]}"; do
+    local package_dir
+    package_dir="$(resolve_package_dir "$package")"
+    [[ -d "${package_dir}/commands" ]] || continue
 
-    for cmd_file in "${wf_dir}"/commands/*.md; do
+    for cmd_file in "${package_dir}"/commands/*.md; do
       [[ -f "$cmd_file" ]] || continue
       local phase
       phase="$(basename "$cmd_file" .md)"
-      local cmd_name="${wf}-${phase}"
+      local cmd_name="${package}-${phase}"
 
       local description=""
       if head -1 "$cmd_file" | grep -q "^---"; then
         description="$(awk '/^---/{n++; next} n==1 && /^description:/{sub(/^description:[[:space:]]*"?/, ""); sub(/"[[:space:]]*$/, ""); print; exit}' "$cmd_file")"
       fi
-      if [[ -z "$description" ]] && [[ -f "${wf_dir}/skills/${phase}.md" ]]; then
-        description="$(awk '/^---/{n++; next} n==1 && /^description:/{sub(/^description:[[:space:]]*"?/, ""); sub(/"[[:space:]]*$/, ""); print; exit}' "${wf_dir}/skills/${phase}.md")"
+      if [[ -z "$description" ]] && [[ -f "${package_dir}/skills/${phase}.md" ]]; then
+        description="$(awk '/^---/{n++; next} n==1 && /^description:/{sub(/^description:[[:space:]]*"?/, ""); sub(/"[[:space:]]*$/, ""); print; exit}' "${package_dir}/skills/${phase}.md")"
       fi
-      [[ -z "$description" ]] && description="Run the ${phase} phase of the ${wf} workflow."
+      [[ -z "$description" ]] && description="Run the ${phase} phase of the ${package} workflow."
       description="${description//\"/\\\"}"
 
       cat > "${cmds_dir}/${cmd_name}.md" <<CMD_EOF
 ---
 description: "${description}"
 ---
-# /${phase} (${wf})
+# /${phase} (${package})
 
-Read \`${INSTALL_DIR}/${wf}/skills/controller.md\` and follow it.
+Read \`${INSTALL_DIR}/${package}/skills/controller.md\` and follow it.
 
 Dispatch the **${phase}** phase. Context:
 
@@ -185,6 +215,7 @@ CMD_EOF
   done
 
   [[ $generated -gt 0 ]] && echo "  Generated ${generated} command(s) in ${cmds_dir}  ($SCOPE)"
+  return 0
 }
 
 install_cursor() {
@@ -198,9 +229,11 @@ install_cursor() {
 
   mkdir -p "$SKILLS_DIR" "$CMDS_DIR"
   install_shared "$SKILLS_DIR"
-  for wf in "${WORKFLOWS[@]}"; do
-    ln -sfn "${INSTALL_DIR}/${wf}" "${SKILLS_DIR}/${wf}"
-    echo "  Linked ${SKILLS_DIR}/${wf} -> ${INSTALL_DIR}/${wf}  ($SCOPE)"
+  for package in "${PACKAGES[@]}"; do
+    local package_dir
+    package_dir="$(resolve_package_dir "$package")"
+    ln -sfn "$package_dir" "${SKILLS_DIR}/${package}"
+    echo "  Linked ${SKILLS_DIR}/${package} -> ${package_dir}  ($SCOPE)"
   done
   generate_cursor_commands "$CMDS_DIR"
 }
@@ -221,46 +254,58 @@ install_claude() {
     printf '\n%s\n' "$MARKER" >> "$CLAUDE_MD"
   fi
 
-  for wf in "${WORKFLOWS[@]}"; do
+  for package in "${PACKAGES[@]}"; do
+    local package_dir
+    package_dir="$(resolve_package_dir "$package")"
     if [[ "$SCOPE" == "project" ]]; then
-      LINE="For ${wf} workflows, read and follow ${INSTALL_DIR}/${wf}/SKILL.md"
+      LINE="For ${package}, read and follow ${package_dir}/SKILL.md"
     else
-      LINE="For ${wf} workflows, read and follow ~/.ai-workflows/${wf}/SKILL.md"
+      if [[ "$package_dir" == "${INSTALL_DIR}/skills/"* ]]; then
+        LINE="For ${package}, read and follow ~/.ai-workflows/skills/${package}/SKILL.md"
+      else
+        LINE="For ${package}, read and follow ~/.ai-workflows/${package}/SKILL.md"
+      fi
     fi
 
     # Remove stale entries: old controller.md references and the alternate
     # path format (~ vs expanded $HOME) to avoid duplicates when both scopes
     # target the same CLAUDE.md.
     STALE_LINES=(
-      "For ${wf} workflows, read and follow ${INSTALL_DIR}/${wf}/skills/controller.md"
-      "For ${wf} workflows, read and follow ~/.ai-workflows/${wf}/skills/controller.md"
-      "For ${wf} workflows, read and follow ${INSTALL_DIR}/${wf}/SKILL.md"
-      "For ${wf} workflows, read and follow ~/.ai-workflows/${wf}/SKILL.md"
+      "For ${package}, read and follow ${INSTALL_DIR}/${package}/SKILL.md"
+      "For ${package}, read and follow ${INSTALL_DIR}/skills/${package}/SKILL.md"
+      "For ${package}, read and follow ~/.ai-workflows/${package}/SKILL.md"
+      "For ${package}, read and follow ~/.ai-workflows/skills/${package}/SKILL.md"
+      "For ${package} workflows, read and follow ${INSTALL_DIR}/${package}/skills/controller.md"
+      "For ${package} workflows, read and follow ~/.ai-workflows/${package}/skills/controller.md"
+      "For ${package} workflows, read and follow ${INSTALL_DIR}/${package}/SKILL.md"
+      "For ${package} workflows, read and follow ~/.ai-workflows/${package}/SKILL.md"
     )
     for stale in "${STALE_LINES[@]}"; do
       [[ "$stale" == "$LINE" ]] && continue
       if grep -qF "$stale" "$CLAUDE_MD"; then
         grep -vF "$stale" "$CLAUDE_MD" > "${CLAUDE_MD}.tmp" && mv "${CLAUDE_MD}.tmp" "$CLAUDE_MD"
-        echo "  Replaced outdated $wf reference in $CLAUDE_MD"
+        echo "  Replaced outdated $package reference in $CLAUDE_MD"
       fi
     done
 
     if grep -qF "$LINE" "$CLAUDE_MD"; then
-      echo "  Reference for $wf already present in $CLAUDE_MD"
+      echo "  Reference for $package already present in $CLAUDE_MD"
     else
       printf '%s\n' "$LINE" >> "$CLAUDE_MD"
-      echo "  Added $wf reference to $CLAUDE_MD  ($SCOPE)"
+      echo "  Added $package reference to $CLAUDE_MD  ($SCOPE)"
     fi
   done
 
-  # Symlink workflow directories into Claude Code's skills directory so they
+  # Symlink package directories into Claude Code's skills directory so they
   # are discovered as slash commands (Claude Code scans .claude/skills/).
   SKILLS_DIR="${CLAUDE_DIR}/skills"
   mkdir -p "$SKILLS_DIR"
   install_shared "$SKILLS_DIR"
-  for wf in "${WORKFLOWS[@]}"; do
-    ln -sfn "${INSTALL_DIR}/${wf}" "${SKILLS_DIR}/${wf}"
-    echo "  Linked ${SKILLS_DIR}/${wf} -> ${INSTALL_DIR}/${wf}  ($SCOPE)"
+  for package in "${PACKAGES[@]}"; do
+    local package_dir
+    package_dir="$(resolve_package_dir "$package")"
+    ln -sfn "$package_dir" "${SKILLS_DIR}/${package}"
+    echo "  Linked ${SKILLS_DIR}/${package} -> ${package_dir}  ($SCOPE)"
   done
 
   # Symlink each workflow's commands/ directory into Claude Code's commands
@@ -268,13 +313,15 @@ install_claude() {
   # slash commands (e.g. /bugfix:assess, /cve-fix:patch).
   CMDS_DIR="${CLAUDE_DIR}/commands"
   mkdir -p "$CMDS_DIR"
-  for wf in "${WORKFLOWS[@]}"; do
-    if [[ -d "${INSTALL_DIR}/${wf}/commands" ]]; then
-      ln -sfn "${INSTALL_DIR}/${wf}/commands" "${CMDS_DIR}/${wf}"
-      echo "  Linked ${CMDS_DIR}/${wf} -> ${INSTALL_DIR}/${wf}/commands  ($SCOPE)"
-    elif [[ -L "${CMDS_DIR}/${wf}" ]]; then
-      rm -f "${CMDS_DIR}/${wf}"
-      echo "  Removed stale commands symlink ${CMDS_DIR}/${wf}  ($SCOPE)"
+  for package in "${PACKAGES[@]}"; do
+    local package_dir
+    package_dir="$(resolve_package_dir "$package")"
+    if [[ -d "${package_dir}/commands" ]]; then
+      ln -sfn "${package_dir}/commands" "${CMDS_DIR}/${package}"
+      echo "  Linked ${CMDS_DIR}/${package} -> ${package_dir}/commands  ($SCOPE)"
+    elif [[ -L "${CMDS_DIR}/${package}" ]]; then
+      rm -f "${CMDS_DIR}/${package}"
+      echo "  Removed stale commands symlink ${CMDS_DIR}/${package}  ($SCOPE)"
     fi
   done
 }
@@ -288,9 +335,28 @@ install_gemini() {
 
   mkdir -p "$SKILLS_DIR"
   install_shared "$SKILLS_DIR"
-  for wf in "${WORKFLOWS[@]}"; do
-    ln -sfn "${INSTALL_DIR}/${wf}" "${SKILLS_DIR}/${wf}"
-    echo "  Linked ${SKILLS_DIR}/${wf} -> ${INSTALL_DIR}/${wf}  ($SCOPE)"
+  for package in "${PACKAGES[@]}"; do
+    local package_dir
+    package_dir="$(resolve_package_dir "$package")"
+    ln -sfn "$package_dir" "${SKILLS_DIR}/${package}"
+    echo "  Linked ${SKILLS_DIR}/${package} -> ${package_dir}  ($SCOPE)"
+  done
+}
+
+install_codex() {
+  if [[ "$SCOPE" == "project" ]]; then
+    SKILLS_DIR="${PROJECT_ROOT}/.agents/skills"
+  else
+    SKILLS_DIR="${HOME}/.agents/skills"
+  fi
+
+  mkdir -p "$SKILLS_DIR"
+  install_shared "$SKILLS_DIR"
+  for package in "${PACKAGES[@]}"; do
+    local package_dir
+    package_dir="$(resolve_package_dir "$package")"
+    ln -sfn "$package_dir" "${SKILLS_DIR}/${package}"
+    echo "  Linked ${SKILLS_DIR}/${package} -> ${package_dir}  ($SCOPE)"
   done
 }
 
@@ -362,7 +428,7 @@ maybe_offer_update_timer() {
 # --- main ---
 
 echo "Installing ai-workflows ($TARGET, $SCOPE)..."
-echo "  Workflows: ${WORKFLOWS[*]}"
+echo "  Packages: ${PACKAGES[*]}"
 ensure_repo_linked
 
 case "$TARGET" in
@@ -375,28 +441,34 @@ case "$TARGET" in
   gemini)
     install_gemini
     ;;
+  codex)
+    install_codex
+    ;;
   all)
     install_cursor
     install_claude
     install_gemini
+    install_codex
     ;;
   *)
-    echo "Usage: $0 <cursor|claude|gemini|all> [--workflows wf1,wf2] [--project [path]]" >&2
+    echo "Usage: $0 <cursor|claude|gemini|codex|all> [--packages name1,name2] [--project [path]]" >&2
     echo "" >&2
     echo "Targets:" >&2
     echo "  cursor   Cursor skill symlinks" >&2
     echo "  claude   Claude Code instruction references" >&2
     echo "  gemini   Gemini CLI skill symlinks" >&2
-    echo "  all      Cursor + Claude + Gemini" >&2
+    echo "  codex    Codex skill symlinks" >&2
+    echo "  all      Cursor + Claude + Gemini + Codex" >&2
     echo "" >&2
     echo "Options:" >&2
-    echo "  --workflows wf1,wf2   install only the listed workflows (comma-separated)" >&2
-    echo "                         defaults to all available workflows" >&2
-    echo "  --project [path]      project-level (.cursor/skills/, .claude/, .gemini/skills/)" >&2
+    echo "  --packages names      install only the listed packages (comma-separated)" >&2
+    echo "                         defaults to all available packages" >&2
+    echo "  --workflows names     deprecated alias for --packages" >&2
+    echo "  --project [path]      project-level (.cursor/skills/, .claude/, .gemini/skills/, .agents/skills/)" >&2
     echo "                         path defaults to current directory" >&2
     echo "  --with-update-timer   enable daily Linux update notifier (no prompt)" >&2
     echo "  --no-update-timer     skip the update-notifier prompt" >&2
-    echo "  --list                list available workflows and exit" >&2
+    echo "  --list                list available packages and exit" >&2
     exit 1
     ;;
 esac

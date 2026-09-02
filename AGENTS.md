@@ -4,7 +4,10 @@ This file provides guidance to AI coding assistants when working with this repos
 
 ## Project Overview
 
-This repository contains reusable AI coding workflows that can be installed globally or per-project in any environment (Cursor, Claude Code, Gemini). Each workflow is a self-contained directory with structured markdown files that AI agents can read and execute.
+This repository contains reusable AI coding workflows and focused skills that can be installed globally or per-project in any environment (Cursor, Claude Code, Gemini, Codex). Each package is a self-contained directory with structured markdown files that AI agents can read and execute.
+
+**Current simple skills:**
+- **report-bug** — Configurable, evidence-based Jira Bug reporting with explicit confirmation
 
 **Current workflows:**
 - **ai-ready** — Codebase scanning and AGENTS.md generation (update)
@@ -42,12 +45,30 @@ workflow-name/
   prompts/              # Optional — prompt templates for sub-agent delegation
 ```
 
+Simple skills live at `skills/{skill-name}/` with a `SKILL.md` entry point and
+only the references, scripts, or assets they need.
+
+### Simple Skill Structure
+
+```text
+skills/
+  skill-name/
+    SKILL.md              # Entry point with YAML frontmatter
+    references/           # Optional conditional instructions and schemas
+    templates/            # Optional generated-content templates
+    scripts/              # Optional deterministic implementation helpers
+```
+
+Simple skills are focused capabilities, not phase-based workflows. Add only the
+resources required by the skill; they do not need a controller, commands,
+guidelines, README, or artifact lifecycle by default.
+
 **Key architectural principles:**
-1. **Auto-discovery**: Any directory with `SKILL.md` is automatically discovered by the installer
-2. **Progressive disclosure**: SKILL.md is thin (under 30 lines), details live in guidelines.md and skills/
+1. **Auto-discovery**: The installer discovers top-level `*/SKILL.md` workflows and `skills/*/SKILL.md` simple skills; package names must be globally unique
+2. **Progressive disclosure**: SKILL.md is thin (under 30 lines); details live in workflow guidelines/phases or a simple skill's references
 3. **Relative paths**: All file references must be relative to the file's location (for symlink compatibility)
 4. **Phase-based execution**: Most workflows operate through discrete phases with explicit transitions
-5. **Shared resources**: Cross-cutting concerns live in `_shared/` and are referenced by relative path
+5. **Shared resources**: Cross-cutting concerns live in `_shared/` and are referenced by relative path from workflows or simple skills
 6. **Phase overrides**: Projects can override individual phases by placing a replacement skill file at `.workflows/{workflow}/skills/{phase}.md` in their repo root. The controller checks for this override before falling back to the built-in default. See CONTRIBUTING.md for details.
 
 ### Shared Resources (`_shared/`)
@@ -69,7 +90,7 @@ _shared/
     validation-gate.md            # Pre-commit build/test/lint discovery gate (used by bugfix)
 ```
 
-Recipes are self-contained, parameterized procedures that workflows reference via relative path (e.g., `../../_shared/recipes/self-review-gate.md` from `skills/`). Workflows may also reference shared files from `guidelines.md`, `templates/`, `prompts/`, `scripts/`, and other behavioral markdown — all such references count as consumers for the shared-file cascade (see Workflow Versioning). The **prd** and **design** workflows use the provenance recipes on `/draft`, `/revise`, `/respond` (capture) and `/publish` plus docs-sync paths (render). See `_shared/provenance-schema.md` for the published footer format.
+Recipes are self-contained, parameterized procedures that packages reference via relative path (e.g., `../../_shared/recipes/self-review-gate.md` from a workflow phase). Workflows and simple skills may also reference shared files from guidelines, phases, references, templates, prompts, scripts, and other behavioral files — all such references count as consumers for the shared-file cascade (see Package Versioning). The **prd** and **design** workflows use the provenance recipes on `/draft`, `/revise`, `/respond` (capture) and `/publish` plus docs-sync paths (render). See `_shared/provenance-schema.md` for the published footer format.
 
 ### File Reference Conventions
 
@@ -77,28 +98,30 @@ Critical for symlink resolution:
 - `commands/*.md` reference `../skills/controller.md` (if workflow has a controller) or `../SKILL.md` (for workflows without a controller) or `../skills/phase-name.md` (direct phase reference)
 - `skills/controller.md` (when present) references sibling skills as `phase-name.md` (not `skills/phase-name.md`)
 - `SKILL.md` references `guidelines.md` and optionally `skills/controller.md` (same directory)
+- `skills/{skill-name}/SKILL.md` references its resources relative to the simple skill directory (for example, `references/rendering.md`)
 
 ## Key Constraints
 
-1. **No IDE-specific syntax**: All workflow content is plain markdown
+1. **No IDE-specific syntax**: All workflow and simple-skill content is plain markdown
 2. **Relative paths only**: For symlink compatibility across install scopes
 3. **Progressive disclosure**: SKILL.md stays under 30 lines
 4. **No auto-advance in attended mode**: Workflows wait for user input between phases unless an explicit unattended mode is documented for that workflow
-5. **Artifact persistence**: All significant outputs saved to `.artifacts/{workflow-name}/{context}/`
+5. **Artifact persistence**: Significant workflow outputs are saved to `.artifacts/{workflow-name}/{context}/`; simple skills persist artifacts only when their contract explicitly requires it
 6. **Read-only reviews**: skill-reviewer never modifies target skill files during review
 7. **Artifact isolation**: `.artifacts/{workflow-name}/` is each workflow's private state. Other workflows must never read from or write to another workflow's artifact directory. The shared interfaces between workflows are: Jira (canonical source for issue data), published docs repo files (PRDs, designs, testplans), and workspace-level config at `.artifacts/config.json`
 
-## Workflow Versioning
+## Package Versioning
 
-When modifying workflow files in this repository, update the version
-in the workflow's `SKILL.md` frontmatter following semver:
+When modifying a committed workflow or simple skill, update the version in that
+package's `SKILL.md` frontmatter following semver. A new, uncommitted package may
+remain at its initial `0.1.0` while it is being developed:
 
 - **PATCH** (0.1.0 → 0.1.1): Typo fixes, wording clarification
   without behavioral change, formatting
-- **MINOR** (0.1.0 → 0.2.0): Adding/changing/reordering steps,
-  modifying rules in guidelines.md, changing templates, adding phases
-- **MAJOR** (0.1.0 → 1.0.0): Removing phases, renaming phases or
-  commands, restructuring the workflow
+- **MINOR** (0.1.0 → 0.2.0): Adding/changing/reordering behavior,
+  modifying rules, changing templates, or adding workflow phases
+- **MAJOR** (0.1.0 → 1.0.0): Removing or renaming public phases,
+  commands, configuration keys, or other package interfaces; incompatible restructuring
 
 ### Which files require a version bump
 
@@ -106,13 +129,15 @@ Behavioral files (the AI reads and executes these):
 `SKILL.md` body, `guidelines.md`, `skills/*.md`, `commands/*.md`,
 `templates/*`, `prompts/*`, `scripts/*`, `_shared/**/*.md`, and
 root-level `.md` files in workflow directories that are read during
-execution (e.g., `design/decomposition-review.md`).
+execution (e.g., `design/decomposition-review.md`). For simple skills, this
+includes `skills/{skill-name}/SKILL.md`, `references/*`, `templates/*`,
+`prompts/*`, `scripts/*`, and other files read or executed by the skill.
 
 Non-behavioral files (no bump needed): `README.md`, `GUIDE.md`
 
 ### Shared file cascade
 
-When you modify a file in `_shared/`, also PATCH-bump every workflow
+When you modify a file in `_shared/`, also PATCH-bump every workflow or simple skill
 that references it — including references in templates, prompts, scripts,
 and other behavioral markdown listed under "Which files require a version
 bump". Find affected workflows by searching for the basename (e.g.,
@@ -121,6 +146,7 @@ bump". Find affected workflows by searching for the basename (e.g.,
 
 ```bash
 grep -rl "<basename-without-extension>" \
+  */SKILL.md \
   */guidelines.md \
   */skills/*.md \
   */commands/*.md \
@@ -128,13 +154,21 @@ grep -rl "<basename-without-extension>" \
   */prompts/*.md \
   */scripts/* \
   2>/dev/null | sed 's|/.*||' | sort -u
+
+grep -rl "<basename-without-extension>" \
+  skills/*/SKILL.md \
+  skills/*/references/*.md \
+  skills/*/templates/* \
+  skills/*/prompts/*.md \
+  skills/*/scripts/* \
+  2>/dev/null | sed -E 's|^(skills/[^/]+)/.*|\1|' | sort -u
 ```
 
-Also check root-level workflow `.md` files read during execution (e.g.,
-`design/decomposition-review.md`). The CI script
+Also check simple-skill references/templates/scripts and root-level workflow
+`.md` files read during execution (e.g., `design/decomposition-review.md`). The CI script
 `.github/scripts/validate-versions.sh` applies this full set of patterns.
 
-Bump each discovered workflow's `SKILL.md` version (PATCH increment).
+Bump each discovered consuming package's `SKILL.md` version (PATCH increment).
 
 ### Commit convention
 
@@ -143,11 +177,12 @@ Do not make a separate commit for the version bump.
 
 ## Installation
 
-Install with `./install.sh <target>` (targets: `cursor`, `claude`, `gemini`, `all`). See README.md for scopes, options, and uninstall instructions.
+Install with `./install.sh <target>` (targets: `cursor`, `claude`, `gemini`,
+`codex`, `all`). See README.md for scopes, options, and uninstall instructions.
 
 ## Development
 
-See CONTRIBUTING.md for workflow structure conventions, path rules, testing, and installation internals.
+See CONTRIBUTING.md for workflow and simple-skill structure conventions, path rules, testing, and installation internals.
 
 ## File Organization
 
@@ -183,6 +218,12 @@ ai-workflows/
 │   ├── prompts/
 │   └── scripts/
 ├── triage/
+├── skills/                    # Focused skills (auto-discovered via SKILL.md)
+│   └── report-bug/
+│       ├── SKILL.md
+│       ├── references/
+│       ├── scripts/
+│       └── templates/
 ├── install.sh                 # Installer with auto-discovery
 ├── uninstall.sh              # Removal script
 ├── AGENTS.md                 # AI assistant guidance (this file)
@@ -194,8 +235,8 @@ ai-workflows/
 
 ## Path to Production
 
-When a workflow invokes commands that could affect shared systems:
+When a workflow or simple skill invokes commands that could affect shared systems:
 - **Git operations**: Always verify with `git status` before destructive operations
 - **PR/MR creation**: Confirm branch and base before pushing
-- **Jira writes**: Only cve-fix `/close`, design `/sync`, and sizing `/apply` write to Jira; all require explicit approval
+- **Jira writes**: cve-fix `/close`, design `/sync`, sizing `/apply`, and `report-bug` may write to Jira; all require explicit approval. `report-bug` may create only the fully previewed issue and approved follow-up links/attachments
 - **Documentation changes**: Run Vale validation before applying changes to repository files
