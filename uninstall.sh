@@ -31,7 +31,7 @@ for skill in "$REPO_DIR"/*/SKILL.md "$REPO_DIR"/skills/*/SKILL.md; do
   package_path="$(dirname "${skill#"$REPO_DIR"/}")"
   for existing_name in "${ALL_PACKAGES[@]}"; do
     if [[ "$existing_name" == "$package_name" ]]; then
-      echo "Error: duplicate workflow/skill name '$package_name'" >&2
+      echo "Error: duplicate package name '$package_name'" >&2
       echo "Package names must be unique across top-level workflows and skills/." >&2
       exit 1
     fi
@@ -40,7 +40,7 @@ for skill in "$REPO_DIR"/*/SKILL.md "$REPO_DIR"/skills/*/SKILL.md; do
   ALL_PACKAGE_PATHS+=("$package_path")
 done
 
-package_dir() {
+resolve_package_dir() {
   local name="$1"
   local index
   for index in "${!ALL_PACKAGES[@]}"; do
@@ -56,8 +56,8 @@ package_dir() {
 for arg in "$@"; do
   if [[ "$arg" == "--list" ]]; then
     echo "Available packages:"
-    for wf in "${ALL_PACKAGES[@]}"; do
-      echo "  $wf"
+    for package in "${ALL_PACKAGES[@]}"; do
+      echo "  $package"
     done
     exit 0
   fi
@@ -152,15 +152,15 @@ remove_cursor_commands() {
 
   [[ -d "$cmds_dir" ]] || return 0
 
-  for wf in "${PACKAGES[@]}"; do
-    local wf_dir
-    wf_dir="$(package_dir "$wf")"
-    for cmd_file in "${cmds_dir}/${wf}"-*.md; do
+  for package in "${PACKAGES[@]}"; do
+    local package_dir
+    package_dir="$(resolve_package_dir "$package")"
+    for cmd_file in "${cmds_dir}/${package}"-*.md; do
       [[ -f "$cmd_file" ]] || continue
       local base
       base="$(basename "$cmd_file" .md)"
-      local suffix="${base#"${wf}-"}"
-      if [[ -f "${wf_dir}/commands/${suffix}.md" ]]; then
+      local suffix="${base#"${package}-"}"
+      if [[ -f "${package_dir}/commands/${suffix}.md" ]]; then
         rm -f "$cmd_file"
         removed=$((removed + 1))
       fi
@@ -184,8 +184,8 @@ uninstall_cursor() {
   if [[ "$SELECTIVE" == false ]]; then
     uninstall_shared "$SKILLS_DIR"
   fi
-  for wf in "${PACKAGES[@]}"; do
-    LINK="${SKILLS_DIR}/${wf}"
+  for package in "${PACKAGES[@]}"; do
+    LINK="${SKILLS_DIR}/${package}"
     if [[ -L "$LINK" ]]; then
       rm -f "$LINK"
       echo "  Removed $LINK"
@@ -211,24 +211,24 @@ uninstall_claude() {
 
   MARKER="# ai-workflows"
 
-  for wf in "${PACKAGES[@]}"; do
+  for package in "${PACKAGES[@]}"; do
     REMOVE_LINES=()
-    local wf_dir
-    wf_dir="$(package_dir "$wf")"
+    local package_dir
+    package_dir="$(resolve_package_dir "$package")"
     if [[ "$SCOPE" == "project" ]]; then
-      REMOVE_LINES+=("For ${wf}, read and follow ${wf_dir}/SKILL.md")
-      REMOVE_LINES+=("For ${wf} workflows, read and follow ${INSTALL_DIR}/${wf}/SKILL.md")
-      REMOVE_LINES+=("For ${wf} workflows, read and follow ${INSTALL_DIR}/${wf}/skills/controller.md")
+      REMOVE_LINES+=("For ${package}, read and follow ${package_dir}/SKILL.md")
+      REMOVE_LINES+=("For ${package} workflows, read and follow ${INSTALL_DIR}/${package}/SKILL.md")
+      REMOVE_LINES+=("For ${package} workflows, read and follow ${INSTALL_DIR}/${package}/skills/controller.md")
     else
-      REMOVE_LINES+=("For ${wf}, read and follow ~/.ai-workflows/${wf}/SKILL.md")
-      REMOVE_LINES+=("For ${wf}, read and follow ~/.ai-workflows/skills/${wf}/SKILL.md")
-      REMOVE_LINES+=("For ${wf} workflows, read and follow ~/.ai-workflows/${wf}/SKILL.md")
-      REMOVE_LINES+=("For ${wf} workflows, read and follow ~/.ai-workflows/${wf}/skills/controller.md")
+      REMOVE_LINES+=("For ${package}, read and follow ~/.ai-workflows/${package}/SKILL.md")
+      REMOVE_LINES+=("For ${package}, read and follow ~/.ai-workflows/skills/${package}/SKILL.md")
+      REMOVE_LINES+=("For ${package} workflows, read and follow ~/.ai-workflows/${package}/SKILL.md")
+      REMOVE_LINES+=("For ${package} workflows, read and follow ~/.ai-workflows/${package}/skills/controller.md")
     fi
     for candidate in "${REMOVE_LINES[@]}"; do
       if grep -qF "$candidate" "$CLAUDE_MD"; then
         grep -vF "$candidate" "$CLAUDE_MD" > "${CLAUDE_MD}.tmp" && mv "${CLAUDE_MD}.tmp" "$CLAUDE_MD"
-        echo "  Removed $wf reference from $CLAUDE_MD"
+        echo "  Removed $package reference from $CLAUDE_MD"
       fi
     done
   done
@@ -238,8 +238,8 @@ uninstall_claude() {
   if [[ "$SELECTIVE" == false ]]; then
     uninstall_shared "$SKILLS_DIR"
   fi
-  for wf in "${PACKAGES[@]}"; do
-    LINK="${SKILLS_DIR}/${wf}"
+  for package in "${PACKAGES[@]}"; do
+    LINK="${SKILLS_DIR}/${package}"
     if [[ -L "$LINK" ]]; then
       rm -f "$LINK"
       echo "  Removed $LINK"
@@ -251,7 +251,7 @@ uninstall_claude() {
     uninstall_shared "$SKILLS_DIR"
   fi
 
-  # Remove the marker if no workflow references remain
+  # Remove the marker if no package references remain
   if grep -qF "$MARKER" "$CLAUDE_MD" && \
      ! grep -Eq "^For .*( workflows)?, read and follow" "$CLAUDE_MD"; then
     grep -vF "$MARKER" "$CLAUDE_MD" > "${CLAUDE_MD}.tmp" && mv "${CLAUDE_MD}.tmp" "$CLAUDE_MD"
@@ -272,8 +272,8 @@ uninstall_gemini() {
   if [[ "$SELECTIVE" == false ]]; then
     uninstall_shared "$SKILLS_DIR"
   fi
-  for wf in "${PACKAGES[@]}"; do
-    LINK="${SKILLS_DIR}/${wf}"
+  for package in "${PACKAGES[@]}"; do
+    LINK="${SKILLS_DIR}/${package}"
     if [[ -L "$LINK" ]]; then
       rm -f "$LINK"
       echo "  Removed $LINK"
@@ -296,8 +296,8 @@ uninstall_codex() {
   if [[ "$SELECTIVE" == false ]]; then
     uninstall_shared "$SKILLS_DIR"
   fi
-  for wf in "${PACKAGES[@]}"; do
-    LINK="${SKILLS_DIR}/${wf}"
+  for package in "${PACKAGES[@]}"; do
+    LINK="${SKILLS_DIR}/${package}"
     if [[ -L "$LINK" ]]; then
       rm -f "$LINK"
       echo "  Removed $LINK"
@@ -357,7 +357,7 @@ case "$TARGET" in
     echo "  --workflows names     deprecated alias for --packages" >&2
     echo "  --project [path]      project-level (.cursor/skills/, .claude/, .gemini/skills/, .agents/skills/)" >&2
     echo "                         path defaults to current directory" >&2
-    echo "  --list                list available workflows and exit" >&2
+    echo "  --list                list available packages and exit" >&2
     exit 1
     ;;
 esac

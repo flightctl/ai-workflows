@@ -19,6 +19,10 @@ Keep Summary as a separate Jira field; it is not part of the rendered Descriptio
 
 ## Evidence to gather
 
+Before gathering or transforming source material, read and apply
+`../../../_shared/content-rules.md`. Its privacy and sanitization requirements
+apply to the Jira report, preview, comments, and attachment descriptions.
+
 Use conversation context first. Inspect logs, screenshots, configuration, or
 source only when the user supplied them or placed them in scope. Before drafting,
 establish as many of these as the available evidence supports:

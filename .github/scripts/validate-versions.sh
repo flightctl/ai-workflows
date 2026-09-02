@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Validates that workflow versions are bumped when behavioral files change.
+# Validates that package versions are bumped when behavioral files change.
 # Run in CI via .github/workflows/lint.yaml.
 #
 # On PRs: compares the branch against the merge base with the target branch.
@@ -28,15 +28,17 @@ info() {
   echo "INFO: $1"
 }
 
-# Find workflow directories that reference a shared-file basename in behavioral
-# markdown, including root-level workflow .md files (e.g., design/decomposition-review.md).
-find_workflows_referencing() {
+# Find workflow and simple-skill packages that reference a shared-file basename
+# in behavioral files, including workflow entry points and root-level workflow
+# .md files (e.g., design/decomposition-review.md).
+find_packages_referencing() {
   local base="$1"
-  local workflows=""
+  local packages=""
 
   local from_grep
   from_grep=$(grep -rl "$base" \
     -- \
+    */SKILL.md \
     */guidelines.md \
     */skills/*.md \
     */commands/*.md \
@@ -45,7 +47,7 @@ find_workflows_referencing() {
     */scripts/* \
     2>/dev/null | sed 's|/.*||' | sort -u || true)
   if [ -n "$from_grep" ]; then
-    workflows="$from_grep"
+    packages="$from_grep"
   fi
 
   local from_simple_skills
@@ -58,24 +60,24 @@ find_workflows_referencing() {
     skills/*/scripts/* \
     2>/dev/null | sed -E 's|^(skills/[^/]+)/.*|\1|' | sort -u || true)
   if [ -n "$from_simple_skills" ]; then
-    workflows=$(printf '%s\n%s' "$workflows" "$from_simple_skills" | sort -u)
+    packages=$(printf '%s\n%s' "$packages" "$from_simple_skills" | sort -u)
   fi
 
-  for wf_dir in */; do
-    wf="${wf_dir%/}"
-    [ -f "$wf/SKILL.md" ] || continue
-    for root_md in "$wf"/*.md; do
+  for package_dir in */; do
+    package="${package_dir%/}"
+    [ -f "$package/SKILL.md" ] || continue
+    for root_md in "$package"/*.md; do
       [ -f "$root_md" ] || continue
       case "$(basename "$root_md")" in
         SKILL.md|README.md|GUIDE.md|guidelines.md) continue ;;
       esac
       if grep -q "$base" "$root_md" 2>/dev/null; then
-        workflows=$(printf '%s\n%s' "$workflows" "$wf" | sort -u)
+        packages=$(printf '%s\n%s' "$packages" "$package" | sort -u)
       fi
     done
   done
 
-  printf '%s\n' "$workflows" | sed '/^$/d'
+  printf '%s\n' "$packages" | sed '/^$/d'
 }
 
 # ---------------------------------------------------------------------------
@@ -162,19 +164,19 @@ is_behavioral() {
 package_names=()
 for skill in */SKILL.md skills/*/SKILL.md; do
   [ -f "$skill" ] || continue
-  wf=$(dirname "$skill")
-  package_name=$(basename "$wf")
+  package=$(dirname "$skill")
+  package_name=$(basename "$package")
   for existing_name in "${package_names[@]}"; do
     if [ "$existing_name" = "$package_name" ]; then
-      fail "duplicate workflow/skill name '$package_name'"
+      fail "duplicate package name '$package_name'"
     fi
   done
   package_names+=("$package_name")
   ver=$(sed -n 's/^version: *//p' "$skill")
   if [ -z "$ver" ]; then
-    fail "$wf: SKILL.md missing version field"
+    fail "$package: SKILL.md missing version field"
   elif ! echo "$ver" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-    fail "$wf: version '$ver' is not valid semver (expected X.Y.Z)"
+    fail "$package: version '$ver' is not valid semver (expected X.Y.Z)"
   fi
 done
 
@@ -198,10 +200,10 @@ while IFS= read -r -d '' shared; do
 done < <(find _shared -name '*.md' -print0 2>/dev/null)
 
 # ---------------------------------------------------------------------------
-# 7. Detect behavioral changes and version bumps per workflow
+# 7. Detect behavioral changes and version bumps per package
 # ---------------------------------------------------------------------------
-declare -A workflow_behavioral_changed
-declare -A workflow_version_bumped
+declare -A package_behavioral_changed
+declare -A package_version_bumped
 declare -A shared_changed
 
 for file in "${CHANGED_FILES[@]}"; do
@@ -212,43 +214,43 @@ for file in "${CHANGED_FILES[@]}"; do
     continue
   fi
 
-  wf="${file%%/*}"
+  package="${file%%/*}"
   if [[ "$file" == skills/*/* ]]; then
     skill_rest="${file#skills/}"
     candidate="skills/${skill_rest%%/*}"
-    [ -f "$candidate/SKILL.md" ] && wf="$candidate"
+    [ -f "$candidate/SKILL.md" ] && package="$candidate"
   fi
-  [ -f "$wf/SKILL.md" ] || continue
+  [ -f "$package/SKILL.md" ] || continue
 
   if is_behavioral "$file"; then
-    workflow_behavioral_changed["$wf"]=1
+    package_behavioral_changed["$package"]=1
   fi
 
-  if [ "$file" = "$wf/SKILL.md" ]; then
-    new_ver=$(sed -n 's/^version: *//p' "$wf/SKILL.md")
-    old_ver=$(git show "$MERGE_BASE:$wf/SKILL.md" 2>/dev/null \
+  if [ "$file" = "$package/SKILL.md" ]; then
+    new_ver=$(sed -n 's/^version: *//p' "$package/SKILL.md")
+    old_ver=$(git show "$MERGE_BASE:$package/SKILL.md" 2>/dev/null \
       | sed -n 's/^version: *//p' || echo "")
     if [ -n "$new_ver" ] && [ -n "$old_ver" ] && [ "$new_ver" != "$old_ver" ]; then
-      workflow_version_bumped["$wf"]=1
+      package_version_bumped["$package"]=1
     elif [ -n "$new_ver" ] && [ -z "$old_ver" ]; then
-      workflow_version_bumped["$wf"]=1
+      package_version_bumped["$package"]=1
     fi
   fi
 done
 
 # ---------------------------------------------------------------------------
-# 8. Workflows with behavioral changes must have version bumps
+# 8. Packages with behavioral changes must have version bumps
 # ---------------------------------------------------------------------------
-for wf in "${!workflow_behavioral_changed[@]}"; do
-  if [ -z "${workflow_version_bumped[$wf]:-}" ]; then
-    fail "$wf: behavioral files changed but version not bumped in SKILL.md"
+for package in "${!package_behavioral_changed[@]}"; do
+  if [ -z "${package_version_bumped[$package]:-}" ]; then
+    fail "$package: behavioral files changed but version not bumped in SKILL.md"
   else
-    new_ver=$(sed -n 's/^version: *//p' "$wf/SKILL.md")
-    old_ver=$(git show "$MERGE_BASE:$wf/SKILL.md" 2>/dev/null \
+    new_ver=$(sed -n 's/^version: *//p' "$package/SKILL.md")
+    old_ver=$(git show "$MERGE_BASE:$package/SKILL.md" 2>/dev/null \
       | sed -n 's/^version: *//p' || echo "")
     if [ -n "$old_ver" ] && [ -n "$new_ver" ]; then
       if ! semver_lt "$old_ver" "$new_ver"; then
-        fail "$wf: version $new_ver is not greater than $old_ver"
+        fail "$package: version $new_ver is not greater than $old_ver"
       fi
     fi
   fi
@@ -258,18 +260,18 @@ done
 # 9. Advisory: signals that suggest MAJOR bump
 # ---------------------------------------------------------------------------
 for file in "${CHANGED_FILES[@]}"; do
-  wf="${file%%/*}"
+  package="${file%%/*}"
   if [[ "$file" == skills/*/* ]]; then
     skill_rest="${file#skills/}"
     candidate="skills/${skill_rest%%/*}"
-    [ -f "$candidate/SKILL.md" ] && wf="$candidate"
+    [ -f "$candidate/SKILL.md" ] && package="$candidate"
   fi
-  [ -f "$wf/SKILL.md" ] || continue
+  [ -f "$package/SKILL.md" ] || continue
 
   if ! [ -f "$file" ] && git show "$MERGE_BASE:$file" >/dev/null 2>&1; then
     case "$file" in
       */skills/*.md|*/commands/*.md)
-        warn "$wf: deleted $file — consider MAJOR version bump" ;;
+        warn "$package: deleted $file — consider MAJOR version bump" ;;
     esac
   fi
 done
@@ -291,20 +293,20 @@ for shared_file in "${!shared_changed[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
-# 11. Cascade: shared file changes require consuming workflow bumps
+# 11. Cascade: shared file changes require consuming package bumps
 # ---------------------------------------------------------------------------
 for shared_file in "${!shared_changed[@]}"; do
   base=$(basename "$shared_file" .md)
 
-  referencing_workflows=""
+  referencing_packages=""
 
-  referencing_workflows=$(find_workflows_referencing "$base")
+  referencing_packages=$(find_packages_referencing "$base")
 
-  for wf in $referencing_workflows; do
-    [ -n "$wf" ] || continue
-    [ -f "$wf/SKILL.md" ] || continue
-    if [ -z "${workflow_version_bumped[$wf]:-}" ]; then
-      fail "$wf: references changed shared file $shared_file but version not bumped"
+  for package in $referencing_packages; do
+    [ -n "$package" ] || continue
+    [ -f "$package/SKILL.md" ] || continue
+    if [ -z "${package_version_bumped[$package]:-}" ]; then
+      fail "$package: references changed shared file $shared_file but version not bumped"
     fi
   done
 
@@ -313,11 +315,11 @@ for shared_file in "${!shared_changed[@]}"; do
   for trans in $transitive_shared; do
     [ "$trans" = "$shared_file" ] && continue
     trans_base=$(basename "$trans" .md)
-    trans_workflows=$(find_workflows_referencing "$trans_base")
-    for tw in $trans_workflows; do
-      [ -f "$tw/SKILL.md" ] || continue
-      if [ -z "${workflow_version_bumped[$tw]:-}" ]; then
-        fail "$tw: transitively affected by $shared_file (via $trans) but version not bumped"
+    transitive_packages=$(find_packages_referencing "$trans_base")
+    for package in $transitive_packages; do
+      [ -f "$package/SKILL.md" ] || continue
+      if [ -z "${package_version_bumped[$package]:-}" ]; then
+        fail "$package: transitively affected by $shared_file (via $trans) but version not bumped"
       fi
     done
   done
