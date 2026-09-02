@@ -1,6 +1,6 @@
 ---
 name: code-review
-version: 0.3.0
+version: 0.4.0
 description: >-
   AI-driven code review workflow that reviews uncommitted changes using a
   discoverable reviewer profile, presents findings for human decision, and

@@ -14,15 +14,28 @@ permissions:
   contents: read
 
 jobs:
-  unit-tests:
-    name: Unit Tests
+  installer-tests:
+    name: Installer Tests
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: bash .github/scripts/test-install.sh
+
+  unit-tests:
+    name: Unit Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12"]
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
       - run: python3 -m unittest discover -s _shared/scripts -p 'test_*.py' -v
       - run: python3 -m unittest discover -s triage/scripts -p 'test_*.py' -v
+      - run: python3 -m unittest discover -s skills/report-bug/scripts -p 'test_*.py' -v

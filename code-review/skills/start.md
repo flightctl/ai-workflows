@@ -21,24 +21,24 @@ the user.
 - **Read-only.** This phase does not modify any project files. No mutating
   git operations (commit, push, checkout, reset), no code edits. Read-only
   git commands (diff, log, status, branch, ls-files) are expected.
-- **Discover conventions from the project.** Read AGENTS.md, CLAUDE.md,
-  linting configs, contribution guidelines, and CI workflows. Do not
-  impose external standards.
-- **Review uncommitted work only.** The default scope is all uncommitted
-  changes (`git diff HEAD` plus untracked files). However, not every
-  changed or untracked file is necessarily part of the change under
-  review. Determine which files are relevant to the change by examining
-  the content and purpose of each — exclude files that are clearly
-  unrelated workspace artifacts (e.g., scratch notes, unrelated configs
-  that happen to be modified). When in doubt about relevance, include
-  the file.
+- **Discover conventions from the project.** Do not impose external standards.
+  Use the reviewer-profile cache when valid. Skip `AGENTS.md` / `CLAUDE.md`
+  if already in this session.
+- **Review uncommitted work only.** Default scope is uncommitted changes.
+  Exclude files that are clearly unrelated workspace artifacts. When in
+  doubt, include the file.
+- **Index the diff; do not dump it.** Capture `--stat` and `--name-status`.
+  Never paste full `git diff HEAD` into this conversation or a subagent
+  prompt. Read hunk neighborhoods (`offset`/`limit` ~80 lines), not whole
+  files. Skip generated/vendor/lock paths. Cap **≤20** hunk Reads.
 - **Every finding must cite a specific file and location.** Discard any
-  finding that cannot be traced to the actual diff.
+  finding that cannot be traced to the name-status list.
 - **Assess independently.** After obtaining the review, form your own
   opinion on each finding. Present both perspectives to the user.
-- **Optional user focus.** If the user provides focus guidance (e.g.,
-  "focus on error handling", "ignore the test changes"), apply it when
-  presenting the review request.
+- **Write each artifact path once.** No Delete+rewrite of the same file.
+- **Do not glob this workflow. Do not call `GetDynamicTools`.**
+- **Optional user focus.** If the user provides focus guidance, apply it
+  when presenting the review request.
 
 ## Unattended Mode
 
@@ -68,26 +68,19 @@ is empty or unavailable, check the user's original message for flags
 
 ### Step 1: Determine the Branch Context
 
-Identify the current branch name for use as the artifact context:
-
 ```bash
 git branch --show-current
 ```
 
 If in detached HEAD state, use the short SHA as the context identifier.
-
 Set this as `{branch}` for all artifact paths.
 
 ### Step 2: Check for Existing Review
 
 If `.artifacts/code-review/{branch}/review-metadata.json` exists, a review
-is already in progress. Stop and tell the user:
-
-- A review is already in progress for this branch
-- They can run `/continue` to resume, or confirm they want to restart
-
-If the user confirms a restart, delete the existing artifact directory
-before proceeding.
+is already in progress. Stop and tell the user they can `/continue` or
+confirm a restart. If they confirm restart, delete the existing artifact
+directory before proceeding.
 
 ### Step 3: Create Artifact Directory
 
@@ -95,202 +88,156 @@ before proceeding.
 mkdir -p .artifacts/code-review/{branch}
 ```
 
-Verify that `.artifacts/` is covered by the project's `.gitignore`. If it
-is not, warn the user that review artifacts could be accidentally committed.
+Warn if `.artifacts/` is not gitignored.
 
 ### Step 4: Discover Project Context
 
-Build a reviewer profile by reading the project's conventions. Read
-whichever of these exist:
+**Cache:** If `.artifacts/code-review/_reviewer-profile.md` exists and
+`.artifacts/code-review/.meta.json` `skill_version` is `0.4.0` and
+hashes/mtimes for `AGENTS.md`/`CLAUDE.md`, `CONTRIBUTING.md`, Makefile
+(or equivalent), and CI workflow filenames still match, copy the cache
+into `{branch}/00-reviewer-profile.md` and skip convention Reads.
+Missing `skill_version` (pre-0.4.0 caches) is a miss.
 
-1. `AGENTS.md` or `CLAUDE.md` -- project conventions and AI guidance
-2. `CONTRIBUTING.md` -- contribution guidelines, PR conventions
-3. Linting configuration files (e.g., `.eslintrc`, `.golangci.yml`,
-   `pyproject.toml`, `Makefile` lint targets)
-4. CI/CD workflows (e.g., `.github/workflows/`) -- what checks run
-5. Test configuration -- test framework, directory structure, patterns
+**Miss:** One discovery pass. Skip `AGENTS.md`/`CLAUDE.md` if already in
+this session — copy applicable conventions into the profile from session
+context; do not re-Read those files. Read whichever of these exist:
+linting configs (e.g. `.eslintrc`, `.golangci.yml`, `pyproject.toml`,
+`Makefile` lint targets), `CONTRIBUTING.md`, test configuration (framework,
+directory structure, patterns). Makefile/CI: filenames and one lint/test
+grep — not full workflow bodies. `git ls-files '.github/workflows/*.yml'
+'.github/workflows/*.yaml'` (or project equivalent). Read
+`../templates/00-reviewer-profile.md` **once**, fill it, Write
+`{branch}/00-reviewer-profile.md` **once**, and Write the cache files
+**once**.
 
-From these, extract:
+Extract: languages/frameworks, conventions, quality gates (lint + test
+commands), review focus areas.
 
-- **Languages and frameworks** in use
-- **Coding conventions** (naming, formatting, patterns)
-- **Quality gates** (linting rules, test requirements, coverage thresholds)
-- **Review focus areas** the project emphasizes (e.g., security, performance,
-  API compatibility)
-- **Lint command** (if discoverable) for optional use in `/continue`
-- **Test command** (if discoverable) for optional use in `/continue`
+`.artifacts/code-review/.meta.json` schema (write **once** on cache miss;
+compare these keys on hit; include `skill_version` so a format change
+invalidates old caches):
 
-Write the profile to `.artifacts/code-review/{branch}/00-reviewer-profile.md`:
-
-```markdown
-# Reviewer Profile -- {project name}
-
-## Tech Stack
-{languages, frameworks, key dependencies}
-
-## Conventions
-{coding standards, naming patterns, project-specific rules}
-
-## Quality Gates
-{lint command, test command, coverage requirements}
-
-## Review Focus Areas
-{what this project's guidelines emphasize}
-
-## Sources
-{list of files read to build this profile}
+```json
+{
+  "skill_version": "0.4.0",
+  "AGENTS.md": {"mtime": "{unix}", "sha256": "{hex or empty}"},
+  "CLAUDE.md": {"mtime": "{unix}", "sha256": "{hex or empty}"},
+  "CONTRIBUTING.md": {"mtime": "{unix}", "sha256": "{hex or empty}"},
+  "Makefile": {"mtime": "{unix}", "sha256": "{hex or empty}"},
+  "ci_workflows": ["{filenames from git ls-files}"]
+}
 ```
 
 ### Step 5: Analyze Changes
 
-Capture all uncommitted changes — both tracked modifications and untracked
-files:
+Capture an **index**, not a patch dump:
 
 ```bash
-git diff HEAD
-```
-
-```bash
+git diff HEAD --stat
 git diff HEAD --name-status
-```
-
-```bash
 git ls-files --others --exclude-standard
 ```
 
-If there are no uncommitted changes and no untracked files, tell the user
-and stop. There is nothing to review.
+Do **not** run unfiltered `git diff HEAD` into the transcript.
 
-#### Determine Relevance
+If any of these commands fail (non-zero exit), stop and report the
+error. Do not review with an incomplete index.
+
+`git diff HEAD --stat` and `--name-status` are empty when the workspace
+has only untracked files. That is not a failure. Combine tracked
+name-status with untracked paths. If the combined index is empty, tell
+the user there is nothing to review and stop.
+
+If there are no uncommitted changes and no untracked files, tell the user
+and stop.
 
 Not every changed or untracked file belongs to the change under review.
-Examine each file's content and purpose to determine whether it is part of
-the logical change set:
 
-- **Include:** Files that are clearly part of the work (source code, tests,
-  configuration changes that support the code changes, documentation
-  updates related to the changes).
-- **Exclude:** Files that are unrelated workspace artifacts — scratch notes,
-  personal drafts, unrelated modifications that predate the current work.
-  When excluding a file, note it in the change summary with a brief reason.
-- **When in doubt, include.** It is better to review a file unnecessarily
-  than to miss a relevant change.
+- **Include:** source code, tests, supporting config, related docs.
+- **Exclude:** scratch notes, personal drafts, unrelated modifications
+  that predate the current work. Note each exclusion in the change
+  summary with a brief reason.
+- **When in doubt, include.**
 
-If the user provided focus guidance via `$ARGUMENTS`, record it for
-inclusion in the review request.
+Skip generated/vendor/lock paths from hunk Reads. Record user focus from
+`$ARGUMENTS`. Write every excluded path and every file that was inspected
+only via `--stat` / `--name-status` (no hunk Read) into the change
+summary so the user can see coverage.
 
-Write `.artifacts/code-review/{branch}/01-change-summary.md`:
+Read `../templates/01-change-summary.md` **once**, fill it, Write
+`{branch}/01-change-summary.md` **once**.
 
-```markdown
-# Change Summary
+Write `{branch}/diff-index-001.json` **once** (continue compares this on
+re-review). Hash source depends on `--name-status`:
 
-## Branch
-{branch name}
+- **M / A / untracked (U):** `git hash-object` of the working-tree file.
+  Key is the path.
+- **D:** there is no working-tree file. Hash the HEAD blob
+  (`git rev-parse HEAD:{path}`). Key is the deleted path.
+- **R:** key the new path; set `from` to the old path; hash the new
+  working-tree file.
 
-## What Was Changed
-{description of the feature, fix, or refactor — what do these changes
-accomplish and why}
-
-## Files Under Review
-| Status | File | Purpose of Change |
-|--------|------|-------------------|
-| {M/A/D/R/new} | {file path} | {what changed in this file and why} |
-
-## Excluded Files
-| File | Reason |
-|------|--------|
-| {file path} | {why this file was excluded — e.g., "unrelated scratch notes"} |
-
-{If no files excluded: "None -- all changed files are relevant."}
-
-## Key Design Decisions
-{rationale behind significant choices — why this approach over
-alternatives, trade-offs considered. If there are no notable design
-decisions: "None -- straightforward change."}
-
-## Areas for Review Focus
-{implementor's own areas of uncertainty, concern, or where extra
-scrutiny would be valuable. If none: "No specific concerns."}
-
-## User Focus
-{user-provided focus guidance, or "None -- review all aspects"}
+```json
+{
+  "round": 1,
+  "name_status": ["{git diff HEAD --name-status lines}"],
+  "untracked": ["{git ls-files --others --exclude-standard paths}"],
+  "hashes": {
+    "{path}": {
+      "status": "{M|A|D|R|U}",
+      "hash": "{blob}",
+      "from": "{old path if R, else omit}"
+    }
+  }
+}
 ```
 
 ### Step 6: Obtain the Code Review
 
-This step produces the structured review. The review should be conducted
-with a fresh perspective, independent of the implementor's knowledge of
-the code.
+Review with a fresh perspective, independent of the implementor.
+Evaluate the code as if you did not write it.
 
-**If the AI runtime supports subagents:** Spawn a subagent to perform the
-review. Load it with:
-- The reviewer profile (`00-reviewer-profile.md`)
-- The change summary (`01-change-summary.md`)
-- The full diff (`git diff HEAD`)
-- The project's `AGENTS.md`/`CLAUDE.md` (if they exist)
-- The guidelines file for this workflow (`../guidelines.md`)
+**Hunk Reads (reviewer and sequential fallback):** For each relevant
+**tracked** path, Read ~80 lines around changed lines (`offset`/`limit`).
+Cap **≤20** hunk Reads. Do not Read whole large files. The slice is for
+context, not isolation: does a new function duplicate existing
+functionality? Is the error handling consistent with the rest of the
+file? Does the change interact correctly with surrounding code?
 
-Instruct the subagent to write its findings to
-`.artifacts/code-review/{branch}/code-review-001.md` using the format
-specified below, then return.
+**Untracked files:** They have no `git diff HEAD` hunks. For each
+relevant untracked path, Read the first ~80 lines (`limit` 80). If that
+chunk is not enough to understand the file's purpose, one additional
+~80-line continuation. Each of these Reads counts toward the ≤20 cap.
+Do not Read whole large untracked files.
 
-**If subagents are not available:** Re-read `../guidelines.md` to
-calibrate the review, then perform the review sequentially within the
-current context. Adopt the reviewer perspective: evaluate the code as
-if you did not write it, focusing on what the diff introduces or changes.
+If the cap is hit, list files that got only `--stat` coverage (tracked)
+or no content Read (untracked) in the change summary and the review
+summary.
 
-**In either case**, the reviewer must not limit itself to the diff in
-isolation. Read the full files around changed sections to understand
-context: does a new function duplicate existing functionality? Is the
-error handling pattern consistent with the rest of the file? Does the
-change interact correctly with surrounding code? The diff shows what
-changed; the surrounding code reveals whether the change fits.
+**If the AI runtime supports subagents:** Spawn a subagent. Load **only**:
+- `00-reviewer-profile.md`
+- `01-change-summary.md`
+- the name-status / stat index (not the patch)
+- `../../_shared/review-protocol.md`
+- `../templates/code-review.md`
 
-The reviewer should evaluate all categories defined in
-`../../_shared/review-protocol.md`.
+Do **not** pass `AGENTS.md`, `../guidelines.md`, or raw `git diff HEAD`.
+Parent Reads `../templates/code-review.md` **once**. Instruct the
+subagent to write findings to
+`.artifacts/code-review/{branch}/code-review-001.md` using that
+skeleton, then return.
 
-If the user provided focus guidance, prioritize those areas but still
-report CRITICAL and HIGH findings in other categories.
+**If subagents are not available:** Read `../../_shared/review-protocol.md`
+(not `../guidelines.md`) and review sequentially. Same hunk-Read rules.
 
-Write `.artifacts/code-review/{branch}/code-review-001.md`:
+Evaluate all categories in `../../_shared/review-protocol.md`. If the user
+provided focus guidance, prioritize those areas but still report CRITICAL
+and HIGH findings elsewhere.
 
-```markdown
-# Code Review -- Round 1
-
-## Summary
-{2-3 sentence overall assessment}
-
-## Findings
-
-### Finding 1: {short title}
-- **File:** {file path}
-- **Location:** {line range or function name, as applicable}
-- **Severity:** {CRITICAL | HIGH | MEDIUM | LOW}
-- **Category:** {Correctness | Error Handling | Security | Performance |
-  Naming/Clarity | Test Coverage | Conventions}
-- **Issue:** {what the problem is}
-- **Suggestion:** {concrete, actionable fix}
-
-### Finding 2: {short title}
-...
-
-## Questions
-{questions the reviewer has about design intent, expected behavior,
-or context that would affect the review. These are not findings —
-they are requests for clarification.}
-
-- **File:** {file path}
-- **Location:** {line range or function name}
-- **Question:** {what the reviewer wants to understand}
-
-{If no questions: omit this section.}
-
-## Verdict
-{APPROVED | CHANGES_REQUESTED}
-
-{If APPROVED: brief statement of why the changes are ready.}
-{If CHANGES_REQUESTED: summary of what needs attention.}
-```
+The subagent writes `code-review-001.md`. The parent writes it **only**
+when reviewing sequentially (no subagent). Exactly one writer. Do not
+overwrite the subagent file.
 
 ### Step 7: Validate and Assess Findings
 
@@ -299,22 +246,21 @@ Read the review file and work through **every** finding.
 #### 7a: Validate finding references
 
 For each finding, confirm that the cited file and location actually exist
-in the diff. AI reviewers hallucinate file paths and line numbers. If a
-finding references a file that was not changed, or a location that does
-not exist, discard it — do not present it to the user. Note discarded
-findings and why in your internal assessment (not in the user-facing
-table).
+in the change. AI reviewers hallucinate file paths and line numbers. If a
+finding references a file that was not changed (not on the name-status /
+untracked list), discard it — a context Read of a neighboring file is
+not enough. If the location does not exist, or does not overlap the
+changed lines (tracked) or the Read chunks (untracked), discard it. Do
+not present discarded findings to the user. Note discarded findings and
+why in your internal assessment (not in the user-facing table).
 
 #### 7b: Assess on value
 
-For each validated finding — regardless of severity — form your own
-honest assessment, following the "Assess on value, not severity" principle
-in `../../_shared/review-protocol.md`. Do not dismiss findings just
-because they are LOW or nit-level. A well-placed rename or a small clarity
-improvement can add real value. Equally, do not accept findings reflexively
-just because the reviewer flagged them.
-
-Express your assessment as one of:
+For each validated finding — regardless of severity — follow "Assess on
+value, not severity" in `../../_shared/review-protocol.md`. Do not
+dismiss findings just because they are LOW or nit-level. A well-placed
+rename or a small clarity improvement can add real value. Equally, do
+not accept findings reflexively just because the reviewer flagged them.
 
 - **Agree** -- the finding adds real value. State what improves.
 - **Disagree** -- the finding does not add value, or the current code is
@@ -325,7 +271,7 @@ Express your assessment as one of:
 
 ### Step 8: Write Review Metadata
 
-Write `.artifacts/code-review/{branch}/review-metadata.json`:
+Write `.artifacts/code-review/{branch}/review-metadata.json` **once**:
 
 ```json
 {
@@ -341,17 +287,11 @@ Write `.artifacts/code-review/{branch}/review-metadata.json`:
 ```
 
 Set `unattended` to `true` if the user requested unattended mode.
-
-If a subagent was spawned in Step 6, store its ID in `reviewer_agent_id`.
-This enables the `/continue` phase to resume the same reviewer (when the
-runtime supports it), giving the reviewer memory of previous iterations.
-If no subagent was used, set to `null`.
+Store the subagent ID in `reviewer_agent_id` when one was spawned.
 
 ### Step 9: Present the Decision Table
 
-Present **every** finding to the user in a structured table — do not
-silently drop any findings, regardless of severity. The user should see
-the full picture and the implementor's honest assessment of each.
+Present **every** finding — do not silently drop any, including LOW.
 
 ```markdown
 ## Code Review -- Round 1
@@ -394,49 +334,49 @@ Review the table and let me know your decisions. You can:
 Then run /continue to implement the accepted changes.
 ```
 
-Once the user states their decisions (or confirms the recommendations),
-persist them to `.artifacts/code-review/{branch}/decisions-{NNN}.json`
-(where NNN matches the review round number, e.g., `decisions-001.json`
-for round 1) so `/continue` can recover after a session interruption:
+Once the user states decisions, persist them to
+`.artifacts/code-review/{branch}/decisions-{NNN}.json`. Set `id` to
+`{file}|{location}|{title}`; if two findings in this round would share
+that string, append `#{finding_number}`.
 
 ```json
 {
   "round": 1,
   "decisions": [
-    {"finding": 1, "decision": "accept", "guidance": null},
-    {"finding": 2, "decision": "reject", "reason": "user rationale"},
-    {"finding": 3, "decision": "accept", "guidance": "use approach X"}
+    {"finding": 1, "id": "{file}|{location}|{title}", "title": "{short title}", "file": "{path}", "location": "{line or function}", "decision": "accept", "guidance": null},
+    {"finding": 2, "id": "{file}|{location}|{title}", "title": "{short title}", "file": "{path}", "location": "{line or function}", "decision": "reject", "reason": "user rationale"},
+    {"finding": 3, "id": "{file}|{location}|{title}", "title": "{short title}", "file": "{path}", "location": "{line or function}", "decision": "accept", "guidance": "use approach X"}
   ]
 }
 ```
 
 If the verdict is APPROVED with no findings, tell the user the review
-passed and no changes are needed. Clean up artifacts automatically.
+passed and clean up artifacts automatically.
 
 #### Unattended Mode Behavior
 
-In unattended mode, **still present the full decision table** — the user
-can interrupt at any time, and the table gives them the information to
-decide whether to do so. Do not skip the table because the mode is
-unattended; unattended means the user delegated decisions, not visibility.
+Still present the full decision table — the user can interrupt at any
+time, and the table gives them the information to decide whether to do
+so. Do not skip the table because the mode is unattended; unattended
+means the user delegated decisions, not visibility.
 
-After presenting the table:
+After presenting:
 
-1. If any CRITICAL finding has an "Disagree" assessment, stop and
+1. If any CRITICAL finding has a "Disagree" assessment, stop and
    escalate to the user — present the finding and explain the
    disagreement. Wait for the user to decide.
-2. Otherwise, treat the implementor's recommendations as the decisions
-   (Accept findings marked "Agree" or "Partially agree"; Reject findings
-   marked "Disagree"). Persist the decisions to
-   `decisions-{NNN}.json` and proceed directly to `/continue`.
+2. Otherwise treat Agree / Partially agree as Accept and Disagree as
+   Reject, persist `decisions-{NNN}.json`, and proceed to `/continue`.
 
 ## Output
 
 - `.artifacts/code-review/{branch}/00-reviewer-profile.md`
 - `.artifacts/code-review/{branch}/01-change-summary.md`
+- `.artifacts/code-review/{branch}/diff-index-001.json`
 - `.artifacts/code-review/{branch}/code-review-001.md`
 - `.artifacts/code-review/{branch}/review-metadata.json`
 - `.artifacts/code-review/{branch}/decisions-{NNN}.json`
+- `.artifacts/code-review/_reviewer-profile.md` (+ `.meta.json`) on cache miss
 
 ## When This Phase Is Done
 
