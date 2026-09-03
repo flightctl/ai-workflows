@@ -37,7 +37,6 @@ bugfix/
 │   ├── start.md
 │   ├── assess.md
 │   ├── diagnose.md
-│   ├── dispatch.md
 │   ├── document.md
 │   ├── fix.md
 │   ├── pr.md
@@ -52,6 +51,7 @@ bugfix/
 │   ├── completion.md
 │   ├── controller.md
 │   ├── diagnose.md
+│   ├── dispatch.md
 │   ├── document.md
 │   ├── feedback.md
 │   ├── fix.md

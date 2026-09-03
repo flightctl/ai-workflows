@@ -11,5 +11,7 @@ Given `PHASE`, announce `Starting /{PHASE}.` Then read and follow
 through the command context unchanged.
 
 The built-in fallback is the phase file beside this dispatcher. Follow the
-phase through its reporting step. When it returns control for completion
-guidance, read `completion.md` and follow the guidance for `PHASE`.
+phase through its reporting step. Treat any valid phase exit—returning to the
+invoking router, requesting completion guidance, or re-reading the
+controller—as a return to this dispatcher. Then read `completion.md` and follow
+its guidance for `PHASE`.

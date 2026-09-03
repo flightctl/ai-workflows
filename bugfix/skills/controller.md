@@ -46,18 +46,9 @@ Phases can be skipped or reordered at the user's discretion.
 
 ## How to Execute a Phase
 
-1. **Announce** the phase to the user before doing anything else, e.g., "Starting the /fix phase."
-   This is very important so the user knows that the workflow is working and learns about the commands.
-2. **Locate** the skill file — read and follow
-   `../../_shared/recipes/phase-override-resolution.md` with
-   WORKFLOW=`bugfix`, PHASE_FILE=`{phase}.md`.
-3. **Read** the resolved skill file
-4. **Execute** the skill's steps directly — the user should see your progress
-5. When the skill returns control for completion guidance, read `completion.md`
-   and follow the guidance for the completed phase. If a legacy project
-   override instead tells you to re-read this controller, treat that as the
-   same return and read `completion.md`.
-6. **Stop and wait** for the user to tell you what to do next.
+Set `PHASE` to the selected phase, then read `dispatch.md` and follow it. The
+dispatcher owns phase announcement, override resolution, execution, and
+completion routing for both built-in phases and project overrides.
 
 ## Starting the Workflow
 
