@@ -1,6 +1,6 @@
 ---
 name: phase-override-resolution
-version: 0.1.0
+version: 0.1.1
 ---
 # Recipe: Phase Override Resolution
 
@@ -24,8 +24,11 @@ default. Use the first match found:
 2. **`{PHASE_FILE}`** — workflow's built-in default (sibling file in `skills/`)
 
 If the override file exists but is empty, appears malformed, or does not
-contain exit instructions to re-read the controller, warn the user and fall
-back to the built-in default.
+contain completion or exit guidance, warn the user and fall back to the
+built-in default. Valid exit guidance may return control to the invoking
+router, read a completion guide, or re-read a controller; require the same
+behavioral contract as the workflow's built-in phase rather than one specific
+routing architecture.
 
 If using a project override, announce it: *"Using project override for
 /{phase}."*

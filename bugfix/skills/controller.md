@@ -53,61 +53,11 @@ Phases can be skipped or reordered at the user's discretion.
    WORKFLOW=`bugfix`, PHASE_FILE=`{phase}.md`.
 3. **Read** the resolved skill file
 4. **Execute** the skill's steps directly — the user should see your progress
-5. When the skill is done, it will tell you to report your findings and
-   re-read this controller. Do that — then use "Recommending Next Steps"
-   below to offer options.
-6. Present the skill's results and your recommendations to the user
-7. **Stop and wait** for the user to tell you what to do next.
-
-## Recommending Next Steps
-
-After each phase completes, present the user with **options** — not just one
-next step. Use the typical flow as a baseline, but adapt to what actually
-happened.
-
-### Typical Flow
-
-```text
-assess → reproduce → diagnose → fix → test → review → document → pr
-```
-
-### What to Recommend
-
-After presenting results, consider what just happened, then offer options that make sense:
-
-**Continuing to the next step** — often the next phase in the flow is the best option
-
-**Skipping forward** — sometimes phases aren't needed:
-
-- Assess found an obvious root cause → offer `/fix` alongside `/reproduce`
-- The bug is a test coverage gap, not a runtime issue → skip `/reproduce`
-  and `/diagnose`
-- Review says everything is solid → offer `/pr` directly
-- PR has been submitted and reviewers have commented → offer `/feedback`
-- Feedback round completed and new comments arrived → offer `/feedback` again (repeatable)
-
-**Going back** — sometimes earlier work needs revision:
-
-- Test failures → offer `/fix` to rework the implementation
-- Review finds the fix is inadequate → offer `/fix`
-- Diagnosis was wrong → offer `/diagnose` again with new information
-
-**Ending early** — not every bug needs the full pipeline:
-
-- A trivial fix might go straight from `/fix` → `/test` → `/review` → `/pr`
-- If the user already has their own PR process, they may stop after `/review`
-
-### How to Present Options
-
-Lead with your top recommendation, then list alternatives briefly:
-
-```text
-Recommended next step: /test — verify the fix with regression tests.
-
-Other options:
-- /review — critically evaluate the fix before testing
-- /pr — if you've already tested manually and want to submit
-```
+5. When the skill returns control for completion guidance, read `completion.md`
+   and follow the guidance for the completed phase. If a legacy project
+   override instead tells you to re-read this controller, treat that as the
+   same return and read `completion.md`.
+6. **Stop and wait** for the user to tell you what to do next.
 
 ## Starting the Workflow
 
@@ -127,4 +77,5 @@ directly — don't force them through earlier phases.
 ## Rules
 
 - **Never auto-advance.** Always wait for the user between phases.
-- **Recommendations come from this file, not from skills.** Skills report findings; this controller decides what to recommend next.
+- **Recommendations come from `completion.md`.** Phase skills report findings;
+  the completion guide provides the authoritative next-step model.

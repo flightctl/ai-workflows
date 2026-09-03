@@ -37,6 +37,7 @@ bugfix/
 │   ├── start.md
 │   ├── assess.md
 │   ├── diagnose.md
+│   ├── dispatch.md
 │   ├── document.md
 │   ├── fix.md
 │   ├── pr.md
@@ -48,6 +49,7 @@ bugfix/
 ├── skills/               # Detailed process definitions
 │   ├── start.md
 │   ├── assess.md
+│   ├── completion.md
 │   ├── controller.md
 │   ├── diagnose.md
 │   ├── document.md
@@ -65,11 +67,24 @@ bugfix/
 
 ### How Commands and Skills Work Together
 
-Each **command** is a thin wrapper that invokes a corresponding **skill**. When you run `/diagnose`, the command file tells the agent to read `skills/diagnose.md` and execute it — passing along any arguments you provided plus existing session context.
+Each **command** is a thin wrapper that invokes `skills/dispatch.md` with the
+requested phase. The dispatcher resolves a project override, loads only that
+phase, and passes along the command arguments and session context. It does not
+load the full controller for an explicit command.
 
 `SKILL.md` routes to commands first: if the user invoked a specific command (e.g. `/unattended`, `/diagnose`), it reads the matching `commands/{command}.md`. Otherwise it falls through to the interactive controller flow.
 
-This separation keeps commands simple and consistent while the skills contain the full process details.
+The controller remains available for unqualified requests and legacy project
+overrides whose exit guidance explicitly re-reads it. Explicit commands use
+`skills/completion.md` as the authoritative next-step model without reloading
+the controller after a built-in phase.
+
+Routing `/feedback` through the dispatcher also gives it the same project-level
+phase override support as the other attended commands.
+
+Bugfix is the first workflow to use this demand-loaded dispatch pattern. Other
+workflows continue to use controller-based command routing and can be migrated
+in follow-up changes that account for their individual routing contracts.
 
 ## Workflow Phases
 

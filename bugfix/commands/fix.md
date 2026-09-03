@@ -4,8 +4,8 @@ description: "Implement the bug fix with minimal diff"
 ---
 # /fix
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=fix`.
 
-Dispatch the **fix** phase. Context:
+Context:
 
 $ARGUMENTS

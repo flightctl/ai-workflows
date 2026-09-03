@@ -88,5 +88,5 @@ and optionally provide additional context (issue URL, description, etc.).
 
 ## When This Phase Is Done
 
-After the user selects a phase, **re-read the controller** (`controller.md`)
-and dispatch the chosen phase.
+After the user selects a phase, return to the invoking workflow router for
+completion guidance.
