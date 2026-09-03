@@ -15,3 +15,6 @@ phase through its reporting step. Treat any valid phase exit—returning to the
 invoking router, requesting completion guidance, or re-reading the
 controller—as a return to this dispatcher. Then read `completion.md` and follow
 its guidance for `PHASE`.
+
+If override resolution or phase execution fails, report the failure and stop
+without reading `completion.md`.

@@ -67,10 +67,11 @@ bugfix/
 
 ### How Commands and Skills Work Together
 
-Each **command** is a thin wrapper that invokes `skills/dispatch.md` with the
-requested phase. The dispatcher resolves a project override, loads only that
-phase, and passes along the command arguments and session context. It does not
-load the full controller for an explicit command.
+Each attended phase **command** is a thin wrapper that invokes
+`skills/dispatch.md` with the requested phase. The dispatcher resolves a
+project override, loads only that phase, and passes along the command arguments
+and session context. It does not load the full controller for an explicit
+command. `/unattended` continues to use its dedicated unattended flow.
 
 `SKILL.md` routes to commands first: if the user invoked a specific command (e.g. `/unattended`, `/diagnose`), it reads the matching `commands/{command}.md`. Otherwise it falls through to the interactive controller flow.
 
