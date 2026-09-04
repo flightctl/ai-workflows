@@ -226,7 +226,6 @@ Present:
 - PR URL (the full `https://github.com/...` link, not just `owner/repo#number`)
 - Branch name and base
 - Number of commits included
-- Next steps (share with reviewers, wait for comments, then use `/respond`)
 
 ## Output
 
@@ -240,6 +239,5 @@ Present:
 Report your results:
 - PR URL and branch name
 - Commits included
-- Suggested next steps
 
-Then **re-read the controller** (`controller.md`) for next-step guidance.
+Then return to the invoking workflow router for completion guidance.

@@ -4,8 +4,8 @@ description: "Fetch PR review comments, propose responses, apply code changes"
 ---
 # /respond
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=respond`.
 
-Dispatch the **respond** phase. Context:
+Context:
 
 $ARGUMENTS
