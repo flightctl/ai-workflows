@@ -16,5 +16,8 @@ invoking router, requesting completion guidance, or re-reading the
 controller—as a return to this dispatcher. Then read `completion.md` and follow
 its guidance for `PHASE`.
 
-If override resolution or phase execution fails, report the failure and stop
-without reading `completion.md`.
+If override resolution fails, an operational error prevents the phase from
+completing, or the phase lacks a supported terminal exit, report the failure
+and stop without reading `completion.md`. A completed phase report with a
+failing verdict is a valid outcome: read `completion.md` so it can provide
+recovery guidance.
