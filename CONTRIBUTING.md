@@ -110,8 +110,10 @@ inside `commands/`. A workflow may instead use a lightweight
 `../skills/dispatch.md` from its command wrappers to resolve overrides and load
 only the requested phase and a dedicated completion guide. Migrate workflows
 separately so each change can account for its routing and override contracts.
-If the workflow has no controller, commands can reference `../SKILL.md` or
-`../skills/{phase}.md` directly.
+If the workflow has no controller or dispatcher, its command wrapper or
+`../SKILL.md` entry point must perform the same override resolution before
+reading the resolved phase file. Never bypass override resolution by reading a
+phase skill directly.
 
 ## Path Conventions
 
@@ -127,14 +129,14 @@ This ensures symlinks resolve paths correctly regardless of where the workflow i
 
 ## Phase Overrides
 
-Projects can override individual phase skills without forking the workflow. When a controller or dispatcher routes a phase, it checks for a project-level override before falling back to the built-in default:
+Projects can override individual phase skills without forking the workflow. Every phase route—whether invoked through a controller, dispatcher, workflow entry point, or command wrapper—must resolve the phase filename and check for a project-level override before falling back to the built-in default:
 
-1. **`.workflows/{workflow}/skills/{phase}.md`** — project-level override at the repo root
-2. **`{phase}.md`** — workflow's built-in default (sibling file in `skills/`)
+1. **`.workflows/{workflow}/skills/{phase-file}`** — project-level override at the repo root
+2. **`{phase-file}`** — workflow's built-in default (sibling file in `skills/`)
 
-For example, a team that needs a custom `/sync` phase for the design workflow drops a file at `.workflows/design/skills/sync.md` in their repo. The controller or dispatcher picks it up automatically and announces the override to the user.
+For example, a team that needs a custom `/sync` phase for the design workflow drops a file at `.workflows/design/skills/sync.md` in their repo. The route resolves that file and announces the override to the user.
 
-**Filename mapping.** Most workflows map `/phase` to `{phase}.md`, but some use different filenames. For example, docs-writer maps `/gather` to `gather-context.md` and `/plan` to `plan-structure.md`. Check the workflow's routing documentation—its controller, dispatcher, or documented phase map—to find the correct filename for the override.
+**Filename mapping.** Determine `{phase-file}` once from the workflow's routing documentation—its controller, dispatcher, or documented phase map—and use that same filename for both the project override and built-in fallback. Most workflows map `/phase` to `{phase}.md`, but some use different filenames. For example, docs-writer maps `/gather` to `gather-context.md` and `/plan` to `plan-structure.md`.
 
 ### Rules for Override Files
 
@@ -152,7 +154,7 @@ Commit `.workflows/` to the consuming repo. Overrides are team-level decisions �
 
 ### Discoverability
 
-When a project uses overrides, document them in the project's `CLAUDE.md` or `AGENTS.md` so newcomers know which phases behave differently from the built-in defaults. The controller or dispatcher announces overrides at runtime, but a static list prevents surprises when reading workflow documentation.
+When a project uses overrides, document them in the project's `CLAUDE.md` or `AGENTS.md` so newcomers know which phases behave differently from the built-in defaults. The route announces project overrides at runtime, but a static list prevents surprises when reading workflow documentation.
 
 ### Example Project Layout
 
