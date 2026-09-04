@@ -23,12 +23,12 @@ default. Use the first match found:
    at the repo root
 2. **`{PHASE_FILE}`** — workflow's built-in default (sibling file in `skills/`)
 
-If the override file exists but is empty, appears malformed, or does not
-contain completion or exit guidance, warn the user and fall back to the
-built-in default. Valid exit guidance may return control to the invoking
-router, read a completion guide, or re-read a controller; require the same
-behavioral contract as the workflow's built-in phase rather than one specific
-routing architecture.
+If the override file exists but is empty, appears malformed, or does not end
+with a detectable terminal instruction, warn the user and fall back to the
+built-in default. The terminal instruction must explicitly direct one supported
+exit: return control to the invoking router, read a completion guide, or re-read
+a controller. It must also select the same exit behavior as the workflow's
+built-in phase; an override cannot substitute a different routing architecture.
 
 If using a project override, announce it: *"Using project override for
 /{phase}."*

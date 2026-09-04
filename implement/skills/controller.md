@@ -73,17 +73,22 @@ If the user invokes a specific command (e.g., `/code`), set `PHASE` to that
 command's phase, then read `dispatch.md` and follow it. Do not force the user
 through earlier phases.
 
+For any other input, summarize the available phases, ask the user for a Jira
+issue key or URL or a specific phase command, and stop without reading
+`dispatch.md`.
+
 ## Error Handling
 
-If any phase fails (Jira MCP errors, build failures, test failures, git
-errors):
+If a phase cannot complete because of an operational error (for example, a
+Jira MCP, build, or git error):
 
 1. **Stop immediately.** Do not advance to the next phase.
 2. **Report the error** to the user with the specific error message.
 3. **Offer options:** retry the failed step, skip the phase (if optional), or escalate.
 
 Do not fabricate results when a tool call fails. Do not silently continue
-past errors.
+past errors. A completed validation report with a failing verdict is a valid
+phase outcome; route it through `completion.md` for fix-and-rerun guidance.
 
 ## Context Management
 
