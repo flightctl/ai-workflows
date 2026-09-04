@@ -27,8 +27,9 @@ If the override file exists but is empty, appears malformed, or does not end
 with a detectable terminal instruction, warn the user and fall back to the
 built-in default. The terminal instruction must explicitly direct one supported
 exit: return control to the invoking router, read a completion guide, or re-read
-a controller. It must also select the same exit behavior as the workflow's
-built-in phase; an override cannot substitute a different routing architecture.
+a controller. The invoking workflow's router determines which supported exits
+it accepts or normalizes; preserve the built-in phase's behavioral contract
+without requiring one routing architecture for every workflow.
 
 If using a project override, announce it: *"Using project override for
 /{phase}."*
