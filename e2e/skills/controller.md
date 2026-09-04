@@ -1,13 +1,13 @@
 ---
 name: controller
-description: Top-level workflow controller that manages phase transitions for e2e test implementation.
+description: Discover and route ambiguous e2e test implementation requests.
 ---
 
 # E2E Test Workflow Controller
 
-You are the workflow controller. Your job is to manage the e2e test
-implementation workflow by executing phases and handling transitions
-between them.
+Use this controller for workflow discovery and ambiguous-input routing. Once a
+phase is selected, delegate its execution and completion guidance to the
+lightweight dispatcher.
 
 ## Phases
 
@@ -59,84 +59,19 @@ the source repo:
 
 ## How to Execute a Phase
 
-1. **Announce** the phase to the user: *"Starting /plan."*
-2. **Locate** the skill file — read and follow
-   `../../_shared/recipes/phase-override-resolution.md` with
-   WORKFLOW=`e2e`, PHASE_FILE=`{phase}.md`.
-3. **Read** the resolved skill file
-4. **Execute** the skill's steps — the user should see your progress
-5. When the skill is done, it will tell you to report findings and
-   re-read this controller. Do that — then use "Recommending Next Steps"
-   below to offer options.
-6. Present the skill's results and your recommendations to the user
-7. **Stop and wait** for the user to tell you what to do next.
-
-## Recommending Next Steps
-
-After each phase completes, present the user with **options** — not just one
-next step. Use the typical flow as a baseline, but adapt to what actually
-happened.
-
-### Typical Flow
-
-```text
-ingest → plan → [revise loop] → code → validate → publish → [respond loop]
-```
-
-### What to Recommend
-
-**Continuing forward:**
-
-- `/ingest` completed → recommend `/plan` (almost always the right next step)
-- `/plan` completed → recommend `/revise` for user review of the plan, or `/code` if the user has already reviewed inline
-- `/revise` completed (user satisfied) → recommend `/code`, or another `/revise` round
-- `/code` completed → recommend `/validate` (always — never skip validation)
-- `/validate` completed (all passing) → recommend `/publish`
-- `/validate` completed (failures remain) → recommend fixing issues, then re-running `/validate`
-- `/publish` completed → recommend `/respond` when review comments arrive
-- `/respond` completed → recommend another `/respond` round, or note that the workflow is done when the PR is approved and merged
-
-**Looping back:**
-
-- `/plan` reveals story gaps or contradictions → suggest the user clarify with the story author or update the story
-- `/code` reveals plan gaps → the plan is updated inline during implementation; offer `/validate` when implementation is complete
-- `/code` discovers a feature defect (test reveals a bug in the [DEV] implementation) → note it in the implementation report; the test may need to xfail or skip. Do NOT recommend fixing the feature — that is out of scope
-- `/code` discovers a missing test infrastructure method (plan referenced a method that doesn't exist) → see deviation rules in `code.md`; a local helper may suffice, or the user decides whether to adjust the plan or add test infrastructure support outside this workflow
-- `/validate` reveals test failures → offer to diagnose and fix, then re-run `/validate`
-- `/validate` reveals anti-patterns → fix them during validation, then re-run the affected checks
-- `/validate` reveals unsatisfied acceptance criteria → if fixable (missing test scenarios), write them during validation; if the criterion is ambiguous or not e2e-testable, escalate to the user
-- `/respond` requires code changes → apply changes, re-run `/validate`, then continue responding
-
-**Skipping:**
-
-- If the user already has a plan or partial test implementation, they may start at `/code`
-- If the user wants to skip PR creation (e.g., working locally), `/publish` and `/respond` may be skipped
-
-### How to Present Options
-
-Lead with your top recommendation, then list alternatives briefly:
-
-```text
-Recommended next step: /code — begin writing e2e test code following the
-approved plan.
-
-Other options:
-- /revise — if you want to adjust the plan first
-- /validate — if you've already written test code and want to check it
-```
+Set `PHASE` to the selected phase, then read `dispatch.md` and follow it. The
+dispatcher owns phase announcement, override resolution, execution, and
+completion routing for both built-in phases and project overrides.
 
 ## Starting the Workflow
 
-Before dispatching any phase, check if the project has its own `AGENTS.md`
-or `CLAUDE.md`. If so, read it — it may contain project-specific conventions,
-testing standards, or other guidance that affects how the workflow operates.
-
 When the user provides a Jira issue key or URL:
-1. Execute the **ingest** phase
-2. After ingestion, present results and wait
+1. Set `PHASE=ingest`.
+2. Read `dispatch.md` and follow it.
 
-If the user invokes a specific command (e.g., `/code`), execute that phase
-directly — don't force them through earlier phases.
+If the user invokes a specific command (e.g., `/code`), set `PHASE` to that
+command's phase, then read `dispatch.md` and follow it. Do not force the user
+through earlier phases.
 
 ## Error Handling
 
@@ -164,7 +99,8 @@ subagent spawning.
 ## Rules
 
 - **Never auto-advance.** Always wait for the user between phases.
-- **Recommendations come from this file, not from skills.** Skills report findings; this controller decides what to recommend next.
+- **Recommendations come from `completion.md`.** Phase skills report findings;
+  the completion guide provides the authoritative next-step model.
 - **Jira is read-only.** The `/ingest` phase reads from Jira but never modifies it. No phase in this workflow writes to Jira.
 - **Plan evolves during implementation.** `/code` updates `02-plan.md` as tasks are completed. This is expected, not a sign of plan failure.
 - **Validation is mandatory before publishing.** Never recommend `/publish` unless `/validate` has passed.

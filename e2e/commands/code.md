@@ -4,8 +4,8 @@ description: "Write e2e test code following discovered patterns, committing incr
 ---
 # /code
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=code`.
 
-Dispatch the **code** phase. Context:
+Context:
 
 $ARGUMENTS
