@@ -106,11 +106,11 @@ $ARGUMENTS
 ```
 
 The path `../skills/controller.md` is relative to the command file's location
-inside `commands/`. The bugfix workflow is the first to use a lightweight
+inside `commands/`. A workflow may instead use a lightweight
 `skills/dispatch.md` that resolves overrides and loads only the requested phase
-and a dedicated completion guide. Migrate other workflows separately so each
-change can account for its routing and override contracts. If the workflow has
-no controller, commands can reference `../SKILL.md` or the phase skill directly.
+and a dedicated completion guide. Migrate workflows separately so each change
+can account for its routing and override contracts. If the workflow has no
+controller, commands can reference `../SKILL.md` or the phase skill directly.
 
 ## Path Conventions
 
@@ -131,7 +131,7 @@ Projects can override individual phase skills without forking the workflow. When
 1. **`.workflows/{workflow}/skills/{phase}.md`** — project-level override at the repo root
 2. **`{phase}.md`** — workflow's built-in default (sibling file in `skills/`)
 
-For example, a team that needs a custom `/sync` phase for the design workflow drops a file at `.workflows/design/skills/sync.md` in their repo. The controller picks it up automatically and announces the override to the user.
+For example, a team that needs a custom `/sync` phase for the design workflow drops a file at `.workflows/design/skills/sync.md` in their repo. The controller or dispatcher picks it up automatically and announces the override to the user.
 
 **Filename mapping.** Most workflows map `/phase` to `{phase}.md`, but some use different filenames. For example, docs-writer maps `/gather` to `gather-context.md` and `/plan` to `plan-structure.md`. Check the Phases list in the workflow's controller to find the correct filename for the override.
 
@@ -151,7 +151,7 @@ Commit `.workflows/` to the consuming repo. Overrides are team-level decisions �
 
 ### Discoverability
 
-When a project uses overrides, document them in the project's `CLAUDE.md` or `AGENTS.md` so newcomers know which phases behave differently from the built-in defaults. The controller announces overrides at runtime, but a static list prevents surprises when reading workflow documentation.
+When a project uses overrides, document them in the project's `CLAUDE.md` or `AGENTS.md` so newcomers know which phases behave differently from the built-in defaults. The controller or dispatcher announces overrides at runtime, but a static list prevents surprises when reading workflow documentation.
 
 ### Example Project Layout
 

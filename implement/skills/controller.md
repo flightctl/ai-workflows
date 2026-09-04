@@ -66,11 +66,12 @@ completion routing for both built-in phases and project overrides.
 ## Starting the Workflow
 
 When the user provides a Jira issue key or URL:
-1. Execute the **ingest** phase
-2. After ingestion, present results and wait
+1. Set `PHASE=ingest`.
+2. Read `dispatch.md` and follow it.
 
-If the user invokes a specific command (e.g., `/code`), execute that phase
-directly — don't force them through earlier phases.
+If the user invokes a specific command (e.g., `/code`), set `PHASE` to that
+command's phase, then read `dispatch.md` and follow it. Do not force the user
+through earlier phases.
 
 ## Error Handling
 
