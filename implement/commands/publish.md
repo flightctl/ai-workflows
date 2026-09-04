@@ -4,8 +4,8 @@ description: "Push branch and create a draft PR in the source repo"
 ---
 # /publish
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=publish`.
 
-Dispatch the **publish** phase. Context:
+Context:
 
 $ARGUMENTS

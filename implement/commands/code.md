@@ -4,8 +4,8 @@ description: "Write tests and production code via TDD, committing incrementally"
 ---
 # /code
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=code`.
 
-Dispatch the **code** phase. Context:
+Context:
 
 $ARGUMENTS
