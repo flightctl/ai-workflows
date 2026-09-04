@@ -4,8 +4,8 @@ description: "Run e2e tests, check for anti-patterns, verify scenario coverage, 
 ---
 # /validate
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=validate`.
 
-Dispatch the **validate** phase. Context:
+Context:
 
 $ARGUMENTS

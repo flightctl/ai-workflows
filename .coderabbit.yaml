@@ -61,8 +61,9 @@ reviews:
     - label: "workflow-structure"
       instructions: >-
         Apply when the PR changes SKILL.md, guidelines.md, controller.md,
-        or adds/removes/renames files in skills/ or commands/ directories.
-        Structural changes affect how AI agents discover and execute workflows.
+        dispatch.md, completion.md, or adds/removes/renames files in skills/
+        or commands/ directories. Structural changes affect how AI agents
+        discover and execute workflows.
 
     - label: "new-workflow"
       instructions: >-
@@ -153,15 +154,21 @@ reviews:
           step-by-step instructions or decision logic
         - Must include $ARGUMENTS placeholder to pass user context
         - Path references must be relative to the command file's location:
-          use ../skills/controller.md or ../SKILL.md, not absolute paths
-          and not skills/controller.md (missing ../ prefix)
-        - Every command must have a corresponding skill file it routes to
+          use ../skills/controller.md, ../skills/dispatch.md, ../SKILL.md,
+          or a direct phase-skill path; do not use absolute paths or omit
+          the required ../ prefix
+        - Every command must route to its corresponding phase, either through
+          a direct file reference or an explicit phase parameter passed to a
+          dispatcher (for example, PHASE=assess)
         - No IDE-specific syntax
 
-    # ── Phase skill files ───────────────────────────────────────
+    # ── Workflow skill files ────────────────────────────────────
     - path: "*/skills/*.md"
       instructions: |
-        Phase skill review (ai-workflows conventions):
+        Workflow skill review (ai-workflows conventions):
+        - First classify the file as a phase implementation, controller,
+          dispatcher, completion guide, or other support file. Apply
+          phase-specific rules only to phase implementations.
         - Maximum 10 steps per skill invocation — flag if exceeded
           (cognitive load / context window risk for AI agents)
         - Main steps must be numbered sequentially: no gaps, no
@@ -174,8 +181,17 @@ reviews:
         - Synthesis tasks (summarization, assessment, verdict) must NOT
           be buried after heavy per-item processing — they degrade in
           long contexts
-        - controller.md must reference sibling skills as phase-name.md
-          (not skills/phase-name.md) — relative to its own directory
+        - controller.md, dispatch.md, and completion.md must reference sibling
+          skill files as file-name.md (not skills/file-name.md) — relative to
+          their own directory
+        - A controller may centrally dispatch phases and own transitions, or
+          limit itself to discovery and ambiguous-input routing when explicit
+          commands use a lightweight dispatcher
+        - A dispatcher must remain a thin router: resolve the requested phase,
+          preserve override behavior and context, and delegate transition
+          decisions rather than implementing phase logic
+        - A completion guide may centralize next-step recommendations so phase
+          files do not duplicate the workflow transition model
         - Skills referencing _shared/ resources must use the correct
           relative path depth (e.g., ../../_shared/recipes/self-review-gate.md
           from skills/)
@@ -699,20 +715,28 @@ reviews:
           that exist. Flag references to files that don't exist (dangling
           references). Also flag skill or command files that exist but
           are never referenced from SKILL.md, controller.md, or any
-          command file (orphaned files). For skills/* simple skills, require
+          command file (orphaned files). Treat an explicit dispatcher parameter
+          such as PHASE=assess as a reference to skills/assess.md when the
+          dispatcher documents that mapping. Treat files referenced by a
+          reachable dispatcher or completion guide as reachable. For skills/*
+          simple skills, require
           only that supporting resources are reachable from SKILL.md or another
           reachable reference; do not require workflow-specific files.
         mode: "warning"
 
       - name: "no-content-duplication"
         instructions: |
-          When any of SKILL.md, guidelines.md, or controller.md in a
-          workflow is changed, compare it against whichever of the other
-          two files are present and check for verbatim duplication of
+          When any of SKILL.md, guidelines.md, controller.md, dispatch.md, or
+          completion.md in a workflow is changed, compare it against the other
+          architectural files that are present and check for duplication of
           multi-line instruction blocks or paragraphs. Each has a distinct
           role: SKILL.md is
           the thin entry point, guidelines.md holds principles/limits/
-          safety/quality/escalation, controller.md manages phase dispatch.
+          safety/quality/escalation. A controller may own centralized phase
+          routing and transitions; in a demand-loaded design it handles
+          discovery and ambiguous routing, dispatch.md handles explicit phase
+          routing, and completion.md may hold the authoritative transition
+          model.
           Phase names and brief one-line descriptions appearing in
           multiple files is EXPECTED (cross-referencing, not duplication)
           — only flag substantial blocks of identical prose or
