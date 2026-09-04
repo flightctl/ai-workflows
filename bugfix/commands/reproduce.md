@@ -4,8 +4,8 @@ description: "Confirm and document bug reproduction steps"
 ---
 # /reproduce
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=reproduce`.
 
-Dispatch the **reproduce** phase. Context:
+Context:
 
 $ARGUMENTS

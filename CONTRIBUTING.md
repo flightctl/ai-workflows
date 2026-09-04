@@ -37,10 +37,12 @@ workflow-name/
   guidelines.md         # Behavioral rules: principles, hard limits, safety, quality, escalation
   README.md             # Human-readable documentation
   skills/
-    controller.md       # Optional -- phase dispatch, transitions, next-step recommendations
+    controller.md       # Optional -- workflow routing and orchestration
+    dispatch.md         # Optional -- lightweight explicit-phase dispatch
+    completion.md       # Optional -- centralized next-step recommendations
     phase-name.md       # One file per phase
   commands/
-    phase-name.md       # Thin wrappers that invoke the controller or SKILL.md for a specific phase
+    phase-name.md       # Thin wrappers that invoke a router, SKILL.md, or phase
 
 Project-level phase overrides (in the consuming repo):
 
@@ -78,12 +80,16 @@ Some workflows use a controller to manage phase execution and transitions. This 
 
 - List all phases with references to sibling skill files (e.g. `assess.md`, not `skills/assess.md`).
 - Define how to execute a phase (announce, read, execute, report, wait).
-- Provide next-step recommendations after each phase.
+- Provide next-step recommendations after each phase, directly or through a
+  dedicated completion guide.
 - Never auto-advance -- always wait for the user.
 
 ### skills/phase-name.md
 
-Each phase skill contains the detailed steps for that phase. At the end, it should instruct the agent to report findings and re-read the controller for next-step guidance.
+Each phase skill contains the detailed steps for that phase. At the end, it
+should report findings and follow the workflow's completion contract: either
+return to the invoking router, read a completion guide, or re-read the
+controller, as defined by that workflow.
 
 ### commands/phase-name.md
 
@@ -99,13 +105,21 @@ Dispatch the **phase-name** phase. Context:
 $ARGUMENTS
 ```
 
-The path `../skills/controller.md` is relative to the command file's location inside `commands/`. If the workflow has no controller, commands can reference `../SKILL.md` or the phase skill directly.
+The path `../skills/controller.md` is relative to the command file's location
+inside `commands/`. A workflow may instead use a lightweight
+`../skills/dispatch.md` from its command wrappers to resolve overrides and load
+only the requested phase and a dedicated completion guide. Migrate workflows
+separately so each change can account for its routing and override contracts.
+If the workflow has no controller or dispatcher, its command wrapper or
+`../SKILL.md` entry point must perform the same override resolution before
+reading the resolved phase file. Never bypass override resolution by reading a
+phase skill directly.
 
 ## Path Conventions
 
 All internal file references must be **relative to the file's own location**:
 
-- `commands/*.md` reference the controller as `../skills/controller.md` (or `../SKILL.md` if no controller)
+- `commands/*.md` reference `../skills/controller.md`, `../skills/dispatch.md`, `../SKILL.md`, or a phase skill directly
 - `skills/controller.md` (when present) references sibling skills as `assess.md`, `fix.md`, etc.
 - `SKILL.md` references `guidelines.md` and optionally `skills/controller.md` (both in the same directory)
 
@@ -115,21 +129,23 @@ This ensures symlinks resolve paths correctly regardless of where the workflow i
 
 ## Phase Overrides
 
-Projects can override individual phase skills without forking the workflow. When a controller dispatches a phase, it checks for a project-level override before falling back to the built-in default:
+Projects can override individual phase skills without forking the workflow. Every phase route—whether invoked through a controller, dispatcher, workflow entry point, or command wrapper—must resolve the phase filename and check for a project-level override before falling back to the built-in default:
 
-1. **`.workflows/{workflow}/skills/{phase}.md`** — project-level override at the repo root
-2. **`{phase}.md`** — workflow's built-in default (sibling file in `skills/`)
+1. **`.workflows/{workflow}/skills/{phase-file}`** — project-level override at the repo root
+2. **`{phase-file}`** — workflow's built-in default (sibling file in `skills/`)
 
-For example, a team that needs a custom `/sync` phase for the design workflow drops a file at `.workflows/design/skills/sync.md` in their repo. The controller picks it up automatically and announces the override to the user.
+For example, a team that needs a custom `/sync` phase for the design workflow drops a file at `.workflows/design/skills/sync.md` in their repo. The route resolves that file and announces the override to the user.
 
-**Filename mapping.** Most workflows map `/phase` to `{phase}.md`, but some use different filenames. For example, docs-writer maps `/gather` to `gather-context.md` and `/plan` to `plan-structure.md`. Check the Phases list in the workflow's controller to find the correct filename for the override.
+**Filename mapping.** Determine `{phase-file}` once from the workflow's routing documentation—its controller, dispatcher, or documented phase map—and use that same filename for both the project override and built-in fallback. Most workflows map `/phase` to `{phase}.md`, but some use different filenames. For example, docs-writer maps `/gather` to `gather-context.md` and `/plan` to `plan-structure.md`.
 
 ### Rules for Override Files
 
-- **Start from a copy.** Copy the built-in phase file and modify it rather than writing from scratch. This avoids accidentally omitting contract scaffolding such as artifact paths, exit behavior, or the controller re-read instruction.
+- **Start from a copy.** Copy the built-in phase file and modify it rather than writing from scratch. This avoids accidentally omitting contract scaffolding such as artifact paths and exit behavior.
 - **Full replacement.** An override replaces the entire phase — it is not merged with the built-in. The override file must be self-contained.
-- **Same contract.** The override must read the same input artifacts and write the same output artifacts as the built-in phase. Downstream phases and the controller depend on this contract (see the Artifacts table in each controller).
-- **Same exit behavior.** End the override file with the same "report findings and re-read the controller" instruction so the controller can recommend next steps.
+- **Same contract.** The override must read the same input artifacts and write the same output artifacts as the built-in phase. Downstream phases and the workflow router depend on this contract (see the workflow's Artifacts table).
+- **Same exit behavior.** Preserve the built-in phase's completion contract.
+  Depending on the workflow, that may return to the invoking router, read a
+  completion guide, or re-read the controller.
 - **No cross-references to built-in internals.** The override should not reference sibling files in the workflow's `skills/` directory — it lives in the project repo and should be self-contained.
 
 ### Version Control
@@ -138,7 +154,7 @@ Commit `.workflows/` to the consuming repo. Overrides are team-level decisions �
 
 ### Discoverability
 
-When a project uses overrides, document them in the project's `CLAUDE.md` or `AGENTS.md` so newcomers know which phases behave differently from the built-in defaults. The controller announces overrides at runtime, but a static list prevents surprises when reading workflow documentation.
+When a project uses overrides, document them in the project's `CLAUDE.md` or `AGENTS.md` so newcomers know which phases behave differently from the built-in defaults. The route announces project overrides at runtime, but a static list prevents surprises when reading workflow documentation.
 
 ### Example Project Layout
 
@@ -254,7 +270,7 @@ for example `$bugfix assess`.
 
 1. Install locally: `./install.sh cursor` (or `all`).
 2. Open a Cursor project and reference the package to verify discovery.
-3. For a workflow, run at least one phase and verify controller dispatch. For a
+3. For a workflow, run at least one phase and verify its configured routing. For a
    simple skill, exercise its primary behavior and permission gates.
 4. Run every changed script's tests and the same checks configured in CI.
 5. Uninstall and reinstall to verify clean teardown: `./uninstall.sh && ./install.sh cursor`.

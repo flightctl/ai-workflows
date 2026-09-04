@@ -368,4 +368,4 @@ Report your results as described in Step 7. This phase is repeatable — if
 new comments arrive or existing responses need another round, run
 `/feedback` again.
 
-Then **re-read the controller** (`controller.md`) for next-step guidance.
+Then return to the invoking workflow router for completion guidance.

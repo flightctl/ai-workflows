@@ -4,8 +4,8 @@ description: "Submit a pull request for the bug fix"
 ---
 # /pr
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=pr`.
 
-Dispatch the **pr** phase. Context:
+Context:
 
 $ARGUMENTS

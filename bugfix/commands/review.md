@@ -4,8 +4,8 @@ description: "Critically evaluate fix and tests for quality"
 ---
 # /review
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=review`.
 
-Dispatch the **review** phase. Context:
+Context:
 
 $ARGUMENTS

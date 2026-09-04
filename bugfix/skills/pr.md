@@ -660,4 +660,4 @@ Report your results:
 - What was included
 - Any follow-up actions needed (mark ready for review, add reviewers, etc.)
 
-Then **re-read the controller** (`controller.md`) for next-step guidance.
+Then return to the invoking workflow router for completion guidance.
