@@ -1,6 +1,6 @@
 ---
 name: phase-override-resolution
-version: 0.3.0
+version: 0.2.0
 ---
 # Recipe: Phase Override Resolution
 
