@@ -23,8 +23,10 @@ before falling back to the workflow's built-in default.
    and validate it using the contract below before executing any of its steps.
 3. If validation rejects the override, warn with the specific reason and use
    the built-in phase. Rejection is recoverable; it is not a resolution failure.
-4. If using a project override, announce it: *"Using project override for
-   /{phase}."* Read and execute the selected file only after resolution.
+4. If using a project override, announce it: *"Using project override:
+   {WORKFLOW}/{PHASE_FILE}."* Identify the file using these supplied values;
+   do not infer a command name from the filename. Read and execute the selected
+   file only after resolution.
 
 Resolution fails only when the selected built-in fallback cannot be located,
 read, or contains no executable phase instructions. Report that failure and
@@ -33,38 +35,46 @@ operational errors through the invoking workflow's error handling.
 
 ## Override Validation
 
+A routing refactor must continue to accept previously valid overrides without
+requiring edits. Preserve their input and output artifacts, reporting, and
+completion behavior. Falling back to a built-in phase does not preserve a
+valid override's customization.
+
 Reject an unreadable override or one with no executable instructions. Also
-reject unclosed YAML frontmatter or fenced code blocks, unresolved merge
-conflict markers, or a missing or unsupported terminal instruction. These are
-the malformed-file conditions; do not reject an override for different heading
-names, formatting, or additional phase steps alone.
+reject unclosed YAML frontmatter or fenced code blocks, or unresolved merge
+conflict markers outside quoted or fenced examples. Do not reject an override
+for different headings, formatting, or additional phase steps alone.
 
-The terminal instruction is the last executable instruction in the phase's
-completion section, or at the end of the file if there is no completion section.
-Ignore blank lines, headings, comments, and quoted or fenced examples. Join
-wrapped lines and ignore Markdown emphasis, inline-code delimiters, an optional
-leading "Then", capitalization, and trailing punctuation when identifying the
-following imperative forms:
+Validate the completion instructions by their behavior, not by an exact phrase
+or the position of a sentence. Read the override's executable instructions and
+the invoking router's completion contract before running the phase. Examples
+of supported completion behavior include:
 
-| Exit | Accepted instruction forms |
-|------|----------------------------|
-| Router return | `Return to the invoking router`, `Return to the invoking workflow router`, or `Return control to the invoking router` |
-| Completion guide | `Read` or `Re-read` followed by a named completion guide (a filename or Markdown link), or `Read the completion guide` when the router names that guide |
-| Controller return | `Re-read the controller`, `Re-read this controller`, or `Re-read` followed by the workflow's controller filename or Markdown link |
+- Reporting results and re-reading the workflow's controller for next steps.
+- Returning to the invoking workflow router for completion guidance.
+- Reading the workflow's completion guide.
 
-A form may include a target in parentheses and a suffix such as "for next-step
-guidance" or "and follow it". It must direct that exit after reporting; a
-mention, negated instruction, or conditional exit with a path that never
-returns is insufficient. Reject conflicting exit destinations or additional
-phase work after the terminal instruction.
+These are examples, not an exhaustive grammar. Equivalent wording and existing
+phase-specific handoffs remain valid. A dispatcher that normalizes controller
+returns must accept legacy overrides that request those returns, even when the
+current built-in phase uses a different exit. Apply the documented normalization
+to the whole handoff, including the user's selection and any continuation.
+Do not reject a legacy handoff solely because it differs from the current
+built-in phase's completion instructions.
 
-Read the built-in phase's completion instructions for comparison, without
-executing them. Compare the override's destination with the built-in's after
-applying only the invoking router's documented normalization. Accept equivalent
-destinations even when the wording or exit form differs. Without documented
-normalization, the exit and destination must match. If the built-in has no
-explicit terminal instruction, use the router's documented completion contract;
-if neither defines a comparable destination, warn and use the built-in phase.
+For example, the legacy bugfix `/start` phase waits for the user to select a
+phase, then says to re-read the controller and dispatch the chosen phase. Accept
+that unchanged instruction. The router must preserve the wait and dispatch the
+selected phase once after selection; the continuation is part of the supported
+handoff, not forbidden work after a return.
+
+Reject completion behavior only when it is absent or incompatible with the
+workflow's contract: for example, a controller mentioned only in an example,
+conflicting destinations, or advancing without user selection where the
+contract requires it. An explicit terminal sentence is unnecessary when the
+workflow's router already defines how a phase returns after its steps finish.
+A documented stop for missing input, an operational error, or a user decision
+is a valid pause or failure outcome, not a missing completion instruction.
 
 Legacy controller-return exits remain supported for existing overrides. A
 dispatcher may normalize them to its completion guide to preserve the original

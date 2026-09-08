@@ -19,6 +19,7 @@ compatibility with project overrides written for earlier routing contracts.
 
 After the recipe applies its invalid-override fallback, if no usable phase file
 can be resolved, an operational error prevents the phase from completing, or
-the phase lacks a supported terminal exit, report the failure and stop without
-reading `completion.md`. A completed phase report with a failing verdict is a
-valid outcome: read `completion.md` so it can provide recovery guidance.
+the phase has no completion behavior compatible with this workflow, report the
+failure and stop without reading `completion.md`. A completed phase report with
+a failing verdict is a valid outcome: read `completion.md` so it can provide
+recovery guidance.
