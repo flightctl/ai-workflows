@@ -145,7 +145,11 @@ For example, a team that needs a custom `/sync` phase for the design workflow dr
 - **Same contract.** The override must read the same input artifacts and write the same output artifacts as the built-in phase. Downstream phases and the workflow router depend on this contract (see the workflow's Artifacts table).
 - **Same exit behavior.** Preserve the built-in phase's completion contract.
   Depending on the workflow, that may return to the invoking router, read a
-  completion guide, or re-read the controller.
+  completion guide, or re-read the controller. A dispatcher may normalize these
+  exits to the same completion destination. Legacy controller returns remain
+  supported for existing overrides; newly authored phases in dispatcher-based
+  workflows should return to the invoking router. Controller-based workflows
+  may continue to use controller returns directly.
 - **No cross-references to built-in internals.** The override should not reference sibling files in the workflow's `skills/` directory — it lives in the project repo and should be self-contained.
 
 ### Version Control
