@@ -5,6 +5,9 @@ description: Resolve and execute one explicitly requested e2e phase.
 
 # E2E Phase Dispatch
 
+E2E phase filenames follow the `{PHASE}.md` convention. If a phase uses a
+different filename, define its mapping here before resolving overrides.
+
 Before dispatching, read the project's `AGENTS.md` or `CLAUDE.md` only if
 neither is already in the session. Then, given `PHASE`, announce
 `Starting /{PHASE}.` and read and follow
@@ -19,8 +22,9 @@ controller—as a return to this dispatcher. Then read `completion.md` and follo
 its guidance for `PHASE`; the dispatcher is the only component that reads the
 completion guide.
 
-If override resolution fails, an operational error prevents the phase from
-completing, or the phase has no completion behavior compatible with this
+If the recipe rejects a project override, continue with its built-in fallback.
+If that fallback cannot be resolved, an operational error prevents the phase
+from completing, or the phase has no completion behavior compatible with this
 workflow, report the failure and stop without reading `completion.md`. A
 completed phase report with a failing verdict, including `validate.md` reporting
 `FAIL`, is a valid outcome: read `completion.md` so it can provide fix-and-rerun

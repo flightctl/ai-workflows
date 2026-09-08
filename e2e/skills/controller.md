@@ -11,6 +11,9 @@ lightweight dispatcher.
 
 ## Phases
 
+Keep this phase list synchronized with the command wrappers, phase files,
+dispatcher filename mapping, and per-phase completion guidance.
+
 1. **Ingest** (`/ingest`) — `ingest.md`
    Fetch the [QE] Jira story, verify [DEV] dependencies are merged, explore
    the project's e2e test infrastructure, and build a test-execution profile.
