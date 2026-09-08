@@ -62,11 +62,9 @@ to the whole handoff, including the user's selection and any continuation.
 Do not reject a legacy handoff solely because it differs from the current
 built-in phase's completion instructions.
 
-For example, the legacy bugfix `/start` phase waits for the user to select a
-phase, then says to re-read the controller and dispatch the chosen phase. Accept
-that unchanged instruction. The router must preserve the wait and dispatch the
-selected phase once after selection; the continuation is part of the supported
-handoff, not forbidden work after a return.
+Preserve waits for user input and authorized continuations defined by the
+invoking workflow. Normalize the complete handoff and execute each authorized
+continuation once.
 
 Reject completion behavior only when it is absent or incompatible with the
 workflow's contract: for example, a controller mentioned only in an example,
