@@ -1,6 +1,6 @@
 ---
 name: dispatch
-description: Resolve and execute one explicitly requested bugfix phase.
+description: Resolve and execute one requested bugfix phase.
 ---
 
 # Bugfix Phase Dispatch
@@ -14,10 +14,11 @@ The built-in fallback is the phase file beside this dispatcher. Follow the
 phase through its reporting step. Treat any valid phase exit—returning to the
 invoking router, requesting completion guidance, or re-reading the
 controller—as a return to this dispatcher. Then read `completion.md` and follow
-its guidance for `PHASE`.
+its guidance for `PHASE`. Supporting all three exit forms preserves
+compatibility with project overrides written for earlier routing contracts.
 
-If override resolution fails, an operational error prevents the phase from
-completing, or the phase lacks a supported terminal exit, report the failure
-and stop without reading `completion.md`. A completed phase report with a
-failing verdict is a valid outcome: read `completion.md` so it can provide
-recovery guidance.
+After the recipe applies its invalid-override fallback, if no usable phase file
+can be resolved, an operational error prevents the phase from completing, or
+the phase lacks a supported terminal exit, report the failure and stop without
+reading `completion.md`. A completed phase report with a failing verdict is a
+valid outcome: read `completion.md` so it can provide recovery guidance.
