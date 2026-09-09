@@ -17,8 +17,9 @@ before falling back to the workflow's built-in default.
 ## Procedure
 
 1. Locate `.workflows/{WORKFLOW}/skills/{PHASE_FILE}` at the consuming repo
-   root. The built-in fallback is the same `PHASE_FILE` in the installed
-   workflow's `skills/` directory, independent of the caller's location.
+   root. Resolve the built-in fallback as
+   `../../{WORKFLOW}/skills/{PHASE_FILE}` relative to this recipe, independent
+   of the caller's location.
 2. If no override exists, select the built-in phase without loading validation
    instructions. Only when an override exists, read and follow
    [phase-override-validation.md](phase-override-validation.md) with the supplied
@@ -28,13 +29,20 @@ before falling back to the workflow's built-in default.
 4. If using a project override, announce it: *"Using project override:
    {WORKFLOW}/{PHASE_FILE}."* Identify the file using these supplied values;
    do not infer a command name from the filename.
-5. Return the selected file's location to the invoking router with its
-   instructions unchanged, whether it is an override or the built-in fallback.
+5. Return the selected file's location and any `COMPLETION_HANDOFF`
+   classification to the invoking router with the file's instructions
+   unchanged, whether it is an override or the built-in fallback.
 
 The invoking router executes the selected phase and handles its complete
 handoff. It preserves required waits and user selections, applies its documented
 normalization, and executes each authorized continuation once. This recipe does
 not execute phase steps, completion guides, waits, or continuations.
+
+Completion handling must occur exactly once. Initialize
+`COMPLETION_CONSUMED=false`. A router that executes a phase's completion-guide
+handoff sets `COMPLETION_CONSUMED=true` and skips its default follow-up
+completion read. A router that normalizes the handoff without executing its
+destination leaves it false and performs its normal completion read once.
 
 Resolution fails only when the selected built-in fallback cannot be located,
 read, or contains no executable phase instructions. Report that failure and
