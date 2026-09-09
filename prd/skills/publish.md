@@ -263,11 +263,21 @@ URL. Parse the PR number from the returned JSON. If the command fails
 is 0, create a new PR:
 
 ```bash
+# When {issue-key} is a Jira key (e.g., EDM-1471):
 "$PUBLISH_SCRIPT" create-pr \
   --repo {owner}/{repo} \
   --base {base-branch} \
   --head {branch-name} \
   --title "{issue-key}: PRD - {title}" \
+  --body-file .artifacts/prd/{issue-key}/04-pr-description.md \
+  --draft
+
+# When no issue key exists:
+"$PUBLISH_SCRIPT" create-pr \
+  --repo {owner}/{repo} \
+  --base {base-branch} \
+  --head {branch-name} \
+  --title "PRD: {title}" \
   --body-file .artifacts/prd/{issue-key}/04-pr-description.md \
   --draft
 ```

@@ -515,10 +515,12 @@ cmd_save_metadata() {
 
   # Build JSON using printf — avoids jq dependency.
   # Keys are sorted alphabetically for stable output.
+  # NUL-delimited sort prevents values with embedded newlines from being
+  # split into separate lines before json_escape can process them.
   local json="{"
   local first="true"
   local -a sorted_pairs
-  IFS=$'\n' read -r -d '' -a sorted_pairs < <(printf '%s\n' "${pairs[@]}" | sort && printf '\0') || true
+  IFS= read -r -d '' -a sorted_pairs < <(printf '%s\0' "${pairs[@]}" | sort -z && printf '\0') || true
 
   for pair in "${sorted_pairs[@]}"; do
     local key="${pair%%=*}"

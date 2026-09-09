@@ -47,18 +47,6 @@ script. Reference it using a relative path from this file:
 The script provides subcommands: `preflight`, `push`, `check-existing`,
 `create-pr`, and `save-metadata`. See the script header for full usage.
 
-### Prerequisites: Resolve Script Path
-
-Before running any subcommands, resolve the shared script to an
-absolute path so it remains valid regardless of working directory:
-
-```bash
-PUBLISH_SCRIPT="$(git rev-parse --show-toplevel)/_shared/scripts/publish.sh"
-```
-
-Use `$PUBLISH_SCRIPT` instead of the relative path in all subsequent
-commands.
-
 ## Process
 
 ### Placeholders Used in This Skill
@@ -91,6 +79,18 @@ commands run from there.
 
 If the user provides a path or the repo is obvious from session context
 (prior commands, artifacts), use that directly.
+
+### Step 0a: Resolve Script Path
+
+Now that you are inside the project repo, resolve the shared script to an
+absolute path so it remains valid regardless of working directory:
+
+```bash
+PUBLISH_SCRIPT="$(git rev-parse --show-toplevel)/_shared/scripts/publish.sh"
+```
+
+Use `$PUBLISH_SCRIPT` instead of the relative path in all subsequent
+commands.
 
 ### Step 1: Pre-flight Checks
 
@@ -471,12 +471,15 @@ access. Please run: `git push -u fork BRANCH_NAME`"
 
 ### Step 9: Create the Draft PR
 
-**Check for an existing PR** before attempting creation:
+**Check for an existing PR** before attempting creation. Use
+`FORK_OWNER:bugfix/BRANCH_NAME` so the check matches only PRs from
+this fork (plain `bugfix/BRANCH_NAME` would match any fork's branch
+with the same name):
 
 ```bash
 $PUBLISH_SCRIPT check-existing \
   --repo UPSTREAM_OWNER/REPO \
-  --head bugfix/BRANCH_NAME
+  --head FORK_OWNER:bugfix/BRANCH_NAME
 ```
 
 If exit code is 5, a PR already exists — skip to Step 10 and report its

@@ -77,7 +77,7 @@ Run ALL of these before doing anything else. Do not skip any.
 **1a. Run the shared pre-flight checks:**
 
 ```bash
-$PUBLISH_SCRIPT preflight --platform gitlab
+"$PUBLISH_SCRIPT" preflight --platform gitlab
 ```
 
 Parse the structured output:
@@ -270,7 +270,7 @@ discovered from `git remote -v` — typically `origin` for direct push or
 # Set PUSH_REMOTE based on the push strategy determined in Step 2/3:
 # - Direct push: PUSH_REMOTE is the remote pointing to UPSTREAM_PROJECT
 # - Fork workflow: PUSH_REMOTE is the remote pointing to FORK_PROJECT
-$PUBLISH_SCRIPT push --remote $PUSH_REMOTE --branch docs/BRANCH_NAME
+"$PUBLISH_SCRIPT" push --remote "$PUSH_REMOTE" --branch "docs/$BRANCH_NAME"
 ```
 
 **If the script exits with code 3 (push failed):**
@@ -288,14 +288,28 @@ phase at `.artifacts/${ticket_id}/04-mr-description.md`. If the file does not
 exist, build the description (AI-dependent) from the context artifact
 (`01-context.md`) and plan artifact (`02-plan.md`).
 
+**Check for an existing MR** before attempting creation:
+
+```bash
+# Direct push:
+"$PUBLISH_SCRIPT" check-existing --repo UPSTREAM_PROJECT --head "docs/$BRANCH_NAME" --platform gitlab
+
+# Fork workflow:
+"$PUBLISH_SCRIPT" check-existing --repo UPSTREAM_PROJECT --head FORK_PROJECT --platform gitlab
+```
+
+If exit code is 5, an MR already exists — skip to Step 8 and report its
+URL. If the command fails (non-zero exit other than 5), stop and report
+the error. If exit code is 0, create a new MR:
+
 **Direct push (user has write access):**
 
 ```bash
-$PUBLISH_SCRIPT create-mr \
-  --source docs/BRANCH_NAME \
+"$PUBLISH_SCRIPT" create-mr \
+  --source "docs/$BRANCH_NAME" \
   --target main \
   --title "[TICKET_ID]: short description" \
-  --desc-file .artifacts/${ticket_id}/04-mr-description.md \
+  --desc-file ".artifacts/${ticket_id}/04-mr-description.md" \
   --draft
 ```
 
@@ -304,13 +318,13 @@ If no description file exists, use `--description` with inline text instead.
 **Fork workflow:**
 
 ```bash
-$PUBLISH_SCRIPT create-mr \
+"$PUBLISH_SCRIPT" create-mr \
   --project UPSTREAM_PROJECT \
   --head FORK_PROJECT \
-  --source docs/BRANCH_NAME \
+  --source "docs/$BRANCH_NAME" \
   --target main \
   --title "[TICKET_ID]: short description" \
-  --desc-file .artifacts/${ticket_id}/04-mr-description.md \
+  --desc-file ".artifacts/${ticket_id}/04-mr-description.md" \
   --draft
 ```
 
