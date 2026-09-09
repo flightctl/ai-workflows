@@ -4,8 +4,8 @@ description: "Identify root cause and impact of a bug"
 ---
 # /diagnose
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=diagnose`.
 
-Dispatch the **diagnose** phase. Context:
+Context:
 
 $ARGUMENTS

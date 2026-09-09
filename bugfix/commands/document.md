@@ -4,8 +4,8 @@ description: "Write release notes and documentation for the fix"
 ---
 # /document
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=document`.
 
-Dispatch the **document** phase. Context:
+Context:
 
 $ARGUMENTS

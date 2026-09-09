@@ -177,4 +177,4 @@ Report your results:
 - Any gaps flagged for later
 - Your proposed plan
 
-Then **re-read the controller** (`skills/controller.md`) for next-step guidance.
+Then return to the invoking workflow router for completion guidance.

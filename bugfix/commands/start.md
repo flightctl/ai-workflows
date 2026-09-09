@@ -4,8 +4,8 @@ description: "Present available bugfix phases and help choose where to begin"
 ---
 # /start
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=start`.
 
-Dispatch the **start** phase. Context:
+Context:
 
 $ARGUMENTS

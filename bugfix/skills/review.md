@@ -243,4 +243,4 @@ are insufficient, say what's missing.
 
 Your verdict and recommendation (from Step 6) serve as the phase summary. Tell the user where the review was written (`.artifacts/bugfix/{issue}/review.md`).
 
-Then **re-read the controller** (`skills/controller.md`) for next-step guidance.
+Then return to the invoking workflow router for completion guidance.
