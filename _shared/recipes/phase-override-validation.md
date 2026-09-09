@@ -22,11 +22,11 @@ conflict markers outside quoted or fenced examples. Do not reject an override
 for different headings, formatting, or additional phase steps alone.
 
 Before accepting the override, read the built-in phase at
-`../../{WORKFLOW}/skills/{PHASE_FILE}` and the workflow's documented artifact
-contract. Compare the required input, output, and reporting artifacts. Reject
-an override that omits a required artifact, renames it, or changes its required
-location. Additional artifacts remain valid unless the workflow contract
-prohibits them.
+`../../{WORKFLOW}/skills/{PHASE_FILE}` and the workflow's artifact contract at
+`../../{WORKFLOW}/skills/controller.md`, both relative to this recipe. Compare
+the required input, output, and reporting artifacts. Reject an override that
+omits a required artifact, renames it, or changes its required location.
+Additional artifacts remain valid unless the workflow contract prohibits them.
 
 Validate the completion instructions by their behavior, not by an exact phrase
 or the position of a sentence. Read the override's executable instructions and
