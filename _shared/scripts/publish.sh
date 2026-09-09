@@ -221,11 +221,13 @@ cmd_push() {
 # Subcommand: check-existing
 # ---------------------------------------------------------------------------
 # Check whether an open PR (GitHub) or MR (GitLab) already exists for
-# a branch.  Supports owner:branch format for fork-aware matching.
+# a branch.  Supports owner:branch (GitHub) and project:branch (GitLab)
+# formats for fork-aware matching.
 #
 # Flags:
 #   --repo <owner/repo>        Target repository
-#   --head <ref>               Branch or owner:branch to match
+#   --head <ref>               Branch, owner:branch (GitHub), or
+#                              project:branch (GitLab) to match
 #   --platform github|gitlab   Which platform (default: github)
 #
 # Exit code 0 if NO existing PR/MR found (safe to create one).
@@ -274,6 +276,12 @@ cmd_check_existing() {
       ;;
     gitlab)
       local source_branch="$head"
+      local source_project=""
+      if [[ "$head" == *:* ]]; then
+        # project:branch format — extract source project for cross-fork filtering
+        source_project="${head%%:*}"
+        source_branch="${head#*:}"
+      fi
       local raw exit_code=0
       raw=$(glab mr list --repo "$repo" --source-branch "$source_branch" \
         --output json 2>/dev/null) || exit_code=$?
@@ -281,7 +289,22 @@ cmd_check_existing() {
         fail "check-existing: GitLab API query failed (exit $exit_code). Check glab auth status." 1
       fi
       local result
-      result=$(printf '%s' "$raw" | jq -r '.[0] // empty' 2>/dev/null)
+      if [[ -n "$source_project" ]]; then
+        # Resolve the fork's numeric project ID to filter by source_project_id,
+        # preventing false matches from other forks with the same branch name.
+        local encoded_project
+        encoded_project=$(printf '%s' "$source_project" | sed 's|/|%2F|g')
+        local project_id
+        project_id=$(glab api "projects/$encoded_project" --jq '.id' 2>/dev/null) || true
+        if [[ -z "$project_id" ]]; then
+          fail "check-existing: could not resolve project ID for '$source_project'" 1
+        fi
+        result=$(printf '%s' "$raw" | jq -r --argjson pid "$project_id" \
+          '[.[] | select(.source_project_id == $pid)] | .[0] // empty' \
+          2>/dev/null)
+      else
+        result=$(printf '%s' "$raw" | jq -r '.[0] // empty' 2>/dev/null)
+      fi
       if [[ -n "$result" ]]; then
         echo "$result"
         exit 5
@@ -517,10 +540,23 @@ cmd_save_metadata() {
   # Keys are sorted alphabetically for stable output.
   # NUL-delimited sort prevents values with embedded newlines from being
   # split into separate lines before json_escape can process them.
+  # Uses a temp file so sort failures are detected (process substitution
+  # masks the sort exit status).
   local json="{"
   local first="true"
   local -a sorted_pairs
-  mapfile -d '' -t sorted_pairs < <(printf '%s\0' "${pairs[@]}" | sort -z)
+  local sort_tmp
+  sort_tmp=$(mktemp) || fail "save-metadata: failed to create temp file for sorting" 1
+  if ! printf '%s\0' "${pairs[@]}" > "$sort_tmp"; then
+    rm -f "$sort_tmp"
+    fail "save-metadata: failed to write pairs to temp file" 1
+  fi
+  if ! sort -z -o "$sort_tmp" "$sort_tmp"; then
+    rm -f "$sort_tmp"
+    fail "save-metadata: sort failed" 1
+  fi
+  mapfile -d '' -t sorted_pairs < "$sort_tmp"
+  rm -f "$sort_tmp"
 
   for pair in "${sorted_pairs[@]}"; do
     local key="${pair%%=*}"

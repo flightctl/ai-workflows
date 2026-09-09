@@ -294,8 +294,8 @@ exist, build the description (AI-dependent) from the context artifact
 # Direct push:
 "$PUBLISH_SCRIPT" check-existing --repo UPSTREAM_PROJECT --head "docs/$BRANCH_NAME" --platform gitlab
 
-# Fork workflow:
-"$PUBLISH_SCRIPT" check-existing --repo UPSTREAM_PROJECT --head "docs/$BRANCH_NAME" --platform gitlab
+# Fork workflow (project:branch filters by source project to avoid cross-fork false matches):
+"$PUBLISH_SCRIPT" check-existing --repo UPSTREAM_PROJECT --head "FORK_PROJECT:docs/$BRANCH_NAME" --platform gitlab
 ```
 
 If exit code is 5, an MR already exists — skip to Step 8 and report its
