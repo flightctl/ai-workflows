@@ -80,8 +80,6 @@ commands run from there.
 If the user provides a path or the repo is obvious from session context
 (prior commands, artifacts), use that directly.
 
-### Step 0a: Resolve Script Path
-
 Now that you are inside the project repo, resolve the shared script to an
 absolute path so it remains valid regardless of working directory:
 
@@ -99,7 +97,7 @@ Run ALL of these before doing anything else. Do not skip any.
 **1a. Run the shared pre-flight checks:**
 
 ```bash
-$PUBLISH_SCRIPT preflight --platform github
+"$PUBLISH_SCRIPT" preflight --platform github
 ```
 
 Parse the structured output:
@@ -455,7 +453,7 @@ to write an accurate commit message. Don't make up details.
 ### Step 8: Push to Fork
 
 ```bash
-$PUBLISH_SCRIPT push --remote fork --branch bugfix/BRANCH_NAME
+"$PUBLISH_SCRIPT" push --remote fork --branch bugfix/BRANCH_NAME
 ```
 
 **If the script exits with code 3 (push failed):**
@@ -477,7 +475,7 @@ this fork (plain `bugfix/BRANCH_NAME` would match any fork's branch
 with the same name):
 
 ```bash
-$PUBLISH_SCRIPT check-existing \
+"$PUBLISH_SCRIPT" check-existing \
   --repo UPSTREAM_OWNER/REPO \
   --head FORK_OWNER:bugfix/BRANCH_NAME
 ```
@@ -493,7 +491,7 @@ and report the failure** — do not fall through to PR creation.
 If the `--body-file` artifact exists:
 
 ```bash
-$PUBLISH_SCRIPT create-pr \
+"$PUBLISH_SCRIPT" create-pr \
   --repo UPSTREAM_OWNER/REPO \
   --head FORK_OWNER:bugfix/BRANCH_NAME \
   --base main \
@@ -506,7 +504,7 @@ If the artifact doesn't exist, generate the PR body inline (AI-dependent —
 see the template in this skill's Notes section) and pass it with `--body`:
 
 ```bash
-$PUBLISH_SCRIPT create-pr \
+"$PUBLISH_SCRIPT" create-pr \
   --repo UPSTREAM_OWNER/REPO \
   --head FORK_OWNER:bugfix/BRANCH_NAME \
   --base main \

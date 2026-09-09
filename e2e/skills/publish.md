@@ -75,7 +75,7 @@ Verify readiness:
 3. Run the shared pre-flight checks:
 
    ```bash
-   $PUBLISH_SCRIPT preflight --platform github
+   "$PUBLISH_SCRIPT" preflight --platform github
    ```
 
    Parse the output and check:
@@ -138,7 +138,7 @@ Confirm with the user before proceeding.
 ### Step 4: Push Branch
 
 ```bash
-$PUBLISH_SCRIPT push --remote origin --branch {branch-name}
+"$PUBLISH_SCRIPT" push --remote origin --branch {branch-name}
 ```
 
 ### Step 5: Create PR Description
@@ -195,10 +195,10 @@ For fork-based workflows, use `{fork-owner}:{branch-name}` as the
 
 ```bash
 # Fork-based:
-$PUBLISH_SCRIPT check-existing --repo {upstream-owner}/{repo} --head {fork-owner}:{branch-name}
+"$PUBLISH_SCRIPT" check-existing --repo {upstream-owner}/{repo} --head {fork-owner}:{branch-name}
 
 # Direct clone:
-$PUBLISH_SCRIPT check-existing --repo {upstream-owner}/{repo} --head {branch-name}
+"$PUBLISH_SCRIPT" check-existing --repo {upstream-owner}/{repo} --head {branch-name}
 ```
 
 If exit code is 5, a PR already exists — parse the PR number and URL
@@ -210,7 +210,7 @@ stop and report the error. If exit code is 0, create a new PR.
 `{upstream-owner}/{repo}`):
 
 ```bash
-$PUBLISH_SCRIPT create-pr \
+"$PUBLISH_SCRIPT" create-pr \
   --repo {upstream-owner}/{repo} \
   --base {pr-target} \
   --head {fork-owner}:{branch-name} \
@@ -226,7 +226,7 @@ branch (on the fork).
 **If the repo is a direct clone** (not a fork):
 
 ```bash
-$PUBLISH_SCRIPT create-pr \
+"$PUBLISH_SCRIPT" create-pr \
   --base {pr-target} \
   --head {branch-name} \
   --title "{issue-key}: {story title}" \
@@ -255,7 +255,7 @@ records the repo that was pushed to.
 **If the repo is a fork** (set `repo` to the upstream, `origin` to the fork):
 
 ```bash
-$PUBLISH_SCRIPT save-metadata \
+"$PUBLISH_SCRIPT" save-metadata \
   --file .artifacts/e2e/{issue-key}/publish-metadata.json \
   repo={upstream-owner}/{repo} \
   origin={fork-owner}/{repo} \
@@ -269,7 +269,7 @@ $PUBLISH_SCRIPT save-metadata \
 **If the repo is a direct clone** (`repo` and `origin` are the same):
 
 ```bash
-$PUBLISH_SCRIPT save-metadata \
+"$PUBLISH_SCRIPT" save-metadata \
   --file .artifacts/e2e/{issue-key}/publish-metadata.json \
   repo={owner}/{repo} \
   origin={owner}/{repo} \

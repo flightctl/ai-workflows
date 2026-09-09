@@ -520,7 +520,7 @@ cmd_save_metadata() {
   local json="{"
   local first="true"
   local -a sorted_pairs
-  IFS= read -r -d '' -a sorted_pairs < <(printf '%s\0' "${pairs[@]}" | sort -z && printf '\0') || true
+  mapfile -d '' -t sorted_pairs < <(printf '%s\0' "${pairs[@]}" | sort -z)
 
   for pair in "${sorted_pairs[@]}"; do
     local key="${pair%%=*}"
@@ -536,6 +536,7 @@ cmd_save_metadata() {
     # (e.g., "007" → 7) and to keep the output type-stable.  Full JSON
     # escaping handles newlines, tabs, quotes, backslashes, and control
     # characters that would otherwise produce invalid JSON.
+    key=$(json_escape "$key")
     value=$(json_escape "$value")
     json+=$(printf '\n  "%s": "%s"' "$key" "$value")
   done
