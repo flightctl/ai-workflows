@@ -35,17 +35,17 @@ The script provides subcommands: `preflight`, `push`, `check-existing`,
 
 ## Process
 
-### Step 0: Resolve Script Path
+### Prerequisites: Resolve Script Path
 
 Before any `cd` or subshell that changes the working directory, resolve
 the shared script to an absolute path so it remains valid:
 
 ```bash
-PUBLISH_SCRIPT="$(cd "$(dirname "../../_shared/scripts/publish.sh")" && pwd)/publish.sh"
+PUBLISH_SCRIPT="$(git rev-parse --show-toplevel)/_shared/scripts/publish.sh"
 ```
 
 Use `$PUBLISH_SCRIPT` instead of the relative path in all subsequent
-commands (Steps 3, 5, 6).
+commands.
 
 ### Step 1: Read the PRD
 
@@ -133,6 +133,17 @@ for release and feature slug separately.
 
 All git operations in this step run against the **docs repo**, not the source
 repo. Use `git -C "{docs_repo_path}"` for all commands.
+
+Verify the docs repo has no uncommitted, staged, or untracked changes
+before modifying it:
+
+```bash
+git -C "{docs_repo_path}" status --porcelain
+```
+
+If the output is non-empty, the docs repo has local changes. **Stop and
+ask the user** how to proceed — they may need to stash or commit those
+changes first. Do not copy files into a dirty working tree.
 
 Check if the branch already exists (locally or on the remote) before creating it:
 
@@ -236,8 +247,20 @@ repo's artifact directory):
 
 Determine `{owner}/{repo}` from the `docs_repo_remote` in `.artifacts/config.json`
 (e.g., `git@github.com:org/planning-docs.git` → `org/planning-docs`), then
-create the draft PR. If `{issue-key}` is a Jira key, prefix the title
-with it (`{issue-key}: PRD - {title}`); otherwise use `PRD: {title}`.
+check for an existing PR before creating one. If `{issue-key}` is a Jira
+key, prefix the title with it (`{issue-key}: PRD - {title}`); otherwise
+use `PRD: {title}`.
+
+First, check whether a PR already exists for this branch:
+
+```bash
+"$PUBLISH_SCRIPT" check-existing --repo {owner}/{repo} --head {branch-name}
+```
+
+If exit code is 5, a PR already exists — skip to Step 6 and report its
+URL. Parse the PR number from the returned JSON. If the command fails
+(non-zero exit other than 5), stop and report the error. If exit code
+is 0, create a new PR:
 
 ```bash
 "$PUBLISH_SCRIPT" create-pr \

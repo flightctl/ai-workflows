@@ -37,6 +37,18 @@ The script provides subcommands: `preflight`, `push`, `check-existing`,
 
 ## Process
 
+### Prerequisites: Resolve Script Path
+
+Before running any subcommands, resolve the shared script to an
+absolute path so it remains valid regardless of working directory:
+
+```bash
+PUBLISH_SCRIPT="$(git rev-parse --show-toplevel)/_shared/scripts/publish.sh"
+```
+
+Use `$PUBLISH_SCRIPT` instead of the relative path in all subsequent
+commands.
+
 ### Step 1: Pre-Flight Checks
 
 Verify readiness:
@@ -63,7 +75,7 @@ Verify readiness:
 3. Run the shared pre-flight checks:
 
    ```bash
-   ../../_shared/scripts/publish.sh preflight --platform github
+   $PUBLISH_SCRIPT preflight --platform github
    ```
 
    Parse the output to confirm `auth_ok=true` and check for
@@ -123,7 +135,7 @@ Confirm with the user before proceeding.
 ### Step 4: Push Branch
 
 ```bash
-../../_shared/scripts/publish.sh push --remote origin --branch {branch-name}
+$PUBLISH_SCRIPT push --remote origin --branch {branch-name}
 ```
 
 ### Step 5: Create PR Description
@@ -180,10 +192,10 @@ For fork-based workflows, use `{fork-owner}:{branch-name}` as the
 
 ```bash
 # Fork-based:
-../../_shared/scripts/publish.sh check-existing --repo {upstream-owner}/{repo} --head {fork-owner}:{branch-name}
+$PUBLISH_SCRIPT check-existing --repo {upstream-owner}/{repo} --head {fork-owner}:{branch-name}
 
 # Direct clone:
-../../_shared/scripts/publish.sh check-existing --repo {upstream-owner}/{repo} --head {branch-name}
+$PUBLISH_SCRIPT check-existing --repo {upstream-owner}/{repo} --head {branch-name}
 ```
 
 If exit code is 5, a PR already exists — parse the PR number and URL
@@ -195,7 +207,7 @@ stop and report the error. If exit code is 0, create a new PR.
 `{upstream-owner}/{repo}`):
 
 ```bash
-../../_shared/scripts/publish.sh create-pr \
+$PUBLISH_SCRIPT create-pr \
   --repo {upstream-owner}/{repo} \
   --base {pr-target} \
   --head {fork-owner}:{branch-name} \
@@ -211,7 +223,7 @@ branch (on the fork).
 **If the repo is a direct clone** (not a fork):
 
 ```bash
-../../_shared/scripts/publish.sh create-pr \
+$PUBLISH_SCRIPT create-pr \
   --base {pr-target} \
   --head {branch-name} \
   --title "{issue-key}: {story title}" \
@@ -240,7 +252,7 @@ records the repo that was pushed to.
 **If the repo is a fork** (set `repo` to the upstream, `origin` to the fork):
 
 ```bash
-../../_shared/scripts/publish.sh save-metadata \
+$PUBLISH_SCRIPT save-metadata \
   --file .artifacts/e2e/{issue-key}/publish-metadata.json \
   repo={upstream-owner}/{repo} \
   origin={fork-owner}/{repo} \
@@ -254,7 +266,7 @@ records the repo that was pushed to.
 **If the repo is a direct clone** (`repo` and `origin` are the same):
 
 ```bash
-../../_shared/scripts/publish.sh save-metadata \
+$PUBLISH_SCRIPT save-metadata \
   --file .artifacts/e2e/{issue-key}/publish-metadata.json \
   repo={owner}/{repo} \
   origin={owner}/{repo} \

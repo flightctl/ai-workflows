@@ -43,6 +43,18 @@ The script provides subcommands: `preflight`, `push`, `check-existing`,
 `--platform gitlab` to `preflight` and `check-existing`. See the script
 header for full usage.
 
+### Prerequisites: Resolve Script Path
+
+Before running any subcommands, resolve the shared script to an
+absolute path so it remains valid regardless of working directory:
+
+```bash
+PUBLISH_SCRIPT="$(git rev-parse --show-toplevel)/_shared/scripts/publish.sh"
+```
+
+Use `$PUBLISH_SCRIPT` instead of the relative path in all subsequent
+commands.
+
 ## Process
 
 ### Placeholders Used in This Skill
@@ -65,14 +77,14 @@ Run ALL of these before doing anything else. Do not skip any.
 **1a. Run the shared pre-flight checks:**
 
 ```bash
-../../_shared/scripts/publish.sh preflight --platform gitlab
+$PUBLISH_SCRIPT preflight --platform gitlab
 ```
 
 Parse the structured output:
 - `auth_ok` — whether `glab auth` succeeded
 - `auth_user` — the GitLab username (`GL_USER`)
 - `branch` — current branch name
-- `has_uncommitted` / `has_staged` — whether there are uncommitted changes
+- `has_uncommitted` / `has_staged` / `has_untracked` — whether there are uncommitted, staged, or untracked changes
 
 If `auth_ok=true`, set `GL_USER` from `auth_user`.
 
@@ -130,8 +142,10 @@ git remote get-url origin | sed -E 's#.*[:/]([^/]+/[^/]+?)(\.git)?$#\1#'
 Record the result as `UPSTREAM_PROJECT`.
 
 Confirm there are actual changes to commit (from the pre-flight output's
-`has_uncommitted` or `has_staged` fields, or run `git diff --stat`). If
-both are `false`, there are no changes — stop and tell the user.
+`has_uncommitted`, `has_staged`, or `has_untracked` fields). If all three
+are `false`, there are no changes — stop and tell the user. If
+`has_untracked` is `true`, warn the user about untracked files and ask
+whether they should be included in the commit.
 
 **Pre-flight summary:** Before moving on, you should now know:
 `UPSTREAM_PROJECT`, which remotes exist, and whether there are changes to commit. You may also know `GL_USER` (if auth is available).
@@ -248,11 +262,15 @@ Don't make up details.
 ### Step 6: Push
 
 Use the remote identified during Step 2 (direct push) or Step 3 (fork
-workflow) as `PUSH_REMOTE`. Do not hardcode `origin` or `fork` — use the
-actual remote name discovered from `git remote -v`.
+workflow) as `PUSH_REMOTE`. Set `PUSH_REMOTE` to the actual remote name
+discovered from `git remote -v` — typically `origin` for direct push or
+`fork` for fork-based workflows:
 
 ```bash
-../../_shared/scripts/publish.sh push --remote {push-remote} --branch docs/BRANCH_NAME
+# Set PUSH_REMOTE based on the push strategy determined in Step 2/3:
+# - Direct push: PUSH_REMOTE is the remote pointing to UPSTREAM_PROJECT
+# - Fork workflow: PUSH_REMOTE is the remote pointing to FORK_PROJECT
+$PUBLISH_SCRIPT push --remote $PUSH_REMOTE --branch docs/BRANCH_NAME
 ```
 
 **If the script exits with code 3 (push failed):**
@@ -273,7 +291,7 @@ exist, build the description (AI-dependent) from the context artifact
 **Direct push (user has write access):**
 
 ```bash
-../../_shared/scripts/publish.sh create-mr \
+$PUBLISH_SCRIPT create-mr \
   --source docs/BRANCH_NAME \
   --target main \
   --title "[TICKET_ID]: short description" \
@@ -286,7 +304,7 @@ If no description file exists, use `--description` with inline text instead.
 **Fork workflow:**
 
 ```bash
-../../_shared/scripts/publish.sh create-mr \
+$PUBLISH_SCRIPT create-mr \
   --project UPSTREAM_PROJECT \
   --head FORK_PROJECT \
   --source docs/BRANCH_NAME \

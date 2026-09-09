@@ -38,41 +38,78 @@ set -euo pipefail
 # Helpers
 # ---------------------------------------------------------------------------
 
+# Print an error message to stderr and exit with the given code.
 fail() {
   printf 'ERROR: %s\n' "$1" >&2
   exit "${2:-1}"
 }
 
+# Print an informational message to stderr.
 info() {
   printf 'INFO: %s\n' "$1" >&2
 }
 
+# Print usage information extracted from the script header and exit.
 usage() {
   sed -n '/^# Usage:/,/^# Exit codes:/{ /^# Exit codes:/d; s/^# \?//; p }' "$0" >&2
   exit 1
 }
 
+# Fail with a descriptive message if a required argument is empty.
 require_arg() {
   if [[ -z "${2:-}" ]]; then
     fail "Missing required argument: $1" 1
   fi
 }
 
+# Validate that a CLI flag has an accompanying value argument.
 flag_value() {
-  # Ensure a flag has an accompanying value argument.  Prevents cryptic
-  # "unbound variable" errors under set -u when a flag is passed without
-  # its value (e.g., --platform with no argument).
+  # Prevents cryptic "unbound variable" errors under set -u when a flag
+  # is passed without its value (e.g., --platform with no argument).
   # Usage (inside a while/case loop): flag_value "--flag-name" "$#"
   if [[ $2 -lt 2 ]]; then
     fail "$1 requires a value" 1
   fi
 }
 
+# Escape a string for safe embedding as a JSON string value.
+# Handles backslash, double-quote, newline, tab, carriage return, and
+# other control characters (0x00-0x1F, 0x7F) using \uXXXX notation.
+# Does not add surrounding quotes — the caller wraps the result.
+json_escape() {
+  local s="$1"
+  local out=""
+  local i char code
+  for (( i = 0; i < ${#s}; i++ )); do
+    char="${s:i:1}"
+    case "$char" in
+      \\)      out+="\\\\" ;;
+      '"')     out+="\\\"" ;;
+      $'\n')   out+="\\n" ;;
+      $'\t')   out+="\\t" ;;
+      $'\r')   out+="\\r" ;;
+      $'\b')   out+="\\b" ;;
+      $'\x0c') out+="\\f" ;;
+      *)
+        # Detect remaining control characters (0x00-0x1F, 0x7F)
+        printf -v code '%d' "'${char}"
+        if (( code >= 0 && code < 32 )) || (( code == 127 )); then
+          printf -v char '\\u%04x' "$code"
+          out+="${char}"
+        else
+          out+="${char}"
+        fi
+        ;;
+    esac
+  done
+  printf '%s' "$out"
+}
+
 # ---------------------------------------------------------------------------
 # Subcommand: preflight
 # ---------------------------------------------------------------------------
-# Checks authentication (gh or glab), current branch, and uncommitted
-# changes. Prints a structured status block on stdout for the calling
+# Run pre-flight checks: auth, branch, and working-tree cleanliness.
+# Prints a structured key=value status block on stdout for the calling
 # skill to parse.
 #
 # Flags:
@@ -93,6 +130,7 @@ cmd_preflight() {
   local branch=""
   local has_uncommitted="false"
   local has_staged="false"
+  local has_untracked="false"
 
   # -- Auth check --
   case "$platform" in
@@ -126,6 +164,9 @@ cmd_preflight() {
   if ! git diff --cached --quiet 2>/dev/null; then
     has_staged="true"
   fi
+  if [[ -n "$(git ls-files --others --exclude-standard 2>/dev/null)" ]]; then
+    has_untracked="true"
+  fi
 
   # -- Output structured block --
   cat <<EOF
@@ -134,6 +175,7 @@ auth_user=${auth_user}
 branch=${branch}
 has_uncommitted=${has_uncommitted}
 has_staged=${has_staged}
+has_untracked=${has_untracked}
 platform=${platform}
 EOF
 }
@@ -141,7 +183,7 @@ EOF
 # ---------------------------------------------------------------------------
 # Subcommand: push
 # ---------------------------------------------------------------------------
-# Pushes a branch to the specified remote with -u (set upstream).
+# Push a branch to the specified remote with upstream tracking (-u).
 #
 # Flags:
 #   --remote <name>    Git remote name (e.g., fork, origin)
@@ -178,8 +220,8 @@ cmd_push() {
 # ---------------------------------------------------------------------------
 # Subcommand: check-existing
 # ---------------------------------------------------------------------------
-# Checks whether a PR (GitHub) or MR (GitLab) already exists for the
-# given branch. Prints the PR/MR number and URL on stdout if found.
+# Check whether an open PR (GitHub) or MR (GitLab) already exists for
+# a branch.  Supports owner:branch format for fork-aware matching.
 #
 # Flags:
 #   --repo <owner/repo>        Target repository
@@ -209,8 +251,19 @@ cmd_check_existing() {
   case "$platform" in
     github)
       local result exit_code=0
-      result=$(gh pr list --repo "$repo" --head "$head" \
-        --json number,url --jq '.[0] // empty' 2>/dev/null) || exit_code=$?
+      if [[ "$head" == *:* ]]; then
+        # owner:branch format — gh pr list --head does not support this
+        # syntax.  Search by branch name and filter by head repo owner.
+        local head_owner="${head%%:*}"
+        local head_branch="${head#*:}"
+        result=$(gh pr list --repo "$repo" --head "$head_branch" \
+          --json number,url,headRepositoryOwner \
+          --jq "[.[] | select(.headRepositoryOwner.login == \"$head_owner\")] | .[0] // empty" \
+          2>/dev/null) || exit_code=$?
+      else
+        result=$(gh pr list --repo "$repo" --head "$head" \
+          --json number,url --jq '.[0] // empty' 2>/dev/null) || exit_code=$?
+      fi
       if [[ $exit_code -ne 0 ]]; then
         fail "check-existing: GitHub API query failed (exit $exit_code). Check gh auth status." 1
       fi
@@ -244,7 +297,7 @@ cmd_check_existing() {
 # ---------------------------------------------------------------------------
 # Subcommand: create-pr
 # ---------------------------------------------------------------------------
-# Creates a GitHub pull request via gh CLI.
+# Create a GitHub pull request via the gh CLI.
 #
 # Flags:
 #   --repo <owner/repo>   Target repository (required for fork-based PRs)
@@ -337,7 +390,7 @@ cmd_create_pr() {
 # ---------------------------------------------------------------------------
 # Subcommand: create-mr
 # ---------------------------------------------------------------------------
-# Creates a GitLab merge request via glab CLI.
+# Create a GitLab merge request via the glab CLI.
 #
 # Flags:
 #   --project <path>      Upstream project path (for fork-based MRs)
@@ -428,7 +481,7 @@ cmd_create_mr() {
 # ---------------------------------------------------------------------------
 # Subcommand: save-metadata
 # ---------------------------------------------------------------------------
-# Writes a JSON metadata file from key=value pairs.
+# Write a JSON metadata file from key=value pairs with full escaping.
 #
 # Flags:
 #   --file <path>   Output file path (required)
@@ -478,9 +531,10 @@ cmd_save_metadata() {
     fi
 
     # Always serialize as a JSON string to avoid leading-zero truncation
-    # (e.g., "007" → 7) and to keep the output type-stable.
-    value="${value//\\/\\\\}"
-    value="${value//\"/\\\"}"
+    # (e.g., "007" → 7) and to keep the output type-stable.  Full JSON
+    # escaping handles newlines, tabs, quotes, backslashes, and control
+    # characters that would otherwise produce invalid JSON.
+    value=$(json_escape "$value")
     json+=$(printf '\n  "%s": "%s"' "$key" "$value")
   done
 

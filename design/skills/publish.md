@@ -35,17 +35,17 @@ The script provides subcommands: `preflight`, `push`, `check-existing`,
 
 ## Process
 
-### Step 0: Resolve Script Path
+### Prerequisites: Resolve Script Path
 
 Before any `cd` or subshell that changes the working directory, resolve
 the shared script to an absolute path so it remains valid:
 
 ```bash
-PUBLISH_SCRIPT="$(cd "$(dirname "../../_shared/scripts/publish.sh")" && pwd)/publish.sh"
+PUBLISH_SCRIPT="$(git rev-parse --show-toplevel)/_shared/scripts/publish.sh"
 ```
 
 Use `$PUBLISH_SCRIPT` instead of the relative path in all subsequent
-commands (Steps 3, 5, 6).
+commands.
 
 ### Step 1: Read the Design Document
 

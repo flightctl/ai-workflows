@@ -47,6 +47,18 @@ script. Reference it using a relative path from this file:
 The script provides subcommands: `preflight`, `push`, `check-existing`,
 `create-pr`, and `save-metadata`. See the script header for full usage.
 
+### Prerequisites: Resolve Script Path
+
+Before running any subcommands, resolve the shared script to an
+absolute path so it remains valid regardless of working directory:
+
+```bash
+PUBLISH_SCRIPT="$(git rev-parse --show-toplevel)/_shared/scripts/publish.sh"
+```
+
+Use `$PUBLISH_SCRIPT` instead of the relative path in all subsequent
+commands.
+
 ## Process
 
 ### Placeholders Used in This Skill
@@ -87,14 +99,14 @@ Run ALL of these before doing anything else. Do not skip any.
 **1a. Run the shared pre-flight checks:**
 
 ```bash
-../../_shared/scripts/publish.sh preflight --platform github
+$PUBLISH_SCRIPT preflight --platform github
 ```
 
 Parse the structured output:
 - `auth_ok` — whether `gh auth` succeeded
 - `auth_user` — the GitHub username (`GH_USER`)
 - `branch` — current branch name
-- `has_uncommitted` / `has_staged` — whether there are uncommitted changes
+- `has_uncommitted` / `has_staged` / `has_untracked` — whether there are uncommitted, staged, or untracked changes
 
 If `auth_ok=true`, set `GH_USER` from `auth_user`. If `auth_user` is
 empty (GitHub App/bot), the script already tried the
@@ -156,8 +168,10 @@ git remote get-url origin | sed -E 's#.*/([^/]+/[^/]+?)(\.git)?$#\1#'
 Record the result as `UPSTREAM_OWNER/REPO` — you'll need it later.
 
 Confirm there are actual changes to commit (from the pre-flight output's
-`has_uncommitted` or `has_staged` fields, or run `git diff --stat`). If
-both are `false`, there are no changes — stop and tell the user.
+`has_uncommitted`, `has_staged`, or `has_untracked` fields). If all three
+are `false`, there are no changes — stop and tell the user. If
+`has_untracked` is `true`, warn the user about untracked files and ask
+whether they should be included in the commit.
 
 **Pre-flight summary:** Before moving on, you should now know:
 `UPSTREAM_OWNER/REPO`, which remotes exist, and whether there are changes to
@@ -441,7 +455,7 @@ to write an accurate commit message. Don't make up details.
 ### Step 8: Push to Fork
 
 ```bash
-../../_shared/scripts/publish.sh push --remote fork --branch bugfix/BRANCH_NAME
+$PUBLISH_SCRIPT push --remote fork --branch bugfix/BRANCH_NAME
 ```
 
 **If the script exits with code 3 (push failed):**
@@ -460,7 +474,7 @@ access. Please run: `git push -u fork BRANCH_NAME`"
 **Check for an existing PR** before attempting creation:
 
 ```bash
-../../_shared/scripts/publish.sh check-existing \
+$PUBLISH_SCRIPT check-existing \
   --repo UPSTREAM_OWNER/REPO \
   --head bugfix/BRANCH_NAME
 ```
@@ -476,7 +490,7 @@ and report the failure** — do not fall through to PR creation.
 If the `--body-file` artifact exists:
 
 ```bash
-../../_shared/scripts/publish.sh create-pr \
+$PUBLISH_SCRIPT create-pr \
   --repo UPSTREAM_OWNER/REPO \
   --head FORK_OWNER:bugfix/BRANCH_NAME \
   --base main \
@@ -489,7 +503,7 @@ If the artifact doesn't exist, generate the PR body inline (AI-dependent —
 see the template in this skill's Notes section) and pass it with `--body`:
 
 ```bash
-../../_shared/scripts/publish.sh create-pr \
+$PUBLISH_SCRIPT create-pr \
   --repo UPSTREAM_OWNER/REPO \
   --head FORK_OWNER:bugfix/BRANCH_NAME \
   --base main \
