@@ -21,6 +21,13 @@ reject unclosed YAML frontmatter or fenced code blocks, or unresolved merge
 conflict markers outside quoted or fenced examples. Do not reject an override
 for different headings, formatting, or additional phase steps alone.
 
+Before accepting the override, read the built-in phase at
+`../../{WORKFLOW}/skills/{PHASE_FILE}` and the workflow's artifact contract at
+`../../{WORKFLOW}/skills/controller.md`, both relative to this recipe. Compare
+the required input, output, and reporting artifacts. Reject an override that
+omits a required artifact, renames it, or changes its required location.
+Additional artifacts remain valid unless the workflow contract prohibits them.
+
 Validate the completion instructions by their behavior, not by an exact phrase
 or the position of a sentence. Read the override's executable instructions and
 the invoking router's completion contract without executing either. Examples of
@@ -29,6 +36,13 @@ supported completion behavior include:
 - Reporting results and re-reading the workflow's controller for next steps.
 - Returning to the invoking workflow router for completion guidance.
 - Reading the workflow's completion guide.
+
+Return `COMPLETION_HANDOFF` as `router-return`, `controller-return`,
+`completion-guide`, or `router-defined` for the accepted handoff. If the handoff
+reads a completion guide, the invoking router must set
+`COMPLETION_CONSUMED=true` and skip any default follow-up read. If the router
+normalizes the handoff without executing its destination, completion remains
+unconsumed and the router performs its normal read once.
 
 These are examples, not an exhaustive grammar. Equivalent wording and existing
 phase-specific handoffs remain valid. A dispatcher that normalizes controller
