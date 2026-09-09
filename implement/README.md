@@ -40,6 +40,13 @@ graph TD
 | Publish | `/publish` | Push branch, create draft PR | `06-pr-description.md` |
 | Respond | `/respond` | Address reviewer comments | `07-review-responses.md` |
 
+Each phase command invokes `skills/dispatch.md` with the requested phase. The
+dispatcher resolves any project override, loads only that phase, and passes
+along the command context. After the phase reports its result,
+`skills/completion.md` supplies the shared next-step guidance without loading
+the full controller. The controller remains the entry point for workflow
+discovery and ambiguous requests.
+
 ## Typical Flow
 
 ```text
@@ -138,7 +145,9 @@ implement/
 │   ├── 01-context.md           # Ingest context skeleton
 │   └── story-testplan.md       # Story-scoped testplan skeleton
 ├── skills/
-│   ├── controller.md           # Phase dispatcher and transitions
+│   ├── controller.md           # Discovery and ambiguous-input router
+│   ├── dispatch.md             # Explicit-phase dispatcher
+│   ├── completion.md           # Shared next-step guidance
 │   ├── ingest.md               # Fetch story, explore codebase
 │   ├── plan.md                 # Design implementation approach
 │   ├── revise.md               # Incorporate plan feedback

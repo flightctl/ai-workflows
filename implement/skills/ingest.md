@@ -156,4 +156,4 @@ If the user declined overwrite in 7a, report the diff and that existing context 
 
 ## Done
 
-Follow `controller.md` only if already in session.
+Return to the invoking workflow router for completion guidance.

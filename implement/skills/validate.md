@@ -426,4 +426,4 @@ Report your results:
 - Regression status
 - Overall verdict
 
-Then **re-read the controller** (`controller.md`) for next-step guidance.
+Then return to the invoking workflow router for completion guidance.

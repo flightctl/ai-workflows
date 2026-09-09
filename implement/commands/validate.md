@@ -4,8 +4,8 @@ description: "Run tests, lint, coverage analysis, and iterate on gaps"
 ---
 # /validate
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=validate`.
 
-Dispatch the **validate** phase. Context:
+Context:
 
 $ARGUMENTS

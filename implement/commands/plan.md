@@ -4,8 +4,8 @@ description: "Design the implementation approach with task breakdown and test st
 ---
 # /plan
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=plan`.
 
-Dispatch the **plan** phase. Open cited files from `01-context.md` (slices only; see `../skills/plan.md` Step 1). Context:
+Context:
 
 $ARGUMENTS
