@@ -134,4 +134,4 @@ Report your results:
 - Any consistency updates made as a side effect
 - Assessment of plan readiness for `/code`
 
-Then **re-read the controller** (`controller.md`) for next-step guidance.
+Then return to the invoking workflow router for completion guidance.

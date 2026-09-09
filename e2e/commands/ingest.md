@@ -4,8 +4,8 @@ description: "Fetch [QE] story, verify dependencies, explore e2e infrastructure,
 ---
 # /ingest
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=ingest`.
 
-Dispatch the **ingest** phase. Context:
+Context:
 
 $ARGUMENTS

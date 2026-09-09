@@ -349,4 +349,4 @@ Report your results:
 - Note any risks or open questions
 - Assessment of plan completeness
 
-Then **re-read the controller** (`controller.md`) for next-step guidance.
+Then return to the invoking workflow router for completion guidance.
