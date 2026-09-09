@@ -249,6 +249,10 @@ Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 `WORKFLOW=design`, `ISSUE_KEY={issue-key}`, `PHASE=respond`,
 `AUTHORING_MODE=skill`.
 
+Read and follow `../../_shared/recipes/render-provenance-footer.md` with
+`WORKFLOW=design`, `ISSUE_KEY={issue-key}`, and `TARGET_FILE` set to the
+absolute source-repo path to `.artifacts/design/{issue-key}/03-design.md`.
+
 **Update the docs repo copy:** Read
 `.artifacts/design/{issue-key}/publish-metadata.json` to get the file
 path. If metadata doesn't exist, ask the user for the path.
