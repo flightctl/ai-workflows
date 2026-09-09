@@ -23,11 +23,12 @@ through the command context unchanged.
 The built-in fallback is the phase file beside this dispatcher. Follow the
 phase through its reporting step. Normalize the recipe's supported exits to a
 return to this dispatcher: an invoking-router return, a request for this
-workflow's completion guide, or a return to this workflow's controller. This
-mapping applies during override validation as well as execution. Normalize the
-handoff without executing its destination and leave `COMPLETION_CONSUMED=false`.
-Then read `completion.md` once and follow its guidance for `PHASE`; the
-dispatcher is the only component that reads the completion guide.
+workflow's completion guide, or a return to this workflow's controller. Map
+`COMPLETION_HANDOFF=router-defined` to the invoking-router return. This mapping
+applies during override validation as well as execution. Normalize the handoff
+without executing its destination and leave `COMPLETION_CONSUMED=false`. Then
+read `completion.md` once and follow its guidance for `PHASE`; the dispatcher
+is the only component that reads the completion guide.
 
 Legacy completion instructions may say to follow `controller.md` only if it
 is already in the session. After such a phase finishes its steps and report,
