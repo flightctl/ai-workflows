@@ -35,6 +35,18 @@ the documented recovery paths instead of guessing.
 - **Never attempt `gh repo fork` without asking the user first.**
 - **Never fall back to patch files without exhausting all other options.**
 
+## Shared Script
+
+This skill delegates deterministic git and CLI operations to a shared
+script. Reference it using a relative path from this file:
+
+```
+../../_shared/scripts/publish.py
+```
+
+The script provides subcommands: `preflight`, `push`, `check-existing`,
+`create-pr`, and `save-metadata`. See the script header for full usage.
+
 ## Process
 
 ### Placeholders Used in This Skill
@@ -68,35 +80,40 @@ commands run from there.
 If the user provides a path or the repo is obvious from session context
 (prior commands, artifacts), use that directly.
 
+Now that you are inside the project repo, resolve the shared script to an
+absolute path so it remains valid regardless of working directory:
+
+```bash
+PUBLISH_SCRIPT="$(git rev-parse --show-toplevel)/_shared/scripts/publish.py"
+```
+
+Use `$PUBLISH_SCRIPT` instead of the relative path in all subsequent
+commands.
+
 ### Step 1: Pre-flight Checks
 
 Run ALL of these before doing anything else. Do not skip any.
 
-**1a. Check GitHub CLI authentication and determine GH_USER:**
+**1a. Run the shared pre-flight checks:**
 
 ```bash
-gh auth status
+python3 "$PUBLISH_SCRIPT" preflight --platform github
 ```
 
-- If authenticated, determine `GH_USER` — the **real user's** GitHub username
-  (not the bot). Try these in order:
+Parse the structured output:
+- `auth_ok` — whether `gh auth` succeeded
+- `auth_user` — the GitHub username (`GH_USER`)
+- `branch` — current branch name
+- `has_uncommitted` / `has_staged` / `has_untracked` — whether there are uncommitted, staged, or untracked changes
 
-```bash
-# Works for normal user tokens:
-gh api user --jq .login 2>/dev/null
+If `auth_ok=true`, set `GH_USER` from `auth_user`. If `auth_user` is
+empty (GitHub App/bot), the script already tried the
+`/installation/repositories` fallback.
 
-# If that fails (403), you're running as a GitHub App/bot.
-# Get the real user from the app installation:
-gh api /installation/repositories --jq '.repositories[0].owner.login'
-```
-
-The `/installation/repositories` endpoint works because GitHub Apps are
-installed on user accounts — the repo owner is the actual user.
-
-- If not authenticated: note this — several later steps depend on `gh`. But
-  do NOT dump all manual instructions yet. Continue the remaining pre-flight
-  checks (1b–1e) to gather as much information as possible from git alone.
-  After pre-flight, you will present options to the user.
+If `auth_ok=false`: note this — several later steps depend on `gh`. But
+do NOT dump all manual instructions yet. Continue the remaining pre-flight
+checks (1b–1d) to gather as much information as possible from git alone.
+After pre-flight, you will present options to the user.
 
 **1b. Check git configuration:**
 
@@ -148,15 +165,11 @@ git remote get-url origin | sed -E 's#.*/([^/]+/[^/]+?)(\.git)?$#\1#'
 
 Record the result as `UPSTREAM_OWNER/REPO` — you'll need it later.
 
-**1e. Check current branch and changes:**
-
-```bash
-git status
-git diff --stat
-```
-
-Confirm there are actual changes to commit. If there are no changes, stop
-and tell the user.
+Confirm there are actual changes to commit (from the pre-flight output's
+`has_uncommitted`, `has_staged`, or `has_untracked` fields). If all three
+are `false`, there are no changes — stop and tell the user. If
+`has_untracked` is `true`, warn the user about untracked files and ask
+whether they should be included in the commit.
 
 **Pre-flight summary:** Before moving on, you should now know:
 `UPSTREAM_OWNER/REPO`, which remotes exist, and whether there are changes to
@@ -440,10 +453,10 @@ to write an accurate commit message. Don't make up details.
 ### Step 8: Push to Fork
 
 ```bash
-git push -u fork bugfix/BRANCH_NAME
+python3 "$PUBLISH_SCRIPT" push --remote fork --branch bugfix/BRANCH_NAME
 ```
 
-**If this fails:**
+**If the script exits with code 3 (push failed):**
 
 - **Authentication error**: Check `gh auth status` again. The user may need
   to re-authenticate or the sandbox may be blocking network access.
@@ -456,32 +469,48 @@ access. Please run: `git push -u fork BRANCH_NAME`"
 
 ### Step 9: Create the Draft PR
 
-**If a pull request already exists** for this branch on
-`UPSTREAM_OWNER/REPO`, skip this step and proceed to **Confirm and
-Report**. Check with:
+**Check for an existing PR** before attempting creation. Use
+`FORK_OWNER:bugfix/BRANCH_NAME` so the check matches only PRs from
+this fork (plain `bugfix/BRANCH_NAME` would match any fork's branch
+with the same name):
 
 ```bash
-gh pr list --repo UPSTREAM_OWNER/REPO --head bugfix/BRANCH_NAME --json number,url --jq '.[0] // empty'
+python3 "$PUBLISH_SCRIPT" check-existing \
+  --repo UPSTREAM_OWNER/REPO \
+  --head FORK_OWNER:bugfix/BRANCH_NAME
 ```
 
-If the command fails (auth error, network error, API error), **stop and
-report the failure** — do not fall through to PR creation. Only proceed
-when the command succeeds: a result means the PR already exists (skip to
-Step 10 and report its URL); an empty result means no existing PR (continue
-with creation below).
+If exit code is 5, a PR already exists — skip to Step 10 and report its
+URL. If the command fails (auth error, network error, API error), **stop
+and report the failure** — do not fall through to PR creation.
 
 **PR title format:** Use **`[ISSUE_KEY]: short description in lowercase`**. If the artifact `.artifacts/bugfix/{issue}/pr-description.md` exists and has a `## Title` line in this format, use that title. Otherwise set `ISSUE_KEY` from the branch name or context (e.g. Jira EDM-1234, GitHub #47) and build the title as `[ISSUE_KEY]: short description`.
 
-**Try `gh pr create` first** (it works for normal user tokens):
+**Create the PR using the shared script** (works for normal user tokens):
+
+If the `--body-file` artifact exists:
 
 ```bash
-gh pr create \
-  --draft \
+python3 "$PUBLISH_SCRIPT" create-pr \
   --repo UPSTREAM_OWNER/REPO \
   --head FORK_OWNER:bugfix/BRANCH_NAME \
   --base main \
   --title "[ISSUE_KEY]: short description in lowercase" \
-  --body-file .artifacts/bugfix/{issue}/pr-description.md
+  --body-file .artifacts/bugfix/{issue}/pr-description.md \
+  --draft
+```
+
+If the artifact doesn't exist, generate the PR body inline (AI-dependent —
+see the template in this skill's Notes section) and pass it with `--body`:
+
+```bash
+python3 "$PUBLISH_SCRIPT" create-pr \
+  --repo UPSTREAM_OWNER/REPO \
+  --head FORK_OWNER:bugfix/BRANCH_NAME \
+  --base main \
+  --title "[ISSUE_KEY]: short description in lowercase" \
+  --body "PR_BODY_TEXT" \
+  --draft
 ```
 
 **Key flags explained:**
@@ -492,42 +521,8 @@ gh pr create \
 - `--base`: The target branch on upstream (usually `main`).
 - `--draft`: Always submit as draft first.
 - `--title`: PR title must be `[ISSUE_KEY]: short description`. Prefer the title from the artifact's `## Title` section if present.
-- `--body-file`: Use the PR description artifact if `/document` was run.
 
-**If `--body-file` artifact doesn't exist**, use `--body` with inline content:
-
-```bash
-gh pr create \
-  --draft \
-  --repo UPSTREAM_OWNER/REPO \
-  --head FORK_OWNER:bugfix/BRANCH_NAME \
-  --base main \
-  --title "[ISSUE_KEY]: short description in lowercase" \
-  --body "## Problem
-WHAT_WAS_BROKEN
-
-## Root Cause
-WHY_IT_WAS_BROKEN
-
-## Fix
-WHAT_THIS_PR_CHANGES
-
-## Testing
-HOW_THE_FIX_WAS_VERIFIED
-
-## Confidence
-HIGH_MEDIUM_LOW — BRIEF_JUSTIFICATION
-
-## Rollback
-HOW_TO_REVERT_IF_SOMETHING_GOES_WRONG
-
-## Risk Assessment
-LOW_MEDIUM_HIGH — WHAT_COULD_BE_AFFECTED
-
-Fixes #ISSUE_NUMBER"
-```
-
-**If `gh pr create` fails (403, "Resource not accessible by integration", etc.):**
+**If the script exits with code 4 (PR creation failed, e.g., 403, "Resource not accessible by integration"):**
 
 This is the expected outcome when running as a GitHub App bot. Do NOT retry,
 do NOT debug further, do NOT fall back to a patch file. Instead:

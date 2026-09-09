@@ -29,6 +29,32 @@ recovery paths instead of guessing.
 - **Always create a draft MR.** Let the author mark it ready after review.
 - **Never attempt `glab repo fork` without asking the user first.**
 
+## Shared Script
+
+This skill delegates deterministic git and CLI operations to a shared
+script. Reference it using a relative path from this file:
+
+```
+../../_shared/scripts/publish.py
+```
+
+The script provides subcommands: `preflight`, `push`, `check-existing`,
+`create-mr`, and `save-metadata`. For GitLab workflows, pass
+`--platform gitlab` to `preflight` and `check-existing`. See the script
+header for full usage.
+
+### Prerequisites: Resolve Script Path
+
+Before running any subcommands, resolve the shared script to an
+absolute path so it remains valid regardless of working directory:
+
+```bash
+PUBLISH_SCRIPT="$(git rev-parse --show-toplevel)/_shared/scripts/publish.py"
+```
+
+Use `$PUBLISH_SCRIPT` instead of the relative path in all subsequent
+commands.
+
 ## Process
 
 ### Placeholders Used in This Skill
@@ -41,26 +67,30 @@ These are determined during pre-flight checks. Record each value as you go.
 | `UPSTREAM_PROJECT` | Step 1d: project path from remote URL  | `red-hat-enterprise-openshift-documentation/edge-manager` |
 | `FORK_PROJECT`     | Step 2: user's fork path               | `jsmith/edge-manager`                                     |
 | `BRANCH_NAME`      | Step 4: the branch you create          | `docs/RHEM-456-enrollment-api`                            |
+| `PUSH_REMOTE`      | Step 2/3: remote name to push to       | `origin` or `fork`                                        |
 | `TICKET_ID`        | From artifacts directory or user input | `RHEM-456`                                                |
 
 ### Step 1: Pre-flight Checks
 
 Run ALL of these before doing anything else. Do not skip any.
 
-**1a. Check GitLab CLI authentication and determine GL_USER:**
+**1a. Run the shared pre-flight checks:**
 
 ```bash
-glab auth status
+python3 "$PUBLISH_SCRIPT" preflight --platform gitlab
 ```
 
-- If authenticated, determine `GL_USER`:
+Parse the structured output:
+- `auth_ok` — whether `glab auth` succeeded
+- `auth_user` — the GitLab username (`GL_USER`)
+- `branch` — current branch name
+- `has_uncommitted` / `has_staged` / `has_untracked` — whether there are uncommitted, staged, or untracked changes
 
-```bash
-glab api user --jq .username
-```
+If `auth_ok=true`, set `GL_USER` from `auth_user`.
 
-- If not authenticated: note this and continue the remaining pre-flight checks (1b–1e) to gather as much information as possible from git alone. After pre-flight, present options
-  to the user.
+If `auth_ok=false`: note this and continue the remaining pre-flight checks
+(1b–1d) to gather as much information as possible from git alone. After
+pre-flight, present options to the user.
 
 **1b. Check git configuration:**
 
@@ -111,14 +141,11 @@ git remote get-url origin | sed -E 's#.*[:/]([^/]+/[^/]+?)(\.git)?$#\1#'
 
 Record the result as `UPSTREAM_PROJECT`.
 
-**1e. Check current branch and changes:**
-
-```bash
-git status
-git diff --stat
-```
-
-Confirm there are actual changes to commit. If there are no changes, stop and tell the user.
+Confirm there are actual changes to commit (from the pre-flight output's
+`has_uncommitted`, `has_staged`, or `has_untracked` fields). If all three
+are `false`, there are no changes — stop and tell the user. If
+`has_untracked` is `true`, warn the user about untracked files and ask
+whether they should be included in the commit.
 
 **Pre-flight summary:** Before moving on, you should now know:
 `UPSTREAM_PROJECT`, which remotes exist, and whether there are changes to commit. You may also know `GL_USER` (if auth is available).
@@ -234,19 +261,19 @@ Don't make up details.
 
 ### Step 6: Push
 
-**Direct push (write access):**
+Use the remote identified during Step 2 (direct push) or Step 3 (fork
+workflow) as `PUSH_REMOTE`. Set `PUSH_REMOTE` to the actual remote name
+discovered from `git remote -v` — typically `origin` for direct push or
+`fork` for fork-based workflows:
 
 ```bash
-git push -u origin docs/BRANCH_NAME
+# Set PUSH_REMOTE based on the push strategy determined in Step 2/3:
+# - Direct push: PUSH_REMOTE is the remote pointing to UPSTREAM_PROJECT
+# - Fork workflow: PUSH_REMOTE is the remote pointing to FORK_PROJECT
+python3 "$PUBLISH_SCRIPT" push --remote "$PUSH_REMOTE" --branch "docs/$BRANCH_NAME"
 ```
 
-**Fork push:**
-
-```bash
-git push -u fork docs/BRANCH_NAME
-```
-
-**If push fails:**
+**If the script exits with code 3 (push failed):**
 
 - **Authentication error**: Check `glab auth status`. User may need to re-authenticate.
 - **Permission denied**: Verify the remote URL points to the correct project.
@@ -256,36 +283,52 @@ git push -u fork docs/BRANCH_NAME
 
 **MR title format:** Use `[TICKET_ID]: short description in lowercase`.
 
+**Building the description:** Use the MR description prepared by the `/apply`
+phase at `.artifacts/${ticket_id}/04-mr-description.md`. If the file does not
+exist, build the description (AI-dependent) from the context artifact
+(`01-context.md`) and plan artifact (`02-plan.md`).
+
+**Check for an existing MR** before attempting creation:
+
+```bash
+# Direct push:
+python3 "$PUBLISH_SCRIPT" check-existing --repo UPSTREAM_PROJECT --head "docs/$BRANCH_NAME" --platform gitlab
+
+# Fork workflow (project:branch filters by source project to avoid cross-fork false matches):
+python3 "$PUBLISH_SCRIPT" check-existing --repo UPSTREAM_PROJECT --head "FORK_PROJECT:docs/$BRANCH_NAME" --platform gitlab
+```
+
+If exit code is 5, an MR already exists — skip to Step 8 and report its
+URL. If the command fails (non-zero exit other than 5), stop and report
+the error. If exit code is 0, create a new MR:
+
 **Direct push (user has write access):**
 
 ```bash
-glab mr create \
-  --draft \
-  --source-branch docs/BRANCH_NAME \
-  --target-branch main \
+python3 "$PUBLISH_SCRIPT" create-mr \
+  --source "docs/$BRANCH_NAME" \
+  --target main \
   --title "[TICKET_ID]: short description" \
-  --description "DESCRIPTION" \
-  --yes
+  --desc-file ".artifacts/${ticket_id}/04-mr-description.md" \
+  --draft
 ```
+
+If no description file exists, use `--description` with inline text instead.
 
 **Fork workflow:**
 
 ```bash
-glab mr create \
-  --draft \
-  --repo UPSTREAM_PROJECT \
+python3 "$PUBLISH_SCRIPT" create-mr \
+  --project UPSTREAM_PROJECT \
   --head FORK_PROJECT \
-  --source-branch docs/BRANCH_NAME \
-  --target-branch main \
+  --source "docs/$BRANCH_NAME" \
+  --target main \
   --title "[TICKET_ID]: short description" \
-  --description "DESCRIPTION" \
-  --yes
+  --desc-file ".artifacts/${ticket_id}/04-mr-description.md" \
+  --draft
 ```
 
-**Building the description:** Use the MR description prepared by the `/apply` phase at `.artifacts/${ticket_id}/04-mr-description.md`. If the file does not exist, build the
-description from the context artifact (`01-context.md`) and plan artifact (`02-plan.md`).
-
-**If `glab mr create` fails:**
+**If the script exits with code 4 (MR creation failed):**
 
 1. **Write the MR description** to `.artifacts/${ticket_id}/04-mr-description.md`
 
