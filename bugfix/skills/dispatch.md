@@ -13,9 +13,12 @@ through the command context unchanged.
 The built-in fallback is the phase file beside this dispatcher. Follow the
 phase through its reporting step. Treat any valid phase exit—returning to the
 invoking router, requesting completion guidance, or re-reading the
-controller—as a return to this dispatcher. Then read `completion.md` and follow
-its guidance for `PHASE`. Supporting all three exit forms preserves
-compatibility with project overrides written for earlier routing contracts.
+controller—as a return to this dispatcher. Initialize
+`COMPLETION_CONSUMED=false`; set it to true if the phase handoff reads
+`completion.md`. When the phase returns, read the guide once and follow its
+guidance for `PHASE` only when `COMPLETION_CONSUMED=false`. Supporting all three
+exit forms preserves compatibility with project overrides written for earlier
+routing contracts.
 
 After the recipe applies its invalid-override fallback, if no usable phase file
 can be resolved, an operational error prevents the phase from completing, or
