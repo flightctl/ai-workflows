@@ -542,6 +542,20 @@ class TestCheckExisting(unittest.TestCase):
         result = json.loads(buf.getvalue())
         self.assertEqual(result["iid"], 2)
 
+    @mock.patch.object(publish, "run")
+    def test_gitlab_fork_empty_mrs_skips_project_id(self, mock_run: mock.Mock) -> None:
+        """Fork-aware GitLab: empty MR list skips project ID resolution."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            [], 0, "[]", "",
+        )
+        code = publish.main([
+            "check-existing", "--repo", "grp/proj",
+            "--head", "jsmith/proj:feat/x", "--platform", "gitlab",
+        ])
+        self.assertEqual(code, publish.EXIT_SUCCESS)
+        # Should only call glab mr list -- NOT glab api projects/...
+        self.assertEqual(mock_run.call_count, 1)
+
 
 # ---------------------------------------------------------------------------
 # JSON encoding edge case tests
@@ -733,6 +747,24 @@ class TestCreateMRValidation(unittest.TestCase):
                 self.assertEqual(call_args[idx + 1], "MR description from file")
             finally:
                 os.unlink(f.name)
+
+    @mock.patch.object(publish, "run")
+    def test_always_passes_description(self, mock_run: mock.Mock) -> None:
+        """glab mr create must always receive --description to prevent prompts."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            [], 0, "https://gitlab.com/grp/proj/-/merge_requests/1\n", "",
+        )
+        import io
+        buf = io.StringIO()
+        with mock.patch("sys.stdout", buf):
+            publish.main([
+                "create-mr", "--source", "docs/fix",
+                "--target", "main", "--title", "T",
+            ])
+        call_args = mock_run.call_args[0][0]
+        self.assertIn("--description", call_args)
+        idx = call_args.index("--description")
+        self.assertEqual(call_args[idx + 1], "")
 
 
 # ---------------------------------------------------------------------------

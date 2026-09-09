@@ -31,6 +31,7 @@ Usage:
 Exit codes:
   0 -- success
   1 -- missing argument or configuration error
+  2 -- invalid arguments (from argparse)
   3 -- push failed
   4 -- PR/MR creation failed
   5 -- existing PR/MR found (check-existing only; prints JSON on stdout)
@@ -79,7 +80,16 @@ def run(
     capture: bool = True,
     check: bool = False,
 ) -> subprocess.CompletedProcess[str]:
-    """Run a subprocess with text output."""
+    """Run a subprocess with text mode and optional output capture.
+
+    Args:
+        cmd: Command and arguments to execute.
+        capture: If True, capture stdout and stderr (default: True).
+        check: If True, raise CalledProcessError on non-zero exit.
+
+    Returns:
+        The completed process with text-mode stdout/stderr.
+    """
     return subprocess.run(
         cmd,
         capture_output=capture,
@@ -227,7 +237,11 @@ def cmd_check_existing(args: argparse.Namespace) -> int:
 
 
 def _check_existing_github(repo: str, head: str) -> int:
-    """GitHub check-existing: use gh pr list with headRepositoryOwner filtering."""
+    """Check for an existing GitHub PR using gh pr list.
+
+    Supports fork-aware matching via headRepositoryOwner filtering
+    when ``head`` is in ``owner:branch`` format.
+    """
     if ":" in head:
         # owner:branch format -- gh pr list --head does not support this
         # syntax.  Search by branch name and filter by head repo owner.
@@ -286,7 +300,12 @@ def _check_existing_github(repo: str, head: str) -> int:
 
 
 def _check_existing_gitlab(repo: str, head: str) -> int:
-    """GitLab check-existing: use glab mr list with source_project_id filtering."""
+    """Check for an existing GitLab MR using glab mr list.
+
+    Supports fork-aware matching via source_project_id filtering
+    when ``head`` is in ``project:branch`` format.  Skips the project
+    ID resolution when no MRs match the source branch.
+    """
     source_branch = head
     source_project = ""
 
@@ -311,6 +330,11 @@ def _check_existing_gitlab(repo: str, head: str) -> int:
         return EXIT_ARG_ERROR  # unreachable
 
     if source_project:
+        # Skip fork project ID resolution when no MRs matched the branch
+        if not mrs:
+            info(f"No existing PR/MR found for head={head} on {repo}")
+            return EXIT_SUCCESS
+
         # Resolve the fork's numeric project ID to filter by source_project_id
         encoded = source_project.replace("/", "%2F")
         r = run(["glab", "api", f"projects/{encoded}", "--jq", ".id"])
@@ -346,7 +370,11 @@ def _check_existing_gitlab(repo: str, head: str) -> int:
 # ---------------------------------------------------------------------------
 
 def cmd_create_pr(args: argparse.Namespace) -> int:
-    """Create a GitHub pull request via the gh CLI."""
+    """Create a GitHub pull request via the gh CLI.
+
+    On success, prints the new PR URL on stdout.
+    Exits with EXIT_CREATE_FAIL (4) if ``gh pr create`` fails.
+    """
     if not args.base:
         fail("Missing required argument: --base")
     if not args.head:
@@ -395,7 +423,12 @@ def cmd_create_pr(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 def cmd_create_mr(args: argparse.Namespace) -> int:
-    """Create a GitLab merge request via the glab CLI."""
+    """Create a GitLab merge request via the glab CLI.
+
+    Always passes ``--description`` to prevent interactive prompting.
+    On success, prints the new MR URL on stdout.
+    Exits with EXIT_CREATE_FAIL (4) if ``glab mr create`` fails.
+    """
     if not args.source:
         fail("Missing required argument: --source")
     if not args.target:
@@ -427,8 +460,8 @@ def cmd_create_mr(args: argparse.Namespace) -> int:
             fail(f"create-mr: description file not found: {args.desc_file}")
         description = desc_path.read_text(encoding="utf-8")
 
-    if description:
-        cmd.extend(["--description", description])
+    # Always pass --description to prevent glab from prompting interactively
+    cmd.extend(["--description", description])
 
     info(f"Creating MR: {args.title}")
     result = run(cmd, capture=True)
@@ -449,7 +482,12 @@ def cmd_create_mr(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 def cmd_save_metadata(args: argparse.Namespace) -> int:
-    """Write a JSON metadata file from key=value pairs."""
+    """Write a sorted JSON metadata file from positional key=value pairs.
+
+    All values are stored as JSON strings to avoid leading-zero truncation
+    and to keep the output type-stable.  Keys are sorted alphabetically
+    for deterministic output.
+    """
     file_path = args.file
     pairs: list[str] = args.pair or []
 
@@ -601,7 +639,7 @@ SUBCOMMAND_MAP = {
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Entry point."""
+    """Parse arguments and dispatch to the appropriate subcommand handler."""
     parser = build_parser()
     args = parser.parse_args(argv)
 

@@ -227,7 +227,7 @@ git remote add fork https://gitlab.cee.redhat.com/FORK_PROJECT.git
 ### Step 4: Create a Branch
 
 ```bash
-git checkout -b docs/BRANCH_NAME
+git checkout -b BRANCH_NAME
 ```
 
 Branch naming conventions:
@@ -270,7 +270,7 @@ discovered from `git remote -v` — typically `origin` for direct push or
 # Set PUSH_REMOTE based on the push strategy determined in Step 2/3:
 # - Direct push: PUSH_REMOTE is the remote pointing to UPSTREAM_PROJECT
 # - Fork workflow: PUSH_REMOTE is the remote pointing to FORK_PROJECT
-python3 "$PUBLISH_SCRIPT" push --remote "$PUSH_REMOTE" --branch "docs/$BRANCH_NAME"
+python3 "$PUBLISH_SCRIPT" push --remote "$PUSH_REMOTE" --branch "$BRANCH_NAME"
 ```
 
 **If the script exits with code 3 (push failed):**
@@ -284,7 +284,7 @@ python3 "$PUBLISH_SCRIPT" push --remote "$PUSH_REMOTE" --branch "docs/$BRANCH_NA
 **MR title format:** Use `[TICKET_ID]: short description in lowercase`.
 
 **Building the description:** Use the MR description prepared by the `/apply`
-phase at `.artifacts/${ticket_id}/04-mr-description.md`. If the file does not
+phase at `.artifacts/${TICKET_ID}/04-mr-description.md`. If the file does not
 exist, build the description (AI-dependent) from the context artifact
 (`01-context.md`) and plan artifact (`02-plan.md`).
 
@@ -292,10 +292,10 @@ exist, build the description (AI-dependent) from the context artifact
 
 ```bash
 # Direct push:
-python3 "$PUBLISH_SCRIPT" check-existing --repo UPSTREAM_PROJECT --head "docs/$BRANCH_NAME" --platform gitlab
+python3 "$PUBLISH_SCRIPT" check-existing --repo UPSTREAM_PROJECT --head "$BRANCH_NAME" --platform gitlab
 
 # Fork workflow (project:branch filters by source project to avoid cross-fork false matches):
-python3 "$PUBLISH_SCRIPT" check-existing --repo UPSTREAM_PROJECT --head "FORK_PROJECT:docs/$BRANCH_NAME" --platform gitlab
+python3 "$PUBLISH_SCRIPT" check-existing --repo UPSTREAM_PROJECT --head "FORK_PROJECT:$BRANCH_NAME" --platform gitlab
 ```
 
 If exit code is 5, an MR already exists — skip to Step 8 and report its
@@ -306,10 +306,10 @@ the error. If exit code is 0, create a new MR:
 
 ```bash
 python3 "$PUBLISH_SCRIPT" create-mr \
-  --source "docs/$BRANCH_NAME" \
+  --source "$BRANCH_NAME" \
   --target main \
   --title "[TICKET_ID]: short description" \
-  --desc-file ".artifacts/${ticket_id}/04-mr-description.md" \
+  --desc-file ".artifacts/${TICKET_ID}/04-mr-description.md" \
   --draft
 ```
 
@@ -321,27 +321,27 @@ If no description file exists, use `--description` with inline text instead.
 python3 "$PUBLISH_SCRIPT" create-mr \
   --project UPSTREAM_PROJECT \
   --head FORK_PROJECT \
-  --source "docs/$BRANCH_NAME" \
+  --source "$BRANCH_NAME" \
   --target main \
   --title "[TICKET_ID]: short description" \
-  --desc-file ".artifacts/${ticket_id}/04-mr-description.md" \
+  --desc-file ".artifacts/${TICKET_ID}/04-mr-description.md" \
   --draft
 ```
 
 **If the script exits with code 4 (MR creation failed):**
 
-1. **Write the MR description** to `.artifacts/${ticket_id}/04-mr-description.md`
+1. **Write the MR description** to `.artifacts/${TICKET_ID}/04-mr-description.md`
 
 2. **Give the user a pre-filled GitLab MR URL:**
 
    Direct push:
    ```text
-   https://gitlab.cee.redhat.com/UPSTREAM_PROJECT/-/merge_requests/new?merge_request[source_branch]=docs/BRANCH_NAME&merge_request[target_branch]=main
+   https://gitlab.cee.redhat.com/UPSTREAM_PROJECT/-/merge_requests/new?merge_request[source_branch]=BRANCH_NAME&merge_request[target_branch]=main
    ```
 
    Fork:
    ```text
-   https://gitlab.cee.redhat.com/UPSTREAM_PROJECT/-/merge_requests/new?merge_request[source_project_id]=FORK_PROJECT_ID&merge_request[source_branch]=docs/BRANCH_NAME&merge_request[target_branch]=main
+   https://gitlab.cee.redhat.com/UPSTREAM_PROJECT/-/merge_requests/new?merge_request[source_project_id]=FORK_PROJECT_ID&merge_request[source_branch]=BRANCH_NAME&merge_request[target_branch]=main
    ```
 
 3. **Provide the MR title and description** for the user to paste in.
@@ -369,7 +369,7 @@ Diagnose it using the Error Recovery table and retry.
 
 If `glab mr create` fails but the branch is pushed:
 
-1. **Write the MR description** to `.artifacts/${ticket_id}/04-mr-description.md`
+1. **Write the MR description** to `.artifacts/${TICKET_ID}/04-mr-description.md`
 2. **Provide the new MR URL** for the user to open in their browser
 3. **Show the MR title and description** for the user to paste in
 
@@ -385,7 +385,7 @@ If push fails due to network or auth restrictions:
 Only if ALL of the above fail:
 
 1. Generate a patch: `git diff > docs-changes.patch`
-2. Write it to `.artifacts/${ticket_id}/docs-changes.patch`
+2. Write it to `.artifacts/${TICKET_ID}/docs-changes.patch`
 3. Explain how to apply it: `git apply docs-changes.patch`
 4. **Acknowledge this is a degraded experience**
 

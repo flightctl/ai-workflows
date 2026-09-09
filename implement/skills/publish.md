@@ -78,9 +78,11 @@ Verify readiness:
    python3 "$PUBLISH_SCRIPT" preflight --platform github
    ```
 
-   Parse the output to confirm `auth_ok=true` and check for
-   `has_uncommitted=true` or `has_staged=true`. If there are uncommitted
-   changes, ask the user how to proceed.
+   Parse the output to confirm `auth_ok=true`. If `auth_ok=false`, stop
+   and tell the user to authenticate first. Check for
+   `has_uncommitted=true`, `has_staged=true`, or `has_untracked=true`.
+   If there are uncommitted or untracked changes, ask the user how to
+   proceed.
 
 ### Step 2: Cross-Cutting Review
 

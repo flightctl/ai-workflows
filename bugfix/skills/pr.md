@@ -359,7 +359,7 @@ git rebase fork/main
 ### Step 4: Create a Branch
 
 ```bash
-git checkout -b bugfix/BRANCH_NAME
+git checkout -b BRANCH_NAME
 ```
 
 Branch naming conventions:
@@ -453,7 +453,7 @@ to write an accurate commit message. Don't make up details.
 ### Step 8: Push to Fork
 
 ```bash
-python3 "$PUBLISH_SCRIPT" push --remote fork --branch bugfix/BRANCH_NAME
+python3 "$PUBLISH_SCRIPT" push --remote fork --branch BRANCH_NAME
 ```
 
 **If the script exits with code 3 (push failed):**
@@ -470,14 +470,14 @@ access. Please run: `git push -u fork BRANCH_NAME`"
 ### Step 9: Create the Draft PR
 
 **Check for an existing PR** before attempting creation. Use
-`FORK_OWNER:bugfix/BRANCH_NAME` so the check matches only PRs from
-this fork (plain `bugfix/BRANCH_NAME` would match any fork's branch
+`FORK_OWNER:BRANCH_NAME` so the check matches only PRs from
+this fork (plain `BRANCH_NAME` would match any fork's branch
 with the same name):
 
 ```bash
 python3 "$PUBLISH_SCRIPT" check-existing \
   --repo UPSTREAM_OWNER/REPO \
-  --head FORK_OWNER:bugfix/BRANCH_NAME
+  --head FORK_OWNER:BRANCH_NAME
 ```
 
 If exit code is 5, a PR already exists — skip to Step 10 and report its
@@ -493,7 +493,7 @@ If the `--body-file` artifact exists:
 ```bash
 python3 "$PUBLISH_SCRIPT" create-pr \
   --repo UPSTREAM_OWNER/REPO \
-  --head FORK_OWNER:bugfix/BRANCH_NAME \
+  --head FORK_OWNER:BRANCH_NAME \
   --base main \
   --title "[ISSUE_KEY]: short description in lowercase" \
   --body-file .artifacts/bugfix/{issue}/pr-description.md \
@@ -506,7 +506,7 @@ see the template in this skill's Notes section) and pass it with `--body`:
 ```bash
 python3 "$PUBLISH_SCRIPT" create-pr \
   --repo UPSTREAM_OWNER/REPO \
-  --head FORK_OWNER:bugfix/BRANCH_NAME \
+  --head FORK_OWNER:BRANCH_NAME \
   --base main \
   --title "[ISSUE_KEY]: short description in lowercase" \
   --body "PR_BODY_TEXT" \
@@ -533,7 +533,7 @@ do NOT debug further, do NOT fall back to a patch file. Instead:
 2. **Give the user a pre-filled GitHub compare URL:**
 
    ```text
-   https://github.com/UPSTREAM_OWNER/REPO/compare/main...FORK_OWNER:bugfix/BRANCH_NAME?expand=1
+   https://github.com/UPSTREAM_OWNER/REPO/compare/main...FORK_OWNER:BRANCH_NAME?expand=1
    ```
 
    This URL opens GitHub's "Open a pull request" form with the branches
@@ -547,7 +547,7 @@ do NOT debug further, do NOT fall back to a patch file. Instead:
    it as a draft.
 
 **If "branch not found"**: The push in Step 8 may have failed silently.
-Verify with `git ls-remote fork bugfix/BRANCH_NAME`.
+Verify with `git ls-remote fork BRANCH_NAME`.
 
 ### Step 10: Confirm and Report
 
