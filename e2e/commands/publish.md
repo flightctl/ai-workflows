@@ -4,8 +4,8 @@ description: "Push feature branch and create draft PR for e2e tests"
 ---
 # /publish
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=publish`.
 
-Dispatch the **publish** phase. Context:
+Context:
 
 $ARGUMENTS

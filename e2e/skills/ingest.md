@@ -744,4 +744,4 @@ Report your findings:
 - Story test plan status (test cases found / expected zero / anomalous zero / no testplan)
 - Assessment of readiness for `/plan`
 
-Then **re-read the controller** (`controller.md`) for next-step guidance.
+Then return to the invoking workflow router for completion guidance.
