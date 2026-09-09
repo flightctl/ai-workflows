@@ -82,8 +82,9 @@ Run these phases in order. Read each skill from the same `skills/` directory:
 1. Announce the phase: *"Starting /fix (unattended mode)."*
 2. Read the skill file from the table above. While executing it, apply
    these overrides:
-   - "Never auto-advance" / "Stop and wait" / "re-read the controller" /
-     "Checkpoint: Confirm" sections — ignore; proceed without pausing
+   - "Never auto-advance" / "Stop and wait" / "return to the invoking workflow
+     router" / "re-read the controller" / "Checkpoint: Confirm" sections —
+     ignore; proceed without pausing
    - "Stop and request human guidance" (escalation) — write an escalation
      report (see Escalation below) and terminate
    - "Create Feature Branch" (fix.md Step 2) — skip if `branch` is set or

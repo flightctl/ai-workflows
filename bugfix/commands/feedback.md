@@ -4,7 +4,7 @@ description: "Address PR review comments on a bug fix"
 ---
 # /feedback
 
-Read `../skills/feedback.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=feedback`.
 
 Address PR review feedback. Context:
 

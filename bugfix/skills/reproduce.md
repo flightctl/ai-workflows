@@ -90,4 +90,4 @@ Report your findings:
 - Where the reproduction report was written
 - Your proposed plan
 
-Then **re-read the controller** (`skills/controller.md`) for next-step guidance.
+Then return to the invoking workflow router for completion guidance.

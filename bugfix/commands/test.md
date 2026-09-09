@@ -4,8 +4,8 @@ description: "Verify the fix and create regression tests"
 ---
 # /test
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=test`.
 
-Dispatch the **test** phase. Context:
+Context:
 
 $ARGUMENTS
