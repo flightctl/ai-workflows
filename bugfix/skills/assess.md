@@ -379,5 +379,5 @@ assessment, not pad every section.
 
 ## When This Phase Is Done
 
-Report your assessment and state where the artifact was written. Then
-**re-read the controller** (`skills/controller.md`) for next-step guidance.
+Report your assessment and state where the artifact was written. Then return
+to the invoking workflow router for completion guidance.
