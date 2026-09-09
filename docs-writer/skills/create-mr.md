@@ -55,6 +55,7 @@ These are determined during pre-flight checks. Record each value as you go.
 | `UPSTREAM_PROJECT` | Step 1d: project path from remote URL  | `red-hat-enterprise-openshift-documentation/edge-manager` |
 | `FORK_PROJECT`     | Step 2: user's fork path               | `jsmith/edge-manager`                                     |
 | `BRANCH_NAME`      | Step 4: the branch you create          | `docs/RHEM-456-enrollment-api`                            |
+| `PUSH_REMOTE`      | Step 2/3: remote name to push to       | `origin` or `fork`                                        |
 | `TICKET_ID`        | From artifacts directory or user input | `RHEM-456`                                                |
 
 ### Step 1: Pre-flight Checks
@@ -129,8 +130,8 @@ git remote get-url origin | sed -E 's#.*[:/]([^/]+/[^/]+?)(\.git)?$#\1#'
 Record the result as `UPSTREAM_PROJECT`.
 
 Confirm there are actual changes to commit (from the pre-flight output's
-`has_uncommitted` field, or run `git diff --stat`). If there are no
-changes, stop and tell the user.
+`has_uncommitted` or `has_staged` fields, or run `git diff --stat`). If
+both are `false`, there are no changes — stop and tell the user.
 
 **Pre-flight summary:** Before moving on, you should now know:
 `UPSTREAM_PROJECT`, which remotes exist, and whether there are changes to commit. You may also know `GL_USER` (if auth is available).
@@ -246,16 +247,12 @@ Don't make up details.
 
 ### Step 6: Push
 
-**Direct push (write access):**
+Use the remote identified during Step 2 (direct push) or Step 3 (fork
+workflow) as `PUSH_REMOTE`. Do not hardcode `origin` or `fork` — use the
+actual remote name discovered from `git remote -v`.
 
 ```bash
-../../_shared/scripts/publish.sh push --remote origin --branch docs/BRANCH_NAME
-```
-
-**Fork push:**
-
-```bash
-../../_shared/scripts/publish.sh push --remote fork --branch docs/BRANCH_NAME
+../../_shared/scripts/publish.sh push --remote {push-remote} --branch docs/BRANCH_NAME
 ```
 
 **If the script exits with code 3 (push failed):**

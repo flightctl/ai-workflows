@@ -156,8 +156,8 @@ git remote get-url origin | sed -E 's#.*/([^/]+/[^/]+?)(\.git)?$#\1#'
 Record the result as `UPSTREAM_OWNER/REPO` — you'll need it later.
 
 Confirm there are actual changes to commit (from the pre-flight output's
-`has_uncommitted` field, or run `git diff --stat`). If there are no
-changes, stop and tell the user.
+`has_uncommitted` or `has_staged` fields, or run `git diff --stat`). If
+both are `false`, there are no changes — stop and tell the user.
 
 **Pre-flight summary:** Before moving on, you should now know:
 `UPSTREAM_OWNER/REPO`, which remotes exist, and whether there are changes to

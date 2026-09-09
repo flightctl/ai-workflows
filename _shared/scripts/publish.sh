@@ -26,9 +26,8 @@
 #   publish.sh save-metadata --file <path> [key=value ...]
 #
 # Exit codes:
-#   0 — success
+#   0 — success (preflight reports issues via structured output, not exit codes)
 #   1 — missing argument or configuration error
-#   2 — pre-flight check failed (auth, branch, or changes issue)
 #   3 — push failed
 #   4 — PR/MR creation failed
 #   5 — existing PR/MR found (check-existing only; prints details on stdout)
@@ -59,6 +58,16 @@ require_arg() {
   fi
 }
 
+flag_value() {
+  # Ensure a flag has an accompanying value argument.  Prevents cryptic
+  # "unbound variable" errors under set -u when a flag is passed without
+  # its value (e.g., --platform with no argument).
+  # Usage (inside a while/case loop): flag_value "--flag-name" "$#"
+  if [[ $2 -lt 2 ]]; then
+    fail "$1 requires a value" 1
+  fi
+}
+
 # ---------------------------------------------------------------------------
 # Subcommand: preflight
 # ---------------------------------------------------------------------------
@@ -74,7 +83,7 @@ cmd_preflight() {
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --platform) platform="$2"; shift 2 ;;
+      --platform) flag_value "$1" "$#"; platform="$2"; shift 2 ;;
       *) fail "preflight: unknown flag: $1" 1 ;;
     esac
   done
@@ -144,8 +153,8 @@ cmd_push() {
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --remote) remote="$2"; shift 2 ;;
-      --branch) branch="$2"; shift 2 ;;
+      --remote) flag_value "$1" "$#"; remote="$2"; shift 2 ;;
+      --branch) flag_value "$1" "$#"; branch="$2"; shift 2 ;;
       *) fail "push: unknown flag: $1" 1 ;;
     esac
   done
@@ -187,9 +196,9 @@ cmd_check_existing() {
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --repo) repo="$2"; shift 2 ;;
-      --head) head="$2"; shift 2 ;;
-      --platform) platform="$2"; shift 2 ;;
+      --repo) flag_value "$1" "$#"; repo="$2"; shift 2 ;;
+      --head) flag_value "$1" "$#"; head="$2"; shift 2 ;;
+      --platform) flag_value "$1" "$#"; platform="$2"; shift 2 ;;
       *) fail "check-existing: unknown flag: $1" 1 ;;
     esac
   done
@@ -199,9 +208,12 @@ cmd_check_existing() {
 
   case "$platform" in
     github)
-      local result
+      local result exit_code=0
       result=$(gh pr list --repo "$repo" --head "$head" \
-        --json number,url --jq '.[0] // empty' 2>/dev/null || true)
+        --json number,url --jq '.[0] // empty' 2>/dev/null) || exit_code=$?
+      if [[ $exit_code -ne 0 ]]; then
+        fail "check-existing: GitHub API query failed (exit $exit_code). Check gh auth status." 1
+      fi
       if [[ -n "$result" ]]; then
         echo "$result"
         exit 5
@@ -209,9 +221,14 @@ cmd_check_existing() {
       ;;
     gitlab)
       local source_branch="$head"
+      local raw exit_code=0
+      raw=$(glab mr list --repo "$repo" --source-branch "$source_branch" \
+        --output json 2>/dev/null) || exit_code=$?
+      if [[ $exit_code -ne 0 ]]; then
+        fail "check-existing: GitLab API query failed (exit $exit_code). Check glab auth status." 1
+      fi
       local result
-      result=$(glab mr list --repo "$repo" --source-branch "$source_branch" \
-        --json iid,web_url --jq '.[0] // empty' 2>/dev/null || true)
+      result=$(printf '%s' "$raw" | jq -r '.[0] // empty' 2>/dev/null)
       if [[ -n "$result" ]]; then
         echo "$result"
         exit 5
@@ -254,15 +271,15 @@ cmd_create_pr() {
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --repo) repo="$2"; shift 2 ;;
-      --base) base="$2"; shift 2 ;;
-      --head) head="$2"; shift 2 ;;
-      --title) title="$2"; shift 2 ;;
-      --body-file) body_file="$2"; shift 2 ;;
-      --body) body="$2"; shift 2 ;;
+      --repo) flag_value "$1" "$#"; repo="$2"; shift 2 ;;
+      --base) flag_value "$1" "$#"; base="$2"; shift 2 ;;
+      --head) flag_value "$1" "$#"; head="$2"; shift 2 ;;
+      --title) flag_value "$1" "$#"; title="$2"; shift 2 ;;
+      --body-file) flag_value "$1" "$#"; body_file="$2"; shift 2 ;;
+      --body) flag_value "$1" "$#"; body="$2"; shift 2 ;;
       --draft) draft="true"; shift ;;
       --no-draft) draft="false"; shift ;;
-      --labels) labels="$2"; shift 2 ;;
+      --labels) flag_value "$1" "$#"; labels="$2"; shift 2 ;;
       *) fail "create-pr: unknown flag: $1" 1 ;;
     esac
   done
@@ -301,14 +318,18 @@ cmd_create_pr() {
 
   info "Creating PR: ${title}"
   local pr_url
-  if pr_url=$("${cmd[@]}" 2>&1); then
+  local stderr_file
+  stderr_file=$(mktemp)
+  if pr_url=$("${cmd[@]}" 2>"$stderr_file"); then
+    rm -f "$stderr_file"
     # gh pr create prints the URL on success
     echo "$pr_url"
     info "PR created: $pr_url"
   else
     # Print the error but use a distinct exit code so the skill can
     # detect the failure and fall back (e.g., to a compare URL).
-    printf '%s\n' "$pr_url" >&2
+    cat "$stderr_file" >&2
+    rm -f "$stderr_file"
     exit 4
   fi
 }
@@ -343,15 +364,15 @@ cmd_create_mr() {
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --project) project="$2"; shift 2 ;;
-      --source) source_branch="$2"; shift 2 ;;
-      --target) target_branch="$2"; shift 2 ;;
-      --title) title="$2"; shift 2 ;;
-      --description) description="$2"; shift 2 ;;
-      --desc-file) desc_file="$2"; shift 2 ;;
+      --project) flag_value "$1" "$#"; project="$2"; shift 2 ;;
+      --source) flag_value "$1" "$#"; source_branch="$2"; shift 2 ;;
+      --target) flag_value "$1" "$#"; target_branch="$2"; shift 2 ;;
+      --title) flag_value "$1" "$#"; title="$2"; shift 2 ;;
+      --description) flag_value "$1" "$#"; description="$2"; shift 2 ;;
+      --desc-file) flag_value "$1" "$#"; desc_file="$2"; shift 2 ;;
       --draft) draft="true"; shift ;;
       --no-draft) draft="false"; shift ;;
-      --head) head_project="$2"; shift 2 ;;
+      --head) flag_value "$1" "$#"; head_project="$2"; shift 2 ;;
       *) fail "create-mr: unknown flag: $1" 1 ;;
     esac
   done
@@ -391,11 +412,15 @@ cmd_create_mr() {
 
   info "Creating MR: ${title}"
   local mr_url
-  if mr_url=$("${cmd[@]}" 2>&1); then
+  local stderr_file
+  stderr_file=$(mktemp)
+  if mr_url=$("${cmd[@]}" 2>"$stderr_file"); then
+    rm -f "$stderr_file"
     echo "$mr_url"
     info "MR created: $mr_url"
   else
-    printf '%s\n' "$mr_url" >&2
+    cat "$stderr_file" >&2
+    rm -f "$stderr_file"
     exit 4
   fi
 }
@@ -408,9 +433,9 @@ cmd_create_mr() {
 # Flags:
 #   --file <path>   Output file path (required)
 #
-# Remaining positional arguments are key=value pairs. Values that look
-# like integers are stored as JSON numbers; everything else is a JSON
-# string.
+# Remaining positional arguments are key=value pairs. All values are
+# stored as JSON strings to avoid leading-zero truncation and to keep
+# the output type-stable.
 #
 # Example:
 #   publish.sh save-metadata --file .artifacts/impl/EDM-1/publish-metadata.json \
@@ -423,7 +448,7 @@ cmd_save_metadata() {
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --file) file="$2"; shift 2 ;;
+      --file) flag_value "$1" "$#"; file="$2"; shift 2 ;;
       *=*) pairs+=("$1"); shift ;;
       *) fail "save-metadata: unexpected argument: $1 (expected key=value)" 1 ;;
     esac
@@ -452,15 +477,11 @@ cmd_save_metadata() {
       json+=","
     fi
 
-    # Determine JSON type: integer or string
-    if [[ "$value" =~ ^[0-9]+$ ]]; then
-      json+=$(printf '\n  "%s": %s' "$key" "$value")
-    else
-      # Escape backslashes and double quotes for JSON string safety
-      value="${value//\\/\\\\}"
-      value="${value//\"/\\\"}"
-      json+=$(printf '\n  "%s": "%s"' "$key" "$value")
-    fi
+    # Always serialize as a JSON string to avoid leading-zero truncation
+    # (e.g., "007" → 7) and to keep the output type-stable.
+    value="${value//\\/\\\\}"
+    value="${value//\"/\\\"}"
+    json+=$(printf '\n  "%s": "%s"' "$key" "$value")
   done
 
   json+=$'\n}\n'

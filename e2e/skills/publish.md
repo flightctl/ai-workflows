@@ -174,12 +174,22 @@ whether this is a fork-based workflow.
 
 First, check whether a PR already exists for this branch:
 
+For fork-based workflows, use `{fork-owner}:{branch-name}` as the
+`--head` value so the check matches only PRs from this fork (plain
+`{branch-name}` would match any fork's branch with the same name):
+
 ```bash
+# Fork-based:
+../../_shared/scripts/publish.sh check-existing --repo {upstream-owner}/{repo} --head {fork-owner}:{branch-name}
+
+# Direct clone:
 ../../_shared/scripts/publish.sh check-existing --repo {upstream-owner}/{repo} --head {branch-name}
 ```
 
-If exit code is 5, a PR already exists — skip to Step 7 and use the
-returned URL. If exit code is 0, create a new PR.
+If exit code is 5, a PR already exists — parse the PR number and URL
+from the returned JSON output, then skip to Step 7 and use those values
+in the metadata. If the command fails (non-zero exit other than 5),
+stop and report the error. If exit code is 0, create a new PR.
 
 **If the repo is a fork** (Origin is `{fork-owner}/{repo}`, Upstream is
 `{upstream-owner}/{repo}`):
@@ -214,7 +224,9 @@ path (e.g., `https://github.com/owner/repo/pull/42` → `42`).
 
 If the script exits with code 4 (PR creation failed), fall back to
 providing the user with a GitHub compare URL:
-`https://github.com/{upstream-owner}/{repo}/compare/{pr-target}...{fork-owner}:{branch-name}?expand=1`
+
+- Fork-based: `https://github.com/{upstream-owner}/{repo}/compare/{pr-target}...{fork-owner}:{branch-name}?expand=1`
+- Direct clone: `https://github.com/{upstream-owner}/{repo}/compare/{pr-target}...{branch-name}?expand=1`
 
 ### Step 7: Save Publish Metadata
 

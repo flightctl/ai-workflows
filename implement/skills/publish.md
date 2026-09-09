@@ -174,8 +174,10 @@ First, check whether a PR already exists for this branch:
 ../../_shared/scripts/publish.sh check-existing --repo {upstream-owner}/{repo} --head {branch-name}
 ```
 
-If exit code is 5, a PR already exists — skip to Step 7 and use the
-returned URL. If exit code is 0, create a new PR.
+If exit code is 5, a PR already exists — parse the PR number and URL
+from the returned JSON output, then skip to Step 7 and use those values
+in the metadata. If the command fails (non-zero exit other than 5),
+stop and report the error. If exit code is 0, create a new PR.
 
 **If the repo is a fork** (Origin is `{fork-owner}/{repo}`, Upstream is
 `{upstream-owner}/{repo}`):

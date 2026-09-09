@@ -35,6 +35,18 @@ The script provides subcommands: `preflight`, `push`, `check-existing`,
 
 ## Process
 
+### Step 0: Resolve Script Path
+
+Before any `cd` or subshell that changes the working directory, resolve
+the shared script to an absolute path so it remains valid:
+
+```bash
+PUBLISH_SCRIPT="$(cd "$(dirname "../../_shared/scripts/publish.sh")" && pwd)/publish.sh"
+```
+
+Use `$PUBLISH_SCRIPT` instead of the relative path in all subsequent
+commands (Steps 3, 5, 6).
+
 ### Step 1: Read the PRD
 
 Read `.artifacts/prd/{issue-key}/03-prd.md`.
@@ -71,10 +83,15 @@ validated `docs_repo_path` and `docs_repo_remote`.
 Run the shared pre-flight checks from the docs repo directory:
 
 ```bash
-(cd "{docs_repo_path}" && ../../_shared/scripts/publish.sh preflight --platform github)
+(cd "{docs_repo_path}" && "$PUBLISH_SCRIPT" preflight --platform github)
 ```
 
-Parse the output to confirm `auth_ok=true`. Also verify the docs repo state:
+Parse the output and check `auth_ok`. If `auth_ok=false`, **stop and
+tell the user** that GitHub CLI authentication is required to push and
+create a PR. Suggest running `gh auth login` and retrying `/publish`.
+Do not continue to later steps without authentication.
+
+If `auth_ok=true`, verify the docs repo state:
 
 ```bash
 git -C "{docs_repo_path}" remote -v
@@ -190,7 +207,7 @@ git -C "{docs_repo_path}" commit -m "Add PRD for {issue-key}: {title}"
 Push the branch using the shared script (run from the docs repo):
 
 ```bash
-(cd "{docs_repo_path}" && ../../_shared/scripts/publish.sh push --remote origin --branch {branch-name})
+(cd "{docs_repo_path}" && "$PUBLISH_SCRIPT" push --remote origin --branch {branch-name})
 ```
 
 Prepare the PR description (AI-dependent — summarize the PRD content) and
@@ -223,7 +240,7 @@ create the draft PR. If `{issue-key}` is a Jira key, prefix the title
 with it (`{issue-key}: PRD - {title}`); otherwise use `PRD: {title}`.
 
 ```bash
-../../_shared/scripts/publish.sh create-pr \
+"$PUBLISH_SCRIPT" create-pr \
   --repo {owner}/{repo} \
   --base {base-branch} \
   --head {branch-name} \
@@ -239,7 +256,7 @@ The script prints the PR URL on stdout. Parse the PR number from the URL path.
 Save metadata for use by `/revise` and `/respond`:
 
 ```bash
-../../_shared/scripts/publish.sh save-metadata \
+"$PUBLISH_SCRIPT" save-metadata \
   --file .artifacts/prd/{issue-key}/publish-metadata.json \
   release={release} \
   feature={feature} \

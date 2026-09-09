@@ -35,6 +35,18 @@ The script provides subcommands: `preflight`, `push`, `check-existing`,
 
 ## Process
 
+### Step 0: Resolve Script Path
+
+Before any `cd` or subshell that changes the working directory, resolve
+the shared script to an absolute path so it remains valid:
+
+```bash
+PUBLISH_SCRIPT="$(cd "$(dirname "../../_shared/scripts/publish.sh")" && pwd)/publish.sh"
+```
+
+Use `$PUBLISH_SCRIPT` instead of the relative path in all subsequent
+commands (Steps 3, 5, 6).
+
 ### Step 1: Read the Design Document
 
 Read `.artifacts/design/{issue-key}/03-design.md`.
@@ -71,7 +83,7 @@ validated `docs_repo_path` and `docs_repo_remote`.
 Run the shared pre-flight checks from the docs repo directory:
 
 ```bash
-(cd "{docs_repo_path}" && ../../_shared/scripts/publish.sh preflight --platform github)
+(cd "{docs_repo_path}" && "$PUBLISH_SCRIPT" preflight --platform github)
 ```
 
 Parse the output to confirm `auth_ok=true`. Also verify the docs repo state:
@@ -221,7 +233,7 @@ git -C "{docs_repo_path}" commit -m "Add design document and testplan for {issue
 Push the branch using the shared script (run from the docs repo):
 
 ```bash
-(cd "{docs_repo_path}" && ../../_shared/scripts/publish.sh push --remote origin --branch {branch-name})
+(cd "{docs_repo_path}" && "$PUBLISH_SCRIPT" push --remote origin --branch {branch-name})
 ```
 
 Read the design document and identify specific areas that warrant reviewer
@@ -263,8 +275,19 @@ draft PR. Set `{pr-title}` based on whether `{issue-key}` is a Jira
 key: if yes, use `{issue-key}: Design - {title}`; otherwise use
 `Design: {title}`.
 
+First, check whether a PR already exists for this branch:
+
 ```bash
-../../_shared/scripts/publish.sh create-pr \
+"$PUBLISH_SCRIPT" check-existing --repo {owner}/{repo} --head {branch-name}
+```
+
+If exit code is 5, a PR already exists — skip to Step 6 and report its
+URL. Parse the PR number from the returned JSON. If the command fails
+(non-zero exit other than 5), stop and report the error. If exit code
+is 0, create a new PR:
+
+```bash
+"$PUBLISH_SCRIPT" create-pr \
   --repo {owner}/{repo} \
   --base {base-branch} \
   --head {branch-name} \
@@ -280,7 +303,7 @@ The script prints the PR URL on stdout. Parse the PR number from the URL path.
 If `04-testplan.md` was published:
 
 ```bash
-../../_shared/scripts/publish.sh save-metadata \
+"$PUBLISH_SCRIPT" save-metadata \
   --file .artifacts/design/{issue-key}/publish-metadata.json \
   release={release} \
   feature={feature} \
@@ -293,7 +316,7 @@ If `04-testplan.md` was published:
 If no testplan was published, omit `testplan_file_path`:
 
 ```bash
-../../_shared/scripts/publish.sh save-metadata \
+"$PUBLISH_SCRIPT" save-metadata \
   --file .artifacts/design/{issue-key}/publish-metadata.json \
   release={release} \
   feature={feature} \
