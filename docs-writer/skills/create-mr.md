@@ -29,6 +29,20 @@ recovery paths instead of guessing.
 - **Always create a draft MR.** Let the author mark it ready after review.
 - **Never attempt `glab repo fork` without asking the user first.**
 
+## Shared Script
+
+This skill delegates deterministic git and CLI operations to a shared
+script. Reference it using a relative path from this file:
+
+```
+../../_shared/scripts/publish.sh
+```
+
+The script provides subcommands: `preflight`, `push`, `check-existing`,
+`create-mr`, and `save-metadata`. For GitLab workflows, pass
+`--platform gitlab` to `preflight` and `check-existing`. See the script
+header for full usage.
+
 ## Process
 
 ### Placeholders Used in This Skill
@@ -47,20 +61,23 @@ These are determined during pre-flight checks. Record each value as you go.
 
 Run ALL of these before doing anything else. Do not skip any.
 
-**1a. Check GitLab CLI authentication and determine GL_USER:**
+**1a. Run the shared pre-flight checks:**
 
 ```bash
-glab auth status
+../../_shared/scripts/publish.sh preflight --platform gitlab
 ```
 
-- If authenticated, determine `GL_USER`:
+Parse the structured output:
+- `auth_ok` — whether `glab auth` succeeded
+- `auth_user` — the GitLab username (`GL_USER`)
+- `branch` — current branch name
+- `has_uncommitted` / `has_staged` — whether there are uncommitted changes
 
-```bash
-glab api user --jq .username
-```
+If `auth_ok=true`, set `GL_USER` from `auth_user`.
 
-- If not authenticated: note this and continue the remaining pre-flight checks (1b–1e) to gather as much information as possible from git alone. After pre-flight, present options
-  to the user.
+If `auth_ok=false`: note this and continue the remaining pre-flight checks
+(1b–1d) to gather as much information as possible from git alone. After
+pre-flight, present options to the user.
 
 **1b. Check git configuration:**
 
@@ -111,14 +128,9 @@ git remote get-url origin | sed -E 's#.*[:/]([^/]+/[^/]+?)(\.git)?$#\1#'
 
 Record the result as `UPSTREAM_PROJECT`.
 
-**1e. Check current branch and changes:**
-
-```bash
-git status
-git diff --stat
-```
-
-Confirm there are actual changes to commit. If there are no changes, stop and tell the user.
+Confirm there are actual changes to commit (from the pre-flight output's
+`has_uncommitted` field, or run `git diff --stat`). If there are no
+changes, stop and tell the user.
 
 **Pre-flight summary:** Before moving on, you should now know:
 `UPSTREAM_PROJECT`, which remotes exist, and whether there are changes to commit. You may also know `GL_USER` (if auth is available).
@@ -237,16 +249,16 @@ Don't make up details.
 **Direct push (write access):**
 
 ```bash
-git push -u origin docs/BRANCH_NAME
+../../_shared/scripts/publish.sh push --remote origin --branch docs/BRANCH_NAME
 ```
 
 **Fork push:**
 
 ```bash
-git push -u fork docs/BRANCH_NAME
+../../_shared/scripts/publish.sh push --remote fork --branch docs/BRANCH_NAME
 ```
 
-**If push fails:**
+**If the script exits with code 3 (push failed):**
 
 - **Authentication error**: Check `glab auth status`. User may need to re-authenticate.
 - **Permission denied**: Verify the remote URL points to the correct project.
@@ -256,36 +268,38 @@ git push -u fork docs/BRANCH_NAME
 
 **MR title format:** Use `[TICKET_ID]: short description in lowercase`.
 
+**Building the description:** Use the MR description prepared by the `/apply`
+phase at `.artifacts/${ticket_id}/04-mr-description.md`. If the file does not
+exist, build the description (AI-dependent) from the context artifact
+(`01-context.md`) and plan artifact (`02-plan.md`).
+
 **Direct push (user has write access):**
 
 ```bash
-glab mr create \
-  --draft \
-  --source-branch docs/BRANCH_NAME \
-  --target-branch main \
+../../_shared/scripts/publish.sh create-mr \
+  --source docs/BRANCH_NAME \
+  --target main \
   --title "[TICKET_ID]: short description" \
-  --description "DESCRIPTION" \
-  --yes
+  --desc-file .artifacts/${ticket_id}/04-mr-description.md \
+  --draft
 ```
+
+If no description file exists, use `--description` with inline text instead.
 
 **Fork workflow:**
 
 ```bash
-glab mr create \
-  --draft \
-  --repo UPSTREAM_PROJECT \
+../../_shared/scripts/publish.sh create-mr \
+  --project UPSTREAM_PROJECT \
   --head FORK_PROJECT \
-  --source-branch docs/BRANCH_NAME \
-  --target-branch main \
+  --source docs/BRANCH_NAME \
+  --target main \
   --title "[TICKET_ID]: short description" \
-  --description "DESCRIPTION" \
-  --yes
+  --desc-file .artifacts/${ticket_id}/04-mr-description.md \
+  --draft
 ```
 
-**Building the description:** Use the MR description prepared by the `/apply` phase at `.artifacts/${ticket_id}/04-mr-description.md`. If the file does not exist, build the
-description from the context artifact (`01-context.md`) and plan artifact (`02-plan.md`).
-
-**If `glab mr create` fails:**
+**If the script exits with code 4 (MR creation failed):**
 
 1. **Write the MR description** to `.artifacts/${ticket_id}/04-mr-description.md`
 

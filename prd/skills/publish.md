@@ -21,6 +21,18 @@ the user before taking action.
 - **No force-push.** No destructive git operations.
 - **No direct commits to main.** Always use a feature branch.
 
+## Shared Script
+
+This skill delegates deterministic git and CLI operations to a shared
+script. Reference it using a relative path from this file:
+
+```
+../../_shared/scripts/publish.sh
+```
+
+The script provides subcommands: `preflight`, `push`, `check-existing`,
+`create-pr`, and `save-metadata`. See the script header for full usage.
+
 ## Process
 
 ### Step 1: Read the PRD
@@ -56,13 +68,13 @@ validated `docs_repo_path` and `docs_repo_remote`.
 
 ### Step 3: Pre-Flight Checks
 
-Verify the environment using the docs repo:
+Run the shared pre-flight checks from the docs repo directory:
 
 ```bash
-gh auth status
+(cd "{docs_repo_path}" && ../../_shared/scripts/publish.sh preflight --platform github)
 ```
 
-In the docs repo directory:
+Parse the output to confirm `auth_ok=true`. Also verify the docs repo state:
 
 ```bash
 git -C "{docs_repo_path}" remote -v
@@ -175,12 +187,15 @@ git -C "{docs_repo_path}" commit -m "Add PRD for {issue-key}: {title}"
 
 ### Step 5: Push and Create PR
 
+Push the branch using the shared script (run from the docs repo):
+
 ```bash
-git -C "{docs_repo_path}" push -u origin {branch-name}
+(cd "{docs_repo_path}" && ../../_shared/scripts/publish.sh push --remote origin --branch {branch-name})
 ```
 
-Prepare the PR description and save it to `.artifacts/prd/{issue-key}/04-pr-description.md`
-(in the source repo's artifact directory):
+Prepare the PR description (AI-dependent — summarize the PRD content) and
+save it to `.artifacts/prd/{issue-key}/04-pr-description.md` (in the source
+repo's artifact directory):
 
 ```markdown
 ## PRD: {title}
@@ -208,22 +223,29 @@ create the draft PR. If `{issue-key}` is a Jira key, prefix the title
 with it (`{issue-key}: PRD - {title}`); otherwise use `PRD: {title}`.
 
 ```bash
-gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head {branch-name} --title "{issue-key}: PRD - {title}" --body-file .artifacts/prd/{issue-key}/04-pr-description.md
+../../_shared/scripts/publish.sh create-pr \
+  --repo {owner}/{repo} \
+  --base {base-branch} \
+  --head {branch-name} \
+  --title "{issue-key}: PRD - {title}" \
+  --body-file .artifacts/prd/{issue-key}/04-pr-description.md \
+  --draft
 ```
+
+The script prints the PR URL on stdout. Parse the PR number from the URL path.
 
 ### Step 6: Save Publish Metadata
 
-Write `.artifacts/prd/{issue-key}/publish-metadata.json` to record the
-file path and PR details for use by `/revise` and `/respond`:
+Save metadata for use by `/revise` and `/respond`:
 
-```json
-{
-  "release": "{release}",
-  "feature": "{feature}",
-  "prd_file_path": "{release}/{feature}/prd.md",
-  "pr_number": {pr-number},
-  "branch": "{branch-name}"
-}
+```bash
+../../_shared/scripts/publish.sh save-metadata \
+  --file .artifacts/prd/{issue-key}/publish-metadata.json \
+  release={release} \
+  feature={feature} \
+  prd_file_path={release}/{feature}/prd.md \
+  pr_number={pr-number} \
+  branch={branch-name}
 ```
 
 ### Step 7: Report to User

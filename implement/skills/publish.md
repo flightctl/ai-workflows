@@ -23,6 +23,18 @@ user before taking action.
 - **No direct commits to main.** The feature branch must already exist from `/code`.
 - **Validation must have passed.** Check for a passing validation report before proceeding.
 
+## Shared Script
+
+This skill delegates deterministic git and CLI operations to a shared
+script. Reference it using a relative path from this file:
+
+```
+../../_shared/scripts/publish.sh
+```
+
+The script provides subcommands: `preflight`, `push`, `check-existing`,
+`create-pr`, and `save-metadata`. See the script header for full usage.
+
 ## Process
 
 ### Step 1: Pre-Flight Checks
@@ -48,19 +60,15 @@ Verify readiness:
 
    If there are no commits ahead of the Local Base, there's nothing to publish.
 
-3. Check for uncommitted changes:
+3. Run the shared pre-flight checks:
 
    ```bash
-   git status
+   ../../_shared/scripts/publish.sh preflight --platform github
    ```
 
-   If there are uncommitted changes, ask the user how to proceed.
-
-4. Verify GitHub CLI is authenticated:
-
-   ```bash
-   gh auth status
-   ```
+   Parse the output to confirm `auth_ok=true` and check for
+   `has_uncommitted=true` or `has_staged=true`. If there are uncommitted
+   changes, ask the user how to proceed.
 
 ### Step 2: Cross-Cutting Review
 
@@ -114,7 +122,7 @@ Confirm with the user before proceeding.
 ### Step 4: Push Branch
 
 ```bash
-git push -u origin {branch-name}
+../../_shared/scripts/publish.sh push --remote origin --branch {branch-name}
 ```
 
 ### Step 5: Create PR Description
@@ -160,11 +168,26 @@ In either case, save the result to
 Check the **Repository Topology** section of `01-context.md` to determine
 whether this is a fork-based workflow.
 
+First, check whether a PR already exists for this branch:
+
+```bash
+../../_shared/scripts/publish.sh check-existing --repo {upstream-owner}/{repo} --head {branch-name}
+```
+
+If exit code is 5, a PR already exists — skip to Step 7 and use the
+returned URL. If exit code is 0, create a new PR.
+
 **If the repo is a fork** (Origin is `{fork-owner}/{repo}`, Upstream is
 `{upstream-owner}/{repo}`):
 
 ```bash
-gh pr create --draft --repo {upstream-owner}/{repo} --base {pr-target} --head {fork-owner}:{branch-name} --title "{issue-key}: {story title}" --body-file .artifacts/implement/{issue-key}/06-pr-description.md
+../../_shared/scripts/publish.sh create-pr \
+  --repo {upstream-owner}/{repo} \
+  --base {pr-target} \
+  --head {fork-owner}:{branch-name} \
+  --title "{issue-key}: {story title}" \
+  --body-file .artifacts/implement/{issue-key}/06-pr-description.md \
+  --draft
 ```
 
 The `--repo` flag targets the upstream repository (where the PR lives),
@@ -174,12 +197,20 @@ branch (on the fork).
 **If the repo is a direct clone** (not a fork):
 
 ```bash
-gh pr create --draft --base {pr-target} --head {branch-name} --title "{issue-key}: {story title}" --body-file .artifacts/implement/{issue-key}/06-pr-description.md
+../../_shared/scripts/publish.sh create-pr \
+  --base {pr-target} \
+  --head {branch-name} \
+  --title "{issue-key}: {story title}" \
+  --body-file .artifacts/implement/{issue-key}/06-pr-description.md \
+  --draft
 ```
 
-Parse the PR number and URL from the `gh pr create` output. The command
-prints a URL like `https://github.com/owner/repo/pull/42` — extract the
-number from the URL path.
+The script prints the PR URL on stdout. Parse the PR number from the URL
+path (e.g., `https://github.com/owner/repo/pull/42` → `42`).
+
+If the script exits with code 4 (PR creation failed), fall back to
+providing the user with a GitHub compare URL:
+`https://github.com/{upstream-owner}/{repo}/compare/{pr-target}...{fork-owner}:{branch-name}?expand=1`
 
 ### Step 7: Save Publish Metadata
 
@@ -187,37 +218,35 @@ Read `{owner}/{repo}` from the **Origin** field of the Repository
 Topology section of `01-context.md`. If the repo is a fork, also read
 the **Upstream** field.
 
-Write `.artifacts/implement/{issue-key}/publish-metadata.json`.
-
 The `repo` field always refers to where the PR lives. The `origin` field
 records the repo that was pushed to.
 
 **If the repo is a fork** (set `repo` to the upstream, `origin` to the fork):
 
-```json
-{
-  "repo": "{upstream-owner}/{repo}",
-  "origin": "{fork-owner}/{repo}",
-  "branch": "{branch-name}",
-  "base": "{pr-target}",
-  "pr_number": {pr-number},
-  "pr_url": "{url from gh pr create output}",
-  "jira_key": "{issue-key}"
-}
+```bash
+../../_shared/scripts/publish.sh save-metadata \
+  --file .artifacts/implement/{issue-key}/publish-metadata.json \
+  repo={upstream-owner}/{repo} \
+  origin={fork-owner}/{repo} \
+  branch={branch-name} \
+  base={pr-target} \
+  pr_number={pr-number} \
+  pr_url={url-from-create-pr-output} \
+  jira_key={issue-key}
 ```
 
 **If the repo is a direct clone** (`repo` and `origin` are the same):
 
-```json
-{
-  "repo": "{owner}/{repo}",
-  "origin": "{owner}/{repo}",
-  "branch": "{branch-name}",
-  "base": "{pr-target}",
-  "pr_number": {pr-number},
-  "pr_url": "{url from gh pr create output}",
-  "jira_key": "{issue-key}"
-}
+```bash
+../../_shared/scripts/publish.sh save-metadata \
+  --file .artifacts/implement/{issue-key}/publish-metadata.json \
+  repo={owner}/{repo} \
+  origin={owner}/{repo} \
+  branch={branch-name} \
+  base={pr-target} \
+  pr_number={pr-number} \
+  pr_url={url-from-create-pr-output} \
+  jira_key={issue-key}
 ```
 
 ### Step 8: Report to User
