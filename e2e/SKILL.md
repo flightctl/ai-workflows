@@ -1,6 +1,6 @@
 ---
 name: e2e
-version: 0.7.1
+version: 0.8.0
 description: >-
   Story-to-e2e-test workflow that takes a Jira [QE] Story, discovers the
   project's e2e testing infrastructure, plans test scenarios, writes e2e

@@ -21,9 +21,23 @@ is repeatable as new comments arrive.
 - **Separate content changes from clarifications.** Some comments need design doc edits; others just need a reply.
 - **Preserve the review trail.** Don't delete or modify existing comments.
 - **Allowed `gh` operations:**
-  - **Read:** `gh pr view`, `gh api` GET (for fetching PR comments and review data)
-  - **Write:** `gh pr comment` (for top-level replies), `gh api` POST to `pulls/{pr-number}/comments/{id}/replies` (for replying to line-level review comments)
+  - **Read:** `gh pr view` (for PR discovery only — comment fetching is
+    delegated to the shared script)
+  - **Write:** delegated to `pr-comments.py reply` (do not call `gh api`
+    or `gh pr comment` directly for review replies)
   - **Forbidden:** `gh pr close`, `gh pr merge`, `gh pr edit`, `gh pr ready`
+
+## Shared Script
+
+This skill delegates deterministic PR comment operations to a shared
+script. Reference it using a relative path from this file:
+
+```
+../../_shared/scripts/pr-comments.py
+```
+
+The script provides subcommands: `fetch`, `reply`, and `log`. See the
+script header for full usage.
 
 ## Process
 
@@ -52,15 +66,27 @@ Validate the docs repo path still exists:
 git -C "{docs_repo_path}" status
 ```
 
-Fetch both issue-level and review-level comments:
+Resolve the shared script to an absolute path so it remains valid
+regardless of working directory:
 
 ```bash
-gh pr view {pr-number} --repo {owner}/{repo} --json comments,reviews,url
+PR_COMMENTS_SCRIPT="$(git rev-parse --show-toplevel)/_shared/scripts/pr-comments.py"
 ```
 
+Use `$PR_COMMENTS_SCRIPT` instead of the relative path in all subsequent
+commands.
+
+Fetch all comments using the shared script. The script fetches line-level
+review comments, top-level comments, and reviews in a single call and
+outputs a unified JSON array to stdout:
+
 ```bash
-gh api repos/{owner}/{repo}/pulls/{pr-number}/comments --paginate
+python3 "$PR_COMMENTS_SCRIPT" fetch --owner {owner} --repo {repo} --pr {pr-number} --responses-log .artifacts/design/{issue-key}/responses.jsonl --include-review-threads
 ```
+
+The `--responses-log` flag excludes comment IDs already addressed in
+prior respond rounds. The `--include-review-threads` flag annotates
+line comments with thread resolution status via GraphQL.
 
 If no comments are found, tell the user and suggest checking back later.
 
@@ -359,29 +385,34 @@ For comments that only need a reply, post directly.
 
 #### Posting replies
 
-Write the reply to a temp file to avoid shell metacharacter issues:
+Write the reply to a temp file to avoid shell metacharacter issues.
+Use the file-writing tool (Write) to create the file — do not use a
+shell heredoc, as reply content containing the delimiter string would
+break the heredoc.
+
+Write `{approved reply text}` to `.artifacts/design/{issue-key}/tmp-reply.md`.
+
+**For line-level review comments** (attached to a specific file and line),
+reply in-thread:
 
 ```bash
-cat > .artifacts/design/{issue-key}/tmp-reply.md << 'REPLY_EOF'
-{approved reply text}
-REPLY_EOF
+python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/design/{issue-key}/tmp-reply.md --comment-id {comment-id}
 ```
 
-**For line-level review comments** (those fetched via
-`gh api .../pulls/{pr-number}/comments` — attached to a specific file and
-line), reply in-thread so the response appears alongside the original
-comment:
+**For top-level PR comments** (general conversation comments), omit
+`--comment-id`:
 
 ```bash
-gh api repos/{owner}/{repo}/pulls/{pr-number}/comments/{comment-id}/replies --field body=@.artifacts/design/{issue-key}/tmp-reply.md
+python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/design/{issue-key}/tmp-reply.md
 ```
 
-**For top-level PR comments** (those from `gh pr view --json comments` —
-general conversation comments), use:
+After each successful reply, record it in the responses log:
 
 ```bash
-gh pr comment {pr-number} --repo {owner}/{repo} --body-file .artifacts/design/{issue-key}/tmp-reply.md
+python3 "$PR_COMMENTS_SCRIPT" log --responses-log .artifacts/design/{issue-key}/responses.jsonl --comment-id {comment-id} --response-summary "{brief summary of response}"
 ```
+
+Delete the temp file after posting:
 
 ```bash
 rm .artifacts/design/{issue-key}/tmp-reply.md
