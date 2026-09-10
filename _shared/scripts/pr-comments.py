@@ -132,16 +132,20 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     if responses_log:
         log_path = Path(responses_log)
         if log_path.is_file():
-            for raw_line in log_path.read_text(encoding="utf-8").splitlines():
+            lines = log_path.read_text(encoding="utf-8").splitlines()
+            for line_num, raw_line in enumerate(lines, start=1):
                 raw_line = raw_line.strip()
                 if not raw_line:
                     continue
                 try:
                     entry = json.loads(raw_line)
-                    if "comment_id" in entry:
-                        addressed_ids.add(str(entry["comment_id"]))
                 except json.JSONDecodeError:
-                    continue
+                    fail(
+                        f"fetch: malformed JSON on line {line_num} "
+                        f"of {responses_log}",
+                    )
+                if "comment_id" in entry:
+                    addressed_ids.add(str(entry["comment_id"]))
 
     comments: list[dict[str, Any]] = []
 

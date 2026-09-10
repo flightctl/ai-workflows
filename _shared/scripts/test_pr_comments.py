@@ -435,6 +435,50 @@ class TestFetch(unittest.TestCase):
         output = json.loads(buf.getvalue())
         self.assertEqual(len(output), 1)
 
+    def test_fetch_malformed_jsonl_exits_1(self) -> None:
+        """Malformed JSON in responses log exits with code 1."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".jsonl", delete=False,
+        ) as f:
+            f.write('{"comment_id": 1}\n')
+            f.write('NOT VALID JSON\n')
+            f.flush()
+            try:
+                with self.assertRaises(SystemExit) as ctx:
+                    pr_comments.main([
+                        "fetch", "--owner", "acme", "--repo", "proj",
+                        "--pr", "1", "--responses-log", f.name,
+                    ])
+                self.assertEqual(
+                    ctx.exception.code, pr_comments.EXIT_RUNTIME_ERROR,
+                )
+            finally:
+                os.unlink(f.name)
+
+    def test_fetch_malformed_jsonl_reports_line_number(self) -> None:
+        """Error message includes file path and line number."""
+        import io
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".jsonl", delete=False,
+        ) as f:
+            f.write('{"comment_id": 1}\n')
+            f.write('\n')  # blank line (skipped)
+            f.write('{bad json\n')  # line 3 of file
+            f.flush()
+            try:
+                buf = io.StringIO()
+                with mock.patch("sys.stderr", buf):
+                    with self.assertRaises(SystemExit):
+                        pr_comments.main([
+                            "fetch", "--owner", "acme", "--repo", "proj",
+                            "--pr", "1", "--responses-log", f.name,
+                        ])
+                err = buf.getvalue()
+                self.assertIn("line 3", err)
+                self.assertIn(f.name, err)
+            finally:
+                os.unlink(f.name)
+
     @mock.patch.object(pr_comments, "_run")
     def test_fetch_include_review_threads(self, mock_run: mock.Mock) -> None:
         """--include-review-threads annotates line comments with is_resolved."""

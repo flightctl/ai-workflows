@@ -182,25 +182,26 @@ break the heredoc.
 
 Write `{approved reply text}` to `.artifacts/e2e/{issue-key}/tmp-reply.md`.
 
-**For line-level review comments** (attached to a specific file and line),
-reply in-thread:
+Route each comment based on its `type` field from the fetch output:
+
+**When `type` is `"line_comment"`**, reply in-thread using the comment's
+`id`:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/e2e/{issue-key}/tmp-reply.md --comment-id {comment-id}
+python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/e2e/{issue-key}/tmp-reply.md --comment-id {id}
 ```
 
-**For top-level PR comments** (general conversation comments), omit
-`--comment-id`:
+**When `type` is `"review"` or `"top_level"`**, post a top-level PR
+comment (omit `--comment-id`):
 
 ```bash
 python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/e2e/{issue-key}/tmp-reply.md
 ```
 
-After each successful reply, record it in the responses log.  Use the
-`id` value from the fetch output for the comment being replied to:
+After each successful reply, record the `id` in the responses log:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" log --responses-log .artifacts/e2e/{issue-key}/responses.jsonl --comment-id {id from fetch output} --response-summary "{brief summary of response}"
+python3 "$PR_COMMENTS_SCRIPT" log --responses-log .artifacts/e2e/{issue-key}/responses.jsonl --comment-id {id}
 ```
 
 **If the log command fails (non-zero exit), stop immediately** — do not
