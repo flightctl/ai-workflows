@@ -4,8 +4,8 @@ description: "Analytical bug assessment: error signature, recommendation, source
 ---
 # /assess
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=assess`.
 
-Dispatch the **assess** phase. Context:
+Context:
 
 $ARGUMENTS

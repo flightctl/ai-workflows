@@ -1,0 +1,33 @@
+---
+name: dispatch
+description: Resolve and execute one explicitly requested e2e phase.
+---
+
+# E2E Phase Dispatch
+
+E2E phase filenames follow the `{PHASE}.md` convention. If a phase uses a
+different filename, define its mapping here before resolving overrides.
+
+Before dispatching, read the project's `AGENTS.md` or `CLAUDE.md` only if
+neither is already in the session. Then, given `PHASE`, initialize
+`COMPLETION_CONSUMED=false`, announce `Starting /{PHASE}.`, and read and follow
+`../../_shared/recipes/phase-override-resolution.md` with `WORKFLOW=e2e` and
+`PHASE_FILE={PHASE}.md`. Read and execute the resolved phase file, passing
+through the command context unchanged.
+
+The built-in fallback is the phase file beside this dispatcher. Follow the
+phase through its reporting step. Treat any supported phase exit—returning to
+the invoking router, requesting completion guidance, or re-reading the
+controller—as a return to this dispatcher. If the returned
+`COMPLETION_HANDOFF` executes `completion.md`, set `COMPLETION_CONSUMED=true`
+before executing that handoff. When the phase returns, read the guide once and
+follow its guidance for `PHASE` only when `COMPLETION_CONSUMED=false`; the
+dispatcher is the only component that reads the completion guide.
+
+If the recipe rejects a project override, continue with its built-in fallback.
+If that fallback cannot be resolved, an operational error prevents the phase
+from completing, or the phase has no completion behavior compatible with this
+workflow, report the failure and stop without reading `completion.md`. A
+completed phase report with a failing verdict, including `validate.md` reporting
+`FAIL`, is a valid outcome: read `completion.md` so it can provide fix-and-rerun
+guidance.

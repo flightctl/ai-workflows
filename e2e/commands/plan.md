@@ -4,8 +4,8 @@ description: "Map acceptance criteria to e2e test scenarios, select reference su
 ---
 # /plan
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=plan`.
 
-Dispatch the **plan** phase. Context:
+Context:
 
 $ARGUMENTS

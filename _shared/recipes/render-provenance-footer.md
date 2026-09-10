@@ -1,11 +1,11 @@
 ---
 name: render-provenance-footer
-version: 0.1.2
+version: 0.2.1
 ---
 # Recipe: Render Provenance Footer
 
-Render the durable `## Provenance` footer into a docs-repo markdown file before
-`git add`. See `../provenance-schema.md` for format.
+Render the durable `## Provenance` footer into a Markdown artifact or a
+docs-repo copy before `git add`. See `../provenance-schema.md` for format.
 
 ## Parameters
 
@@ -13,13 +13,13 @@ Render the durable `## Provenance` footer into a docs-repo markdown file before
 |-----------|----------|-------------|
 | WORKFLOW | Yes | `prd`, `design`, or `ux-design` |
 | ISSUE_KEY | Yes | Full Jira issue key including project prefix (e.g., `PROJ-1234`, not `1234`) |
-| TARGET_FILE | Yes | Absolute path to the docs-repo file about to be committed |
+| TARGET_FILE | Yes | Absolute path to the local artifact or docs-repo file to render |
 | ALLOW_MISSING | No | Set to `yes` only after the user explicitly declines provenance |
 
 ## Procedure
 
-From the **source repo** root, after copying the artifact to the docs repo and
-**before** `git add`:
+From the **source repo** root, run this after capturing provenance for a local
+artifact, or after copying an artifact to the docs repo and before `git add`:
 
 ```bash
 python3 "{AI_WORKFLOWS_ROOT}/_shared/scripts/provenance.py" render \

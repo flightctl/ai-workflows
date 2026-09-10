@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -693,6 +694,188 @@ class ProvenanceTests(unittest.TestCase):
             self.assertNotIn("Old footer", content)
             self.assertIn("draft @ prd 0.5.0 - abc", content)
             self.assertIn("<!-- ai-workflow-provenance:", content)
+
+    def test_document_phases_render_local_artifacts_before_docs_sync(self) -> None:
+        repo_root = _SCRIPT.parents[2]
+        phases = [
+            (
+                "prd/skills/draft.md",
+                ".artifacts/prd/{issue-key}/03-prd.md",
+                "### Step 9: Present to User",
+            ),
+            (
+                "prd/skills/revise.md",
+                ".artifacts/prd/{issue-key}/03-prd.md",
+                "Read `.artifacts/config.json`",
+            ),
+            (
+                "prd/skills/respond.md",
+                ".artifacts/prd/{issue-key}/03-prd.md",
+                "**Update the docs repo copy:**",
+            ),
+            (
+                "design/skills/draft.md",
+                ".artifacts/design/{issue-key}/03-design.md",
+                "### Step 9: Generate Testplan",
+            ),
+            (
+                "design/skills/revise.md",
+                ".artifacts/design/{issue-key}/03-design.md",
+                "If the design document was published, also update",
+            ),
+            (
+                "design/skills/respond.md",
+                ".artifacts/design/{issue-key}/03-design.md",
+                "**Update the docs repo copy:**",
+            ),
+        ]
+
+        for phase, artifact, docs_sync in phases:
+            with self.subTest(phase=phase):
+                content = (repo_root / phase).read_text(encoding="utf-8")
+                capture = content.index("capture-provenance-event.md")
+                render = content.index("render-provenance-footer.md", capture)
+                sync = content.index(docs_sync, capture)
+
+                self.assertLess(capture, render)
+                self.assertLess(render, sync)
+                self.assertIn(artifact, content[render:sync])
+
+    def test_rendered_local_artifact_survives_manual_copy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                for workflow, filename, title in [
+                    ("prd", "03-prd.md", "PRD"),
+                    ("design", "03-design.md", "Design"),
+                ]:
+                    with self.subTest(workflow=workflow):
+                        issue = f"OSAC-LOCAL-{workflow.upper()}"
+                        artifact_dir = root / ".artifacts" / workflow / issue
+                        artifact_dir.mkdir(parents=True)
+                        (artifact_dir / "provenance.json").write_text(
+                            json.dumps(
+                                {
+                                    "workflow": workflow,
+                                    "events": [
+                                        {
+                                            "phase": "draft",
+                                            "authoring_mode": "skill",
+                                            "workflow_version": "0.10.0",
+                                            "ai_workflows": "workflow-hash",
+                                            "source_repo": "workspace-hash",
+                                            "source_repo_branch": "main",
+                                        }
+                                    ],
+                                    "drift": {"context_changed": False},
+                                }
+                            ),
+                            encoding="utf-8",
+                        )
+                        artifact = artifact_dir / filename
+                        artifact.write_text(f"# {title}\n", encoding="utf-8")
+
+                        self.assertEqual(
+                            provenance.render_footer(workflow, issue, artifact), 0
+                        )
+
+                        copied = root / "manual-copy" / filename
+                        copied.parent.mkdir(exist_ok=True)
+                        shutil.copyfile(artifact, copied)
+                        content = copied.read_text(encoding="utf-8")
+
+                        self.assertIn("## Provenance", content)
+                        self.assertEqual(content.count("## Provenance"), 1)
+                        self.assertIn("<!-- ai-workflow-provenance:", content)
+                        self.assertEqual(
+                            content.count("<!-- ai-workflow-provenance:"), 1
+                        )
+            finally:
+                os.chdir(cwd)
+
+    def test_local_artifact_render_replaces_footer_after_session_update(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            workflow = "prd"
+            issue = "OSAC-LOCAL-SESSION"
+            artifact_dir = root / ".artifacts" / workflow / issue
+            artifact_dir.mkdir(parents=True)
+            provenance_file = artifact_dir / "provenance.json"
+            draft_event = {
+                "phase": "draft",
+                "authoring_mode": "skill",
+                "workflow_version": "0.10.0",
+                "ai_workflows": "draft-hash",
+                "source_repo": "workspace-hash",
+                "source_repo_branch": "main",
+            }
+            updated_events = [
+                draft_event,
+                {
+                    "phase": "revise",
+                    "authoring_mode": "skill",
+                    "workflow_version": "0.10.0",
+                    "ai_workflows": "revise-hash",
+                    "source_repo": "workspace-hash",
+                    "source_repo_branch": "main",
+                },
+                {
+                    "phase": "respond",
+                    "authoring_mode": "skill",
+                    "workflow_version": "0.10.0",
+                    "ai_workflows": "respond-hash",
+                    "source_repo": "workspace-hash",
+                    "source_repo_branch": "main",
+                },
+            ]
+            provenance_file.write_text(
+                json.dumps(
+                    {
+                        "workflow": workflow,
+                        "events": [draft_event],
+                        "drift": {"context_changed": False},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            artifact = artifact_dir / "03-prd.md"
+            artifact.write_text("# PRD\n", encoding="utf-8")
+
+            cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                self.assertEqual(
+                    provenance.render_footer(workflow, issue, artifact), 0
+                )
+                provenance_file.write_text(
+                    json.dumps(
+                        {
+                            "workflow": workflow,
+                            "events": updated_events,
+                            "drift": {"context_changed": False},
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                self.assertEqual(
+                    provenance.render_footer(workflow, issue, artifact), 0
+                )
+            finally:
+                os.chdir(cwd)
+
+            content = artifact.read_text(encoding="utf-8")
+            data = json.loads(provenance_file.read_text(encoding="utf-8"))
+            self.assertEqual(content.count("## Provenance"), 1)
+            self.assertEqual(content.count("<!-- ai-workflow-provenance:"), 1)
+            self.assertIn("Authored: respond @ prd 0.10.0 - respond-hash", content)
+            self.assertIn("Phases: draft, revise, respond", content)
+            self.assertNotIn("draft-hash", content)
+            self.assertEqual(
+                [event["phase"] for event in data["events"]],
+                ["draft", "revise", "respond"],
+            )
 
     def test_render_footer_auto_captures_commit_when_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

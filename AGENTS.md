@@ -38,10 +38,12 @@ workflow-name/
   guidelines.md         # Behavioral rules: principles, hard limits, safety, quality
   README.md             # Human-readable documentation (prerequisites, artifacts, usage)
   skills/
-    controller.md       # Optional phase dispatcher
+    controller.md       # Optional discovery and ambiguous-input router
+    dispatch.md         # Optional lightweight explicit-phase dispatcher
+    completion.md       # Optional centralized next-step guidance
     phase-name.md       # Implementation for each phase
   commands/
-    phase-name.md       # Thin wrappers that invoke controller or SKILL.md
+    phase-name.md       # Thin wrappers that invoke a controller, dispatcher, SKILL.md, or phase
   scripts/              # Optional — deterministic operations invoked by skills
   prompts/              # Optional — prompt templates for sub-agent delegation
 ```
@@ -70,7 +72,7 @@ guidelines, README, or artifact lifecycle by default.
 3. **Relative paths**: All file references must be relative to the file's location (for symlink compatibility)
 4. **Phase-based execution**: Most workflows operate through discrete phases with explicit transitions
 5. **Shared resources**: Cross-cutting concerns live in `_shared/` and are referenced by relative path from workflows or simple skills
-6. **Phase overrides**: Projects can override individual phases by placing a replacement skill file at `.workflows/{workflow}/skills/{phase}.md` in their repo root. The controller checks for this override before falling back to the built-in default. See CONTRIBUTING.md for details.
+6. **Phase overrides**: Projects can override individual phases by placing a replacement skill file at `.workflows/{workflow}/skills/{phase}.md` in their repo root. The controller or lightweight dispatcher checks for this override before falling back to the built-in default. See CONTRIBUTING.md for details.
 
 ### Shared Resources (`_shared/`)
 
@@ -82,6 +84,7 @@ _shared/
   sizing-rubric.md                # Shared sizing definitions (T-shirt sizes, heuristics, team effort guidance)
   scripts/
     provenance.py                 # Capture/render CLI (used by prd and design provenance recipes)
+    publish.py                    # Deterministic publish operations (push, PR/MR, metadata)
   recipes/
     capture-provenance-event.md   # Append session-local provenance on doc-mutating phases
     phase-override-resolution.md  # Project-level phase override lookup and activation
@@ -96,8 +99,8 @@ Recipes are self-contained, parameterized procedures that packages reference via
 ### File Reference Conventions
 
 Critical for symlink resolution:
-- `commands/*.md` reference `../skills/controller.md` (if workflow has a controller) or `../SKILL.md` (for workflows without a controller) or `../skills/phase-name.md` (direct phase reference)
-- `skills/controller.md` (when present) references sibling skills as `phase-name.md` (not `skills/phase-name.md`)
+- `commands/*.md` reference `../skills/controller.md`, `../skills/dispatch.md`, `../SKILL.md`, or `../skills/phase-name.md`; dispatchers identify the target with an explicit phase parameter
+- `skills/controller.md`, `skills/dispatch.md`, and `skills/completion.md` reference sibling skills as `phase-name.md` (not `skills/phase-name.md`)
 - `SKILL.md` references `guidelines.md` and optionally `skills/controller.md` (same directory)
 - `skills/{skill-name}/SKILL.md` references its resources relative to the simple skill directory (for example, `references/rendering.md`)
 
@@ -195,7 +198,8 @@ ai-workflows/
 │   ├── review-protocol.md     # Shared code review criteria and finding format
 │   ├── sizing-rubric.md       # Shared sizing definitions and heuristics
 │   ├── scripts/
-│   │   └── provenance.py      # Capture/render CLI for prd/design provenance
+│   │   ├── provenance.py      # Capture/render CLI for prd/design provenance
+│   │   └── publish.py         # Deterministic publish operations (push, PR/MR, metadata)
 │   └── recipes/
 │       ├── capture-provenance-event.md
 │       ├── phase-override-resolution.md  # Project-level phase override lookup
