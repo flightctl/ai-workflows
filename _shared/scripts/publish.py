@@ -9,6 +9,7 @@ cross-cutting review, user confirmation prompts).
 
 Subcommands:
   preflight       Pre-flight checks (auth, branch, uncommitted changes)
+  resolve-remotes Resolve canonical and push remotes for GitHub publishing
   push            Push a branch to a remote
   check-existing  Check whether a PR/MR already exists for a branch
   create-pr       Create a GitHub pull request via gh CLI
@@ -46,6 +47,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any, NoReturn
+from urllib.parse import urlparse
 
 
 # ---------------------------------------------------------------------------
@@ -96,6 +98,211 @@ def run(
         text=True,
         check=check,
     )
+
+
+def _normalize_github_repo(url: str) -> str:
+    """Return ``owner/repo`` for a GitHub remote URL, or an empty string."""
+    value = url.strip()
+    if not value:
+        return ""
+
+    if value.startswith("git@github.com:"):
+        path = value.split(":", 1)[1]
+    else:
+        parsed = urlparse(value if "://" in value else f"//{value}")
+        if parsed.hostname not in ("github.com", "www.github.com"):
+            return ""
+        path = parsed.path
+
+    parts = path.strip("/").removesuffix(".git").split("/")
+    if len(parts) != 2 or not all(parts):
+        return ""
+    return "/".join(parts)
+
+
+def _same_repo(left: str, right: str) -> bool:
+    """Compare GitHub repository identities case-insensitively."""
+    return left.casefold() == right.casefold()
+
+
+def _remote_records() -> list[dict[str, Any]]:
+    """Collect fetch and push URL identities for every configured remote."""
+    result = run(["git", "remote"])
+    if result.returncode != 0:
+        fail("resolve-remotes: could not list Git remotes")
+
+    records: list[dict[str, Any]] = []
+    for name in result.stdout.splitlines():
+        fetch = run(["git", "remote", "get-url", name])
+        if fetch.returncode != 0 or not fetch.stdout.strip():
+            fail(f"resolve-remotes: could not read fetch URL for '{name}'")
+
+        pushes = run(["git", "remote", "get-url", "--push", "--all", name])
+        if pushes.returncode != 0:
+            fail(f"resolve-remotes: could not read push URL for '{name}'")
+
+        fetch_url = fetch.stdout.strip().splitlines()[0]
+        push_urls = [line.strip() for line in pushes.stdout.splitlines() if line.strip()]
+        if not push_urls:
+            push_urls = [fetch_url]
+
+        records.append({
+            "name": name,
+            "fetch_url": fetch_url,
+            "fetch_repo": _normalize_github_repo(fetch_url),
+            "push_urls": push_urls,
+            "push_repos": [
+                _normalize_github_repo(url) for url in push_urls
+            ],
+        })
+    return records
+
+
+def _github_repo_metadata(repo: str) -> dict[str, Any]:
+    """Load fork-parent metadata for a GitHub repository."""
+    result = run([
+        "gh", "repo", "view", repo,
+        "--json", "nameWithOwner,isFork,parent",
+    ])
+    if result.returncode != 0:
+        fail(
+            f"resolve-remotes: could not inspect GitHub repository '{repo}'. "
+            "Check gh auth status and repository access."
+        )
+    try:
+        metadata = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        fail(f"resolve-remotes: invalid GitHub metadata for '{repo}'")
+    if not isinstance(metadata, dict):
+        fail(f"resolve-remotes: invalid GitHub metadata for '{repo}'")
+    return metadata
+
+
+def _repo_parent(metadata: dict[str, Any]) -> str:
+    """Return a repository's parent identity when it is a fork."""
+    parent = metadata.get("parent")
+    if isinstance(parent, dict):
+        name = parent.get("nameWithOwner")
+        if isinstance(name, str):
+            return name
+    return ""
+
+
+def cmd_resolve_remotes(args: argparse.Namespace) -> int:
+    """Resolve canonical and push remotes for a GitHub publish operation."""
+    records = _remote_records()
+    identities = {
+        repo
+        for record in records
+        for repo in [record["fetch_repo"], *record["push_repos"]]
+        if repo
+    }
+    if not identities:
+        fail("resolve-remotes: no GitHub remotes found")
+
+    metadata = {repo: _github_repo_metadata(repo) for repo in sorted(identities)}
+    metadata_by_key = {repo.casefold(): data for repo, data in metadata.items()}
+    configured_repo = _normalize_github_repo(args.configured_remote)
+    if args.configured_remote and not configured_repo:
+        fail(
+            "resolve-remotes: configured remote is not a GitHub repository URL: "
+            f"{args.configured_remote}"
+        )
+    if configured_repo and configured_repo.casefold() not in {
+        repo.casefold() for repo in identities
+    }:
+        fail(
+            "resolve-remotes: configured remote does not match any Git remote: "
+            f"{args.configured_remote}"
+        )
+
+    if configured_repo:
+        configured_metadata = metadata_by_key[configured_repo.casefold()]
+        configured_identity = configured_metadata.get("nameWithOwner")
+        if not isinstance(configured_identity, str) or not configured_identity:
+            configured_identity = configured_repo
+        if configured_metadata.get("isFork"):
+            upstream_repo = _repo_parent(configured_metadata)
+            if not upstream_repo:
+                fail(
+                    "resolve-remotes: configured fork has no parent repository: "
+                    f"{configured_identity}"
+                )
+        else:
+            upstream_repo = configured_identity
+    else:
+        non_fork = sorted(
+            str(data.get("nameWithOwner") or repo)
+            for repo, data in metadata.items()
+            if not data.get("isFork")
+        )
+        if len(non_fork) != 1:
+            fail(
+                "resolve-remotes: cannot select a unique canonical repository; "
+                "provide --configured-remote"
+            )
+        upstream_repo = non_fork[0]
+
+    upstream_candidates = [
+        record for record in records
+        if _same_repo(record["fetch_repo"], upstream_repo)
+    ]
+    if len(upstream_candidates) != 1:
+        fail(
+            "resolve-remotes: canonical repository must have exactly one local "
+            f"fetch remote: {upstream_repo}"
+        )
+    upstream_remote = upstream_candidates[0]["name"]
+
+    fork_candidates: list[tuple[str, str, str]] = []
+    for record in records:
+        for push_url, push_repo in zip(record["push_urls"], record["push_repos"]):
+            if not push_repo:
+                continue
+            push_metadata = metadata_by_key[push_repo.casefold()]
+            if (
+                push_metadata.get("isFork")
+                and _same_repo(_repo_parent(push_metadata), upstream_repo)
+            ):
+                fork_candidates.append((record["name"], push_url, push_repo))
+
+    unique_forks = list(dict.fromkeys(fork_candidates))
+    if len(unique_forks) > 1:
+        choices = ", ".join(repo for _, _, repo in unique_forks)
+        fail(
+            "resolve-remotes: multiple fork push destinations match the "
+            f"canonical repository ({choices}); choose one explicitly"
+        )
+
+    if unique_forks:
+        push_remote, push_url, push_repo = unique_forks[0]
+    else:
+        upstream = upstream_candidates[0]
+        direct_candidates = [
+            (url, repo)
+            for url, repo in zip(upstream["push_urls"], upstream["push_repos"])
+            if _same_repo(repo, upstream_repo)
+        ]
+        if not direct_candidates:
+            fail(
+                "resolve-remotes: canonical remote has no usable push URL; "
+                "configure a fork push destination or grant direct access"
+            )
+        push_remote = upstream_remote
+        push_url, push_repo = direct_candidates[0]
+
+    cross_repository = not _same_repo(push_repo, upstream_repo)
+    output = {
+        "upstream_remote": upstream_remote,
+        "push_remote": push_remote,
+        "push_url": push_url,
+        "upstream_repo": upstream_repo,
+        "push_repo": push_repo,
+        "fork_owner": push_repo.split("/", 1)[0] if cross_repository else "",
+        "cross_repository": cross_repository,
+    }
+    print(json.dumps(output, indent=2))
+    return EXIT_SUCCESS
 
 
 # ---------------------------------------------------------------------------
@@ -546,6 +753,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Which CLI to check (default: github)",
     )
 
+    # -- resolve-remotes --
+    p_resolve = subparsers.add_parser(
+        "resolve-remotes",
+        help="Resolve canonical and push remotes for GitHub publishing",
+    )
+    p_resolve.add_argument(
+        "--configured-remote",
+        default="",
+        help="Configured docs-repository remote URL, if available",
+    )
+
     # -- push --
     p_push = subparsers.add_parser(
         "push",
@@ -630,6 +848,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 SUBCOMMAND_MAP = {
     "preflight": cmd_preflight,
+    "resolve-remotes": cmd_resolve_remotes,
     "push": cmd_push,
     "check-existing": cmd_check_existing,
     "create-pr": cmd_create_pr,
