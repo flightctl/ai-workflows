@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
 import os
 import subprocess
@@ -46,6 +47,17 @@ class TestParseArgs(unittest.TestCase):
         self.assertEqual(args.subcommand, "push")
         self.assertEqual(args.remote, "fork")
         self.assertEqual(args.branch, "feat/x")
+
+    def test_resolve_remotes_args(self) -> None:
+        parser = publish.build_parser()
+        args = parser.parse_args([
+            "resolve-remotes",
+            "--configured-remote", "https://github.com/acme/docs.git",
+        ])
+        self.assertEqual(args.subcommand, "resolve-remotes")
+        self.assertEqual(
+            args.configured_remote, "https://github.com/acme/docs.git",
+        )
 
     def test_push_missing_remote(self) -> None:
         parser = publish.build_parser()
@@ -797,6 +809,292 @@ class TestPush(unittest.TestCase):
         with self.assertRaises(SystemExit) as ctx:
             publish.main(["push", "--remote", "fork", "--branch", "feat/x"])
         self.assertEqual(ctx.exception.code, publish.EXIT_PUSH_FAIL)
+
+
+# ---------------------------------------------------------------------------
+# Remote resolution tests (with GitHub and Git subprocess mocking)
+# ---------------------------------------------------------------------------
+
+
+class TestResolveRemotes(unittest.TestCase):
+    """Verify fork/upstream role resolution independent of remote names."""
+
+    @staticmethod
+    def _metadata(repo: str, *, is_fork: bool, parent: str = "") -> str:
+        parent_metadata = None
+        if parent:
+            parent_owner, parent_name = parent.split("/", maxsplit=1)
+            # `gh repo view --json parent` returns the parent name and owner
+            # separately; it does not include parent.nameWithOwner.
+            parent_metadata = {
+                "name": parent_name,
+                "owner": {"login": parent_owner},
+            }
+        return json.dumps({
+            "nameWithOwner": repo,
+            "isFork": is_fork,
+            "parent": parent_metadata,
+        })
+
+    @staticmethod
+    def _resolver_mock(
+        remotes: dict[str, tuple[str, list[str]]],
+        metadata: dict[str, str],
+    ) -> mock.Mock:
+        def fake_run(cmd: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+            if cmd == ["git", "remote"]:
+                return subprocess.CompletedProcess(
+                    cmd, 0, "".join(f"{name}\n" for name in remotes), "",
+                )
+            if cmd[:3] == ["git", "remote", "get-url"]:
+                remote = cmd[-1]
+                fetch_url, push_urls = remotes[remote]
+                if "--push" in cmd:
+                    return subprocess.CompletedProcess(
+                        cmd, 0, "".join(f"{url}\n" for url in push_urls), "",
+                    )
+                return subprocess.CompletedProcess(cmd, 0, f"{fetch_url}\n", "")
+            if cmd[:3] == ["gh", "repo", "view"]:
+                repo = cmd[3]
+                return subprocess.CompletedProcess(cmd, 0, metadata[repo], "")
+            raise AssertionError(f"Unexpected command: {cmd}")
+
+        return mock.Mock(side_effect=fake_run)
+
+    def _resolve(
+        self,
+        remotes: dict[str, tuple[str, list[str]]],
+        metadata: dict[str, str],
+        configured_remote: str = "",
+    ) -> dict[str, object]:
+        runner = self._resolver_mock(remotes, metadata)
+        output = io.StringIO()
+        with mock.patch.object(publish, "run", runner), mock.patch("sys.stdout", output):
+            code = publish.main([
+                "resolve-remotes",
+                *(["--configured-remote", configured_remote] if configured_remote else []),
+            ])
+        self.assertEqual(code, publish.EXIT_SUCCESS)
+        return json.loads(output.getvalue())
+
+    def test_direct_canonical_clone(self) -> None:
+        canonical = "acme/docs"
+        result = self._resolve(
+            {"origin": ("https://github.com/acme/docs.git", ["https://github.com/acme/docs.git"])},
+            {canonical: self._metadata(canonical, is_fork=False)},
+        )
+        self.assertEqual(result["upstream_remote"], "origin")
+        self.assertEqual(result["push_remote"], "origin")
+        self.assertEqual(result["upstream_repo"], canonical)
+        self.assertEqual(result["push_repo"], canonical)
+        self.assertFalse(result["cross_repository"])
+
+    def test_canonical_origin_and_named_fork(self) -> None:
+        canonical = "acme/docs"
+        fork = "contributor/docs"
+        result = self._resolve(
+            {
+                "origin": ("https://github.com/acme/docs.git", ["https://github.com/acme/docs.git"]),
+                "fork": ("https://github.com/contributor/docs.git", ["https://github.com/contributor/docs.git"]),
+            },
+            {
+                canonical: self._metadata(canonical, is_fork=False),
+                fork: self._metadata(fork, is_fork=True, parent=canonical),
+            },
+            "https://github.com/acme/docs.git",
+        )
+        self.assertEqual(result["upstream_remote"], "origin")
+        self.assertEqual(result["push_remote"], "fork")
+        self.assertEqual(result["fork_owner"], "contributor")
+        self.assertTrue(result["cross_repository"])
+
+    def test_fork_origin_and_upstream_remote(self) -> None:
+        canonical = "acme/docs"
+        fork = "contributor/docs"
+        result = self._resolve(
+            {
+                "origin": ("https://github.com/contributor/docs.git", ["https://github.com/contributor/docs.git"]),
+                "upstream": ("https://github.com/acme/docs.git", ["https://github.com/acme/docs.git"]),
+            },
+            {
+                canonical: self._metadata(canonical, is_fork=False),
+                fork: self._metadata(fork, is_fork=True, parent=canonical),
+            },
+            "https://github.com/contributor/docs.git",
+        )
+        self.assertEqual(result["upstream_remote"], "upstream")
+        self.assertEqual(result["push_remote"], "origin")
+        self.assertEqual(result["fork_owner"], "contributor")
+        self.assertTrue(result["cross_repository"])
+
+    def test_osac_fork_name_origin_uses_osac_upstream(self) -> None:
+        """OSAC bootstrap --fork-name origin keeps the contributor as origin."""
+        canonical = "osac-project/enhancement-proposals"
+        fork = "contributor/enhancement-proposals"
+        result = self._resolve(
+            {
+                "origin": (
+                    "https://github.com/contributor/enhancement-proposals.git",
+                    ["https://github.com/contributor/enhancement-proposals.git"],
+                ),
+                "osac-upstream": (
+                    "https://github.com/osac-project/enhancement-proposals.git",
+                    ["https://github.com/osac-project/enhancement-proposals.git"],
+                ),
+            },
+            {
+                canonical: self._metadata(canonical, is_fork=False),
+                fork: self._metadata(fork, is_fork=True, parent=canonical),
+            },
+            "https://github.com/contributor/enhancement-proposals.git",
+        )
+        self.assertEqual(result["upstream_remote"], "osac-upstream")
+        self.assertEqual(result["push_remote"], "origin")
+        self.assertEqual(result["upstream_repo"], canonical)
+        self.assertEqual(result["push_repo"], fork)
+        self.assertEqual(result["fork_owner"], "contributor")
+        self.assertTrue(result["cross_repository"])
+
+    def test_triangular_remote_uses_push_url_fork(self) -> None:
+        canonical = "acme/docs"
+        fork = "contributor/docs"
+        result = self._resolve(
+            {"origin": (
+                "https://github.com/acme/docs.git",
+                ["https://github.com/contributor/docs.git"],
+            )},
+            {
+                canonical: self._metadata(canonical, is_fork=False),
+                fork: self._metadata(fork, is_fork=True, parent=canonical),
+            },
+            "https://github.com/acme/docs.git",
+        )
+        self.assertEqual(result["upstream_remote"], "origin")
+        self.assertEqual(result["push_remote"], "origin")
+        self.assertEqual(result["push_url"], "https://github.com/contributor/docs.git")
+        self.assertEqual(result["fork_owner"], "contributor")
+        self.assertTrue(result["cross_repository"])
+
+    def test_unconfigured_remote_prefers_fork_parent(self) -> None:
+        canonical = "acme/docs"
+        fork = "contributor/docs"
+        unrelated = "other/docs"
+        result = self._resolve(
+            {
+                "origin": ("https://github.com/acme/docs.git", ["https://github.com/acme/docs.git"]),
+                "fork": ("https://github.com/contributor/docs.git", ["https://github.com/contributor/docs.git"]),
+                "other": ("https://github.com/other/docs.git", ["https://github.com/other/docs.git"]),
+            },
+            {
+                canonical: self._metadata(canonical, is_fork=False),
+                fork: self._metadata(fork, is_fork=True, parent=canonical),
+                unrelated: self._metadata(unrelated, is_fork=False),
+            },
+        )
+        self.assertEqual(result["upstream_repo"], canonical)
+        self.assertEqual(result["push_remote"], "fork")
+        self.assertEqual(result["fork_owner"], "contributor")
+
+    def test_multiple_push_destinations_fail(self) -> None:
+        canonical = "acme/docs"
+        fork = "contributor/docs"
+        other = "other/docs"
+        metadata = {
+            canonical: self._metadata(canonical, is_fork=False),
+            fork: self._metadata(fork, is_fork=True, parent=canonical),
+            other: self._metadata(other, is_fork=False),
+        }
+        runner = self._resolver_mock(
+            {
+                "origin": (
+                    "https://github.com/acme/docs.git",
+                    [
+                        "https://github.com/contributor/docs.git",
+                        "https://github.com/other/docs.git",
+                    ],
+                ),
+            },
+            metadata,
+        )
+        with mock.patch.object(publish, "run", runner), self.assertRaises(SystemExit) as ctx:
+            publish.main([
+                "resolve-remotes",
+                "--configured-remote", "https://github.com/acme/docs.git",
+            ])
+        self.assertEqual(ctx.exception.code, publish.EXIT_ARG_ERROR)
+
+    def test_credential_userinfo_is_redacted(self) -> None:
+        canonical = "acme/docs"
+        fork = "contributor/docs"
+        result = self._resolve(
+            {
+                "origin": (
+                    "https://reader:fetch-secret@github.com/acme/docs.git",
+                    ["https://writer:push-secret@github.com/contributor/docs.git"],
+                ),
+            },
+            {
+                canonical: self._metadata(canonical, is_fork=False),
+                fork: self._metadata(fork, is_fork=True, parent=canonical),
+            },
+            "https://reader:fetch-secret@github.com/acme/docs.git",
+        )
+        self.assertEqual(result["push_url"], "https://github.com/contributor/docs.git")
+        self.assertNotIn("push-secret", json.dumps(result))
+
+    def test_credential_userinfo_is_redacted_from_errors(self) -> None:
+        canonical = "acme/docs"
+        runner = self._resolver_mock(
+            {"origin": ("https://github.com/acme/docs.git", ["https://github.com/acme/docs.git"])},
+            {canonical: self._metadata(canonical, is_fork=False)},
+        )
+        error = io.StringIO()
+        with (
+            mock.patch.object(publish, "run", runner),
+            mock.patch("sys.stderr", error),
+            self.assertRaises(SystemExit) as ctx,
+        ):
+            publish.main([
+                "resolve-remotes",
+                "--configured-remote", "https://user:secret@github.com/other/docs.git",
+            ])
+        self.assertEqual(ctx.exception.code, publish.EXIT_ARG_ERROR)
+        self.assertNotIn("secret", error.getvalue())
+
+    def test_configured_remote_mismatch_fails(self) -> None:
+        canonical = "acme/docs"
+        runner = self._resolver_mock(
+            {"origin": ("https://github.com/acme/docs.git", ["https://github.com/acme/docs.git"])},
+            {canonical: self._metadata(canonical, is_fork=False)},
+        )
+        with mock.patch.object(publish, "run", runner), self.assertRaises(SystemExit) as ctx:
+            publish.main([
+                "resolve-remotes",
+                "--configured-remote", "https://github.com/other/docs.git",
+            ])
+        self.assertEqual(ctx.exception.code, publish.EXIT_ARG_ERROR)
+
+    def test_ambiguous_forks_fail(self) -> None:
+        canonical = "acme/docs"
+        metadata = {
+            canonical: self._metadata(canonical, is_fork=False),
+            "one/docs": self._metadata("one/docs", is_fork=True, parent=canonical),
+            "two/docs": self._metadata("two/docs", is_fork=True, parent=canonical),
+        }
+        runner = self._resolver_mock(
+            {
+                "origin": ("https://github.com/acme/docs.git", ["https://github.com/acme/docs.git"]),
+                "one": ("https://github.com/one/docs.git", ["https://github.com/one/docs.git"]),
+                "two": ("https://github.com/two/docs.git", ["https://github.com/two/docs.git"]),
+            },
+            metadata,
+        )
+        with mock.patch.object(publish, "run", runner), self.assertRaises(SystemExit) as ctx:
+            publish.main([
+                "resolve-remotes",
+                "--configured-remote", "https://github.com/acme/docs.git",
+            ])
+        self.assertEqual(ctx.exception.code, publish.EXIT_ARG_ERROR)
 
 
 if __name__ == "__main__":
