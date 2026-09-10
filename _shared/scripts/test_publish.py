@@ -938,6 +938,92 @@ class TestResolveRemotes(unittest.TestCase):
         self.assertEqual(result["fork_owner"], "contributor")
         self.assertTrue(result["cross_repository"])
 
+    def test_unconfigured_remote_prefers_fork_parent(self) -> None:
+        canonical = "acme/docs"
+        fork = "contributor/docs"
+        unrelated = "other/docs"
+        result = self._resolve(
+            {
+                "origin": ("https://github.com/acme/docs.git", ["https://github.com/acme/docs.git"]),
+                "fork": ("https://github.com/contributor/docs.git", ["https://github.com/contributor/docs.git"]),
+                "other": ("https://github.com/other/docs.git", ["https://github.com/other/docs.git"]),
+            },
+            {
+                canonical: self._metadata(canonical, is_fork=False),
+                fork: self._metadata(fork, is_fork=True, parent=canonical),
+                unrelated: self._metadata(unrelated, is_fork=False),
+            },
+        )
+        self.assertEqual(result["upstream_repo"], canonical)
+        self.assertEqual(result["push_remote"], "fork")
+        self.assertEqual(result["fork_owner"], "contributor")
+
+    def test_multiple_push_destinations_fail(self) -> None:
+        canonical = "acme/docs"
+        fork = "contributor/docs"
+        other = "other/docs"
+        metadata = {
+            canonical: self._metadata(canonical, is_fork=False),
+            fork: self._metadata(fork, is_fork=True, parent=canonical),
+            other: self._metadata(other, is_fork=False),
+        }
+        runner = self._resolver_mock(
+            {
+                "origin": (
+                    "https://github.com/acme/docs.git",
+                    [
+                        "https://github.com/contributor/docs.git",
+                        "https://github.com/other/docs.git",
+                    ],
+                ),
+            },
+            metadata,
+        )
+        with mock.patch.object(publish, "run", runner), self.assertRaises(SystemExit) as ctx:
+            publish.main([
+                "resolve-remotes",
+                "--configured-remote", "https://github.com/acme/docs.git",
+            ])
+        self.assertEqual(ctx.exception.code, publish.EXIT_ARG_ERROR)
+
+    def test_credential_userinfo_is_redacted(self) -> None:
+        canonical = "acme/docs"
+        fork = "contributor/docs"
+        result = self._resolve(
+            {
+                "origin": (
+                    "https://reader:fetch-secret@github.com/acme/docs.git",
+                    ["https://writer:push-secret@github.com/contributor/docs.git"],
+                ),
+            },
+            {
+                canonical: self._metadata(canonical, is_fork=False),
+                fork: self._metadata(fork, is_fork=True, parent=canonical),
+            },
+            "https://reader:fetch-secret@github.com/acme/docs.git",
+        )
+        self.assertEqual(result["push_url"], "https://github.com/contributor/docs.git")
+        self.assertNotIn("push-secret", json.dumps(result))
+
+    def test_credential_userinfo_is_redacted_from_errors(self) -> None:
+        canonical = "acme/docs"
+        runner = self._resolver_mock(
+            {"origin": ("https://github.com/acme/docs.git", ["https://github.com/acme/docs.git"])},
+            {canonical: self._metadata(canonical, is_fork=False)},
+        )
+        error = io.StringIO()
+        with (
+            mock.patch.object(publish, "run", runner),
+            mock.patch("sys.stderr", error),
+            self.assertRaises(SystemExit) as ctx,
+        ):
+            publish.main([
+                "resolve-remotes",
+                "--configured-remote", "https://user:secret@github.com/other/docs.git",
+            ])
+        self.assertEqual(ctx.exception.code, publish.EXIT_ARG_ERROR)
+        self.assertNotIn("secret", error.getvalue())
+
     def test_configured_remote_mismatch_fails(self) -> None:
         canonical = "acme/docs"
         runner = self._resolver_mock(
