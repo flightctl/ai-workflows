@@ -209,6 +209,11 @@ If `03-design.md` was updated, read and follow
 `../../_shared/recipes/capture-provenance-event.md` with `WORKFLOW=design`,
 `ISSUE_KEY={issue-key}`, `PHASE=revise`, `AUTHORING_MODE=skill`.
 
+If `03-design.md` was updated, read and follow
+`../../_shared/recipes/render-provenance-footer.md` with `WORKFLOW=design`,
+`ISSUE_KEY={issue-key}`, and `TARGET_FILE` set to the absolute source-repo
+path to `.artifacts/design/{issue-key}/03-design.md`.
+
 If the design document was published, also update the docs repo copy.
 Check for `.artifacts/design/{issue-key}/publish-metadata.json` and
 `.artifacts/config.json`. If either file does not exist, skip the

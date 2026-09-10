@@ -188,6 +188,10 @@ Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 `WORKFLOW=prd`, `ISSUE_KEY={issue-key}`, `PHASE=respond`,
 `AUTHORING_MODE=skill`.
 
+Read and follow `../../_shared/recipes/render-provenance-footer.md` with
+`WORKFLOW=prd`, `ISSUE_KEY={issue-key}`, and `TARGET_FILE` set to the
+absolute source-repo path to `.artifacts/prd/{issue-key}/03-prd.md`.
+
 **Update the docs repo copy:** Read `.artifacts/prd/{issue-key}/publish-metadata.json`
 to get `{prd-file-path}` (the PRD's location within the docs repo). If the
 metadata file doesn't exist, ask the user for the file path within the docs

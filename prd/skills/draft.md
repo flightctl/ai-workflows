@@ -204,6 +204,14 @@ Read and follow `../../_shared/recipes/capture-provenance-event.md` with:
 | PHASE | `draft` |
 | AUTHORING_MODE | `skill` |
 
+Read and follow `../../_shared/recipes/render-provenance-footer.md` with:
+
+| Parameter | Value |
+|-----------|-------|
+| WORKFLOW | `prd` |
+| ISSUE_KEY | `{issue-key}` |
+| TARGET_FILE | Absolute source-repo path to `.artifacts/prd/{issue-key}/03-prd.md` |
+
 ### Step 9: Present to User
 
 Show the user the complete PRD and highlight:
