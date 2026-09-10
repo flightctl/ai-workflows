@@ -30,6 +30,7 @@ class TestParseArgs(unittest.TestCase):
     """Verify argparse configuration for each subcommand."""
 
     def test_fetch_required_args(self) -> None:
+        """Fetch subcommand parses required arguments correctly."""
         parser = pr_comments.build_parser()
         args = parser.parse_args([
             "fetch", "--owner", "acme", "--repo", "proj", "--pr", "42",
@@ -43,6 +44,7 @@ class TestParseArgs(unittest.TestCase):
         self.assertFalse(args.include_review_threads)
 
     def test_fetch_all_options(self) -> None:
+        """Fetch subcommand parses all optional arguments."""
         parser = pr_comments.build_parser()
         args = parser.parse_args([
             "fetch", "--owner", "acme", "--repo", "proj", "--pr", "10",
@@ -55,24 +57,28 @@ class TestParseArgs(unittest.TestCase):
         self.assertTrue(args.include_review_threads)
 
     def test_fetch_missing_owner(self) -> None:
+        """Fetch exits with code 2 when --owner is missing."""
         parser = pr_comments.build_parser()
         with self.assertRaises(SystemExit) as ctx:
             parser.parse_args(["fetch", "--repo", "proj", "--pr", "1"])
         self.assertEqual(ctx.exception.code, 2)
 
     def test_fetch_missing_repo(self) -> None:
+        """Fetch exits with code 2 when --repo is missing."""
         parser = pr_comments.build_parser()
         with self.assertRaises(SystemExit) as ctx:
             parser.parse_args(["fetch", "--owner", "acme", "--pr", "1"])
         self.assertEqual(ctx.exception.code, 2)
 
     def test_fetch_missing_pr(self) -> None:
+        """Fetch exits with code 2 when --pr is missing."""
         parser = pr_comments.build_parser()
         with self.assertRaises(SystemExit) as ctx:
             parser.parse_args(["fetch", "--owner", "acme", "--repo", "proj"])
         self.assertEqual(ctx.exception.code, 2)
 
     def test_reply_required_args(self) -> None:
+        """Reply subcommand parses required arguments correctly."""
         parser = pr_comments.build_parser()
         args = parser.parse_args([
             "reply", "--owner", "acme", "--repo", "proj",
@@ -86,6 +92,7 @@ class TestParseArgs(unittest.TestCase):
         self.assertEqual(args.comment_id, "")
 
     def test_reply_with_comment_id(self) -> None:
+        """Reply subcommand parses optional --comment-id."""
         parser = pr_comments.build_parser()
         args = parser.parse_args([
             "reply", "--owner", "acme", "--repo", "proj",
@@ -95,6 +102,7 @@ class TestParseArgs(unittest.TestCase):
         self.assertEqual(args.comment_id, "12345")
 
     def test_reply_missing_body_file(self) -> None:
+        """Reply exits with code 2 when --body-file is missing."""
         parser = pr_comments.build_parser()
         with self.assertRaises(SystemExit) as ctx:
             parser.parse_args([
@@ -103,6 +111,7 @@ class TestParseArgs(unittest.TestCase):
         self.assertEqual(ctx.exception.code, 2)
 
     def test_log_required_args(self) -> None:
+        """Log subcommand parses required arguments correctly."""
         parser = pr_comments.build_parser()
         args = parser.parse_args([
             "log", "--responses-log", "/tmp/log.jsonl",
@@ -114,6 +123,7 @@ class TestParseArgs(unittest.TestCase):
         self.assertEqual(args.response_summary, "")
 
     def test_log_with_summary(self) -> None:
+        """Log subcommand parses optional --response-summary."""
         parser = pr_comments.build_parser()
         args = parser.parse_args([
             "log", "--responses-log", "/tmp/log.jsonl",
@@ -122,18 +132,21 @@ class TestParseArgs(unittest.TestCase):
         self.assertEqual(args.response_summary, "Fixed typo")
 
     def test_log_missing_responses_log(self) -> None:
+        """Log exits with code 2 when --responses-log is missing."""
         parser = pr_comments.build_parser()
         with self.assertRaises(SystemExit) as ctx:
             parser.parse_args(["log", "--comment-id", "99"])
         self.assertEqual(ctx.exception.code, 2)
 
     def test_log_missing_comment_id(self) -> None:
+        """Log exits with code 2 when --comment-id is missing."""
         parser = pr_comments.build_parser()
         with self.assertRaises(SystemExit) as ctx:
             parser.parse_args(["log", "--responses-log", "/tmp/log.jsonl"])
         self.assertEqual(ctx.exception.code, 2)
 
     def test_no_subcommand(self) -> None:
+        """No subcommand returns EXIT_RUNTIME_ERROR."""
         result = pr_comments.main([])
         self.assertEqual(result, pr_comments.EXIT_RUNTIME_ERROR)
 
@@ -147,6 +160,7 @@ class TestExitCodes(unittest.TestCase):
     """Verify the documented exit code contract."""
 
     def test_exit_code_constants(self) -> None:
+        """Exit code constants match the documented contract."""
         self.assertEqual(pr_comments.EXIT_SUCCESS, 0)
         self.assertEqual(pr_comments.EXIT_RUNTIME_ERROR, 1)
 
@@ -171,6 +185,7 @@ class TestFetch(unittest.TestCase):
         in_reply_to_id: int | None = None,
         html_url: str = "https://github.com/acme/proj/pull/1#r100",
     ) -> dict:
+        """Build a mock review comment dict matching GitHub REST API shape."""
         d: dict = {
             "id": cid,
             "user": {"login": author},
@@ -191,6 +206,7 @@ class TestFetch(unittest.TestCase):
         reviews: list | None = None,
         url: str = "https://github.com/acme/proj/pull/1",
     ) -> dict:
+        """Build a mock PR data dict matching gh pr view --json shape."""
         return {
             "comments": comments or [],
             "reviews": reviews or [],
@@ -200,6 +216,7 @@ class TestFetch(unittest.TestCase):
     @mock.patch.object(pr_comments, "_run")
     def test_fetch_basic(self, mock_run: mock.Mock) -> None:
         """Fetch with no filters returns all comments."""
+        # --slurp wraps single page in an outer array
         review_comments = [self._make_review_comment()]
         pr_data = self._make_pr_data(
             comments=[{
@@ -207,6 +224,7 @@ class TestFetch(unittest.TestCase):
                 "author": {"login": "user1"},
                 "body": "Looks good",
                 "createdAt": "2025-06-02T12:00:00Z",
+                "url": "https://github.com/acme/proj/pull/1#issuecomment-200",
             }],
             reviews=[{
                 "id": "RV_300",
@@ -217,9 +235,9 @@ class TestFetch(unittest.TestCase):
         )
 
         mock_run.side_effect = [
-            # gh api .../comments --paginate
+            # gh api .../comments --paginate --slurp
             subprocess.CompletedProcess(
-                [], 0, json.dumps(review_comments), "",
+                [], 0, json.dumps([review_comments]), "",
             ),
             # gh pr view --json
             subprocess.CompletedProcess(
@@ -246,11 +264,15 @@ class TestFetch(unittest.TestCase):
         self.assertEqual(lc["path"], "src/main.py")
         self.assertEqual(lc["line"], 42)
 
-        # Check top-level comment
+        # Check top-level comment uses per-comment URL
         tl = output[1]
         self.assertEqual(tl["type"], "top_level")
         self.assertEqual(tl["id"], "IC_200")
         self.assertEqual(tl["author"], "user1")
+        self.assertEqual(
+            tl["url"],
+            "https://github.com/acme/proj/pull/1#issuecomment-200",
+        )
 
         # Check review
         rv = output[2]
@@ -273,7 +295,7 @@ class TestFetch(unittest.TestCase):
 
         mock_run.side_effect = [
             subprocess.CompletedProcess(
-                [], 0, json.dumps(review_comments), "",
+                [], 0, json.dumps([review_comments]), "",
             ),
             subprocess.CompletedProcess(
                 [], 0, json.dumps(pr_data), "",
@@ -305,7 +327,7 @@ class TestFetch(unittest.TestCase):
 
         mock_run.side_effect = [
             subprocess.CompletedProcess(
-                [], 0, json.dumps(review_comments), "",
+                [], 0, json.dumps([review_comments]), "",
             ),
             subprocess.CompletedProcess(
                 [], 0, json.dumps(pr_data), "",
@@ -352,7 +374,7 @@ class TestFetch(unittest.TestCase):
 
         mock_run.side_effect = [
             subprocess.CompletedProcess(
-                [], 0, json.dumps(review_comments), "",
+                [], 0, json.dumps([review_comments]), "",
             ),
             subprocess.CompletedProcess(
                 [], 0, json.dumps(pr_data), "",
@@ -394,7 +416,7 @@ class TestFetch(unittest.TestCase):
 
         mock_run.side_effect = [
             subprocess.CompletedProcess(
-                [], 0, json.dumps(review_comments), "",
+                [], 0, json.dumps([review_comments]), "",
             ),
             subprocess.CompletedProcess(
                 [], 0, json.dumps(pr_data), "",
@@ -448,7 +470,7 @@ class TestFetch(unittest.TestCase):
 
         mock_run.side_effect = [
             subprocess.CompletedProcess(
-                [], 0, json.dumps(review_comments), "",
+                [], 0, json.dumps([review_comments]), "",
             ),
             subprocess.CompletedProcess(
                 [], 0, json.dumps(pr_data), "",
@@ -483,7 +505,7 @@ class TestFetch(unittest.TestCase):
 
         mock_run.side_effect = [
             subprocess.CompletedProcess(
-                [], 0, json.dumps(review_comments), "",
+                [], 0, json.dumps([review_comments]), "",
             ),
             subprocess.CompletedProcess(
                 [], 0, json.dumps(pr_data), "",
@@ -566,7 +588,7 @@ class TestFetch(unittest.TestCase):
 
         mock_run.side_effect = [
             subprocess.CompletedProcess(
-                [], 0, json.dumps(review_comments), "",
+                [], 0, json.dumps([review_comments]), "",
             ),
             subprocess.CompletedProcess(
                 [], 0, json.dumps(pr_data), "",
@@ -586,6 +608,85 @@ class TestFetch(unittest.TestCase):
         self.assertEqual(output[1]["in_reply_to_id"], 100)
 
     @mock.patch.object(pr_comments, "_run")
+    def test_fetch_multipage_slurp(self, mock_run: mock.Mock) -> None:
+        """--slurp with multiple pages flattens array-of-arrays."""
+        page1 = [self._make_review_comment(cid=1)]
+        page2 = [self._make_review_comment(cid=2)]
+        page3 = [self._make_review_comment(cid=3)]
+        # --slurp produces [[page1], [page2], [page3]]
+        slurped = [page1, page2, page3]
+        pr_data = self._make_pr_data()
+
+        mock_run.side_effect = [
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(slurped), "",
+            ),
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(pr_data), "",
+            ),
+        ]
+
+        import io
+        buf = io.StringIO()
+        with mock.patch("sys.stdout", buf):
+            code = pr_comments.main([
+                "fetch", "--owner", "acme", "--repo", "proj", "--pr", "1",
+            ])
+
+        self.assertEqual(code, 0)
+        output = json.loads(buf.getvalue())
+        self.assertEqual(len(output), 3)
+        self.assertEqual([c["id"] for c in output], [1, 2, 3])
+
+    @mock.patch.object(pr_comments, "_run")
+    def test_fetch_top_level_comment_url_fallback(
+        self, mock_run: mock.Mock,
+    ) -> None:
+        """Top-level comment falls back to pr_url when comment has no url."""
+        pr_data = self._make_pr_data(
+            comments=[{
+                "id": "IC_1",
+                "author": {"login": "user1"},
+                "body": "No url field",
+                "createdAt": "2025-06-01T00:00:00Z",
+            }],
+            url="https://github.com/acme/proj/pull/1",
+        )
+
+        mock_run.side_effect = [
+            subprocess.CompletedProcess([], 0, "[]", ""),
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(pr_data), "",
+            ),
+        ]
+
+        import io
+        buf = io.StringIO()
+        with mock.patch("sys.stdout", buf):
+            code = pr_comments.main([
+                "fetch", "--owner", "acme", "--repo", "proj", "--pr", "1",
+            ])
+
+        self.assertEqual(code, 0)
+        output = json.loads(buf.getvalue())
+        # Falls back to PR-level URL
+        self.assertEqual(
+            output[0]["url"], "https://github.com/acme/proj/pull/1",
+        )
+
+    @mock.patch.object(pr_comments, "_run")
+    def test_fetch_timeout_returns_failure(self, mock_run: mock.Mock) -> None:
+        """Timeout during gh api call returns a failure result."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            [], -1, "", "Command timed out after 120s: gh api ...",
+        )
+        with self.assertRaises(SystemExit) as ctx:
+            pr_comments.main([
+                "fetch", "--owner", "acme", "--repo", "proj", "--pr", "1",
+            ])
+        self.assertEqual(ctx.exception.code, pr_comments.EXIT_RUNTIME_ERROR)
+
+    @mock.patch.object(pr_comments, "_run")
     def test_fetch_original_line_fallback(self, mock_run: mock.Mock) -> None:
         """Uses original_line when line is null."""
         rc = {
@@ -601,7 +702,7 @@ class TestFetch(unittest.TestCase):
         pr_data = self._make_pr_data()
 
         mock_run.side_effect = [
-            subprocess.CompletedProcess([], 0, json.dumps([rc]), ""),
+            subprocess.CompletedProcess([], 0, json.dumps([[rc]]), ""),
             subprocess.CompletedProcess(
                 [], 0, json.dumps(pr_data), "",
             ),
@@ -888,6 +989,7 @@ class TestHelpers(unittest.TestCase):
     """Verify helper functions."""
 
     def test_emit_json_outputs_to_stdout(self) -> None:
+        """_emit_json writes valid JSON to stdout."""
         import io
         buf = io.StringIO()
         with mock.patch("sys.stdout", buf):
@@ -896,6 +998,7 @@ class TestHelpers(unittest.TestCase):
         self.assertEqual(output["key"], "value")
 
     def test_emit_json_list(self) -> None:
+        """_emit_json handles list values."""
         import io
         buf = io.StringIO()
         with mock.patch("sys.stdout", buf):
@@ -904,6 +1007,7 @@ class TestHelpers(unittest.TestCase):
         self.assertEqual(output, [1, 2, 3])
 
     def test_info_writes_to_stderr(self) -> None:
+        """info() writes an INFO-prefixed message to stderr."""
         import io
         buf = io.StringIO()
         with mock.patch("sys.stderr", buf):
@@ -911,17 +1015,30 @@ class TestHelpers(unittest.TestCase):
         self.assertIn("INFO: test message", buf.getvalue())
 
     def test_fail_exits_with_code(self) -> None:
+        """fail() exits with the specified code."""
         with self.assertRaises(SystemExit) as ctx:
             pr_comments.fail("something broke", code=1)
         self.assertEqual(ctx.exception.code, 1)
 
     def test_fail_writes_to_stderr(self) -> None:
+        """fail() writes an ERROR-prefixed message to stderr."""
         import io
         buf = io.StringIO()
         with mock.patch("sys.stderr", buf):
             with self.assertRaises(SystemExit):
                 pr_comments.fail("bad thing")
         self.assertIn("ERROR: bad thing", buf.getvalue())
+
+    @mock.patch("subprocess.run")
+    def test_run_timeout_returns_failure(self, mock_sub: mock.Mock) -> None:
+        """_run catches TimeoutExpired and returns a synthetic failure."""
+        mock_sub.side_effect = subprocess.TimeoutExpired(
+            cmd=["gh", "api", "..."], timeout=120,
+        )
+        result = pr_comments._run(["gh", "api", "..."], timeout=120)
+        self.assertEqual(result.returncode, -1)
+        self.assertIn("timed out", result.stderr)
+        self.assertEqual(result.stdout, "")
 
 
 if __name__ == "__main__":

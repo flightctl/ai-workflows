@@ -67,6 +67,7 @@ def _run(
     *,
     capture: bool = True,
     check: bool = False,
+    timeout: int = 120,
 ) -> subprocess.CompletedProcess[str]:
     """Run a subprocess with text mode and optional output capture.
 
@@ -74,16 +75,29 @@ def _run(
         cmd: Command and arguments to execute.
         capture: If True, capture stdout and stderr (default: True).
         check: If True, raise CalledProcessError on non-zero exit.
+        timeout: Maximum seconds to wait before killing the process
+            (default: 120).
 
     Returns:
-        The completed process with text-mode stdout/stderr.
+        The completed process with text-mode stdout/stderr.  On timeout,
+        returns a synthetic failure result (returncode -1) with the
+        timeout message in stderr.
     """
-    return subprocess.run(
-        cmd,
-        capture_output=capture,
-        text=True,
-        check=check,
-    )
+    try:
+        return subprocess.run(
+            cmd,
+            capture_output=capture,
+            text=True,
+            check=check,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(
+            cmd,
+            returncode=-1,
+            stdout="",
+            stderr=f"Command timed out after {timeout}s: {' '.join(cmd)}",
+        )
 
 
 def _emit_json(data: Any) -> None:
@@ -136,14 +150,23 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         "gh", "api",
         f"repos/{owner}/{repo}/pulls/{pr}/comments",
         "--paginate",
+        "--slurp",
     ])
     if r.returncode != 0:
         fail(f"fetch: failed to fetch review comments: {r.stderr.strip()}")
 
     try:
-        review_comments = json.loads(r.stdout) if r.stdout.strip() else []
+        raw = json.loads(r.stdout) if r.stdout.strip() else []
     except json.JSONDecodeError:
         fail("fetch: failed to parse review comments JSON")
+
+    # --slurp wraps each page in an array; flatten to a single list
+    review_comments: list[dict[str, Any]] = []
+    for item in raw:
+        if isinstance(item, list):
+            review_comments.extend(item)
+        else:
+            review_comments.append(item)
 
     for rc in review_comments:
         comment: dict[str, Any] = {
@@ -182,7 +205,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             "author": tc.get("author", {}).get("login", ""),
             "body": tc.get("body", ""),
             "created_at": tc.get("createdAt", ""),
-            "url": pr_url,
+            "url": tc.get("url") or pr_url,
         }
         comments.append(comment)
 

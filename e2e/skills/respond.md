@@ -196,11 +196,16 @@ python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-numbe
 python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/e2e/{issue-key}/tmp-reply.md
 ```
 
-After each successful reply, record it in the responses log:
+After each successful reply, record it in the responses log.  Use the
+`id` value from the fetch output for the comment being replied to:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" log --responses-log .artifacts/e2e/{issue-key}/responses.jsonl --comment-id {comment-id} --response-summary "{brief summary of response}"
+python3 "$PR_COMMENTS_SCRIPT" log --responses-log .artifacts/e2e/{issue-key}/responses.jsonl --comment-id {id from fetch output} --response-summary "{brief summary of response}"
 ```
+
+**If the log command fails (non-zero exit), stop immediately** — do not
+post the next reply.  Continuing without logging would allow duplicate
+replies on the next respond round.
 
 Clean up the temporary reply file:
 
