@@ -1,6 +1,6 @@
 ---
 name: prd
-version: 0.9.1
+version: 0.10.0
 description: >-
   Requirements-to-PRD workflow that ingests requirements from Jira, clarifies
   ambiguities through iterative Q&A, drafts a Product Requirements Document,
