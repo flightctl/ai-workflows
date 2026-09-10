@@ -1,0 +1,928 @@
+#!/usr/bin/env python3
+"""Tests for _shared/scripts/pr-comments.py."""
+
+from __future__ import annotations
+
+import importlib.util
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+_SCRIPT = Path(__file__).resolve().parent / "pr-comments.py"
+_spec = importlib.util.spec_from_file_location("pr_comments", _SCRIPT)
+assert _spec and _spec.loader
+pr_comments = importlib.util.module_from_spec(_spec)
+sys.modules["pr_comments"] = pr_comments
+_spec.loader.exec_module(pr_comments)
+
+
+# ---------------------------------------------------------------------------
+# Argument parsing tests
+# ---------------------------------------------------------------------------
+
+
+class TestParseArgs(unittest.TestCase):
+    """Verify argparse configuration for each subcommand."""
+
+    def test_fetch_required_args(self) -> None:
+        parser = pr_comments.build_parser()
+        args = parser.parse_args([
+            "fetch", "--owner", "acme", "--repo", "proj", "--pr", "42",
+        ])
+        self.assertEqual(args.subcommand, "fetch")
+        self.assertEqual(args.owner, "acme")
+        self.assertEqual(args.repo, "proj")
+        self.assertEqual(args.pr, 42)
+        self.assertEqual(args.since, "")
+        self.assertEqual(args.responses_log, "")
+        self.assertFalse(args.include_review_threads)
+
+    def test_fetch_all_options(self) -> None:
+        parser = pr_comments.build_parser()
+        args = parser.parse_args([
+            "fetch", "--owner", "acme", "--repo", "proj", "--pr", "10",
+            "--since", "2025-01-01T00:00:00Z",
+            "--responses-log", "/tmp/log.jsonl",
+            "--include-review-threads",
+        ])
+        self.assertEqual(args.since, "2025-01-01T00:00:00Z")
+        self.assertEqual(args.responses_log, "/tmp/log.jsonl")
+        self.assertTrue(args.include_review_threads)
+
+    def test_fetch_missing_owner(self) -> None:
+        parser = pr_comments.build_parser()
+        with self.assertRaises(SystemExit) as ctx:
+            parser.parse_args(["fetch", "--repo", "proj", "--pr", "1"])
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_fetch_missing_repo(self) -> None:
+        parser = pr_comments.build_parser()
+        with self.assertRaises(SystemExit) as ctx:
+            parser.parse_args(["fetch", "--owner", "acme", "--pr", "1"])
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_fetch_missing_pr(self) -> None:
+        parser = pr_comments.build_parser()
+        with self.assertRaises(SystemExit) as ctx:
+            parser.parse_args(["fetch", "--owner", "acme", "--repo", "proj"])
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_reply_required_args(self) -> None:
+        parser = pr_comments.build_parser()
+        args = parser.parse_args([
+            "reply", "--owner", "acme", "--repo", "proj",
+            "--pr", "5", "--body-file", "/tmp/body.md",
+        ])
+        self.assertEqual(args.subcommand, "reply")
+        self.assertEqual(args.owner, "acme")
+        self.assertEqual(args.repo, "proj")
+        self.assertEqual(args.pr, 5)
+        self.assertEqual(args.body_file, "/tmp/body.md")
+        self.assertEqual(args.comment_id, "")
+
+    def test_reply_with_comment_id(self) -> None:
+        parser = pr_comments.build_parser()
+        args = parser.parse_args([
+            "reply", "--owner", "acme", "--repo", "proj",
+            "--pr", "5", "--body-file", "/tmp/body.md",
+            "--comment-id", "12345",
+        ])
+        self.assertEqual(args.comment_id, "12345")
+
+    def test_reply_missing_body_file(self) -> None:
+        parser = pr_comments.build_parser()
+        with self.assertRaises(SystemExit) as ctx:
+            parser.parse_args([
+                "reply", "--owner", "acme", "--repo", "proj", "--pr", "5",
+            ])
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_log_required_args(self) -> None:
+        parser = pr_comments.build_parser()
+        args = parser.parse_args([
+            "log", "--responses-log", "/tmp/log.jsonl",
+            "--comment-id", "99",
+        ])
+        self.assertEqual(args.subcommand, "log")
+        self.assertEqual(args.responses_log, "/tmp/log.jsonl")
+        self.assertEqual(args.comment_id, "99")
+        self.assertEqual(args.response_summary, "")
+
+    def test_log_with_summary(self) -> None:
+        parser = pr_comments.build_parser()
+        args = parser.parse_args([
+            "log", "--responses-log", "/tmp/log.jsonl",
+            "--comment-id", "99", "--response-summary", "Fixed typo",
+        ])
+        self.assertEqual(args.response_summary, "Fixed typo")
+
+    def test_log_missing_responses_log(self) -> None:
+        parser = pr_comments.build_parser()
+        with self.assertRaises(SystemExit) as ctx:
+            parser.parse_args(["log", "--comment-id", "99"])
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_log_missing_comment_id(self) -> None:
+        parser = pr_comments.build_parser()
+        with self.assertRaises(SystemExit) as ctx:
+            parser.parse_args(["log", "--responses-log", "/tmp/log.jsonl"])
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_no_subcommand(self) -> None:
+        result = pr_comments.main([])
+        self.assertEqual(result, pr_comments.EXIT_RUNTIME_ERROR)
+
+
+# ---------------------------------------------------------------------------
+# Exit code contract tests
+# ---------------------------------------------------------------------------
+
+
+class TestExitCodes(unittest.TestCase):
+    """Verify the documented exit code contract."""
+
+    def test_exit_code_constants(self) -> None:
+        self.assertEqual(pr_comments.EXIT_SUCCESS, 0)
+        self.assertEqual(pr_comments.EXIT_RUNTIME_ERROR, 1)
+
+
+# ---------------------------------------------------------------------------
+# Fetch tests (with subprocess mocking)
+# ---------------------------------------------------------------------------
+
+
+class TestFetch(unittest.TestCase):
+    """Verify fetch subcommand behaviour."""
+
+    def _make_review_comment(
+        self,
+        *,
+        cid: int = 100,
+        author: str = "reviewer",
+        body: str = "Fix this",
+        created_at: str = "2025-06-01T10:00:00Z",
+        path: str = "src/main.py",
+        line: int = 42,
+        in_reply_to_id: int | None = None,
+        html_url: str = "https://github.com/acme/proj/pull/1#r100",
+    ) -> dict:
+        d: dict = {
+            "id": cid,
+            "user": {"login": author},
+            "body": body,
+            "created_at": created_at,
+            "path": path,
+            "line": line,
+            "html_url": html_url,
+        }
+        if in_reply_to_id is not None:
+            d["in_reply_to_id"] = in_reply_to_id
+        return d
+
+    def _make_pr_data(
+        self,
+        *,
+        comments: list | None = None,
+        reviews: list | None = None,
+        url: str = "https://github.com/acme/proj/pull/1",
+    ) -> dict:
+        return {
+            "comments": comments or [],
+            "reviews": reviews or [],
+            "url": url,
+        }
+
+    @mock.patch.object(pr_comments, "_run")
+    def test_fetch_basic(self, mock_run: mock.Mock) -> None:
+        """Fetch with no filters returns all comments."""
+        review_comments = [self._make_review_comment()]
+        pr_data = self._make_pr_data(
+            comments=[{
+                "id": "IC_200",
+                "author": {"login": "user1"},
+                "body": "Looks good",
+                "createdAt": "2025-06-02T12:00:00Z",
+            }],
+            reviews=[{
+                "id": "RV_300",
+                "author": {"login": "lead"},
+                "body": "LGTM",
+                "submittedAt": "2025-06-02T14:00:00Z",
+            }],
+        )
+
+        mock_run.side_effect = [
+            # gh api .../comments --paginate
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(review_comments), "",
+            ),
+            # gh pr view --json
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(pr_data), "",
+            ),
+        ]
+
+        import io
+        buf = io.StringIO()
+        with mock.patch("sys.stdout", buf):
+            code = pr_comments.main([
+                "fetch", "--owner", "acme", "--repo", "proj", "--pr", "1",
+            ])
+
+        self.assertEqual(code, 0)
+        output = json.loads(buf.getvalue())
+        self.assertEqual(len(output), 3)
+
+        # Check line comment
+        lc = output[0]
+        self.assertEqual(lc["type"], "line_comment")
+        self.assertEqual(lc["id"], 100)
+        self.assertEqual(lc["author"], "reviewer")
+        self.assertEqual(lc["path"], "src/main.py")
+        self.assertEqual(lc["line"], 42)
+
+        # Check top-level comment
+        tl = output[1]
+        self.assertEqual(tl["type"], "top_level")
+        self.assertEqual(tl["id"], "IC_200")
+        self.assertEqual(tl["author"], "user1")
+
+        # Check review
+        rv = output[2]
+        self.assertEqual(rv["type"], "review")
+        self.assertEqual(rv["id"], "RV_300")
+        self.assertEqual(rv["author"], "lead")
+
+    @mock.patch.object(pr_comments, "_run")
+    def test_fetch_since_filter(self, mock_run: mock.Mock) -> None:
+        """--since excludes older comments."""
+        review_comments = [
+            self._make_review_comment(
+                cid=1, created_at="2025-01-01T00:00:00Z",
+            ),
+            self._make_review_comment(
+                cid=2, created_at="2025-06-15T00:00:00Z",
+            ),
+        ]
+        pr_data = self._make_pr_data()
+
+        mock_run.side_effect = [
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(review_comments), "",
+            ),
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(pr_data), "",
+            ),
+        ]
+
+        import io
+        buf = io.StringIO()
+        with mock.patch("sys.stdout", buf):
+            code = pr_comments.main([
+                "fetch", "--owner", "acme", "--repo", "proj", "--pr", "1",
+                "--since", "2025-06-01T00:00:00Z",
+            ])
+
+        self.assertEqual(code, 0)
+        output = json.loads(buf.getvalue())
+        self.assertEqual(len(output), 1)
+        self.assertEqual(output[0]["id"], 2)
+
+    @mock.patch.object(pr_comments, "_run")
+    def test_fetch_responses_log_filter(self, mock_run: mock.Mock) -> None:
+        """--responses-log excludes already-addressed comment IDs."""
+        review_comments = [
+            self._make_review_comment(cid=10),
+            self._make_review_comment(cid=20),
+            self._make_review_comment(cid=30),
+        ]
+        pr_data = self._make_pr_data()
+
+        mock_run.side_effect = [
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(review_comments), "",
+            ),
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(pr_data), "",
+            ),
+        ]
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".jsonl", delete=False,
+        ) as f:
+            f.write(json.dumps({"comment_id": 10, "timestamp": "x"}) + "\n")
+            f.write(json.dumps({"comment_id": 30, "timestamp": "y"}) + "\n")
+            f.flush()
+            try:
+                import io
+                buf = io.StringIO()
+                with mock.patch("sys.stdout", buf):
+                    code = pr_comments.main([
+                        "fetch", "--owner", "acme", "--repo", "proj",
+                        "--pr", "1", "--responses-log", f.name,
+                    ])
+
+                self.assertEqual(code, 0)
+                output = json.loads(buf.getvalue())
+                self.assertEqual(len(output), 1)
+                self.assertEqual(output[0]["id"], 20)
+            finally:
+                os.unlink(f.name)
+
+    @mock.patch.object(pr_comments, "_run")
+    def test_fetch_combined_filters(self, mock_run: mock.Mock) -> None:
+        """--since and --responses-log applied together."""
+        review_comments = [
+            self._make_review_comment(
+                cid=1, created_at="2025-01-01T00:00:00Z",
+            ),
+            self._make_review_comment(
+                cid=2, created_at="2025-06-15T00:00:00Z",
+            ),
+            self._make_review_comment(
+                cid=3, created_at="2025-06-20T00:00:00Z",
+            ),
+        ]
+        pr_data = self._make_pr_data()
+
+        mock_run.side_effect = [
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(review_comments), "",
+            ),
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(pr_data), "",
+            ),
+        ]
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".jsonl", delete=False,
+        ) as f:
+            # Mark comment 2 as addressed
+            f.write(json.dumps({"comment_id": 2}) + "\n")
+            f.flush()
+            try:
+                import io
+                buf = io.StringIO()
+                with mock.patch("sys.stdout", buf):
+                    code = pr_comments.main([
+                        "fetch", "--owner", "acme", "--repo", "proj",
+                        "--pr", "1",
+                        "--since", "2025-06-01T00:00:00Z",
+                        "--responses-log", f.name,
+                    ])
+
+                self.assertEqual(code, 0)
+                output = json.loads(buf.getvalue())
+                # Comment 1: excluded by --since
+                # Comment 2: excluded by --responses-log
+                # Comment 3: passes both filters
+                self.assertEqual(len(output), 1)
+                self.assertEqual(output[0]["id"], 3)
+            finally:
+                os.unlink(f.name)
+
+    @mock.patch.object(pr_comments, "_run")
+    def test_fetch_nonexistent_responses_log(self, mock_run: mock.Mock) -> None:
+        """--responses-log pointing to a non-existent file is fine (no IDs)."""
+        review_comments = [self._make_review_comment(cid=1)]
+        pr_data = self._make_pr_data()
+
+        mock_run.side_effect = [
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(review_comments), "",
+            ),
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(pr_data), "",
+            ),
+        ]
+
+        import io
+        buf = io.StringIO()
+        with mock.patch("sys.stdout", buf):
+            code = pr_comments.main([
+                "fetch", "--owner", "acme", "--repo", "proj", "--pr", "1",
+                "--responses-log", "/nonexistent/path/log.jsonl",
+            ])
+
+        self.assertEqual(code, 0)
+        output = json.loads(buf.getvalue())
+        self.assertEqual(len(output), 1)
+
+    @mock.patch.object(pr_comments, "_run")
+    def test_fetch_include_review_threads(self, mock_run: mock.Mock) -> None:
+        """--include-review-threads annotates line comments with is_resolved."""
+        review_comments = [
+            self._make_review_comment(cid=100),
+            self._make_review_comment(cid=200),
+        ]
+        pr_data = self._make_pr_data()
+        gql_response = {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "nodes": [
+                                {
+                                    "isResolved": True,
+                                    "comments": {"nodes": [
+                                        {"id": "PRC_1", "databaseId": 100},
+                                    ]},
+                                },
+                                {
+                                    "isResolved": False,
+                                    "comments": {"nodes": [
+                                        {"id": "PRC_2", "databaseId": 200},
+                                    ]},
+                                },
+                            ],
+                        },
+                    },
+                },
+            },
+        }
+
+        mock_run.side_effect = [
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(review_comments), "",
+            ),
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(pr_data), "",
+            ),
+            # GraphQL query
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(gql_response), "",
+            ),
+        ]
+
+        import io
+        buf = io.StringIO()
+        with mock.patch("sys.stdout", buf):
+            code = pr_comments.main([
+                "fetch", "--owner", "acme", "--repo", "proj", "--pr", "1",
+                "--include-review-threads",
+            ])
+
+        self.assertEqual(code, 0)
+        output = json.loads(buf.getvalue())
+        self.assertEqual(len(output), 2)
+        self.assertTrue(output[0]["is_resolved"])
+        self.assertFalse(output[1]["is_resolved"])
+
+    @mock.patch.object(pr_comments, "_run")
+    def test_fetch_review_threads_graphql_failure(
+        self, mock_run: mock.Mock,
+    ) -> None:
+        """GraphQL failure is non-fatal; comments returned without is_resolved."""
+        review_comments = [self._make_review_comment(cid=100)]
+        pr_data = self._make_pr_data()
+
+        mock_run.side_effect = [
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(review_comments), "",
+            ),
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(pr_data), "",
+            ),
+            # GraphQL fails
+            subprocess.CompletedProcess([], 1, "", "auth error"),
+        ]
+
+        import io
+        buf = io.StringIO()
+        with mock.patch("sys.stdout", buf):
+            code = pr_comments.main([
+                "fetch", "--owner", "acme", "--repo", "proj", "--pr", "1",
+                "--include-review-threads",
+            ])
+
+        self.assertEqual(code, 0)
+        output = json.loads(buf.getvalue())
+        self.assertEqual(len(output), 1)
+        self.assertNotIn("is_resolved", output[0])
+
+    @mock.patch.object(pr_comments, "_run")
+    def test_fetch_review_comments_failure(
+        self, mock_run: mock.Mock,
+    ) -> None:
+        """gh api failure for review comments exits with code 1."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            [], 1, "", "Not Found",
+        )
+        with self.assertRaises(SystemExit) as ctx:
+            pr_comments.main([
+                "fetch", "--owner", "acme", "--repo", "proj", "--pr", "1",
+            ])
+        self.assertEqual(ctx.exception.code, pr_comments.EXIT_RUNTIME_ERROR)
+
+    @mock.patch.object(pr_comments, "_run")
+    def test_fetch_pr_view_failure(self, mock_run: mock.Mock) -> None:
+        """gh pr view failure exits with code 1."""
+        mock_run.side_effect = [
+            # Review comments OK
+            subprocess.CompletedProcess([], 0, "[]", ""),
+            # gh pr view fails
+            subprocess.CompletedProcess([], 1, "", "repo not found"),
+        ]
+        with self.assertRaises(SystemExit) as ctx:
+            pr_comments.main([
+                "fetch", "--owner", "acme", "--repo", "proj", "--pr", "1",
+            ])
+        self.assertEqual(ctx.exception.code, pr_comments.EXIT_RUNTIME_ERROR)
+
+    @mock.patch.object(pr_comments, "_run")
+    def test_fetch_empty_results(self, mock_run: mock.Mock) -> None:
+        """No comments returns an empty JSON array."""
+        mock_run.side_effect = [
+            subprocess.CompletedProcess([], 0, "[]", ""),
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(self._make_pr_data()), "",
+            ),
+        ]
+
+        import io
+        buf = io.StringIO()
+        with mock.patch("sys.stdout", buf):
+            code = pr_comments.main([
+                "fetch", "--owner", "acme", "--repo", "proj", "--pr", "1",
+            ])
+
+        self.assertEqual(code, 0)
+        output = json.loads(buf.getvalue())
+        self.assertEqual(output, [])
+
+    @mock.patch.object(pr_comments, "_run")
+    def test_fetch_in_reply_to_id(self, mock_run: mock.Mock) -> None:
+        """Reply comments include in_reply_to_id field."""
+        review_comments = [
+            self._make_review_comment(cid=100),
+            self._make_review_comment(cid=101, in_reply_to_id=100),
+        ]
+        pr_data = self._make_pr_data()
+
+        mock_run.side_effect = [
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(review_comments), "",
+            ),
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(pr_data), "",
+            ),
+        ]
+
+        import io
+        buf = io.StringIO()
+        with mock.patch("sys.stdout", buf):
+            code = pr_comments.main([
+                "fetch", "--owner", "acme", "--repo", "proj", "--pr", "1",
+            ])
+
+        self.assertEqual(code, 0)
+        output = json.loads(buf.getvalue())
+        self.assertIsNone(output[0]["in_reply_to_id"])
+        self.assertEqual(output[1]["in_reply_to_id"], 100)
+
+    @mock.patch.object(pr_comments, "_run")
+    def test_fetch_original_line_fallback(self, mock_run: mock.Mock) -> None:
+        """Uses original_line when line is null."""
+        rc = {
+            "id": 100,
+            "user": {"login": "reviewer"},
+            "body": "Fix this",
+            "created_at": "2025-06-01T10:00:00Z",
+            "path": "src/main.py",
+            "line": None,
+            "original_line": 55,
+            "html_url": "https://github.com/acme/proj/pull/1#r100",
+        }
+        pr_data = self._make_pr_data()
+
+        mock_run.side_effect = [
+            subprocess.CompletedProcess([], 0, json.dumps([rc]), ""),
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(pr_data), "",
+            ),
+        ]
+
+        import io
+        buf = io.StringIO()
+        with mock.patch("sys.stdout", buf):
+            code = pr_comments.main([
+                "fetch", "--owner", "acme", "--repo", "proj", "--pr", "1",
+            ])
+
+        self.assertEqual(code, 0)
+        output = json.loads(buf.getvalue())
+        self.assertEqual(output[0]["line"], 55)
+
+
+# ---------------------------------------------------------------------------
+# Reply tests (with subprocess mocking)
+# ---------------------------------------------------------------------------
+
+
+class TestReply(unittest.TestCase):
+    """Verify reply subcommand behaviour."""
+
+    @mock.patch.object(pr_comments, "_run")
+    def test_reply_inline(self, mock_run: mock.Mock) -> None:
+        """Inline reply uses gh api with comment ID."""
+        response = {
+            "id": 501,
+            "html_url": "https://github.com/acme/proj/pull/1#r501",
+        }
+        mock_run.return_value = subprocess.CompletedProcess(
+            [], 0, json.dumps(response), "",
+        )
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False,
+        ) as f:
+            f.write("Thanks, fixed!")
+            f.flush()
+            try:
+                import io
+                buf = io.StringIO()
+                with mock.patch("sys.stdout", buf):
+                    code = pr_comments.main([
+                        "reply", "--owner", "acme", "--repo", "proj",
+                        "--pr", "1", "--body-file", f.name,
+                        "--comment-id", "100",
+                    ])
+
+                self.assertEqual(code, 0)
+                output = json.loads(buf.getvalue())
+                self.assertEqual(output["comment_id"], 501)
+                self.assertIn("r501", output["url"])
+
+                # Verify gh api was called with correct endpoint
+                call_args = mock_run.call_args[0][0]
+                self.assertIn("gh", call_args)
+                self.assertIn("api", call_args)
+                self.assertIn(
+                    "repos/acme/proj/pulls/1/comments/100/replies",
+                    call_args,
+                )
+            finally:
+                os.unlink(f.name)
+
+    @mock.patch.object(pr_comments, "_run")
+    def test_reply_top_level(self, mock_run: mock.Mock) -> None:
+        """Top-level reply uses gh pr comment (no --comment-id)."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            [], 0, "https://github.com/acme/proj/pull/1#issuecomment-999\n",
+            "",
+        )
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False,
+        ) as f:
+            f.write("Overall feedback here.")
+            f.flush()
+            try:
+                import io
+                buf = io.StringIO()
+                with mock.patch("sys.stdout", buf):
+                    code = pr_comments.main([
+                        "reply", "--owner", "acme", "--repo", "proj",
+                        "--pr", "1", "--body-file", f.name,
+                    ])
+
+                self.assertEqual(code, 0)
+                output = json.loads(buf.getvalue())
+                self.assertIsNone(output["comment_id"])
+                self.assertIn("issuecomment-999", output["url"])
+
+                # Verify gh pr comment was called
+                call_args = mock_run.call_args[0][0]
+                self.assertIn("gh", call_args)
+                self.assertIn("pr", call_args)
+                self.assertIn("comment", call_args)
+                self.assertIn("--body-file", call_args)
+            finally:
+                os.unlink(f.name)
+
+    def test_reply_body_file_not_found(self) -> None:
+        """Missing body file exits with code 1."""
+        with self.assertRaises(SystemExit) as ctx:
+            pr_comments.main([
+                "reply", "--owner", "acme", "--repo", "proj",
+                "--pr", "1", "--body-file", "/nonexistent/body.md",
+            ])
+        self.assertEqual(ctx.exception.code, pr_comments.EXIT_RUNTIME_ERROR)
+
+    @mock.patch.object(pr_comments, "_run")
+    def test_reply_gh_failure(self, mock_run: mock.Mock) -> None:
+        """gh CLI failure exits with code 1."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            [], 1, "", "permission denied",
+        )
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False,
+        ) as f:
+            f.write("body text")
+            f.flush()
+            try:
+                with self.assertRaises(SystemExit) as ctx:
+                    pr_comments.main([
+                        "reply", "--owner", "acme", "--repo", "proj",
+                        "--pr", "1", "--body-file", f.name,
+                    ])
+                self.assertEqual(
+                    ctx.exception.code, pr_comments.EXIT_RUNTIME_ERROR,
+                )
+            finally:
+                os.unlink(f.name)
+
+    @mock.patch.object(pr_comments, "_run")
+    def test_reply_inline_empty_stdout(self, mock_run: mock.Mock) -> None:
+        """Inline reply with empty stdout returns null fields."""
+        mock_run.return_value = subprocess.CompletedProcess([], 0, "", "")
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False,
+        ) as f:
+            f.write("body")
+            f.flush()
+            try:
+                import io
+                buf = io.StringIO()
+                with mock.patch("sys.stdout", buf):
+                    code = pr_comments.main([
+                        "reply", "--owner", "acme", "--repo", "proj",
+                        "--pr", "1", "--body-file", f.name,
+                        "--comment-id", "100",
+                    ])
+
+                self.assertEqual(code, 0)
+                output = json.loads(buf.getvalue())
+                self.assertIsNone(output["comment_id"])
+                self.assertEqual(output["url"], "")
+            finally:
+                os.unlink(f.name)
+
+
+# ---------------------------------------------------------------------------
+# Log tests
+# ---------------------------------------------------------------------------
+
+
+class TestLog(unittest.TestCase):
+    """Verify log subcommand behaviour."""
+
+    def test_log_creates_new_file(self) -> None:
+        """Log creates the file if it doesn't exist."""
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "responses.jsonl")
+            code = pr_comments.main([
+                "log", "--responses-log", log_path,
+                "--comment-id", "42",
+            ])
+            self.assertEqual(code, 0)
+            self.assertTrue(Path(log_path).is_file())
+
+            lines = Path(log_path).read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(lines), 1)
+            entry = json.loads(lines[0])
+            self.assertEqual(entry["comment_id"], "42")
+            self.assertIn("timestamp", entry)
+            self.assertEqual(entry["summary"], "")
+
+    def test_log_appends_to_existing(self) -> None:
+        """Log appends to an existing file without overwriting."""
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "responses.jsonl")
+
+            # First entry
+            pr_comments.main([
+                "log", "--responses-log", log_path,
+                "--comment-id", "10",
+            ])
+            # Second entry
+            pr_comments.main([
+                "log", "--responses-log", log_path,
+                "--comment-id", "20",
+                "--response-summary", "Addressed feedback",
+            ])
+
+            lines = Path(log_path).read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(lines), 2)
+
+            e1 = json.loads(lines[0])
+            e2 = json.loads(lines[1])
+            self.assertEqual(e1["comment_id"], "10")
+            self.assertEqual(e2["comment_id"], "20")
+            self.assertEqual(e2["summary"], "Addressed feedback")
+
+    def test_log_with_summary(self) -> None:
+        """Log records the --response-summary value."""
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "responses.jsonl")
+            pr_comments.main([
+                "log", "--responses-log", log_path,
+                "--comment-id", "99",
+                "--response-summary", "Fixed the null check",
+            ])
+
+            entry = json.loads(
+                Path(log_path).read_text(encoding="utf-8").strip(),
+            )
+            self.assertEqual(entry["summary"], "Fixed the null check")
+
+    def test_log_creates_parent_directories(self) -> None:
+        """Log creates parent directories if needed."""
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "nested", "dir", "responses.jsonl")
+            code = pr_comments.main([
+                "log", "--responses-log", log_path,
+                "--comment-id", "1",
+            ])
+            self.assertEqual(code, 0)
+            self.assertTrue(Path(log_path).is_file())
+
+    def test_log_timestamp_is_iso8601(self) -> None:
+        """Log timestamp is a valid ISO 8601 string."""
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "responses.jsonl")
+            pr_comments.main([
+                "log", "--responses-log", log_path,
+                "--comment-id", "1",
+            ])
+
+            entry = json.loads(
+                Path(log_path).read_text(encoding="utf-8").strip(),
+            )
+            # Should not raise
+            from datetime import datetime
+            dt = datetime.fromisoformat(entry["timestamp"])
+            self.assertIsNotNone(dt)
+
+    def test_log_each_line_is_valid_json(self) -> None:
+        """Each line in the log file is independently parseable as JSON."""
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "responses.jsonl")
+            for i in range(5):
+                pr_comments.main([
+                    "log", "--responses-log", log_path,
+                    "--comment-id", str(i),
+                ])
+
+            lines = Path(log_path).read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(lines), 5)
+            for line in lines:
+                entry = json.loads(line)
+                self.assertIn("comment_id", entry)
+                self.assertIn("timestamp", entry)
+                self.assertIn("summary", entry)
+
+
+# ---------------------------------------------------------------------------
+# Helper function tests
+# ---------------------------------------------------------------------------
+
+
+class TestHelpers(unittest.TestCase):
+    """Verify helper functions."""
+
+    def test_emit_json_outputs_to_stdout(self) -> None:
+        import io
+        buf = io.StringIO()
+        with mock.patch("sys.stdout", buf):
+            pr_comments._emit_json({"key": "value"})
+        output = json.loads(buf.getvalue())
+        self.assertEqual(output["key"], "value")
+
+    def test_emit_json_list(self) -> None:
+        import io
+        buf = io.StringIO()
+        with mock.patch("sys.stdout", buf):
+            pr_comments._emit_json([1, 2, 3])
+        output = json.loads(buf.getvalue())
+        self.assertEqual(output, [1, 2, 3])
+
+    def test_info_writes_to_stderr(self) -> None:
+        import io
+        buf = io.StringIO()
+        with mock.patch("sys.stderr", buf):
+            pr_comments.info("test message")
+        self.assertIn("INFO: test message", buf.getvalue())
+
+    def test_fail_exits_with_code(self) -> None:
+        with self.assertRaises(SystemExit) as ctx:
+            pr_comments.fail("something broke", code=1)
+        self.assertEqual(ctx.exception.code, 1)
+
+    def test_fail_writes_to_stderr(self) -> None:
+        import io
+        buf = io.StringIO()
+        with mock.patch("sys.stderr", buf):
+            with self.assertRaises(SystemExit):
+                pr_comments.fail("bad thing")
+        self.assertIn("ERROR: bad thing", buf.getvalue())
+
+
+if __name__ == "__main__":
+    unittest.main()
