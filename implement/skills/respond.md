@@ -72,20 +72,11 @@ this will produce the fork's `{owner}/{repo}`, not the upstream's where
 the PR lives. If the resulting `gh pr view` command fails, this may be
 the cause — tell the user and ask for the correct upstream `{owner}/{repo}`.
 
-Resolve the shared script to an absolute path anchored at the
-ai-workflows repository root (not the source project root) so it
-remains valid regardless of working directory:
+Resolve the shared script to an absolute path so it remains valid
+regardless of working directory:
 
 ```bash
-PR_COMMENTS_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/../.." && git rev-parse --show-toplevel)/_shared/scripts/pr-comments.py"
-```
-
-If `BASH_SOURCE` is unavailable (e.g. when the agent runs commands
-directly rather than sourcing a script), resolve via the ai-workflows
-checkout path instead:
-
-```bash
-PR_COMMENTS_SCRIPT="$(git -C /path/to/ai-workflows rev-parse --show-toplevel)/_shared/scripts/pr-comments.py"
+PR_COMMENTS_SCRIPT="$(git rev-parse --show-toplevel)/_shared/scripts/pr-comments.py"
 ```
 
 Use `$PR_COMMENTS_SCRIPT` instead of the relative path in all subsequent
@@ -98,6 +89,9 @@ outputs a unified JSON array to stdout:
 ```bash
 python3 "$PR_COMMENTS_SCRIPT" fetch --owner {owner} --repo {repo} --pr {pr-number} --responses-log .artifacts/implement/{issue-key}/responses.jsonl --include-review-threads
 ```
+
+If fetch returns non-zero, report the error to the user and stop — do
+not proceed with an empty or partial comment list.
 
 The `--responses-log` flag excludes comment IDs already addressed in
 prior respond rounds (replacing the manual check against
@@ -210,7 +204,11 @@ comment (omit `--comment-id`):
 python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/implement/{issue-key}/tmp-reply.md
 ```
 
-After each successful reply, record the `id` in the responses log:
+If the reply command fails (non-zero exit), report the error and
+continue to the next comment **without calling `log`** — the comment
+must remain unaddressed so it is retried on the next respond round.
+
+After each **successful** reply, record the `id` in the responses log:
 
 ```bash
 python3 "$PR_COMMENTS_SCRIPT" log --responses-log .artifacts/implement/{issue-key}/responses.jsonl --comment-id {id}

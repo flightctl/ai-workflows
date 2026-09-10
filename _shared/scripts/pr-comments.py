@@ -107,10 +107,17 @@ def _parse_iso8601(value: str) -> datetime:
     trailing ``Z`` shorthand for UTC.  This helper normalises it to
     ``+00:00`` so the script works on Python 3.10+.
 
+    If the parsed datetime is timezone-naive (no offset in the input),
+    UTC is assumed — this prevents ``TypeError`` when comparing against
+    timezone-aware GitHub timestamps.
+
     Raises ``ValueError`` if the timestamp is still unparseable after
     normalisation.
     """
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 def _emit_json(data: Any) -> None:
@@ -145,7 +152,10 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     if responses_log:
         log_path = Path(responses_log)
         if log_path.is_file():
-            lines = log_path.read_text(encoding="utf-8").splitlines()
+            try:
+                lines = log_path.read_text(encoding="utf-8").splitlines()
+            except OSError as exc:
+                fail(f"fetch: could not read {responses_log}: {exc}")
             for line_num, raw_line in enumerate(lines, start=1):
                 raw_line = raw_line.strip()
                 if not raw_line:
@@ -194,7 +204,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         comment: dict[str, Any] = {
             "type": "line_comment",
             "id": rc.get("id"),
-            "author": (rc.get("user") or {}).get("login", "unknown"),
+            "author": (rc.get("user") or {}).get("login", ""),
             "body": rc.get("body", ""),
             "created_at": rc.get("created_at", ""),
             "path": rc.get("path", ""),
@@ -224,7 +234,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         comment = {
             "type": "top_level",
             "id": tc.get("id"),
-            "author": (tc.get("author") or {}).get("login", "unknown"),
+            "author": (tc.get("author") or {}).get("login", ""),
             "body": tc.get("body", ""),
             "created_at": tc.get("createdAt", ""),
             "url": tc.get("url") or pr_url,
@@ -235,23 +245,25 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         comment = {
             "type": "review",
             "id": rv.get("id"),
-            "author": (rv.get("author") or {}).get("login", "unknown"),
+            "author": (rv.get("author") or {}).get("login", ""),
             "body": rv.get("body", ""),
             "created_at": rv.get("submittedAt", ""),
             "url": pr_url,
         }
         comments.append(comment)
 
-    # 3. Review thread resolution status (optional)
+    # 3. Review thread resolution status (optional, paginated)
     if include_review_threads:
         query = (
-            "query($owner: String!, $repo: String!, $pr: Int!) {"
+            "query($owner: String!, $repo: String!, $pr: Int!,"
+            " $cursor: String) {"
             "  repository(owner: $owner, name: $repo) {"
             "    pullRequest(number: $pr) {"
-            "      reviewThreads(first: 100) {"
+            "      reviewThreads(first: 100, after: $cursor) {"
+            "        pageInfo { hasNextPage endCursor }"
             "        nodes {"
             "          isResolved"
-            "          comments(first: 1) {"
+            "          comments(last: 100) {"
             "            nodes { id databaseId }"
             "          }"
             "        }"
@@ -260,43 +272,61 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             "  }"
             "}"
         )
-        r = _run([
-            "gh", "api", "graphql",
-            "-F", f"owner={owner}",
-            "-F", f"repo={repo}",
-            "-F", f"pr={pr}",
-            "-f", f"query={query}",
-        ])
-        if r.returncode == 0 and r.stdout.strip():
-            try:
+
+        all_threads: list[dict[str, Any]] = []
+        cursor: str | None = None
+        try:
+            while True:
+                cmd = [
+                    "gh", "api", "graphql",
+                    "-F", f"owner={owner}",
+                    "-F", f"repo={repo}",
+                    "-F", f"pr={pr}",
+                    "-f", f"query={query}",
+                ]
+                if cursor is not None:
+                    cmd.extend(["-F", f"cursor={cursor}"])
+                r = _run(cmd)
+                if r.returncode != 0 or not r.stdout.strip():
+                    break
+
                 gql_data = json.loads(r.stdout)
-                threads = (
+                review_threads = (
                     gql_data.get("data", {})
                     .get("repository", {})
                     .get("pullRequest", {})
                     .get("reviewThreads", {})
-                    .get("nodes", [])
                 )
-                # Build a map: databaseId -> isResolved
-                resolved_map: dict[int, bool] = {}
-                for thread in threads:
-                    is_resolved = thread.get("isResolved", False)
-                    thread_comments = (
-                        thread.get("comments", {}).get("nodes", [])
-                    )
-                    if thread_comments:
-                        db_id = thread_comments[0].get("databaseId")
-                        if db_id is not None:
-                            resolved_map[db_id] = is_resolved
+                all_threads.extend(review_threads.get("nodes", []))
 
-                # Annotate line_comment entries with is_resolved
-                for c in comments:
-                    if (c["type"] == "line_comment"
-                            and c["id"] in resolved_map):
-                        c["is_resolved"] = resolved_map[c["id"]]
-            except (json.JSONDecodeError, KeyError, TypeError):
-                info("fetch: could not parse review thread data; "
-                     "skipping resolution status")
+                page_info = review_threads.get("pageInfo", {})
+                if page_info.get("hasNextPage"):
+                    cursor = page_info.get("endCursor")
+                else:
+                    break
+
+            # Build a map: databaseId -> isResolved for every comment
+            # in each thread (not just the first), so replies within a
+            # resolved thread also get the is_resolved annotation.
+            resolved_map: dict[int, bool] = {}
+            for thread in all_threads:
+                is_resolved = thread.get("isResolved", False)
+                thread_comments = (
+                    thread.get("comments", {}).get("nodes", [])
+                )
+                for tc in thread_comments:
+                    db_id = tc.get("databaseId")
+                    if db_id is not None:
+                        resolved_map[db_id] = is_resolved
+
+            # Annotate line_comment entries with is_resolved
+            for c in comments:
+                if (c["type"] == "line_comment"
+                        and c["id"] in resolved_map):
+                    c["is_resolved"] = resolved_map[c["id"]]
+        except (json.JSONDecodeError, KeyError, TypeError):
+            info("fetch: could not parse review thread data; "
+                 "skipping resolution status")
 
     # Parse --since as a datetime for proper timezone-aware comparison
     since_dt: datetime | None = None

@@ -198,7 +198,11 @@ comment (omit `--comment-id`):
 python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/e2e/{issue-key}/tmp-reply.md
 ```
 
-After each successful reply, record the `id` in the responses log:
+If the reply command fails (non-zero exit), report the error and
+continue to the next comment **without calling `log`** — the comment
+must remain unaddressed so it is retried on the next respond round.
+
+After each **successful** reply, record the `id` in the responses log:
 
 ```bash
 python3 "$PR_COMMENTS_SCRIPT" log --responses-log .artifacts/e2e/{issue-key}/responses.jsonl --comment-id {id}

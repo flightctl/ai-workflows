@@ -363,6 +363,50 @@ class TestFetch(unittest.TestCase):
         self.assertEqual(output[0]["id"], 2)
 
     @mock.patch.object(pr_comments, "_run")
+    def test_fetch_since_naive_datetime(self, mock_run: mock.Mock) -> None:
+        """--since without timezone info is treated as UTC, not rejected.
+
+        A naive --since like '2025-06-01T00:00:00' (no Z or offset)
+        must compare correctly against aware GitHub timestamps (which
+        always have 'Z').  Without normalisation, this would raise
+        TypeError on Python 3.10+.
+        """
+        review_comments = [
+            self._make_review_comment(
+                cid=1, created_at="2025-01-01T00:00:00Z",
+            ),
+            self._make_review_comment(
+                cid=2, created_at="2025-06-15T00:00:00Z",
+            ),
+        ]
+        pr_data = self._make_pr_data()
+
+        mock_run.side_effect = [
+            subprocess.CompletedProcess(
+                [], 0, json.dumps([review_comments]), "",
+            ),
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(pr_data), "",
+            ),
+        ]
+
+        import io
+        buf = io.StringIO()
+        with mock.patch("sys.stdout", buf):
+            code = pr_comments.main([
+                "fetch", "--owner", "acme", "--repo", "proj", "--pr", "1",
+                # Naive datetime — no timezone suffix
+                "--since", "2025-06-01T00:00:00",
+            ])
+
+        self.assertEqual(code, 0)
+        output = json.loads(buf.getvalue())
+        # Comment 1 (Jan) is before cutoff (Jun); excluded
+        # Comment 2 (Jun 15) is after cutoff; included
+        self.assertEqual(len(output), 1)
+        self.assertEqual(output[0]["id"], 2)
+
+    @mock.patch.object(pr_comments, "_run")
     def test_fetch_responses_log_filter(self, mock_run: mock.Mock) -> None:
         """--responses-log excludes already-addressed comment IDs."""
         review_comments = [
@@ -481,6 +525,29 @@ class TestFetch(unittest.TestCase):
         self.assertEqual(code, 0)
         output = json.loads(buf.getvalue())
         self.assertEqual(len(output), 1)
+
+    def test_fetch_responses_log_read_failure_exits_1(self) -> None:
+        """OSError reading the responses log exits with code 1."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".jsonl", delete=False,
+        ) as f:
+            f.write('{"comment_id": 1}\n')
+            f.flush()
+            try:
+                with mock.patch(
+                    "pathlib.Path.read_text",
+                    side_effect=OSError("permission denied"),
+                ):
+                    with self.assertRaises(SystemExit) as ctx:
+                        pr_comments.main([
+                            "fetch", "--owner", "acme", "--repo", "proj",
+                            "--pr", "1", "--responses-log", f.name,
+                        ])
+                    self.assertEqual(
+                        ctx.exception.code, pr_comments.EXIT_RUNTIME_ERROR,
+                    )
+            finally:
+                os.unlink(f.name)
 
     def test_fetch_malformed_jsonl_exits_1(self) -> None:
         """Malformed JSON in responses log exits with code 1."""
@@ -627,6 +694,123 @@ class TestFetch(unittest.TestCase):
         self.assertEqual(len(output), 2)
         self.assertTrue(output[0]["is_resolved"])
         self.assertFalse(output[1]["is_resolved"])
+
+    @mock.patch.object(pr_comments, "_run")
+    def test_fetch_review_threads_pagination(
+        self, mock_run: mock.Mock,
+    ) -> None:
+        """Paginated GraphQL responses map all comment databaseIds per thread.
+
+        Verifies two things:
+          1. Threads from multiple GraphQL pages are accumulated.
+          2. ALL comments within a thread (not just the first) get their
+             databaseId mapped to the thread's isResolved status — so
+             replies within a resolved thread also receive is_resolved.
+        """
+        # cid=100 is the root comment, cid=101 is a reply in the same thread
+        review_comments = [
+            self._make_review_comment(cid=100),
+            self._make_review_comment(cid=101, in_reply_to_id=100),
+            self._make_review_comment(cid=200),
+            self._make_review_comment(cid=300),
+        ]
+        pr_data = self._make_pr_data()
+        # Page 1: one thread with TWO comments (root + reply)
+        gql_page1 = {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "pageInfo": {
+                                "hasNextPage": True,
+                                "endCursor": "cursor_abc",
+                            },
+                            "nodes": [
+                                {
+                                    "isResolved": True,
+                                    "comments": {"nodes": [
+                                        {"id": "PRC_1", "databaseId": 100},
+                                        {"id": "PRC_1r", "databaseId": 101},
+                                    ]},
+                                },
+                            ],
+                        },
+                    },
+                },
+            },
+        }
+        # Page 2: threads for cid=200 and 300, hasNextPage=false
+        gql_page2 = {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "pageInfo": {
+                                "hasNextPage": False,
+                                "endCursor": "cursor_def",
+                            },
+                            "nodes": [
+                                {
+                                    "isResolved": False,
+                                    "comments": {"nodes": [
+                                        {"id": "PRC_2", "databaseId": 200},
+                                    ]},
+                                },
+                                {
+                                    "isResolved": True,
+                                    "comments": {"nodes": [
+                                        {"id": "PRC_3", "databaseId": 300},
+                                    ]},
+                                },
+                            ],
+                        },
+                    },
+                },
+            },
+        }
+
+        mock_run.side_effect = [
+            subprocess.CompletedProcess(
+                [], 0, json.dumps([review_comments]), "",
+            ),
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(pr_data), "",
+            ),
+            # GraphQL page 1
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(gql_page1), "",
+            ),
+            # GraphQL page 2
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(gql_page2), "",
+            ),
+        ]
+
+        import io
+        buf = io.StringIO()
+        with mock.patch("sys.stdout", buf):
+            code = pr_comments.main([
+                "fetch", "--owner", "acme", "--repo", "proj", "--pr", "1",
+                "--include-review-threads",
+            ])
+
+        self.assertEqual(code, 0)
+        output = json.loads(buf.getvalue())
+        self.assertEqual(len(output), 4)
+        # cid=100 (root) from page 1: resolved
+        self.assertTrue(output[0]["is_resolved"])
+        # cid=101 (reply in same thread) from page 1: also resolved
+        self.assertTrue(output[1]["is_resolved"])
+        # cid=200 from page 2: not resolved
+        self.assertFalse(output[2]["is_resolved"])
+        # cid=300 from page 2: resolved
+        self.assertTrue(output[3]["is_resolved"])
+
+        # Verify 4 _run calls: review comments, pr view, gql page1, gql page2
+        self.assertEqual(mock_run.call_count, 4)
+        # Verify the second GraphQL call includes the cursor
+        gql_call2_args = mock_run.call_args_list[3][0][0]
+        self.assertIn("cursor=cursor_abc", " ".join(gql_call2_args))
 
     @mock.patch.object(pr_comments, "_run")
     def test_fetch_review_threads_graphql_failure(
@@ -821,7 +1005,7 @@ class TestFetch(unittest.TestCase):
 
     @mock.patch.object(pr_comments, "_run")
     def test_fetch_null_author_handled(self, mock_run: mock.Mock) -> None:
-        """Null/missing author objects produce 'unknown' instead of crashing."""
+        """Null/missing author objects produce empty string instead of crashing."""
         # Review comment with user: null (e.g. bot or deleted account)
         rc_null_user = {
             "id": 100,
@@ -874,9 +1058,9 @@ class TestFetch(unittest.TestCase):
         self.assertEqual(code, 0)
         output = json.loads(buf.getvalue())
         self.assertEqual(len(output), 4)
-        # All should have author = "unknown"
+        # All should have author = "" (empty string)
         for comment in output:
-            self.assertEqual(comment["author"], "unknown")
+            self.assertEqual(comment["author"], "")
 
     @mock.patch.object(pr_comments, "_run")
     def test_fetch_original_line_fallback(self, mock_run: mock.Mock) -> None:
@@ -1155,15 +1339,17 @@ class TestLog(unittest.TestCase):
 
     def test_log_write_failure_exits_1(self) -> None:
         """OSError during file write exits with code 1."""
-        with mock.patch("builtins.open", side_effect=OSError("disk full")):
-            with self.assertRaises(SystemExit) as ctx:
-                pr_comments.main([
-                    "log", "--responses-log", "/tmp/test-log.jsonl",
-                    "--comment-id", "42",
-                ])
-            self.assertEqual(
-                ctx.exception.code, pr_comments.EXIT_RUNTIME_ERROR,
-            )
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "test-log.jsonl")
+            with mock.patch("builtins.open", side_effect=OSError("disk full")):
+                with self.assertRaises(SystemExit) as ctx:
+                    pr_comments.main([
+                        "log", "--responses-log", log_path,
+                        "--comment-id", "42",
+                    ])
+                self.assertEqual(
+                    ctx.exception.code, pr_comments.EXIT_RUNTIME_ERROR,
+                )
 
     def test_log_write_failure_message(self) -> None:
         """OSError message includes the file path and OS error detail."""
