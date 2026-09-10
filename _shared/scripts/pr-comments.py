@@ -100,6 +100,19 @@ def _run(
         )
 
 
+def _parse_iso8601(value: str) -> datetime:
+    """Parse an ISO 8601 timestamp, including the ``Z`` suffix.
+
+    Python 3.10's ``datetime.fromisoformat`` does not accept the
+    trailing ``Z`` shorthand for UTC.  This helper normalises it to
+    ``+00:00`` so the script works on Python 3.10+.
+
+    Raises ``ValueError`` if the timestamp is still unparseable after
+    normalisation.
+    """
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
 def _emit_json(data: Any) -> None:
     """Write a JSON value to stdout with consistent formatting."""
     print(json.dumps(data, indent=2))
@@ -289,7 +302,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     since_dt: datetime | None = None
     if since:
         try:
-            since_dt = datetime.fromisoformat(since)
+            since_dt = _parse_iso8601(since)
         except (ValueError, TypeError):
             info(f"fetch: could not parse --since value '{since}' as "
                  "datetime; falling back to string comparison")
@@ -301,9 +314,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         if since and c.get("created_at"):
             if since_dt is not None:
                 try:
-                    comment_dt = datetime.fromisoformat(
-                        c["created_at"],
-                    )
+                    comment_dt = _parse_iso8601(c["created_at"])
                     if comment_dt < since_dt:
                         continue
                 except (ValueError, TypeError):
