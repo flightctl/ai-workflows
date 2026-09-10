@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Capture and render provenance for prd/design planning document workflows.
+"""Capture and render provenance for prd/design/ux-design planning documents.
 
 Exit codes:
     0: Success (capture or render completed)
@@ -23,9 +23,29 @@ GIT_TIMEOUT_SEC = 30
 WORKFLOW_DOCS = {
     "prd": "03-prd.md",
     "design": "03-design.md",
+    "ux-design": "05-handoff.md",
 }
 
-AUTHORING_PHASES = frozenset({"draft", "revise", "respond", "manual-edit"})
+# The phase that legitimately originates each workflow's document. prd/design
+# originate from a template-checked /draft; ux-design assembles its handoff spec
+# in /handoff (there is no template-from-origin step), so `handoff` is its
+# origin. A first event other than this marks the phase history as untracked.
+ORIGIN_PHASE = {
+    "prd": "draft",
+    "design": "draft",
+    "ux-design": "handoff",
+}
+
+AUTHORING_PHASES = frozenset(
+    {"draft", "handoff", "revise", "respond", "manual-edit"}
+)
+
+# Per-workflow valid phases (for validation in capture_event)
+WORKFLOW_PHASES = {
+    "prd": frozenset({"draft", "revise", "respond", "manual-edit", "commit"}),
+    "design": frozenset({"draft", "revise", "respond", "manual-edit", "commit"}),
+    "ux-design": frozenset({"handoff", "revise", "respond", "manual-edit", "commit"}),
+}
 
 DRIFT_FIELDS = (
     "workflow_version",
@@ -56,10 +76,18 @@ DECLINED_MARKER = (
 COMMIT_ONLY_NOTE = (
     "> Authoring phases not recorded this session (commit-time snapshot only)."
 )
-ORIGIN_UNTRACKED_NOTE = (
-    "> This document's phase history does not include an initial /draft — "
-    "structure was not verified against the template from origin."
-)
+def origin_untracked_note(workflow: str | None = None) -> str:
+    origin = ORIGIN_PHASE.get(workflow, "draft")
+    # ux-design has no template step; its /handoff assembles from scratch
+    if workflow == "ux-design":
+        return (
+            f"> This document's phase history does not include an initial /{origin} — "
+            "structure was not verified from origin."
+        )
+    return (
+        f"> This document's phase history does not include an initial /{origin} — "
+        "structure was not verified against the template from origin."
+    )
 
 
 def repo_root(start: Path) -> Path | None:
@@ -260,12 +288,15 @@ def provenance_kind(events: list[dict[str, Any]]) -> str:
     return "session"
 
 
-def origin_untracked(events: list[dict[str, Any]]) -> bool:
+def origin_untracked(
+    events: list[dict[str, Any]], workflow: str | None = None
+) -> bool:
     if not events:
         return False
     if provenance_kind(events) == "commit_only":
         return False
-    return events[0].get("phase") != "draft"
+    origin = ORIGIN_PHASE.get(workflow, "draft")
+    return events[0].get("phase") != origin
 
 
 def capture_event(
@@ -274,6 +305,14 @@ def capture_event(
     phase: str,
     authoring_mode: str,
 ) -> None:
+    # Validate phase is valid for this workflow
+    valid_phases = WORKFLOW_PHASES.get(workflow)
+    if valid_phases and phase not in valid_phases:
+        raise ValueError(
+            f"Phase '{phase}' is not valid for workflow '{workflow}'. "
+            f"Valid phases: {', '.join(sorted(valid_phases))}"
+        )
+
     ai_root = ai_workflows_root()
     ws_root = workspace_root()
     path = provenance_path(workflow, issue)
@@ -352,6 +391,7 @@ def build_metrics_payload(data: dict[str, Any]) -> dict[str, Any]:
     last = events[-1] if events else {}
     drift = data.get("drift", {})
     kind = provenance_kind(events)
+    workflow = data.get("workflow", "unknown")
     return {
         "schema_version": 1,
         "provenance_kind": kind,
@@ -368,7 +408,7 @@ def build_metrics_payload(data: dict[str, Any]) -> dict[str, Any]:
             {event.get("authoring_mode", "skill") for event in events}
         ),
         "context_changed": drift.get("context_changed", False),
-        "origin_untracked": origin_untracked(events),
+        "origin_untracked": origin_untracked(events, workflow),
     }
 
 
@@ -403,9 +443,9 @@ def build_footer(data: dict[str, Any]) -> str:
         if len(phases) > 1:
             lines.append(f"Phases: {', '.join(phases)}")
 
-    if origin_untracked(events):
+    if origin_untracked(events, workflow):
         lines.append("")
-        lines.append(ORIGIN_UNTRACKED_NOTE)
+        lines.append(origin_untracked_note(workflow))
 
     lines.append("")
     lines.append(metrics_comment)
@@ -491,7 +531,9 @@ def render_footer(workflow: str, issue: str, target: Path, *, allow_missing: boo
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="PRD/design provenance helper")
+    parser = argparse.ArgumentParser(
+        description="PRD/design/ux-design provenance helper"
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     capture = sub.add_parser("capture", help="Append a provenance event")
@@ -500,7 +542,7 @@ def main() -> int:
     capture.add_argument(
         "--phase",
         required=True,
-        choices=["draft", "revise", "respond", "manual-edit", "commit"],
+        choices=["draft", "handoff", "revise", "respond", "manual-edit", "commit"],
     )
     capture.add_argument(
         "--authoring-mode",

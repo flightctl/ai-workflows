@@ -1,6 +1,6 @@
 ---
 name: render-provenance-footer
-version: 0.2.0
+version: 0.2.1
 ---
 # Recipe: Render Provenance Footer
 
@@ -11,7 +11,7 @@ docs-repo copy before `git add`. See `../provenance-schema.md` for format.
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| WORKFLOW | Yes | `prd` or `design` |
+| WORKFLOW | Yes | `prd`, `design`, or `ux-design` |
 | ISSUE_KEY | Yes | Full Jira issue key including project prefix (e.g., `PROJ-1234`, not `1234`) |
 | TARGET_FILE | Yes | Absolute path to the local artifact or docs-repo file to render |
 | ALLOW_MISSING | No | Set to `yes` only after the user explicitly declines provenance |

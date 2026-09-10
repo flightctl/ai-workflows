@@ -60,6 +60,9 @@ Reusable AI coding workflows and focused skills a team member can install global
 - **Skill Reviewer** -- Meta-workflow that audits AI skill directories against eight quality dimensions.
   See [skill-reviewer/README.md](skill-reviewer/README.md).
 
+- **UX Design** -- UX design workflow: ingest a feature request, conduct user research, generate prototypes, run heuristic evaluation, and produce a validated design handoff for the `ui-design` workflow.
+  See [ux-design/README.md](ux-design/README.md).
+
 ## How It Works
 
 Each workflow is a top-level directory with a `SKILL.md`, while focused skills

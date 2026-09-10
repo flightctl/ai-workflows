@@ -20,6 +20,7 @@ This repository contains reusable AI coding workflows and focused skills that ca
 - **implement** — Story-to-code workflow (ingest, plan, revise, code, validate, publish, respond)
 - **kcs** — KCS Solution article workflow (gather, draft, validate, handoff)
 - **prd** — Requirements-to-PRD workflow (ingest, clarify, draft, revise, publish, respond)
+- **ux-design** — UX design workflow (ingest, research, prototype, evaluate, handoff, revise, publish, respond)
 - **rebase-stack** — Rebase a stacked-branch chain with conflict guidance, per-branch validation, and push (start, continue, validate, push)
 - **sizing** — Pre-cycle Feature sizing with T-shirt sizes and team effort breakdowns (ingest, assess, apply)
 - **skill-reviewer** — Meta-workflow that audits AI skill directories
@@ -93,7 +94,7 @@ _shared/
     validation-gate.md            # Pre-commit build/test/lint discovery gate (used by bugfix)
 ```
 
-Recipes are self-contained, parameterized procedures that packages reference via relative path (e.g., `../../_shared/recipes/self-review-gate.md` from a workflow phase). Workflows and simple skills may also reference shared files from guidelines, phases, references, templates, prompts, scripts, and other behavioral files — all such references count as consumers for the shared-file cascade (see Package Versioning). The **prd** and **design** workflows use the provenance recipes on `/draft`, `/revise`, `/respond` (capture) and `/publish` plus docs-sync paths (render). See `_shared/provenance-schema.md` for the published footer format.
+Recipes are self-contained, parameterized procedures that packages reference via relative path (e.g., `../../_shared/recipes/self-review-gate.md` from a workflow phase). Workflows and simple skills may also reference shared files from guidelines, phases, references, templates, prompts, scripts, and other behavioral files — all such references count as consumers for the shared-file cascade (see Package Versioning). The **prd** and **design** workflows use the provenance recipes on `/draft`, `/revise`, `/respond` (capture) and `/publish` plus docs-sync paths (render). The **ux-design** workflow uses them on `/handoff`, `/revise`, `/respond` (capture) and `/publish` plus `/respond` (render). See `_shared/provenance-schema.md` for the published footer format.
 
 ### File Reference Conventions
 
@@ -228,6 +229,7 @@ ai-workflows/
 │       ├── references/
 │       ├── scripts/
 │       └── templates/
+├── ux-design/
 ├── install.sh                 # Installer with auto-discovery
 ├── uninstall.sh              # Removal script
 ├── AGENTS.md                 # AI assistant guidance (this file)
