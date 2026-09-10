@@ -209,7 +209,7 @@ re-read this controller, and wait for user direction.
 
 When the AI detects that its own output quality is degrading (e.g., it
 misses details, repeats itself, or loses track of earlier decisions),
-consider spawning the next phase as a subagent with a fresh context window.
+consider spawning the current phase as a subagent with a fresh context window.
 This is self-monitoring by the AI, not something a human operator watches.
 Load the subagent with the skill file for the phase being executed, the
 relevant artifact files from `.artifacts/ux-design/{issue-key}/`, and the

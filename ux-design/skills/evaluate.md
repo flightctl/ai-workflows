@@ -81,8 +81,8 @@ paths. So before invoking it, turn the prototype into something the skill can
 see:
 
 - **Standalone HTML** (`03-prototype/prototype/`): serve it and pass the URL.
-  From the prototype directory, start a local server, e.g.
-  `python3 -m http.server 8000` (run from
+  From the prototype directory, start a local server in the background, e.g.,
+  `python3 -m http.server 8000 &` (run from
   `.artifacts/ux-design/{issue-key}/03-prototype/prototype/`), then pass
   `http://localhost:8000/<entry>.html`. Stop the server when the skill finishes.
 - **Screenshots** (any mode, or when a server can't run): capture one image per
@@ -197,7 +197,7 @@ wrong or unevaluable results. Before running it:
 3. Invoke the skill with the ID and matching depth:
 
 ```
-/uxd-prototype-evaluate {ID} --depth {standard|full}
+uxd-prototype-evaluate {ID} --depth {standard|full}
 ```
 
 - **Standard:** Rubric scoring + simulated usability testing with personas

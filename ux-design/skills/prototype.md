@@ -115,7 +115,7 @@ things must be true before you invoke it:
 Then invoke refine against the same ID:
 
 ```
-/uxd-prototype-create refine {ID}
+uxd-prototype-create refine {ID}
 ```
 
 Refine edits the native `.artifacts/{ID}/prototype/` in place. **After it

@@ -26,7 +26,9 @@ with an explicit partial-handoff caveat in the output.
 
 Read all available artifacts before proceeding. If `02-research.md` exists,
 read it — it is required for the Data Annotations and Persona-Specific Views
-sections below.
+sections below. If it does not exist (research was skipped), record in the
+Research Context section that formal research findings were unavailable and
+that `01-discovery.md` supplied the evidence.
 
 Read `01-discovery.md` in full — in particular its **Technical Design
 Context** and **Non-Functional Requirements** sections. The design context

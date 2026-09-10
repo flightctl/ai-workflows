@@ -172,7 +172,7 @@ install_uxd_skills() {
 
   # Only install if ux-design is in the workflow set being installed
   local has_ux_design=false
-  for wf in "${WORKFLOWS[@]}"; do
+  for wf in "${PACKAGES[@]}"; do
     [[ "$wf" == "ux-design" ]] && has_ux_design=true
   done
   "$has_ux_design" || return 0
@@ -407,6 +407,7 @@ install_gemini() {
     ln -sfn "$package_dir" "${SKILLS_DIR}/${package}"
     echo "  Linked ${SKILLS_DIR}/${package} -> ${package_dir}  ($SCOPE)"
   done
+  install_uxd_skills "$SKILLS_DIR"
 }
 
 install_codex() {

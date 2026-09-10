@@ -13,7 +13,7 @@ phase mutates the planning document. See `../provenance-schema.md`.
 |-----------|----------|-------------|
 | WORKFLOW | Yes | `prd`, `design`, or `ux-design` |
 | ISSUE_KEY | Yes | Full Jira issue key including project prefix (e.g., `PROJ-1234`, not `1234`) |
-| PHASE | Yes | `draft`, `revise`, or `respond` (ux-design also uses `handoff`) |
+| PHASE | Yes | For `prd` and `design`: `draft`, `revise`, or `respond`. For `ux-design`: `handoff`, `revise`, or `respond` |
 | AUTHORING_MODE | Yes | `skill` (default for phase skills) or `manual` |
 
 ## Procedure

@@ -169,5 +169,9 @@ Present the synthesized findings to the researcher:
 insights accurately reflect what you learned? Anything to add or correct
 before we move to prototyping?"
 
-Wait for confirmation. Then **re-read the controller** (`controller.md`)
-for next-step guidance.
+Wait for confirmation, then write the final synthesis to
+`.artifacts/ux-design/{issue-key}/02-research.md`. The handoff phase reads
+this file for Data Annotations and Persona-Specific Views — it must exist on
+disk before returning control.
+
+Then **re-read the controller** (`controller.md`) for next-step guidance.
