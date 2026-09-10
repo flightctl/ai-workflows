@@ -1,6 +1,6 @@
 ---
 name: bugfix
-version: 0.8.1
+version: 0.8.2
 description: >-
   Diagnostic and repair workflow that analyzes error logs, traces root causes,
   implements fixes, and verifies with regression tests.
