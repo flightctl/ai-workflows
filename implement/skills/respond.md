@@ -72,11 +72,20 @@ this will produce the fork's `{owner}/{repo}`, not the upstream's where
 the PR lives. If the resulting `gh pr view` command fails, this may be
 the cause — tell the user and ask for the correct upstream `{owner}/{repo}`.
 
-Resolve the shared script to an absolute path so it remains valid
-regardless of working directory:
+Resolve the shared script to an absolute path anchored at the
+ai-workflows repository root (not the source project root) so it
+remains valid regardless of working directory:
 
 ```bash
-PR_COMMENTS_SCRIPT="$(git rev-parse --show-toplevel)/_shared/scripts/pr-comments.py"
+PR_COMMENTS_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/../.." && git rev-parse --show-toplevel)/_shared/scripts/pr-comments.py"
+```
+
+If `BASH_SOURCE` is unavailable (e.g. when the agent runs commands
+directly rather than sourcing a script), resolve via the ai-workflows
+checkout path instead:
+
+```bash
+PR_COMMENTS_SCRIPT="$(git -C /path/to/ai-workflows rev-parse --show-toplevel)/_shared/scripts/pr-comments.py"
 ```
 
 Use `$PR_COMMENTS_SCRIPT` instead of the relative path in all subsequent

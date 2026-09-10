@@ -84,6 +84,9 @@ outputs a unified JSON array to stdout:
 python3 "$PR_COMMENTS_SCRIPT" fetch --owner {owner} --repo {repo} --pr {pr-number} --responses-log .artifacts/prd/{issue-key}/responses.jsonl --include-review-threads
 ```
 
+If fetch returns non-zero, report the error to the user and stop — do
+not proceed with an empty or partial comment list.
+
 The `--responses-log` flag excludes comment IDs already addressed in
 prior respond rounds. The `--include-review-threads` flag annotates
 line comments with thread resolution status via GraphQL.

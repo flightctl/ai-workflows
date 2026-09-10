@@ -144,6 +144,11 @@ def cmd_fetch(args: argparse.Namespace) -> int:
                         f"fetch: malformed JSON on line {line_num} "
                         f"of {responses_log}",
                     )
+                if not isinstance(entry, dict):
+                    fail(
+                        f"fetch: expected JSON object on line {line_num} "
+                        f"of {responses_log}, got {type(entry).__name__}",
+                    )
                 if "comment_id" in entry:
                     addressed_ids.add(str(entry["comment_id"]))
 
@@ -176,7 +181,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         comment: dict[str, Any] = {
             "type": "line_comment",
             "id": rc.get("id"),
-            "author": rc.get("user", {}).get("login", ""),
+            "author": (rc.get("user") or {}).get("login", "unknown"),
             "body": rc.get("body", ""),
             "created_at": rc.get("created_at", ""),
             "path": rc.get("path", ""),
@@ -206,7 +211,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         comment = {
             "type": "top_level",
             "id": tc.get("id"),
-            "author": tc.get("author", {}).get("login", ""),
+            "author": (tc.get("author") or {}).get("login", "unknown"),
             "body": tc.get("body", ""),
             "created_at": tc.get("createdAt", ""),
             "url": tc.get("url") or pr_url,
@@ -217,7 +222,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         comment = {
             "type": "review",
             "id": rv.get("id"),
-            "author": rv.get("author", {}).get("login", ""),
+            "author": (rv.get("author") or {}).get("login", "unknown"),
             "body": rv.get("body", ""),
             "created_at": rv.get("submittedAt", ""),
             "url": pr_url,
@@ -280,12 +285,32 @@ def cmd_fetch(args: argparse.Namespace) -> int:
                 info("fetch: could not parse review thread data; "
                      "skipping resolution status")
 
+    # Parse --since as a datetime for proper timezone-aware comparison
+    since_dt: datetime | None = None
+    if since:
+        try:
+            since_dt = datetime.fromisoformat(since)
+        except (ValueError, TypeError):
+            info(f"fetch: could not parse --since value '{since}' as "
+                 "datetime; falling back to string comparison")
+
     # Apply filters
     filtered: list[dict[str, Any]] = []
     for c in comments:
         # Filter by --since
         if since and c.get("created_at"):
-            if c["created_at"] < since:
+            if since_dt is not None:
+                try:
+                    comment_dt = datetime.fromisoformat(
+                        c["created_at"],
+                    )
+                    if comment_dt < since_dt:
+                        continue
+                except (ValueError, TypeError):
+                    # Unparseable comment timestamp; fall back to string
+                    if c["created_at"] < since:
+                        continue
+            elif c["created_at"] < since:
                 continue
 
         # Filter by responses log
@@ -386,8 +411,11 @@ def cmd_log(args: argparse.Namespace) -> int:
         "summary": summary,
     }
 
-    with open(log_path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(entry) + "\n")
+    try:
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry) + "\n")
+    except OSError as exc:
+        fail(f"log: could not write to {responses_log}: {exc}")
 
     info(f"Logged comment {comment_id} to {responses_log}")
     return EXIT_SUCCESS

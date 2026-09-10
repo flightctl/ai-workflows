@@ -408,6 +408,10 @@ comment (omit `--comment-id`):
 python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/design/{issue-key}/tmp-reply.md
 ```
 
+If the reply command fails (non-zero exit), log the failure and continue
+to the next comment rather than stopping.  The comment will remain
+unaddressed and can be retried in a subsequent respond round.
+
 After each successful reply, record the `id` in the responses log:
 
 ```bash

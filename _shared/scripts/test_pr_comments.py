@@ -316,6 +316,53 @@ class TestFetch(unittest.TestCase):
         self.assertEqual(output[0]["id"], 2)
 
     @mock.patch.object(pr_comments, "_run")
+    def test_fetch_since_with_timezone_offset(
+        self, mock_run: mock.Mock,
+    ) -> None:
+        """--since handles timezone offsets via datetime comparison.
+
+        A comment at 2025-06-15T00:00:00Z is included when --since is
+        2025-06-14T20:00:00-05:00 (which is 2025-06-15T01:00:00Z) because
+        datetime comparison correctly identifies the cutoff is later than
+        the comment.  A naive string comparison would incorrectly include
+        comments because '2025-06-14' < '2025-06-15'.
+        """
+        review_comments = [
+            self._make_review_comment(
+                cid=1, created_at="2025-06-15T00:00:00Z",
+            ),
+            self._make_review_comment(
+                cid=2, created_at="2025-06-15T02:00:00Z",
+            ),
+        ]
+        pr_data = self._make_pr_data()
+
+        mock_run.side_effect = [
+            subprocess.CompletedProcess(
+                [], 0, json.dumps([review_comments]), "",
+            ),
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(pr_data), "",
+            ),
+        ]
+
+        import io
+        buf = io.StringIO()
+        with mock.patch("sys.stdout", buf):
+            code = pr_comments.main([
+                "fetch", "--owner", "acme", "--repo", "proj", "--pr", "1",
+                # This is 2025-06-15T01:00:00Z — should exclude cid=1
+                "--since", "2025-06-14T20:00:00-05:00",
+            ])
+
+        self.assertEqual(code, 0)
+        output = json.loads(buf.getvalue())
+        # Comment 1 (00:00Z) is before the cutoff (01:00Z); excluded
+        # Comment 2 (02:00Z) is after the cutoff; included
+        self.assertEqual(len(output), 1)
+        self.assertEqual(output[0]["id"], 2)
+
+    @mock.patch.object(pr_comments, "_run")
     def test_fetch_responses_log_filter(self, mock_run: mock.Mock) -> None:
         """--responses-log excludes already-addressed comment IDs."""
         review_comments = [
@@ -452,6 +499,48 @@ class TestFetch(unittest.TestCase):
                 self.assertEqual(
                     ctx.exception.code, pr_comments.EXIT_RUNTIME_ERROR,
                 )
+            finally:
+                os.unlink(f.name)
+
+    def test_fetch_non_object_jsonl_exits_1(self) -> None:
+        """Non-object JSON record in responses log exits with code 1."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".jsonl", delete=False,
+        ) as f:
+            f.write('{"comment_id": 1}\n')
+            f.write('[1, 2, 3]\n')  # valid JSON but not a dict
+            f.flush()
+            try:
+                with self.assertRaises(SystemExit) as ctx:
+                    pr_comments.main([
+                        "fetch", "--owner", "acme", "--repo", "proj",
+                        "--pr", "1", "--responses-log", f.name,
+                    ])
+                self.assertEqual(
+                    ctx.exception.code, pr_comments.EXIT_RUNTIME_ERROR,
+                )
+            finally:
+                os.unlink(f.name)
+
+    def test_fetch_non_object_jsonl_reports_type(self) -> None:
+        """Error message includes the unexpected type name."""
+        import io
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".jsonl", delete=False,
+        ) as f:
+            f.write('"just a string"\n')  # valid JSON, wrong type
+            f.flush()
+            try:
+                buf = io.StringIO()
+                with mock.patch("sys.stderr", buf):
+                    with self.assertRaises(SystemExit):
+                        pr_comments.main([
+                            "fetch", "--owner", "acme", "--repo", "proj",
+                            "--pr", "1", "--responses-log", f.name,
+                        ])
+                err = buf.getvalue()
+                self.assertIn("line 1", err)
+                self.assertIn("str", err)
             finally:
                 os.unlink(f.name)
 
@@ -731,6 +820,65 @@ class TestFetch(unittest.TestCase):
         self.assertEqual(ctx.exception.code, pr_comments.EXIT_RUNTIME_ERROR)
 
     @mock.patch.object(pr_comments, "_run")
+    def test_fetch_null_author_handled(self, mock_run: mock.Mock) -> None:
+        """Null/missing author objects produce 'unknown' instead of crashing."""
+        # Review comment with user: null (e.g. bot or deleted account)
+        rc_null_user = {
+            "id": 100,
+            "user": None,
+            "body": "Bot comment",
+            "created_at": "2025-06-01T10:00:00Z",
+            "path": "src/main.py",
+            "line": 1,
+            "html_url": "https://github.com/acme/proj/pull/1#r100",
+        }
+        # Review comment with no user key at all
+        rc_missing_user = {
+            "id": 101,
+            "body": "No user key",
+            "created_at": "2025-06-01T10:00:00Z",
+            "path": "src/main.py",
+            "line": 2,
+            "html_url": "https://github.com/acme/proj/pull/1#r101",
+        }
+        pr_data = self._make_pr_data(
+            comments=[{
+                "id": "IC_200",
+                "author": None,
+                "body": "Top-level with null author",
+                "createdAt": "2025-06-02T12:00:00Z",
+            }],
+            reviews=[{
+                "id": "RV_300",
+                "body": "Review with missing author key",
+                "submittedAt": "2025-06-02T14:00:00Z",
+            }],
+        )
+
+        mock_run.side_effect = [
+            subprocess.CompletedProcess(
+                [], 0, json.dumps([[rc_null_user, rc_missing_user]]), "",
+            ),
+            subprocess.CompletedProcess(
+                [], 0, json.dumps(pr_data), "",
+            ),
+        ]
+
+        import io
+        buf = io.StringIO()
+        with mock.patch("sys.stdout", buf):
+            code = pr_comments.main([
+                "fetch", "--owner", "acme", "--repo", "proj", "--pr", "1",
+            ])
+
+        self.assertEqual(code, 0)
+        output = json.loads(buf.getvalue())
+        self.assertEqual(len(output), 4)
+        # All should have author = "unknown"
+        for comment in output:
+            self.assertEqual(comment["author"], "unknown")
+
+    @mock.patch.object(pr_comments, "_run")
     def test_fetch_original_line_fallback(self, mock_run: mock.Mock) -> None:
         """Uses original_line when line is null."""
         rc = {
@@ -1004,6 +1152,38 @@ class TestLog(unittest.TestCase):
             from datetime import datetime
             dt = datetime.fromisoformat(entry["timestamp"])
             self.assertIsNotNone(dt)
+
+    def test_log_write_failure_exits_1(self) -> None:
+        """OSError during file write exits with code 1."""
+        with mock.patch("builtins.open", side_effect=OSError("disk full")):
+            with self.assertRaises(SystemExit) as ctx:
+                pr_comments.main([
+                    "log", "--responses-log", "/tmp/test-log.jsonl",
+                    "--comment-id", "42",
+                ])
+            self.assertEqual(
+                ctx.exception.code, pr_comments.EXIT_RUNTIME_ERROR,
+            )
+
+    def test_log_write_failure_message(self) -> None:
+        """OSError message includes the file path and OS error detail."""
+        import io
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = os.path.join(tmp, "log.jsonl")
+            buf = io.StringIO()
+            with mock.patch("sys.stderr", buf):
+                with mock.patch(
+                    "builtins.open",
+                    side_effect=OSError("permission denied"),
+                ):
+                    with self.assertRaises(SystemExit):
+                        pr_comments.main([
+                            "log", "--responses-log", log_path,
+                            "--comment-id", "42",
+                        ])
+            err = buf.getvalue()
+            self.assertIn(log_path, err)
+            self.assertIn("permission denied", err)
 
     def test_log_each_line_is_valid_json(self) -> None:
         """Each line in the log file is independently parseable as JSON."""
