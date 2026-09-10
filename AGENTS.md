@@ -83,6 +83,7 @@ _shared/
   sizing-rubric.md                # Shared sizing definitions (T-shirt sizes, heuristics, team effort guidance)
   scripts/
     provenance.py                 # Capture/render CLI (used by prd and design provenance recipes)
+    publish.py                    # Deterministic publish operations (push, PR/MR, metadata)
   recipes/
     capture-provenance-event.md   # Append session-local provenance on doc-mutating phases
     phase-override-resolution.md  # Project-level phase override lookup and activation
@@ -196,7 +197,8 @@ ai-workflows/
 │   ├── review-protocol.md     # Shared code review criteria and finding format
 │   ├── sizing-rubric.md       # Shared sizing definitions and heuristics
 │   ├── scripts/
-│   │   └── provenance.py      # Capture/render CLI for prd/design provenance
+│   │   ├── provenance.py      # Capture/render CLI for prd/design provenance
+│   │   └── publish.py         # Deterministic publish operations (push, PR/MR, metadata)
 │   └── recipes/
 │       ├── capture-provenance-event.md
 │       ├── phase-override-resolution.md  # Project-level phase override lookup

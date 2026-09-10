@@ -21,7 +21,31 @@ the user before taking action.
 - **No force-push.** No destructive git operations.
 - **No direct commits to main.** Always use a feature branch.
 
+## Shared Script
+
+This skill delegates deterministic git and CLI operations to a shared
+script. Reference it using a relative path from this file:
+
+```
+../../_shared/scripts/publish.py
+```
+
+The script provides subcommands: `preflight`, `push`, `check-existing`,
+`create-pr`, and `save-metadata`. See the script header for full usage.
+
 ## Process
+
+### Prerequisites: Resolve Script Path
+
+Before any `cd` or subshell that changes the working directory, resolve
+the shared script to an absolute path so it remains valid:
+
+```bash
+PUBLISH_SCRIPT="$(git rev-parse --show-toplevel)/_shared/scripts/publish.py"
+```
+
+Use `$PUBLISH_SCRIPT` instead of the relative path in all subsequent
+commands.
 
 ### Step 1: Read the PRD
 
@@ -56,13 +80,18 @@ validated `docs_repo_path` and `docs_repo_remote`.
 
 ### Step 3: Pre-Flight Checks
 
-Verify the environment using the docs repo:
+Run the shared pre-flight checks from the docs repo directory:
 
 ```bash
-gh auth status
+(cd "{docs_repo_path}" && python3 "$PUBLISH_SCRIPT" preflight --platform github)
 ```
 
-In the docs repo directory:
+Parse the output and check `auth_ok`. If `auth_ok=false`, **stop and
+tell the user** that GitHub CLI authentication is required to push and
+create a PR. Suggest running `gh auth login` and retrying `/publish`.
+Do not continue to later steps without authentication.
+
+If `auth_ok=true`, verify the docs repo state:
 
 ```bash
 git -C "{docs_repo_path}" remote -v
@@ -104,6 +133,17 @@ for release and feature slug separately.
 
 All git operations in this step run against the **docs repo**, not the source
 repo. Use `git -C "{docs_repo_path}"` for all commands.
+
+Verify the docs repo has no uncommitted, staged, or untracked changes
+before modifying it:
+
+```bash
+git -C "{docs_repo_path}" status --porcelain
+```
+
+If the output is non-empty, the docs repo has local changes. **Stop and
+ask the user** how to proceed — they may need to stash or commit those
+changes first. Do not copy files into a dirty working tree.
 
 Check if the branch already exists (locally or on the remote) before creating it:
 
@@ -175,12 +215,15 @@ git -C "{docs_repo_path}" commit -m "Add PRD for {issue-key}: {title}"
 
 ### Step 5: Push and Create PR
 
+Push the branch using the shared script (run from the docs repo):
+
 ```bash
-git -C "{docs_repo_path}" push -u origin {branch-name}
+(cd "{docs_repo_path}" && python3 "$PUBLISH_SCRIPT" push --remote origin --branch {branch-name})
 ```
 
-Prepare the PR description and save it to `.artifacts/prd/{issue-key}/04-pr-description.md`
-(in the source repo's artifact directory):
+Prepare the PR description (AI-dependent — summarize the PRD content) and
+save it to `.artifacts/prd/{issue-key}/04-pr-description.md` (in the source
+repo's artifact directory):
 
 ```markdown
 ## PRD: {title}
@@ -204,26 +247,55 @@ Prepare the PR description and save it to `.artifacts/prd/{issue-key}/04-pr-desc
 
 Determine `{owner}/{repo}` from the `docs_repo_remote` in `.artifacts/config.json`
 (e.g., `git@github.com:org/planning-docs.git` → `org/planning-docs`), then
-create the draft PR. If `{issue-key}` is a Jira key, prefix the title
-with it (`{issue-key}: PRD - {title}`); otherwise use `PRD: {title}`.
+check for an existing PR before creating one. If `{issue-key}` is a Jira
+key, prefix the title with it (`{issue-key}: PRD - {title}`); otherwise
+use `PRD: {title}`.
+
+First, check whether a PR already exists for this branch:
 
 ```bash
-gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head {branch-name} --title "{issue-key}: PRD - {title}" --body-file .artifacts/prd/{issue-key}/04-pr-description.md
+python3 "$PUBLISH_SCRIPT" check-existing --repo {owner}/{repo} --head {branch-name}
 ```
+
+If exit code is 5, a PR already exists — skip to Step 6 and report its
+URL. Parse the PR number from the returned JSON. If the command fails
+(non-zero exit other than 5), stop and report the error. If exit code
+is 0, create a new PR:
+
+```bash
+# When {issue-key} is a Jira key (e.g., EDM-1471):
+python3 "$PUBLISH_SCRIPT" create-pr \
+  --repo {owner}/{repo} \
+  --base {base-branch} \
+  --head {branch-name} \
+  --title "{issue-key}: PRD - {title}" \
+  --body-file .artifacts/prd/{issue-key}/04-pr-description.md \
+  --draft
+
+# When no issue key exists:
+python3 "$PUBLISH_SCRIPT" create-pr \
+  --repo {owner}/{repo} \
+  --base {base-branch} \
+  --head {branch-name} \
+  --title "PRD: {title}" \
+  --body-file .artifacts/prd/{issue-key}/04-pr-description.md \
+  --draft
+```
+
+The script prints the PR URL on stdout. Parse the PR number from the URL path.
 
 ### Step 6: Save Publish Metadata
 
-Write `.artifacts/prd/{issue-key}/publish-metadata.json` to record the
-file path and PR details for use by `/revise` and `/respond`:
+Save metadata for use by `/revise` and `/respond`:
 
-```json
-{
-  "release": "{release}",
-  "feature": "{feature}",
-  "prd_file_path": "{release}/{feature}/prd.md",
-  "pr_number": {pr-number},
-  "branch": "{branch-name}"
-}
+```bash
+python3 "$PUBLISH_SCRIPT" save-metadata \
+  --file .artifacts/prd/{issue-key}/publish-metadata.json \
+  release={release} \
+  feature={feature} \
+  prd_file_path={release}/{feature}/prd.md \
+  pr_number={pr-number} \
+  branch={branch-name}
 ```
 
 ### Step 7: Report to User
