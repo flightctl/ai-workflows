@@ -46,8 +46,8 @@ Set these values for the remainder of the publish phase:
    with `gh repo view owner/repo --json nameWithOwner,isFork,parent`. Treat the
    configured repository as the initial candidate when it is available.
 4. Select the canonical repository:
-   - If the configured repository is a fork, use its `parent.nameWithOwner` as
-     `UPSTREAM_REPO`.
+   - If the configured repository is a fork, derive `UPSTREAM_REPO` from its
+     parent owner's login and parent name.
    - Otherwise use the configured repository as `UPSTREAM_REPO`.
    - When there is no configured repository, prefer non-fork repositories that
      are parents of observed fork candidates. If none are related, select the
@@ -57,8 +57,8 @@ Set these values for the remainder of the publish phase:
    `UPSTREAM_REPO`. If the canonical repository is not configured as a local
    remote, stop and ask the user to add it or confirm an explicit fetch plan.
 6. Select `PUSH_REMOTE` and `PUSH_REPO` from push URL identities:
-   - If a remote's push URLs all reach the same fork whose
-     `parent.nameWithOwner` equals `UPSTREAM_REPO`, use that remote and set
+   - If a remote's push URLs all reach the same fork whose parent identity
+     equals `UPSTREAM_REPO`, use that remote and set
      `PUSH_URL`, `PUSH_REPO`, and `FORK_OWNER` from it. This includes a
      triangular remote whose fetch and push URLs are different repositories.
    - If a candidate remote has multiple push destinations, or any destination

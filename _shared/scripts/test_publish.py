@@ -821,10 +821,19 @@ class TestResolveRemotes(unittest.TestCase):
 
     @staticmethod
     def _metadata(repo: str, *, is_fork: bool, parent: str = "") -> str:
+        parent_metadata = None
+        if parent:
+            parent_owner, parent_name = parent.split("/", maxsplit=1)
+            # `gh repo view --json parent` returns the parent name and owner
+            # separately; it does not include parent.nameWithOwner.
+            parent_metadata = {
+                "name": parent_name,
+                "owner": {"login": parent_owner},
+            }
         return json.dumps({
             "nameWithOwner": repo,
             "isFork": is_fork,
-            "parent": {"nameWithOwner": parent} if parent else None,
+            "parent": parent_metadata,
         })
 
     @staticmethod
@@ -915,6 +924,34 @@ class TestResolveRemotes(unittest.TestCase):
         )
         self.assertEqual(result["upstream_remote"], "upstream")
         self.assertEqual(result["push_remote"], "origin")
+        self.assertEqual(result["fork_owner"], "contributor")
+        self.assertTrue(result["cross_repository"])
+
+    def test_osac_fork_name_origin_uses_osac_upstream(self) -> None:
+        """OSAC bootstrap --fork-name origin keeps the contributor as origin."""
+        canonical = "osac-project/enhancement-proposals"
+        fork = "contributor/enhancement-proposals"
+        result = self._resolve(
+            {
+                "origin": (
+                    "https://github.com/contributor/enhancement-proposals.git",
+                    ["https://github.com/contributor/enhancement-proposals.git"],
+                ),
+                "osac-upstream": (
+                    "https://github.com/osac-project/enhancement-proposals.git",
+                    ["https://github.com/osac-project/enhancement-proposals.git"],
+                ),
+            },
+            {
+                canonical: self._metadata(canonical, is_fork=False),
+                fork: self._metadata(fork, is_fork=True, parent=canonical),
+            },
+            "https://github.com/contributor/enhancement-proposals.git",
+        )
+        self.assertEqual(result["upstream_remote"], "osac-upstream")
+        self.assertEqual(result["push_remote"], "origin")
+        self.assertEqual(result["upstream_repo"], canonical)
+        self.assertEqual(result["push_repo"], fork)
         self.assertEqual(result["fork_owner"], "contributor")
         self.assertTrue(result["cross_repository"])
 

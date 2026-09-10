@@ -199,10 +199,21 @@ def _github_repo_metadata(repo: str) -> dict[str, Any]:
 def _repo_parent(metadata: dict[str, Any]) -> str:
     """Return a repository's parent identity when it is a fork."""
     parent = metadata.get("parent")
-    if isinstance(parent, dict):
-        name = parent.get("nameWithOwner")
-        if isinstance(name, str):
-            return name
+    if not isinstance(parent, dict):
+        return ""
+
+    identity = parent.get("nameWithOwner")
+    if isinstance(identity, str) and identity:
+        return identity
+
+    # GitHub CLI's `parent` selection exposes `name` and `owner.login`, not
+    # necessarily `parent.nameWithOwner`.
+    name = parent.get("name")
+    owner = parent.get("owner")
+    if isinstance(name, str) and name and isinstance(owner, dict):
+        login = owner.get("login")
+        if isinstance(login, str) and login:
+            return f"{login}/{name}"
     return ""
 
 
