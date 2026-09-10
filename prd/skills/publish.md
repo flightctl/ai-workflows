@@ -30,8 +30,9 @@ script. Reference it using a relative path from this file:
 ../../_shared/scripts/publish.py
 ```
 
-The script provides subcommands: `preflight`, `push`, `check-existing`,
-`create-pr`, and `save-metadata`. See the script header for full usage.
+The script provides subcommands: `preflight`, `resolve-remotes`, `push`,
+`check-existing`, `create-pr`, and `save-metadata`. See the script header for
+full usage.
 
 ## Process
 
@@ -61,7 +62,8 @@ Check for an existing docs repo configuration at `.artifacts/config.json`.
 
 1. Verify the path exists on the local filesystem
 2. Verify the directory is a git repository
-3. Verify the remote URL matches the configured `docs_repo_remote`
+3. Verify the configured `docs_repo_remote` matches at least one fetch or push
+   URL in the docs repository; do not require it to be named `origin`
 
 If any validation fails, inform the user what failed and re-ask for the
 correct values. Resolve `~` to an absolute path before saving. Update
@@ -71,8 +73,9 @@ correct values. Resolve `~` to an absolute path before saving. Update
 
 - **Docs repo local path:** Where is the planning docs repo checked out?
   (e.g., `~/src/planning-docs`)
-- **Docs repo remote:** Run `git -C "{docs_repo_path}" remote get-url origin`
-  and confirm the result with the user before proceeding
+- **Docs repo remote:** Run `git -C "{docs_repo_path}" remote -v`, choose the
+  docs repository URL to save, and confirm it with the user before proceeding.
+  The remote name is not part of the configuration contract.
 
 Validate the path and remote. Resolve `~` to the user's home directory
 so the stored path is absolute. Write `.artifacts/config.json` with the
@@ -100,6 +103,25 @@ git -C "{docs_repo_path}" remote -v
 ```bash
 git -C "{docs_repo_path}" status
 ```
+
+Resolve the canonical PR target and the branch push destination:
+
+Read and follow `../../_shared/recipes/resolve-docs-publish-remotes.md` with
+`DOCS_REPO_PATH`, `CONFIGURED_DOCS_REPO_REMOTE`, and `BRANCH_NAME`. The shared
+script invocation below performs that resolution and emits the recipe's
+outputs as JSON.
+
+```bash
+(cd "{docs_repo_path}" && python3 "$PUBLISH_SCRIPT" resolve-remotes --configured-remote "{docs_repo_remote}")
+```
+
+Parse the JSON output and confirm these values with the user before modifying
+or pushing the docs repository:
+
+- `upstream_repo` — repository where the PR will be created
+- `upstream_remote` — remote used to fetch the canonical base branch
+- `push_remote` and `push_url` — destination for the feature branch
+- `fork_owner` and `cross_repository` — values used to qualify the PR head
 
 Provenance at publish time:
 - If `.artifacts/prd/{issue-key}/provenance.json` exists from `/draft`, `/revise`,
@@ -152,11 +174,11 @@ git -C "{docs_repo_path}" branch --list {branch-name}
 ```
 
 ```bash
-git -C "{docs_repo_path}" fetch origin
+git -C "{docs_repo_path}" fetch {upstream-remote}
 ```
 
 ```bash
-git -C "{docs_repo_path}" branch -r --list origin/{branch-name}
+git -C "{docs_repo_path}" ls-remote --heads "{push-url}" "refs/heads/{branch-name}"
 ```
 
 Depending on the results:
@@ -165,8 +187,9 @@ Depending on the results:
 # If branch exists locally:
 git -C "{docs_repo_path}" checkout {branch-name}
 
-# If branch does not exist locally but exists on remote:
-git -C "{docs_repo_path}" checkout -b {branch-name} origin/{branch-name}
+# If branch does not exist locally but exists on the push URL:
+git -C "{docs_repo_path}" fetch "{push-url}" "refs/heads/{branch-name}:refs/remotes/publish-push/{branch-name}"
+git -C "{docs_repo_path}" checkout -b {branch-name} publish-push/{branch-name}
 
 # If branch doesn't exist locally or remotely:
 git -C "{docs_repo_path}" checkout -b {branch-name}
@@ -218,7 +241,7 @@ git -C "{docs_repo_path}" commit -m "Add PRD for {issue-key}: {title}"
 Push the branch using the shared script (run from the docs repo):
 
 ```bash
-(cd "{docs_repo_path}" && python3 "$PUBLISH_SCRIPT" push --remote origin --branch {branch-name})
+(cd "{docs_repo_path}" && python3 "$PUBLISH_SCRIPT" push --remote {push-remote} --branch {branch-name})
 ```
 
 Prepare the PR description (AI-dependent — summarize the PRD content) and
@@ -245,16 +268,18 @@ repo's artifact directory):
 - Approve when the PRD accurately reflects the agreed requirements
 ```
 
-Determine `{owner}/{repo}` from the `docs_repo_remote` in `.artifacts/config.json`
-(e.g., `git@github.com:org/planning-docs.git` → `org/planning-docs`), then
-check for an existing PR before creating one. If `{issue-key}` is a Jira
+Use `upstream_repo` from `resolve-remotes` as `{owner}/{repo}`, then check for
+an existing PR before creating one. If `{issue-key}` is a Jira
 key, prefix the title with it (`{issue-key}: PRD - {title}`); otherwise
 use `PRD: {title}`.
+
+Set `{head-ref}` to `{fork-owner}:{branch-name}` when `cross_repository=true`;
+otherwise set it to `{branch-name}`.
 
 First, check whether a PR already exists for this branch:
 
 ```bash
-python3 "$PUBLISH_SCRIPT" check-existing --repo {owner}/{repo} --head {branch-name}
+python3 "$PUBLISH_SCRIPT" check-existing --repo {owner}/{repo} --head {head-ref}
 ```
 
 If exit code is 5, a PR already exists — skip to Step 6 and report its
@@ -267,7 +292,7 @@ is 0, create a new PR:
 python3 "$PUBLISH_SCRIPT" create-pr \
   --repo {owner}/{repo} \
   --base {base-branch} \
-  --head {branch-name} \
+  --head {head-ref} \
   --title "{issue-key}: PRD - {title}" \
   --body-file .artifacts/prd/{issue-key}/04-pr-description.md \
   --draft
@@ -276,7 +301,7 @@ python3 "$PUBLISH_SCRIPT" create-pr \
 python3 "$PUBLISH_SCRIPT" create-pr \
   --repo {owner}/{repo} \
   --base {base-branch} \
-  --head {branch-name} \
+  --head {head-ref} \
   --title "PRD: {title}" \
   --body-file .artifacts/prd/{issue-key}/04-pr-description.md \
   --draft
