@@ -47,7 +47,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any, NoReturn
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit, urlunsplit
 
 
 # ---------------------------------------------------------------------------
@@ -118,6 +118,24 @@ def _normalize_github_repo(url: str) -> str:
     if len(parts) != 2 or not all(parts):
         return ""
     return "/".join(parts)
+
+
+def _redact_remote_url(url: str) -> str:
+    """Remove URL userinfo before a remote URL is shown to an agent."""
+    value = url.strip()
+    if not value or value.startswith("git@github.com:"):
+        return value
+
+    try:
+        parsed = urlsplit(value if "://" in value else f"//{value}")
+        if parsed.username is None and parsed.password is None:
+            return value
+        hostname = parsed.hostname or ""
+        if parsed.port is not None:
+            hostname = f"{hostname}:{parsed.port}"
+        return urlunsplit((parsed.scheme, hostname, parsed.path, "", ""))
+    except ValueError:
+        return "<redacted remote URL>" if "@" in value else value
 
 
 def _same_repo(left: str, right: str) -> bool:
@@ -206,14 +224,14 @@ def cmd_resolve_remotes(args: argparse.Namespace) -> int:
     if args.configured_remote and not configured_repo:
         fail(
             "resolve-remotes: configured remote is not a GitHub repository URL: "
-            f"{args.configured_remote}"
+            f"{_redact_remote_url(args.configured_remote)}"
         )
     if configured_repo and configured_repo.casefold() not in {
         repo.casefold() for repo in identities
     }:
         fail(
             "resolve-remotes: configured remote does not match any Git remote: "
-            f"{args.configured_remote}"
+            f"{_redact_remote_url(args.configured_remote)}"
         )
 
     if configured_repo:
@@ -236,6 +254,17 @@ def cmd_resolve_remotes(args: argparse.Namespace) -> int:
             for repo, data in metadata.items()
             if not data.get("isFork")
         )
+        fork_parents = [
+            _repo_parent(data)
+            for data in metadata.values()
+            if data.get("isFork") and _repo_parent(data)
+        ]
+        related_non_fork = [
+            repo for repo in non_fork
+            if any(_same_repo(repo, parent) for parent in fork_parents)
+        ]
+        if related_non_fork:
+            non_fork = related_non_fork
         if len(non_fork) != 1:
             fail(
                 "resolve-remotes: cannot select a unique canonical repository; "
@@ -256,15 +285,32 @@ def cmd_resolve_remotes(args: argparse.Namespace) -> int:
 
     fork_candidates: list[tuple[str, str, str]] = []
     for record in records:
-        for push_url, push_repo in zip(record["push_urls"], record["push_repos"]):
-            if not push_repo:
-                continue
-            push_metadata = metadata_by_key[push_repo.casefold()]
+        push_repos = record["push_repos"]
+        if not push_repos or any(not repo for repo in push_repos):
+            continue
+        matching_forks = [
+            repo for repo in push_repos
             if (
-                push_metadata.get("isFork")
-                and _same_repo(_repo_parent(push_metadata), upstream_repo)
-            ):
-                fork_candidates.append((record["name"], push_url, push_repo))
+                metadata_by_key[repo.casefold()].get("isFork")
+                and _same_repo(
+                    _repo_parent(metadata_by_key[repo.casefold()]),
+                    upstream_repo,
+                )
+            )
+        ]
+        if not matching_forks:
+            continue
+        if (
+            len({repo.casefold() for repo in push_repos}) != 1
+            or len({repo.casefold() for repo in matching_forks}) != 1
+        ):
+            fail(
+                "resolve-remotes: remote has multiple push destinations; "
+                f"refusing to use '{record['name']}'"
+            )
+        fork_candidates.append(
+            (record["name"], record["push_urls"][0], matching_forks[0])
+        )
 
     unique_forks = list(dict.fromkeys(fork_candidates))
     if len(unique_forks) > 1:
@@ -278,24 +324,27 @@ def cmd_resolve_remotes(args: argparse.Namespace) -> int:
         push_remote, push_url, push_repo = unique_forks[0]
     else:
         upstream = upstream_candidates[0]
-        direct_candidates = [
-            (url, repo)
-            for url, repo in zip(upstream["push_urls"], upstream["push_repos"])
-            if _same_repo(repo, upstream_repo)
-        ]
-        if not direct_candidates:
+        if (
+            not upstream["push_repos"]
+            or any(
+                not repo or not _same_repo(repo, upstream_repo)
+                for repo in upstream["push_repos"]
+            )
+        ):
             fail(
-                "resolve-remotes: canonical remote has no usable push URL; "
+                "resolve-remotes: canonical remote has multiple or unusable "
+                "push URLs; "
                 "configure a fork push destination or grant direct access"
             )
         push_remote = upstream_remote
-        push_url, push_repo = direct_candidates[0]
+        push_url = upstream["push_urls"][0]
+        push_repo = upstream["push_repos"][0]
 
     cross_repository = not _same_repo(push_repo, upstream_repo)
     output = {
         "upstream_remote": upstream_remote,
         "push_remote": push_remote,
-        "push_url": push_url,
+        "push_url": _redact_remote_url(push_url),
         "upstream_repo": upstream_repo,
         "push_repo": push_repo,
         "fork_owner": push_repo.split("/", 1)[0] if cross_repository else "",

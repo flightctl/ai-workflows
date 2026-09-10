@@ -74,7 +74,9 @@ correct values. Resolve `~` to an absolute path before saving. Update
 - **Docs repo local path:** Where is the planning docs repo checked out?
   (e.g., `~/src/planning-docs`)
 - **Docs repo remote:** Run `git -C "{docs_repo_path}" remote -v`, choose the
-  docs repository URL to save, and confirm it with the user before proceeding.
+  docs repository URL without embedded credentials to save, and confirm it
+  with the user before proceeding. Never save a token or password in
+  `.artifacts/config.json`.
   The remote name is not part of the configuration contract.
 
 Validate the path and remote. Resolve `~` to the user's home directory
@@ -122,6 +124,10 @@ or pushing the docs repository:
 - `upstream_remote` — remote used to fetch the canonical base branch
 - `push_remote` and `push_url` — destination for the feature branch
 - `fork_owner` and `cross_repository` — values used to qualify the PR head
+
+`push_url` is a credential-free display value. When a Git command needs the
+actual push transport, derive it locally with `git remote get-url --push
+"{push_remote}"`; do not copy credentials into workflow artifacts or prompts.
 
 Provenance at publish time:
 - If `.artifacts/prd/{issue-key}/provenance.json` exists from `/draft`, `/revise`,
@@ -178,7 +184,8 @@ git -C "{docs_repo_path}" fetch {upstream-remote}
 ```
 
 ```bash
-git -C "{docs_repo_path}" ls-remote --heads "{push-url}" "refs/heads/{branch-name}"
+PUSH_URL_RAW="$(git -C "{docs_repo_path}" remote get-url --push "{push-remote}")"
+git -C "{docs_repo_path}" ls-remote --heads "$PUSH_URL_RAW" "refs/heads/{branch-name}"
 ```
 
 Depending on the results:
@@ -188,7 +195,7 @@ Depending on the results:
 git -C "{docs_repo_path}" checkout {branch-name}
 
 # If branch does not exist locally but exists on the push URL:
-git -C "{docs_repo_path}" fetch "{push-url}" "refs/heads/{branch-name}:refs/remotes/publish-push/{branch-name}"
+git -C "{docs_repo_path}" fetch "$PUSH_URL_RAW" "refs/heads/{branch-name}:refs/remotes/publish-push/{branch-name}"
 git -C "{docs_repo_path}" checkout -b {branch-name} publish-push/{branch-name}
 
 # If branch doesn't exist locally or remotely:

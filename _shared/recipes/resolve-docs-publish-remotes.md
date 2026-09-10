@@ -1,6 +1,6 @@
 ---
 name: resolve-docs-publish-remotes
-version: 0.1.0
+version: 0.2.0
 ---
 # Recipe: Resolve Documentation Publish Remotes
 
@@ -23,7 +23,8 @@ Set these values for the remainder of the publish phase:
 - `PUSH_REMOTE`: local remote where `BRANCH_NAME` is pushed.
 - `UPSTREAM_REPO`: canonical GitHub repository in `owner/repo` form.
 - `PUSH_REPO`: GitHub repository reached by the push URL of `PUSH_REMOTE`.
-- `PUSH_URL`: the selected push URL for `PUSH_REMOTE`.
+- `PUSH_URL`: the selected push URL for `PUSH_REMOTE`, with URL userinfo
+  removed before it is displayed or passed between workflow steps.
 - `FORK_OWNER`: GitHub owner of `PUSH_REMOTE` when it is a fork; empty for a
   direct canonical publish.
 - `CROSS_REPOSITORY`: `true` when `PUSH_REPO` and `UPSTREAM_REPO` differ;
@@ -36,7 +37,8 @@ Set these values for the remainder of the publish phase:
    `git remote get-url --push --all`, and normalize each URL to `owner/repo`.
    Keep fetch and push identities separate: a triangular remote may fetch from
    the canonical repository and push to a fork. Do not assume that `origin`,
-   `upstream`, or `fork` has any particular role.
+   `upstream`, or `fork` has any particular role. Do not persist or display
+   credentials embedded in a remote URL.
 2. If `CONFIGURED_DOCS_REPO_REMOTE` is set, validate that its normalized URL
    matches at least one configured remote URL. A match on `origin` is not
    required. If it matches no remote, stop and report the mismatch.
@@ -47,22 +49,26 @@ Set these values for the remainder of the publish phase:
    - If the configured repository is a fork, use its `parent.nameWithOwner` as
      `UPSTREAM_REPO`.
    - Otherwise use the configured repository as `UPSTREAM_REPO`.
-   - When there is no configured repository, select the sole non-fork remote
-     that has a matching fork candidate. If there is no unique selection, stop
-     and ask the user to identify the canonical repository.
+   - When there is no configured repository, prefer non-fork repositories that
+     are parents of observed fork candidates. If none are related, select the
+     sole non-fork repository. If there is no unique selection, stop and ask
+     the user to identify the canonical repository.
 5. Select `UPSTREAM_REMOTE` as the local remote whose repository is
    `UPSTREAM_REPO`. If the canonical repository is not configured as a local
    remote, stop and ask the user to add it or confirm an explicit fetch plan.
 6. Select `PUSH_REMOTE` and `PUSH_REPO` from push URL identities:
-   - If a push URL reaches a fork whose `parent.nameWithOwner` equals
-     `UPSTREAM_REPO`, use its remote and set `PUSH_URL`, `PUSH_REPO`, and
-     `FORK_OWNER` from that URL. This includes a triangular remote whose fetch
-     and push URLs are different repositories.
-   - If more than one matching push destination exists, stop and ask the user
-     which one to use; never choose by remote name or list order.
-   - If no matching fork push destination exists, use `UPSTREAM_REMOTE` and its
-     canonical push URL for a direct publish, setting `PUSH_URL` and leaving
-     `FORK_OWNER` empty.
+   - If a remote's push URLs all reach the same fork whose
+     `parent.nameWithOwner` equals `UPSTREAM_REPO`, use that remote and set
+     `PUSH_URL`, `PUSH_REPO`, and `FORK_OWNER` from it. This includes a
+     triangular remote whose fetch and push URLs are different repositories.
+   - If a candidate remote has multiple push destinations, or any destination
+     cannot be normalized, stop and ask the user to configure one confirmed
+     push destination. This prevents `git push <remote>` from broadcasting to
+     an unconfirmed repository.
+   - If no matching fork push destination exists, use `UPSTREAM_REMOTE` only
+     when all of its push URLs resolve to the canonical repository, setting
+     `PUSH_URL` and leaving `FORK_OWNER` empty. Otherwise stop and ask the user
+     to configure a fork push destination or grant direct access.
 7. Set `CROSS_REPOSITORY` to `true` when `PUSH_REPO` and `UPSTREAM_REPO`
    differ. Before modifying the docs repository, report `UPSTREAM_REPO`,
    `UPSTREAM_REMOTE`, `PUSH_REMOTE`, `PUSH_URL`, `PUSH_REPO`, and the selected
@@ -71,14 +77,16 @@ Set these values for the remainder of the publish phase:
 ## Publish Commands
 
 Use `UPSTREAM_REMOTE` for fetching the canonical base and checking the base
-branch. Use `PUSH_URL` for checking whether the feature branch already exists
-on the push destination. This is required for a triangular remote, where the
-remote's fetch URL and push URL point to different repositories. Use
+branch. `PUSH_URL` is a credential-free display value; derive the raw push URL
+only in a local shell variable for checking whether the feature branch already
+exists on the push destination. This is required for a triangular remote,
+where the remote's fetch URL and push URL point to different repositories. Use
 `PUSH_REMOTE` for pushing the feature branch:
 
 ```bash
 git -C "$DOCS_REPO_PATH" fetch "$UPSTREAM_REMOTE"
-git -C "$DOCS_REPO_PATH" ls-remote --heads "$PUSH_URL" "refs/heads/$BRANCH_NAME"
+PUSH_URL_RAW="$(git -C "$DOCS_REPO_PATH" remote get-url --push "$PUSH_REMOTE")"
+git -C "$DOCS_REPO_PATH" ls-remote --heads "$PUSH_URL_RAW" "refs/heads/$BRANCH_NAME"
 git -C "$DOCS_REPO_PATH" push -u "$PUSH_REMOTE" "$BRANCH_NAME"
 ```
 
