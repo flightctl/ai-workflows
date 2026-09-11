@@ -2,7 +2,7 @@
 # Pull latest ai-workflows and refresh installs if command wrappers changed.
 #
 # Usage:
-#   aiw-update                  # ff-only pull origin/main (must be on main)
+#   aiw-update                  # ff-only pull AI_WORKFLOWS_REMOTE_REF (default origin/main)
 #   aiw-update --checkout-main  # checkout main first, then pull
 #   aiw-update --reinstall      # always re-run install.sh for detected targets
 #   aiw-update --project PATH   # also reinstall Cursor skills for PATH (repeatable)
@@ -12,6 +12,7 @@
 set -euo pipefail
 
 INSTALL_DIR="${AI_WORKFLOWS_DIR:-${HOME}/.ai-workflows}"
+REMOTE_REF="${AI_WORKFLOWS_REMOTE_REF:-origin/main}"
 REPO_DIR="$(readlink -f "$INSTALL_DIR")"
 CHECKOUT_MAIN=false
 FORCE_REINSTALL=false
@@ -92,7 +93,7 @@ CURRENT_BRANCH="$(git branch --show-current 2>/dev/null || true)"
 if [[ "$CURRENT_BRANCH" != "main" ]] && ! $CHECKOUT_MAIN; then
   echo "ai-workflows: not on main (branch=${CURRENT_BRANCH:-detached})." >&2
   echo "  Use: aiw-update --checkout-main" >&2
-  echo "  Or rebase/merge origin/main into this branch, then retry." >&2
+  echo "  Or rebase/merge ${REMOTE_REF} into this branch, then retry." >&2
   exit 1
 fi
 
@@ -102,10 +103,18 @@ if $CHECKOUT_MAIN; then
   git checkout main
 fi
 
-git fetch origin main
-if ! git pull --ff-only origin main; then
-  echo "ai-workflows: fast-forward pull from origin/main failed." >&2
-  echo "  Resolve local commits on main, or: git reset --hard origin/main (destructive)." >&2
+FETCH_REMOTE="${REMOTE_REF%%/*}"
+FETCH_BRANCH="${REMOTE_REF#*/}"
+if [[ "$FETCH_REMOTE" == "$REMOTE_REF" ]]; then
+  FETCH_REMOTE="origin"
+  FETCH_BRANCH="$REMOTE_REF"
+fi
+MERGE_REF="refs/remotes/${FETCH_REMOTE}/${FETCH_BRANCH}"
+
+git fetch "$FETCH_REMOTE" "$FETCH_BRANCH"
+if ! git merge --ff-only "$MERGE_REF"; then
+  echo "ai-workflows: fast-forward pull from ${REMOTE_REF} failed." >&2
+  echo "  Resolve local commits on main, or: git reset --hard ${MERGE_REF} (destructive)." >&2
   exit 1
 fi
 
