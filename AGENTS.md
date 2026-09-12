@@ -83,6 +83,7 @@ _shared/
   sizing-rubric.md                # Shared sizing definitions (T-shirt sizes, heuristics, team effort guidance)
   scripts/
     provenance.py                 # Capture/render CLI (used by prd and design provenance recipes)
+    pr-comments.py                # Deterministic PR comment operations (fetch, reply, log)
     publish.py                    # Deterministic publish operations (push, PR/MR, metadata)
   recipes/
     capture-provenance-event.md   # Append session-local provenance on doc-mutating phases
@@ -198,6 +199,7 @@ ai-workflows/
 │   ├── sizing-rubric.md       # Shared sizing definitions and heuristics
 │   ├── scripts/
 │   │   ├── provenance.py      # Capture/render CLI for prd/design provenance
+│   │   ├── pr-comments.py     # Deterministic PR comment operations (fetch, reply, log)
 │   │   └── publish.py         # Deterministic publish operations (push, PR/MR, metadata)
 │   └── recipes/
 │       ├── capture-provenance-event.md
