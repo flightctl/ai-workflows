@@ -23,9 +23,23 @@ repeatable as new comments arrive.
 - **Re-validate after code changes.** If code was changed, recommend re-running `/validate` before continuing.
 - **Commit changes using the project's commit format.** Review feedback commits follow the same format discovered during `/ingest`.
 - **Allowed `gh` operations:**
-  - **Read:** `gh pr view`, `gh api` GET (for fetching PR comments and review data)
-  - **Write:** `gh pr comment` (for top-level replies), `gh api` POST to `pulls/{pr-number}/comments/{id}/replies` (for replying to line-level review comments)
+  - **Read:** `gh pr view` (for PR discovery only — comment fetching is
+    delegated to the shared script)
+  - **Write:** delegated to `pr-comments.py reply` (do not call `gh api`
+    or `gh pr comment` directly for review replies)
   - **Forbidden:** `gh pr close`, `gh pr merge`, `gh pr edit`, `gh pr ready`
+
+## Shared Script
+
+This skill delegates deterministic PR comment operations to a shared
+script. Reference it using a relative path from this file:
+
+```
+../../_shared/scripts/pr-comments.py
+```
+
+The script provides subcommands: `fetch`, `reply`, and `log`. See the
+script header for full usage.
 
 ## Process
 
@@ -58,23 +72,31 @@ this will produce the fork's `{owner}/{repo}`, not the upstream's where
 the PR lives. If the resulting `gh pr view` command fails, this may be
 the cause — tell the user and ask for the correct upstream `{owner}/{repo}`.
 
-If `.artifacts/implement/{issue-key}/07-review-responses.md` already exists,
-read it to identify previously addressed comments. Only categorize and
-propose responses for new or unaddressed comments in Step 2.
-
-Fetch both issue-level and review-level comments.
-
-Fetch PR metadata and top-level conversation comments:
+Resolve the shared script to an absolute path so it remains valid
+regardless of working directory:
 
 ```bash
-gh pr view {pr-number} --repo {owner}/{repo} --json comments,reviews,url
+PR_COMMENTS_SCRIPT="$(git rev-parse --show-toplevel)/_shared/scripts/pr-comments.py"
 ```
 
-Fetch line-level review comments with pagination:
+Use `$PR_COMMENTS_SCRIPT` instead of the relative path in all subsequent
+commands.
+
+Fetch all comments using the shared script. The script fetches line-level
+review comments, top-level comments, and reviews in a single call and
+outputs a unified JSON array to stdout:
 
 ```bash
-gh api repos/{owner}/{repo}/pulls/{pr-number}/comments --paginate
+python3 "$PR_COMMENTS_SCRIPT" fetch --owner {owner} --repo {repo} --pr {pr-number} --responses-log .artifacts/implement/{issue-key}/responses.jsonl --include-review-threads
 ```
+
+If fetch returns non-zero, report the error to the user and stop — do
+not proceed with an empty or partial comment list.
+
+The `--responses-log` flag excludes comment IDs already addressed in
+prior respond rounds (replacing the manual check against
+`07-review-responses.md`). The `--include-review-threads` flag annotates
+line comments with thread resolution status via GraphQL.
 
 If no comments are found, tell the user and suggest checking back later.
 
@@ -166,18 +188,35 @@ break the heredoc.
 
 Write `{approved reply text}` to `.artifacts/implement/{issue-key}/tmp-reply.md`.
 
-**For line-level review comments** (attached to a specific file and line),
-reply in-thread:
+Route each comment based on its `type` field from the fetch output:
+
+**When `type` is `"line_comment"`**, reply in-thread using the comment's
+`id`:
 
 ```bash
-gh api repos/{owner}/{repo}/pulls/{pr-number}/comments/{comment-id}/replies --field body=@.artifacts/implement/{issue-key}/tmp-reply.md
+python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/implement/{issue-key}/tmp-reply.md --comment-id {id}
 ```
 
-**For top-level PR comments** (general conversation comments):
+**When `type` is `"review"` or `"top_level"`**, post a top-level PR
+comment (omit `--comment-id`):
 
 ```bash
-gh pr comment {pr-number} --repo {owner}/{repo} --body-file .artifacts/implement/{issue-key}/tmp-reply.md
+python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/implement/{issue-key}/tmp-reply.md
 ```
+
+If the reply command fails (non-zero exit), report the error and
+continue to the next comment **without calling `log`** — the comment
+must remain unaddressed so it is retried on the next respond round.
+
+After each **successful** reply, record the `id` in the responses log:
+
+```bash
+python3 "$PR_COMMENTS_SCRIPT" log --responses-log .artifacts/implement/{issue-key}/responses.jsonl --comment-id {id}
+```
+
+**If the log command fails (non-zero exit), stop immediately** — do not
+post the next reply.  Continuing without logging would allow duplicate
+replies on the next respond round.
 
 Clean up the temporary reply file:
 

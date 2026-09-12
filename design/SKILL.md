@@ -1,6 +1,6 @@
 ---
 name: design
-version: 0.10.1
+version: 0.11.0
 description: >-
   Design-and-decompose workflow that takes a PRD, researches the problem space,
   drafts a technical design document with a requirement-anchored testplan,
