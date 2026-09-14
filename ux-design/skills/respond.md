@@ -14,9 +14,23 @@ respond to them, and apply any resulting handoff spec changes.
 - **Separate content changes from clarifications.** Some comments need handoff spec edits; others just need a reply.
 - **Preserve the review trail.** Don't delete or modify existing comments.
 - **Allowed `gh` operations:**
-  - **Read:** `gh pr view`, `gh api` GET
-  - **Write:** `gh pr comment`, `gh api` POST to reply to review comments
+  - **Read:** `gh pr view` (for PR discovery only — comment fetching is
+    delegated to the shared script)
+  - **Write:** delegated to `pr-comments.py reply` (do not call `gh api`
+    or `gh pr comment` directly for review replies)
   - **Forbidden:** `gh pr close`, `gh pr merge`, `gh pr edit`, `gh pr ready`
+
+## Shared Script
+
+This skill delegates deterministic PR comment operations to a shared
+script. Reference it using a relative path from this file:
+
+```
+../../_shared/scripts/pr-comments.py
+```
+
+The script provides subcommands: `fetch`, `reply`, and `log`. See the
+script header for full usage.
 
 ## Process
 
@@ -29,13 +43,29 @@ that `/publish` should be run first.
 
 Determine `{owner}/{repo}` from the config's `docs_repo_remote`.
 
-```bash
-gh pr view {pr-number} --repo {owner}/{repo} --json comments,reviews,url
-```
+Resolve `{AI_WORKFLOWS_ROOT}` as the git root of the ai-workflows install
+(typically `git rev-parse --show-toplevel` from the workflow directory, or
+`~/.ai-workflows` when symlinked). Keep the source repository as the process
+CWD so artifact paths remain relative to its root. Then resolve the shared
+script to an absolute path:
 
 ```bash
-gh api repos/{owner}/{repo}/pulls/{pr-number}/comments --paginate
+PR_COMMENTS_SCRIPT="{AI_WORKFLOWS_ROOT}/_shared/scripts/pr-comments.py"
 ```
+
+Use `$PR_COMMENTS_SCRIPT` in all subsequent commands.
+
+Fetch all comments using the shared script. The script fetches line-level
+review comments, top-level comments, and reviews in a single call and outputs
+a unified JSON array to stdout:
+
+```bash
+python3 "$PR_COMMENTS_SCRIPT" fetch --owner {owner} --repo {repo} --pr {pr-number} --responses-log .artifacts/ux-design/{issue-key}/responses.jsonl --include-review-threads
+```
+
+The `--responses-log` flag excludes comment IDs already addressed in prior
+respond rounds. The `--include-review-threads` flag annotates line comments
+with thread resolution status via GraphQL.
 
 If no comments are found, tell the user and suggest checking back later.
 
@@ -114,7 +144,42 @@ is comment-only (clarification, acknowledgment, or pushback).
 
 **In both cases:**
 
-Post approved replies using `gh pr comment` or `gh api` for line-level replies.
+Write each approved reply to
+`.artifacts/ux-design/{issue-key}/tmp-reply.md` using the host's file-writing
+capability. Do not use a shell heredoc because reply content can contain the
+delimiter string.
+
+Route each comment based on its `type` field from the fetch output.
+
+For a `line_comment`, reply in-thread using the comment's `id`:
+
+```bash
+python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/ux-design/{issue-key}/tmp-reply.md --comment-id {id}
+```
+
+For a `review` or `top_level` comment, post a top-level reply:
+
+```bash
+python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/ux-design/{issue-key}/tmp-reply.md
+```
+
+If the reply command fails, report the error and continue to the next comment
+without logging the failed reply.
+
+After each successful reply, record its `id` so later respond rounds skip it:
+
+```bash
+python3 "$PR_COMMENTS_SCRIPT" log --responses-log .artifacts/ux-design/{issue-key}/responses.jsonl --comment-id {id}
+```
+
+If logging fails, stop before posting another reply to avoid duplicate replies
+on the next respond round.
+
+Delete the temporary reply file after a successful post and log:
+
+```bash
+rm .artifacts/ux-design/{issue-key}/tmp-reply.md
+```
 
 ### Step 5: Report to User
 
