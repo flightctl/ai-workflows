@@ -36,6 +36,7 @@ import json
 import sys
 import urllib.error
 import urllib.request
+from urllib.parse import quote, urlsplit
 from typing import Any, NoReturn
 
 
@@ -46,6 +47,12 @@ from typing import Any, NoReturn
 EXIT_SUCCESS = 0
 EXIT_ERROR = 1
 # argparse uses exit code 2 for usage errors
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+REQUEST_TIMEOUT = 30  # seconds
 
 
 # ---------------------------------------------------------------------------
@@ -70,6 +77,51 @@ def _get_env(name: str) -> str:
     if not value:
         fail(f"Missing required environment variable: {name}")
     return value
+
+
+def _get_jira_url() -> str:
+    """Return the Jira base URL, enforcing HTTPS by default.
+
+    Parses JIRA_URL with ``urlsplit`` and validates:
+    - Scheme must be ``https`` (default) or ``http`` (opt-in only).
+    - ``file://``, ``ftp://``, and all other schemes are always rejected.
+    - Hostname must be non-empty.
+
+    Set ``JIRA_ALLOW_INSECURE_HTTP=1`` to allow ``http`` in addition to
+    ``https`` (for local development instances).
+    """
+    import os
+    url = _get_env("JIRA_URL").rstrip("/")
+    parts = urlsplit(url)
+
+    allow_insecure = os.environ.get(
+        "JIRA_ALLOW_INSECURE_HTTP", "",
+    ).strip() == "1"
+
+    allowed_schemes = {"https", "http"} if allow_insecure else {"https"}
+
+    if parts.scheme not in allowed_schemes:
+        if parts.scheme == "http" and not allow_insecure:
+            fail(
+                f"JIRA_URL must use https:// (got {url}). "
+                f"Set JIRA_ALLOW_INSECURE_HTTP=1 to allow plain HTTP."
+            )
+        fail(
+            f"JIRA_URL has unsupported scheme {parts.scheme!r} ({url}). "
+            f"Only https:// is allowed"
+            f"{' (and http:// with JIRA_ALLOW_INSECURE_HTTP=1)' if not allow_insecure else ''}."
+        )
+
+    if not parts.hostname:
+        fail(f"JIRA_URL has no hostname ({url}).")
+
+    if allow_insecure and parts.scheme == "http":
+        info(
+            f"JIRA_URL does not use HTTPS ({url}). "
+            f"Allowed by JIRA_ALLOW_INSECURE_HTTP=1."
+        )
+
+    return url
 
 
 def _build_auth_header() -> str:
@@ -108,7 +160,7 @@ def _jira_request(url: str, auth_header: str) -> Any:
     req.add_header("Accept", "application/json")
 
     try:
-        with urllib.request.urlopen(req) as resp:
+        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
             body = resp.read().decode("utf-8")
     except urllib.error.HTTPError as exc:
         body = ""
@@ -121,6 +173,8 @@ def _jira_request(url: str, auth_header: str) -> Any:
         fail(f"HTTP {exc.code}: {body}")
     except urllib.error.URLError as exc:
         fail(f"Request failed: {exc.reason}")
+    except TimeoutError:
+        fail(f"Request timed out after {REQUEST_TIMEOUT}s: {url}")
 
     try:
         return json.loads(body)
@@ -152,19 +206,25 @@ def cmd_get(args: argparse.Namespace) -> int:
     include_parent = args.parent
     parent_fields = args.parent_fields
 
-    jira_url = _get_env("JIRA_URL").rstrip("/")
+    jira_url = _get_jira_url()
     auth_header = _build_auth_header()
 
-    # Build the fields list for the API request
+    # Build the fields list for the API request.
+    # Use exact token matching (split on comma) to avoid substring
+    # false positives (e.g., "comment" matching "commentCount").
+    field_tokens = [f.strip() for f in fields.split(",")]
     api_fields = fields
-    if include_links and "issuelinks" not in api_fields:
+    if include_links and "issuelinks" not in field_tokens:
         api_fields = f"{api_fields},issuelinks"
-    if include_parent and "parent" not in api_fields:
+    if include_parent and "parent" not in field_tokens:
         api_fields = f"{api_fields},parent"
-    if include_comments and "comment" not in api_fields:
+    if include_comments and "comment" not in field_tokens:
         api_fields = f"{api_fields},comment"
 
-    url = f"{jira_url}/rest/api/2/issue/{key}?fields={api_fields}"
+    url = (
+        f"{jira_url}/rest/api/3/issue/{quote(key, safe='')}"
+        f"?fields={quote(api_fields, safe=',')}"
+    )
     info(f"Fetching issue {key}")
 
     data = _jira_request(url, auth_header)
@@ -254,53 +314,92 @@ def cmd_get(args: argparse.Namespace) -> int:
 # Subcommand: search
 # ---------------------------------------------------------------------------
 
-def cmd_search(args: argparse.Namespace) -> int:
-    """Search for Jira issues via JQL.
+SEARCH_PAGE_SIZE = 50  # internal page size for search pagination
 
-    Prints a JSON object to stdout with the total count and matching
-    issues, each with their key and requested fields.
+
+def cmd_search(args: argparse.Namespace) -> int:
+    """Search for Jira issues via JQL with automatic cursor pagination.
+
+    Uses the Jira Cloud v3 endpoint ``/rest/api/3/search/jql`` with
+    ``nextPageToken`` / ``isLast`` cursor-based pagination.
+
+    Iterates pages internally until all matching issues are collected
+    or the ``--max-results`` cap is reached.  The JSON output includes
+    the ``total`` from the API when the API provides it.
+
+    Prints a JSON object to stdout with the total count (if available)
+    and matching issues, each with their key and requested fields.
     """
     jql = args.jql
     fields = args.fields
     max_results = args.max_results
 
-    jira_url = _get_env("JIRA_URL").rstrip("/")
+    jira_url = _get_jira_url()
     auth_header = _build_auth_header()
 
     # URL-encode query parameters
-    from urllib.parse import quote
     encoded_jql = quote(jql, safe="")
     encoded_fields = quote(fields, safe=",")
 
-    url = (
-        f"{jira_url}/rest/api/2/search"
-        f"?jql={encoded_jql}"
-        f"&fields={encoded_fields}"
-        f"&maxResults={max_results}"
-    )
+    endpoint = f"{jira_url}/rest/api/3/search/jql"
+
     info(f"Searching: {jql}")
 
-    data = _jira_request(url, auth_header)
-
-    # Build output
     field_list = [f.strip() for f in fields.split(",")]
-    issues: list[dict[str, Any]] = []
+    all_issues: list[dict[str, Any]] = []
+    api_total: int | None = None
+    next_page_token: str | None = None
 
-    for issue in data.get("issues", []):
-        raw = issue.get("fields", {})
-        issues.append({
-            "key": issue.get("key", ""),
-            "fields": {
-                f: raw.get(f)
-                for f in field_list
-                if f in raw
-            },
-        })
+    while True:
+        # How many to request this page: the lesser of our page size
+        # and how many we still need to reach the cap.
+        remaining = max_results - len(all_issues)
+        page_size = min(SEARCH_PAGE_SIZE, remaining)
 
-    result = {
-        "total": data.get("total", len(issues)),
-        "issues": issues,
-    }
+        url = (
+            f"{endpoint}"
+            f"?jql={encoded_jql}"
+            f"&fields={encoded_fields}"
+            f"&maxResults={page_size}"
+        )
+        if next_page_token is not None:
+            url += f"&nextPageToken={quote(next_page_token, safe='')}"
+
+        data = _jira_request(url, auth_header)
+
+        # Capture total from the API if provided
+        if api_total is None and "total" in data:
+            api_total = data["total"]
+
+        page_issues = data.get("issues", [])
+
+        for issue in page_issues:
+            if len(all_issues) >= max_results:
+                break
+            raw = issue.get("fields", {})
+            all_issues.append({
+                "key": issue.get("key", ""),
+                "fields": {
+                    f: raw.get(f)
+                    for f in field_list
+                    if f in raw
+                },
+            })
+
+        # Stop if: we hit the cap, or the API signals last page
+        if len(all_issues) >= max_results:
+            break
+        if data.get("isLast", True):
+            break
+
+        # Advance to next page via cursor token
+        next_page_token = data.get("nextPageToken")
+        if next_page_token is None:
+            break  # no token means no more pages
+
+    result: dict[str, Any] = {"issues": all_issues}
+    if api_total is not None:
+        result["total"] = api_total
 
     print(json.dumps(result, indent=2))
     return EXIT_SUCCESS
@@ -333,9 +432,23 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Include comments in output",
     )
+    def _non_negative_int(value: str) -> int:
+        """Parse a non-negative integer for --comment-limit."""
+        try:
+            n = int(value)
+        except ValueError:
+            raise argparse.ArgumentTypeError(
+                f"invalid int value: {value!r}",
+            )
+        if n < 0:
+            raise argparse.ArgumentTypeError(
+                f"--comment-limit must be non-negative, got {n}",
+            )
+        return n
+
     p_get.add_argument(
         "--comment-limit",
-        type=int,
+        type=_non_negative_int,
         default=0,
         help="Max comments to return (default: 0 = all)",
     )
@@ -371,11 +484,25 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_FIELDS,
         help=f"Comma-separated field names (default: {DEFAULT_FIELDS})",
     )
+    def _positive_int(value: str) -> int:
+        """Parse a positive integer for --max-results."""
+        try:
+            n = int(value)
+        except ValueError:
+            raise argparse.ArgumentTypeError(
+                f"invalid int value: {value!r}",
+            )
+        if n < 1:
+            raise argparse.ArgumentTypeError(
+                f"--max-results must be >= 1, got {n}",
+            )
+        return n
+
     p_search.add_argument(
         "--max-results",
-        type=int,
-        default=50,
-        help="Max results to return (default: 50)",
+        type=_positive_int,
+        default=200,
+        help="Cap on total results to return (default: 200)",
     )
 
     return parser

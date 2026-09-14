@@ -86,6 +86,7 @@ _shared/
     pr-comments.py                # Deterministic PR comment operations (fetch, reply, log)
     publish.py                    # Deterministic publish operations (push, PR/MR, metadata)
     resolve-phase.py              # Deterministic phase override resolution (file-existence check)
+    fetch-issue.py                # Deterministic Jira issue fetching (get, search)
   recipes/
     capture-provenance-event.md   # Append session-local provenance on doc-mutating phases
     phase-override-resolution.md  # Project-level phase override lookup and activation
@@ -202,7 +203,8 @@ ai-workflows/
 │   │   ├── provenance.py      # Capture/render CLI for prd/design provenance
 │   │   ├── pr-comments.py     # Deterministic PR comment operations (fetch, reply, log)
 │   │   ├── publish.py         # Deterministic publish operations (push, PR/MR, metadata)
-│   │   └── resolve-phase.py   # Deterministic phase override resolution
+│   │   ├── resolve-phase.py   # Deterministic phase override resolution
+│   │   └── fetch-issue.py    # Deterministic Jira issue fetching (get, search)
 │   └── recipes/
 │       ├── capture-provenance-event.md
 │       ├── phase-override-resolution.md  # Project-level phase override lookup

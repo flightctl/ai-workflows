@@ -79,7 +79,7 @@ class TestParseArgs(unittest.TestCase):
         self.assertEqual(args.subcommand, "search")
         self.assertEqual(args.jql, "project = EDM")
         self.assertEqual(args.fields, fetch_issue.DEFAULT_FIELDS)
-        self.assertEqual(args.max_results, 50)
+        self.assertEqual(args.max_results, 200)
 
     def test_search_all_options(self) -> None:
         """Search subcommand parses all optional arguments."""
@@ -596,7 +596,7 @@ class TestGetSubcommand(unittest.TestCase):
 
         # Inspect the Request object passed to urlopen
         request = mock_open.call_args[0][0]
-        self.assertIn("/rest/api/2/issue/EDM-1", request.full_url)
+        self.assertIn("/rest/api/3/issue/EDM-1", request.full_url)
         self.assertIn("fields=summary", request.full_url)
 
     def test_get_auth_header_sent(self) -> None:
@@ -633,7 +633,7 @@ class TestGetSubcommand(unittest.TestCase):
 
         request = mock_open.call_args[0][0]
         self.assertNotIn("//rest", request.full_url)
-        self.assertIn("/rest/api/2/issue/EDM-1", request.full_url)
+        self.assertIn("/rest/api/3/issue/EDM-1", request.full_url)
 
 
 # ---------------------------------------------------------------------------
@@ -654,6 +654,7 @@ class TestSearchSubcommand(unittest.TestCase):
         """Searches and returns total + issues array."""
         api_response = {
             "total": 2,
+            "isLast": True,
             "issues": [
                 {
                     "key": "EDM-1",
@@ -697,6 +698,7 @@ class TestSearchSubcommand(unittest.TestCase):
         """--fields limits which fields appear in search results."""
         api_response = {
             "total": 1,
+            "isLast": True,
             "issues": [
                 {
                     "key": "EDM-1",
@@ -727,8 +729,8 @@ class TestSearchSubcommand(unittest.TestCase):
         self.assertNotIn("priority", output["issues"][0]["fields"])
 
     def test_search_url_construction(self) -> None:
-        """Verify the search URL includes JQL and maxResults."""
-        api_response = {"total": 0, "issues": []}
+        """Verify the search URL uses v3 search/jql endpoint."""
+        api_response = {"total": 0, "issues": [], "isLast": True}
         mock_resp = _mock_urlopen(api_response)
 
         with (
@@ -743,14 +745,15 @@ class TestSearchSubcommand(unittest.TestCase):
                 ])
 
         request = mock_open.call_args[0][0]
-        self.assertIn("/rest/api/2/search", request.full_url)
+        self.assertIn("/rest/api/3/search/jql", request.full_url)
         self.assertIn("maxResults=25", request.full_url)
-        # JQL should be URL-encoded
         self.assertIn("jql=", request.full_url)
+        # First request should NOT have nextPageToken
+        self.assertNotIn("nextPageToken", request.full_url)
 
     def test_search_empty_results(self) -> None:
         """Empty search results return total 0 and empty issues array."""
-        api_response = {"total": 0, "issues": []}
+        api_response = {"total": 0, "issues": [], "isLast": True}
         mock_resp = _mock_urlopen(api_response)
 
         with (
@@ -765,6 +768,227 @@ class TestSearchSubcommand(unittest.TestCase):
         output = json.loads(buf.getvalue())
         self.assertEqual(output["total"], 0)
         self.assertEqual(output["issues"], [])
+
+
+# ---------------------------------------------------------------------------
+# Search pagination tests (nextPageToken / isLast cursor pagination)
+# ---------------------------------------------------------------------------
+
+
+class TestSearchPagination(unittest.TestCase):
+    """Verify internal cursor-based pagination in cmd_search."""
+
+    def setUp(self) -> None:
+        self.env = {
+            "JIRA_URL": "https://jira.example.com",
+            "JIRA_TOKEN": "test-token",
+        }
+
+    @staticmethod
+    def _make_issues(start: int, count: int) -> list[dict[str, Any]]:
+        """Generate a list of mock Jira issue dicts."""
+        return [
+            {
+                "key": f"EDM-{start + i}",
+                "fields": {"summary": f"Issue {start + i}"},
+            }
+            for i in range(count)
+        ]
+
+    def test_multi_page_pagination(self) -> None:
+        """Fetches multiple pages using nextPageToken until isLast=True."""
+        page_size = fetch_issue.SEARCH_PAGE_SIZE  # 50
+        page1 = _mock_urlopen({
+            "total": 60,
+            "isLast": False,
+            "nextPageToken": "cursor-abc",
+            "issues": self._make_issues(1, page_size),
+        })
+        page2 = _mock_urlopen({
+            "total": 60,
+            "isLast": True,
+            "issues": self._make_issues(page_size + 1, 10),
+        })
+
+        with (
+            mock.patch.dict("os.environ", self.env, clear=True),
+            mock.patch(
+                "urllib.request.urlopen",
+                side_effect=[page1, page2],
+            ),
+        ):
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                code = fetch_issue.main([
+                    "search", "project = EDM",
+                    "--fields", "summary",
+                    "--max-results", "200",
+                ])
+
+        self.assertEqual(code, 0)
+        output = json.loads(buf.getvalue())
+        self.assertEqual(output["total"], 60)
+        self.assertEqual(len(output["issues"]), 60)
+
+    def test_max_results_cap_stops_early(self) -> None:
+        """--max-results cap stops iteration before exhausting results."""
+        page1 = _mock_urlopen({
+            "total": 100,
+            "isLast": False,
+            "nextPageToken": "cursor-xyz",
+            "issues": self._make_issues(1, 30),
+        })
+
+        with (
+            mock.patch.dict("os.environ", self.env, clear=True),
+            mock.patch("urllib.request.urlopen", return_value=page1),
+        ):
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                code = fetch_issue.main([
+                    "search", "project = EDM",
+                    "--fields", "summary",
+                    "--max-results", "30",
+                ])
+
+        self.assertEqual(code, 0)
+        output = json.loads(buf.getvalue())
+        self.assertEqual(output["total"], 100)
+        self.assertEqual(len(output["issues"]), 30)
+
+    def test_single_page_result(self) -> None:
+        """Fewer results than page size — isLast=True on first request."""
+        resp = _mock_urlopen({
+            "total": 3,
+            "isLast": True,
+            "issues": self._make_issues(1, 3),
+        })
+
+        with (
+            mock.patch.dict("os.environ", self.env, clear=True),
+            mock.patch(
+                "urllib.request.urlopen", return_value=resp,
+            ) as mock_open,
+        ):
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                code = fetch_issue.main([
+                    "search", "project = EDM",
+                    "--fields", "summary",
+                ])
+
+        self.assertEqual(code, 0)
+        output = json.loads(buf.getvalue())
+        self.assertEqual(output["total"], 3)
+        self.assertEqual(len(output["issues"]), 3)
+        self.assertEqual(mock_open.call_count, 1)
+
+    def test_total_from_api_reported(self) -> None:
+        """Output total comes from the API response."""
+        resp = _mock_urlopen({
+            "total": 500,
+            "isLast": True,
+            "issues": self._make_issues(1, 50),
+        })
+
+        with (
+            mock.patch.dict("os.environ", self.env, clear=True),
+            mock.patch("urllib.request.urlopen", return_value=resp),
+        ):
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                code = fetch_issue.main([
+                    "search", "project = EDM",
+                    "--fields", "summary",
+                    "--max-results", "50",
+                ])
+
+        self.assertEqual(code, 0)
+        output = json.loads(buf.getvalue())
+        self.assertEqual(output["total"], 500)
+        self.assertEqual(len(output["issues"]), 50)
+
+    def test_total_omitted_when_api_omits_it(self) -> None:
+        """Output omits total when the API response has no total field."""
+        resp = _mock_urlopen({
+            "isLast": True,
+            "issues": self._make_issues(1, 2),
+        })
+
+        with (
+            mock.patch.dict("os.environ", self.env, clear=True),
+            mock.patch("urllib.request.urlopen", return_value=resp),
+        ):
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                code = fetch_issue.main([
+                    "search", "project = EDM",
+                    "--fields", "summary",
+                ])
+
+        self.assertEqual(code, 0)
+        output = json.loads(buf.getvalue())
+        self.assertNotIn("total", output)
+        self.assertEqual(len(output["issues"]), 2)
+
+    def test_pagination_sends_next_page_token(self) -> None:
+        """Second request includes nextPageToken from first response."""
+        page1 = _mock_urlopen({
+            "total": 60,
+            "isLast": False,
+            "nextPageToken": "tok-page2",
+            "issues": self._make_issues(1, fetch_issue.SEARCH_PAGE_SIZE),
+        })
+        page2 = _mock_urlopen({
+            "total": 60,
+            "isLast": True,
+            "issues": self._make_issues(51, 10),
+        })
+
+        with (
+            mock.patch.dict("os.environ", self.env, clear=True),
+            mock.patch(
+                "urllib.request.urlopen",
+                side_effect=[page1, page2],
+            ) as mock_open,
+        ):
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                fetch_issue.main([
+                    "search", "project = EDM",
+                    "--fields", "summary",
+                    "--max-results", "200",
+                ])
+
+        self.assertEqual(mock_open.call_count, 2)
+        first_url = mock_open.call_args_list[0][0][0].full_url
+        second_url = mock_open.call_args_list[1][0][0].full_url
+        # First request: no nextPageToken
+        self.assertNotIn("nextPageToken", first_url)
+        # Second request: includes the token from page 1
+        self.assertIn("nextPageToken=tok-page2", second_url)
+        # No startAt in either request
+        self.assertNotIn("startAt", first_url)
+        self.assertNotIn("startAt", second_url)
+
+    def test_default_max_results_is_200(self) -> None:
+        """Default --max-results is 200."""
+        parser = fetch_issue.build_parser()
+        args = parser.parse_args(["search", "project = EDM"])
+        self.assertEqual(args.max_results, 200)
+
+    def test_search_uses_v3_search_jql_endpoint(self) -> None:
+        """Search always uses /rest/api/3/search/jql."""
+        resp = _mock_urlopen({"issues": [], "isLast": True})
+        with (
+            mock.patch.dict("os.environ", self.env, clear=True),
+            mock.patch("urllib.request.urlopen", return_value=resp) as mock_open,
+        ):
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                fetch_issue.main(["search", "project = EDM"])
+        request = mock_open.call_args[0][0]
+        self.assertIn("/rest/api/3/search/jql", request.full_url)
 
 
 # ---------------------------------------------------------------------------
@@ -997,6 +1221,441 @@ class TestFieldsAppending(unittest.TestCase):
         # Count occurrences of issuelinks -- should appear exactly once
         fields_part = url.split("fields=")[1]
         self.assertEqual(fields_part.count("issuelinks"), 1)
+
+
+# ---------------------------------------------------------------------------
+# Timeout handling tests (review item #1)
+# ---------------------------------------------------------------------------
+
+
+class TestTimeout(unittest.TestCase):
+    """Verify request timeout handling."""
+
+    def setUp(self) -> None:
+        self.env = {
+            "JIRA_URL": "https://jira.example.com",
+            "JIRA_TOKEN": "test-token",
+        }
+
+    def test_timeout_constant_exists(self) -> None:
+        """REQUEST_TIMEOUT constant is defined and positive."""
+        self.assertIsInstance(fetch_issue.REQUEST_TIMEOUT, int)
+        self.assertGreater(fetch_issue.REQUEST_TIMEOUT, 0)
+
+    def test_timeout_passed_to_urlopen(self) -> None:
+        """urlopen is called with the timeout parameter."""
+        api_response = {"key": "EDM-1", "fields": {"summary": "Test"}}
+        mock_resp = _mock_urlopen(api_response)
+
+        with (
+            mock.patch.dict("os.environ", self.env, clear=True),
+            mock.patch("urllib.request.urlopen", return_value=mock_resp) as mock_open,
+        ):
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                fetch_issue.main(["get", "EDM-1", "--fields", "summary"])
+
+        _, kwargs = mock_open.call_args
+        self.assertEqual(kwargs["timeout"], fetch_issue.REQUEST_TIMEOUT)
+
+    def test_timeout_error_exits_1(self) -> None:
+        """TimeoutError exits with code 1 and includes timeout message."""
+        buf = io.StringIO()
+        with (
+            mock.patch.dict("os.environ", self.env, clear=True),
+            mock.patch("urllib.request.urlopen", side_effect=TimeoutError),
+            mock.patch("sys.stderr", buf),
+            self.assertRaises(SystemExit) as ctx,
+        ):
+            fetch_issue.main(["get", "EDM-1"])
+
+        self.assertEqual(ctx.exception.code, fetch_issue.EXIT_ERROR)
+        self.assertIn("timed out", buf.getvalue().lower())
+
+
+# ---------------------------------------------------------------------------
+# URL encoding tests (review item #2)
+# ---------------------------------------------------------------------------
+
+
+class TestURLEncoding(unittest.TestCase):
+    """Verify percent-encoding of key and fields in get URLs."""
+
+    def setUp(self) -> None:
+        self.env = {
+            "JIRA_URL": "https://jira.example.com",
+            "JIRA_TOKEN": "test-token",
+        }
+
+    def test_get_key_with_special_chars_encoded(self) -> None:
+        """Keys with special characters are percent-encoded in the URL."""
+        api_response = {"key": "EDM-1", "fields": {"summary": "Test"}}
+        mock_resp = _mock_urlopen(api_response)
+
+        with (
+            mock.patch.dict("os.environ", self.env, clear=True),
+            mock.patch("urllib.request.urlopen", return_value=mock_resp) as mock_open,
+        ):
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                fetch_issue.main([
+                    "get", "EDM-1", "--fields", "summary",
+                ])
+
+        request = mock_open.call_args[0][0]
+        # Normal keys should pass through cleanly
+        self.assertIn("/issue/EDM-1", request.full_url)
+
+    def test_get_fields_commas_preserved(self) -> None:
+        """Commas in field lists are preserved (safe chars)."""
+        api_response = {"key": "EDM-1", "fields": {"summary": "T", "status": {"name": "O"}}}
+        mock_resp = _mock_urlopen(api_response)
+
+        with (
+            mock.patch.dict("os.environ", self.env, clear=True),
+            mock.patch("urllib.request.urlopen", return_value=mock_resp) as mock_open,
+        ):
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                fetch_issue.main([
+                    "get", "EDM-1", "--fields", "summary,status",
+                ])
+
+        request = mock_open.call_args[0][0]
+        self.assertIn("fields=summary,status", request.full_url)
+
+
+# ---------------------------------------------------------------------------
+# Negative comment-limit validation tests (review item #4)
+# ---------------------------------------------------------------------------
+
+
+class TestNegativeCommentLimit(unittest.TestCase):
+    """Verify that negative --comment-limit values are rejected."""
+
+    def test_negative_comment_limit_rejected(self) -> None:
+        """--comment-limit with a negative value exits with code 2."""
+        with self.assertRaises(SystemExit) as ctx:
+            fetch_issue.main([
+                "get", "EDM-1", "--comment-limit", "-1",
+            ])
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_zero_comment_limit_accepted(self) -> None:
+        """--comment-limit 0 (meaning all) is accepted."""
+        parser = fetch_issue.build_parser()
+        args = parser.parse_args(["get", "EDM-1", "--comment-limit", "0"])
+        self.assertEqual(args.comment_limit, 0)
+
+    def test_positive_comment_limit_accepted(self) -> None:
+        """--comment-limit with a positive value is accepted."""
+        parser = fetch_issue.build_parser()
+        args = parser.parse_args(["get", "EDM-1", "--comment-limit", "10"])
+        self.assertEqual(args.comment_limit, 10)
+
+
+# ---------------------------------------------------------------------------
+# --max-results validation tests
+# ---------------------------------------------------------------------------
+
+
+class TestMaxResultsValidation(unittest.TestCase):
+    """Verify --max-results must be >= 1."""
+
+    def test_zero_max_results_rejected(self) -> None:
+        """--max-results 0 is rejected."""
+        with self.assertRaises(SystemExit) as ctx:
+            fetch_issue.main(["search", "project = X", "--max-results", "0"])
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_negative_max_results_rejected(self) -> None:
+        """--max-results -1 is rejected."""
+        with self.assertRaises(SystemExit) as ctx:
+            fetch_issue.main(["search", "project = X", "--max-results", "-5"])
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_positive_max_results_accepted(self) -> None:
+        """--max-results 1 is accepted."""
+        parser = fetch_issue.build_parser()
+        args = parser.parse_args(["search", "project = X", "--max-results", "1"])
+        self.assertEqual(args.max_results, 1)
+
+
+# ---------------------------------------------------------------------------
+# Exact field token matching tests (review item #5)
+# ---------------------------------------------------------------------------
+
+
+class TestExactFieldMatching(unittest.TestCase):
+    """Verify field presence uses exact token matching, not substring."""
+
+    def setUp(self) -> None:
+        self.env = {
+            "JIRA_URL": "https://jira.example.com",
+            "JIRA_TOKEN": "test-token",
+        }
+
+    def test_comment_not_confused_with_commentCount(self) -> None:
+        """--comments appends 'comment' even if 'commentCount' is in fields."""
+        api_response = {
+            "key": "EDM-1",
+            "fields": {
+                "commentCount": 5,
+                "comment": {"comments": []},
+            },
+        }
+        mock_resp = _mock_urlopen(api_response)
+
+        with (
+            mock.patch.dict("os.environ", self.env, clear=True),
+            mock.patch("urllib.request.urlopen", return_value=mock_resp) as mock_open,
+        ):
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                fetch_issue.main([
+                    "get", "EDM-1",
+                    "--fields", "commentCount",
+                    "--comments",
+                ])
+
+        request = mock_open.call_args[0][0]
+        # "comment" should be appended because "commentCount" != "comment"
+        url = request.full_url
+        fields_part = url.split("fields=")[1]
+        self.assertIn("commentCount", fields_part)
+        self.assertIn(",comment", fields_part)
+
+    def test_parent_not_confused_with_parentKey(self) -> None:
+        """--parent appends 'parent' even if 'parentKey' is in fields."""
+        api_response = {
+            "key": "EDM-1",
+            "fields": {"parentKey": "EDM-0", "parent": None},
+        }
+        mock_resp = _mock_urlopen(api_response)
+
+        with (
+            mock.patch.dict("os.environ", self.env, clear=True),
+            mock.patch("urllib.request.urlopen", return_value=mock_resp) as mock_open,
+        ):
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                fetch_issue.main([
+                    "get", "EDM-1",
+                    "--fields", "parentKey",
+                    "--parent",
+                ])
+
+        request = mock_open.call_args[0][0]
+        url = request.full_url
+        fields_part = url.split("fields=")[1]
+        self.assertIn("parentKey", fields_part)
+        self.assertIn(",parent", fields_part)
+
+    def test_exact_match_does_not_duplicate(self) -> None:
+        """When the exact token is present, it is not duplicated."""
+        api_response = {
+            "key": "EDM-1",
+            "fields": {"summary": "T", "comment": {"comments": []}},
+        }
+        mock_resp = _mock_urlopen(api_response)
+
+        with (
+            mock.patch.dict("os.environ", self.env, clear=True),
+            mock.patch("urllib.request.urlopen", return_value=mock_resp) as mock_open,
+        ):
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                fetch_issue.main([
+                    "get", "EDM-1",
+                    "--fields", "summary,comment",
+                    "--comments",
+                ])
+
+        request = mock_open.call_args[0][0]
+        url = request.full_url
+        fields_part = url.split("fields=")[1]
+        self.assertEqual(fields_part.count("comment"), 1)
+
+
+# ---------------------------------------------------------------------------
+# HTTPS enforcement tests (review item: scheme enforcement)
+# ---------------------------------------------------------------------------
+
+
+class TestHTTPSEnforcement(unittest.TestCase):
+    """Verify HTTPS enforcement on JIRA_URL with urlsplit validation."""
+
+    def test_http_url_rejected(self) -> None:
+        """HTTP JIRA_URL is rejected by default."""
+        env = {"JIRA_URL": "http://jira.local:8080", "JIRA_TOKEN": "tok"}
+        with (
+            mock.patch.dict("os.environ", env, clear=True),
+            self.assertRaises(SystemExit) as ctx,
+        ):
+            fetch_issue.main(["get", "EDM-1"])
+        self.assertEqual(ctx.exception.code, fetch_issue.EXIT_ERROR)
+
+    def test_file_url_rejected(self) -> None:
+        """file:// JIRA_URL is always rejected even with opt-in."""
+        env = {
+            "JIRA_URL": "file:///etc/passwd",
+            "JIRA_TOKEN": "tok",
+            "JIRA_ALLOW_INSECURE_HTTP": "1",
+        }
+        with (
+            mock.patch.dict("os.environ", env, clear=True),
+            self.assertRaises(SystemExit) as ctx,
+        ):
+            fetch_issue.main(["get", "EDM-1"])
+        self.assertEqual(ctx.exception.code, fetch_issue.EXIT_ERROR)
+
+    def test_ftp_url_rejected(self) -> None:
+        """ftp:// JIRA_URL is always rejected even with opt-in."""
+        env = {
+            "JIRA_URL": "ftp://jira.example.com",
+            "JIRA_TOKEN": "tok",
+            "JIRA_ALLOW_INSECURE_HTTP": "1",
+        }
+        with (
+            mock.patch.dict("os.environ", env, clear=True),
+            self.assertRaises(SystemExit) as ctx,
+        ):
+            fetch_issue.main(["get", "EDM-1"])
+        self.assertEqual(ctx.exception.code, fetch_issue.EXIT_ERROR)
+
+    def test_https_without_hostname_rejected(self) -> None:
+        """https:// with no hostname is rejected."""
+        env = {"JIRA_URL": "https://", "JIRA_TOKEN": "tok"}
+        with (
+            mock.patch.dict("os.environ", env, clear=True),
+            self.assertRaises(SystemExit) as ctx,
+        ):
+            fetch_issue.main(["get", "EDM-1"])
+        self.assertEqual(ctx.exception.code, fetch_issue.EXIT_ERROR)
+
+    def test_malformed_url_rejected(self) -> None:
+        """Malformed JIRA_URL (no scheme) is rejected."""
+        env = {"JIRA_URL": "jira.example.com", "JIRA_TOKEN": "tok"}
+        with (
+            mock.patch.dict("os.environ", env, clear=True),
+            self.assertRaises(SystemExit) as ctx,
+        ):
+            fetch_issue.main(["get", "EDM-1"])
+        self.assertEqual(ctx.exception.code, fetch_issue.EXIT_ERROR)
+
+    def test_http_url_accepted_with_opt_in(self) -> None:
+        """HTTP JIRA_URL is accepted when JIRA_ALLOW_INSECURE_HTTP=1."""
+        api_response = {"key": "EDM-1", "fields": {"summary": "Test"}}
+        mock_resp = _mock_urlopen(api_response)
+        env = {
+            "JIRA_URL": "http://jira.local:8080",
+            "JIRA_TOKEN": "test-token",
+            "JIRA_ALLOW_INSECURE_HTTP": "1",
+        }
+
+        with (
+            mock.patch.dict("os.environ", env, clear=True),
+            mock.patch("urllib.request.urlopen", return_value=mock_resp),
+        ):
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                code = fetch_issue.main(["get", "EDM-1", "--fields", "summary"])
+
+        self.assertEqual(code, 0)
+
+    def test_https_url_always_accepted(self) -> None:
+        """HTTPS JIRA_URL is always accepted without opt-in."""
+        api_response = {"key": "EDM-1", "fields": {"summary": "Test"}}
+        mock_resp = _mock_urlopen(api_response)
+        env = {
+            "JIRA_URL": "https://jira.example.com",
+            "JIRA_TOKEN": "test-token",
+        }
+
+        with (
+            mock.patch.dict("os.environ", env, clear=True),
+            mock.patch("urllib.request.urlopen", return_value=mock_resp),
+        ):
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                code = fetch_issue.main(["get", "EDM-1", "--fields", "summary"])
+
+        self.assertEqual(code, 0)
+
+
+# ---------------------------------------------------------------------------
+# Reserved-character encoding in issue key (review item: encoding)
+# ---------------------------------------------------------------------------
+
+
+class TestReservedCharEncoding(unittest.TestCase):
+    """Verify that reserved characters in issue keys are percent-encoded."""
+
+    def setUp(self) -> None:
+        self.env = {
+            "JIRA_URL": "https://jira.example.com",
+            "JIRA_TOKEN": "test-token",
+        }
+
+    def test_key_with_reserved_chars_encoded(self) -> None:
+        """Issue key containing reserved chars is percent-encoded in URL."""
+        api_response = {"key": "A&B=1", "fields": {"summary": "Test"}}
+        mock_resp = _mock_urlopen(api_response)
+
+        with (
+            mock.patch.dict("os.environ", self.env, clear=True),
+            mock.patch("urllib.request.urlopen", return_value=mock_resp) as mock_open,
+        ):
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                fetch_issue.main([
+                    "get", "A&B=1", "--fields", "summary",
+                ])
+
+        request = mock_open.call_args[0][0]
+        url = request.full_url
+        # Raw "&" and "=" in the path would break URL parsing.
+        # They must be percent-encoded as %26 and %3D.
+        self.assertIn("/issue/A%26B%3D1", url)
+        self.assertNotIn("/issue/A&B=1", url)
+
+    def test_key_with_space_encoded(self) -> None:
+        """Issue key containing a space is percent-encoded."""
+        api_response = {"key": "X Y", "fields": {"summary": "Test"}}
+        mock_resp = _mock_urlopen(api_response)
+
+        with (
+            mock.patch.dict("os.environ", self.env, clear=True),
+            mock.patch("urllib.request.urlopen", return_value=mock_resp) as mock_open,
+        ):
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                fetch_issue.main([
+                    "get", "X Y", "--fields", "summary",
+                ])
+
+        request = mock_open.call_args[0][0]
+        url = request.full_url
+        self.assertIn("/issue/X%20Y", url)
+        self.assertNotIn("/issue/X Y", url)
+
+    def test_normal_key_unchanged(self) -> None:
+        """A normal issue key (letters, digits, hyphen) passes through."""
+        api_response = {"key": "EDM-123", "fields": {"summary": "Test"}}
+        mock_resp = _mock_urlopen(api_response)
+
+        with (
+            mock.patch.dict("os.environ", self.env, clear=True),
+            mock.patch("urllib.request.urlopen", return_value=mock_resp) as mock_open,
+        ):
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                fetch_issue.main([
+                    "get", "EDM-123", "--fields", "summary",
+                ])
+
+        request = mock_open.call_args[0][0]
+        self.assertIn("/issue/EDM-123", request.full_url)
 
 
 if __name__ == "__main__":
