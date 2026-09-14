@@ -71,16 +71,17 @@ write into our artifact namespace. So:
 
 1. Find the file the skill just wrote (e.g. `ls design-handoff-*.md
    design-handoff-*.json` in the repo root). If more than one matches, use the
-   most recently modified.
-2. Read it — this is the input for Steps 2-4.
+   most recently modified. Store the selected file's exact path in
+   `handoff_output`. If no file matches after the skill reports success, stop
+   and report it — do not fabricate the handoff content from the other
+   artifacts alone.
+2. Read the file at `$handoff_output` — this is the input for Steps 2-4.
 3. After you have assembled `05-handoff.md` (Step 5), **move the skill's raw
    output into our namespace** so it is not left untracked at the repo root.
-   The skill writes either `.md` or `.json`; move whichever it created:
-   `mv design-handoff-{slug}.* .artifacts/ux-design/{issue-key}/03-prototype/`
+   Move only the selected file:
+   `mv "$handoff_output" ".artifacts/ux-design/{issue-key}/03-prototype/"`
    (the source-repo `.gitignore` covers `.artifacts/` but not the repo root, so
-   a stray `design-handoff-*` file there can be committed by accident). If the
-   file cannot be found after the skill reports success, stop and report it —
-   do not fabricate the handoff content from the other artifacts alone.
+   a stray `design-handoff-*` file there can be committed by accident).
 
 ### Step 2: Data Annotations
 
