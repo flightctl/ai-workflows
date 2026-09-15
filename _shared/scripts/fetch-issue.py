@@ -11,10 +11,15 @@ Subcommands:
   search  Search for issues via JQL
 
 Environment variables:
-  JIRA_URL    (required) Jira base URL (e.g. https://issues.redhat.com)
+  JIRA_URL    (required) Jira base URL (e.g. https://issues.redhat.com).
+              Must use https://; http:// is rejected unless opted in.
   JIRA_TOKEN  (required) Personal access token for Bearer auth
   JIRA_EMAIL  (optional) When set, use Basic auth (email:token) for
               Atlassian Cloud instances instead of Bearer auth
+  JIRA_ALLOW_INSECURE_HTTP
+              (optional) Set to "1" to allow http:// JIRA_URL for
+              local development instances. Other schemes (file://,
+              ftp://) are always rejected.
 
 Usage:
   fetch-issue.py get <KEY> [--fields f1,f2,...] [--comments]
@@ -186,6 +191,47 @@ def _jira_request(url: str, auth_header: str) -> Any:
 
 
 # ---------------------------------------------------------------------------
+# ADF (Atlassian Document Format) flattening
+# ---------------------------------------------------------------------------
+
+def _flatten_adf(node: Any) -> str:
+    """Recursively flatten an ADF JSON node into plain text.
+
+    Jira Cloud v3 returns ``description`` and comment ``body`` fields as
+    ADF (Atlassian Document Format) — a JSON tree of typed nodes.  This
+    function walks the tree and concatenates all text-node values into a
+    single plain-text string.
+
+    If the input is already a plain string or ``None``, it is returned
+    as-is (for forward compatibility with non-ADF responses).
+    """
+    if node is None:
+        return ""
+    if isinstance(node, str):
+        return node
+    if not isinstance(node, dict):
+        return ""
+
+    # Text leaf node
+    if node.get("type") == "text":
+        return node.get("text", "")
+
+    # Recurse into content children
+    parts: list[str] = []
+    for child in node.get("content", []):
+        parts.append(_flatten_adf(child))
+
+    # Block containers (doc, bulletList, etc.) join children with
+    # newlines.  Leaf blocks (paragraph, heading, listItem) concatenate
+    # their inline children directly — the newline goes *between*
+    # sibling blocks, not inside them.
+    container_types = {"doc", "bulletList", "orderedList", "blockquote",
+                       "table", "tableRow", "panel", "mediaSingle"}
+    sep = "\n" if node.get("type") in container_types else ""
+    return sep.join(parts)
+
+
+# ---------------------------------------------------------------------------
 # Subcommand: get
 # ---------------------------------------------------------------------------
 
@@ -240,11 +286,15 @@ def cmd_get(args: argparse.Namespace) -> int:
 
     raw_fields = data.get("fields", {})
 
-    # Extract requested fields (exclude internal fields we added)
+    # Extract requested fields (exclude internal fields we added).
+    # Flatten ADF structures for description so callers get plain text.
     requested = [f.strip() for f in fields.split(",")]
     for field_name in requested:
         if field_name in raw_fields:
-            result["fields"][field_name] = raw_fields[field_name]
+            value = raw_fields[field_name]
+            if field_name == "description":
+                value = _flatten_adf(value)
+            result["fields"][field_name] = value
 
     # Comments
     if include_comments:
@@ -258,7 +308,7 @@ def cmd_get(args: argparse.Namespace) -> int:
             {
                 "id": c.get("id"),
                 "author": (c.get("author") or {}).get("displayName", ""),
-                "body": c.get("body", ""),
+                "body": _flatten_adf(c.get("body", "")),
                 "created": c.get("created", ""),
             }
             for c in all_comments

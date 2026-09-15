@@ -33,8 +33,18 @@ script. Reference it using a relative path from this file:
 ```
 
 The script provides subcommands: `get` and `search`. See the script
-header for full usage. It requires `JIRA_URL` and `JIRA_TOKEN`
-environment variables.
+header for full usage.
+
+**Required environment variables:**
+- `JIRA_URL` — Jira base URL (must use `https://`)
+- `JIRA_TOKEN` — Personal access token (Bearer auth) or API token
+  (Basic auth when `JIRA_EMAIL` is also set)
+
+**Optional environment variables:**
+- `JIRA_EMAIL` — when set, switches to Basic auth (`email:token`) for
+  Atlassian Cloud instances
+- `JIRA_ALLOW_INSECURE_HTTP` — set to `1` to allow `http://` URLs
+  (for local development only)
 
 ## Process
 
@@ -106,9 +116,9 @@ prevent shell expansion of user-provided values:
 python3 "$FETCH_ISSUE_SCRIPT" search 'project = {project} AND fixVersion = "{version}" AND issuetype = Feature' --fields summary,description,issuetype,status,priority,labels,fixVersions,customfield_10795,created,updated
 ```
 
-If the result `total` exceeds `--max-results`, increase `--max-results`
-to cover the full set or run multiple queries with adjusted JQL to
-ensure all Features are captured.
+If the number of returned issues equals `--max-results`, results may
+be truncated. Increase `--max-results` and re-run, or run multiple
+queries with adjusted JQL, to ensure all Features are captured.
 
 For each Feature returned, fetch full details including comments:
 

@@ -1733,5 +1733,150 @@ class TestPaginationDuplicateToken(unittest.TestCase):
         self.assertIn("loop detected", buf.getvalue().lower())
 
 
+# ---------------------------------------------------------------------------
+# ADF flattening tests
+# ---------------------------------------------------------------------------
+
+
+class TestFlattenADF(unittest.TestCase):
+    """Verify ADF-to-plain-text flattening."""
+
+    def test_simple_paragraph(self) -> None:
+        """Single paragraph with one text node."""
+        adf = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {"type": "text", "text": "Hello world"},
+                    ],
+                },
+            ],
+        }
+        self.assertEqual(fetch_issue._flatten_adf(adf), "Hello world")
+
+    def test_nested_structure(self) -> None:
+        """Multiple paragraphs with inline formatting nodes."""
+        adf = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {"type": "text", "text": "First "},
+                        {"type": "text", "text": "paragraph"},
+                    ],
+                },
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {"type": "text", "text": "Second paragraph"},
+                    ],
+                },
+            ],
+        }
+        result = fetch_issue._flatten_adf(adf)
+        self.assertIn("First paragraph", result)
+        self.assertIn("Second paragraph", result)
+
+    def test_plain_string_passthrough(self) -> None:
+        """Plain string input is returned as-is."""
+        self.assertEqual(fetch_issue._flatten_adf("plain text"), "plain text")
+
+    def test_none_returns_empty(self) -> None:
+        """None input returns empty string."""
+        self.assertEqual(fetch_issue._flatten_adf(None), "")
+
+    def test_adf_description_flattened_in_get(self) -> None:
+        """cmd_get flattens ADF description to plain text in output."""
+        adf_desc = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {"type": "text", "text": "Bug description here"},
+                    ],
+                },
+            ],
+        }
+        api_response = {
+            "key": "EDM-1",
+            "fields": {
+                "summary": "Test",
+                "description": adf_desc,
+            },
+        }
+        mock_resp = _mock_urlopen(api_response)
+        env = {
+            "JIRA_URL": "https://jira.example.com",
+            "JIRA_TOKEN": "test-token",
+        }
+
+        with (
+            mock.patch.dict("os.environ", env, clear=True),
+            mock.patch("urllib.request.urlopen", return_value=mock_resp),
+        ):
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                code = fetch_issue.main([
+                    "get", "EDM-1", "--fields", "summary,description",
+                ])
+
+        self.assertEqual(code, 0)
+        output = json.loads(buf.getvalue())
+        self.assertEqual(output["fields"]["description"], "Bug description here")
+
+    def test_adf_comment_body_flattened_in_get(self) -> None:
+        """cmd_get flattens ADF comment bodies to plain text."""
+        adf_body = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {"type": "text", "text": "Comment text"},
+                    ],
+                },
+            ],
+        }
+        api_response = {
+            "key": "EDM-1",
+            "fields": {
+                "summary": "Test",
+                "comment": {
+                    "comments": [
+                        {
+                            "id": "100",
+                            "author": {"displayName": "Alice"},
+                            "body": adf_body,
+                            "created": "2025-01-01",
+                        },
+                    ],
+                },
+            },
+        }
+        mock_resp = _mock_urlopen(api_response)
+        env = {
+            "JIRA_URL": "https://jira.example.com",
+            "JIRA_TOKEN": "test-token",
+        }
+
+        with (
+            mock.patch.dict("os.environ", env, clear=True),
+            mock.patch("urllib.request.urlopen", return_value=mock_resp),
+        ):
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                code = fetch_issue.main([
+                    "get", "EDM-1", "--fields", "summary", "--comments",
+                ])
+
+        self.assertEqual(code, 0)
+        output = json.loads(buf.getvalue())
+        self.assertEqual(output["comments"][0]["body"], "Comment text")
+
+
 if __name__ == "__main__":
     unittest.main()
