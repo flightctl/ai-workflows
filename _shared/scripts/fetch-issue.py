@@ -92,7 +92,10 @@ def _get_jira_url() -> str:
     """
     import os
     url = _get_env("JIRA_URL").rstrip("/")
-    parts = urlsplit(url)
+    try:
+        parts = urlsplit(url)
+    except ValueError as exc:
+        fail(f"JIRA_URL is malformed ({url}): {exc}")
 
     allow_insecure = os.environ.get(
         "JIRA_ALLOW_INSECURE_HTTP", "",
@@ -349,6 +352,7 @@ def cmd_search(args: argparse.Namespace) -> int:
     all_issues: list[dict[str, Any]] = []
     api_total: int | None = None
     next_page_token: str | None = None
+    seen_tokens: set[str] = set()
 
     while True:
         # How many to request this page: the lesser of our page size
@@ -396,6 +400,12 @@ def cmd_search(args: argparse.Namespace) -> int:
         next_page_token = data.get("nextPageToken")
         if next_page_token is None:
             break  # no token means no more pages
+        if next_page_token in seen_tokens:
+            fail(
+                f"Pagination loop detected: nextPageToken "
+                f"{next_page_token!r} seen twice"
+            )
+        seen_tokens.add(next_page_token)
 
     result: dict[str, Any] = {"issues": all_issues}
     if api_total is not None:

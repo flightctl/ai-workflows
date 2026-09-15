@@ -1658,5 +1658,80 @@ class TestReservedCharEncoding(unittest.TestCase):
         self.assertIn("/issue/EDM-123", request.full_url)
 
 
+# ---------------------------------------------------------------------------
+# urlsplit ValueError handling tests
+# ---------------------------------------------------------------------------
+
+
+class TestUrlsplitValueError(unittest.TestCase):
+    """Verify _get_jira_url handles malformed URLs that raise ValueError."""
+
+    def test_malformed_bracket_url_rejected(self) -> None:
+        """A URL with an invalid bracketed host triggers ValueError catch."""
+        env = {"JIRA_URL": "https://[invalid", "JIRA_TOKEN": "tok"}
+        buf = io.StringIO()
+        with (
+            mock.patch.dict("os.environ", env, clear=True),
+            mock.patch("sys.stderr", buf),
+            self.assertRaises(SystemExit) as ctx,
+        ):
+            fetch_issue.main(["get", "EDM-1"])
+        self.assertEqual(ctx.exception.code, fetch_issue.EXIT_ERROR)
+        self.assertIn("malformed", buf.getvalue().lower())
+
+
+# ---------------------------------------------------------------------------
+# nextPageToken duplicate detection tests
+# ---------------------------------------------------------------------------
+
+
+class TestPaginationDuplicateToken(unittest.TestCase):
+    """Verify cmd_search stops on duplicate nextPageToken."""
+
+    def setUp(self) -> None:
+        self.env = {
+            "JIRA_URL": "https://jira.example.com",
+            "JIRA_TOKEN": "test-token",
+        }
+
+    def test_duplicate_token_causes_exit(self) -> None:
+        """Repeated nextPageToken triggers fail() with loop message."""
+        page1 = _mock_urlopen({
+            "total": 100,
+            "isLast": False,
+            "nextPageToken": "tok-A",
+            "issues": [
+                {"key": "EDM-1", "fields": {"summary": "a"}},
+            ],
+        })
+        page2 = _mock_urlopen({
+            "total": 100,
+            "isLast": False,
+            "nextPageToken": "tok-A",  # same token again
+            "issues": [
+                {"key": "EDM-2", "fields": {"summary": "b"}},
+            ],
+        })
+
+        buf = io.StringIO()
+        with (
+            mock.patch.dict("os.environ", self.env, clear=True),
+            mock.patch(
+                "urllib.request.urlopen",
+                side_effect=[page1, page2],
+            ),
+            mock.patch("sys.stderr", buf),
+            self.assertRaises(SystemExit) as ctx,
+        ):
+            fetch_issue.main([
+                "search", "project = EDM",
+                "--fields", "summary",
+                "--max-results", "200",
+            ])
+
+        self.assertEqual(ctx.exception.code, fetch_issue.EXIT_ERROR)
+        self.assertIn("loop detected", buf.getvalue().lower())
+
+
 if __name__ == "__main__":
     unittest.main()
