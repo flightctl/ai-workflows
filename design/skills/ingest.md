@@ -33,12 +33,9 @@ script. Reference it using a relative path from this file:
 ```
 
 The script provides subcommands: `get` and `search`. See the script
-header for full usage. It requires `JIRA_URL` and `JIRA_TOKEN`
-environment variables. Authentication mode:
-- **Server / Data Center:** set `JIRA_TOKEN` to a Personal Access Token
-  (Bearer auth).
-- **Atlassian Cloud:** also set `JIRA_EMAIL` to switch to Basic auth
-  (email:token).
+header for full usage. It requires `JIRA_URL`, `JIRA_TOKEN`, and
+`JIRA_EMAIL` environment variables for Jira Cloud API token auth
+(Basic auth with `email:token`).
 
 ## Process
 
