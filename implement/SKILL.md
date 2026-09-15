@@ -1,6 +1,6 @@
 ---
 name: implement
-version: 0.10.4
+version: 0.10.5
 description: >-
   Story-to-code workflow that takes a Jira Story, plans the implementation,
   writes contract-based tests and production code via TDD, validates against

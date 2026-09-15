@@ -1784,9 +1784,17 @@ class TestFlattenADF(unittest.TestCase):
         """Plain string input is returned as-is."""
         self.assertEqual(fetch_issue._flatten_adf("plain text"), "plain text")
 
-    def test_none_returns_empty(self) -> None:
-        """None input returns empty string."""
-        self.assertEqual(fetch_issue._flatten_adf(None), "")
+    def test_none_returns_none(self) -> None:
+        """None input passes through as None."""
+        self.assertIsNone(fetch_issue._flatten_adf(None))
+
+    def test_string_passes_through(self) -> None:
+        """Plain string passes through unchanged."""
+        self.assertEqual(fetch_issue._flatten_adf("hello"), "hello")
+
+    def test_int_passes_through(self) -> None:
+        """Non-dict non-string values pass through unchanged."""
+        self.assertEqual(fetch_issue._flatten_adf(42), 42)
 
     def test_adf_description_flattened_in_get(self) -> None:
         """cmd_get flattens ADF description to plain text in output."""
@@ -1876,6 +1884,92 @@ class TestFlattenADF(unittest.TestCase):
         self.assertEqual(code, 0)
         output = json.loads(buf.getvalue())
         self.assertEqual(output["comments"][0]["body"], "Comment text")
+
+    def test_adf_description_flattened_in_search(self) -> None:
+        """cmd_search flattens ADF description to plain text in output."""
+        adf_desc = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {"type": "text", "text": "Search result description"},
+                    ],
+                },
+            ],
+        }
+        api_response = {
+            "total": 1,
+            "isLast": True,
+            "issues": [
+                {
+                    "key": "EDM-1",
+                    "fields": {
+                        "summary": "Test",
+                        "description": adf_desc,
+                    },
+                },
+            ],
+        }
+        mock_resp = _mock_urlopen(api_response)
+        env = {
+            "JIRA_URL": "https://jira.example.com",
+            "JIRA_TOKEN": "test-token",
+        }
+
+        with (
+            mock.patch.dict("os.environ", env, clear=True),
+            mock.patch("urllib.request.urlopen", return_value=mock_resp),
+        ):
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                code = fetch_issue.main([
+                    "search", "project = EDM",
+                    "--fields", "summary,description",
+                ])
+
+        self.assertEqual(code, 0)
+        output = json.loads(buf.getvalue())
+        self.assertEqual(
+            output["issues"][0]["fields"]["description"],
+            "Search result description",
+        )
+
+    def test_search_null_description_preserved(self) -> None:
+        """cmd_search preserves None description (not converted to '')."""
+        api_response = {
+            "total": 1,
+            "isLast": True,
+            "issues": [
+                {
+                    "key": "EDM-1",
+                    "fields": {
+                        "summary": "Test",
+                        "description": None,
+                    },
+                },
+            ],
+        }
+        mock_resp = _mock_urlopen(api_response)
+        env = {
+            "JIRA_URL": "https://jira.example.com",
+            "JIRA_TOKEN": "test-token",
+        }
+
+        with (
+            mock.patch.dict("os.environ", env, clear=True),
+            mock.patch("urllib.request.urlopen", return_value=mock_resp),
+        ):
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                code = fetch_issue.main([
+                    "search", "project = EDM",
+                    "--fields", "summary,description",
+                ])
+
+        self.assertEqual(code, 0)
+        output = json.loads(buf.getvalue())
+        self.assertIsNone(output["issues"][0]["fields"]["description"])
 
 
 if __name__ == "__main__":

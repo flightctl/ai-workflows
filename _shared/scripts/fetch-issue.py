@@ -194,7 +194,7 @@ def _jira_request(url: str, auth_header: str) -> Any:
 # ADF (Atlassian Document Format) flattening
 # ---------------------------------------------------------------------------
 
-def _flatten_adf(node: Any) -> str:
+def _flatten_adf(node: Any) -> Any:
     """Recursively flatten an ADF JSON node into plain text.
 
     Jira Cloud v3 returns ``description`` and comment ``body`` fields as
@@ -202,15 +202,11 @@ def _flatten_adf(node: Any) -> str:
     function walks the tree and concatenates all text-node values into a
     single plain-text string.
 
-    If the input is already a plain string or ``None``, it is returned
-    as-is (for forward compatibility with non-ADF responses).
+    Non-dict values (``None``, plain strings, etc.) pass through
+    unchanged — only ADF dicts are converted.
     """
-    if node is None:
-        return ""
-    if isinstance(node, str):
-        return node
     if not isinstance(node, dict):
-        return ""
+        return node
 
     # Text leaf node
     if node.get("type") == "text":
@@ -427,17 +423,23 @@ def cmd_search(args: argparse.Namespace) -> int:
 
         page_issues = data.get("issues", [])
 
+        # Fields whose values may be ADF and need flattening
+        adf_fields = {"description"}
+
         for issue in page_issues:
             if len(all_issues) >= max_results:
                 break
             raw = issue.get("fields", {})
+            issue_fields: dict[str, Any] = {}
+            for f in field_list:
+                if f in raw:
+                    value = raw[f]
+                    if f in adf_fields:
+                        value = _flatten_adf(value)
+                    issue_fields[f] = value
             all_issues.append({
                 "key": issue.get("key", ""),
-                "fields": {
-                    f: raw.get(f)
-                    for f in field_list
-                    if f in raw
-                },
+                "fields": issue_fields,
             })
 
         # Stop if: we hit the cap, or the API signals last page

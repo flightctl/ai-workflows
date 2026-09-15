@@ -38,12 +38,13 @@ header for full usage.
 
 **Required environment variables:**
 - `JIRA_URL` — Jira base URL (must use `https://`)
-- `JIRA_TOKEN` — Personal access token (Bearer auth) or API token
-  (Basic auth when `JIRA_EMAIL` is also set)
+- `JIRA_TOKEN` — Personal access token for Server/DC (Bearer auth),
+  or API token for Cloud (Basic auth, requires `JIRA_EMAIL`)
+- `JIRA_EMAIL` — **required for Jira Cloud**; your Atlassian account
+  email. When set, the script uses Basic auth (`email:token`). Omit
+  for Server/DC instances that use Bearer auth with a PAT.
 
 **Optional environment variables:**
-- `JIRA_EMAIL` — when set, switches to Basic auth (`email:token`) for
-  Atlassian Cloud instances
 - `JIRA_ALLOW_INSECURE_HTTP` — set to `1` to allow `http://` URLs
   (for local development only)
 
