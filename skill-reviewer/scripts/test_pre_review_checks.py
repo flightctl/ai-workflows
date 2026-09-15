@@ -265,6 +265,41 @@ class TestAbsolutePaths:
         c._check_absolute_paths()
         assert c.counts["FAIL"] == 0
 
+    def test_flags_opt_path(self, skill_dir):
+        (skill_dir / "skills" / "do-thing.md").write_text(
+            "---\nname: x\n---\n# X\nInstall from /opt/sometool/bin/tool\n")
+        c = make_checker(skill_dir)
+        c._check_absolute_paths()
+        assert c.counts["FAIL"] == 1
+
+    def test_skips_home_var_expansion(self, skill_dir):
+        (skill_dir / "skills" / "do-thing.md").write_text(
+            "---\nname: x\n---\n# X\nSee $HOME/config/settings.yaml\n")
+        c = make_checker(skill_dir)
+        c._check_absolute_paths()
+        assert c.counts["FAIL"] == 0
+
+    def test_skips_braced_var_expansion(self, skill_dir):
+        (skill_dir / "skills" / "do-thing.md").write_text(
+            "---\nname: x\n---\n# X\nSee ${HOME}/.ai-workflows/scripts/tool.py\n")
+        c = make_checker(skill_dir)
+        c._check_absolute_paths()
+        assert c.counts["FAIL"] == 0
+
+    def test_skips_command_substitution(self, skill_dir):
+        (skill_dir / "skills" / "do-thing.md").write_text(
+            "---\nname: x\n---\n# X\nSee $(git rev-parse --show-toplevel)/opt/config\n")
+        c = make_checker(skill_dir)
+        c._check_absolute_paths()
+        assert c.counts["FAIL"] == 0
+
+    def test_skips_midpath_match(self, skill_dir):
+        (skill_dir / "skills" / "do-thing.md").write_text(
+            "---\nname: x\n---\n# X\nSee /bob/is/your/uncle/opt/foo\n")
+        c = make_checker(skill_dir)
+        c._check_absolute_paths()
+        assert c.counts["FAIL"] == 0
+
 
 # ---------------------------------------------------------------------------
 # _check_context_budget
