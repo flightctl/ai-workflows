@@ -2038,5 +2038,43 @@ class TestFlattenADF(unittest.TestCase):
         self.assertIsNone(output["issues"][0]["fields"]["description"])
 
 
+    def test_table_cell_paragraphs_separated_by_newlines(self) -> None:
+        """Multiple paragraphs inside a tableCell are separated by newlines."""
+        adf = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "table",
+                    "content": [
+                        {
+                            "type": "tableRow",
+                            "content": [
+                                {
+                                    "type": "tableCell",
+                                    "content": [
+                                        {
+                                            "type": "paragraph",
+                                            "content": [
+                                                {"type": "text", "text": "First paragraph"},
+                                            ],
+                                        },
+                                        {
+                                            "type": "paragraph",
+                                            "content": [
+                                                {"type": "text", "text": "Second paragraph"},
+                                            ],
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        }
+        result = fetch_issue._flatten_adf(adf)
+        self.assertIn("First paragraph\nSecond paragraph", result)
+
+
 if __name__ == "__main__":
     unittest.main()

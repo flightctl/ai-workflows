@@ -227,12 +227,12 @@ def _flatten_adf(node: Any) -> Any:
     for child in node.get("content", []):
         parts.append(_flatten_adf(child))
 
-    # Block containers (doc, bulletList, etc.) join children with
-    # newlines.  Leaf blocks (paragraph, heading, listItem) concatenate
-    # their inline children directly — the newline goes *between*
-    # sibling blocks, not inside them.
+    # Block containers join children with newlines.  Inline containers
+    # (paragraph, heading) concatenate their inline children directly —
+    # the newline goes *between* sibling blocks, not inside them.
     container_types = {"doc", "bulletList", "orderedList", "blockquote",
-                       "table", "tableRow", "panel", "mediaSingle"}
+                       "table", "tableRow", "tableCell", "tableHeader",
+                       "listItem", "panel", "mediaSingle"}
     sep = "\n" if node.get("type") in container_types else ""
     return sep.join(parts)
 
