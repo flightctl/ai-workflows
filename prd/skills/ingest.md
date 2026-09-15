@@ -37,12 +37,10 @@ The script provides subcommands: `get` and `search`. See the script
 header for full usage.
 
 **Required environment variables:**
-- `JIRA_URL` — Jira base URL (must use `https://`)
-- `JIRA_TOKEN` — Personal access token for Server/DC (Bearer auth),
-  or API token for Cloud (Basic auth, requires `JIRA_EMAIL`)
-- `JIRA_EMAIL` — **required for Jira Cloud**; your Atlassian account
-  email. When set, the script uses Basic auth (`email:token`). Omit
-  for Server/DC instances that use Bearer auth with a PAT.
+- `JIRA_URL` — Jira Cloud base URL (must use `https://`)
+- `JIRA_TOKEN` — Jira Cloud API token
+- `JIRA_EMAIL` — your Atlassian account email (required for Cloud
+  API token auth; the script uses Basic auth with `email:token`)
 
 **Optional environment variables:**
 - `JIRA_ALLOW_INSECURE_HTTP` — set to `1` to allow `http://` URLs
@@ -92,7 +90,7 @@ customers, typically structured with sections like Feature Goal, Problem
 Statement, User Stories, Definition of Done, and Out of Scope.
 
 ```bash
-python3 "$FETCH_ISSUE_SCRIPT" get {issue-key} --fields summary,description,status,priority,labels,fixVersions,customfield_10795,attachment --comments --links --link-fields summary,description,status
+python3 "$FETCH_ISSUE_SCRIPT" get "$ISSUE_KEY" --fields summary,description,status,priority,labels,fixVersions,customfield_10795,attachment --comments --links --link-fields summary,description,status
 ```
 
 Capture:

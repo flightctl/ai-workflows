@@ -208,9 +208,19 @@ def _flatten_adf(node: Any) -> Any:
     if not isinstance(node, dict):
         return node
 
+    node_type = node.get("type")
+
     # Text leaf node
-    if node.get("type") == "text":
+    if node_type == "text":
         return node.get("text", "")
+
+    # Inline leaf nodes without content children
+    if node_type == "hardBreak":
+        return "\n"
+    if node_type == "mention":
+        return (node.get("attrs") or {}).get("text", "")
+    if node_type == "emoji":
+        return (node.get("attrs") or {}).get("shortName", "")
 
     # Recurse into content children
     parts: list[str] = []

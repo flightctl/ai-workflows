@@ -1796,6 +1796,72 @@ class TestFlattenADF(unittest.TestCase):
         """Non-dict non-string values pass through unchanged."""
         self.assertEqual(fetch_issue._flatten_adf(42), 42)
 
+    def test_hardbreak_produces_newline(self) -> None:
+        """hardBreak inline node produces a newline character."""
+        adf = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {"type": "text", "text": "Line one"},
+                        {"type": "hardBreak"},
+                        {"type": "text", "text": "Line two"},
+                    ],
+                },
+            ],
+        }
+        result = fetch_issue._flatten_adf(adf)
+        self.assertEqual(result, "Line one\nLine two")
+
+    def test_mention_preserves_display_text(self) -> None:
+        """mention inline node preserves attrs.text as display text."""
+        adf = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {"type": "text", "text": "Assigned to "},
+                        {
+                            "type": "mention",
+                            "attrs": {
+                                "id": "abc123",
+                                "text": "@alice",
+                                "accessLevel": "",
+                            },
+                        },
+                        {"type": "text", "text": " for review"},
+                    ],
+                },
+            ],
+        }
+        result = fetch_issue._flatten_adf(adf)
+        self.assertEqual(result, "Assigned to @alice for review")
+
+    def test_emoji_preserves_shortname(self) -> None:
+        """emoji inline node preserves attrs.shortName."""
+        adf = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {"type": "text", "text": "Great work "},
+                        {
+                            "type": "emoji",
+                            "attrs": {
+                                "shortName": ":thumbsup:",
+                                "id": "1f44d",
+                            },
+                        },
+                    ],
+                },
+            ],
+        }
+        result = fetch_issue._flatten_adf(adf)
+        self.assertEqual(result, "Great work :thumbsup:")
+
     def test_adf_description_flattened_in_get(self) -> None:
         """cmd_get flattens ADF description to plain text in output."""
         adf_desc = {
