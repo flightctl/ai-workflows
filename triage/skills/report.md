@@ -26,8 +26,8 @@ and ask the user to run `/analyze` first. The scan's
 
 ### 1. Prepare compact synthesis context
 
-Resolve `{AI_WORKFLOWS_ROOT}` to the installed triage package root (or the
-repository root in a checkout), then run:
+Resolve `{AI_WORKFLOWS_ROOT}` to the ai-workflows install root (the checkout
+root, or `~/.ai-workflows` when symlinked), then run:
 
 ```bash
 python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/prepare_report.py" \
@@ -45,6 +45,11 @@ renderer contract to `ai-synthesis.json`:
 }
 ```
 
+When non-null, `releaseRisk` must be an object with `riskLevel` set to
+`High`, `Medium`, or `Low`; a non-empty string `summary`; `factors` as an
+array of objects containing non-empty string `signal`, `severity`, and
+`detail` fields; and `mitigations` as an array of non-empty strings.
+
 Use the complete compact context to preserve the original report value. Write
 3-5 executive-summary bullets covering backlog reduction, severity, quality
 signals, regressions, and the most impactful action. Write a release-risk
@@ -52,7 +57,9 @@ object with a calibrated High/Medium/Low level, material factors, and 2-5
 mitigations; set it to null for fewer than five issues. Do not invent counts,
 keys, themes, or risks absent from the input. Return only JSON.
 
-If the AI synthesis call fails or returns invalid JSON, run:
+If `report-input.json` has zero issues, skip AI synthesis and run the
+deterministic fallback below. If the AI synthesis call fails, returns invalid
+JSON, or the renderer rejects its semantic schema, run:
 
 ```bash
 python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/synthesize_report.py" \
@@ -61,6 +68,8 @@ python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/synthesize_report.py" \
 ```
 
 Stop if that deterministic fallback also fails.
+After a successful fallback, rerun the renderer with the generated
+`ai-synthesis.json`.
 
 ### 2. Render the report
 

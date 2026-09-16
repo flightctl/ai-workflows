@@ -26,8 +26,8 @@ ask the user to run `/scan` first. `resolved.json` is optional.
 
 ### 1. Prepare compact input
 
-Resolve `{AI_WORKFLOWS_ROOT}` to the installed triage package root (or the
-repository root in a checkout), then run:
+Resolve `{AI_WORKFLOWS_ROOT}` to the ai-workflows install root (the checkout
+root, or `~/.ai-workflows` when symlinked), then run:
 
 ```bash
 python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/prepare_analysis.py" \
@@ -50,9 +50,20 @@ and report an empty result without inventing AI judgments.
 
 Process issues in batches of 25–30. After each batch, merge its decisions into
 the existing `ai-decisions.json`; never replace decisions from earlier batches.
-Generate the top-level `clusters` and `keyRecommendations` in a separate,
-fresh compact synthesis call after all per-issue batches are complete. Return
-only this JSON shape, with one
+After all per-issue batches are complete, read the existing
+`ai-decisions.json` and make a separate fresh synthesis call. Pass only its
+compact `decisions` array (keys, topics, recommendations, reasons, confidence,
+and relationship judgments) to that call. The fresh call returns only:
+
+```json
+{
+  "clusters": [],
+  "keyRecommendations": []
+}
+```
+
+Merge those aggregate fields into the existing `ai-decisions.json`; preserve
+the complete `decisions` array. Return only this final artifact shape, with one
 decision for every issue:
 
 ```json

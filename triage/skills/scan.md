@@ -33,13 +33,18 @@ Check that the `jira` executable is available. If it is unavailable, check that 
 
 Run the scan script to fetch and normalize all bugs. Resolve
 `{AI_WORKFLOWS_ROOT}` by running `git rev-parse --show-toplevel` from
-within the ai-workflows checkout (e.g., this skill file's directory).
-The `--output-dir` path is relative to the project root (CWD).
+within the ai-workflows checkout, or use the installed ai-workflows root.
+Keep the target project as the artifact root; the script may run from the
+package root so its script reference remains package-relative.
 Validate `{PROJECT}` against `^[A-Z][A-Z0-9_]+$` before expanding it in a
 shell command. If it does not match, stop.
 
 ```bash
-python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/scan.py" "{PROJECT}" --output-dir ".artifacts/triage/{PROJECT}"
+PROJECT_ROOT="$PWD"
+(
+  cd "{AI_WORKFLOWS_ROOT}"
+  python3 triage/scripts/scan.py "{PROJECT}" --output-dir "$PROJECT_ROOT/.artifacts/triage/{PROJECT}"
+)
 ```
 
 The script handles CLI/REST pagination, normalization, and file output. It writes:
@@ -50,7 +55,11 @@ The script handles CLI/REST pagination, normalization, and file output. It write
 To change the resolved-bug lookback window (default 90 days):
 
 ```bash
-python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/scan.py" "{PROJECT}" --window-days 30 --output-dir ".artifacts/triage/{PROJECT}"
+PROJECT_ROOT="$PWD"
+(
+  cd "{AI_WORKFLOWS_ROOT}"
+  python3 triage/scripts/scan.py "{PROJECT}" --window-days 30 --output-dir "$PROJECT_ROOT/.artifacts/triage/{PROJECT}"
+)
 ```
 
 ### Step 3: Handle Errors

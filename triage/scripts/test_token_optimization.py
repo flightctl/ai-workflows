@@ -240,6 +240,11 @@ class TestFinalizeAnalysis(unittest.TestCase):
 
 
 class TestSynthesizeReport(unittest.TestCase):
+    def test_zero_issue_synthesis_is_deterministic(self) -> None:
+        result = synthesize_report.synthesize({"issues": []})
+        self.assertEqual(result["releaseRisk"], None)
+        self.assertEqual(result["executiveSummary"], ["No unresolved bugs were analyzed."])
+
     def test_report_synthesis_is_deterministic(self) -> None:
         data = {"issues": [_issue(f"EDM-{index}") for index in range(1, 6)]}
         for issue in data["issues"]:

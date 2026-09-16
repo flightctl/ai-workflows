@@ -273,6 +273,29 @@ class TestBuildReplacements(unittest.TestCase):
         self.assertEqual(json.loads(r["EXECUTIVE_SUMMARY_JSON"]), [])
 
 
+class TestValidateAiSynthesis(unittest.TestCase):
+    def test_accepts_nullable_and_complete_release_risk(self) -> None:
+        render_report.validate_ai_synthesis(SAMPLE_AI_INPUT)
+        render_report.validate_ai_synthesis({"executiveSummary": [], "releaseRisk": None})
+
+    def test_rejects_incomplete_release_risk(self) -> None:
+        with self.assertRaises(ValueError):
+            render_report.validate_ai_synthesis({
+                "executiveSummary": ["Summary"],
+                "releaseRisk": {"riskLevel": "High", "summary": "Risk", "factors": [], "mitigations": [1]},
+            })
+
+    def test_rejects_unknown_risk_level(self) -> None:
+        with self.assertRaises(ValueError):
+            render_report.validate_ai_synthesis({
+                "executiveSummary": ["Summary"],
+                "releaseRisk": {
+                    "riskLevel": "Critical", "summary": "Risk",
+                    "factors": [], "mitigations": [],
+                },
+            })
+
+
 class TestRender(unittest.TestCase):
     def test_all_placeholders_replaced(self) -> None:
         replacements = render_report.build_replacements(
@@ -528,6 +551,15 @@ class TestMain(unittest.TestCase):
             self.assertEqual(rc, 0)
             output = (Path(tmpdir) / "output" / "report.html").read_text()
             self.assertIn("var R=null;", output)
+
+    def test_invalid_release_risk_schema_returns_1(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ai_path = _write_json(Path(tmpdir), "ai-input.json", {
+                "executiveSummary": ["Summary"],
+                "releaseRisk": {"riskLevel": "Critical"},
+            })
+            rc = self._run(Path(tmpdir), ai_input=str(ai_path))
+            self.assertEqual(rc, 1)
 
     def test_renders_real_template(self) -> None:
         """Render against the actual report.html template to catch
