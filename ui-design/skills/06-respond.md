@@ -176,4 +176,4 @@ Report your results:
 - PR approval status
 - Recommendation on next step (`/respond` again, or `/sync` if approved)
 
-Then **re-read the controller** (`controller.md`) for next-step guidance.
+Then return to the invoking workflow router for completion guidance.

@@ -4,8 +4,8 @@ description: "Fetch and address PR reviewer comments on the UI design document"
 ---
 # /respond
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=respond`.
 
-Dispatch the **respond** phase. Context:
+Context:
 
 $ARGUMENTS

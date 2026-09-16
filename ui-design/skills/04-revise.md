@@ -122,4 +122,4 @@ Report your results:
 - Any new open questions introduced
 - Whether data flow changes warrant re-running `/review-api`
 
-Then **re-read the controller** (`controller.md`) for next-step guidance.
+Then return to the invoking workflow router for completion guidance.

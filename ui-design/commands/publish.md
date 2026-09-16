@@ -4,8 +4,8 @@ description: "Push UI design document to docs repo and create a draft PR"
 ---
 # /publish
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=publish`.
 
-Dispatch the **publish** phase. Context:
+Context:
 
 $ARGUMENTS

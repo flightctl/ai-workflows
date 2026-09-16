@@ -245,4 +245,4 @@ Report your results:
 - Whether any gaps require changes to the component architecture
 - Any critical gaps that need immediate attention
 
-Then **re-read the controller** (`controller.md`) for next-step guidance.
+Then return to the invoking workflow router for completion guidance.

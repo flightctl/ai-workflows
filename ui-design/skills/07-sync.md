@@ -364,4 +364,4 @@ Report your results:
 - Summary of the gap → story mapping
 - Any next steps (e.g., assign stories to backend team, prioritize critical gaps)
 
-Then **re-read the controller** (`controller.md`) for next-step guidance.
+Then return to the invoking workflow router for completion guidance.

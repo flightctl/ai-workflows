@@ -4,8 +4,8 @@ description: "Create, update, or close [DEV] Jira stories for API gaps identifie
 ---
 # /sync
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=sync`.
 
-Dispatch the **sync** phase. Context:
+Context:
 
 $ARGUMENTS

@@ -171,7 +171,9 @@ ui-design/
 ├── guidelines.md               # Behavioral rules and guardrails
 ├── README.md                   # This file
 ├── skills/
-│   ├── controller.md           # Phase dispatcher and transitions
+│   ├── controller.md           # Discovery and ambiguous-input router
+│   ├── dispatch.md             # Demand-load phase executor
+│   ├── completion.md           # Next-step recommendations per phase
 │   ├── 01-ingest.md            # Fetch story, load docs, explore codebase
 │   ├── 02-plan.md              # Component decomposition and UI design
 │   ├── 03-review-api.md        # Deep API surface review
