@@ -26,10 +26,11 @@ and ask the user to run `/analyze` first. The scan's
 
 ### 1. Prepare compact synthesis context
 
-Run from the repository root:
+Resolve `{AI_WORKFLOWS_ROOT}` to the installed triage package root (or the
+repository root in a checkout), then run:
 
 ```bash
-python3 triage/scripts/prepare_report.py \
+python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/prepare_report.py" \
   --analyzed .artifacts/triage/{PROJECT}/analyzed.json \
   --output .artifacts/triage/{PROJECT}/report-input.json
 ```
@@ -40,12 +41,7 @@ renderer contract to `ai-synthesis.json`:
 ```json
 {
   "executiveSummary": ["..."],
-  "releaseRisk": {
-    "riskLevel": "High|Medium|Low",
-    "summary": "...",
-    "factors": [],
-    "mitigations": []
-  }
+  "releaseRisk": null
 }
 ```
 
@@ -56,14 +52,24 @@ object with a calibrated High/Medium/Low level, material factors, and 2-5
 mitigations; set it to null for fewer than five issues. Do not invent counts,
 keys, themes, or risks absent from the input. Return only JSON.
 
+If the AI synthesis call fails or returns invalid JSON, run:
+
+```bash
+python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/synthesize_report.py" \
+  --analyzed .artifacts/triage/{PROJECT}/analyzed.json \
+  --output .artifacts/triage/{PROJECT}/ai-synthesis.json
+```
+
+Stop if that deterministic fallback also fails.
+
 ### 2. Render the report
 
 Run:
 
 ```bash
-python3 triage/scripts/render_report.py \
+python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/render_report.py" \
   --analyzed .artifacts/triage/{PROJECT}/analyzed.json \
-  --template triage/templates/report.html \
+  --template "{AI_WORKFLOWS_ROOT}/triage/templates/report.html" \
   --issues .artifacts/triage/{PROJECT}/issues.json \
   --ai-input .artifacts/triage/{PROJECT}/ai-synthesis.json \
   --output .artifacts/triage/{PROJECT}/report.html

@@ -35,9 +35,11 @@ Run the scan script to fetch and normalize all bugs. Resolve
 `{AI_WORKFLOWS_ROOT}` by running `git rev-parse --show-toplevel` from
 within the ai-workflows checkout (e.g., this skill file's directory).
 The `--output-dir` path is relative to the project root (CWD).
+Validate `{PROJECT}` against `^[A-Z][A-Z0-9_]+$` before expanding it in a
+shell command. If it does not match, stop.
 
 ```bash
-python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/scan.py" {PROJECT} --output-dir .artifacts/triage/{PROJECT}
+python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/scan.py" "{PROJECT}" --output-dir ".artifacts/triage/{PROJECT}"
 ```
 
 The script handles CLI/REST pagination, normalization, and file output. It writes:
@@ -48,7 +50,7 @@ The script handles CLI/REST pagination, normalization, and file output. It write
 To change the resolved-bug lookback window (default 90 days):
 
 ```bash
-python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/scan.py" {PROJECT} --window-days 30 --output-dir .artifacts/triage/{PROJECT}
+python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/scan.py" "{PROJECT}" --window-days 30 --output-dir ".artifacts/triage/{PROJECT}"
 ```
 
 ### Step 3: Handle Errors

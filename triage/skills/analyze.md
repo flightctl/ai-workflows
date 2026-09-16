@@ -26,10 +26,11 @@ ask the user to run `/scan` first. `resolved.json` is optional.
 
 ### 1. Prepare compact input
 
-Run from the repository root:
+Resolve `{AI_WORKFLOWS_ROOT}` to the installed triage package root (or the
+repository root in a checkout), then run:
 
 ```bash
-python3 triage/scripts/prepare_analysis.py \
+python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/prepare_analysis.py" \
   --issues .artifacts/triage/{PROJECT}/issues.json \
   --resolved .artifacts/triage/{PROJECT}/resolved.json \
   --output .artifacts/triage/{PROJECT}/analysis-input.json
@@ -40,12 +41,18 @@ resolved set. Read only `analysis-input.json` for AI analysis. It contains
 compact issue text, deterministic signatures and age/activity signals, stale
 `CLOSE` candidates, and at most three bounded match candidates per issue.
 
+If preparation exits non-zero, stop and report stderr. Do not read or reuse an
+existing `analysis-input.json`. If `sourceCount` is zero, write
+`{"decisions": []}`, omit clusters and recommendations, run the finalizer,
+and report an empty result without inventing AI judgments.
+
 ### 2. Produce compact AI decisions
 
 Process issues in batches of 25–30. After each batch, merge its decisions into
 the existing `ai-decisions.json`; never replace decisions from earlier batches.
-Generate the top-level `clusters` and `keyRecommendations` only after all
-batches are complete. Return only this JSON shape, with one
+Generate the top-level `clusters` and `keyRecommendations` in a separate,
+fresh compact synthesis call after all per-issue batches are complete. Return
+only this JSON shape, with one
 decision for every issue:
 
 ```json
@@ -119,7 +126,7 @@ decisions require a recommendation and a short reason.
 Run:
 
 ```bash
-python3 triage/scripts/finalize_analysis.py \
+python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/finalize_analysis.py" \
   --issues .artifacts/triage/{PROJECT}/issues.json \
   --prepared .artifacts/triage/{PROJECT}/analysis-input.json \
   --decisions .artifacts/triage/{PROJECT}/ai-decisions.json \

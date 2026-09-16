@@ -37,11 +37,15 @@ You need one parameter. If it was provided in the user's message, use it directl
 
 ### Step 3: Validate Jira Access
 
+Before expanding `{PROJECT}` in any shell command, validate it against
+`^[A-Z][A-Z0-9_]+$`. If it does not match, stop and ask for a valid Jira
+project key.
+
 Verify the project is accessible using the selected read-only Jira method. With
 the preferred CLI:
 
 ```bash
-jira issue list -p {PROJECT} -t Bug -R unresolved \
+jira issue list -p "{PROJECT}" -t Bug -R unresolved \
   --paginate 0:1 --plain --no-headers --columns KEY,SUMMARY
 ```
 
@@ -64,7 +68,7 @@ If the query fails, report the error and suggest:
 Create the artifact directory for this triage run:
 
 ```bash
-mkdir -p .artifacts/triage/{PROJECT}
+mkdir -p ".artifacts/triage/{PROJECT}"
 ```
 
 ### Step 5: Confirm Parameters

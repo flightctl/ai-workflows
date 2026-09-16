@@ -86,6 +86,17 @@ class TestPrepareAnalysis(unittest.TestCase):
         candidate = result["issues"][0]["matchCandidates"][0]
         self.assertEqual(candidate["resolved"], "2025-12-20T00:00:00.000+0000")
 
+    def test_uses_raw_description_for_multiline_error_excerpt(self) -> None:
+        issue = _issue("EDM-10")
+        issue["description"] = "ERROR: first line\nActual: HTTP 500"
+        result = prepare_analysis.prepare(
+            {"project": "EDM", "issues": [issue]}, {"issues": []},
+            datetime(2026, 1, 2, tzinfo=timezone.utc),
+        )
+        compact = result["issues"][0]
+        self.assertEqual(compact["errorMessageExcerpt"], "ERROR: first line")
+        self.assertTrue(compact["descriptionSignals"]["hasErrorDetails"])
+
 
 class TestFinalizeAnalysis(unittest.TestCase):
     def test_merges_decisions_and_computes_aggregates(self) -> None:
@@ -171,6 +182,28 @@ class TestFinalizeAnalysis(unittest.TestCase):
                 {"decisions": [{
                     "key": "EDM-4", "recommendation": "BACKLOG", "reason": "Valid", "confidence": "Medium",
                     "priorityMismatch": {"assigned": "Undefined", "suggested": "Major", "reason": "Mismatch."},
+                }]},
+            )
+
+    def test_rejects_unknown_priority_mismatch_suggestion(self) -> None:
+        issue = _issue("EDM-11")
+        with self.assertRaises(ValueError):
+            finalize_analysis.finalize(
+                {"project": "EDM", "issues": [issue]}, {"issues": [{"key": "EDM-11"}]},
+                {"decisions": [{
+                    "key": "EDM-11", "recommendation": "BACKLOG", "reason": "Valid", "confidence": "Medium",
+                    "priorityMismatch": {"assigned": "High", "suggested": "Urgent", "reason": "Mismatch."},
+                }]},
+            )
+
+    def test_rejects_non_string_relationship_target(self) -> None:
+        issue = _issue("EDM-12")
+        with self.assertRaises(ValueError):
+            finalize_analysis.finalize(
+                {"project": "EDM", "issues": [issue]}, {"issues": [{"key": "EDM-12", "matchCandidates": []}]},
+                {"decisions": [{
+                    "key": "EDM-12", "recommendation": "BACKLOG", "reason": "Valid", "confidence": "Medium",
+                    "duplicateOf": {"key": "EDM-99"},
                 }]},
             )
 

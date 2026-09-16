@@ -106,7 +106,8 @@ def _error_code_match(text: str) -> re.Match[str] | None:
 
 
 def _compact_issue(issue: dict[str, Any], as_of: datetime) -> dict[str, Any]:
-    description = _clean_text(issue.get("description"))
+    raw_description = str(issue.get("description") or "")
+    description = _clean_text(raw_description)
     summary = _clean_text(issue.get("summary"), 400)
     labels = [str(x) for x in issue.get("labels", []) if x]
     components = [str(x) for x in issue.get("components", []) if x]
@@ -131,9 +132,9 @@ def _compact_issue(issue: dict[str, Any], as_of: datetime) -> dict[str, Any]:
             "length": len(description),
             "hasReproduction": bool(REPRO_RE.search(description)),
             "hasExpectedActual": bool(EXPECTED_RE.search(description)),
-            "hasErrorDetails": bool(_error_code_match(description) or any(p.search(description) for p, _ in ERROR_PATTERNS)),
+            "hasErrorDetails": bool(_error_code_match(raw_description) or any(p.search(raw_description) for p, _ in ERROR_PATTERNS)),
         },
-        **_signature(description, summary, components),
+        **_signature(raw_description, summary, components),
     }
     if deterministic_recommendation:
         result["deterministicRecommendation"] = deterministic_recommendation
@@ -200,7 +201,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
-        resolved_data = _read_json(args.resolved) if args.resolved and args.resolved.exists() else {"issues": []}
+        resolved_data = _read_json(args.resolved) if args.resolved else {"issues": []}
         result = prepare(_read_json(args.issues), resolved_data, datetime.now(timezone.utc))
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")

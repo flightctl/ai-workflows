@@ -11,6 +11,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 _SCRIPT = Path(__file__).resolve().parent / "scan.py"
@@ -541,6 +542,15 @@ def _fake_search(pages: list[list[dict]]):
 
 class TestFetchAllIssues(unittest.TestCase):
 
+    def test_cli_no_result_message_is_an_empty_page(self) -> None:
+        completed = SimpleNamespace(
+            returncode=1,
+            stdout="",
+            stderr="No result found for given query",
+        )
+        with patch.object(scan.subprocess, "run", return_value=completed):
+            self.assertEqual(scan.jira_cli_search("EDM", "project = EDM"), [])
+
     def test_cli_short_page_does_not_end_scan(self) -> None:
         pages = iter([[_raw_issue("EDM-1")], [_raw_issue("EDM-2")], []])
 
@@ -764,6 +774,18 @@ class TestMain(unittest.TestCase):
         self.assertEqual(resolved_data["totalCount"], 1)
         self.assertEqual(resolved_data["windowDays"], 90)
         self.assertEqual(resolved_data["issues"][0]["resolution"], "Fixed")
+
+    def test_cli_failure_falls_back_to_rest_when_configured(self) -> None:
+        with (
+            patch.dict(os.environ, self._ENV, clear=True),
+            patch.object(scan.shutil, "which", return_value="/usr/bin/jira"),
+            patch.object(scan, "_fetch_cli_data", side_effect=scan.ScanError("CLI unavailable")),
+            patch.object(scan, "_fetch_rest_data", return_value=("https://jira.example.com", [], [])),
+        ):
+            self.assertEqual(
+                scan.main(["EDM", "--output-dir", str(self._output_dir)]), 0,
+            )
+        self.assertTrue((self._output_dir / "issues.json").is_file())
 
     def test_uses_empty_resolution_predicates(self) -> None:
         calls: list[str] = []

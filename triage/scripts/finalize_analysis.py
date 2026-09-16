@@ -169,6 +169,8 @@ def _validated_priority_mismatch(raw: Any, original_priority: Any, key: str) -> 
         raise ValueError(f"priorityMismatch for {key} must match the issue's assigned priority")
     if assigned.strip().lower() == suggested.strip().lower():
         raise ValueError(f"priorityMismatch for {key} must represent a priority change")
+    if suggested.strip() not in ALLOWED_PRIORITIES:
+        raise ValueError(f"priorityMismatch for {key} has an invalid suggested priority")
     return {"assigned": assigned.strip(), "suggested": suggested.strip(), "reason": reason.strip()}
 
 
@@ -251,11 +253,17 @@ def finalize(issues_data: dict[str, Any], prepared: dict[str, Any], decisions: d
         )
         candidates = {candidate.get("key"): candidate for candidate in signal.get("matchCandidates", [])}
         duplicate_of = decision.get("duplicateOf")
-        if duplicate_of and duplicate_of not in candidates:
-            raise ValueError(f"AI duplicate target for {key} was not a supplied candidate")
+        if duplicate_of is not None:
+            if not isinstance(duplicate_of, str) or duplicate_of not in candidates:
+                raise ValueError(f"AI duplicate target for {key} was not a supplied candidate")
         regression_of = decision.get("regressionOf")
-        if regression_of:
-            if not isinstance(regression_of, dict) or regression_of.get("key") not in candidates or candidates[regression_of["key"]].get("kind") != "resolved":
+        if regression_of is not None:
+            if (
+                not isinstance(regression_of, dict)
+                or not isinstance(regression_of.get("key"), str)
+                or regression_of["key"] not in candidates
+                or candidates[regression_of["key"]].get("kind") != "resolved"
+            ):
                 raise ValueError(f"AI regression target for {key} was not a supplied resolved candidate")
             resolved_at = _parse_timestamp(candidates[regression_of["key"]].get("resolved"))
             created_at = _parse_timestamp(original.get("created"))
