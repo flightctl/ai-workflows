@@ -225,4 +225,4 @@ Report your results:
 - Files published to the docs repo
 - Reminder to share the PR with reviewers
 
-Then **re-read the controller** (`controller.md`) for next-step guidance.
+Then return to the invoking workflow router for completion guidance.

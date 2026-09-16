@@ -4,8 +4,8 @@ description: "Fetch [UI] story, load UX handoff, PRD, design doc, explore UI cod
 ---
 # /ingest
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=ingest`.
 
-Dispatch the **ingest** phase. Context:
+Context:
 
 $ARGUMENTS

@@ -4,8 +4,8 @@ description: "Incorporate feedback into the UI design document and API findings"
 ---
 # /revise
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=revise`.
 
-Dispatch the **revise** phase. Context:
+Context:
 
 $ARGUMENTS

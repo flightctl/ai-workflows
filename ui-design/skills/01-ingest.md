@@ -426,4 +426,4 @@ Report your findings:
 - Constraints and open questions
 - Assessment of readiness for `/plan`
 
-Then **re-read the controller** (`controller.md`) for next-step guidance.
+Then return to the invoking workflow router for completion guidance.

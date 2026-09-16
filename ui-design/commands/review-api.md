@@ -4,8 +4,8 @@ description: "Deep API surface review — map UI data needs to endpoints and fie
 ---
 # /review-api
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=review-api`.
 
-Dispatch the **review-api** phase. Context:
+Context:
 
 $ARGUMENTS

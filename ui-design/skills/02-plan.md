@@ -510,4 +510,4 @@ Report your results:
 - Highlight key architectural decisions and open questions
 - Note overall confidence in the document's completeness
 
-Then **re-read the controller** (`controller.md`) for next-step guidance.
+Then return to the invoking workflow router for completion guidance.
