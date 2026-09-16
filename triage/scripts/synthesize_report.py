@@ -36,6 +36,7 @@ def synthesize(data: dict[str, Any]) -> dict[str, Any]:
     closeable_pct = round(closeable / total * 100) if total else 0
     regressions = sum(1 for item in issues if item.get("regressionOf"))
     no_priority = sum(1 for item in issues if not _has_priority(item.get("priority")))
+    unassigned = sum(1 for item in issues if not item.get("assignee") or item.get("assignee") == "Unassigned")
     urgent = sum(1 for item in issues if str(item.get("priority", "")).lower() in {"blocker", "critical", "highest", "major", "high"})
     stale = sum(1 for item in issues if _days_since(item.get("updated")) is not None and _days_since(item.get("updated")) >= 90)
     auto_fix = [item for item in issues if item.get("recommendation") == "AUTO_FIX"]
@@ -55,6 +56,11 @@ def synthesize(data: dict[str, Any]) -> dict[str, Any]:
     if auto_fix:
         average = round(sum(item.get("autoFixLikelihood", 0) or 0 for item in auto_fix) / len(auto_fix))
         summary.append(f"{len(auto_fix)} AUTO_FIX candidates have an average estimated success likelihood of {average}%.")
+    if total and len(summary) < 3:
+        distribution = ", ".join(f"{name}: {counts[name]}" for name in sorted(counts))
+        summary.append(f"Recommendation distribution: {distribution}.")
+    if total and len(summary) < 3:
+        summary.append(f"Triage completeness signals include {unassigned} unassigned bugs and {no_priority} bugs without priority.")
     if not summary:
         summary.append("The analyzed backlog has no material signals to summarize.")
 

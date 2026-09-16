@@ -27,12 +27,16 @@ and ask the user to run `/analyze` first. The scan's
 ### 1. Prepare compact synthesis context
 
 Resolve `{AI_WORKFLOWS_ROOT}` to the ai-workflows install root (the checkout
-root, or `~/.ai-workflows` when symlinked), then run:
+root, or the symlink target), then run from the target project's root:
 
 ```bash
-python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/prepare_report.py" \
-  --analyzed .artifacts/triage/{PROJECT}/analyzed.json \
-  --output .artifacts/triage/{PROJECT}/report-input.json
+PROJECT_ROOT="$PWD"
+(
+  cd "{AI_WORKFLOWS_ROOT}"
+  python3 triage/scripts/prepare_report.py \
+    --analyzed "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/analyzed.json" \
+    --output "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/report-input.json"
+)
 ```
 
 Read only `report-input.json` for the synthesis call. Write the existing
@@ -62,9 +66,13 @@ deterministic fallback below. If the AI synthesis call fails, returns invalid
 JSON, or the renderer rejects its semantic schema, run:
 
 ```bash
-python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/synthesize_report.py" \
-  --analyzed .artifacts/triage/{PROJECT}/analyzed.json \
-  --output .artifacts/triage/{PROJECT}/ai-synthesis.json
+PROJECT_ROOT="$PWD"
+(
+  cd "{AI_WORKFLOWS_ROOT}"
+  python3 triage/scripts/synthesize_report.py \
+    --analyzed "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/analyzed.json" \
+    --output "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/ai-synthesis.json"
+)
 ```
 
 Stop if that deterministic fallback also fails.
@@ -76,12 +84,16 @@ After a successful fallback, rerun the renderer with the generated
 Run:
 
 ```bash
-python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/render_report.py" \
-  --analyzed .artifacts/triage/{PROJECT}/analyzed.json \
-  --template "{AI_WORKFLOWS_ROOT}/triage/templates/report.html" \
-  --issues .artifacts/triage/{PROJECT}/issues.json \
-  --ai-input .artifacts/triage/{PROJECT}/ai-synthesis.json \
-  --output .artifacts/triage/{PROJECT}/report.html
+PROJECT_ROOT="$PWD"
+(
+  cd "{AI_WORKFLOWS_ROOT}"
+  python3 triage/scripts/render_report.py \
+    --analyzed "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/analyzed.json" \
+    --template triage/templates/report.html \
+    --issues "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/issues.json" \
+    --ai-input "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/ai-synthesis.json" \
+    --output "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/report.html"
+)
 ```
 
 The renderer validates JSON inputs, replaces all template placeholders, and

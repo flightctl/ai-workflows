@@ -245,6 +245,13 @@ class TestSynthesizeReport(unittest.TestCase):
         self.assertEqual(result["releaseRisk"], None)
         self.assertEqual(result["executiveSummary"], ["No unresolved bugs were analyzed."])
 
+    def test_non_empty_synthesis_always_has_three_to_five_bullets(self) -> None:
+        result = synthesize_report.synthesize({
+            "issues": [{"key": "EDM-1", "recommendation": "BACKLOG"}],
+        })
+        self.assertGreaterEqual(len(result["executiveSummary"]), 3)
+        self.assertLessEqual(len(result["executiveSummary"]), 5)
+
     def test_report_synthesis_is_deterministic(self) -> None:
         data = {"issues": [_issue(f"EDM-{index}") for index in range(1, 6)]}
         for issue in data["issues"]:

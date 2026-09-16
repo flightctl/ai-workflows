@@ -27,13 +27,17 @@ ask the user to run `/scan` first. `resolved.json` is optional.
 ### 1. Prepare compact input
 
 Resolve `{AI_WORKFLOWS_ROOT}` to the ai-workflows install root (the checkout
-root, or `~/.ai-workflows` when symlinked), then run:
+root, or the symlink target), then run from the target project's root:
 
 ```bash
-python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/prepare_analysis.py" \
-  --issues .artifacts/triage/{PROJECT}/issues.json \
-  --resolved .artifacts/triage/{PROJECT}/resolved.json \
-  --output .artifacts/triage/{PROJECT}/analysis-input.json
+PROJECT_ROOT="$PWD"
+(
+  cd "{AI_WORKFLOWS_ROOT}"
+  python3 triage/scripts/prepare_analysis.py \
+    --issues "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/issues.json" \
+    --resolved "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/resolved.json" \
+    --output "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/analysis-input.json"
+)
 ```
 
 If `resolved.json` is absent, omit `--resolved`; the script uses an empty
@@ -134,14 +138,18 @@ decisions require a recommendation and a short reason.
 
 ### 3. Finalize deterministically
 
-Run:
+Run from the target project's root, using the package-root subshell:
 
 ```bash
-python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/finalize_analysis.py" \
-  --issues .artifacts/triage/{PROJECT}/issues.json \
-  --prepared .artifacts/triage/{PROJECT}/analysis-input.json \
-  --decisions .artifacts/triage/{PROJECT}/ai-decisions.json \
-  --output .artifacts/triage/{PROJECT}/analyzed.json
+PROJECT_ROOT="$PWD"
+(
+  cd "{AI_WORKFLOWS_ROOT}"
+  python3 triage/scripts/finalize_analysis.py \
+    --issues "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/issues.json" \
+    --prepared "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/analysis-input.json" \
+    --decisions "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/ai-decisions.json" \
+    --output "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/analyzed.json"
+)
 ```
 
 The finalizer fails if the decision set does not exactly match the scan or
