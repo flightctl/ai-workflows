@@ -229,6 +229,7 @@ ai-workflows/
 │   ├── prompts/
 │   └── scripts/
 ├── triage/
+├── ui-design/
 ├── skills/                    # Focused skills (auto-discovered via SKILL.md)
 │   └── report-bug/
 │       ├── SKILL.md
@@ -249,5 +250,5 @@ ai-workflows/
 When a workflow or simple skill invokes commands that could affect shared systems:
 - **Git operations**: Always verify with `git status` before destructive operations
 - **PR/MR creation**: Confirm branch and base before pushing
-- **Jira writes**: cve-fix `/close`, design `/sync`, sizing `/apply`, and `report-bug` may write to Jira; all require explicit approval. `report-bug` may create only the fully previewed issue and approved follow-up links/attachments
+- **Jira writes**: cve-fix `/close`, design `/sync`, ui-design `/sync`, sizing `/apply`, and `report-bug` may write to Jira; all require explicit approval. `report-bug` may create only the fully previewed issue and approved follow-up links/attachments
 - **Documentation changes**: Run Vale validation before applying changes to repository files
