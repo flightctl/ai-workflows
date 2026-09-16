@@ -24,6 +24,7 @@ This repository contains reusable AI coding workflows and focused skills that ca
 - **sizing** — Pre-cycle Feature sizing with T-shirt sizes and team effort breakdowns (ingest, assess, apply)
 - **skill-reviewer** — Meta-workflow that audits AI skill directories
 - **triage** — Bulk Jira bug triage with AI-driven categorization and HTML reports
+- **ui-design** — UI design workflow for [UI] stories (ingest, plan, review-api, revise, publish, respond, sync)
 
 ## Architecture
 
