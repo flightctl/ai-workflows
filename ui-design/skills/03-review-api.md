@@ -36,8 +36,13 @@ Read these files:
 2. `.artifacts/ui-design/{issue-key}/01-context.md` — for Backend API Context
    (endpoints, types, client patterns)
 
-If `02-ui-design.md` doesn't exist, tell the user that `/plan` should be
-run first.
+If either file is missing, stop and report which artifact is absent before
+performing any analysis or writing any output. If `02-ui-design.md` doesn't
+exist, tell the user that `/plan` should be run first. If `01-context.md`
+doesn't exist, tell the user that `/ingest` should be run first. If the
+backend API context in `01-context.md` has no relevant endpoints (the
+Backend API Context section is empty or unavailable), warn the user that
+API verification will be limited to type definitions and codebase search.
 
 ### Step 2: Build the Data Needs Inventory
 
@@ -233,6 +238,10 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={issue-key}`, and `TARGET_FILE` set to the
 absolute source-repo path to `.artifacts/ui-design/{issue-key}/02-ui-design.md`.
 
+If `03-api-findings.md` was created or changed in this phase, also render
+the provenance footer on it: run the same recipe with `TARGET_FILE` set to
+`.artifacts/ui-design/{issue-key}/03-api-findings.md`.
+
 ### Step 8: Present to User
 
 Show the user:
@@ -241,8 +250,6 @@ Show the user:
 - Implementation readiness assessment
 - Any gaps that might affect the component architecture from `/plan`
   (e.g., a critical gap that changes what data is available)
-- Recommendation on whether to proceed to `/publish` or loop back to
-  `/revise` to update the UI design based on the findings
 
 ## Output
 

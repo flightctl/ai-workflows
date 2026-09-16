@@ -21,7 +21,6 @@ artifacts and published output from this workflow.
 ## Hard Limits
 
 - No fabricated requirements. Every component, hook, and route must trace to a UX handoff element, design document constraint, PRD requirement, or user direction.
-- No auto-advancing between phases. Always wait for the user.
 - No publishing (creating PRs, posting comments) without explicit user approval.
 - No Jira modifications without explicit user approval and a dry-run preview first.
 - **No scope reduction.** Never silently simplify, defer to "v2", use "placeholder", or say "future enhancement" to reduce scope. If scope won't fit, propose a split — don't reduce.

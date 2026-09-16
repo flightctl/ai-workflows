@@ -27,7 +27,8 @@ explicit user approval.
 - **Idempotent.** Track what was synced in a manifest with content hashes. If re-run with no changes, do nothing.
 - **Manifest gate.** Before proceeding past Step 1, you **must** state aloud to the user what the manifest contains (or that none exists). This is mandatory — do not silently skip this acknowledgment.
 - **Jira-side duplicate check.** Before creating each story, query Jira for existing children under the parent with a matching summary. If a match is found, stop and present the match to the user — do not create a duplicate.
-- **Sync-owned fields.** Sync owns: summary, description, and parent link (creation only). Sync never touches: status, assignee, sprint, comments, labels, or any other Jira-managed field.
+- **Sync-owned fields.** Sync owns: summary, description, and parent link (creation only). Sync never touches: assignee, sprint, comments, labels, or any other Jira-managed field.
+- **Status transitions are limited.** Sync may only perform two status transitions: (1) transition resolved issues to Done/Closed, and (2) reopen previously closed issues when a gap reappears. Sync must not edit status for any other reason.
 - **Logical deletion via status.** Gaps are closed (not deleted) when they are resolved — the gap entry is removed from the API findings or marked as resolved. The manifest tracks the closure.
 - **Link to source.** Every Jira story description references the UI design document.
 
@@ -43,10 +44,21 @@ Read these files:
 3. `.artifacts/ui-design/{issue-key}/01-context.md` — for the parent story
    and feature context
 
-If no API findings exist (no API Findings section and no `03-api-findings.md`),
-tell the user that `/review-api` should be run first.
+If no API findings exist (no API Findings section in `02-ui-design.md` and
+no `03-api-findings.md`), stop and tell the user that `/review-api` should
+be run first. If the API Findings section exists but contains only the
+pending-findings marker (no gaps table), stop and report that the findings
+are incomplete. If any required file is unreadable, stop and report the
+error before performing any Jira operations.
 
-Extract every gap from the API Gaps table. Each gap that has severity
+Extract every gap from the API Gaps table. Each gap must have a stable
+`gap_id` — a short identifier derived deterministically from the gap's
+category and a slug of its title (e.g., `data-device-health-score`). Use
+`gap_id` as the sole matching key when comparing findings with the
+manifest; do not match by `gap_number` or title alone. Continue using
+`content_hash` only to detect changes for matched active entries.
+
+Each gap that has severity
 `critical`, `high`, or `medium` is a candidate for a `[DEV]` story.
 Low-severity gaps are tracked in the manifest but not synced to Jira
 unless the user explicitly requests it.
@@ -78,9 +90,16 @@ the manifest against the current API findings:
    Action: update the sync-owned fields in Jira.
 
 3. **Resolved** — gap was in the manifest with `synced_status: "active"`,
-   but is no longer in the current API findings (the gap was resolved
-   during `/revise` or `/respond`).
+   but its `gap_id` is no longer present in the current API findings (the
+   gap was resolved during `/revise` or `/respond`).
    Action: close (transition to Done/Closed) the Jira story.
+
+   **Empty-findings guard:** If the current findings section has no gaps
+   at all but the manifest has active entries, do not automatically treat
+   all entries as resolved. Stop and ask the user to confirm: *"The API
+   Findings section is now empty, but {N} stories are active in the
+   manifest. Close all of them, or investigate first?"* Only proceed
+   with closures after explicit confirmation.
 
 4. **Unchanged** — gap exists in both findings and manifest, content hash
    matches.
@@ -185,26 +204,31 @@ Process stories in three passes: create new, update changed, close resolved.
 #### 4a: Create New Stories
 
 **Pre-creation duplicate check (per story).** Before creating each story,
-search Jira for existing children of the parent with a matching summary:
+escape the gap title for JQL (double any embedded quotes, backslash-escape
+JQL metacharacters) and query by the stable `gap_id` embedded in the
+description rather than fuzzy-matching the summary:
 
 ```
-parent = {parent-key} AND issuetype = Story AND summary ~ "[DEV] {gap title}"
+parent = {parent-key} AND issuetype = Story AND description ~ "gap_id: {gap_id}"
 ```
 
 If the query returns one or more matching issues, **do not create the
 story.** Stop and present the match to the user:
 
 ```text
-Duplicate detected — a story with a matching summary already exists
+Duplicate detected — a story matching gap_id "{gap_id}" already exists
 under {parent-key}:
 
   {matching-key}: {matching summary}
 
 Options:
   (a) Skip this story and record the existing key in the manifest
-  (b) Create it anyway (will produce a duplicate)
-  (c) Stop sync entirely so you can investigate
+  (b) Stop sync entirely so you can investigate
 ```
+
+Do not offer an unconditional create-anyway option. If the user believes
+the match is incorrect, they must verify and confirm a specific override
+before the story can be created.
 
 Wait for the user's choice before continuing.
 
@@ -216,6 +240,12 @@ For each new story, create a Jira issue:
 - **Summary:** `[DEV] {gap title}`
 - **Description:**
 
+Before rendering the description, load `pr_url` from
+`.artifacts/ui-design/{issue-key}/publish-metadata.json`. If the file
+does not exist or `pr_url` is absent, stop and tell the user that
+`/publish` should be run first — do not create stories with an
+unresolved design link.
+
 ```markdown
 ## Summary
 
@@ -224,7 +254,8 @@ For each new story, create a Jira issue:
 ## Context
 
 - **UI Story:** {issue-key}
-- **UI Design:** {link to UI design PR or published doc}
+- **UI Design:** {pr_url from publish-metadata.json}
+- **Gap ID:** {gap_id}
 - **Gap Category:** {data / field / state / pagination / filtering / sorting / shape / permission}
 - **Gap Severity:** {critical / high / medium}
 
@@ -279,8 +310,11 @@ retry or skip.
 For each story categorized as **Resolved** (gap no longer in findings):
 
 1. Transition the story to Done/Closed in Jira.
-2. Update the manifest entry: set `synced_status: "closed"` and update
-   `content_hash`.
+2. Update the manifest entry: set `synced_status: "closed"`. Preserve the
+   prior `content_hash` — do not replace it. This allows deterministic
+   reopen detection: if a gap with the same `gap_id` reappears in a future
+   sync, the preserved hash enables detecting whether the content changed
+   since the issue was closed.
 
 **Selecting the close transition:** Use the Jira API to query available
 transitions for the issue and select the terminal/done-category
@@ -314,6 +348,7 @@ it is complete and consistent. The final structure should be:
   "synced_at": "{ISO timestamp}",
   "gaps": [
     {
+      "gap_id": "{category}-{title-slug}",
       "gap_number": 1,
       "title": "{gap title}",
       "category": "{gap category}",
@@ -327,11 +362,20 @@ it is complete and consistent. The final structure should be:
 ```
 
 Fields:
+- `gap_id` — Stable identifier derived from category and title slug
+  (e.g., `data-device-health-score`). Used as the sole matching key
+  between findings and manifest entries.
+- `jira_key` — The Jira story key. Present for entries with
+  `synced_status: "active"` or `"closed"`. Omitted for entries with
+  `synced_status: "tracked"` (low-severity gaps not synced to Jira).
 - `content_hash` — SHA-256 of the gap's content (title + category +
   severity + description + what's missing + UI impact + suggested approach).
-  Used to detect changes on the next run.
-- `synced_status` — `"active"` or `"closed"`. Tracks the last state sync
-  pushed to Jira.
+  Used to detect changes on the next run. Preserved (not replaced) when
+  closing an issue, to support deterministic reopen detection.
+- `synced_status` — One of `"active"`, `"closed"`, or `"tracked"`.
+  `"active"` and `"closed"` are for Jira-synchronized entries. `"tracked"`
+  is for low-severity gaps that are recorded in the manifest but not
+  synced to Jira.
 - `synced_at` — top-level only. Updated to the current timestamp at the
   end of each sync run.
 

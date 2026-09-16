@@ -77,7 +77,7 @@ Search the docs repo for the feature directory (the same directory that
 contains the PRD and design document):
 
 ```bash
-find "{docs_repo_path}" -type d -name "*{issue-key}*" -o -name "*{feature-key}*"
+find "{docs_repo_path}" -type d \( -name "*{issue-key}*" -o -name "*{feature-key}*" \)
 ```
 
 If found, the UI design document goes alongside the existing planning
@@ -111,6 +111,13 @@ Render provenance footer on the docs-repo copies:
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={issue-key}`, and `TARGET_FILE` set to
 each copied file's absolute path in the docs repo.
+
+**Note:** The provenance script (`_shared/scripts/provenance.py`) must
+support `ui-design` as a `--workflow` value. If it rejects the value,
+the workflow operator should add `ui-design` to `WORKFLOW_DOCS` and the
+CLI `--workflow` choices in `provenance.py`, matching the existing `prd`
+and `design` entries. The same identifier must be used in the script,
+recipes, and `_shared/provenance-schema.md`.
 
 Stage and commit:
 
@@ -197,11 +204,23 @@ Write `.artifacts/ui-design/{issue-key}/publish-metadata.json`:
   "cross_repository": {true/false},
   "head_sha": "{commit SHA}",
   "published_at": "{ISO timestamp}",
+  "target_directory": "{resolved target directory path in docs repo}",
   "files": [
-    "ui-design.md",
-    "api-findings.md"
+    "ui-design.md"
   ]
 }
+```
+
+Include `"api-findings.md"` in the `files` array only if
+`03-api-findings.md` was actually copied to the docs repo. Always
+include `"ui-design.md"`. Do not list files that were not published.
+
+```text
+Example when API findings were published:
+  "files": ["ui-design.md", "api-findings.md"]
+
+Example when API findings are inline:
+  "files": ["ui-design.md"]
 ```
 
 ### Step 10: Report to User

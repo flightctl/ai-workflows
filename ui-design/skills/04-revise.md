@@ -33,6 +33,10 @@ Read these files:
 2. `.artifacts/ui-design/{issue-key}/03-api-findings.md` (if it exists)
 3. `.artifacts/ui-design/{issue-key}/01-context.md` (for reference)
 
+If `02-ui-design.md` is missing, stop and tell the user that `/plan`
+should be run first. If the user has not provided usable feedback (empty
+message, unclear intent), ask for clarification before proceeding.
+
 ### Step 2: Understand the Feedback
 
 The user will provide feedback in one of these forms:
@@ -99,14 +103,18 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={issue-key}`, and `TARGET_FILE` set to the
 absolute source-repo path to `.artifacts/ui-design/{issue-key}/02-ui-design.md`.
 
+If `03-api-findings.md` was changed in this revision, also render the
+provenance footer on it: run the same recipe with `TARGET_FILE` set to
+`.artifacts/ui-design/{issue-key}/03-api-findings.md`.
+
 ### Step 7: Present Changes
 
 Show the user:
 - What was changed (primary changes)
 - What was propagated (ripple effects)
 - Any sections where the change introduced new open questions
-- Whether the API findings need re-review (recommend `/review-api` if
-  data flow mapping changed)
+- Whether the revision changed data flow mappings (note this in the report
+  so `completion.md` can recommend API re-review if appropriate)
 
 ## Output
 
@@ -120,6 +128,6 @@ Report your results:
 - Summary of changes applied
 - Sections affected by ripple effects
 - Any new open questions introduced
-- Whether data flow changes warrant re-running `/review-api`
+- Whether data flow mappings were changed (for completion guidance)
 
 Then return to the invoking workflow router for completion guidance.

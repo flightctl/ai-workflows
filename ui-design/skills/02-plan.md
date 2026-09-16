@@ -36,12 +36,15 @@ Read these files in order:
 3. `UI-ARCHITECTURE.md` if it exists (frontend-specific patterns)
 
 If `01-context.md` doesn't exist, tell the user that `/ingest` should be
-run first.
+run first and **stop** — do not continue with the remaining steps.
 
 Then open **cited sources only** from `01-context.md`:
 
 1. The UX handoff artifact — use the path recorded in the Upstream Artifacts
-   section. Read it in full; it is the primary design input.
+   section. If the path value is "Not available", skip this read and continue
+   with the remaining cited sources — the workflow will operate from PRD,
+   design document, and codebase context only. Otherwise, read it in full;
+   it is the primary design input.
 2. The design document — read only the sections cited in `01-context.md`
    (typically §4.3 API Changes, §4.7 RBAC, §5 Interface Changes).
 3. Cited source files from the codebase — read component files, hook files,
@@ -402,9 +405,10 @@ Then {expected outcome}
 
 ## API Findings
 
-{Placeholder — populated by `/review-api`. If the data flow mapping in
-this phase already identifies significant gaps, note them here as
-preliminary findings for `/review-api` to confirm.}
+{Pending — `/review-api` will verify all data flow mappings and populate
+this section with confirmed endpoint mappings and categorized gaps. If the
+data flow mapping in this phase already identifies significant gaps, record
+them below as preliminary findings for `/review-api` to confirm.}
 
 ### Preliminary Gaps
 
@@ -412,8 +416,8 @@ preliminary findings for `/review-api` to confirm.}
 |-----|----------|-----------|-------|
 | {description} | {data / state / pagination / shape} | {which components are blocked} | {for /review-api to investigate} |
 
-{If no preliminary gaps: "All data sources resolved — `/review-api` will
-confirm."}
+{If no preliminary gaps: "All data sources resolved in the data flow
+mapping above — `/review-api` will confirm against the actual backend."}
 
 ## Open Questions
 

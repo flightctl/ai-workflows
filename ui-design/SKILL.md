@@ -12,8 +12,9 @@ description: >-
 
 ## Quick Start
 
-1. If the user invoked a specific command (e.g., `/plan`, `/review-api`), read
-   `commands/{command}.md` and follow it.
+1. If the user invoked a specific command, read `commands/{command}.md` and
+   follow it. Phases: `ingest`, `plan`, `review-api`, `revise`, `publish`,
+   `respond`, `sync`.
 2. Otherwise, read `skills/controller.md` to load the workflow controller:
    - If the user provided a Jira issue key or URL, execute the `/ingest` phase
    - Otherwise, execute the first phase the user requests
