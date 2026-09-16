@@ -255,7 +255,9 @@ reviews:
           only the prompt, not the caller's context
         - Prompts must instruct output to .artifacts/, not inline return
         - Templates must work when the workflow is installed via symlink
-        - No absolute paths in templates
+        - No hardcoded literal absolute paths in templates (paths
+          starting with a shell variable or command substitution, such as
+          $HOME/... or $(...)/..., are dynamic and allowed)
 
     # ── Workflow scripts ────────────────────────────────────────
     - path: "*/scripts/*.py"
@@ -267,8 +269,10 @@ reviews:
           Report scripts: 0 = informational, 1 = halt
           Search/query scripts: define semantics in docstring
         - Python 3 required; no Python 2 compatibility needed
-        - No hardcoded absolute paths — derive paths relative to
-          script location
+        - No hardcoded literal absolute paths — derive paths relative
+          to script location (paths starting with a shell variable or
+          command substitution, such as $HOME/... or $(...)/..., are
+          dynamic and allowed)
 
     - path: "skills/*/references/*.md"
       instructions: |
@@ -676,15 +680,30 @@ reviews:
 
       - name: "no-absolute-paths-in-skills"
         instructions: |
-          Flag any absolute filesystem path in markdown files within
-          workflow directories (*/SKILL.md, */skills/*.md, */commands/*.md,
-          */guidelines.md). Paths like /home/, /Users/, /tmp/, /var/,
-          /opt/ are prohibited because workflows are installed via symlink
-          and must use relative paths only. Paths inside fenced code
-          blocks that are clearly examples (containing "example", "e.g.",
-          or placeholder usernames like /home/user/) are exempt.
-          This check does not apply to runtime/user data paths in simple-skill
-          references, such as an attachment selected for upload.
+          Flag any hardcoded literal absolute filesystem path in markdown
+          files within workflow directories (*/SKILL.md, */skills/*.md,
+          */commands/*.md, */guidelines.md). Hardcoded paths like /home/,
+          /Users/, /tmp/, /var/, /opt/ are prohibited because workflows
+          are installed via symlink and must use relative paths only.
+
+          IMPORTANT — the following are NOT hardcoded absolute paths and
+          MUST NOT be flagged:
+          - Shell variable expansions: $HOME/..., ${HOME}/...,
+            ${XDG_CONFIG_HOME}/..., or any $VARNAME/... or ${VARNAME}/...
+            pattern. These resolve dynamically at runtime.
+          - Command substitutions: $(...)/... patterns such as
+            $(git rev-parse --show-toplevel)/... These compute the path
+            dynamically and are fully portable.
+          - General rule: any path that begins with $ (variable reference
+            or command substitution) is dynamic, not hardcoded, and is
+            allowed.
+
+          Also exempt: paths inside fenced code blocks that are clearly
+          examples (containing "example", "e.g.", or placeholder usernames
+          like /home/user/).
+          This check does not apply to runtime/user data paths in
+          simple-skill references, such as an attachment selected for
+          upload.
         mode: "error"
 
       - name: "skill-md-under-30-lines"

@@ -59,7 +59,7 @@ PLACEHOLDER_PATTERNS = [
     (re.compile(r'\blorem\s+ipsum\b', re.I), "lorem ipsum"),
 ]
 
-ABS_PATH_PATTERN = re.compile(r'/(home|Users|tmp|var)/')
+ABS_PATH_PATTERN = re.compile(r'(?:^|[\s"\'=`(])/(home|Users|tmp|var|opt)/')
 ABS_PATH_EXEMPT = re.compile(r'/(home/user|Users/name|Users/me)/')
 ABS_PATH_CONTEXT_EXEMPT = re.compile(r'(?:e\.g\.|example|placeholder)', re.I)
 
