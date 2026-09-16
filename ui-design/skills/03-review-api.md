@@ -220,7 +220,20 @@ Before presenting the findings, verify:
 - [ ] If findings are inline, the `02-ui-design.md` document remains well-structured
 - [ ] If findings are separate, `02-ui-design.md` references `03-api-findings.md`
 
-### Step 7: Present to User
+### Step 7: Capture Provenance
+
+This phase mutates `02-ui-design.md` (and may create `03-api-findings.md`),
+so it carries provenance.
+
+Read and follow `../../_shared/recipes/capture-provenance-event.md` with
+`WORKFLOW=ui-design`, `ISSUE_KEY={issue-key}`, `PHASE=review-api`,
+`AUTHORING_MODE=skill`.
+
+Read and follow `../../_shared/recipes/render-provenance-footer.md` with
+`WORKFLOW=ui-design`, `ISSUE_KEY={issue-key}`, and `TARGET_FILE` set to the
+absolute source-repo path to `.artifacts/ui-design/{issue-key}/02-ui-design.md`.
+
+### Step 8: Present to User
 
 Show the user:
 - Total data needs reviewed and how many were confirmed
@@ -235,6 +248,7 @@ Show the user:
 
 - `.artifacts/ui-design/{issue-key}/02-ui-design.md` (updated — always)
 - `.artifacts/ui-design/{issue-key}/03-api-findings.md` (if findings are too verbose for inline)
+- `.artifacts/ui-design/{issue-key}/provenance.json` (updated)
 
 ## When This Phase Is Done
 

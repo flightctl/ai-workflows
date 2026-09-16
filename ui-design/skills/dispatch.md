@@ -28,9 +28,11 @@ corresponding skill filename before resolving overrides:
 
 Before dispatching, initialize `COMPLETION_CONSUMED=false` and read the
 project's `AGENTS.md`, `CLAUDE.md`, or `UI-ARCHITECTURE.md` only if none
-is already in the session. For `PHASE=ingest`, do not glob this workflow
-or load `guidelines.md`; these guards apply before loading either a
-built-in phase or a project override.
+is already in the session. For `PHASE=ingest`, do not glob this workflow,
+load `guidelines.md`, or call `GetDynamicTools`; these guards apply before
+loading either a built-in phase or a project override. Ensure MCP tools are
+available for phases that need them (`/ingest` needs Jira, `/publish` and
+`/respond` need GitHub) but do not eagerly load tools for every phase.
 
 Announce `Starting /{PHASE}.` and read and follow
 `../../_shared/recipes/phase-override-resolution.md` with `WORKFLOW=ui-design`
@@ -46,6 +48,16 @@ applies during override validation as well as execution. Normalize the handoff
 without executing its destination and leave `COMPLETION_CONSUMED=false`. Then
 read `completion.md` once and follow its guidance for `PHASE`; the dispatcher
 is the only component that reads the completion guide.
+
+Legacy completion instructions may say to follow `controller.md` only if it
+is already in the session. After such a phase finishes its steps and report,
+treat it as a supported return even when that condition skips reading the
+controller. Preserve the loading condition; do not load the controller just to
+complete the phase.
+
+Controller-return normalization preserves the completion contract of existing
+project overrides and remains supported. Prefer an invoking-router return for
+new ui-design phases and overrides; legacy exits do not require migration.
 
 If the recipe rejects an override, continue with its built-in fallback. Stop
 without reading `completion.md` only if that fallback cannot be resolved, an
