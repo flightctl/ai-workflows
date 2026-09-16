@@ -1,6 +1,6 @@
 ---
 name: phase-override-resolution
-version: 0.4.0
+version: 0.4.1
 ---
 # Recipe: Phase Override Resolution
 
@@ -23,10 +23,10 @@ validation to a shared script:
 {AI_WORKFLOWS_ROOT}/_shared/scripts/resolve-phase.py
 ```
 
-Resolve `{AI_WORKFLOWS_ROOT}` as the git root of the ai-workflows install
-(typically `git rev-parse --show-toplevel` from the workflow directory, or
-`~/.ai-workflows` when symlinked). Keep the target repository as the
-process CWD so that `.workflows/` override lookup uses the project root.
+Resolve `{AI_WORKFLOWS_ROOT}` to the ai-workflows installation directory
+(`${HOME}/.ai-workflows` for user-level installs). Keep the target
+repository as the process CWD so that `.workflows/` override lookup
+uses the project root.
 
 The script checks `.workflows/{WORKFLOW}/skills/{PHASE_FILE}` at the repo
 root (CWD), falls back to the built-in default, validates path safety, and

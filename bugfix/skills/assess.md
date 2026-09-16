@@ -26,6 +26,19 @@ exploration that only a repo-local workflow can provide.
 - **Be honest about uncertainty.** If the report is vague, say so.
 - **No issue-tracker writes.** Read-only access to Jira and GitHub.
 
+## Shared Script
+
+This skill delegates deterministic Jira issue fetching to a shared
+script. Reference it using a relative path from this file:
+
+```
+../../_shared/scripts/fetch-issue.py
+```
+
+The script provides subcommands: `get` and `search`. See the script
+header for full usage. It requires `JIRA_URL` and `JIRA_TOKEN`
+environment variables.
+
 ## Bug Report Sources
 
 The bug report can come from three sources. The source repo is always the
@@ -33,9 +46,9 @@ local working directory.
 
 | Source | Input | Issue-tracker search |
 |--------|-------|----------------------|
-| Jira URL | `https://{jira-host}/browse/KEY-NUM` | Jira MCP or Jira CLI (`jira`) — whichever is available (read-only) — for duplicates, regressions, priority mismatch |
+| Jira URL | `https://{jira-host}/browse/KEY-NUM` | Shared script `fetch-issue.py` (read-only) — for duplicates, regressions, priority mismatch |
 | GitHub URL | `https://github.com/owner/repo/issues/NUM` | `gh issue list --search` for duplicates |
-| Free text | Error text, stack trace, or description | Jira if a project key is provided; otherwise git-only |
+| Free text | Error text, stack trace, or description | Shared script if a project key is provided; otherwise git-only |
 
 **Parsing rules:**
 
@@ -49,12 +62,24 @@ local working directory.
 
 ### Step 1: Gather the Bug Report
 
+Resolve the shared script to an absolute path so it remains valid
+regardless of working directory:
+
+```bash
+FETCH_ISSUE_SCRIPT="${HOME}/.ai-workflows/_shared/scripts/fetch-issue.py"
+```
+
+Use `$FETCH_ISSUE_SCRIPT` instead of the relative path in all subsequent
+commands.
+
 Collect all available information about the bug:
 
-- **Jira URL:** Fetch the issue via the Jira MCP or Jira CLI (`jira`) —
-  whichever is available (e.g., by key lookup or JQL `key = {KEY}`). Load
-  summary, description, status, priority, components, labels, created,
-  updated, and comments.
+- **Jira URL:** Fetch the issue using the shared script:
+
+```bash
+python3 "$FETCH_ISSUE_SCRIPT" get {KEY} --fields summary,description,status,priority,components,labels,created,updated --comments --links --link-fields summary,status
+```
+
 - **GitHub URL:** Fetch via:
 
 ```bash
@@ -231,8 +256,18 @@ duplicate or regression findings.
 Search the issue tracker for potential duplicates. Skip this step if no
 tracker is accessible.
 
-**Jira (project key available):** Search Jira via JQL using up to three
-angles, limit ~20 results each:
+**Jira (project key available):** Search Jira via JQL using the shared
+script, up to three angles, limit ~20 results each.
+
+**Safety:** Pass the JQL string as a single shell argument. Use single
+quotes around the JQL to prevent shell expansion of Jira-derived values
+(which may contain `$`, backticks, or other shell metacharacters):
+
+```bash
+python3 "$FETCH_ISSUE_SCRIPT" search '{JQL}' --fields summary,status,description --max-results 20
+```
+
+Use up to three JQL queries with different angles:
 
 1. **Error-focused:** match error type, error code, or error message
    keywords in summary/description
@@ -264,11 +299,14 @@ when the bug appeared, describe the regression risk. Git history is the
 strongest regression signal because it shows exactly what changed and when.
 
 **Jira (supplementary — when project key available):** Search for recently
-resolved bugs in the same area to find prior fix attempts:
+resolved bugs in the same area to find prior fix attempts using the shared
+script:
 
-```
-project = {KEY} AND resolution = Done AND resolved >= -90d
-AND (summary ~ "{keywords}" OR component = "{component}")
+**Safety:** Use single quotes to prevent shell expansion of
+Jira-derived values:
+
+```bash
+python3 "$FETCH_ISSUE_SCRIPT" search 'project = {KEY} AND resolution = Done AND resolved >= -90d AND (summary ~ "{keywords}" OR component = "{component}")' --fields summary,status,resolution,resolutiondate --max-results 20
 ```
 
 **Chronological constraint:** the resolved bug's resolution date must be

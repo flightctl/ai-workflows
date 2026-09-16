@@ -23,12 +23,36 @@ estimation, not architectural deep-dive.
 - **Follow lateral links only (one level deep).** If the Feature has linked issues from related projects, fetch them for context. Do not follow child issues (Epics, Stories) — those may not exist yet. Do not follow links-of-links.
 - **Codebase exploration is scoped.** Focus on areas the Feature will affect. Target 5–10 key files per Feature that establish the scope of change, not a full codebase survey.
 
+## Shared Script
+
+This skill delegates deterministic Jira issue fetching to a shared
+script. Reference it using a relative path from this file:
+
+```
+../../_shared/scripts/fetch-issue.py
+```
+
+The script provides subcommands: `get` and `search`. See the script
+header for full usage.
+
+**Required environment variables:**
+- `JIRA_URL` — Jira Cloud base URL (must use `https://`)
+- `JIRA_TOKEN` — Jira Cloud API token
+- `JIRA_EMAIL` — your Atlassian account email (required for Cloud
+  API token auth; the script uses Basic auth with `email:token`)
+
+**Optional environment variables:**
+- `JIRA_ALLOW_INSECURE_HTTP` — set to `1` to allow `http://` URLs
+  (for local development only)
+
 ## Process
 
 ### Step 1: Determine Input Mode
 
 The user will provide one of:
-- **A Jira issue key** (e.g., `EDM-2324`) or URL → single-Feature mode
+- **A Jira issue key** (e.g., `EDM-2324`) or URL → single-Feature mode.
+  If a URL is provided (e.g., `https://issues.redhat.com/browse/EDM-2324`),
+  extract the issue key from the `/browse/` path before calling the script.
 - **A release identifier** (e.g., `release:EDM:1.3.0`) → batch mode.
   Format is `release:{project}:{version}`. Map to
   `project = {project} AND fixVersion = "{version}"` in JQL.
@@ -62,22 +86,44 @@ overwriting pre-assessment context is safe.
 
 ### Step 3: Fetch Feature(s) from Jira
 
-**Single mode:** Fetch the issue using the provided key. After fetching,
-verify the issue type is Feature. If it is not, warn the user: "Issue {key}
-is a {type}, not a Feature. The sizing workflow is designed for Features.
-Continue anyway?" Wait for confirmation before proceeding.
+Resolve the shared script to an absolute path so it remains valid
+regardless of working directory:
 
-**Batch mode:** Search for all Features in the specified project and Fix Version:
-```
-JQL: project = {project} AND fixVersion = "{version}" AND issuetype = Feature
+```bash
+FETCH_ISSUE_SCRIPT="${HOME}/.ai-workflows/_shared/scripts/fetch-issue.py"
 ```
 
-For each Feature, fetch with fields that include the Size custom field:
-```
-fields: summary,description,status,priority,labels,fixVersions,customfield_10795,created,updated
+Use `$FETCH_ISSUE_SCRIPT` instead of the relative path in all subsequent
+commands.
+
+**Single mode:** Fetch the issue using the shared script:
+
+```bash
+python3 "$FETCH_ISSUE_SCRIPT" get "$ISSUE_KEY" --fields summary,description,issuetype,status,priority,labels,fixVersions,customfield_10795,created,updated --comments --links --link-fields summary,description,status
 ```
 
-Also fetch comments (all) for each Feature.
+After fetching, verify the issue type is Feature (from the `issuetype` field). If it is not, warn the
+user: "Issue {key} is a {type}, not a Feature. The sizing workflow is
+designed for Features. Continue anyway?" Wait for confirmation before
+proceeding.
+
+**Batch mode:** Search for all Features in the specified project and Fix
+Version using the shared script. Use single quotes around the JQL to
+prevent shell expansion of user-provided values:
+
+```bash
+python3 "$FETCH_ISSUE_SCRIPT" search 'project = {project} AND fixVersion = "{version}" AND issuetype = Feature' --fields summary,description,issuetype,status,priority,labels,fixVersions,customfield_10795,created,updated --max-results 200
+```
+
+If the number of returned issues equals `--max-results`, results may
+be truncated. Increase `--max-results` and re-run, or run multiple
+queries with adjusted JQL, to ensure all Features are captured.
+
+For each Feature returned, fetch full details including comments:
+
+```bash
+python3 "$FETCH_ISSUE_SCRIPT" get "$ISSUE_KEY" --fields summary,description,issuetype,status,priority,labels,fixVersions,customfield_10795,created,updated --comments --links --link-fields summary,description,status
+```
 
 Capture:
 - Summary / title

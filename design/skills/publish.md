@@ -42,7 +42,7 @@ Before any `cd` or subshell that changes the working directory, resolve
 the shared script to an absolute path so it remains valid:
 
 ```bash
-PUBLISH_SCRIPT="$(git rev-parse --show-toplevel)/_shared/scripts/publish.py"
+PUBLISH_SCRIPT="${HOME}/.ai-workflows/_shared/scripts/publish.py"
 ```
 
 Use `$PUBLISH_SCRIPT` instead of the relative path in all subsequent

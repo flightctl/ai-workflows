@@ -91,7 +91,7 @@ Resolve the shared script to an absolute path so it remains valid
 regardless of working directory:
 
 ```bash
-PR_COMMENTS_SCRIPT="$(git rev-parse --show-toplevel)/_shared/scripts/pr-comments.py"
+PR_COMMENTS_SCRIPT="${HOME}/.ai-workflows/_shared/scripts/pr-comments.py"
 ```
 
 Use `$PR_COMMENTS_SCRIPT` instead of the relative path in all subsequent

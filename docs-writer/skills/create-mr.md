@@ -49,7 +49,7 @@ Before running any subcommands, resolve the shared script to an
 absolute path so it remains valid regardless of working directory:
 
 ```bash
-PUBLISH_SCRIPT="$(git rev-parse --show-toplevel)/_shared/scripts/publish.py"
+PUBLISH_SCRIPT="${HOME}/.ai-workflows/_shared/scripts/publish.py"
 ```
 
 Use `$PUBLISH_SCRIPT` instead of the relative path in all subsequent

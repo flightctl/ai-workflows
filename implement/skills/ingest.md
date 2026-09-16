@@ -18,15 +18,36 @@ affected code, and write `01-context.md` for `/plan`.
 - Grep locates; Read loads. Never grep `.`. Never grep `-A`/`-B`/`-C`. Never grep `.git/`.
 - Do not glob the docs repo root. After 5b, search only the feature directory.
 - **Write each output path once.** No Delete+rewrite, no second Write to the same file.
-- Do not call `GetDynamicTools` / list Jira tools. Call `jira_get_issue` with the args below.
+- Do not call `GetDynamicTools` / list Jira tools. Use the shared fetch-issue script.
+
+## Shared Script
+
+This skill delegates deterministic Jira issue fetching to a shared
+script. Reference it using a relative path from this file:
+
+```
+../../_shared/scripts/fetch-issue.py
+```
+
+The script provides subcommands: `get` and `search`. See the script
+header for full usage. It requires `JIRA_URL` and `JIRA_TOKEN`
+environment variables.
 
 ## Jira call (use as-is)
 
-`jira_get_issue`: `comment_limit: 0`, `update_history: false`, never `*all`, never changelog expand.
+Resolve the shared script to an absolute path so it remains valid
+regardless of working directory:
 
-- **Story:** `fields=summary,description,issuetype,status,parent,issuelinks,labels`
-- **Parent epic/feature:** skip if `parent.key` (and its parent) are already in the story payload. Use those keys for docs lookup. Fetch only if a key is missing: `fields=summary,status,issuetype,parent`
-- **Blocking deps only:** `fields=summary,status`
+```bash
+FETCH_ISSUE_SCRIPT="${HOME}/.ai-workflows/_shared/scripts/fetch-issue.py"
+```
+
+Use `$FETCH_ISSUE_SCRIPT` instead of the relative path in all subsequent
+commands.
+
+- **Story:** `python3 "$FETCH_ISSUE_SCRIPT" get {KEY} --fields summary,description,issuetype,status,labels --parent --parent-fields summary,status,issuetype,parent --links --link-fields summary,status`
+- **Parent epic/feature:** skip if `parent.key` (and its parent) are already in the story payload. Use those keys for docs lookup. Fetch only if a key is missing: `python3 "$FETCH_ISSUE_SCRIPT" get {KEY} --fields summary,status,issuetype --parent --parent-fields summary,status,issuetype,parent`
+- **Blocking deps only:** `python3 "$FETCH_ISSUE_SCRIPT" get {KEY} --fields summary,status`
 
 ## Process
 
@@ -46,11 +67,11 @@ If `01-context.md` exists (re-ingest): copy to `01-context.md.prev` **before** e
 
 ### 3. Fetch the Jira story
 
-One `jira_get_issue` for the story. Capture summary, description, AC, guidance, testing notes, `Validated by` TC IDs and `PRD Requirements` from the Design Reference (used to filter the testplan in 5d), design refs, type prefix, parent key, blocking links, fix version/sprint.
+One `fetch-issue.py get` call for the story (using the Story command from the Jira call section). Capture summary, description, AC, guidance, testing notes, `Validated by` TC IDs and `PRD Requirements` from the Design Reference (used to filter the testplan in 5d), design refs, type prefix, parent key, blocking links, fix version/sprint.
 
 ### 4. Dependencies
 
-For each blocking link: `jira_get_issue` (narrow fields) + `git log --oneline --grep={key} -5` on main. Warn if unresolved; do not block.
+For each blocking link: `fetch-issue.py get` (Blocking deps command from the Jira call section) + `git log --oneline --grep={key} -5` on main. Warn if unresolved; do not block.
 
 ### 5. Upstream docs
 

@@ -1,6 +1,6 @@
 ---
 name: sizing
-version: 0.3.2
+version: 0.3.3
 description: >-
   Pre-cycle Feature sizing workflow that assesses Features from Jira using
   T-shirt sizes (XS–XXL), produces per-team effort breakdowns (DEV, QE, UX, UI, DOCS),

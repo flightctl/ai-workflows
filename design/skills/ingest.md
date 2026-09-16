@@ -23,6 +23,20 @@ decisions. Capture what exists, what needs to change, and what constraints apply
 - **Note unknowns.** If you can't determine something from the codebase, say so explicitly.
 - **Re-invocation diffs before overwriting.** If `01-context.md` already exists, preserve it before exploring. After compiling new context, diff the PRD-derived sections against the previous version and present changes to the user before overwriting (see Steps 2a and 6a).
 
+## Shared Script
+
+This skill delegates deterministic Jira issue fetching to a shared
+script. Reference it using a relative path from this file:
+
+```
+../../_shared/scripts/fetch-issue.py
+```
+
+The script provides subcommands: `get` and `search`. See the script
+header for full usage. It requires `JIRA_URL`, `JIRA_TOKEN`, and
+`JIRA_EMAIL` environment variables for Jira Cloud API token auth
+(Basic auth with `email:token`).
+
 ## Process
 
 ### Step 1: Identify the Context
