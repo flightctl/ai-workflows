@@ -26,7 +26,9 @@ import base64
 import json
 import os
 import re
+import shutil
 import ssl
+import subprocess
 import sys
 import time
 import urllib.error
@@ -58,6 +60,59 @@ _ADF_BLOCK_CONTAINERS = frozenset({
 })
 
 SearchFn = Callable[[str, str, int], dict[str, Any]]
+
+
+def _cli_base_url() -> str:
+    """Read the Jira CLI server URL without reading or exposing credentials."""
+    config_path = Path(os.environ.get("JIRA_CONFIG_FILE", "~/.config/.jira/.config.yml")).expanduser()
+    try:
+        text = config_path.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    match = re.search(r"^server:\s*(\S+)\s*$", text, re.MULTILINE)
+    return match.group(1).rstrip("/") if match else ""
+
+
+def jira_cli_search(project: str, jql: str, *, start_key: str = "") -> list[dict[str, Any]]:
+    """Search Jira through the authenticated global jira CLI."""
+    if start_key:
+        jql = f"{jql} AND key > '{start_key}'"
+    command = [
+        "jira", "issue", "list", "-p", project, "-q", jql,
+        "--order-by", "key", "--reverse", "--paginate", "0:100", "--raw",
+    ]
+    try:
+        result = subprocess.run(command, check=False, capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ScanError(f"Cannot run Jira CLI: {exc}") from exc
+    if result.returncode != 0:
+        raise ScanError(f"Jira CLI search failed: {result.stderr.strip()[:500]}")
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise ScanError("Jira CLI returned invalid JSON") from exc
+    if not isinstance(data, list):
+        raise ScanError("Jira CLI returned an unexpected response")
+    return data
+
+
+def fetch_all_cli_issues(project: str, jql: str) -> list[dict[str, Any]]:
+    """Fetch all CLI results using a key cursor."""
+    results: list[dict[str, Any]] = []
+    last_key = ""
+    while True:
+        page = jira_cli_search(project, jql, start_key=last_key)
+        if not page:
+            break
+        for issue in page:
+            if not isinstance(issue, dict) or not isinstance(issue.get("key"), str) or not _ISSUE_KEY_RE.fullmatch(issue["key"]):
+                raise ScanError("Jira CLI returned an issue without a valid key")
+        results.extend(page)
+        next_key = page[-1]["key"]
+        if next_key == last_key:
+            raise ScanError(f"CLI pagination cursor did not advance (stuck at {last_key})")
+        last_key = next_key
+    return results
 
 
 # ---------------------------------------------------------------------------
@@ -365,6 +420,17 @@ def normalize_issue(
     return normalized
 
 
+def normalize_cli_issue(raw: dict[str, Any], *, include_resolution: bool = False) -> dict[str, Any]:
+    """Normalize the flattened issue shape returned by jira-cli."""
+    fields = raw.get("fields", {})
+    normalized = normalize_issue({"key": raw.get("key", ""), "fields": fields}, include_resolution=False)
+    if include_resolution:
+        normalized["resolution"] = _name_or_default(fields.get("resolution"))
+        # jira-cli does not expose resolutiondate in issue list output.
+        normalized["resolved"] = fields.get("resolutiondate", "")
+    return normalized
+
+
 # ---------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------
@@ -462,47 +528,45 @@ def main(argv: list[str] | None = None) -> int:
     window_days = args.window_days
     output_dir = args.output_dir or Path(f".artifacts/triage/{project}")
 
-    jira_url = os.environ.get("JIRA_URL", "").strip()
-    jira_token = os.environ.get("JIRA_TOKEN", "").strip()
-    jira_email = os.environ.get("JIRA_EMAIL", "").strip() or None
-    if not jira_url:
-        print("Error: JIRA_URL environment variable is not set", file=sys.stderr)
-        return 1
-    if not jira_token:
-        print("Error: JIRA_TOKEN environment variable is not set", file=sys.stderr)
-        return 1
-
     try:
         validate_project_key(project)
-        validate_jira_url(jira_url)
     except ScanError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
-    auth_header = build_auth_header(jira_token, jira_email)
-    search = partial(jira_search, jira_url, auth_header)
-
     try:
         unresolved_jql = (
             f"project = {project} AND issuetype = Bug "
-            f"AND resolution = Unresolved"
+            f"AND resolution IS EMPTY"
         )
-        raw_unresolved = fetch_all_issues(
-            search, unresolved_jql, UNRESOLVED_FIELDS,
-        )
-        unresolved = [normalize_issue(r) for r in raw_unresolved]
-
         resolved_jql = (
             f"project = {project} AND issuetype = Bug "
-            f"AND resolution != Unresolved "
+            f"AND resolution IS NOT EMPTY "
             f"AND resolved >= -{window_days}d"
         )
-        raw_resolved = fetch_all_issues(
-            search, resolved_jql, RESOLVED_FIELDS,
-        )
-        resolved = [
-            normalize_issue(r, include_resolution=True) for r in raw_resolved
-        ]
+        if shutil.which("jira"):
+            jira_url = _cli_base_url()
+            raw_unresolved = fetch_all_cli_issues(project, unresolved_jql)
+            raw_resolved = fetch_all_cli_issues(project, resolved_jql)
+            unresolved = [normalize_cli_issue(r) for r in raw_unresolved]
+            resolved = [normalize_cli_issue(r, include_resolution=True) for r in raw_resolved]
+            if not jira_url:
+                raise ScanError("Jira CLI configuration has no server URL")
+        else:
+            jira_url = os.environ.get("JIRA_URL", "").strip()
+            jira_token = os.environ.get("JIRA_TOKEN", "").strip()
+            jira_email = os.environ.get("JIRA_EMAIL", "").strip() or None
+            if not jira_url:
+                raise ScanError("JIRA_URL environment variable is not set")
+            if not jira_token:
+                raise ScanError("JIRA_TOKEN environment variable is not set")
+            validate_jira_url(jira_url)
+            auth_header = build_auth_header(jira_token, jira_email)
+            search = partial(jira_search, jira_url, auth_header)
+            raw_unresolved = fetch_all_issues(search, unresolved_jql, UNRESOLVED_FIELDS)
+            raw_resolved = fetch_all_issues(search, resolved_jql, RESOLVED_FIELDS)
+            unresolved = [normalize_issue(r) for r in raw_unresolved]
+            resolved = [normalize_issue(r, include_resolution=True) for r in raw_resolved]
     except ScanError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1

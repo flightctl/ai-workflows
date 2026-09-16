@@ -11,24 +11,23 @@ You are fetching **every unresolved bug** and **recently resolved bugs** (for re
 
 - **Shell:** run `triage/scripts/scan.py` to fetch, normalize, and write artifacts
 - **Local:** read script output (stdout, stderr, exit code)
-- **Prohibited:** all Jira MCP tools — the script calls the Jira REST API directly
+- **Prohibited:** all Jira MCP tools — the script calls the authenticated Jira CLI when available, with REST as fallback
 
 ## Prerequisites
 
 Before scanning, ensure you have:
 
 - **Project key** (required) — from `/start` or the user's message
-- **`JIRA_URL`** (required) — Jira instance base URL (e.g., `https://redhat.atlassian.net`)
-- **`JIRA_TOKEN`** (required) — API token or Personal Access Token
+- **`jira` CLI** (preferred) for the deterministic bulk scan, or `JIRA_URL` and `JIRA_TOKEN` for the REST fallback. Jira MCP can validate interactive access but is not a transport for `scan.py`.
 - **`JIRA_EMAIL`** (optional) — account email; required when using an API token (Basic auth), omit for PATs (Bearer auth)
 
-If the project key is missing, ask the user before proceeding. If the environment variables are not set, tell the user which ones to set and stop.
+If the project key is missing, ask the user before proceeding. If neither the CLI nor REST variables are configured, tell the user what is missing and stop.
 
 ## Process
 
 ### Step 1: Verify Environment
 
-Check that `JIRA_URL` and `JIRA_TOKEN` environment variables are set (do not print or echo their values). If either is missing, tell the user which variable to set and stop.
+Check that the `jira` executable is available. If it is unavailable, check that `JIRA_URL` and `JIRA_TOKEN` are set without printing their values.
 
 ### Step 2: Run the Scan Script
 
@@ -41,7 +40,7 @@ The `--output-dir` path is relative to the project root (CWD).
 python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/scan.py" {PROJECT} --output-dir .artifacts/triage/{PROJECT}
 ```
 
-The script handles pagination, normalization, and file output. It writes:
+The script handles CLI/REST pagination, normalization, and file output. It writes:
 
 - `.artifacts/triage/{PROJECT}/issues.json` — all unresolved bugs
 - `.artifacts/triage/{PROJECT}/resolved.json` — bugs resolved in the last 90 days

@@ -18,8 +18,8 @@ graph TD
 ## Prerequisites
 
 - **Jira access** — the authenticated user must have read access to the target project
-- **Jira MCP server** — the `user-mcp-jira` MCP server must be configured and authenticated (used by `/start` and `/assess`)
-- **Environment variables for `/scan` (and `/run`, which includes scan)** — the scan phase calls the Jira REST API directly via `scripts/scan.py` instead of MCP:
+- **Jira access method** — choose either the authenticated global `jira` CLI or a configured Jira MCP server. The Jira CLI is the preferred default because it supports the bulk scan path directly; Jira MCP is interchangeable wherever the selected workflow phase accesses Jira interactively.
+- **REST fallback variables for `/scan`** — if the Jira CLI is unavailable and the scan is run through the deterministic script, it uses the Jira REST API via `scripts/scan.py`:
   - `JIRA_URL` — Jira instance base URL (e.g., `https://redhat.atlassian.net`)
   - `JIRA_TOKEN` — API token or Personal Access Token
   - `JIRA_EMAIL` — (optional) account email; set this when using an API token (Basic auth); omit for PATs (Bearer auth)
@@ -81,8 +81,8 @@ The generated report is a single HTML file (Material Design styling) with inline
 
 - **Total bugs card** — prominent count at the top; switches to "Remaining" in simulation mode
 - **Stats dashboard** — color-coded tiles showing count per recommendation
-- **Executive summary** — 3–5 bullet-point health assessment for stakeholders (synthesized during `/report` from analyzed data)
-- **Release risk assessment** — color-coded risk level (High/Medium/Low) with risk factors, mitigations, and scope disclaimer (synthesized during `/report`)
+- **Executive summary** — 3–5 bullet-point health assessment for stakeholders
+- **Release risk assessment** — color-coded risk level (High/Medium/Low) with risk factors, mitigations, and scope disclaimer; shown when at least five issues are available
 
 ### Analysis
 
@@ -118,6 +118,10 @@ All outputs are saved for auditability:
   issues.json        — raw scanned unresolved bugs from Jira
   resolved.json      — recently resolved bugs (default 90d) for regression matching in analyze
   analyzed.json      — issues with recommendations, signatures, duplicate/regression fields
+  analysis-input.json — compact deterministic signals and bounded match candidates for `/analyze`
+  ai-decisions.json  — compact semantic decisions produced during `/analyze`
+  report-input.json  — compact deterministic context for report synthesis
+  ai-synthesis.json  — semantic executive summary and release-risk assessment
   report.html        — interactive HTML dashboard
 ```
 
