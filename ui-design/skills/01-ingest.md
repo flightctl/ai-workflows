@@ -42,6 +42,10 @@ header for full usage. It requires `JIRA_URL`, `JIRA_TOKEN`, and
 `JIRA_EMAIL` environment variables for Jira Cloud API token auth
 (Basic auth with `email:token`).
 
+If the script returns a successful result but the issue key is missing
+or empty, treat it as a retrieval failure — stop and report the error
+before compiling context. Do not write `01-context.md` with empty fields.
+
 ## Process
 
 ### Step 1: Identify the Context
@@ -51,10 +55,15 @@ The user will provide one of:
 - A path to an existing context document
 - A description of the UI work to be done
 
-Extract the full Jira issue key, including the project prefix (e.g.,
-`PROJ-1234`, not just `1234`). Use this as `{issue-key}` throughout
-the workflow — it is the context identifier for the artifact directory
-and all downstream phases.
+**Jira input:** Extract the full Jira issue key, including the project
+prefix (e.g., `PROJ-1234`, not just `1234`). Use this as `{issue-key}`
+throughout the workflow.
+
+**Non-Jira input:** When the user provides a path or description instead
+of a Jira key, derive a stable context identifier from the input — for
+example, a slug from the document filename or a short user-provided label.
+Confirm the identifier with the user before creating the artifact directory.
+Skip Jira retrieval in Step 3 and proceed directly to Step 4.
 
 ### Step 2: Create Artifact Directory
 
@@ -109,7 +118,7 @@ Search the docs repo for a directory whose name contains `{issue-key}` or
 the parent feature key:
 
 ```bash
-find "{docs_repo_path}" -type d -name "*{issue-key}*" -o -name "*{feature-key}*"
+find "{docs_repo_path}" -type d \( -name "*{issue-key}*" -o -name "*{feature-key}*" \)
 ```
 
 #### 5a: Load the PRD

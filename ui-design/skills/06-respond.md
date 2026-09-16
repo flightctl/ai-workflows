@@ -38,14 +38,23 @@ should be run first.
 
 ### Step 2: Fetch PR Comments
 
-Using the PR number and repo from `publish-metadata.json`:
+Using the PR number and repo from `publish-metadata.json`, fetch comments
+with paginated API queries that capture inline review comments and thread
+identifiers:
 
 ```bash
-gh pr view {pr_number} --repo "{upstream_repo}" --json comments,reviews
+gh api --paginate "repos/{upstream_repo}/pulls/{pr_number}/comments" \
+  --jq '.[] | {id, path, body, in_reply_to_id, created_at, user: .user.login}'
+gh api --paginate "repos/{upstream_repo}/pulls/{pr_number}/reviews" \
+  --jq '.[] | {id, state, body, user: .user.login}'
+gh api --paginate "repos/{upstream_repo}/issues/{pr_number}/comments" \
+  --jq '.[] | {id, body, created_at, user: .user.login}'
 ```
 
+Store the `id` of each review comment and thread for use in Step 6.
+
 Parse the comments and organize by:
-- **Inline comments** — tied to specific lines or sections
+- **Inline comments** — tied to specific lines or sections (with thread IDs)
 - **General comments** — overall feedback
 - **Approval/change-request status** — who approved, who requested changes
 
@@ -85,7 +94,7 @@ Options:
 
 Wait for the user's decision on each comment before proceeding.
 
-### Step 5: Apply Changes
+### Step 5: Apply Changes and Push
 
 For each approved response that requires a document change:
 
@@ -103,21 +112,14 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={issue-key}`, and `TARGET_FILE` set to the
 absolute source-repo path to `.artifacts/ui-design/{issue-key}/02-ui-design.md`.
 
-### Step 6: Post Responses
+If document changes were made, copy the updated files to the docs repo,
+commit, and push **before posting any PR comments** — this ensures
+responses reference committed content:
 
-For each approved response, post the comment on the PR:
-
-```bash
-gh pr comment {pr_number} --repo "{upstream_repo}" --body "{response}"
-```
-
-For inline replies, use the appropriate `gh` command to reply to the
-specific review comment thread.
-
-### Step 7: Push Updates
-
-If any document changes were made, copy the updated files to the docs repo
-and push:
+Resolve `target_directory` from `publish-metadata.json` (the
+`target_directory` field). Load `docs_repo_path` from
+`.artifacts/config.json`. Verify the recorded branch is checked out and
+the push remote is valid before committing.
 
 ```bash
 cp ".artifacts/ui-design/{issue-key}/02-ui-design.md" "{target_directory}/ui-design.md"
@@ -133,6 +135,27 @@ git -C "{docs_repo_path}" commit -m "Address review feedback for {issue-key} UI 
 git -C "{docs_repo_path}" push
 ```
 
+### Step 6: Post Responses
+
+Post responses only after the corresponding document commit is confirmed
+pushed. For each approved response, write the response text to a temporary
+file and use `--body-file` to avoid shell interpolation issues with
+reviewer-derived content:
+
+```bash
+echo "{response}" > /tmp/pr-response-{N}.md
+gh api "repos/{upstream_repo}/pulls/{pr_number}/comments/{comment_id}/replies" \
+  -F "body=@/tmp/pr-response-{N}.md"
+rm /tmp/pr-response-{N}.md
+```
+
+For inline replies, use the stored review-comment ID from Step 2 to reply
+in the correct thread. For general (non-inline) comments, use:
+
+```bash
+gh pr comment {pr_number} --repo "{upstream_repo}" --body-file /tmp/pr-response-{N}.md
+```
+
 ### Step 8: Record Responses
 
 Write or update `.artifacts/ui-design/{issue-key}/05-review-responses.md`:
@@ -144,6 +167,9 @@ Write or update `.artifacts/ui-design/{issue-key}/05-review-responses.md`:
 
 ### Comment #{N}: {reviewer} on {section}
 
+**Comment ID:** {GitHub comment_id from Step 2}
+**Thread ID:** {thread_id, if inline review comment; "N/A" for general comments}
+**Timestamp:** {ISO timestamp when response was posted}
 **Comment:** {text}
 **Category:** {category}
 **Response:** {what was posted}

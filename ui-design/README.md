@@ -8,7 +8,7 @@ A UI design workflow that takes a `[UI]` Jira story and UX handoff artifact, pro
 prd → design → ux-design → ui-design (this) → ui-implement (future)
 ```
 
-The `ui-design` workflow consumes the published UX handoff (`05-handoff.md`) and design document from the docs repo. Its output (`ui-design.md`) is the contract for the future `ui-implement` workflow.
+The `ui-design` workflow consumes the published UX handoff (`05-handoff.md`) and design document from the docs repo. Its output (`02-ui-design.md`) is the contract for the future `ui-implement` workflow.
 
 ## Phase Flow
 
@@ -29,6 +29,7 @@ graph TD
 | Tool | Required | Purpose |
 |------|----------|---------|
 | Jira access (MCP or CLI) | For `/ingest`, `/sync` | Fetch `[UI]` story, create `[DEV]` stories |
+| Docs repository (configured) | For `/ingest`, `/publish` | Load upstream PRD, design doc, UX handoff; publish UI design |
 | GitHub CLI (`gh`) | For `/publish`, `/respond` | Create PRs, post review comments |
 | Git | Yes | Branch management, commits |
 
@@ -49,18 +50,18 @@ The workflow draws from multiple published sources — never from another workfl
 
 | Phase | Command | Purpose | Artifact(s) |
 |-------|---------|---------|-------------|
-| Ingest | `/ingest` | Fetch story, load upstream docs, explore UI codebase and backend API | `01-context.md` |
-| Plan | `/plan` | Component decomposition, hook design, state management, route structure, data flow mapping | `02-ui-design.md` |
-| Review API | `/review-api` | Deep API surface review — map every UI data need to endpoints/fields, categorize gaps | `02-ui-design.md` (updated) or `03-api-findings.md` |
-| Revise | `/revise` | Incorporate feedback | Updated `02-ui-design.md` |
-| Publish | `/publish` | Push UI design document to docs repo as a draft PR | `04-pr-description.md`, `publish-metadata.json` |
-| Respond | `/respond` | Address PR reviewer comments | `05-review-responses.md`, updated `02-ui-design.md` |
-| Sync | `/sync` | Create/update/close `[DEV]` stories for API gaps | `sync-manifest.json` |
+| Ingest | `/ui-design:ingest` | Fetch story, load upstream docs, explore UI codebase and backend API | `01-context.md` |
+| Plan | `/ui-design:plan` | Component decomposition, hook design, state management, route structure, data flow mapping | `02-ui-design.md` |
+| Review API | `/ui-design:review-api` | Deep API surface review — map every UI data need to endpoints/fields, categorize gaps | `02-ui-design.md` (updated) or `03-api-findings.md` |
+| Revise | `/ui-design:revise` | Incorporate feedback | Updated `02-ui-design.md` |
+| Publish | `/ui-design:publish` | Push UI design document to docs repo as a draft PR | `04-pr-description.md`, `publish-metadata.json` |
+| Respond | `/ui-design:respond` | Address PR reviewer comments | `05-review-responses.md`, updated `02-ui-design.md` |
+| Sync | `/ui-design:sync` | Create/update/close `[DEV]` stories for API gaps | `sync-manifest.json` |
 
 ## Typical Flow
 
 ```text
-/ingest EDM-1234
+/ui-design:ingest EDM-1234
   → fetches the [UI] story from Jira
   → follows references to load UX handoff, PRD, design doc from docs repo
   → reads AGENTS.md, UI-ARCHITECTURE.md
@@ -68,7 +69,7 @@ The workflow draws from multiple published sources — never from another workfl
   → explores backend API (types, endpoints, OpenAPI specs)
   → writes .artifacts/ui-design/EDM-1234/01-context.md
 
-/plan
+/ui-design:plan
   → reads context and UX handoff data annotations
   → decomposes into component architecture (tree, new vs reused, props)
   → designs custom hooks and data-fetching patterns
@@ -81,30 +82,30 @@ The workflow draws from multiple published sources — never from another workfl
   → maps acceptance criteria back to UX handoff
   → writes 02-ui-design.md
 
-/review-api
+/ui-design:review-api
   → deep-reads backend API types, controllers, and OpenAPI specs
   → maps every UI data need to a specific endpoint and field
   → categorizes gaps: data, state, pagination/filtering, shape mismatches
   → updates 02-ui-design.md with API Findings section
     (or writes separate 03-api-findings.md if too verbose)
 
-/revise
+/ui-design:revise
   → user reviews, requests changes
   → artifacts updated, consistency maintained
   → repeatable
 
-/publish
+/ui-design:publish
   → commits UI design document to feature branch in docs repo
   → creates draft GitHub PR
   → writes 04-pr-description.md
 
-/respond
+/ui-design:respond
   → fetches PR review comments
   → proposes responses (user approves before posting)
   → updates UI design document if needed
   → repeatable
 
-/sync
+/ui-design:sync
   → reads API findings from 02-ui-design.md (or 03-api-findings.md)
   → previews all Jira operations (dry run)
   → creates [DEV] stories for API gaps — creates new, updates changed, closes resolved
@@ -201,4 +202,4 @@ ui-design/
 ./install.sh all
 ```
 
-Then in your project, run `/ingest` with a `[UI]` Jira story key to begin.
+Then in your project, run `/ui-design:ingest` with a `[UI]` Jira story key to begin.

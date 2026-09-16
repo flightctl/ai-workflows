@@ -90,9 +90,13 @@ When the user provides a Jira issue key or URL:
 2. Read `dispatch.md` and follow it.
 
 When the user provides a UI design context in another form (text, document):
-1. Capture the context into `01-context.md` in the artifact directory.
-2. Set `PHASE=plan`.
-3. Read `dispatch.md` and follow it.
+1. Derive a stable context identifier from the input (e.g., a slug from
+   the document filename or a short user-provided label). Confirm the
+   identifier with the user.
+2. Create `.artifacts/ui-design/{context-id}/` and capture the context
+   into `01-context.md`.
+3. Set `PHASE=plan`.
+4. Read `dispatch.md` and follow it.
 
 If the user invokes a specific command (e.g., `/review-api`), set `PHASE` to
 that command's phase, then read `dispatch.md` and follow it. Do not force the
