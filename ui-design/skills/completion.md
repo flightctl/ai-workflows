@@ -30,8 +30,13 @@ user.
 - **respond:** Recommend another `/respond` round while comments remain,
   or `/sync` when the PR is approved and API gap stories need creation.
   Note completion when the PR is approved and no sync is needed.
-- **sync:** The workflow is complete. Note that `[DEV]` stories have been
-  synced and suggest assigning them to the backend team.
+- **sync:** The workflow is complete.
+  - If stories were synced: note that `[DEV]` stories have been synced and
+    suggest assigning them to the backend team.
+  - If tracked-only or nothing-to-do: "API gaps have been assessed; no Jira
+    changes were needed."
+  - If sync encountered errors: "Sync completed with issues; review the
+    manifest for details."
 
 The user may start at `/review-api` with an existing design, and may skip
 `/publish`, `/respond`, and `/sync` when working locally or when no API gaps
