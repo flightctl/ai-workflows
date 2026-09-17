@@ -101,10 +101,12 @@ When the user provides a UI design context in another form (text, document):
 1. Derive `{workspace-id}` from the input (e.g., a slug from the document
    filename or a short user-provided label). Confirm the identifier with
    the user.
-2. Create `.artifacts/ui-design/{workspace-id}/` and capture the context
-   into `01-context.md`.
-3. Set `PHASE=plan`.
-4. Read `dispatch.md` and follow it.
+2. Set `PHASE=ingest`.
+3. Read `dispatch.md` and follow it.
+
+The `/ingest` phase handles non-Jira input: it creates the artifact
+directory, compiles the provided context into `01-context.md`, and skips
+Jira retrieval. After `/ingest` completes, the user can run `/plan`.
 
 If the user invokes a specific command (e.g., `/review-api`), set `PHASE` to
 that command's phase, then read `dispatch.md` and follow it. Do not force the

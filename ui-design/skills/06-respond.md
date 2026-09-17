@@ -135,45 +135,79 @@ git -C "{docs_repo_path}" commit -m "Address review feedback for {issue-key} UI 
 git -C "{docs_repo_path}" push
 ```
 
-### Step 6: Post Responses
+### Step 6: Post Responses and Record
 
 Post responses only after the corresponding document commit is confirmed
-pushed. For each approved response, write the response text to a working
-file and use `--body-file` to avoid shell interpolation issues with
-reviewer-derived content:
+pushed. For each approved response, perform steps 6a–6d before moving to
+the next comment.
+
+#### 6a: Write response file safely
+
+Use a heredoc with a quoted delimiter so reviewer-controlled content is
+treated as literal data, preventing shell interpolation:
 
 ```bash
-echo "{response}" > .artifacts/ui-design/{issue-key}/pr-response-{N}.md
-gh api "repos/{upstream_repo}/pulls/{pr_number}/comments/{comment_id}/replies" \
+cat > .artifacts/ui-design/{issue-key}/pr-response-{N}.md << 'ENDOFRESPONSE'
+{response}
+ENDOFRESPONSE
+```
+
+#### 6b: Resolve root comment ID for inline replies
+
+The GitHub `/replies` endpoint requires a top-level review comment ID.
+If the selected comment is a nested reply (its `in_reply_to_id` is set),
+walk the chain to find the root comment. Retain the originally selected
+`{comment_id}` for the response log in Step 6d.
+
+```bash
+root_comment_id={comment_id}
+while true; do
+  parent_id=$(gh api "repos/{upstream_repo}/pulls/comments/${root_comment_id}" \
+    --jq '.in_reply_to_id // empty')
+  [ -z "$parent_id" ] && break
+  root_comment_id="$parent_id"
+done
+```
+
+#### 6c: Post the response
+
+For inline replies, use the resolved `root_comment_id`:
+
+```bash
+gh api "repos/{upstream_repo}/pulls/{pr_number}/comments/${root_comment_id}/replies" \
   -F "body=@.artifacts/ui-design/{issue-key}/pr-response-{N}.md"
 ```
 
-For inline replies, use the stored review-comment ID from Step 2 to reply
-in the correct thread. For general (non-inline) comments, use:
+For general (non-inline) comments, use:
 
 ```bash
-gh pr comment {pr_number} --repo "{upstream_repo}" --body-file .artifacts/ui-design/{issue-key}/pr-response-{N}.md
+gh pr comment {pr_number} --repo "{upstream_repo}" \
+  --body-file .artifacts/ui-design/{issue-key}/pr-response-{N}.md
 ```
 
-After all responses have been posted, clean up the individual response
-files — their content is captured in Step 7's response log:
+#### 6d: Persist each response immediately
 
-```bash
-rm -f .artifacts/ui-design/{issue-key}/pr-response-*.md
-```
+Append the log entry for this response to
+`.artifacts/ui-design/{issue-key}/05-review-responses.md` immediately
+after confirmed posting, before moving to the next comment. This ensures
+that if the run is interrupted, already-posted responses are recorded and
+will not be reposted on the next `/respond` invocation.
 
-### Step 7: Record Responses
-
-Write or update `.artifacts/ui-design/{issue-key}/05-review-responses.md`:
+If the file does not exist yet, create it with the round header first:
 
 ```markdown
 # Review Responses — {issue-key}
 
 ## Round {N} — {date}
+```
 
+Then append each entry immediately after posting:
+
+```markdown
 ### Comment #{N}: {reviewer} on {section}
 
-**Comment ID:** {GitHub comment_id from Step 2}
+**Comment ID:** {comment_id} (originally selected comment)
+**Root Comment ID:** {root_comment_id} (used for posting; same as Comment ID if not a nested reply)
 **Thread ID:** {thread_id, if inline review comment; "N/A" for general comments}
 **Timestamp:** {ISO timestamp when response was posted}
 **Comment:** {text}
@@ -183,9 +217,21 @@ Write or update `.artifacts/ui-design/{issue-key}/05-review-responses.md`:
 **Post result:** {success / failed — include error if failed}
 ```
 
-After writing the response log, verify the file is saved to the artifacts
-directory. This file is the persistent record of all review interactions
-and must survive across sessions.
+#### 6e: Clean up
+
+After all responses have been posted, clean up the individual response
+files — their content is captured in the per-response log entries above:
+
+```bash
+rm -f .artifacts/ui-design/{issue-key}/pr-response-*.md
+```
+
+### Step 7: Verify Response Log
+
+Verify that `.artifacts/ui-design/{issue-key}/05-review-responses.md`
+contains an entry for every response posted in this round. This file is
+the persistent record of all review interactions and must survive across
+sessions.
 
 ### Step 8: Report to User
 
