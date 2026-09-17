@@ -77,12 +77,17 @@ key), check whether `.artifacts/ui-design/{workspace-id}/` already
 exists. If it does, ask the user to confirm before proceeding:
 
 *"The workspace directory `.artifacts/ui-design/{workspace-id}/`
-already exists. Do you want to reuse this workspace (existing artifacts
-may be overwritten), or provide a different identifier?"*
+already exists and contains prior artifacts. If you reuse this
+workspace, `01-context.md` will be regenerated (overwritten) by this
+ingest run, but all other phase artifacts (e.g., `02-ui-design.md`,
+`03-api-findings.md`, `sync-manifest.json`) will be preserved. Do you
+want to proceed, or provide a different workspace-id?"*
 
-Wait for the user's choice. If they provide a new identifier, re-validate
-it (same rules as Step 1) and use it going forward. Only proceed once
-the user has confirmed.
+Wait for the user's choice. If they do not confirm, ask for a different
+identifier, re-validate it (same rules as Step 1), and use it going
+forward. If they confirm, proceed — preserving all existing artifacts
+except `01-context.md`, which the ingest phase regenerates. Do not
+delete or overwrite other phase artifacts during ingest.
 
 ```bash
 mkdir -p .artifacts/ui-design/{workspace-id}
