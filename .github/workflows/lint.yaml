@@ -48,7 +48,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - run: bash .github/scripts/validate-versions.sh
+      - run: bash .github/scripts/validate-versions.sh "${{ github.event.before }}"
 
   link-check:
     name: Link Check
