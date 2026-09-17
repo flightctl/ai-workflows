@@ -11,37 +11,43 @@ You are fetching **every unresolved bug** and **recently resolved bugs** (for re
 
 - **Shell:** run `triage/scripts/scan.py` to fetch, normalize, and write artifacts
 - **Local:** read script output (stdout, stderr, exit code)
-- **Prohibited:** all Jira MCP tools — the script calls the Jira REST API directly
+- **Prohibited:** all Jira MCP tools — the script calls the authenticated Jira CLI when available, with REST as fallback
 
 ## Prerequisites
 
 Before scanning, ensure you have:
 
 - **Project key** (required) — from `/start` or the user's message
-- **`JIRA_URL`** (required) — Jira instance base URL (e.g., `https://redhat.atlassian.net`)
-- **`JIRA_TOKEN`** (required) — API token or Personal Access Token
+- **`jira` CLI** (preferred) for the deterministic bulk scan, or `JIRA_URL` and `JIRA_TOKEN` for the REST fallback. Jira MCP can validate interactive access but is not a transport for `scan.py`.
 - **`JIRA_EMAIL`** (optional) — account email; required when using an API token (Basic auth), omit for PATs (Bearer auth)
 
-If the project key is missing, ask the user before proceeding. If the environment variables are not set, tell the user which ones to set and stop.
+If the project key is missing, ask the user before proceeding. If neither the CLI nor REST variables are configured, tell the user what is missing and stop.
 
 ## Process
 
 ### Step 1: Verify Environment
 
-Check that `JIRA_URL` and `JIRA_TOKEN` environment variables are set (do not print or echo their values). If either is missing, tell the user which variable to set and stop.
+Check that the `jira` executable is available. If it is unavailable, check that `JIRA_URL` and `JIRA_TOKEN` are set without printing their values.
 
 ### Step 2: Run the Scan Script
 
 Run the scan script to fetch and normalize all bugs. Resolve
 `{AI_WORKFLOWS_ROOT}` by running `git rev-parse --show-toplevel` from
-within the ai-workflows checkout (e.g., this skill file's directory).
-The `--output-dir` path is relative to the project root (CWD).
+within the ai-workflows checkout, or use the installed ai-workflows root.
+Keep the target project as the artifact root; the script may run from the
+package root so its script reference remains package-relative.
+Validate `{PROJECT}` against `^[A-Z][A-Z0-9_]+$` before expanding it in a
+shell command. If it does not match, stop.
 
 ```bash
-python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/scan.py" {PROJECT} --output-dir .artifacts/triage/{PROJECT}
+PROJECT_ROOT="$PWD"
+(
+  cd "{AI_WORKFLOWS_ROOT}"
+  python3 triage/scripts/scan.py "{PROJECT}" --output-dir "$PROJECT_ROOT/.artifacts/triage/{PROJECT}"
+)
 ```
 
-The script handles pagination, normalization, and file output. It writes:
+The script handles CLI/REST pagination, normalization, and file output. It writes:
 
 - `.artifacts/triage/{PROJECT}/issues.json` — all unresolved bugs
 - `.artifacts/triage/{PROJECT}/resolved.json` — bugs resolved in the last 90 days
@@ -49,7 +55,11 @@ The script handles pagination, normalization, and file output. It writes:
 To change the resolved-bug lookback window (default 90 days):
 
 ```bash
-python3 "{AI_WORKFLOWS_ROOT}/triage/scripts/scan.py" {PROJECT} --window-days 30 --output-dir .artifacts/triage/{PROJECT}
+PROJECT_ROOT="$PWD"
+(
+  cd "{AI_WORKFLOWS_ROOT}"
+  python3 triage/scripts/scan.py "{PROJECT}" --window-days 30 --output-dir "$PROJECT_ROOT/.artifacts/triage/{PROJECT}"
+)
 ```
 
 ### Step 3: Handle Errors

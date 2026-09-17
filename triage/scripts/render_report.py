@@ -188,6 +188,49 @@ def build_replacements(
     }
 
 
+def validate_ai_synthesis(ai_input: object, issue_count: int) -> None:
+    """Validate the semantic report-synthesis contract before rendering."""
+    if not isinstance(ai_input, dict):
+        raise ValueError("AI input must be an object")
+    executive_summary = ai_input.get("executiveSummary")
+    if not isinstance(executive_summary, list) or not all(
+        isinstance(item, str) and item.strip() for item in executive_summary
+    ):
+        raise ValueError("executiveSummary must be an array of non-empty strings")
+    if issue_count and not 3 <= len(executive_summary) <= 5:
+        raise ValueError("non-empty reports require 3-5 executiveSummary bullets")
+
+    release_risk = ai_input.get("releaseRisk")
+    if issue_count < 5 and release_risk is not None:
+        raise ValueError("releaseRisk must be null for reports with fewer than five issues")
+    if issue_count >= 5 and release_risk is None:
+        raise ValueError("releaseRisk must be an object for reports with five or more issues")
+    if release_risk is None:
+        return
+    if not isinstance(release_risk, dict):
+        raise ValueError("releaseRisk must be an object or null")
+    if release_risk.get("riskLevel") not in {"High", "Medium", "Low"}:
+        raise ValueError("releaseRisk.riskLevel must be High, Medium, or Low")
+    if not isinstance(release_risk.get("summary"), str) or not release_risk["summary"].strip():
+        raise ValueError("releaseRisk.summary must be a non-empty string")
+    factors = release_risk.get("factors")
+    if not isinstance(factors, list) or not all(isinstance(item, dict) for item in factors):
+        raise ValueError("releaseRisk.factors must be an array of objects")
+    for factor in factors:
+        if not all(
+            isinstance(factor.get(name), str) and factor[name].strip()
+            for name in ("signal", "severity", "detail")
+        ):
+            raise ValueError("releaseRisk factors require signal, severity, and detail strings")
+        if factor["severity"] not in {"High", "Medium", "Low"}:
+            raise ValueError("releaseRisk factor severity must be High, Medium, or Low")
+    mitigations = release_risk.get("mitigations")
+    if not isinstance(mitigations, list) or not all(
+        isinstance(item, str) and item.strip() for item in mitigations
+    ):
+        raise ValueError("releaseRisk.mitigations must be an array of non-empty strings")
+
+
 def render(template: str, replacements: dict[str, str]) -> tuple[str, list[str]]:
     """Replace placeholder tokens in the template, returning the result
     and any tokens the caller must treat as a failure.
@@ -287,6 +330,14 @@ def main(argv: list[str] | None = None) -> int:
     template = _read_text(args.template, "HTML template")
 
     jira_url = extract_jira_base_url(issues_data)
+
+    analyzed_issues = analyzed.get("issues", []) if isinstance(analyzed, dict) else []
+    issue_count = len(analyzed_issues) if isinstance(analyzed_issues, list) else 0
+    try:
+        validate_ai_synthesis(ai_input, issue_count)
+    except ValueError as exc:
+        print(f"Error: invalid AI synthesis schema: {exc}", file=sys.stderr)
+        return 1
 
     replacements = build_replacements(
         analyzed=analyzed,

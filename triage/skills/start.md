@@ -9,11 +9,17 @@ You are onboarding the user into the triage workflow. Your goal is to validate J
 
 ## Allowed Tools
 
-- **Jira MCP (read-only):** `jira_search` — validate project access only
+- **Jira CLI or Jira MCP (read-only):** validate project access only; prefer the global `jira` CLI
 - **Local:** `mkdir` — create artifact directory
 - **Prohibited:** all Jira write tools (create, update, delete, comment, transition)
 
 ## Process
+
+Before the validation query, verify that the selected Jira access method is
+available and authenticated. For the default CLI path, check that `jira` is
+installed and executable. Jira MCP may be used for interactive validation,
+but the deterministic bulk scan requires the CLI or its REST fallback.
+If neither is available, stop and report the missing access method.
 
 ### Step 1: Present the Workflow
 
@@ -31,22 +37,30 @@ You need one parameter. If it was provided in the user's message, use it directl
 
 ### Step 3: Validate Jira Access
 
-Verify the project is accessible by running a lightweight JQL query using the `jira_search` MCP tool (server: `user-mcp-jira`) with these exact JSON arguments:
+Before expanding `{PROJECT}` in any shell command, validate it against
+`^[A-Z][A-Z0-9_]+$`. If it does not match, stop and ask for a valid Jira
+project key.
 
-```json
-{
-  "jql": "project = {PROJECT} AND issuetype = Bug AND resolution = Unresolved ORDER BY key ASC",
-  "fields": "summary,status",
-  "limit": 1
-}
+Verify the project is accessible using the selected read-only Jira method. With
+the preferred CLI:
+
+```bash
+jira issue list -p "{PROJECT}" -t Bug -R unresolved \
+  --paginate 0:1 --plain --no-headers --columns KEY,SUMMARY
 ```
 
-If the query succeeds and returns at least one issue, Jira access is confirmed.
+If the CLI command succeeds and returns at least one issue, Jira access is
+confirmed. A successful empty result means there are no matching bugs. Any
+non-zero exit code is a Jira CLI/configuration failure.
+
+If Jira MCP was selected, perform the equivalent read-only project/bug access
+check through the configured MCP server and record that the bulk scan must use
+the CLI or REST fallback.
 
 If the query fails, report the error and suggest:
 
 - Verify the project key is correct
-- Check that the MCP server `user-mcp-jira` is configured and authenticated
+- Check that the global `jira` CLI is configured and authenticated
 - Confirm the Jira user has access to the project
 
 ### Step 4: Create Artifact Workspace
@@ -54,7 +68,7 @@ If the query fails, report the error and suggest:
 Create the artifact directory for this triage run:
 
 ```bash
-mkdir -p .artifacts/triage/{PROJECT}
+mkdir -p ".artifacts/triage/{PROJECT}"
 ```
 
 ### Step 5: Confirm Parameters
@@ -65,7 +79,7 @@ Present the resolved parameters back to the user:
 Triage parameters:
   Project:           EDM
   Jira access:       Confirmed
-  Unresolved bugs:   ~87 (estimate from validation query)
+  Jira access method: CLI
   Artifacts:         .artifacts/triage/EDM/
 ```
 
@@ -73,11 +87,11 @@ Triage parameters:
 
 - Validated project key and Jira access
 - Artifact directory created
-- Estimated issue count
+- Jira access method and project key
 
 ## On Completion
 
-Present the validated parameters and estimated issue count to the user, then recommend next steps:
+Present the validated parameters to the user, then recommend next steps:
 
 **Recommended:** `/scan` — fetch all unresolved bugs from the confirmed project.
 
