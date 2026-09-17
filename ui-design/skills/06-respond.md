@@ -175,8 +175,12 @@ git -C "{docs_repo_path}" push
 
 ### Step 6: Post Responses and Record
 
-Post responses only after the corresponding document commit is confirmed
-pushed. For each approved response, perform steps 6a–6d before moving to
+If all approved responses require no document changes (every response has
+Document change: None), skip the push confirmation and post the
+clarification-only responses directly. Otherwise, post responses only
+after the corresponding document commit is confirmed pushed.
+
+For each approved response, perform steps 6a–6d before moving to
 the next comment.
 
 #### 6a: Write response file safely
@@ -189,6 +193,9 @@ cat > .artifacts/ui-design/{issue-key}/pr-response-{N}.md << 'ENDOFRESPONSE'
 {response}
 ENDOFRESPONSE
 ```
+
+If the response text contains a line matching the heredoc delimiter, use
+the agent's file-writing tool instead of shell heredoc.
 
 #### 6b: Resolve root comment ID for inline replies
 
@@ -253,6 +260,7 @@ Then append each entry immediately after posting:
 **Response:** {what was posted}
 **Document change:** {what was changed, or "None"}
 **Post result:** {success / failed — include error if failed}
+**API Response ID:** {id returned by the GitHub API response on successful post; "N/A" on failure}
 ```
 
 #### 6e: Clean up

@@ -26,7 +26,7 @@ explicit user approval.
 - **Explicit approval required.** Never modify Jira without the user saying "yes."
 - **Idempotent.** Track what was synced in a manifest with content hashes. If re-run with no changes, do nothing.
 - **Manifest gate.** Before proceeding past Step 1, you **must** state aloud to the user what the manifest contains (or that none exists). This is mandatory — do not silently skip this acknowledgment.
-- **Jira-side duplicate check.** Before creating each story, query Jira for existing children under the parent with a matching summary. If a match is found, stop and present the match to the user — do not create a duplicate.
+- **Jira-side duplicate check.** Before creating each story, query Jira for existing children under the parent with a matching gap_id marker. If a match is found, stop and present the match to the user — do not create a duplicate.
 - **Sync-owned fields.** Sync owns: summary, description, and parent link (creation only). Sync never touches: assignee, sprint, comments, labels, or any other Jira-managed field.
 - **Status transitions are limited.** Sync may only perform two status transitions: (1) transition resolved issues to Done/Closed, and (2) reopen previously closed issues when a gap reappears. Sync must not edit status for any other reason.
 - **Logical deletion via status.** Gaps are closed (not deleted) when they are resolved — the gap entry is removed from the API findings or marked as resolved. The manifest tracks the closure.
