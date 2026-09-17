@@ -4,16 +4,16 @@ version: 0.2.0
 ---
 # Provenance Schema
 
-Tracks environment context when PRD and design workflow phases mutate planning
-documents. See `scripts/provenance.py` for capture and render logic.
+Tracks environment context when PRD, design, and ui-design workflow phases mutate
+planning documents. See `scripts/provenance.py` for capture and render logic.
 
 ## Published vs session-local
 
 | Artifact | Location | Published? |
 |----------|----------|------------|
-| `## Provenance` footer | Docs-repo `prd.md` / `design.md` | **Yes** — durable triage contract |
+| `## Provenance` footer | Docs-repo `prd.md` / `design.md` / `ui-design.md` | **Yes** — durable triage contract |
 | `provenance.json` | `.artifacts/{workflow}/{issue}/` in source repo | **No** — gitignored session log |
-| `03-prd.md` / `03-design.md` | `.artifacts/` in source repo | **No** — working drafts without footer |
+| `03-prd.md` / `03-design.md` / `02-ui-design.md` | `.artifacts/` in source repo | **No** — working drafts without footer |
 
 Fields required for merged-doc triage must appear in the **footer**. The JSON log
 supports same-session drift analysis only.
@@ -79,7 +79,7 @@ supports same-session drift analysis only.
 
 | Field | Description |
 |-------|-------------|
-| `phase` | `draft`, `revise`, `respond`, `manual-edit`, or `commit` |
+| `phase` | `draft`, `plan`, `revise`, `respond`, `manual-edit`, or `commit` |
 | `authoring_mode` | `skill` or `manual` |
 | `timestamp` | ISO-8601 UTC |
 | `workflow_version` | Semver from `{workflow}/SKILL.md` |
@@ -181,6 +181,6 @@ Format rules:
 
 | Tier | Features |
 |------|----------|
-| 1 | Capture on draft/revise/respond; render on docs-repo commits; footer |
+| 1 | Capture on draft/plan/revise/respond; render on docs-repo commits; footer |
 | 2 | Main distance fields; drift block in JSON |
 | 3 | `authoring_mode`; `manual-edit` phase via `record-manual-edit` recipe |

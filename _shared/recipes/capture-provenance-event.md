@@ -11,7 +11,7 @@ phase mutates the planning document. See `../provenance-schema.md`.
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| WORKFLOW | Yes | `prd` or `design` |
+| WORKFLOW | Yes | `prd`, `design`, or `ui-design` |
 | ISSUE_KEY | Yes | Full Jira issue key including project prefix (e.g., `PROJ-1234`, not `1234`) |
 | PHASE | Yes | `draft`, `revise`, or `respond` |
 | AUTHORING_MODE | Yes | `skill` (default for phase skills) or `manual` |
