@@ -31,7 +31,7 @@ is the user's review checkpoint before any code is written.
 ### Step 1: Read Source Material
 
 Read these files in order:
-1. `.artifacts/ui-design/{issue-key}/01-context.md` (ingestion context)
+1. `.artifacts/ui-design/{workspace-id}/01-context.md` (ingestion context)
 2. The project's `AGENTS.md` and/or `CLAUDE.md` (coding conventions)
 3. `UI-ARCHITECTURE.md` if it exists (frontend-specific patterns)
 
@@ -93,12 +93,12 @@ For each section:
    `[Design: §4.3]`, `[Design: IC-N]`, `[PRD: FR-N]`, `[Codebase: path/to/file]`,
    `[User]`
 
-Write `.artifacts/ui-design/{issue-key}/02-ui-design.md` with this structure:
+Write `.artifacts/ui-design/{workspace-id}/02-ui-design.md` with this structure:
 
 ```markdown
-# UI Design — {issue-key}
+# UI Design — {workspace-id}
 
-**Story:** {issue-key} — {title}
+**Story:** {workspace-id} — {title}
 **Date:** {today's date}
 **Parent:** {parent epic/feature key}
 
@@ -483,15 +483,15 @@ Before presenting the UI design document, verify:
 
 ### Step 6: Write Artifact
 
-Save the UI design document to `.artifacts/ui-design/{issue-key}/02-ui-design.md`.
+Save the UI design document to `.artifacts/ui-design/{workspace-id}/02-ui-design.md`.
 
 Read and follow `../../_shared/recipes/capture-provenance-event.md` with
-`WORKFLOW=ui-design`, `ISSUE_KEY={issue-key}`, `PHASE=plan`,
+`WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, `PHASE=plan`,
 `AUTHORING_MODE=skill`.
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
-`WORKFLOW=ui-design`, `ISSUE_KEY={issue-key}`, and `TARGET_FILE` set to the
-absolute source-repo path to `.artifacts/ui-design/{issue-key}/02-ui-design.md`.
+`WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, and `TARGET_FILE` set to the
+absolute source-repo path to `.artifacts/ui-design/{workspace-id}/02-ui-design.md`.
 
 ### Step 7: Present to User
 
@@ -509,8 +509,8 @@ Show the user the complete UI design document and highlight:
 
 ## Output
 
-- `.artifacts/ui-design/{issue-key}/02-ui-design.md`
-- `.artifacts/ui-design/{issue-key}/provenance.json`
+- `.artifacts/ui-design/{workspace-id}/02-ui-design.md`
+- `.artifacts/ui-design/{workspace-id}/provenance.json`
 
 ## When This Phase Is Done
 

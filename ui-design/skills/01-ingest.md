@@ -56,26 +56,26 @@ The user will provide one of:
 - A description of the UI work to be done
 
 **Jira input:** Extract the full Jira issue key, including the project
-prefix (e.g., `PROJ-1234`, not just `1234`). Use this as `{issue-key}`
+prefix (e.g., `PROJ-1234`, not just `1234`). Use this as `{workspace-id}`
 throughout the workflow.
 
 **Non-Jira input:** When the user provides a path or description instead
-of a Jira key, derive a stable context identifier from the input — for
-example, a slug from the document filename or a short user-provided label.
-Confirm the identifier with the user before creating the artifact directory.
+of a Jira key, derive `{workspace-id}` from the input — for example, a
+slug from the document filename or a short user-provided label. Confirm
+the identifier with the user before creating the artifact directory.
 Skip Jira retrieval in Step 3 and proceed directly to Step 4.
 
 ### Step 2: Create Artifact Directory
 
 ```bash
-mkdir -p .artifacts/ui-design/{issue-key}
+mkdir -p .artifacts/ui-design/{workspace-id}
 ```
 
 ### Step 2a: Check for Prior Ingest
 
-If `.artifacts/ui-design/{issue-key}/01-context.md` already exists, this
+If `.artifacts/ui-design/{workspace-id}/01-context.md` already exists, this
 is a re-invocation. Copy the existing file to
-`.artifacts/ui-design/{issue-key}/01-context.md.prev` so it is preserved
+`.artifacts/ui-design/{workspace-id}/01-context.md.prev` so it is preserved
 for the diff in Step 8a.
 
 ### Step 3: Read the [UI] Story
@@ -83,7 +83,7 @@ for the diff in Step 8a.
 Fetch the Jira issue using the shared script:
 
 ```bash
-python3 "../../_shared/scripts/fetch-issue.py" get {issue-key}
+python3 "../../_shared/scripts/fetch-issue.py" get {workspace-id}
 ```
 
 From the story, extract:
@@ -114,11 +114,11 @@ the stored path is absolute. Write `.artifacts/config.json`.
 
 ### Step 5: Load Upstream Planning Artifacts
 
-Search the docs repo for a directory whose name contains `{issue-key}` or
+Search the docs repo for a directory whose name contains `{workspace-id}` or
 the parent feature key:
 
 ```bash
-find "{docs_repo_path}" -type d \( -name "*{issue-key}*" -o -name "*{feature-key}*" \)
+find "{docs_repo_path}" -type d \( -name "*{workspace-id}*" -o -name "*{feature-key}*" \)
 ```
 
 #### 5.1: Load the PRD
@@ -241,14 +241,14 @@ structure below. If this is a re-invocation (Step 2a found an existing file),
 Step 8a first.
 
 If this is a first invocation, write
-`.artifacts/ui-design/{issue-key}/01-context.md` with this structure:
+`.artifacts/ui-design/{workspace-id}/01-context.md` with this structure:
 
 ```markdown
-# UI Design Context — {issue-key}
+# UI Design Context — {workspace-id}
 
 ## Story Summary
 
-- **Story:** {issue-key} — {title}
+- **Story:** {workspace-id} — {title}
 - **Type:** [UI]
 - **Parent:** {parent epic/feature key}
 - **Jira:** {issue URL}
@@ -423,7 +423,7 @@ If the user declined a re-invocation overwrite in Step 8a, report instead:
 
 ## Output
 
-- `.artifacts/ui-design/{issue-key}/01-context.md`
+- `.artifacts/ui-design/{workspace-id}/01-context.md`
 
 ## When This Phase Is Done
 
