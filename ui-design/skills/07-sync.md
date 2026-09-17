@@ -61,15 +61,15 @@ pending-findings marker (no gaps table), stop and report that the findings
 are incomplete. If any required file is unreadable, stop and report the
 error before performing any Jira operations.
 
-Extract every gap from the API Gaps table. Each gap must have a stable
-`gap_id` derived deterministically from a content-based hash: compute
-`SHA-256(category + "|" + original_title)` and take the first 12 hex
-characters, prefixed by the category slug (e.g.,
-`data-a1b2c3d4e5f6`). This ensures the identifier remains stable even
-if the title is later rephrased. Use `gap_id` as the sole matching key
-when comparing findings with the manifest; do not match by
-`gap_number` or title alone. Continue using `content_hash` only to
-detect changes for matched active entries.
+Extract every gap from the API Gaps table. Each gap row must contain a
+`gap_id` field produced by the `/review-api` phase (see
+`03-review-api.md` — Gap ID derivation). Use this producer-provided
+`gap_id` as the sole matching key when comparing findings with the
+manifest; do not re-derive or recompute it during sync, and do not
+match by `gap_number` or title alone. If any gap row is missing a
+`gap_id`, stop and tell the user to re-run `/review-api` — the
+findings pre-date the gap_id requirement. Continue using
+`content_hash` only to detect changes for matched active entries.
 
 **Zero-gap guard:** If the API findings section is non-empty (contains
 a gaps table or narrative content) but parsing produces zero extracted
@@ -81,6 +81,28 @@ Please verify the API Findings section and re-run /sync."*
 
 Wait for the user to confirm before proceeding — either they fix the
 findings or explicitly confirm that zero gaps is correct.
+
+**Canonical content_hash computation.** To ensure `content_hash`
+changes whenever a Jira-rendered field changes, define the hash
+payload as the sorted JSON serialization of exactly these fields:
+
+```json
+{
+  "affected_components": "{affected components}",
+  "category": "{gap category}",
+  "current_state": "{current state}",
+  "severity": "{severity}",
+  "suggested_approach": "{suggested approach}",
+  "ui_need": "{UI need}",
+  "whats_missing": "{what's missing}"
+}
+```
+
+Compute `content_hash = SHA-256(JSON.stringify(payload))` where keys
+are sorted alphabetically (as shown above) and values are trimmed of
+leading/trailing whitespace. This set of fields matches exactly what
+gets rendered into the Jira description template — any change to a
+rendered field triggers an update.
 
 Each gap that has severity
 `critical`, `high`, or `medium` is a candidate for a `[DEV]` story.
@@ -119,8 +141,14 @@ Proceed to Step 2.
 Read it and categorize every gap into one of four buckets by comparing
 the manifest against the current API findings:
 
-1. **New** — gap exists in the findings, no matching entry in the manifest.
+1. **New** — gap exists in the findings with severity `critical`, `high`,
+   or `medium`, and no matching entry in the manifest.
    Action: create a `[DEV]` story in Jira.
+
+   **New (Tracked)** — gap exists in the findings with severity `low`
+   and no matching entry in the manifest.
+   Action: create a manifest entry with `synced_status: "tracked"` — no
+   Jira story is created.
 
 2. **Changed** — gap exists in the findings, matching entry in the manifest
    with `synced_status: "active"`, and the SHA-256 hash of the gap's
@@ -152,7 +180,10 @@ the manifest against the current API findings:
 **Edge case — reopened:** If a gap reappears in the findings but its
 manifest entry has `synced_status: "closed"`, the gap was previously
 resolved and has returned. Treat it as **Changed** — transition the
-Jira issue back to an open status and update its content.
+Jira issue back to an open status, update its content, and set
+`synced_status` back to `"active"` in the manifest. Without this
+reset, the next sync run would see `synced_status: "closed"` and
+attempt to reopen the issue again.
 
 **Edge case — already closed:** If a manifest entry has
 `synced_status: "closed"` and the gap is still absent from the findings,
@@ -243,21 +274,37 @@ first — do not modify the findings during sync.
 
 ### Step 4: Sync Stories
 
-Process stories in three passes: create new, update changed, close resolved.
+**Promotion check (tracked → active).** Before processing the three
+passes below, scan manifest entries with `synced_status: "tracked"`.
+For each tracked entry, compare its current severity in the findings:
+- If the severity has increased to `medium`, `high`, or `critical`,
+  promote the entry to the **New** bucket — it will receive a Jira
+  story in pass 4a.
+- If the severity is still `low`, leave it tracked.
+- If the gap is no longer in the findings, route it to the **Resolved**
+  bucket to mark it closed in the manifest.
+
+Process stories in four passes: promote tracked, create new, update
+changed, close resolved.
 
 #### 4a: Create New Stories
 
 **Pre-creation duplicate check (per story).** Before creating each story,
-query by a structured HTML comment marker embedded in the description
-rather than fuzzy-matching the summary. This marker is invisible in the
-Jira UI but provides an exact match:
+query by the `gap_id` value embedded in the description rather than
+fuzzy-matching the summary. The HTML comment marker
+(`<!-- gap_id: {gap_id} -->`) remains in the description for display
+purposes, but Jira's `~` text-search operator does not index
+punctuation characters (`<`, `!`, `-`, `>`), so the JQL query must use
+exact-phrase syntax on the plain-text portion instead.
+
+Compute `jql_escaped_gap_id` by escaping any backslashes and
+double-quotes in `gap_id` (e.g., `\` → `\\`, `"` → `\"`). Then query:
 
 ```
-parent = {parent-key} AND issuetype = Story AND description ~ "<!-- gap_id: {gap_id} -->"
+parent = {parent-key} AND issuetype = Story AND description ~ "\"gap_id: {jql_escaped_gap_id}\""
 ```
 
-If the query returns one or more matching issues, **do not create the
-story.** Present the match to the user:
+If the query returns exactly one matching issue, present it to the user:
 
 ```text
 Duplicate detected — a story matching gap_id "{gap_id}" already exists
@@ -270,9 +317,27 @@ Options:
   (b) Stop sync entirely so you can investigate
 ```
 
+If the query returns **multiple** matching issues, list ALL matches and
+require the user to select one before proceeding:
+
+```text
+Multiple stories matching gap_id "{gap_id}" found under {parent-key}:
+
+  1. {key-1}: {summary-1}
+  2. {key-2}: {summary-2}
+  ...
+
+Options:
+  (a) Select one to link in the manifest (provide the number)
+  (b) Stop sync entirely so you can investigate
+```
+
+Do NOT bind the manifest to an arbitrary single match — the user must
+choose which existing story to link.
+
 Never offer a "create anyway" option — creating a duplicate story
 contradicts the critical rule against duplicate creation. The only
-paths forward are to link to the existing story or stop to investigate.
+paths forward are to link to an existing story or stop to investigate.
 
 Wait for the user's choice before continuing.
 
@@ -285,10 +350,12 @@ For each new story, create a Jira issue:
 - **Description:**
 
 Before rendering the description, load `pr_url` from
-`.artifacts/ui-design/{issue-key}/publish-metadata.json`. If the file
-does not exist or `pr_url` is absent, stop and tell the user that
-`/publish` should be run first — do not create stories with an
-unresolved design link.
+`.artifacts/ui-design/{issue-key}/publish-metadata.json`. Validate
+that `pr_url` is a non-empty string starting with `https://`. If the
+file does not exist, `pr_url` is absent, null, empty, or does not
+start with `https://`, stop and tell the user that `/publish` should
+be run first — do not create stories with an unresolved or invalid
+design link.
 
 ```markdown
 <!-- gap_id: {gap_id} -->
@@ -337,10 +404,12 @@ successfully and which one failed. Offer to retry or skip.
 #### 4b: Update Changed Stories
 
 Before updating any stories, load `pr_url` from
-`.artifacts/ui-design/{issue-key}/publish-metadata.json`. If the file
-does not exist or `pr_url` is absent, stop and tell the user that
-`/publish` should be run first — the description template requires the
-design PR link.
+`.artifacts/ui-design/{issue-key}/publish-metadata.json`. Apply the
+same validation as step 4a: `pr_url` must be a non-empty string
+starting with `https://`. If the file does not exist, `pr_url` is
+absent, null, empty, or does not start with `https://`, stop and tell
+the user that `/publish` should be run first — the description
+template requires the design PR link.
 
 For each story categorized as **Changed**, update the Jira issue using
 the Jira key from the manifest:
@@ -419,22 +488,28 @@ it is complete and consistent. The final structure should be:
 ```
 
 Fields:
-- `gap_id` — Stable content-based identifier: `{category}-{first 12
-  hex chars of SHA-256(category + "|" + original_title)}` (e.g.,
-  `data-a1b2c3d4e5f6`). Survives title rephrasing because the hash is
-  computed once at creation time and stored in the manifest. Used as
-  the sole matching key between findings and manifest entries.
+- `gap_id` — Producer-owned stable identifier emitted by the
+  `/review-api` phase and embedded in each gap row of the API findings.
+  Format: `{category_slug}-{first 12 hex chars of SHA-256(category +
+  "|" + data_element + "|" + endpoint_or_na)}` (e.g.,
+  `field-a1b2c3d4e5f6`). Sync reads this value from the findings and
+  stores it verbatim — it never re-derives or recomputes the hash.
+  Used as the sole matching key between findings and manifest entries.
 - `jira_key` — The Jira story key. Present for entries with
   `synced_status: "active"` or `"closed"`. Omitted for entries with
   `synced_status: "tracked"` (low-severity gaps not synced to Jira).
-- `content_hash` — SHA-256 of the gap's content (title + category +
-  severity + description + what's missing + UI impact + suggested approach).
-  Used to detect changes on the next run. Preserved (not replaced) when
-  closing an issue, to support deterministic reopen detection.
+- `content_hash` — SHA-256 of the canonical gap payload: sorted JSON
+  of `{affected_components, category, current_state, severity,
+  suggested_approach, ui_need, whats_missing}` (see "Canonical
+  content_hash computation" above). Used to detect changes on the next
+  run. Preserved (not replaced) when closing an issue, to support
+  deterministic reopen detection.
 - `synced_status` — One of `"active"`, `"closed"`, or `"tracked"`.
-  `"active"` and `"closed"` are for Jira-synchronized entries. `"tracked"`
-  is for low-severity gaps that are recorded in the manifest but not
-  synced to Jira.
+  `"active"` and `"closed"` are for Jira-synchronized entries.
+  `"tracked"` is for low-severity gaps that are recorded in the
+  manifest but not synced to Jira. When a closed issue is reopened,
+  reset to `"active"`. When a tracked gap's severity increases to
+  medium/high/critical, promote to `"active"` and create a Jira story.
 - `synced_at` — top-level only. Updated to the current timestamp at the
   end of each sync run.
 

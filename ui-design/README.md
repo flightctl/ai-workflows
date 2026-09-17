@@ -40,6 +40,8 @@ The workflow draws from multiple published sources — never from another workfl
 | Input | Source | Required |
 |-------|--------|----------|
 | `[UI]` Jira story **or** workspace identifier | Jira, or user-provided slug | Yes (one of the two) |
+| Context path | User-provided filesystem path (non-Jira flow only) | No — used when starting from a local document |
+| Description | User-provided text (non-Jira flow only) | No — used when starting from a textual description |
 | UX handoff (`05-handoff.md`) | Docs repo (from `ux-design` workflow) | No — optional for purely technical work |
 | PRD (`prd.md`) | Docs repo (from `prd` workflow) | Yes |
 | Design document (`design.md`) | Docs repo (from `design` workflow) | Yes |
@@ -48,9 +50,12 @@ The workflow draws from multiple published sources — never from another workfl
 
 **Non-Jira entry path.** When no Jira story exists, provide a workspace
 identifier directly — a short slug (alphanumeric, hyphens, underscores,
-3–50 characters). The controller validates the identifier and `/ingest`
-skips Jira retrieval, compiling context from the docs repo and codebase
-alone. The `/sync` phase is unavailable in this mode (it requires Jira).
+3–50 characters). Optionally provide a `context-path` (filesystem path to
+a local document) and/or a `description` (free-text description of the UI
+work). The controller validates the identifier and `/ingest` skips Jira
+retrieval, compiling context from the provided inputs, the docs repo, and
+the codebase. The `/sync` phase is unavailable in this mode (it requires
+Jira).
 
 ## Phases
 
