@@ -1,6 +1,6 @@
 ---
 name: report-bug
-version: 0.1.0
+version: 0.1.1
 description: >-
   Draft and submit a well-specified Jira bug report after explicit confirmation. Use
   when a user wants to report, file, log, or open a bug rather than fix it now.
