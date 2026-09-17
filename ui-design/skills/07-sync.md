@@ -32,6 +32,16 @@ explicit user approval.
 - **Logical deletion via status.** Gaps are closed (not deleted) when they are resolved — the gap entry is removed from the API findings or marked as resolved. The manifest tracks the closure.
 - **Link to source.** Every Jira story description references the UI design document.
 
+## Prerequisites
+
+**Jira access required.** This phase creates, updates, and closes Jira
+issues. Before starting, verify that Jira MCP tools are available by
+confirming you can read an issue (e.g., the parent story from
+`01-context.md`). If Jira tools are unavailable or return authentication
+errors, **stop immediately** and report the issue to the user — do not
+fall back to a no-op or skip Jira operations silently. The user must
+resolve the Jira connectivity issue before `/sync` can proceed.
+
 ## Process
 
 ### Step 1: Read API Findings and Detect Changes
@@ -309,12 +319,17 @@ retry or skip.
 
 For each story categorized as **Resolved** (gap no longer in findings):
 
-1. Transition the story to Done/Closed in Jira.
-2. Update the manifest entry: set `synced_status: "closed"`. Preserve the
-   prior `content_hash` — do not replace it. This allows deterministic
-   reopen detection: if a gap with the same `gap_id` reappears in a future
-   sync, the preserved hash enables detecting whether the content changed
-   since the issue was closed.
+1. Add a comment to the Jira story explaining the closure:
+   *"Closing — the API gap '{gap title}' is no longer present in the UI
+   design findings (resolved during /revise or /respond). See the UI
+   design PR for details: {pr_url}."*
+2. Transition the story to Done/Closed in Jira.
+3. Update the manifest entry: set `synced_status: "closed"` and record
+   `closed_at` with the current ISO timestamp. Preserve the prior
+   `content_hash` — do not replace it. This allows deterministic reopen
+   detection: if a gap with the same `gap_id` reappears in a future sync,
+   the preserved hash enables detecting whether the content changed since
+   the issue was closed.
 
 **Selecting the close transition:** Use the Jira API to query available
 transitions for the issue and select the terminal/done-category

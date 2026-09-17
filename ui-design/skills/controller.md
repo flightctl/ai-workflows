@@ -45,10 +45,18 @@ All work happens in the **source repo** — the AI needs codebase context to
 write a good UI design document. Publishing and review happen in a **separate
 docs repo** so planning artifacts don't pollute the source tree.
 
+### Workspace identifier
+
+Throughout this workflow, `{workspace-id}` is the single identifier used in
+all artifact paths. When starting from a Jira issue, `{workspace-id}` is the
+Jira issue key (e.g., `PROJ-1234`). When starting from non-Jira input,
+`{workspace-id}` is a user-confirmed slug derived from the input.
+
 ### Artifact directory
 
-All working artifacts are stored in `.artifacts/ui-design/{issue-key}/` within
-the source repo (this directory should be gitignored in the source repo):
+All working artifacts are stored in `.artifacts/ui-design/{workspace-id}/`
+within the source repo (this directory should be gitignored in the source
+repo):
 
 | Artifact | File | Written by |
 |----------|------|------------|
@@ -90,10 +98,10 @@ When the user provides a Jira issue key or URL:
 2. Read `dispatch.md` and follow it.
 
 When the user provides a UI design context in another form (text, document):
-1. Derive a stable context identifier from the input (e.g., a slug from
-   the document filename or a short user-provided label). Confirm the
-   identifier with the user.
-2. Create `.artifacts/ui-design/{context-id}/` and capture the context
+1. Derive `{workspace-id}` from the input (e.g., a slug from the document
+   filename or a short user-provided label). Confirm the identifier with
+   the user.
+2. Create `.artifacts/ui-design/{workspace-id}/` and capture the context
    into `01-context.md`.
 3. Set `PHASE=plan`.
 4. Read `dispatch.md` and follow it.
@@ -126,7 +134,7 @@ misses details, repeats itself, or loses track of earlier decisions),
 consider spawning the next phase as a subagent with a fresh context window.
 This is self-monitoring by the AI, not something a human operator watches.
 Load the subagent with the skill file for the phase being executed, the
-relevant artifact files from `.artifacts/ui-design/{issue-key}/`, and the
+relevant artifact files from `.artifacts/ui-design/{workspace-id}/`, and the
 project's `AGENTS.md`/`CLAUDE.md`/`UI-ARCHITECTURE.md`.
 
 This is a recommendation, not a requirement — not all AI runtimes support

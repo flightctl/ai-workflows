@@ -121,7 +121,7 @@ the parent feature key:
 find "{docs_repo_path}" -type d \( -name "*{issue-key}*" -o -name "*{feature-key}*" \)
 ```
 
-#### 5a: Load the PRD
+#### 5.1: Load the PRD
 
 Filter matches to directories containing `prd.md`. If exactly one match,
 read it. If multiple, present them to the user and ask which is current.
@@ -129,7 +129,7 @@ If none, ask the user for the path.
 
 Record the resolved PRD path.
 
-#### 5b: Load the Design Document
+#### 5.2: Load the Design Document
 
 Filter matches to directories containing `design.md`. Read it for:
 - API Changes (§4.3) — endpoints, request/response shapes
@@ -140,7 +140,7 @@ Filter matches to directories containing `design.md`. Read it for:
 
 Record the resolved design document path.
 
-#### 5c: Load the UX Handoff (Optional)
+#### 5.3: Load the UX Handoff (Optional)
 
 Filter matches to directories containing `05-handoff.md` (the UX handoff
 artifact) or a file with `handoff` in its name.
@@ -158,7 +158,7 @@ If found, read it. Extract and record:
 If not found, record: *"No UX handoff artifact found. Proceeding with PRD,
 design document, and codebase context only."*
 
-#### 5d: Load Clarifications
+#### 5.4: Load Clarifications
 
 If `clarifications.md` exists alongside the PRD, read it. Note any locked
 decisions — these are binding constraints.
@@ -180,7 +180,7 @@ conventions to follow.
 Based on the story, UX handoff, and design document, identify and explore
 the areas of the codebase that the UI work will affect. Focus on two domains:
 
-#### 7a: Frontend Codebase
+#### 7.1: Frontend Codebase
 
 1. **Component structure:** How are components organized? What is the
    directory convention? (e.g., `src/components/`, feature-based folders,
@@ -212,7 +212,7 @@ the areas of the codebase that the UI work will affect. Focus on two domains:
 8. **TypeScript patterns:** How are types organized? Are there shared type
    definitions for API responses? What naming conventions are used?
 
-#### 7b: Backend API Surface
+#### 7.2: Backend API Surface
 
 1. **API types:** Find TypeScript type definitions, Go structs, or OpenAPI
    specs that define the API response shapes the frontend consumes.
