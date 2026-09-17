@@ -138,25 +138,31 @@ git -C "{docs_repo_path}" push
 ### Step 6: Post Responses
 
 Post responses only after the corresponding document commit is confirmed
-pushed. For each approved response, write the response text to a temporary
+pushed. For each approved response, write the response text to a working
 file and use `--body-file` to avoid shell interpolation issues with
 reviewer-derived content:
 
 ```bash
-echo "{response}" > /tmp/pr-response-{N}.md
+echo "{response}" > .artifacts/ui-design/{issue-key}/pr-response-{N}.md
 gh api "repos/{upstream_repo}/pulls/{pr_number}/comments/{comment_id}/replies" \
-  -F "body=@/tmp/pr-response-{N}.md"
-rm /tmp/pr-response-{N}.md
+  -F "body=@.artifacts/ui-design/{issue-key}/pr-response-{N}.md"
 ```
 
 For inline replies, use the stored review-comment ID from Step 2 to reply
 in the correct thread. For general (non-inline) comments, use:
 
 ```bash
-gh pr comment {pr_number} --repo "{upstream_repo}" --body-file /tmp/pr-response-{N}.md
+gh pr comment {pr_number} --repo "{upstream_repo}" --body-file .artifacts/ui-design/{issue-key}/pr-response-{N}.md
 ```
 
-### Step 8: Record Responses
+After all responses have been posted, clean up the individual response
+files — their content is captured in Step 7's response log:
+
+```bash
+rm -f .artifacts/ui-design/{issue-key}/pr-response-*.md
+```
+
+### Step 7: Record Responses
 
 Write or update `.artifacts/ui-design/{issue-key}/05-review-responses.md`:
 
@@ -174,9 +180,14 @@ Write or update `.artifacts/ui-design/{issue-key}/05-review-responses.md`:
 **Category:** {category}
 **Response:** {what was posted}
 **Document change:** {what was changed, or "None"}
+**Post result:** {success / failed — include error if failed}
 ```
 
-### Step 9: Report to User
+After writing the response log, verify the file is saved to the artifacts
+directory. This file is the persistent record of all review interactions
+and must survive across sessions.
+
+### Step 8: Report to User
 
 Present:
 - How many comments were addressed

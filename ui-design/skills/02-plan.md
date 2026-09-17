@@ -38,13 +38,22 @@ Read these files in order:
 If `01-context.md` doesn't exist, tell the user that `/ingest` should be
 run first and **stop** — do not continue with the remaining steps.
 
+**Determine UX handoff availability.** Check the **Handoff** path in the
+Upstream Artifacts → UX Handoff Summary section of `01-context.md`. Set a
+context flag for the rest of this phase:
+
+- If the path points to a real file → `HAS_HANDOFF = true`
+- If the path value is `"Not available"` → `HAS_HANDOFF = false`
+
+All subsequent sections use `HAS_HANDOFF` to choose between UX-derived
+content and fallback guidance (PRD + design document + codebase context).
+
 Then open **cited sources only** from `01-context.md`:
 
 1. The UX handoff artifact — use the path recorded in the Upstream Artifacts
-   section. If the path value is "Not available", skip this read and continue
-   with the remaining cited sources — the workflow will operate from PRD,
-   design document, and codebase context only. Otherwise, read it in full;
-   it is the primary design input.
+   section. If `HAS_HANDOFF` is false, skip this read and continue with the
+   remaining cited sources. Otherwise, read it in full; it is the primary
+   design input.
 2. The design document — read only the sections cited in `01-context.md`
    (typically §4.3 API Changes, §4.7 RBAC, §5 Interface Changes).
 3. Cited source files from the codebase — read component files, hook files,
@@ -56,14 +65,14 @@ Then open **cited sources only** from `01-context.md`:
 
 ### Step 2: Map UX Handoff to Design Decisions
 
-Before writing, create a mental map. If a UX handoff is available:
+Before writing, create a mental map. If `HAS_HANDOFF` is true:
 - Which UX component mapping entries require new components vs. extensions?
 - Which data annotations have source type `Unknown` or `API` that need resolution?
 - Which interaction specs require new hooks or state?
 - Which persona-specific views require conditional rendering or permission gates?
 - Which acceptance criteria drive which components?
 
-If no UX handoff is available:
+If `HAS_HANDOFF` is false:
 - Which design document interface changes (IC-N) affect the frontend?
 - Which PRD requirements (FR-N, NFR-N) have UI implications?
 - What user flows can be inferred from the acceptance criteria?
@@ -272,9 +281,9 @@ investigated in `/review-api`.}
 |------------|-------------|-----------------|-----------------|
 | {element} | {data} | API (suspected) | {no matching endpoint found} |
 
-{If no UX handoff: derive data needs from the design document's interface
-changes and the story's acceptance criteria. Note that data flow mapping
-has reduced fidelity without a UX handoff.}
+{If HAS_HANDOFF is false: derive data needs from the design document's
+interface changes and the story's acceptance criteria. Note that data flow
+mapping has reduced fidelity without a UX handoff.}
 
 ## Persona-Aware Decomposition
 
@@ -333,8 +342,8 @@ decisions:}
 
 {Live regions, announcement patterns, status updates.}
 
-{If no UX handoff: "Accessibility requirements are derived from project
-conventions and WCAG 2.1 AA baseline. Detailed interaction-level
+{If HAS_HANDOFF is false: "Accessibility requirements are derived from
+project conventions and WCAG 2.1 AA baseline. Detailed interaction-level
 accessibility specs were not available from a UX handoff."}
 
 ## Testing Strategy
@@ -460,8 +469,8 @@ Before presenting the UI design document, verify:
 - [ ] Every new hook has a typed signature, data source, and error handling pattern
 - [ ] State management decisions justify their scope (local vs shared vs global)
 - [ ] Route definitions include lazy loading, guards, and parameter types
-- [ ] Data flow mapping resolves every UX handoff data annotation (or flags it as unresolved for `/review-api`)
-- [ ] Persona-aware decomposition addresses all user groups from the UX handoff (or states all users interact identically)
+- [ ] Data flow mapping resolves every UX handoff data annotation when `HAS_HANDOFF` is true (or flags it as unresolved for `/review-api`); when false, data needs are derived from design document and acceptance criteria
+- [ ] Persona-aware decomposition addresses all user groups from the UX handoff when `HAS_HANDOFF` is true (or states all users interact identically)
 - [ ] Accessibility implementation covers ARIA, keyboard, and focus management
 - [ ] Testing strategy follows the project's existing test framework and patterns
 - [ ] Component tree diagram has accompanying narrative
