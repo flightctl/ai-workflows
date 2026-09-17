@@ -1,6 +1,6 @@
 ---
 name: capture-provenance-event
-version: 0.1.2
+version: 0.1.3
 ---
 # Recipe: Capture Provenance Event
 
@@ -13,7 +13,7 @@ phase mutates the planning document. See `../provenance-schema.md`.
 |-----------|----------|-------------|
 | WORKFLOW | Yes | `prd`, `design`, or `ui-design` |
 | ISSUE_KEY | Yes | Full Jira issue key including project prefix (e.g., `PROJ-1234`, not `1234`) |
-| PHASE | Yes | `draft`, `revise`, or `respond` |
+| PHASE | Yes | `draft`, `plan`, `review-api`, `revise`, or `respond` |
 | AUTHORING_MODE | Yes | `skill` (default for phase skills) or `manual` |
 
 ## Procedure
