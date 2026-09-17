@@ -159,7 +159,9 @@ cp ".artifacts/ui-design/{issue-key}/03-api-findings.md" "{target_directory}/api
 Render provenance footer on the docs-repo copies before staging.
 
 ```bash
-git -C "{docs_repo_path}" add "{target_directory}/"
+git -C "{docs_repo_path}" add "{target_directory}/ui-design.md"
+# If api-findings.md was updated during this phase:
+git -C "{docs_repo_path}" add "{target_directory}/api-findings.md"
 git -C "{docs_repo_path}" commit -m "Address review feedback for {issue-key} UI design"
 git -C "{docs_repo_path}" push
 ```

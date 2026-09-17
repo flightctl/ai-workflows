@@ -404,7 +404,14 @@ Record the Jira key and content hash in the sync manifest immediately
 (before creating the next story). Set `synced_status: "active"`.
 
 **If creation fails:** Stop immediately. Report which stories were created
-successfully and which one failed. Offer to retry or skip.
+successfully and which one failed. Offer to retry or skip. Before retrying
+a failed create, re-run the JQL duplicate check (the same `gap_id` query
+from the pre-creation check above). If the issue now exists — e.g., Jira
+committed the story but the response timed out — treat it as a successful
+create: present the found issue to the user, record its key and content
+hash in the manifest with `synced_status: "active"`, and continue to the
+next gap. Only attempt a fresh create if the duplicate check confirms no
+matching issue exists.
 
 #### 4b: Update Changed Stories
 
