@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Capture and render provenance for prd/design planning document workflows.
+"""Capture and render provenance for prd/design/ui-design planning document workflows.
 
 Exit codes:
     0: Success (capture or render completed)
@@ -23,9 +23,10 @@ GIT_TIMEOUT_SEC = 30
 WORKFLOW_DOCS = {
     "prd": "03-prd.md",
     "design": "03-design.md",
+    "ui-design": "02-ui-design.md",
 }
 
-AUTHORING_PHASES = frozenset({"draft", "revise", "respond", "manual-edit"})
+AUTHORING_PHASES = frozenset({"draft", "plan", "revise", "respond", "manual-edit"})
 
 DRIFT_FIELDS = (
     "workflow_version",
@@ -500,7 +501,7 @@ def main() -> int:
     capture.add_argument(
         "--phase",
         required=True,
-        choices=["draft", "revise", "respond", "manual-edit", "commit"],
+        choices=["draft", "plan", "revise", "respond", "manual-edit", "commit"],
     )
     capture.add_argument(
         "--authoring-mode",
