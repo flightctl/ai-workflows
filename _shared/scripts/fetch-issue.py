@@ -284,6 +284,24 @@ def cmd_get(args: argparse.Namespace) -> int:
 
     data = _jira_request(url, auth_header)
 
+    # Validate the response is not empty or incomplete.  A successful
+    # HTTP 200 may still lack the issue key or fields (for example, due
+    # to permission filters, project-level security schemes, or API
+    # format changes).  Detect this early so calling skills do not
+    # silently write artifacts with empty fields.
+    if not isinstance(data, dict):
+        fail(f"Empty response for {key}: expected JSON object")
+    if not data.get("key"):
+        fail(
+            f"Incomplete response for {key}: "
+            f"'key' field is missing or empty in API response"
+        )
+    if not isinstance(data.get("fields"), dict) or not data.get("fields"):
+        fail(
+            f"Incomplete response for {key}: "
+            f"'fields' object is missing or empty in API response"
+        )
+
     # Build output
     result: dict[str, Any] = {
         "key": data.get("key", key),
