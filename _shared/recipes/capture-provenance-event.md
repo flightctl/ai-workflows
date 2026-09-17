@@ -1,6 +1,6 @@
 ---
 name: capture-provenance-event
-version: 0.1.1
+version: 0.1.2
 ---
 # Recipe: Capture Provenance Event
 
