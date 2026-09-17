@@ -31,8 +31,11 @@ project's `AGENTS.md`, `CLAUDE.md`, or `UI-ARCHITECTURE.md` only if none
 is already in the session. For `PHASE=ingest`, do not glob this workflow,
 load `guidelines.md`, or call `GetDynamicTools`; these guards apply before
 loading either a built-in phase or a project override. Ensure MCP tools are
-available for phases that need them (`/ingest` needs Jira, `/publish` and
-`/respond` need GitHub) but do not eagerly load tools for every phase.
+available for phases that need them (`/ingest` needs Jira only when the
+workspace was initialized with a Jira issue key — skip the Jira tool gate
+for non-Jira inputs since `fetch-issue.py` won't be called; `/sync` needs
+Jira; `/publish` and `/respond` need GitHub) but do not eagerly load tools
+for every phase.
 
 Announce `Starting /{PHASE}.` and read and follow
 `../../_shared/recipes/phase-override-resolution.md` with `WORKFLOW=ui-design`

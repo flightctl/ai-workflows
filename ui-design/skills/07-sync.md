@@ -47,11 +47,11 @@ resolve the Jira connectivity issue before `/sync` can proceed.
 ### Step 1: Read API Findings and Detect Changes
 
 Read these files:
-1. `.artifacts/ui-design/{issue-key}/02-ui-design.md` — for the API Findings
+1. `.artifacts/ui-design/{workspace-id}/02-ui-design.md` — for the API Findings
    section (or the reference to `03-api-findings.md`)
-2. `.artifacts/ui-design/{issue-key}/03-api-findings.md` — if the API findings
+2. `.artifacts/ui-design/{workspace-id}/03-api-findings.md` — if the API findings
    are in a separate file
-3. `.artifacts/ui-design/{issue-key}/01-context.md` — for the parent story
+3. `.artifacts/ui-design/{workspace-id}/01-context.md` — for the parent story
    and feature context
 
 If no API findings exist (no API Findings section in `02-ui-design.md` and
@@ -91,6 +91,7 @@ payload as the sorted JSON serialization of exactly these fields:
   "affected_components": "{affected components}",
   "category": "{gap category}",
   "current_state": "{current state}",
+  "pr_url": "{pr_url}",
   "severity": "{severity}",
   "suggested_approach": "{suggested approach}",
   "ui_need": "{UI need}",
@@ -110,7 +111,7 @@ Low-severity gaps are tracked in the manifest but not synced to Jira
 unless the user explicitly requests it.
 
 Check for an existing sync manifest at
-`.artifacts/ui-design/{issue-key}/sync-manifest.json`.
+`.artifacts/ui-design/{workspace-id}/sync-manifest.json`.
 
 #### If the manifest is unreadable or invalid
 
@@ -154,6 +155,11 @@ the manifest against the current API findings:
    with `synced_status: "active"`, and the SHA-256 hash of the gap's
    content differs from the stored `content_hash`.
    Action: update the sync-owned fields in Jira.
+
+   **Changed (Tracked)** — gap exists in the findings, matching entry in
+   the manifest with `synced_status: "tracked"`, severity still `low`,
+   and the content hash differs from the stored `content_hash`.
+   Action: update `content_hash` in the manifest — no Jira changes.
 
 3. **Resolved** — a gap should be closed when its manifest entry has
    `synced_status: "active"` and either condition is met:
@@ -228,7 +234,7 @@ Confirm with the user:
 Present a preview of all planned operations:
 
 ```markdown
-## Jira Sync Preview — {issue-key}
+## Jira Sync Preview — {workspace-id}
 
 ### Parent: {parent-key} — {parent title}
 
@@ -274,13 +280,24 @@ first — do not modify the findings during sync.
 
 ### Step 4: Sync Stories
 
+**Load `pr_url`.** Before any sub-step, load `pr_url` from
+`.artifacts/ui-design/{workspace-id}/publish-metadata.json`. Apply the
+same HTTPS URL validation described in Step 4a (non-empty string,
+parseable HTTPS URL with a valid host and at least one path segment).
+If the file does not exist, `pr_url` is absent, null, empty, or
+invalid, stop and tell the user that `/publish` should be run first —
+the description template and closure comments require the design PR
+link.
+
 **Promotion check (tracked → active).** Before processing the three
 passes below, scan manifest entries with `synced_status: "tracked"`.
 For each tracked entry, compare its current severity in the findings:
 - If the severity has increased to `medium`, `high`, or `critical`,
   promote the entry to the **New** bucket — it will receive a Jira
   story in pass 4a.
-- If the severity is still `low`, leave it tracked.
+- If the severity is still `low`, leave it tracked. If the content hash
+  differs from the stored `content_hash`, update it in the manifest to
+  keep the tracked entry current.
 - If the gap is no longer in the findings, route it to the **Resolved**
   bucket to mark it closed in the manifest.
 
@@ -349,18 +366,11 @@ For each new story, create a Jira issue:
 - **Summary:** `[DEV] {gap title}`
 - **Description:**
 
-Before rendering the description, load `pr_url` from
-`.artifacts/ui-design/{issue-key}/publish-metadata.json`. Validate
-that `pr_url` is a non-empty string containing a parseable HTTPS URL
-with a non-empty host and at least one path segment — i.e., it must
-match the pattern `https://{host}/{path}` where `{host}` is a valid
-hostname (e.g., `github.com`) and `{path}` contains at least one
-non-empty segment. Values like `https://`, `https://placeholder`, or
-any URL without a `/`-separated path after the host are invalid. If
-the file does not exist, `pr_url` is absent, null, empty, or does not
-satisfy this validation, stop and tell the user that `/publish` should
-be run first — do not create stories with an unresolved or invalid
-design link.
+Use the `pr_url` loaded at the start of Step 4. The URL must be a
+non-empty, valid HTTPS URL with a host and at least one path segment
+(e.g., `https://github.com/org/repo/pull/123`). Values like
+`https://`, `https://placeholder`, or URLs without a path after the
+host are invalid — if validation failed, Step 4 already stopped.
 
 ```markdown
 <!-- gap_id: {gap_id} -->
@@ -371,7 +381,7 @@ design link.
 
 ## Context
 
-- **UI Story:** {issue-key}
+- **UI Story:** {workspace-id}
 - **UI Design:** {pr_url from publish-metadata.json}
 - **Gap ID:** {gap_id}
 - **Gap Category:** {data / field / state / pagination / filtering / sorting / shape / permission}
@@ -415,16 +425,7 @@ matching issue exists.
 
 #### 4b: Update Changed Stories
 
-Before updating any stories, load `pr_url` from
-`.artifacts/ui-design/{issue-key}/publish-metadata.json`. Apply the
-same validation as step 4a: `pr_url` must be a non-empty string
-containing a parseable HTTPS URL with a non-empty host and at least
-one path segment (matching `https://{host}/{path}`). Values like
-`https://`, `https://placeholder`, or any URL without a `/`-separated
-path after the host are invalid. If the file does not exist, `pr_url`
-is absent, null, empty, or does not satisfy this validation, stop and
-tell the user that `/publish` should be run first — the description
-template requires the design PR link.
+Use the `pr_url` loaded at the start of Step 4.
 
 For each story categorized as **Changed**, update the Jira issue using
 the Jira key from the manifest:
@@ -443,7 +444,9 @@ retry or skip.
 
 #### 4c: Close Resolved Stories
 
-For each story categorized as **Resolved** (gap no longer in findings):
+For each entry categorized as **Resolved**:
+
+**If the entry has a `jira_key`** (active Jira story):
 
 1. Add a comment to the Jira story explaining the closure:
    *"Closing — the API gap '{gap title}' is no longer present in the UI
@@ -456,6 +459,10 @@ For each story categorized as **Resolved** (gap no longer in findings):
    detection: if a gap with the same `gap_id` reappears in a future sync,
    the preserved hash enables detecting whether the content changed since
    the issue was closed.
+
+**If the entry has no `jira_key`** (tracked entry, never synced to Jira):
+
+Remove the entry from the manifest — no Jira operations are needed.
 
 **Selecting the close transition:** Use the Jira API to query available
 transitions for the issue and select the terminal/done-category
@@ -484,7 +491,7 @@ it is complete and consistent. The final structure should be:
 ```json
 {
   "schema_version": 2,
-  "ui_story_key": "{issue-key}",
+  "ui_story_key": "{workspace-id}",
   "parent_key": "{parent-key}",
   "synced_at": "{ISO timestamp}",
   "gaps": [
@@ -514,7 +521,7 @@ Fields:
   `synced_status: "active"` or `"closed"`. Omitted for entries with
   `synced_status: "tracked"` (low-severity gaps not synced to Jira).
 - `content_hash` — SHA-256 of the canonical gap payload: sorted JSON
-  of `{affected_components, category, current_state, severity,
+  of `{affected_components, category, current_state, pr_url, severity,
   suggested_approach, ui_need, whats_missing}` (see "Canonical
   content_hash computation" above). Used to detect changes on the next
   run. Preserved (not replaced) when closing an issue, to support
@@ -548,7 +555,7 @@ Present a translation table mapping gap numbers to Jira keys:
 ## Output
 
 - Jira `[DEV]` stories created, updated, or closed (with user approval)
-- `.artifacts/ui-design/{issue-key}/sync-manifest.json` (v2 schema)
+- `.artifacts/ui-design/{workspace-id}/sync-manifest.json` (v2 schema)
 
 ## When This Phase Is Done
 
