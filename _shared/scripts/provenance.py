@@ -266,7 +266,7 @@ def origin_untracked(events: list[dict[str, Any]]) -> bool:
         return False
     if provenance_kind(events) == "commit_only":
         return False
-    return events[0].get("phase") != "draft"
+    return events[0].get("phase") not in AUTHORING_PHASES
 
 
 def capture_event(
@@ -501,7 +501,7 @@ def main() -> int:
     capture.add_argument(
         "--phase",
         required=True,
-        choices=["draft", "plan", "revise", "respond", "manual-edit", "commit"],
+        choices=["draft", "plan", "review-api", "revise", "respond", "manual-edit", "commit"],
     )
     capture.add_argument(
         "--authoring-mode",

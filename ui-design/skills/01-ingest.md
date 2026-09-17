@@ -255,6 +255,14 @@ If the last 3–5 files explored introduced no new patterns or constraints,
 exploration is likely complete. Note what remains uncertain in the Open
 Questions section.
 
+#### No-Evidence Stop Gate
+
+If codebase exploration found **none** of the following — no
+`UI-ARCHITECTURE.md`, no component directories (e.g., `src/components/`),
+and no backend API type definitions — stop and report to the user that
+insufficient codebase evidence was found before writing `01-context.md`.
+Do not proceed to Step 8.
+
 ### Step 8: Compile Context
 
 Compile the story, upstream artifacts, and codebase findings into the

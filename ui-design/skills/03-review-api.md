@@ -31,9 +31,9 @@ creation.
 ### Step 1: Read Source Material
 
 Read these files:
-1. `.artifacts/ui-design/{issue-key}/02-ui-design.md` — the UI design document
+1. `.artifacts/ui-design/{workspace-id}/02-ui-design.md` — the UI design document
    (focus on Data Flow Mapping, Hook Design, and Component Architecture)
-2. `.artifacts/ui-design/{issue-key}/01-context.md` — for Backend API Context
+2. `.artifacts/ui-design/{workspace-id}/01-context.md` — for Backend API Context
    (endpoints, types, client patterns)
 
 If either file is missing, stop and report which artifact is absent before
@@ -242,16 +242,16 @@ This phase mutates `02-ui-design.md` (and may create `03-api-findings.md`),
 so it carries provenance.
 
 Read and follow `../../_shared/recipes/capture-provenance-event.md` with
-`WORKFLOW=ui-design`, `ISSUE_KEY={issue-key}`, `PHASE=review-api`,
+`WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, `PHASE=review-api`,
 `AUTHORING_MODE=skill`.
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
-`WORKFLOW=ui-design`, `ISSUE_KEY={issue-key}`, and `TARGET_FILE` set to the
-absolute source-repo path to `.artifacts/ui-design/{issue-key}/02-ui-design.md`.
+`WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, and `TARGET_FILE` set to the
+absolute source-repo path to `.artifacts/ui-design/{workspace-id}/02-ui-design.md`.
 
 If `03-api-findings.md` was created or changed in this phase, also render
-the provenance footer on it: run the same recipe with `TARGET_FILE` set to
-`.artifacts/ui-design/{issue-key}/03-api-findings.md`.
+the provenance footer on it: run the same recipe with `TARGET_FILE` set to the
+absolute source-repo path to `.artifacts/ui-design/{workspace-id}/03-api-findings.md`.
 
 ### Step 8: Present to User
 
@@ -264,9 +264,9 @@ Show the user:
 
 ## Output
 
-- `.artifacts/ui-design/{issue-key}/02-ui-design.md` (updated — always)
-- `.artifacts/ui-design/{issue-key}/03-api-findings.md` (if findings are too verbose for inline)
-- `.artifacts/ui-design/{issue-key}/provenance.json` (updated)
+- `.artifacts/ui-design/{workspace-id}/02-ui-design.md` (updated — always)
+- `.artifacts/ui-design/{workspace-id}/03-api-findings.md` (if findings are too verbose for inline)
+- `.artifacts/ui-design/{workspace-id}/provenance.json` (updated)
 
 ## When This Phase Is Done
 
