@@ -351,9 +351,14 @@ For each new story, create a Jira issue:
 
 Before rendering the description, load `pr_url` from
 `.artifacts/ui-design/{issue-key}/publish-metadata.json`. Validate
-that `pr_url` is a non-empty string starting with `https://`. If the
-file does not exist, `pr_url` is absent, null, empty, or does not
-start with `https://`, stop and tell the user that `/publish` should
+that `pr_url` is a non-empty string containing a parseable HTTPS URL
+with a non-empty host and at least one path segment — i.e., it must
+match the pattern `https://{host}/{path}` where `{host}` is a valid
+hostname (e.g., `github.com`) and `{path}` contains at least one
+non-empty segment. Values like `https://`, `https://placeholder`, or
+any URL without a `/`-separated path after the host are invalid. If
+the file does not exist, `pr_url` is absent, null, empty, or does not
+satisfy this validation, stop and tell the user that `/publish` should
 be run first — do not create stories with an unresolved or invalid
 design link.
 
@@ -406,9 +411,12 @@ successfully and which one failed. Offer to retry or skip.
 Before updating any stories, load `pr_url` from
 `.artifacts/ui-design/{issue-key}/publish-metadata.json`. Apply the
 same validation as step 4a: `pr_url` must be a non-empty string
-starting with `https://`. If the file does not exist, `pr_url` is
-absent, null, empty, or does not start with `https://`, stop and tell
-the user that `/publish` should be run first — the description
+containing a parseable HTTPS URL with a non-empty host and at least
+one path segment (matching `https://{host}/{path}`). Values like
+`https://`, `https://placeholder`, or any URL without a `/`-separated
+path after the host are invalid. If the file does not exist, `pr_url`
+is absent, null, empty, or does not satisfy this validation, stop and
+tell the user that `/publish` should be run first — the description
 template requires the design PR link.
 
 For each story categorized as **Changed**, update the Jira issue using
