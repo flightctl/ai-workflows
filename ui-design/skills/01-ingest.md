@@ -71,6 +71,19 @@ proceed directly to Step 4.
 
 ### Step 2: Create Artifact Directory
 
+**Collision check (non-Jira flow only).** When `{workspace-id}` was
+derived from non-Jira input (a user-provided slug, not a Jira issue
+key), check whether `.artifacts/ui-design/{workspace-id}/` already
+exists. If it does, ask the user to confirm before proceeding:
+
+*"The workspace directory `.artifacts/ui-design/{workspace-id}/`
+already exists. Do you want to reuse this workspace (existing artifacts
+may be overwritten), or provide a different identifier?"*
+
+Wait for the user's choice. If they provide a new identifier, re-validate
+it (same rules as Step 1) and use it going forward. Only proceed once
+the user has confirmed.
+
 ```bash
 mkdir -p .artifacts/ui-design/{workspace-id}
 ```

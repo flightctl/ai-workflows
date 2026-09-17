@@ -154,9 +154,18 @@ Use this structure (whether inline or in a separate file):
 
 ### API Gaps
 
-| # | Gap | Category | UI Impact | Severity |
-|---|-----|----------|-----------|----------|
-| 1 | {description} | {data / field / state / pagination / filtering / sorting / shape / permission} | {which components are blocked or degraded} | {critical / high / medium / low} |
+| # | Gap ID | Gap | Category | UI Impact | Severity |
+|---|--------|-----|----------|-----------|----------|
+| 1 | {gap_id} | {description} | {data / field / state / pagination / filtering / sorting / shape / permission} | {which components are blocked or degraded} | {critical / high / medium / low} |
+
+**Gap ID derivation:** Each gap receives a stable `gap_id` computed during
+this phase and carried forward into `/sync`. The value is:
+`{category_slug}-{first 12 hex chars of SHA-256(category + "|" + data_element + "|" + endpoint_or_na)}`
+(e.g., `field-a1b2c3d4e5f6`). `data_element` is the "Data Needed" value
+from the Verified Endpoint Mappings table (or the UI need if no mapping
+exists). `endpoint_or_na` is the endpoint path or `"N/A"` for data gaps
+with no existing endpoint. This ID is owned by the `/review-api` phase and
+must be embedded in every gap row and gap detail block.
 
 ### Gap Details
 
@@ -164,6 +173,7 @@ Use this structure (whether inline or in a separate file):
 
 #### Gap 1: {title}
 
+- **Gap ID:** `{gap_id}`
 - **Category:** {gap category}
 - **UI need:** {what the UI requires — specific data, field, or capability}
 - **Current state:** {what the API provides now, if anything}
@@ -220,6 +230,7 @@ Before presenting the findings, verify:
 - [ ] No `Unknown` source types remain in the Data Flow Mapping
 - [ ] Pagination, filtering, and sorting capabilities are documented for every relevant endpoint
 - [ ] Gap severity follows the defined criteria (critical/high/medium/low)
+- [ ] Every gap row and gap detail block includes a `gap_id`
 - [ ] Gap details are specific enough to write a `[DEV]` story from
 - [ ] The implementation readiness assessment is honest — if critical gaps exist, the assessment reflects that
 - [ ] If findings are inline, the `02-ui-design.md` document remains well-structured
