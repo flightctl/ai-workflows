@@ -53,6 +53,35 @@ gh api --paginate "repos/{upstream_repo}/issues/{pr_number}/comments" \
 
 Store the `id` of each review comment and thread for use in Step 6.
 
+**Scope limitation:** The REST API endpoints above return individual
+inline review comments and top-level PR comments, but do not return
+GitHub review thread groupings (e.g., which inline comments form a
+resolved/unresolved thread). To get full thread context including
+resolution state, use the GraphQL API:
+
+```bash
+gh api graphql -f query='
+  query($owner: String!, $repo: String!, $pr: Int!) {
+    repository(owner: $owner, name: $repo) {
+      pullRequest(number: $pr) {
+        reviewThreads(first: 100) {
+          nodes {
+            isResolved
+            comments(first: 50) {
+              nodes { id databaseId body author { login } path line createdAt }
+            }
+          }
+        }
+      }
+    }
+  }' -f owner="{owner}" -f repo="{repo}" -F pr={pr_number}
+```
+
+If GraphQL is unavailable, fall back to the REST calls above and
+reconstruct threads from `in_reply_to_id` chains. In this fallback
+mode, thread resolution state is not available — note this in the
+response log.
+
 Parse the comments and organize by:
 - **Inline comments** — tied to specific lines or sections (with thread IDs)
 - **General comments** — overall feedback
@@ -208,7 +237,7 @@ Then append each entry immediately after posting:
 
 **Comment ID:** {comment_id} (originally selected comment)
 **Root Comment ID:** {root_comment_id} (used for posting; same as Comment ID if not a nested reply)
-**Thread ID:** {thread_id, if inline review comment; "N/A" for general comments}
+**Thread ID:** {root_comment_id from Step 6b for inline review comments; "N/A" for general comments}
 **Timestamp:** {ISO timestamp when response was posted}
 **Comment:** {text}
 **Category:** {category}

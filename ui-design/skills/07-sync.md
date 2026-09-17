@@ -62,11 +62,25 @@ are incomplete. If any required file is unreadable, stop and report the
 error before performing any Jira operations.
 
 Extract every gap from the API Gaps table. Each gap must have a stable
-`gap_id` — a short identifier derived deterministically from the gap's
-category and a slug of its title (e.g., `data-device-health-score`). Use
-`gap_id` as the sole matching key when comparing findings with the
-manifest; do not match by `gap_number` or title alone. Continue using
-`content_hash` only to detect changes for matched active entries.
+`gap_id` derived deterministically from a content-based hash: compute
+`SHA-256(category + "|" + original_title)` and take the first 12 hex
+characters, prefixed by the category slug (e.g.,
+`data-a1b2c3d4e5f6`). This ensures the identifier remains stable even
+if the title is later rephrased. Use `gap_id` as the sole matching key
+when comparing findings with the manifest; do not match by
+`gap_number` or title alone. Continue using `content_hash` only to
+detect changes for matched active entries.
+
+**Zero-gap guard:** If the API findings section is non-empty (contains
+a gaps table or narrative content) but parsing produces zero extracted
+gaps, do not silently proceed. Stop and warn the user:
+
+*"The API Findings section contains content but no gaps could be
+extracted. This may indicate a formatting issue in the findings table.
+Please verify the API Findings section and re-run /sync."*
+
+Wait for the user to confirm before proceeding — either they fix the
+findings or explicitly confirm that zero gaps is correct.
 
 Each gap that has severity
 `critical`, `high`, or `medium` is a candidate for a `[DEV]` story.
@@ -75,6 +89,20 @@ unless the user explicitly requests it.
 
 Check for an existing sync manifest at
 `.artifacts/ui-design/{issue-key}/sync-manifest.json`.
+
+#### If the manifest is unreadable or invalid
+
+If the file exists but cannot be parsed as JSON, or the parsed content
+does not match the expected schema (missing `schema_version`, `gaps`
+array, or required fields per gap entry), **stop immediately** and
+report the error to the user:
+
+*"Sync manifest exists but is unreadable or contains invalid data:
+{error details}. Please fix or delete the manifest before re-running
+/sync."*
+
+Do not fall back to a fresh sync when the manifest is corrupt — the
+user must decide whether to repair it or start fresh.
 
 #### If no manifest exists
 
@@ -220,16 +248,16 @@ Process stories in three passes: create new, update changed, close resolved.
 #### 4a: Create New Stories
 
 **Pre-creation duplicate check (per story).** Before creating each story,
-escape the gap title for JQL (double any embedded quotes, backslash-escape
-JQL metacharacters) and query by the stable `gap_id` embedded in the
-description rather than fuzzy-matching the summary:
+query by a structured HTML comment marker embedded in the description
+rather than fuzzy-matching the summary. This marker is invisible in the
+Jira UI but provides an exact match:
 
 ```
-parent = {parent-key} AND issuetype = Story AND description ~ "gap_id: {gap_id}"
+parent = {parent-key} AND issuetype = Story AND description ~ "<!-- gap_id: {gap_id} -->"
 ```
 
 If the query returns one or more matching issues, **do not create the
-story.** Stop and present the match to the user:
+story.** Present the match to the user:
 
 ```text
 Duplicate detected — a story matching gap_id "{gap_id}" already exists
@@ -238,13 +266,13 @@ under {parent-key}:
   {matching-key}: {matching summary}
 
 Options:
-  (a) Skip this story and record the existing key in the manifest
+  (a) Skip this gap and link the existing story in the manifest
   (b) Stop sync entirely so you can investigate
 ```
 
-Do not offer an unconditional create-anyway option. If the user believes
-the match is incorrect, they must verify and confirm a specific override
-before the story can be created.
+Never offer a "create anyway" option — creating a duplicate story
+contradicts the critical rule against duplicate creation. The only
+paths forward are to link to the existing story or stop to investigate.
 
 Wait for the user's choice before continuing.
 
@@ -263,6 +291,8 @@ does not exist or `pr_url` is absent, stop and tell the user that
 unresolved design link.
 
 ```markdown
+<!-- gap_id: {gap_id} -->
+
 ## Summary
 
 {Gap description — what the UI needs and what the backend currently provides.}
@@ -306,12 +336,18 @@ successfully and which one failed. Offer to retry or skip.
 
 #### 4b: Update Changed Stories
 
+Before updating any stories, load `pr_url` from
+`.artifacts/ui-design/{issue-key}/publish-metadata.json`. If the file
+does not exist or `pr_url` is absent, stop and tell the user that
+`/publish` should be run first — the description template requires the
+design PR link.
+
 For each story categorized as **Changed**, update the Jira issue using
 the Jira key from the manifest:
 
 - **Summary:** re-derive `[DEV] {gap title}` from the current gap
 - **Description:** re-render the full description from the current gap
-  content (same template as creation above)
+  content (same template as creation above, including the `pr_url`)
 
 Update only the sync-owned fields. Do not touch status, assignee, or
 other Jira-managed fields.
@@ -369,7 +405,7 @@ it is complete and consistent. The final structure should be:
   "synced_at": "{ISO timestamp}",
   "gaps": [
     {
-      "gap_id": "{category}-{title-slug}",
+      "gap_id": "{category}-{hash12}",
       "gap_number": 1,
       "title": "{gap title}",
       "category": "{gap category}",
@@ -383,9 +419,11 @@ it is complete and consistent. The final structure should be:
 ```
 
 Fields:
-- `gap_id` — Stable identifier derived from category and title slug
-  (e.g., `data-device-health-score`). Used as the sole matching key
-  between findings and manifest entries.
+- `gap_id` — Stable content-based identifier: `{category}-{first 12
+  hex chars of SHA-256(category + "|" + original_title)}` (e.g.,
+  `data-a1b2c3d4e5f6`). Survives title rephrasing because the hash is
+  computed once at creation time and stored in the manifest. Used as
+  the sole matching key between findings and manifest entries.
 - `jira_key` — The Jira story key. Present for entries with
   `synced_status: "active"` or `"closed"`. Omitted for entries with
   `synced_status: "tracked"` (low-severity gaps not synced to Jira).

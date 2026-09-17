@@ -112,12 +112,11 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={issue-key}`, and `TARGET_FILE` set to
 each copied file's absolute path in the docs repo.
 
-**Note:** The provenance script (`_shared/scripts/provenance.py`) must
-support `ui-design` as a `--workflow` value. If it rejects the value,
-the workflow operator should add `ui-design` to `WORKFLOW_DOCS` and the
-CLI `--workflow` choices in `provenance.py`, matching the existing `prd`
-and `design` entries. The same identifier must be used in the script,
-recipes, and `_shared/provenance-schema.md`.
+**Note:** The provenance script (`../../_shared/scripts/provenance.py`)
+already supports `ui-design` as a `--workflow` value (added in commit
+`2f9381a`). The workflow-to-artifact mapping and CLI choices are
+pre-configured. See `../../_shared/provenance-schema.md` for the schema
+definition.
 
 Stage and commit:
 
