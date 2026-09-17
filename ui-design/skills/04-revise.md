@@ -66,6 +66,8 @@ ripple effects:
 Present the planned changes and their ripple effects to the user before
 applying them.
 
+**Wait for the user's explicit approval before proceeding to Step 4.**
+
 ### Step 4: Apply Changes
 
 Update `02-ui-design.md` (and `03-api-findings.md` if affected):
