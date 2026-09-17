@@ -98,9 +98,13 @@ When the user provides a Jira issue key or URL:
 2. Read `dispatch.md` and follow it.
 
 When the user provides a UI design context in another form (text, document):
-1. Derive `{workspace-id}` from the input (e.g., a slug from the document
-   filename or a short user-provided label). Confirm the identifier with
-   the user.
+1. Prompt the user for a workspace identifier (a short slug). Derive a
+   suggestion from the input (e.g., a slug from the document filename or a
+   short label). Validate that the identifier is a safe directory name:
+   alphanumeric characters, hyphens, and underscores only, 3–50 characters
+   long. Reject identifiers containing path separators, dots, spaces, or
+   other special characters. Confirm the validated identifier with the user
+   before proceeding.
 2. Set `PHASE=ingest`.
 3. Read `dispatch.md` and follow it.
 

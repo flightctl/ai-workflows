@@ -99,9 +99,15 @@ the manifest against the current API findings:
    content differs from the stored `content_hash`.
    Action: update the sync-owned fields in Jira.
 
-3. **Resolved** — gap was in the manifest with `synced_status: "active"`,
-   but its `gap_id` is no longer present in the current API findings (the
-   gap was resolved during `/revise` or `/respond`).
+3. **Resolved** — a gap should be closed when its manifest entry has
+   `synced_status: "active"` and either condition is met:
+   - Its `gap_id` is no longer present in the current API findings (the
+     gap was removed during `/revise` or `/respond`), OR
+   - Its row in the findings table has a resolved marker — a `status`
+     column value of "resolved" or "fixed". Check each gap row for this
+     resolved marker before active-gap matching; resolved-marker rows are
+     routed to this bucket using the same close workflow as absent gaps.
+
    Action: close (transition to Done/Closed) the Jira story.
 
    **Empty-findings guard:** If the current findings section has no gaps
