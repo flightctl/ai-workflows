@@ -38,12 +38,28 @@ run first.
 Read `.artifacts/config.json` for `docs_repo_path` and `docs_repo_remote`.
 
 If the config doesn't exist, ask the user for the docs repo local path and
-remote. Write `.artifacts/config.json`.
+remote. Before writing `docs_repo_remote` to `.artifacts/config.json`,
+strip any embedded credentials (userinfo) from the remote URL. If
+`docs_repo_remote` contains `://user:pass@` or `://token@`, remove the
+userinfo segment. Report a warning if credentials were stripped.
 
 Validate that the docs repo path exists, is a git repo, and the remote
 matches.
 
-### Step 3: Resolve Publish Remotes
+### Step 3: Resolve Base Branch
+
+Read the docs repo's default branch:
+
+```bash
+git -C "{docs_repo_path}" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null \
+  | sed 's|refs/remotes/origin/||'
+```
+
+If the command fails (e.g., `origin/HEAD` is not set), fall back to `main`.
+Set `{base_branch}` to this value. This variable is used in subsequent steps
+for branch creation, PR targeting, and the publish plan display.
+
+### Step 4: Resolve Publish Remotes
 
 Read and follow `../../_shared/recipes/resolve-docs-publish-remotes.md` with:
 - `DOCS_REPO_PATH` = the validated docs repo path
@@ -53,7 +69,7 @@ Read and follow `../../_shared/recipes/resolve-docs-publish-remotes.md` with:
 This resolves `UPSTREAM_REMOTE`, `PUSH_REMOTE`, `UPSTREAM_REPO`, `PUSH_REPO`,
 `PUSH_URL`, `FORK_OWNER`, and `CROSS_REPOSITORY`.
 
-### Step 4: Confirm with User
+### Step 5: Confirm with User
 
 Present the publish plan:
 
@@ -71,13 +87,13 @@ Proceed?
 
 Wait for explicit approval.
 
-### Step 5: Determine Target Directory
+### Step 6: Determine Target Directory
 
 Search the docs repo for the feature directory (the same directory that
 contains the PRD and design document):
 
 ```bash
-find "{docs_repo_path}" -type d \( -name "*{issue-key}*" -o -name "*{feature-key}*" \)
+find "{docs_repo_path}" -type d \( -name "*{issue-key}*" -o -name "*{workspace-id}*" \)
 ```
 
 If found, the UI design document goes alongside the existing planning
@@ -85,14 +101,14 @@ artifacts. If multiple matches, ask the user.
 
 If not found, ask the user where to place the document.
 
-### Step 6: Prepare the Branch
+### Step 7: Prepare the Branch
 
 ```bash
 git -C "{docs_repo_path}" fetch "{UPSTREAM_REMOTE}"
 git -C "{docs_repo_path}" checkout -b "{BRANCH_NAME}" "{UPSTREAM_REMOTE}/{base_branch}"
 ```
 
-### Step 7: Copy and Commit
+### Step 8: Copy and Commit
 
 Copy the artifacts to the docs repo:
 
@@ -127,7 +143,7 @@ git -C "{docs_repo_path}" add "{target_directory}/api-findings.md"
 git -C "{docs_repo_path}" commit -m "Add UI design for {issue-key}"
 ```
 
-### Step 8: Push and Create PR
+### Step 9: Push and Create PR
 
 Push the branch:
 
@@ -188,7 +204,7 @@ gh pr create --draft --repo "{UPSTREAM_REPO}" --head "{BRANCH_NAME}" \
   --body-file ".artifacts/ui-design/{issue-key}/04-pr-description.md"
 ```
 
-### Step 9: Record Publish Metadata
+### Step 10: Record Publish Metadata
 
 Write `.artifacts/ui-design/{issue-key}/publish-metadata.json`:
 
@@ -222,7 +238,7 @@ Example when API findings are inline:
   "files": ["ui-design.md"]
 ```
 
-### Step 10: Report to User
+### Step 11: Report to User
 
 Present:
 - PR URL and number

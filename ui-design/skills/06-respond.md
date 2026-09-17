@@ -57,7 +57,14 @@ Store the `id` of each review comment and thread for use in Step 6.
 inline review comments and top-level PR comments, but do not return
 GitHub review thread groupings (e.g., which inline comments form a
 resolved/unresolved thread). To get full thread context including
-resolution state, use the GraphQL API:
+resolution state, use the GraphQL API.
+
+Before running the GraphQL query, split `upstream_repo` (from
+`publish-metadata.json`) into `{owner}` and `{repo}` components:
+`{owner}` = path segment before the last `/`, `{repo}` = last path
+segment with `.git` suffix stripped. For example,
+`my-org/my-repo` yields `owner=my-org`, `repo=my-repo`; and
+`my-org/my-repo.git` also yields `owner=my-org`, `repo=my-repo`.
 
 ```bash
 gh api graphql -f query='
