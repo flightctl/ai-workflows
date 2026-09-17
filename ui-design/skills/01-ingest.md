@@ -61,9 +61,13 @@ throughout the workflow.
 
 **Non-Jira input:** When the user provides a path or description instead
 of a Jira key, derive `{workspace-id}` from the input — for example, a
-slug from the document filename or a short user-provided label. Confirm
-the identifier with the user before creating the artifact directory.
-Skip Jira retrieval in Step 3 and proceed directly to Step 4.
+slug from the document filename or a short user-provided label. Validate
+the identifier before proceeding: it must be 3–50 characters long and
+contain only alphanumeric characters, hyphens, and underscores. Reject
+identifiers containing path separators, dots, spaces, or other special
+characters. Confirm the validated identifier with the user before
+creating the artifact directory. Skip Jira retrieval in Step 3 and
+proceed directly to Step 4.
 
 ### Step 2: Create Artifact Directory
 

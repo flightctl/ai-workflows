@@ -414,28 +414,29 @@ Then {expected outcome}
 
 ## API Findings
 
-{Pending — `/review-api` will verify all data flow mappings and populate
+Pending — `/review-api` will verify all data flow mappings and populate
 this section with confirmed endpoint mappings and categorized gaps. If the
-data flow mapping in this phase already identifies significant gaps, record
-them below as preliminary findings for `/review-api` to confirm.}
+data flow mapping above already identifies significant gaps, record them
+below as preliminary findings for `/review-api` to confirm.
 
 ### Preliminary Gaps
 
 | Gap | Category | UI Impact | Notes |
 |-----|----------|-----------|-------|
-| {description} | {data / state / pagination / shape} | {which components are blocked} | {for /review-api to investigate} |
+| No endpoint for device health score | data | HealthBadge shows "N/A" | Confirm in /review-api |
 
-{If no preliminary gaps: "All data sources resolved in the data flow
-mapping above — `/review-api` will confirm against the actual backend."}
+If no preliminary gaps were identified, write instead: "All data sources
+resolved in the data flow mapping above — `/review-api` will confirm
+against the actual backend."
 
 ## Open Questions
 
-{Things the plan author is uncertain about. Each with source and impact:}
+List items the plan author is uncertain about, each with source and impact:
 
-1. **{Question}**
-   - **Source:** {what raised this question}
-   - **Impact:** {which design decisions depend on the answer}
-   - **Default:** {what the plan assumes if unresolved}
+1. **Does the fleet-overview endpoint support cursor-based pagination?**
+   - **Source:** Design doc §4.3 does not specify pagination style
+   - **Impact:** Determines whether useFleetList uses offset or cursor pagination
+   - **Default:** Assumes offset-based, matching existing useDeviceList hook
 ```
 
 ### Step 4: Resolve Outstanding Items

@@ -39,12 +39,18 @@ The workflow draws from multiple published sources — never from another workfl
 
 | Input | Source | Required |
 |-------|--------|----------|
-| `[UI]` Jira story | Jira | Yes |
+| `[UI]` Jira story **or** workspace identifier | Jira, or user-provided slug | Yes (one of the two) |
 | UX handoff (`05-handoff.md`) | Docs repo (from `ux-design` workflow) | No — optional for purely technical work |
 | PRD (`prd.md`) | Docs repo (from `prd` workflow) | Yes |
 | Design document (`design.md`) | Docs repo (from `design` workflow) | Yes |
 | `AGENTS.md` / `UI-ARCHITECTURE.md` | Project root | If available |
 | Backend API types and endpoints | Source codebase | Explored during `/ingest` |
+
+**Non-Jira entry path.** When no Jira story exists, provide a workspace
+identifier directly — a short slug (alphanumeric, hyphens, underscores,
+3–50 characters). The controller validates the identifier and `/ingest`
+skips Jira retrieval, compiling context from the docs repo and codebase
+alone. The `/sync` phase is unavailable in this mode (it requires Jira).
 
 ## Phases
 
@@ -61,6 +67,7 @@ The workflow draws from multiple published sources — never from another workfl
 ## Typical Flow
 
 ```text
+# Jira entry path
 /ui-design:ingest EDM-1234
   → fetches the [UI] story from Jira
   → follows references to load UX handoff, PRD, design doc from docs repo
@@ -68,6 +75,15 @@ The workflow draws from multiple published sources — never from another workfl
   → explores UI codebase (components, hooks, routes, state, tests)
   → explores backend API (types, endpoints, OpenAPI specs)
   → writes .artifacts/ui-design/EDM-1234/01-context.md
+
+# Non-Jira entry path (workspace identifier)
+/ui-design:ingest my-feature-slug
+  → validates the workspace identifier (alphanumeric, hyphens, underscores, 3–50 chars)
+  → skips Jira retrieval
+  → loads UX handoff, PRD, design doc from docs repo
+  → reads AGENTS.md, UI-ARCHITECTURE.md
+  → explores UI codebase and backend API
+  → writes .artifacts/ui-design/my-feature-slug/01-context.md
 
 /ui-design:plan
   → reads context and UX handoff data annotations
