@@ -259,14 +259,41 @@ while true; do
 done
 ```
 
-#### 6c: Post the response
+#### 6c: Write preliminary log entry and post the response
 
-**Persist an "unknown" post state before the API call.** Before
-attempting the GitHub API post, write a preliminary entry to
-`05-review-responses.md` with `Post result: pending` and
-`API Response ID: unknown`. This ensures that if the process crashes
-during the API call, the entry exists and the next `/respond`
-invocation can detect the ambiguous state.
+**Initialize the response log before the API call.** Before attempting
+the GitHub API post, ensure `05-review-responses.md` exists and contains
+a preliminary entry for this comment. This guarantees that if the process
+crashes during or immediately after the API call, the entry exists and
+the next `/respond` invocation can detect the ambiguous state.
+
+If the file does not exist yet, create it with the round header:
+
+```markdown
+# Review Responses — {workspace-id}
+
+## Round {N} — {date}
+```
+
+If the file exists but does not contain a `## Round {N}` header for the
+current round, append the round header.
+
+Then append the preliminary entry with `Post result: pending` and
+`API Response ID: unknown`:
+
+```markdown
+### Comment #{N}: {reviewer} on {section}
+
+**Comment ID:** {comment_id} (originally selected comment)
+**Root Comment ID:** {root_comment_id} (used for posting; same as Comment ID if not a nested reply)
+**Timestamp:** {ISO timestamp}
+**Comment:** {text}
+**Category:** {category}
+**Response:** {what will be posted}
+**Document change:** {what was changed, or "None"}
+**Post result:** pending
+**API Response ID:** unknown
+```
 
 **Lookup-before-retry.** Before posting, check
 `05-review-responses.md` for an existing entry with the same
@@ -315,29 +342,11 @@ that if the run is interrupted, already-posted responses are recorded
 with their final status and will not be reposted on the next `/respond`
 invocation.
 
-If the file does not exist yet, create it with the round header first:
-
-```markdown
-# Review Responses — {workspace-id}
-
-## Round {N} — {date}
-```
-
-Then append each entry immediately after posting:
-
-```markdown
-### Comment #{N}: {reviewer} on {section}
-
-**Comment ID:** {comment_id} (originally selected comment)
-**Root Comment ID:** {root_comment_id} (used for posting; same as Comment ID if not a nested reply)
-**Timestamp:** {ISO timestamp when response was posted}
-**Comment:** {text}
-**Category:** {category}
-**Response:** {what was posted}
-**Document change:** {what was changed, or "None"}
-**Post result:** {success / failed — include error if failed}
-**API Response ID:** {id returned by the GitHub API response on successful post; "N/A" on failure}
-```
+Replace the `**Post result:** pending` line with the actual outcome
+(`success` or `failed — {error}`), and replace
+`**API Response ID:** unknown` with the ID returned by the GitHub API
+(or `"N/A"` on failure). Do not append a new entry — update the
+existing preliminary entry in place.
 
 #### 6e: Clean up
 

@@ -326,6 +326,7 @@ If this is a first invocation, write
 
 ## Story Summary
 
+- **Origin:** {`Jira` if workspace-id came from a Jira issue key; `Non-Jira` if derived from non-Jira input}
 - **Story:** {workspace-id} — {title}
 - **Type:** [UI]
 - **Parent:** {parent epic/feature key, or "N/A (local workspace)" for non-Jira input}

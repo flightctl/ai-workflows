@@ -35,19 +35,26 @@ explicit user approval.
 ## Prerequisites
 
 **Jira-backed workspace required.** Before any other check, read
-`.artifacts/ui-design/{workspace-id}/01-context.md` and verify that
-`{workspace-id}` is a Jira issue key (matches the pattern
-`[A-Z][A-Z0-9]+-\d+`). If the workspace was created from non-Jira
-input (a user-provided slug, path, or description), `/sync` cannot
-proceed — there is no Jira project to sync stories to. Stop
-immediately and report:
+`.artifacts/ui-design/{workspace-id}/01-context.md` and check the
+`Origin` field in the Story Summary section.
 
-*"The `/sync` phase requires a Jira-backed workspace (a Jira issue
-key as workspace-id). This workspace (`{workspace-id}`) was created
-from non-Jira input. To sync API gap stories to Jira, re-run
-`/ingest` with a Jira issue key."*
+- If `Origin: Non-Jira`, `/sync` cannot proceed — there is no Jira
+  project to sync stories to. Stop immediately and report:
 
-Do not proceed to Step 1.
+  *"The `/sync` phase requires a Jira-backed workspace (a Jira issue
+  key as workspace-id). This workspace (`{workspace-id}`) was created
+  from non-Jira input (Origin: Non-Jira). To sync API gap stories to
+  Jira, re-run `/ingest` with a Jira issue key."*
+
+- If `Origin: Jira`, proceed.
+
+- If the `Origin` field is missing (older `01-context.md` without the
+  field), fall back to validating `{workspace-id}` against the Jira
+  key regex `^[A-Z][A-Z0-9]+-[0-9]+$`. If it matches, proceed. If it
+  does not match, treat the workspace as non-Jira and stop with the
+  same error message above.
+
+Do not proceed to Step 1 unless the workspace is confirmed Jira-backed.
 
 **Jira access required.** This phase creates, updates, and closes Jira
 issues. Before starting, verify that Jira MCP tools are available by

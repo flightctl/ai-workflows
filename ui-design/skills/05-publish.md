@@ -123,6 +123,26 @@ user to choose. If no valid candidates remain, treat it as "not found."
 
 If not found, ask the user where to place the document.
 
+**Path-traversal guard.** After resolving `{target_directory}` (whether
+from the search results or user input), canonicalize the path and verify
+it is inside the docs repo:
+
+1. Resolve `{target_directory}` to its canonical absolute path (follow
+   symlinks, collapse `..` segments — equivalent to `realpath`).
+2. Resolve `{docs_repo_path}` to its canonical absolute path the same way.
+3. Verify the canonicalized `{target_directory}` starts with
+   `{docs_repo_path}/`.
+
+If the target directory falls outside the docs repo, **stop immediately**
+and report the error:
+
+*"The resolved target directory (`{canonicalized target_directory}`) is
+outside the docs repo (`{canonicalized docs_repo_path}`). This could
+overwrite files outside the intended repository. Please provide a target
+directory inside the docs repo."*
+
+Do not proceed to Step 7 until the target directory passes this check.
+
 ### Step 7: Prepare the Branch
 
 ```bash
