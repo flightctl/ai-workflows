@@ -47,7 +47,7 @@ FETCH_ISSUE_SCRIPT="${HOME}/.ai-workflows/_shared/scripts/fetch-issue.py"
 Use `$FETCH_ISSUE_SCRIPT` instead of the relative path in all subsequent
 commands.
 
-- **Story:** `python3 "$FETCH_ISSUE_SCRIPT" get {KEY} --fields summary,description,issuetype,status,labels --parent --parent-fields summary,status,issuetype,parent --links --link-fields summary,status`
+- **Story:** `python3 "$FETCH_ISSUE_SCRIPT" get {KEY} --fields summary,description,issuetype,status,labels,fixVersions --parent --parent-fields summary,status,issuetype,parent --links --link-fields summary,status`
 - **Parent epic/feature:** skip if `parent.key` (and its parent) are already in the story payload. Use those keys for docs lookup. Fetch only if a key is missing: `python3 "$FETCH_ISSUE_SCRIPT" get {KEY} --fields summary,status,issuetype --parent --parent-fields summary,status,issuetype,parent`
 - **Blocking deps only:** `python3 "$FETCH_ISSUE_SCRIPT" get {KEY} --fields summary,status`
 
