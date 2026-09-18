@@ -1,6 +1,6 @@
 ---
 name: provenance-schema
-version: 0.2.1
+version: 0.2.2
 ---
 # Provenance Schema
 
@@ -79,7 +79,7 @@ supports same-session drift analysis only.
 
 | Field | Description |
 |-------|-------------|
-| `phase` | `draft`, `plan`, `revise`, `respond`, `manual-edit`, or `commit` |
+| `phase` | `draft`, `plan`, `review-api`, `revise`, `respond`, `manual-edit`, or `commit` |
 | `authoring_mode` | `skill` or `manual` |
 | `timestamp` | ISO-8601 UTC |
 | `workflow_version` | Semver from `{workflow}/SKILL.md` |

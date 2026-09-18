@@ -291,7 +291,7 @@ def cmd_get(args: argparse.Namespace) -> int:
     # silently write artifacts with empty fields.
     if not isinstance(data, dict):
         fail(f"Empty response for {key}: expected JSON object")
-    if not data.get("key"):
+    if not isinstance(data.get("key"), str) or not data["key"].strip():
         fail(
             f"Incomplete response for {key}: "
             f"'key' field is missing or empty in API response"

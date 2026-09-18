@@ -135,7 +135,7 @@ Jira).
 
 ## Artifacts
 
-All artifacts are stored in `.artifacts/ui-design/{issue-key}/`.
+All artifacts are stored in `.artifacts/ui-design/{workspace-id}/`.
 
 ```text
 .artifacts/ui-design/EDM-1234/

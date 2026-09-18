@@ -57,7 +57,7 @@ Stop and request human guidance when:
 
 ## Artifact Persistence and Isolation
 
-- All workflow artifacts MUST be stored under `.artifacts/ui-design/{issue-key}/`
+- All workflow artifacts MUST be stored under `.artifacts/ui-design/{workspace-id}/`
 - NEVER read from another workflow's `.artifacts/` directory (`.artifacts/prd/`,
   `.artifacts/design/`, `.artifacts/ux-design/`, etc.) — those are private working
   directories, not interfaces
