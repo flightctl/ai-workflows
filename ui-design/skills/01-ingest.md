@@ -102,7 +102,7 @@ for the diff in Step 8a.
 
 ### Step 3: Read the [UI] Story
 
-Fetch the Jira issue using the shared script:
+**Jira input.** Fetch the Jira issue using the shared script:
 
 ```bash
 python3 "../../_shared/scripts/fetch-issue.py" get {workspace-id}
@@ -116,6 +116,19 @@ From the story, extract:
 - **Linked issues** — sibling stories (`[DEV]`, `[UX]`, `[QE]`) that
   provide implementation context
 - **Labels and components** — for scoping codebase exploration
+
+**Non-Jira input.** When the user provided a path or description instead
+of a Jira issue key (as identified in Step 1), do not call
+`fetch-issue.py`. Instead, compile the context from the supplied input:
+
+1. Set `{title}` to the user-provided description or document filename
+2. Set `{parent epic/feature key}` to `"N/A (local workspace)"`
+3. Set `{issue URL}` to `"N/A — workspace derived from: {source description}"`,
+   where `{source description}` is the path or label the user provided
+4. Set all Jira-only values (linked issues, labels, components) to not
+   applicable
+5. Skip the Linked Stories table
+6. Continue to Step 4 — do not attempt Jira retrieval
 
 ### Step 4: Resolve the Docs Repo
 
@@ -141,6 +154,14 @@ the parent feature key:
 
 ```bash
 find "{docs_repo_path}" -type d \( -name "*{workspace-id}*" -o -name "*{feature-key}*" \)
+```
+
+**Non-Jira input.** When `{workspace-id}` was derived from non-Jira
+input (Step 1), `{feature-key}` is not available. Use only
+`{workspace-id}` or a value derived from the supplied input:
+
+```bash
+find "{docs_repo_path}" -type d -name "*{workspace-id}*"
 ```
 
 #### 5.1: Load the PRD

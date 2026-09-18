@@ -70,9 +70,21 @@ git -C "{docs_repo_path}" symbolic-ref "refs/remotes/{UPSTREAM_REMOTE}/HEAD" 2>/
 ```
 
 If the command fails (e.g., `{UPSTREAM_REMOTE}/HEAD` is not set), fall
-back to `main`. Set `{base_branch}` to this value. This variable is
-used in subsequent steps for branch creation, PR targeting, and the
-publish plan display.
+back to `main`. Set `{base_branch}` to this value.
+
+**Validate the base branch.** After resolving `{base_branch}`, confirm
+it exists on the upstream remote:
+
+```bash
+git -C "{docs_repo_path}" ls-remote --exit-code "{UPSTREAM_REMOTE}" "refs/heads/{base_branch}"
+```
+
+If validation fails (non-zero exit code), stop and ask the user for a
+valid base branch. Do not display the publish plan (Step 5) or create a
+branch (Step 7) until the base branch is validated.
+
+`{base_branch}` is used in subsequent steps for branch creation, PR
+targeting, and the publish plan display.
 
 ### Step 5: Confirm with User
 
@@ -102,10 +114,10 @@ find "{docs_repo_path}" -type d \( -name "*{issue-key}*" -o -name "*{workspace-i
 ```
 
 **Validate candidate directories.** For each match, verify it is a
-planning-artifacts directory by checking for at least one expected
-upstream file (`prd.md` or `design.md`). Discard candidates that
-contain neither — they may be unrelated directories that happen to
-share the workspace-id string. After filtering, if exactly one valid
+planning-artifacts directory by checking for both expected upstream
+files (`prd.md` and `design.md`). Discard candidates that are missing
+either file — they may be incomplete or unrelated directories that
+happen to share the workspace-id string. After filtering, if exactly one valid
 candidate remains, use it. If multiple valid candidates remain, ask the
 user to choose. If no valid candidates remain, treat it as "not found."
 
