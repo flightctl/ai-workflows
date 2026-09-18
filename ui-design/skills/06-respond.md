@@ -87,6 +87,12 @@ gh api graphql -f query='
             }
           }
         }
+        # NOTE: The nested comments(first: 50) connection has no cursor
+        # pagination. Threads with more than 50 comments may be truncated
+        # here. This is intentional — the paginated REST endpoints above
+        # are authoritative for full comment content. GraphQL is used for
+        # thread-resolution metadata (isResolved) and structural discovery;
+        # REST is the fallback for complete comment data in long threads.
       }
     }
   }' -f owner="{owner}" -f repo="{repo}" -F pr={pr_number}

@@ -110,6 +110,13 @@ template, and closure comments all require the design PR link.
 changes whenever a Jira-rendered field changes, define the hash
 payload as the sorted JSON serialization of exactly these fields:
 
+**Title normalization.** Before computing the hash, define
+`title = trim(gap_title)` — strip leading and trailing whitespace
+from the raw gap title. Use this normalized `title` for both the
+content_hash payload below and the Jira summary (`[DEV] {title}`).
+This ensures that a whitespace-only title change does not produce a
+different hash while rendering an identical Jira summary.
+
 ```json
 {
   "affected_components": "{affected components}",
@@ -118,7 +125,7 @@ payload as the sorted JSON serialization of exactly these fields:
   "pr_url": "{pr_url}",
   "severity": "{severity}",
   "suggested_approach": "{suggested approach}",
-  "title": "{gap title}",
+  "title": "{title}",
   "ui_need": "{UI need}",
   "whats_missing": "{what's missing}"
 }
@@ -126,11 +133,13 @@ payload as the sorted JSON serialization of exactly these fields:
 
 Compute `content_hash = SHA-256(JSON.stringify(payload))` where keys
 are sorted alphabetically (as shown above) and values are trimmed of
-leading/trailing whitespace. The `title` field is included because it
-becomes the Jira summary (`[DEV] {gap title}`) — a title-only change
-must trigger an update. This set of fields matches exactly what gets
-rendered into the Jira issue — any change to a rendered field triggers
-an update.
+leading/trailing whitespace. The `title` field uses the
+pre-normalized `title = trim(gap_title)` (see above) so the hash
+input matches the Jira summary (`[DEV] {title}`) — a title-only
+change must trigger an update, but a whitespace-only difference that
+renders identically in Jira must not. This set of fields matches
+exactly what gets rendered into the Jira issue — any change to a
+rendered field triggers an update.
 
 Each gap that has severity
 `critical`, `high`, or `medium` is a candidate for a `[DEV]` story.
@@ -384,7 +393,7 @@ For each new story, create a Jira issue:
 - **Type:** Story
 - **Project:** {project key}
 - **Parent:** {parent key} — **set via the `fields` parameter: `{"parent": {"key": "{parent-key}"}}`**
-- **Summary:** `[DEV] {gap title}`
+- **Summary:** `[DEV] {title}` (using the normalized `title = trim(gap_title)` from hash computation)
 - **Description:**
 
 Use the `pr_url` loaded at the start of Step 4. The URL must be a
@@ -451,7 +460,7 @@ Use the `pr_url` loaded at the start of Step 4.
 For each story categorized as **Changed**, update the Jira issue using
 the Jira key from the manifest:
 
-- **Summary:** re-derive `[DEV] {gap title}` from the current gap
+- **Summary:** re-derive `[DEV] {title}` using `title = trim(gap_title)` from the current gap
 - **Description:** re-render the full description from the current gap
   content (same template as creation above, including the `pr_url`)
 
@@ -544,9 +553,11 @@ Fields:
 - `content_hash` — SHA-256 of the canonical gap payload: sorted JSON
   of `{affected_components, category, current_state, pr_url, severity,
   suggested_approach, title, ui_need, whats_missing}` (see "Canonical
-  content_hash computation" above). Used to detect changes on the next
-  run. Preserved (not replaced) when closing an issue, to support
-  deterministic reopen detection.
+  content_hash computation" above). The `title` value is normalized
+  via `trim(gap_title)` before hashing so whitespace-only title
+  changes do not produce spurious hash differences. Used to detect
+  changes on the next run. Preserved (not replaced) when closing an
+  issue, to support deterministic reopen detection.
 - `synced_status` — One of `"active"`, `"closed"`, or `"tracked"`.
   `"active"` and `"closed"` are for Jira-synchronized entries.
   `"tracked"` is for low-severity gaps that are recorded in the

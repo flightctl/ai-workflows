@@ -57,7 +57,12 @@ The user will provide one of:
 
 **Jira input:** Extract the full Jira issue key, including the project
 prefix (e.g., `PROJ-1234`, not just `1234`). Use this as `{workspace-id}`
-throughout the workflow.
+throughout the workflow. Validate the extracted key against the pattern
+`^[A-Za-z0-9][A-Za-z0-9_-]{2,49}$` (3–50 characters, alphanumeric
+start). Standard Jira keys like `EDM-1234` will always pass, but this
+guard catches edge cases such as empty extraction or malformed input.
+If validation fails, stop and report the error before creating the
+artifact directory.
 
 **Non-Jira input:** When the user provides a path or description instead
 of a Jira key, derive `{workspace-id}` from the input — for example, a

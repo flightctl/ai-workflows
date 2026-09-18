@@ -427,9 +427,17 @@ below as preliminary findings for `/review-api` to confirm.
 
 ### Preliminary Gaps
 
+<!-- The gap row below is an illustrative placeholder — replace with actual
+     gaps discovered during data flow mapping. -->
+
 | Gap | Category | UI Impact | Notes |
 |-----|----------|-----------|-------|
 | No endpoint for device health score | data | HealthBadge shows "N/A" | Confirm in /review-api |
+
+{Replace the example row above with actual preliminary gaps from the data
+flow mapping. Every gap description, component name, and endpoint must
+come from the codebase exploration, not the illustrative placeholders
+shown above.}
 
 If no preliminary gaps were identified, write instead: "All data sources
 resolved in the data flow mapping above — `/review-api` will confirm
@@ -439,10 +447,20 @@ against the actual backend."
 
 List items the plan author is uncertain about, each with source and impact:
 
+<!-- The question below is an illustrative placeholder — replace with actual
+     open questions from the plan. All endpoint names, hook names, and
+     component names must come from the codebase exploration. -->
+
 1. **Does the fleet-overview endpoint support cursor-based pagination?**
    - **Source:** Design doc §4.3 does not specify pagination style
    - **Impact:** Determines whether useFleetList uses offset or cursor pagination
    - **Default:** Assumes offset-based, matching existing useDeviceList hook
+
+{Replace the example question above with actual open questions. Every
+endpoint name (e.g., fleet-overview), hook name (e.g., useFleetList,
+useDeviceList), and component reference must correspond to real items
+from the codebase exploration, not the illustrative placeholders shown
+above.}
 ```
 
 ### Step 4: Resolve Outstanding Items
