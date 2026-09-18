@@ -167,6 +167,14 @@ exists). `endpoint_or_na` is the endpoint path or `"N/A"` for data gaps
 with no existing endpoint. This ID is owned by the `/review-api` phase and
 must be embedded in every gap row and gap detail block.
 
+**Corrections and revisions:** When correcting an existing gap entry
+(e.g., fixing the endpoint URL, updating the category, or refining the
+description), always preserve the original `gap_id`. Do not recompute
+the hash from corrected inputs — a changed `gap_id` would cause `/sync`
+to create a duplicate Jira issue instead of updating the existing one.
+Only assign a new `gap_id` when adding a genuinely new gap that did not
+exist in a prior version of this document.
+
 ### Gap Details
 
 {For each gap, provide enough detail to write a `[DEV]` story:}

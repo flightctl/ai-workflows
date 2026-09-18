@@ -114,6 +114,10 @@ architectural approach. Reference the UX handoff and design document.}
 {Mermaid diagram showing the component hierarchy — parent/child relationships,
 shared components, and persona-specific branches.}
 
+<!-- Example only — replace ALL names below with actual components
+     discovered during codebase exploration. Do NOT copy PageRoot,
+     MainContent, ListView, DetailPanel, or AdminActions literally. -->
+
 ```mermaid
 graph TD
     PageRoot[PageRoot]
@@ -124,9 +128,11 @@ graph TD
     DetailPanel --> AdminActions[AdminActions — persona-specific]
 ```
 
-{Narrative explaining the tree: what each level represents, where new
-components are introduced, and how they relate to the UX handoff's
-component mapping.}
+{Replace the example tree above with actual component names from the
+codebase exploration. The diagram must reflect the real component
+hierarchy for this feature — every node name must correspond to a
+component identified in the exploration, not the illustrative
+placeholders shown above.}
 
 ### New Components
 

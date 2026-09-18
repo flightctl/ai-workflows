@@ -62,8 +62,9 @@ throughout the workflow.
 **Non-Jira input:** When the user provides a path or description instead
 of a Jira key, derive `{workspace-id}` from the input — for example, a
 slug from the document filename or a short user-provided label. Validate
-the identifier before proceeding: it must be 3–50 characters long and
-contain only alphanumeric characters, hyphens, and underscores. Reject
+the identifier before proceeding: it must match the pattern
+`^[A-Za-z0-9][A-Za-z0-9_-]{2,49}$` (3–50 characters, alphanumeric
+start, only alphanumeric characters, hyphens, and underscores). Reject
 identifiers containing path separators, dots, spaces, or other special
 characters. Confirm the validated identifier with the user before
 creating the artifact directory. Skip Jira retrieval in Step 3 and
@@ -90,7 +91,7 @@ except `01-context.md`, which the ingest phase regenerates. Do not
 delete or overwrite other phase artifacts during ingest.
 
 ```bash
-mkdir -p .artifacts/ui-design/{workspace-id}
+mkdir -p ".artifacts/ui-design/{workspace-id}"
 ```
 
 ### Step 2a: Check for Prior Ingest
@@ -105,7 +106,7 @@ for the diff in Step 8a.
 **Jira input.** Fetch the Jira issue using the shared script:
 
 ```bash
-python3 "../../_shared/scripts/fetch-issue.py" get {workspace-id}
+python3 "../../_shared/scripts/fetch-issue.py" get "{workspace-id}"
 ```
 
 From the story, extract:
