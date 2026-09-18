@@ -188,10 +188,18 @@ git -C "{docs_repo_path}" push
 
 ### Step 6: Post Responses and Record
 
-If all approved responses require no document changes (every response has
-Document change: None), skip the push confirmation and post the
-clarification-only responses directly. Otherwise, post responses only
-after the corresponding document commit is confirmed pushed.
+Apply the document-change check **per-response**, not globally. In a
+mixed batch of responses:
+
+- Responses **with** document changes: post only after the
+  corresponding document commit from Step 5 is confirmed pushed.
+- Responses **without** document changes (Document change: None):
+  post immediately as clarification-only — no commit or push
+  confirmation is needed for these responses.
+
+If **all** approved responses are clarification-only (every response has
+Document change: None), Step 5 was skipped entirely and no push is
+needed — post all responses directly.
 
 For each approved response, perform steps 6a–6d before moving to
 the next comment.
@@ -229,12 +237,28 @@ done
 
 #### 6c: Post the response
 
+**Persist an "unknown" post state before the API call.** Before
+attempting the GitHub API post, write a preliminary entry to
+`05-review-responses.md` with `Post result: pending` and
+`API Response ID: unknown`. This ensures that if the process crashes
+during the API call, the entry exists and the next `/respond`
+invocation can detect the ambiguous state.
+
 **Lookup-before-retry.** Before posting, check
 `05-review-responses.md` for an existing entry with the same
-`Comment ID` in this round. If found with a successful `Post result`
-and a non-`"unknown"` `API Response ID`, this response was already
-posted — skip it to avoid duplicates. If found with a failed
-`Post result` or `API Response ID: unknown`, proceed with posting.
+`Comment ID` in this round.
+
+- If found with a successful `Post result` and a non-`"unknown"`
+  `API Response ID`, this response was already posted — skip it to
+  avoid duplicates.
+- If found with `Post result: pending` or `API Response ID: unknown`,
+  perform a **GitHub lookup** before re-posting: query the PR's
+  comment thread for a reply matching this response's body text to
+  determine whether the prior attempt actually succeeded. If a
+  matching reply is found, update the existing entry with the
+  discovered `API Response ID` and skip re-posting. If no matching
+  reply is found, proceed with posting.
+- If found with a failed `Post result`, proceed with posting.
 
 For inline replies, use the resolved `root_comment_id`:
 
@@ -257,13 +281,15 @@ output). Store this value for the response log in Step 6d. If the API
 returns a success status but the response does not contain an `id`
 field, record `API Response ID` as `"unknown"` rather than omitting it.
 
-#### 6d: Persist each response immediately
+#### 6d: Update the response entry after posting
 
-Append the log entry for this response to
-`.artifacts/ui-design/{issue-key}/05-review-responses.md` immediately
-after confirmed posting, before moving to the next comment. This ensures
-that if the run is interrupted, already-posted responses are recorded and
-will not be reposted on the next `/respond` invocation.
+Update the preliminary entry (written in Step 6c before the API call)
+in `.artifacts/ui-design/{issue-key}/05-review-responses.md` with the
+final post result and API response ID. Do this immediately after
+confirmed posting, before moving to the next comment. This ensures
+that if the run is interrupted, already-posted responses are recorded
+with their final status and will not be reposted on the next `/respond`
+invocation.
 
 If the file does not exist yet, create it with the round header first:
 
