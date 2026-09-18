@@ -82,6 +82,15 @@ Please verify the API Findings section and re-run /sync."*
 Wait for the user to confirm before proceeding — either they fix the
 findings or explicitly confirm that zero gaps is correct.
 
+**Load `pr_url` (required for hash computation).** Before computing
+content hashes, load `pr_url` from
+`.artifacts/ui-design/{workspace-id}/publish-metadata.json`. Apply
+HTTPS URL validation (non-empty string, parseable HTTPS URL with a
+valid host and at least one path segment). If the file does not exist,
+`pr_url` is absent, null, empty, or invalid, stop and tell the user
+that `/publish` should be run first — the content hash, description
+template, and closure comments all require the design PR link.
+
 **Canonical content_hash computation.** To ensure `content_hash`
 changes whenever a Jira-rendered field changes, define the hash
 payload as the sorted JSON serialization of exactly these fields:
@@ -280,14 +289,8 @@ first — do not modify the findings during sync.
 
 ### Step 4: Sync Stories
 
-**Load `pr_url`.** Before any sub-step, load `pr_url` from
-`.artifacts/ui-design/{workspace-id}/publish-metadata.json`. Apply the
-same HTTPS URL validation described in Step 4a (non-empty string,
-parseable HTTPS URL with a valid host and at least one path segment).
-If the file does not exist, `pr_url` is absent, null, empty, or
-invalid, stop and tell the user that `/publish` should be run first —
-the description template and closure comments require the design PR
-link.
+Use the `pr_url` loaded and validated in Step 1. (If `pr_url` was
+invalid, Step 1 already stopped.)
 
 **Promotion check (tracked → active).** Before processing the three
 passes below, scan manifest entries with `synced_status: "tracked"`.

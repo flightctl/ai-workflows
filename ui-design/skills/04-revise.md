@@ -29,9 +29,9 @@ testing strategy, acceptance criteria mapping, and data flow mapping.
 ### Step 1: Read Current Artifacts
 
 Read these files:
-1. `.artifacts/ui-design/{issue-key}/02-ui-design.md` (current UI design)
-2. `.artifacts/ui-design/{issue-key}/03-api-findings.md` (if it exists)
-3. `.artifacts/ui-design/{issue-key}/01-context.md` (for reference)
+1. `.artifacts/ui-design/{workspace-id}/02-ui-design.md` (current UI design)
+2. `.artifacts/ui-design/{workspace-id}/03-api-findings.md` (if it exists)
+3. `.artifacts/ui-design/{workspace-id}/01-context.md` (for reference)
 
 If `02-ui-design.md` is missing, stop and tell the user that `/plan`
 should be run first. If the user has not provided usable feedback (empty
@@ -98,16 +98,16 @@ After applying changes, verify:
 ### Step 6: Capture Provenance
 
 Read and follow `../../_shared/recipes/capture-provenance-event.md` with
-`WORKFLOW=ui-design`, `ISSUE_KEY={issue-key}`, `PHASE=revise`,
+`WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, `PHASE=revise`,
 `AUTHORING_MODE=skill`.
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
-`WORKFLOW=ui-design`, `ISSUE_KEY={issue-key}`, and `TARGET_FILE` set to the
-absolute source-repo path to `.artifacts/ui-design/{issue-key}/02-ui-design.md`.
+`WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, and `TARGET_FILE` set to the
+absolute source-repo path to `.artifacts/ui-design/{workspace-id}/02-ui-design.md`.
 
 If `03-api-findings.md` was changed in this revision, also render the
-provenance footer on it: run the same recipe with `TARGET_FILE` set to
-`.artifacts/ui-design/{issue-key}/03-api-findings.md`.
+provenance footer on it: run the same recipe with `TARGET_FILE` set to the
+absolute source-repo path to `.artifacts/ui-design/{workspace-id}/03-api-findings.md`.
 
 ### Step 7: Present Changes
 
@@ -120,9 +120,9 @@ Show the user:
 
 ## Output
 
-- `.artifacts/ui-design/{issue-key}/02-ui-design.md` (updated)
-- `.artifacts/ui-design/{issue-key}/03-api-findings.md` (updated, if it exists and was affected)
-- `.artifacts/ui-design/{issue-key}/provenance.json` (updated)
+- `.artifacts/ui-design/{workspace-id}/02-ui-design.md` (updated)
+- `.artifacts/ui-design/{workspace-id}/03-api-findings.md` (updated, if it exists and was affected)
+- `.artifacts/ui-design/{workspace-id}/provenance.json` (updated)
 
 ## When This Phase Is Done
 

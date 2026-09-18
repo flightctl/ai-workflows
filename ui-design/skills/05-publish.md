@@ -46,20 +46,10 @@ userinfo segment. Report a warning if credentials were stripped.
 Validate that the docs repo path exists, is a git repo, and the remote
 matches.
 
-### Step 3: Resolve Base Branch
+### Step 3: Resolve Publish Remotes
 
-Read the docs repo's default branch:
-
-```bash
-git -C "{docs_repo_path}" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null \
-  | sed 's|refs/remotes/origin/||'
-```
-
-If the command fails (e.g., `origin/HEAD` is not set), fall back to `main`.
-Set `{base_branch}` to this value. This variable is used in subsequent steps
-for branch creation, PR targeting, and the publish plan display.
-
-### Step 4: Resolve Publish Remotes
+Resolve remotes **before** determining the base branch — the upstream
+remote name is needed to read the correct `HEAD` ref.
 
 Read and follow `../../_shared/recipes/resolve-docs-publish-remotes.md` with:
 - `DOCS_REPO_PATH` = the validated docs repo path
@@ -68,6 +58,21 @@ Read and follow `../../_shared/recipes/resolve-docs-publish-remotes.md` with:
 
 This resolves `UPSTREAM_REMOTE`, `PUSH_REMOTE`, `UPSTREAM_REPO`, `PUSH_REPO`,
 `PUSH_URL`, `FORK_OWNER`, and `CROSS_REPOSITORY`.
+
+### Step 4: Resolve Base Branch
+
+Read the docs repo's default branch using the upstream remote resolved
+in Step 3:
+
+```bash
+git -C "{docs_repo_path}" symbolic-ref "refs/remotes/{UPSTREAM_REMOTE}/HEAD" 2>/dev/null \
+  | sed "s|refs/remotes/{UPSTREAM_REMOTE}/||"
+```
+
+If the command fails (e.g., `{UPSTREAM_REMOTE}/HEAD` is not set), fall
+back to `main`. Set `{base_branch}` to this value. This variable is
+used in subsequent steps for branch creation, PR targeting, and the
+publish plan display.
 
 ### Step 5: Confirm with User
 
@@ -96,8 +101,13 @@ contains the PRD and design document):
 find "{docs_repo_path}" -type d \( -name "*{issue-key}*" -o -name "*{workspace-id}*" \)
 ```
 
-If found, the UI design document goes alongside the existing planning
-artifacts. If multiple matches, ask the user.
+**Validate candidate directories.** For each match, verify it is a
+planning-artifacts directory by checking for at least one expected
+upstream file (`prd.md` or `design.md`). Discard candidates that
+contain neither — they may be unrelated directories that happen to
+share the workspace-id string. After filtering, if exactly one valid
+candidate remains, use it. If multiple valid candidates remain, ask the
+user to choose. If no valid candidates remain, treat it as "not found."
 
 If not found, ask the user where to place the document.
 

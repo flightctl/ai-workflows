@@ -28,6 +28,13 @@ WORKFLOW_DOCS = {
 
 AUTHORING_PHASES = frozenset({"draft", "plan", "revise", "respond", "manual-edit"})
 
+# Subset of phases that establish a tracked document origin.
+# Only an explicit /draft or /plan run counts as a tracked origin.
+# Other authoring phases (revise, respond, manual-edit) that appear as
+# the first event indicate an untracked origin — the document existed
+# before provenance tracking began.
+ORIGIN_TRACKED_PHASES = frozenset({"draft", "plan"})
+
 DRIFT_FIELDS = (
     "workflow_version",
     "ai_workflows",
@@ -266,7 +273,7 @@ def origin_untracked(events: list[dict[str, Any]]) -> bool:
         return False
     if provenance_kind(events) == "commit_only":
         return False
-    return events[0].get("phase") not in AUTHORING_PHASES
+    return events[0].get("phase") not in ORIGIN_TRACKED_PHASES
 
 
 def capture_event(
