@@ -20,15 +20,15 @@ description summarizes the UI design for reviewers.
 - **Confirm before publishing.** Always confirm the target repo, branch, and PR details with the user before creating anything.
 - **Feature branch only.** Never commit to `main` directly.
 - **Draft PR.** Create the PR as a draft — the user marks it ready for review.
-- **No modification of content during publish.** Copy the artifacts as-is. Content changes happen in `/revise`.
+- **No modification of content during publish.** Copy the artifacts as-is. Content changes happen in `/revise`. The only publish-time exception is appending the provenance footer via `render-provenance-footer.md` — this is metadata, not a content change, and does not require a `/revise` cycle.
 
 ## Process
 
 ### Step 1: Verify Prerequisites
 
 Confirm these artifacts exist:
-- `.artifacts/ui-design/{issue-key}/02-ui-design.md` (required)
-- `.artifacts/ui-design/{issue-key}/03-api-findings.md` (optional — include if exists)
+- `.artifacts/ui-design/{workspace-id}/02-ui-design.md` (required)
+- `.artifacts/ui-design/{workspace-id}/03-api-findings.md` (optional — include if exists)
 
 If `02-ui-design.md` doesn't exist, tell the user that `/plan` should be
 run first.
@@ -54,7 +54,7 @@ remote name is needed to read the correct `HEAD` ref.
 Read and follow `../../_shared/recipes/resolve-docs-publish-remotes.md` with:
 - `DOCS_REPO_PATH` = the validated docs repo path
 - `CONFIGURED_DOCS_REPO_REMOTE` = `docs_repo_remote` from config
-- `BRANCH_NAME` = `{issue-key}-ui-design` (e.g., `EDM-1234-ui-design`)
+- `BRANCH_NAME` = `{workspace-id}-ui-design` (e.g., `EDM-1234-ui-design`)
 
 This resolves `UPSTREAM_REMOTE`, `PUSH_REMOTE`, `UPSTREAM_REPO`, `PUSH_REPO`,
 `PUSH_URL`, `FORK_OWNER`, and `CROSS_REPOSITORY`.
@@ -92,7 +92,7 @@ Present the publish plan:
 
 ```text
 Publishing UI design document:
-  Source: .artifacts/ui-design/{issue-key}/02-ui-design.md
+  Source: .artifacts/ui-design/{workspace-id}/02-ui-design.md
   API findings: {included / not applicable}
   Docs repo: {UPSTREAM_REPO}
   Push to: {PUSH_URL} (branch: {BRANCH_NAME})
@@ -110,7 +110,7 @@ Search the docs repo for the feature directory (the same directory that
 contains the PRD and design document):
 
 ```bash
-find "{docs_repo_path}" -type d \( -name "*{issue-key}*" -o -name "*{workspace-id}*" \)
+find "{docs_repo_path}" -type d -name "*{workspace-id}*"
 ```
 
 **Validate candidate directories.** For each match, verify it is a
@@ -135,19 +135,19 @@ git -C "{docs_repo_path}" checkout -b "{BRANCH_NAME}" "{UPSTREAM_REMOTE}/{base_b
 Copy the artifacts to the docs repo:
 
 ```bash
-cp ".artifacts/ui-design/{issue-key}/02-ui-design.md" "{target_directory}/ui-design.md"
+cp ".artifacts/ui-design/{workspace-id}/02-ui-design.md" "{target_directory}/ui-design.md"
 ```
 
 If `03-api-findings.md` exists:
 
 ```bash
-cp ".artifacts/ui-design/{issue-key}/03-api-findings.md" "{target_directory}/api-findings.md"
+cp ".artifacts/ui-design/{workspace-id}/03-api-findings.md" "{target_directory}/api-findings.md"
 ```
 
 Render provenance footer on the docs-repo copies:
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
-`WORKFLOW=ui-design`, `ISSUE_KEY={issue-key}`, and `TARGET_FILE` set to
+`WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, and `TARGET_FILE` set to
 each copied file's absolute path in the docs repo.
 
 **Note:** The provenance script (`../../_shared/scripts/provenance.py`)
@@ -162,7 +162,7 @@ Stage and commit:
 git -C "{docs_repo_path}" add "{target_directory}/ui-design.md"
 # If api-findings.md was copied:
 git -C "{docs_repo_path}" add "{target_directory}/api-findings.md"
-git -C "{docs_repo_path}" commit -m "Add UI design for {issue-key}"
+git -C "{docs_repo_path}" commit -m "Add UI design for {workspace-id}"
 ```
 
 ### Step 9: Push and Create PR
@@ -174,10 +174,10 @@ git -C "{docs_repo_path}" push -u "{PUSH_REMOTE}" "{BRANCH_NAME}"
 ```
 
 Generate the PR description and save to
-`.artifacts/ui-design/{issue-key}/04-pr-description.md`:
+`.artifacts/ui-design/{workspace-id}/04-pr-description.md`:
 
 ```markdown
-## UI Design — {issue-key}: {title}
+## UI Design — {workspace-id}: {title}
 
 ### Summary
 
@@ -215,32 +215,41 @@ Create the draft PR:
 If `CROSS_REPOSITORY` is true:
 ```bash
 gh pr create --draft --repo "{UPSTREAM_REPO}" --head "{FORK_OWNER}:{BRANCH_NAME}" \
-  --base "{base_branch}" --title "UI design: {issue-key} — {short title}" \
-  --body-file ".artifacts/ui-design/{issue-key}/04-pr-description.md"
+  --base "{base_branch}" --title "UI design: {workspace-id} — {short title}" \
+  --body-file ".artifacts/ui-design/{workspace-id}/04-pr-description.md"
 ```
 
 If `CROSS_REPOSITORY` is false:
 ```bash
 gh pr create --draft --repo "{UPSTREAM_REPO}" --head "{BRANCH_NAME}" \
-  --base "{base_branch}" --title "UI design: {issue-key} — {short title}" \
-  --body-file ".artifacts/ui-design/{issue-key}/04-pr-description.md"
+  --base "{base_branch}" --title "UI design: {workspace-id} — {short title}" \
+  --body-file ".artifacts/ui-design/{workspace-id}/04-pr-description.md"
 ```
 
-### Step 10: Record Publish Metadata
+### Step 10: Record Metadata and Report
 
-Write `.artifacts/ui-design/{issue-key}/publish-metadata.json`:
+Capture the PR URL returned by `gh pr create` (printed to stdout).
+Extract the PR number from the URL (last path segment). Get the commit
+SHA from the branch:
+
+```bash
+git -C "{docs_repo_path}" rev-parse HEAD
+```
+
+Write `.artifacts/ui-design/{workspace-id}/publish-metadata.json` using
+**actual values** from the preceding steps — not placeholders:
 
 ```json
 {
-  "pr_number": {number},
-  "pr_url": "{url}",
+  "pr_number": 42,
+  "pr_url": "https://github.com/{UPSTREAM_REPO}/pull/42",
   "branch": "{BRANCH_NAME}",
   "base_branch": "{base_branch}",
   "upstream_repo": "{UPSTREAM_REPO}",
   "push_repo": "{PUSH_REPO}",
-  "cross_repository": {true/false},
-  "head_sha": "{commit SHA}",
-  "published_at": "{ISO timestamp}",
+  "cross_repository": true,
+  "head_sha": "abc1234def5678...",
+  "published_at": "2025-03-15T14:30:00Z",
   "target_directory": "{resolved target directory path in docs repo}",
   "files": [
     "ui-design.md"
@@ -248,21 +257,18 @@ Write `.artifacts/ui-design/{issue-key}/publish-metadata.json`:
 }
 ```
 
+- `pr_number` and `pr_url`: from the `gh pr create` output
+- `branch`: the actual `BRANCH_NAME` used in Step 7
+- `base_branch`: the actual resolved base branch from Step 4
+- `head_sha`: from `git rev-parse HEAD` above
+- `published_at`: current UTC timestamp in ISO-8601 format
+- `cross_repository`: the actual boolean from Step 3
+
 Include `"api-findings.md"` in the `files` array only if
 `03-api-findings.md` was actually copied to the docs repo. Always
 include `"ui-design.md"`. Do not list files that were not published.
 
-```text
-Example when API findings were published:
-  "files": ["ui-design.md", "api-findings.md"]
-
-Example when API findings are inline:
-  "files": ["ui-design.md"]
-```
-
-### Step 11: Report to User
-
-Present:
+Present to the user:
 - PR URL and number
 - Branch name
 - Files published
@@ -271,8 +277,8 @@ Present:
 ## Output
 
 - PR in the docs repo (draft)
-- `.artifacts/ui-design/{issue-key}/04-pr-description.md`
-- `.artifacts/ui-design/{issue-key}/publish-metadata.json`
+- `.artifacts/ui-design/{workspace-id}/04-pr-description.md`
+- `.artifacts/ui-design/{workspace-id}/publish-metadata.json`
 
 ## When This Phase Is Done
 
