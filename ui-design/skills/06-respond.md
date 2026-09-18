@@ -66,6 +66,13 @@ segment with `.git` suffix stripped. For example,
 `my-org/my-repo` yields `owner=my-org`, `repo=my-repo`; and
 `my-org/my-repo.git` also yields `owner=my-org`, `repo=my-repo`.
 
+**Validate the derived values.** If either `{owner}` or `{repo}` is
+empty after splitting (e.g., `upstream_repo` has no `/` separator, or
+the repo segment is blank after stripping `.git`), stop and report the
+error to the user: *"Could not derive owner/repo from upstream_repo
+value '{upstream_repo}'. Check publish-metadata.json."* Do not attempt
+the GraphQL query with empty values.
+
 ```bash
 gh api graphql -f query='
   query($owner: String!, $repo: String!, $pr: Int!) {
@@ -132,6 +139,12 @@ Wait for the user's decision on each comment before proceeding.
 
 ### Step 5: Apply Changes and Push
 
+**If all approved responses are clarification-only** (every response has
+Document change: "None"), skip this entire step — no document commit or
+provenance capture is needed. Proceed directly to Step 6.
+
+**If any approved response requires a document change**, apply them:
+
 For each approved response that requires a document change:
 
 1. Update `02-ui-design.md` (and `03-api-findings.md` if affected)
@@ -148,9 +161,9 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={issue-key}`, and `TARGET_FILE` set to the
 absolute source-repo path to `.artifacts/ui-design/{issue-key}/02-ui-design.md`.
 
-If document changes were made, copy the updated files to the docs repo,
-commit, and push **before posting any PR comments** — this ensures
-responses reference committed content:
+Copy the updated files to the docs repo, commit, and push **before
+posting any PR comments** — this ensures responses reference committed
+content:
 
 Resolve `target_directory` from `publish-metadata.json` (the
 `target_directory` field). Load `docs_repo_path` from
@@ -216,6 +229,13 @@ done
 
 #### 6c: Post the response
 
+**Lookup-before-retry.** Before posting, check
+`05-review-responses.md` for an existing entry with the same
+`Comment ID` in this round. If found with a successful `Post result`
+and a non-`"unknown"` `API Response ID`, this response was already
+posted — skip it to avoid duplicates. If found with a failed
+`Post result` or `API Response ID: unknown`, proceed with posting.
+
 For inline replies, use the resolved `root_comment_id`:
 
 ```bash
@@ -229,6 +249,13 @@ For general (non-inline) comments, use:
 gh pr comment {pr_number} --repo "{upstream_repo}" \
   --body-file .artifacts/ui-design/{issue-key}/pr-response-{N}.md
 ```
+
+**Capture the API response ID.** After each successful post, extract
+the comment or review ID from the API response (the `id` field in the
+JSON response for `gh api` calls, or parse the URL from `gh pr comment`
+output). Store this value for the response log in Step 6d. If the API
+returns a success status but the response does not contain an `id`
+field, record `API Response ID` as `"unknown"` rather than omitting it.
 
 #### 6d: Persist each response immediately
 

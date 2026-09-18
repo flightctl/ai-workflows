@@ -36,7 +36,9 @@ user.
   - If tracked-only or nothing-to-do: "API gaps have been assessed; no Jira
     changes were needed."
   - If sync encountered errors: "Sync completed with issues; review the
-    manifest for details."
+    manifest for details. Retry `/sync` after resolving the reported
+    error — the manifest tracks which operations succeeded, so the
+    retry will resume from the first incomplete operation."
 
 The user may start at `/review-api` with an existing design, and may skip
 `/publish`, `/respond`, and `/sync` when working locally or when no API gaps

@@ -259,9 +259,22 @@ Questions section.
 
 If codebase exploration found **none** of the following — no
 `UI-ARCHITECTURE.md`, no component directories (e.g., `src/components/`),
-and no backend API type definitions — stop and report to the user that
-insufficient codebase evidence was found before writing `01-context.md`.
-Do not proceed to Step 8.
+and no backend API type definitions — stop before writing `01-context.md`.
+
+Report to the user:
+
+*"Insufficient codebase evidence found. Searches attempted:*
+*- UI-ARCHITECTURE.md: {found / not found}*
+*- Component directories (src/components/, app/components/, etc.): {found / not found, list paths searched}*
+*- Backend API type definitions (OpenAPI specs, TypeScript interfaces, Go structs): {found / not found, list paths searched}*
+*
+*You can retry by providing a different codebase path, or proceed with
+limited context by confirming. Use `/ingest` again after correcting the
+codebase location."*
+
+Wait for the user's response. If they provide a corrected path, re-run
+Step 7 with the new path. Do not proceed to Step 8 unless the user
+explicitly confirms they want to continue with limited evidence.
 
 ### Step 8: Compile Context
 
@@ -269,6 +282,14 @@ Compile the story, upstream artifacts, and codebase findings into the
 structure below. If this is a re-invocation (Step 2a found an existing file),
 **do not write the file yet** — hold the compiled content and proceed to
 Step 8a first.
+
+**Non-Jira placeholder values.** When `{workspace-id}` was derived from
+non-Jira input (Step 1), fill the Story Summary with substitute values:
+`{title}` = the user-provided description or document filename;
+`{parent epic/feature key}` = `"N/A (local workspace)"`;
+`{issue URL}` = `"N/A — workspace derived from: {source description}"`,
+where `{source description}` is the path or label the user provided.
+Skip the Linked Stories table if no Jira data is available.
 
 If this is a first invocation, write
 `.artifacts/ui-design/{workspace-id}/01-context.md` with this structure:
@@ -280,8 +301,8 @@ If this is a first invocation, write
 
 - **Story:** {workspace-id} — {title}
 - **Type:** [UI]
-- **Parent:** {parent epic/feature key}
-- **Jira:** {issue URL}
+- **Parent:** {parent epic/feature key, or "N/A (local workspace)" for non-Jira input}
+- **Jira:** {issue URL, or "N/A — workspace derived from: {source description}" for non-Jira input}
 
 ### Acceptance Criteria
 
