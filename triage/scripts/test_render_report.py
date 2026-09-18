@@ -51,7 +51,7 @@ SAMPLE_ANALYZED = {
     "keyRecommendations": SAMPLE_KEY_RECS,
 }
 
-SAMPLE_EXEC_SUMMARY = ["Backlog is healthy.", "3 regressions found."]
+SAMPLE_EXEC_SUMMARY = ["Backlog is healthy.", "3 regressions found.", "Prioritize regression follow-up."]
 
 SAMPLE_RELEASE_RISK = {
     "riskLevel": "Medium",
@@ -273,6 +273,41 @@ class TestBuildReplacements(unittest.TestCase):
         self.assertEqual(json.loads(r["EXECUTIVE_SUMMARY_JSON"]), [])
 
 
+class TestValidateAiSynthesis(unittest.TestCase):
+    def test_accepts_nullable_and_complete_release_risk(self) -> None:
+        render_report.validate_ai_synthesis(SAMPLE_AI_INPUT, 5)
+        render_report.validate_ai_synthesis({"executiveSummary": [], "releaseRisk": None}, 0)
+
+    def test_rejects_incomplete_release_risk(self) -> None:
+        with self.assertRaises(ValueError):
+            render_report.validate_ai_synthesis({
+                "executiveSummary": ["Summary"],
+                "releaseRisk": {"riskLevel": "High", "summary": "Risk", "factors": [], "mitigations": [1]},
+            }, 0)
+
+    def test_rejects_unknown_risk_level(self) -> None:
+        with self.assertRaises(ValueError):
+            render_report.validate_ai_synthesis({
+                "executiveSummary": ["Summary"],
+                "releaseRisk": {
+                    "riskLevel": "Critical", "summary": "Risk",
+                    "factors": [], "mitigations": [],
+                },
+            }, 5)
+
+    def test_rejects_wrong_summary_cardinality(self) -> None:
+        with self.assertRaises(ValueError):
+            render_report.validate_ai_synthesis({
+                "executiveSummary": ["Only one"], "releaseRisk": None,
+            }, 1)
+
+    def test_rejects_wrong_risk_shape_for_issue_count(self) -> None:
+        with self.assertRaises(ValueError):
+            render_report.validate_ai_synthesis({
+                "executiveSummary": ["One", "Two", "Three"], "releaseRisk": None,
+            }, 5)
+
+
 class TestRender(unittest.TestCase):
     def test_all_placeholders_replaced(self) -> None:
         replacements = render_report.build_replacements(
@@ -406,7 +441,10 @@ class TestMain(unittest.TestCase):
         if "analyzed" not in overrides:
             _write_json(tmpdir, "analyzed.json", SAMPLE_ANALYZED)
         if "ai_input" not in overrides:
-            _write_json(tmpdir, "ai-input.json", SAMPLE_AI_INPUT)
+            _write_json(tmpdir, "ai-input.json", {
+                "executiveSummary": SAMPLE_EXEC_SUMMARY,
+                "releaseRisk": None,
+            })
         if "template" not in overrides:
             _write_text(tmpdir, "template.html", MINIMAL_TEMPLATE)
         if "issues" not in overrides:
@@ -522,12 +560,21 @@ class TestMain(unittest.TestCase):
 
     def test_null_release_risk_renders_correctly(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            ai_input = {"executiveSummary": [], "releaseRisk": None}
+            ai_input = {"executiveSummary": ["One", "Two", "Three"], "releaseRisk": None}
             ai_path = _write_json(Path(tmpdir), "ai-input.json", ai_input)
             rc = self._run(Path(tmpdir), ai_input=str(ai_path))
             self.assertEqual(rc, 0)
             output = (Path(tmpdir) / "output" / "report.html").read_text()
             self.assertIn("var R=null;", output)
+
+    def test_invalid_release_risk_schema_returns_1(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ai_path = _write_json(Path(tmpdir), "ai-input.json", {
+                "executiveSummary": ["Summary"],
+                "releaseRisk": {"riskLevel": "Critical"},
+            })
+            rc = self._run(Path(tmpdir), ai_input=str(ai_path))
+            self.assertEqual(rc, 1)
 
     def test_renders_real_template(self) -> None:
         """Render against the actual report.html template to catch
@@ -538,7 +585,10 @@ class TestMain(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             analyzed_path = _write_json(Path(tmpdir), "analyzed.json", SAMPLE_ANALYZED)
-            ai_path = _write_json(Path(tmpdir), "ai-input.json", SAMPLE_AI_INPUT)
+            ai_path = _write_json(Path(tmpdir), "ai-input.json", {
+                "executiveSummary": SAMPLE_EXEC_SUMMARY,
+                "releaseRisk": None,
+            })
             issues_path = _write_json(Path(tmpdir), "issues.json", SAMPLE_ISSUES_DOC)
             output_path = Path(tmpdir) / "report.html"
 
