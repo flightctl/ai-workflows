@@ -105,7 +105,7 @@ For each dependency identified in Step 3:
    (Done, Closed, Resolved). Fetch with `fetch-issue.py get` (Blocking deps
    command from the Jira call section).
 2. Check if the dependent story's code has been merged to the main branch:
-   `git log --oneline --grep={key} -5` on main.
+   `git log main --oneline --grep="{key}" -5`.
 
 If dependencies are unresolved, **warn the user** but do not block. Report:
 - Which dependencies are unresolved
@@ -157,7 +157,11 @@ Search the docs repo for the Feature key:
 find "{docs_repo_path}" -type d -name "*{feature-key}*"
 ```
 
-If the hierarchy traversal fails or the directory isn't found, ask the user
+If multiple directories match (e.g., the same Feature across releases),
+prefer the one whose release matches the story's fix version. If ambiguous,
+ask the user to choose.
+
+If the hierarchy traversal fails or no directory is found, ask the user
 for the path to the PRD and design document within the docs repo.
 
 #### 5c: Read Upstream Documents (section-scoped)
@@ -227,7 +231,9 @@ Skip `AGENTS.md` and `CONTRIBUTING.md` Reads if already in session. Path-only fo
   "AGENTS.md": {"mtime": "{unix}", "sha256": "{hex or empty}"},
   "CONTRIBUTING.md": {"mtime": "{unix}", "sha256": "{hex or empty}"},
   "Makefile": {"mtime": "{unix}", "sha256": "{hex or empty}"},
-  "ci_workflows": ["{filenames from git ls-files}"]
+  "ci_workflows": {
+    "{filename}": {"mtime": "{unix}", "sha256": "{hex or empty}"}
+  }
 }
 ```
 
