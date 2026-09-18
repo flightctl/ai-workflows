@@ -34,6 +34,21 @@ explicit user approval.
 
 ## Prerequisites
 
+**Jira-backed workspace required.** Before any other check, read
+`.artifacts/ui-design/{workspace-id}/01-context.md` and verify that
+`{workspace-id}` is a Jira issue key (matches the pattern
+`[A-Z][A-Z0-9]+-\d+`). If the workspace was created from non-Jira
+input (a user-provided slug, path, or description), `/sync` cannot
+proceed — there is no Jira project to sync stories to. Stop
+immediately and report:
+
+*"The `/sync` phase requires a Jira-backed workspace (a Jira issue
+key as workspace-id). This workspace (`{workspace-id}`) was created
+from non-Jira input. To sync API gap stories to Jira, re-run
+`/ingest` with a Jira issue key."*
+
+Do not proceed to Step 1.
+
 **Jira access required.** This phase creates, updates, and closes Jira
 issues. Before starting, verify that Jira MCP tools are available by
 confirming you can read an issue (e.g., the parent story from
@@ -103,6 +118,7 @@ payload as the sorted JSON serialization of exactly these fields:
   "pr_url": "{pr_url}",
   "severity": "{severity}",
   "suggested_approach": "{suggested approach}",
+  "title": "{gap title}",
   "ui_need": "{UI need}",
   "whats_missing": "{what's missing}"
 }
@@ -110,9 +126,11 @@ payload as the sorted JSON serialization of exactly these fields:
 
 Compute `content_hash = SHA-256(JSON.stringify(payload))` where keys
 are sorted alphabetically (as shown above) and values are trimmed of
-leading/trailing whitespace. This set of fields matches exactly what
-gets rendered into the Jira description template — any change to a
-rendered field triggers an update.
+leading/trailing whitespace. The `title` field is included because it
+becomes the Jira summary (`[DEV] {gap title}`) — a title-only change
+must trigger an update. This set of fields matches exactly what gets
+rendered into the Jira issue — any change to a rendered field triggers
+an update.
 
 Each gap that has severity
 `critical`, `high`, or `medium` is a candidate for a `[DEV]` story.
@@ -525,7 +543,7 @@ Fields:
   `synced_status: "tracked"` (low-severity gaps not synced to Jira).
 - `content_hash` — SHA-256 of the canonical gap payload: sorted JSON
   of `{affected_components, category, current_state, pr_url, severity,
-  suggested_approach, ui_need, whats_missing}` (see "Canonical
+  suggested_approach, title, ui_need, whats_missing}` (see "Canonical
   content_hash computation" above). Used to detect changes on the next
   run. Preserved (not replaced) when closing an issue, to support
   deterministic reopen detection.

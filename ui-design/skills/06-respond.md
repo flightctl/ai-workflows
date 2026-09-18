@@ -29,9 +29,9 @@ and push to the docs repo branch.
 ### Step 1: Read Current State
 
 Read these files:
-1. `.artifacts/ui-design/{issue-key}/publish-metadata.json` (PR details)
-2. `.artifacts/ui-design/{issue-key}/02-ui-design.md` (current UI design)
-3. `.artifacts/ui-design/{issue-key}/03-api-findings.md` (if it exists)
+1. `.artifacts/ui-design/{workspace-id}/publish-metadata.json` (PR details)
+2. `.artifacts/ui-design/{workspace-id}/02-ui-design.md` (current UI design)
+3. `.artifacts/ui-design/{workspace-id}/03-api-findings.md` (if it exists)
 
 If `publish-metadata.json` doesn't exist, tell the user that `/publish`
 should be run first.
@@ -75,10 +75,11 @@ the GraphQL query with empty values.
 
 ```bash
 gh api graphql -f query='
-  query($owner: String!, $repo: String!, $pr: Int!) {
+  query($owner: String!, $repo: String!, $pr: Int!, $cursor: String) {
     repository(owner: $owner, name: $repo) {
       pullRequest(number: $pr) {
-        reviewThreads(first: 100) {
+        reviewThreads(first: 100, after: $cursor) {
+          pageInfo { hasNextPage endCursor }
           nodes {
             isResolved
             comments(first: 50) {
@@ -91,10 +92,15 @@ gh api graphql -f query='
   }' -f owner="{owner}" -f repo="{repo}" -F pr={pr_number}
 ```
 
-If GraphQL is unavailable, fall back to the REST calls above and
-reconstruct threads from `in_reply_to_id` chains. In this fallback
-mode, thread resolution state is not available — note this in the
-response log.
+**Pagination.** The query fetches up to 100 threads per page. If
+`pageInfo.hasNextPage` is `true`, re-run the query with
+`-f cursor="{endCursor}"` to fetch the next page. Repeat until
+`hasNextPage` is `false`. Merge all `nodes` arrays before processing.
+
+If GraphQL is unavailable, fall back to the REST calls above (which
+already use `--paginate`) and reconstruct threads from
+`in_reply_to_id` chains. In this fallback mode, thread resolution
+state is not available — note this in the response log.
 
 Parse the comments and organize by:
 - **Inline comments** — tied to specific lines or sections (with thread IDs)
@@ -154,12 +160,12 @@ For each approved response that requires a document change:
 After all changes are applied:
 
 Read and follow `../../_shared/recipes/capture-provenance-event.md` with
-`WORKFLOW=ui-design`, `ISSUE_KEY={issue-key}`, `PHASE=respond`,
+`WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, `PHASE=respond`,
 `AUTHORING_MODE=skill`.
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
-`WORKFLOW=ui-design`, `ISSUE_KEY={issue-key}`, and `TARGET_FILE` set to the
-absolute source-repo path to `.artifacts/ui-design/{issue-key}/02-ui-design.md`.
+`WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, and `TARGET_FILE` set to the
+absolute source-repo path to `.artifacts/ui-design/{workspace-id}/02-ui-design.md`.
 
 Copy the updated files to the docs repo, commit, and push **before
 posting any PR comments** — this ensures responses reference committed
@@ -171,9 +177,9 @@ Resolve `target_directory` from `publish-metadata.json` (the
 the push remote is valid before committing.
 
 ```bash
-cp ".artifacts/ui-design/{issue-key}/02-ui-design.md" "{target_directory}/ui-design.md"
+cp ".artifacts/ui-design/{workspace-id}/02-ui-design.md" "{target_directory}/ui-design.md"
 # If api-findings.md was updated:
-cp ".artifacts/ui-design/{issue-key}/03-api-findings.md" "{target_directory}/api-findings.md"
+cp ".artifacts/ui-design/{workspace-id}/03-api-findings.md" "{target_directory}/api-findings.md"
 ```
 
 Render provenance footer on the docs-repo copies before staging.
@@ -182,7 +188,7 @@ Render provenance footer on the docs-repo copies before staging.
 git -C "{docs_repo_path}" add "{target_directory}/ui-design.md"
 # If api-findings.md was updated during this phase:
 git -C "{docs_repo_path}" add "{target_directory}/api-findings.md"
-git -C "{docs_repo_path}" commit -m "Address review feedback for {issue-key} UI design"
+git -C "{docs_repo_path}" commit -m "Address review feedback for {workspace-id} UI design"
 git -C "{docs_repo_path}" push
 ```
 
@@ -210,7 +216,7 @@ Use a heredoc with a quoted delimiter so reviewer-controlled content is
 treated as literal data, preventing shell interpolation:
 
 ```bash
-cat > .artifacts/ui-design/{issue-key}/pr-response-{N}.md << 'ENDOFRESPONSE'
+cat > .artifacts/ui-design/{workspace-id}/pr-response-{N}.md << 'ENDOFRESPONSE'
 {response}
 ENDOFRESPONSE
 ```
@@ -264,14 +270,14 @@ For inline replies, use the resolved `root_comment_id`:
 
 ```bash
 gh api "repos/{upstream_repo}/pulls/{pr_number}/comments/${root_comment_id}/replies" \
-  -F "body=@.artifacts/ui-design/{issue-key}/pr-response-{N}.md"
+  -F "body=@.artifacts/ui-design/{workspace-id}/pr-response-{N}.md"
 ```
 
 For general (non-inline) comments, use:
 
 ```bash
 gh pr comment {pr_number} --repo "{upstream_repo}" \
-  --body-file .artifacts/ui-design/{issue-key}/pr-response-{N}.md
+  --body-file .artifacts/ui-design/{workspace-id}/pr-response-{N}.md
 ```
 
 **Capture the API response ID.** After each successful post, extract
@@ -284,7 +290,7 @@ field, record `API Response ID` as `"unknown"` rather than omitting it.
 #### 6d: Update the response entry after posting
 
 Update the preliminary entry (written in Step 6c before the API call)
-in `.artifacts/ui-design/{issue-key}/05-review-responses.md` with the
+in `.artifacts/ui-design/{workspace-id}/05-review-responses.md` with the
 final post result and API response ID. Do this immediately after
 confirmed posting, before moving to the next comment. This ensures
 that if the run is interrupted, already-posted responses are recorded
@@ -294,7 +300,7 @@ invocation.
 If the file does not exist yet, create it with the round header first:
 
 ```markdown
-# Review Responses — {issue-key}
+# Review Responses — {workspace-id}
 
 ## Round {N} — {date}
 ```
@@ -306,7 +312,6 @@ Then append each entry immediately after posting:
 
 **Comment ID:** {comment_id} (originally selected comment)
 **Root Comment ID:** {root_comment_id} (used for posting; same as Comment ID if not a nested reply)
-**Thread ID:** {root_comment_id from Step 6b for inline review comments; "N/A" for general comments}
 **Timestamp:** {ISO timestamp when response was posted}
 **Comment:** {text}
 **Category:** {category}
@@ -322,12 +327,12 @@ After all responses have been posted, clean up the individual response
 files — their content is captured in the per-response log entries above:
 
 ```bash
-rm -f .artifacts/ui-design/{issue-key}/pr-response-*.md
+rm -f .artifacts/ui-design/{workspace-id}/pr-response-*.md
 ```
 
 ### Step 7: Verify Response Log
 
-Verify that `.artifacts/ui-design/{issue-key}/05-review-responses.md`
+Verify that `.artifacts/ui-design/{workspace-id}/05-review-responses.md`
 contains an entry for every response posted in this round. This file is
 the persistent record of all review interactions and must survive across
 sessions.
@@ -343,10 +348,10 @@ Present:
 
 ## Output
 
-- `.artifacts/ui-design/{issue-key}/02-ui-design.md` (updated, if changes were made)
-- `.artifacts/ui-design/{issue-key}/03-api-findings.md` (updated, if it exists and was affected)
-- `.artifacts/ui-design/{issue-key}/05-review-responses.md`
-- `.artifacts/ui-design/{issue-key}/provenance.json` (updated, if changes were made)
+- `.artifacts/ui-design/{workspace-id}/02-ui-design.md` (updated, if changes were made)
+- `.artifacts/ui-design/{workspace-id}/03-api-findings.md` (updated, if it exists and was affected)
+- `.artifacts/ui-design/{workspace-id}/05-review-responses.md`
+- `.artifacts/ui-design/{workspace-id}/provenance.json` (updated, if changes were made)
 - Updated PR in docs repo (if changes were pushed)
 
 ## When This Phase Is Done
