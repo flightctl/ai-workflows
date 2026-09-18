@@ -12,7 +12,8 @@ Usage:
 Arguments:
   WORKFLOW        Workflow name (e.g., bugfix, design, docs-writer)
   PHASE_FILE      Skill filename to resolve (e.g., assess.md,
-                  gather-context.md)
+                  gather-context.md).  The .md extension is optional;
+                  bare names like "assess" are normalized to "assess.md".
 
 Options:
   --builtin-only  Skip the project-override check and resolve directly
@@ -125,7 +126,7 @@ def resolve_phase(
 
     Args:
         workflow: Workflow name (e.g., 'bugfix', 'design').
-        phase_file: Skill filename (e.g., 'assess.md').
+        phase_file: Skill filename (e.g., 'assess.md' or 'assess').
         builtin_only: If True, skip override check (default: False).
 
     Returns:
@@ -135,6 +136,10 @@ def resolve_phase(
         SystemExit: If a path component is unsafe, the built-in fallback
             cannot be located, or the built-in file is empty/unreadable.
     """
+    # Normalize bare phase names (e.g. "code" -> "code.md")
+    if not phase_file.endswith(".md"):
+        phase_file += ".md"
+
     # Validate inputs against path traversal
     _validate_path_component(workflow, "workflow")
     _validate_path_component(phase_file, "phase_file")
@@ -216,7 +221,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "phase_file",
         help="Skill filename to resolve (e.g., assess.md, "
-             "gather-context.md)",
+             "gather-context.md). The .md extension is optional.",
     )
     return parser
 
