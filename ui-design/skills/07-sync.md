@@ -38,6 +38,13 @@ explicit user approval.
 `.artifacts/ui-design/{workspace-id}/01-context.md` and check the
 `Origin` field in the Story Summary section.
 
+- If `01-context.md` is missing, unreadable, or cannot be parsed,
+  stop immediately and report:
+
+  *"Workspace metadata is invalid or unavailable —
+  `01-context.md` could not be read. Re-run `/ingest` to
+  re-initialize the workspace before using `/sync`."*
+
 - If `Origin: Non-Jira`, `/sync` cannot proceed — there is no Jira
   project to sync stories to. Stop immediately and report:
 
@@ -53,6 +60,13 @@ explicit user approval.
   key regex `^[A-Z][A-Z0-9]+-[0-9]+$`. If it matches, proceed. If it
   does not match, treat the workspace as non-Jira and stop with the
   same error message above.
+
+- If the `Origin` field is present but contains an unrecognized value
+  (neither `Jira` nor `Non-Jira`), stop immediately and report:
+
+  *"Workspace metadata is invalid — the `Origin` field in
+  `01-context.md` has an unrecognized value (`{value}`). Re-run
+  `/ingest` to re-initialize the workspace before using `/sync`."*
 
 Do not proceed to Step 1 unless the workspace is confirmed Jira-backed.
 

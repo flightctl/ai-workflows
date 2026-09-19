@@ -262,8 +262,8 @@ done
 #### 6c: Write preliminary log entry and post the response
 
 **Initialize the response log before the API call.** Before attempting
-the GitHub API post, ensure `05-review-responses.md` exists and contains
-a preliminary entry for this comment. This guarantees that if the process
+the GitHub API post, ensure `05-review-responses.md` exists and is
+ready for this comment's entry. This guarantees that if the process
 crashes during or immediately after the API call, the entry exists and
 the next `/respond` invocation can detect the ambiguous state.
 
@@ -278,8 +278,26 @@ If the file does not exist yet, create it with the round header:
 If the file exists but does not contain a `## Round {N}` header for the
 current round, append the round header.
 
-Then append the preliminary entry with `Post result: pending` and
-`API Response ID: unknown`:
+**Duplicate-entry guard.** Before appending a new entry, search
+`05-review-responses.md` for an existing entry whose `**Comment ID:**`
+matches the current `{comment_id}` in this round.
+
+- If found with a successful `Post result` and a non-`"unknown"`
+  `API Response ID`, this response was already posted — skip the
+  entire comment (do not append, do not post) to avoid duplicates.
+- If found with `Post result: pending` or `API Response ID: unknown`,
+  reuse the existing entry — do not append a duplicate. Perform a
+  **GitHub lookup** before re-posting: query the PR's comment thread
+  for a reply matching this response's body text to determine whether
+  the prior attempt actually succeeded. If a matching reply is found,
+  update the existing entry with the discovered `API Response ID` and
+  mark it successful — skip re-posting. If no matching reply is found,
+  proceed with posting and update the existing entry in Step 6d.
+- If found with a failed `Post result`, reuse the existing entry —
+  do not append a duplicate. Proceed with posting and update the
+  existing entry in Step 6d.
+- If no matching entry exists, append a new preliminary entry with
+  `Post result: pending` and `API Response ID: unknown`:
 
 ```markdown
 ### Comment #{N}: {reviewer} on {section}
@@ -294,22 +312,6 @@ Then append the preliminary entry with `Post result: pending` and
 **Post result:** pending
 **API Response ID:** unknown
 ```
-
-**Lookup-before-retry.** Before posting, check
-`05-review-responses.md` for an existing entry with the same
-`Comment ID` in this round.
-
-- If found with a successful `Post result` and a non-`"unknown"`
-  `API Response ID`, this response was already posted — skip it to
-  avoid duplicates.
-- If found with `Post result: pending` or `API Response ID: unknown`,
-  perform a **GitHub lookup** before re-posting: query the PR's
-  comment thread for a reply matching this response's body text to
-  determine whether the prior attempt actually succeeded. If a
-  matching reply is found, update the existing entry with the
-  discovered `API Response ID` and skip re-posting. If no matching
-  reply is found, proceed with posting.
-- If found with a failed `Post result`, proceed with posting.
 
 For inline replies, use the resolved `root_comment_id`:
 
@@ -334,8 +336,9 @@ field, record `API Response ID` as `"unknown"` rather than omitting it.
 
 #### 6d: Update the response entry after posting
 
-Update the preliminary entry (written in Step 6c before the API call)
-in `.artifacts/ui-design/{workspace-id}/05-review-responses.md` with the
+Update the entry identified in Step 6c (whether a newly appended
+preliminary entry or an existing entry being retried) in
+`.artifacts/ui-design/{workspace-id}/05-review-responses.md` with the
 final post result and API response ID. Do this immediately after
 confirmed posting, before moving to the next comment. This ensures
 that if the run is interrupted, already-posted responses are recorded
@@ -346,7 +349,7 @@ Replace the `**Post result:** pending` line with the actual outcome
 (`success` or `failed — {error}`), and replace
 `**API Response ID:** unknown` with the ID returned by the GitHub API
 (or `"N/A"` on failure). Do not append a new entry — update the
-existing preliminary entry in place.
+identified entry in place.
 
 #### 6e: Clean up
 
