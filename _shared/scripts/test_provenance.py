@@ -55,6 +55,10 @@ class ProvenanceTests(unittest.TestCase):
         events = [{"phase": "draft"}, {"phase": "revise"}]
         self.assertFalse(provenance.origin_untracked(events))
 
+    def test_origin_untracked_false_when_first_event_is_plan(self) -> None:
+        events = [{"phase": "plan"}, {"phase": "revise"}]
+        self.assertFalse(provenance.origin_untracked(events))
+
     def test_origin_untracked_false_when_first_event_is_commit(self) -> None:
         events = [{"phase": "commit"}]
         self.assertFalse(provenance.origin_untracked(events))
@@ -125,6 +129,39 @@ class ProvenanceTests(unittest.TestCase):
         }
         metrics = provenance.build_metrics_payload(data)
         self.assertTrue(metrics["origin_untracked"])
+
+    def test_plan_only_session_is_tracked_origin(self) -> None:
+        # A plan-only provenance log should be treated as a tracked-origin
+        # session — plan is in ORIGIN_TRACKED_PHASES alongside draft.
+        events = [
+            {
+                "phase": "plan",
+                "authoring_mode": "skill",
+                "workflow_version": "0.3.5",
+                "ai_workflows": "abc1234",
+                "source_repo": "def5678",
+                "source_repo_branch": "main",
+            }
+        ]
+        data = {
+            "workflow": "ui-design",
+            "events": events,
+            "drift": {"context_changed": False},
+        }
+        # provenance_kind should be "session" (not commit_only)
+        self.assertEqual(provenance.provenance_kind(events), "session")
+        # origin should be tracked (plan is in ORIGIN_TRACKED_PHASES)
+        self.assertFalse(provenance.origin_untracked(events))
+        # metrics payload should reflect tracked origin
+        metrics = provenance.build_metrics_payload(data)
+        self.assertEqual(metrics["provenance_kind"], "session")
+        self.assertFalse(metrics["origin_untracked"])
+        self.assertEqual(metrics["phases"], ["plan"])
+        # footer should have no untracked-origin disclaimer
+        footer = provenance.build_footer(data)
+        self.assertIn("Authored: plan @ ui-design 0.3.5 - abc1234", footer)
+        self.assertNotIn("does not include an initial /draft", footer)
+        self.assertIn('"origin_untracked":false', footer)
 
     def test_build_metrics_payload_origin_tracked_for_draft(self) -> None:
         data = {
