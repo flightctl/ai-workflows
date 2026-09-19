@@ -129,6 +129,41 @@ remain at its initial `0.1.0` while it is being developed:
 - **MAJOR** (0.1.0 → 1.0.0): Removing or renaming public phases,
   commands, configuration keys, or other package interfaces; incompatible restructuring
 
+### Version bump baseline
+
+Version bumps are computed **relative to the merge base with `main`**, not
+relative to the current branch state. Each PR warrants **at most one version
+increment per package** at any given semver level.
+
+Rules:
+
+1. Before bumping, compare the version in your branch against the version at
+   `git merge-base HEAD main` (the CI script does this automatically).
+2. If you already bumped a package's version for this PR, do **not** bump it
+   again for additional changes at the same semver level.
+3. The only reason to re-bump within a PR is when the **class** of change
+   escalates (PATCH → MINOR or MINOR → MAJOR). In that case, set the version
+   to what the higher level requires relative to the merge base — do not stack
+   increments.
+
+**Example — wrong (cumulative over-bumping):**
+
+```text
+merge-base version: 0.2.0
+commit 1: fix typo          → bump to 0.2.1 (PATCH) ✓
+commit 2: fix another typo  → bump to 0.2.2 (PATCH) ✗ already bumped
+commit 3: add a new step    → bump to 0.3.0 (MINOR) ✗ stacked on 0.2.2
+```
+
+**Example — correct (single bump relative to merge base):**
+
+```text
+merge-base version: 0.2.0
+commit 1: fix typo          → bump to 0.2.1 (PATCH) ✓
+commit 2: fix another typo  → keep 0.2.1 (already bumped PATCH) ✓
+commit 3: add a new step    → change to 0.3.0 (escalate PATCH → MINOR) ✓
+```
+
 ### Which files require a version bump
 
 Behavioral files (the AI reads and executes these):

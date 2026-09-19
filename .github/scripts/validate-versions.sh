@@ -86,7 +86,10 @@ find_packages_referencing() {
 if [ -n "${GITHUB_BASE_REF:-}" ]; then
   BASE_REF="origin/${GITHUB_BASE_REF}"
 elif [ "${GITHUB_EVENT_NAME:-}" = "push" ]; then
-  BASE_REF=$(git rev-parse HEAD^1)
+  # Prefer github.event.before (passed as $1) over HEAD^1.
+  # HEAD^1 is the final commit's parent; for multi-commit pushes
+  # it misses intermediate version edits.
+  BASE_REF="${1:-$(git rev-parse HEAD^1)}"
 else
   BASE_REF="origin/main"
 fi
@@ -257,7 +260,45 @@ for package in "${!package_behavioral_changed[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
-# 9. Advisory: signals that suggest MAJOR bump
+# 9. Advisory: detect over-bumping within a single PR
+# ---------------------------------------------------------------------------
+for package in "${!package_version_bumped[@]}"; do
+  new_ver=$(sed -n 's/^version: *//p' "$package/SKILL.md")
+  old_ver=$(git show "$MERGE_BASE:$package/SKILL.md" 2>/dev/null \
+    | sed -n 's/^version: *//p' || echo "")
+  [ -n "$old_ver" ] && [ -n "$new_ver" ] || continue
+
+  IFS='.' read -r old_major old_minor old_patch <<< "$old_ver"
+  IFS='.' read -r new_major new_minor new_patch <<< "$new_ver"
+
+  if [ "$new_major" -ne "$old_major" ]; then
+    # MAJOR change — validate distance and reset format
+    expected_major=$((old_major + 1))
+    if [ "$new_major" -gt "$expected_major" ]; then
+      warn "$package: version jumped from $old_ver to $new_ver (expected ${expected_major}.0.0) — each PR should have at most one MAJOR bump per package"
+    fi
+    if [ "$new_minor" -ne 0 ] || [ "$new_patch" -ne 0 ]; then
+      warn "$package: MAJOR bump from $old_ver to $new_ver should reset MINOR and PATCH to 0 (expected ${new_major}.0.0)"
+    fi
+  elif [ "$new_minor" -ne "$old_minor" ]; then
+    # MINOR change — expect old_minor + 1 and new_patch == 0
+    expected_minor=$((old_minor + 1))
+    if [ "$new_minor" -gt "$expected_minor" ]; then
+      warn "$package: version jumped from $old_ver to $new_ver (expected ${old_major}.${expected_minor}.0) — each PR should have at most one MINOR bump per package"
+    elif [ "$new_patch" -ne 0 ]; then
+      warn "$package: MINOR bump from $old_ver to $new_ver should reset PATCH to 0 (expected ${old_major}.${new_minor}.0)"
+    fi
+  elif [ "$new_patch" -ne "$old_patch" ]; then
+    # PATCH change — expect old_patch + 1
+    expected_patch=$((old_patch + 1))
+    if [ "$new_patch" -gt "$expected_patch" ]; then
+      warn "$package: version jumped from $old_ver to $new_ver (expected ${old_major}.${old_minor}.${expected_patch}) — each PR should have at most one PATCH bump per package"
+    fi
+  fi
+done
+
+# ---------------------------------------------------------------------------
+# 10. Advisory: signals that suggest MAJOR bump
 # ---------------------------------------------------------------------------
 for file in "${CHANGED_FILES[@]}"; do
   package="${file%%/*}"
@@ -277,7 +318,7 @@ for file in "${CHANGED_FILES[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
-# 10. Shared files themselves must have version bumps when changed
+# 11. Shared files themselves must have version bumps when changed
 # ---------------------------------------------------------------------------
 for shared_file in "${!shared_changed[@]}"; do
   new_ver=$(sed -n 's/^version: *//p' "$shared_file")
@@ -293,7 +334,7 @@ for shared_file in "${!shared_changed[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
-# 11. Cascade: shared file changes require consuming package bumps
+# 12. Cascade: shared file changes require consuming package bumps
 # ---------------------------------------------------------------------------
 for shared_file in "${!shared_changed[@]}"; do
   base=$(basename "$shared_file" .md)

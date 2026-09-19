@@ -345,6 +345,45 @@ reviews:
         - New validation checks should complement, not duplicate, what
           CodeRabbit already checks via path_instructions
 
+    # ── Version bump baseline ──────────────────────────────────
+    - path: "*/SKILL.md"
+      instructions: |
+        Version over-bump check:
+        When a SKILL.md version field changes, compare the new version
+        against the merge base with main (not against earlier commits in
+        the same PR branch). Flag the PR if:
+          1. A version has been bumped more than one increment at the
+             same semver level (e.g., PATCH went from 0.2.0 to 0.2.3
+             instead of 0.2.1).
+          2. Multiple commits in the PR each bump the same package —
+             each PR should have at most one version bump per package.
+        Escalation exception: a re-bump that changes the semver level
+        (PATCH → MINOR or MINOR → MAJOR) is acceptable. For example,
+        bumping from 0.2.1 to 0.3.0 within the same PR is correct when
+        the change class escalates. Only flag same-level over-bumps
+        (e.g., two successive PATCH increments like 0.2.1 → 0.2.2).
+
+    - path: "skills/*/SKILL.md"
+      instructions: |
+        Version over-bump check (simple skills):
+        Same rules as workflow SKILL.md: compare the version change
+        against the merge base with main. Flag if a version is bumped
+        more than one increment at the same semver level, or if
+        multiple commits in the PR each bump the same package version.
+        Each PR warrants at most one version bump per package.
+        Escalation exception: a re-bump that changes the semver level
+        (PATCH → MINOR or MINOR → MAJOR) is acceptable — this reflects
+        the change class escalating, not an over-bump. Only flag
+        same-level over-bumps (e.g., two successive PATCH increments).
+
+    - path: "_shared/**/*.md"
+      instructions: |
+        Version over-bump check (shared files):
+        Shared files carry versions in their frontmatter. Compare
+        version changes against the merge base with main. Flag if a
+        version is bumped more than one increment at the same semver
+        level within a single PR.
+
     # ══════════════════════════════════════════════════════════════
     # Inherited security rules (prodsec-skills)
     #
