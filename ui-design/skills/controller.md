@@ -11,31 +11,31 @@ lightweight dispatcher.
 
 ## Phases
 
-1. **Ingest** (`/ingest`) — `01-ingest.md`
+1. **Ingest** (`/ingest`) — `ingest.md`
    Fetch the `[UI]` story from Jira, load the UX handoff, PRD, and design
    document from the docs repo, explore the UI codebase and backend API.
 
-2. **Plan** (`/plan`) — `02-plan.md`
+2. **Plan** (`/plan`) — `plan.md`
    Component decomposition, hook design, state management approach, route
    structure, data flow mapping, persona-aware decomposition, accessibility,
    testing strategy, and acceptance criteria mapping. Produces `02-ui-design.md`.
 
-3. **Review API** (`/review-api`) — `03-review-api.md`
+3. **Review API** (`/review-api`) — `review-api.md`
    Deep API surface review — map every UI data need to a specific backend
    endpoint and field, categorize gaps. Updates `02-ui-design.md` with API
    findings (or writes separate `03-api-findings.md` if too verbose).
 
-4. **Revise** (`/revise`) — `04-revise.md`
+4. **Revise** (`/revise`) — `revise.md`
    Incorporate user feedback into the UI design document and API findings.
    Repeatable.
 
-5. **Publish** (`/publish`) — `05-publish.md`
+5. **Publish** (`/publish`) — `publish.md`
    Push the UI design document to the docs repo as a draft GitHub PR.
 
-6. **Respond** (`/respond`) — `06-respond.md`
+6. **Respond** (`/respond`) — `respond.md`
    Fetch and address PR reviewer comments. Repeatable.
 
-7. **Sync** (`/sync`) — `07-sync.md`
+7. **Sync** (`/sync`) — `sync.md`
    Create, update, or close `[DEV]` Jira stories for API gaps identified
    during review. Manifest-based with content hashes.
 

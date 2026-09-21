@@ -11,18 +11,17 @@ the valid phases and stop before resolving a filename.
 
 ## Phase File Mapping
 
-UI design phase filenames use numeric prefixes. Map `PHASE` to the
-corresponding skill filename before resolving overrides:
+Map `PHASE` to the corresponding skill filename before resolving overrides:
 
 | PHASE | PHASE_FILE |
 |-------|------------|
-| `ingest` | `01-ingest.md` |
-| `plan` | `02-plan.md` |
-| `review-api` | `03-review-api.md` |
-| `revise` | `04-revise.md` |
-| `publish` | `05-publish.md` |
-| `respond` | `06-respond.md` |
-| `sync` | `07-sync.md` |
+| `ingest` | `ingest.md` |
+| `plan` | `plan.md` |
+| `review-api` | `review-api.md` |
+| `revise` | `revise.md` |
+| `publish` | `publish.md` |
+| `respond` | `respond.md` |
+| `sync` | `sync.md` |
 
 ## Dispatch Procedure
 

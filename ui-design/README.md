@@ -196,13 +196,13 @@ ui-design/
 │   ├── controller.md           # Discovery and ambiguous-input router
 │   ├── dispatch.md             # Demand-load phase executor
 │   ├── completion.md           # Next-step recommendations per phase
-│   ├── 01-ingest.md            # Fetch story, load docs, explore codebase
-│   ├── 02-plan.md              # Component decomposition and UI design
-│   ├── 03-review-api.md        # Deep API surface review
-│   ├── 04-revise.md            # Incorporate feedback
-│   ├── 05-publish.md           # Create GitHub PR
-│   ├── 06-respond.md           # Address review comments
-│   └── 07-sync.md              # Sync [DEV] stories to Jira
+│   ├── ingest.md               # Fetch story, load docs, explore codebase
+│   ├── plan.md                 # Component decomposition and UI design
+│   ├── review-api.md           # Deep API surface review
+│   ├── revise.md               # Incorporate feedback
+│   ├── publish.md              # Create GitHub PR
+│   ├── respond.md              # Address review comments
+│   └── sync.md                 # Sync [DEV] stories to Jira
 └── commands/
     ├── ingest.md               # /ingest command
     ├── plan.md                 # /plan command

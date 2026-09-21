@@ -99,7 +99,7 @@ error before performing any Jira operations.
 
 Extract every gap from the API Gaps table. Each gap row must contain a
 `gap_id` field produced by the `/review-api` phase (see
-`03-review-api.md` — Gap ID derivation). Use this producer-provided
+`review-api.md` — Gap ID derivation). Use this producer-provided
 `gap_id` as the sole matching key when comparing findings with the
 manifest; do not re-derive or recompute it during sync, and do not
 match by `gap_number` or title alone. If any gap row is missing a
