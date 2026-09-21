@@ -163,6 +163,56 @@ class ProvenanceTests(unittest.TestCase):
         self.assertNotIn("does not include an initial /draft", footer)
         self.assertIn('"origin_untracked":false', footer)
 
+    def test_plan_review_api_revise_session(self) -> None:
+        # Regression test: review-api must appear in AUTHORING_PHASES so that
+        # skill_phase_names() includes it in the footer's Phases line.
+        # A plan → review-api → revise session should:
+        #   - list all three phases in build_metrics_payload
+        #   - render "Phases: plan, review-api, revise" in the footer
+        #   - remain tracked-origin because the first event is plan
+        events = [
+            {
+                "phase": "plan",
+                "authoring_mode": "skill",
+                "workflow_version": "0.3.5",
+                "ai_workflows": "abc1234",
+                "source_repo": "def5678",
+                "source_repo_branch": "feat-branch",
+            },
+            {
+                "phase": "review-api",
+                "authoring_mode": "skill",
+                "workflow_version": "0.3.5",
+                "ai_workflows": "abc1234",
+                "source_repo": "def5678",
+                "source_repo_branch": "feat-branch",
+            },
+            {
+                "phase": "revise",
+                "authoring_mode": "skill",
+                "workflow_version": "0.3.5",
+                "ai_workflows": "abc1234",
+                "source_repo": "def5678",
+                "source_repo_branch": "feat-branch",
+            },
+        ]
+        data = {
+            "workflow": "ui-design",
+            "events": events,
+            "drift": {"context_changed": False},
+        }
+        # metrics payload must include all three phases
+        metrics = provenance.build_metrics_payload(data)
+        self.assertEqual(metrics["phases"], ["plan", "review-api", "revise"])
+        # origin is tracked (first event is plan)
+        self.assertFalse(metrics["origin_untracked"])
+        # footer must render all three in the Phases line
+        footer = provenance.build_footer(data)
+        self.assertIn("Phases: plan, review-api, revise", footer)
+        # no untracked-origin disclaimer
+        self.assertNotIn("does not include an initial /draft", footer)
+        self.assertIn('"origin_untracked":false', footer)
+
     def test_build_metrics_payload_origin_tracked_for_draft(self) -> None:
         data = {
             "workflow": "prd",

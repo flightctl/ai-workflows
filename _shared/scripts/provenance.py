@@ -26,7 +26,7 @@ WORKFLOW_DOCS = {
     "ui-design": "02-ui-design.md",
 }
 
-AUTHORING_PHASES = frozenset({"draft", "plan", "revise", "respond", "manual-edit"})
+AUTHORING_PHASES = frozenset({"draft", "plan", "review-api", "revise", "respond", "manual-edit"})
 
 # Subset of phases that establish a tracked document origin.
 # Only an explicit /draft or /plan run counts as a tracked origin.
