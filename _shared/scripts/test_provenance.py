@@ -75,6 +75,12 @@ class ProvenanceTests(unittest.TestCase):
         events = [{"phase": "revise"}]
         self.assertTrue(provenance.origin_untracked(events))
 
+    def test_origin_untracked_true_when_first_event_is_review_api(self) -> None:
+        # review-api is an authoring phase but not an origin-tracked phase,
+        # so a session starting with review-api has an untracked origin.
+        events = [{"phase": "review-api"}]
+        self.assertTrue(provenance.origin_untracked(events))
+
     def test_origin_untracked_true_when_first_event_is_manual_edit(self) -> None:
         # Regression test for issue #94: a manual-edit record (e.g. captured
         # via record-manual-edit.md before /revise on a never-drafted
@@ -437,6 +443,58 @@ class ProvenanceTests(unittest.TestCase):
             "does not include an initial /draft", footer
         )
         self.assertIn('"origin_untracked":true', footer)
+
+    def test_review_api_is_authoring_phase(self) -> None:
+        # review-api must be in AUTHORING_PHASES so it appears in the
+        # Phases line and is counted by skill_phase_names.
+        self.assertIn("review-api", provenance.AUTHORING_PHASES)
+        events = [
+            {"phase": "plan", "authoring_mode": "skill"},
+            {"phase": "review-api", "authoring_mode": "skill"},
+            {"phase": "revise", "authoring_mode": "skill"},
+        ]
+        self.assertEqual(
+            provenance.skill_phase_names(events),
+            ["plan", "review-api", "revise"],
+        )
+
+    def test_build_footer_includes_review_api_in_phases(self) -> None:
+        # A session with plan → review-api → revise must list all three
+        # authoring phases in the footer and mark origin as tracked.
+        data = {
+            "workflow": "ui-design",
+            "events": [
+                {
+                    "phase": "plan",
+                    "authoring_mode": "skill",
+                    "workflow_version": "0.1.0",
+                    "ai_workflows": "abc1234",
+                    "source_repo": "def5678",
+                    "source_repo_branch": "main",
+                },
+                {
+                    "phase": "review-api",
+                    "authoring_mode": "skill",
+                    "workflow_version": "0.1.0",
+                    "ai_workflows": "abc1234",
+                    "source_repo": "def5678",
+                    "source_repo_branch": "main",
+                },
+                {
+                    "phase": "revise",
+                    "authoring_mode": "skill",
+                    "workflow_version": "0.1.0",
+                    "ai_workflows": "abc1234",
+                    "source_repo": "def5678",
+                    "source_repo_branch": "main",
+                },
+            ],
+            "drift": {"context_changed": False},
+        }
+        footer = provenance.build_footer(data)
+        self.assertIn("Phases: plan, review-api, revise", footer)
+        self.assertFalse(provenance.origin_untracked(data["events"]))
+        self.assertNotIn("does not include an initial /draft", footer)
 
     def test_build_footer_single_event(self) -> None:
         data = {
