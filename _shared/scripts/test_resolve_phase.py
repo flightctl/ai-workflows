@@ -831,6 +831,71 @@ class TestBuiltinOnly(unittest.TestCase):
                 os.chdir(original_cwd)
 
 
+# ---------------------------------------------------------------------------
+# Extension normalization tests
+# ---------------------------------------------------------------------------
+
+
+class TestExtensionNormalization(unittest.TestCase):
+    """Verify bare phase names (without .md) are auto-corrected."""
+
+    def test_bare_name_resolves_builtin(self) -> None:
+        """Phase name without .md resolves to the built-in .md file."""
+        with tempfile.TemporaryDirectory() as tmp:
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(tmp)
+                result = resolve_phase.resolve_phase("bugfix", "assess")
+                self.assertIn("assess.md", result)
+            finally:
+                os.chdir(original_cwd)
+
+    def test_bare_name_resolves_override(self) -> None:
+        """Phase name without .md finds the .md override file."""
+        with tempfile.TemporaryDirectory() as tmp:
+            override_dir = Path(tmp) / ".workflows" / "bugfix" / "skills"
+            override_dir.mkdir(parents=True)
+            (override_dir / "assess.md").write_text("# Override\n")
+
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(tmp)
+                result = resolve_phase.resolve_phase("bugfix", "assess")
+                self.assertEqual(
+                    result,
+                    str(Path(".workflows/bugfix/skills/assess.md")),
+                )
+            finally:
+                os.chdir(original_cwd)
+
+    def test_dotmd_name_unchanged(self) -> None:
+        """Phase name already ending in .md is not double-suffixed."""
+        with tempfile.TemporaryDirectory() as tmp:
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(tmp)
+                result = resolve_phase.resolve_phase("bugfix", "assess.md")
+                self.assertIn("assess.md", result)
+                self.assertNotIn("assess.md.md", result)
+            finally:
+                os.chdir(original_cwd)
+
+    def test_bare_name_via_cli(self) -> None:
+        """Bare phase name works via main() CLI interface."""
+        with tempfile.TemporaryDirectory() as tmp:
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(tmp)
+                buf = io.StringIO()
+                with mock.patch("sys.stdout", buf):
+                    code = resolve_phase.main(["bugfix", "assess"])
+                self.assertEqual(code, 0)
+                output = buf.getvalue().strip()
+                self.assertIn("assess.md", output)
+            finally:
+                os.chdir(original_cwd)
+
+
 class TestBuiltinOnlyArgparse(unittest.TestCase):
     """Verify --builtin-only argparse configuration."""
 
