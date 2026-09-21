@@ -502,13 +502,15 @@ For each entry categorized as **Resolved**:
 **If the entry has a `jira_key`** (active Jira story):
 
 1. Before adding the closure comment, check the issue's existing comments
-   for a prior closure marker matching the gap title. If found, skip
-   the comment and proceed directly to the status transition.
+   for the marker `<!-- ui-design-sync-close: {gap_id} -->`. If found,
+   skip the comment and proceed directly to the status transition.
 
    Add a comment to the Jira story explaining the closure:
    *"Closing — the API gap '{gap title}' is no longer present in the UI
    design findings (resolved during /revise or /respond). See the UI
    design PR for details: {pr_url}."*
+   Append the idempotency marker to the comment body:
+   `<!-- ui-design-sync-close: {gap_id} -->`
 2. Transition the story to Done/Closed in Jira.
 3. Update the manifest entry: set `synced_status: "closed"` and record
    `closed_at` with the current ISO timestamp. Preserve the prior
