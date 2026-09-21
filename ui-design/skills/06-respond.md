@@ -280,7 +280,7 @@ current round, append the round header.
 
 **Duplicate-entry guard.** Before appending a new entry, search
 `05-review-responses.md` for an existing entry whose `**Comment ID:**`
-matches the current `{comment_id}` in this round.
+matches the current `{comment_id}`.
 
 - If found with a successful `Post result` and a non-`"unknown"`
   `API Response ID`, this response was already posted — skip the
@@ -294,8 +294,11 @@ matches the current `{comment_id}` in this round.
   mark it successful — skip re-posting. If no matching reply is found,
   proceed with posting and update the existing entry in Step 6d.
 - If found with a failed `Post result`, reuse the existing entry —
-  do not append a duplicate. Proceed with posting and update the
-  existing entry in Step 6d.
+  do not append a duplicate. Before re-posting, perform the same
+  GitHub lookup as the `pending`/`unknown` path above: query the
+  PR's review comments for a match. If the response was already
+  posted, mark it `success` and skip. Otherwise proceed with
+  posting and update the existing entry in Step 6d.
 - If no matching entry exists, append a new preliminary entry with
   `Post result: pending` and `API Response ID: unknown`:
 

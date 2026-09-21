@@ -486,7 +486,9 @@ the Jira key from the manifest:
   content (same template as creation above, including the `pr_url`)
 
 Update only the sync-owned fields. Do not touch status, assignee, or
-other Jira-managed fields.
+other Jira-managed fields — except for reopened entries (those whose
+prior `synced_status` was `"closed"`): also transition the Jira issue
+back to an open status before updating content.
 
 After updating, record the new `content_hash` in the manifest.
 
@@ -499,7 +501,11 @@ For each entry categorized as **Resolved**:
 
 **If the entry has a `jira_key`** (active Jira story):
 
-1. Add a comment to the Jira story explaining the closure:
+1. Before adding the closure comment, check the issue's existing comments
+   for a prior closure marker matching the gap title. If found, skip
+   the comment and proceed directly to the status transition.
+
+   Add a comment to the Jira story explaining the closure:
    *"Closing — the API gap '{gap title}' is no longer present in the UI
    design findings (resolved during /revise or /respond). See the UI
    design PR for details: {pr_url}."*
