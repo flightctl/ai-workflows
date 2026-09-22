@@ -24,6 +24,28 @@ happens during `/clarify` and `/draft`.
 - **Follow lateral links only (one level deep).** If the primary issue has linked issues from related projects (e.g., EDMRFE), fetch them for additional context. Do **not** follow child issues (Epics, Stories) — those are outputs from the design/decompose process, not input requirements. Do not follow links-of-links. Do not assume linked issues will exist.
 - **Re-invocation diffs before overwriting.** If `01-requirements.md` already exists, read it before fetching fresh data. After fetching, diff the old and new content and present the changes to the user before overwriting (see Steps 2a and 5a).
 
+## Shared Script
+
+This skill delegates deterministic Jira issue fetching to a shared
+script. Reference it using a relative path from this file:
+
+```
+../../_shared/scripts/fetch-issue.py
+```
+
+The script provides subcommands: `get` and `search`. See the script
+header for full usage.
+
+**Required environment variables:**
+- `JIRA_URL` — Jira Cloud base URL (must use `https://`)
+- `JIRA_TOKEN` — Jira Cloud API token
+- `JIRA_EMAIL` — your Atlassian account email (required for Cloud
+  API token auth; the script uses Basic auth with `email:token`)
+
+**Optional environment variables:**
+- `JIRA_ALLOW_INSECURE_HTTP` — set to `1` to allow `http://` URLs
+  (for local development only)
+
 ## Process
 
 ### Step 1: Identify the Jira Issue
@@ -52,10 +74,24 @@ preserved for the diff in Step 5a.
 
 ### Step 3: Fetch the Primary Issue
 
-Fetch the issue using whatever Jira integration is available (MCP or CLI). The source issue is expected to be a Jira Feature — a description of
-tangible value delivered to customers, typically structured with sections
-like Feature Goal, Problem Statement, User Stories, Definition of Done,
-and Out of Scope.
+Resolve the shared script to an absolute path so it remains valid
+regardless of working directory:
+
+```bash
+FETCH_ISSUE_SCRIPT="${HOME}/.ai-workflows/_shared/scripts/fetch-issue.py"
+```
+
+Use `$FETCH_ISSUE_SCRIPT` instead of the relative path in all subsequent
+commands.
+
+Fetch the issue using the shared script. The source issue is expected to
+be a Jira Feature — a description of tangible value delivered to
+customers, typically structured with sections like Feature Goal, Problem
+Statement, User Stories, Definition of Done, and Out of Scope.
+
+```bash
+python3 "$FETCH_ISSUE_SCRIPT" get "$ISSUE_KEY" --fields summary,description,status,priority,labels,fixVersions,customfield_10795,attachment --comments --links --link-fields summary,description,status
+```
 
 Capture:
 - Summary / title

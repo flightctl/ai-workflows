@@ -28,12 +28,25 @@ scenarios and file structure.
 - **Note unknowns.** If you can't determine something from the codebase, say so explicitly.
 - **Re-invocation diffs before overwriting.** If `01-context.md` already exists, preserve it before exploring. After compiling new context, diff against the previous version and present changes to the user before overwriting (see Steps 2a and 7a).
 
+## Shared Script
+
+This skill delegates deterministic Jira issue fetching to a shared
+script. Reference it using a relative path from this file:
+
+```
+../../_shared/scripts/fetch-issue.py
+```
+
+The script provides subcommands: `get` and `search`. See the script
+header for full usage. It requires `JIRA_URL` and `JIRA_TOKEN`
+environment variables.
+
 ## Process
 
 ### Step 1: Identify the Story
 
 The user will provide one of:
-- A Jira issue key or URL (fetch via Jira MCP)
+- A Jira issue key or URL (fetch via the shared script)
 - A path to an existing story file from the design workflow
 
 Extract the full Jira issue key, including the project prefix (e.g.,
@@ -59,7 +72,23 @@ preserved for the diff in Step 7a.
 
 ### Step 3: Fetch the Jira Story
 
-Fetch the story from Jira. Capture:
+Resolve the shared script to an absolute path so it remains valid
+regardless of working directory:
+
+```bash
+FETCH_ISSUE_SCRIPT="${HOME}/.ai-workflows/_shared/scripts/fetch-issue.py"
+```
+
+Use `$FETCH_ISSUE_SCRIPT` instead of the relative path in all subsequent
+commands.
+
+Fetch the story using the shared script:
+
+```bash
+python3 "$FETCH_ISSUE_SCRIPT" get "{issue-key}" --fields summary,description,issuetype,status,priority,labels --comments --parent --parent-fields summary,status,issuetype,parent --links --link-fields summary,status
+```
+
+Capture:
 - Summary and description
 - User story (As a... I want... So that...)
 - Acceptance criteria
@@ -80,7 +109,7 @@ feature doesn't exist yet, the tests cannot pass.
 
 For each dependency identified in Step 3:
 1. Check if the dependent story's Jira status indicates completion
-   (Done, Closed, Resolved)
+   (Done, Closed, Resolved) — use `python3 "$FETCH_ISSUE_SCRIPT" get "{DEP-KEY}" --fields summary,status`
 2. Check if the dependent story's code has been merged to the main branch
    (search git log for the dependent story's Jira key)
 
@@ -126,10 +155,11 @@ shared across all workflows).
 The docs repo organizes documents by Feature-level Jira issue. To find the
 right directory, walk the Jira hierarchy from the story:
 
-1. The story (e.g., `EDM-5678`) has a parent **Epic** — fetch it from Jira
-   to get the Epic key
-2. The Epic has a parent **Feature** — fetch it from Jira to get the
-   Feature key (e.g., `EDM-1100`)
+1. The story (e.g., `EDM-5678`) has a parent **Epic** — fetch the Epic using
+   `python3 "$FETCH_ISSUE_SCRIPT" get "{EPIC-KEY}" --fields summary,status,issuetype --parent --parent-fields summary,status,issuetype`
+   to get the parent **Feature** key from the Epic's `parent` output
+2. The Epic's parent is the **Feature** — extract the Feature key
+   (e.g., `EDM-1100`) from the `parent.key` field returned above
 
 The docs repo structure is `{release}/{feature-slug}/prd.md` and
 `{release}/{feature-slug}/design.md`, where `{feature-slug}` includes the

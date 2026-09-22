@@ -772,14 +772,14 @@
 
 <!-- Bugs not updated for more than 3 months -->
 <div class="section">
-  <h2>Bugs Not Updated for More Than 3 Months</h2>
+  <h2>Bugs Not Updated for More Than 3 Months <span class="section-count" id="oldBugsCount"></span></h2>
   <div class="table-wrap"><table class="main" id="oldBugsTable"></table></div>
   <div class="no-results" id="noOldBugs" style="display:none">No bugs with last update older than 3 months.</div>
 </div>
 
 <!-- Priority Mismatches -->
 <div class="section">
-  <h2>Priority Mismatches</h2>
+  <h2>Priority Mismatches <span class="section-count" id="mismatchCount"></span></h2>
   <div class="table-wrap"><table class="main" id="mismatchTable"></table></div>
   <div class="no-results" id="noMismatches" style="display:none">No priority mismatches detected.</div>
 </div>
@@ -1188,6 +1188,7 @@
 
     var container = document.getElementById("oldBugsTable");
     var noOld = document.getElementById("noOldBugs");
+    document.getElementById("oldBugsCount").textContent = "(" + old.length + " " + (old.length === 1 ? "issue" : "issues") + ")";
 
     if (old.length === 0) { container.style.display = "none"; noOld.style.display = "block"; return; }
     noOld.style.display = "none";
@@ -1221,6 +1222,7 @@
 
     var container = document.getElementById("mismatchTable");
     var noMismatch = document.getElementById("noMismatches");
+    document.getElementById("mismatchCount").textContent = "(" + mismatches.length + " " + (mismatches.length === 1 ? "issue" : "issues") + ")";
 
     if (mismatches.length === 0) { container.style.display = "none"; noMismatch.style.display = "block"; return; }
     noMismatch.style.display = "none";
