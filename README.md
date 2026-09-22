@@ -6,6 +6,11 @@ Reusable AI coding workflows and focused skills a team member can install global
 
 ### Skills
 
+- **gh-stack** -- Manages stacked PRs and splits multi-part work into reviewable
+  branches with `gh stack`. Covers creation, viewing, editing, push, submit,
+  sync, rebase, merge, and checkout.
+  See [skills/gh-stack/SKILL.md](skills/gh-stack/SKILL.md).
+
 - **Report Bug** -- Drafts an evidence-based Jira Bug, supports consumer-owned
   project templates and field vocabulary with an EDM-style fallback,
   distinguishes Severity from triage-owned Priority, checks
@@ -74,6 +79,8 @@ supporting references or scripts they need. The installer discovers both forms.
   docs-writer/
     SKILL.md, skills/, commands/
   skills/
+    gh-stack/
+      SKILL.md, references/
     report-bug/
       SKILL.md, references/
 ```
@@ -194,6 +201,7 @@ Each workflow or skill is intended for a specific project or use case:
 - **triage** -- teams that want bulk Jira triage, categorization, and HTML reports from this repo or a clone
 - **sizing** -- teams sizing Features for cycle planning using T-shirt sizes with per-team effort breakdowns
 - **skill-reviewer** -- reviewing or standardizing Cursor/agent skills and skill packs (structure, clarity, completeness)
+- **gh-stack** -- managing stacked PRs with `gh stack` in any project using stacked branches
 - **report-bug** -- filing complete Jira bugs with consumer-configurable targets and templates while leaving Priority for triage
 
 Use `--packages` to install only the named workflows or skills:

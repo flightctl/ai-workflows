@@ -7,6 +7,7 @@ This file provides guidance to AI coding assistants when working with this repos
 This repository contains reusable AI coding workflows and focused skills that can be installed globally or per-project in any environment (Cursor, Claude Code, Gemini, Codex). Each package is a self-contained directory with structured markdown files that AI agents can read and execute.
 
 **Current simple skills:**
+- **gh-stack** — Manages stacked PRs with gh-stack (creation, viewing, editing, push, submit, sync, rebase, merge, checkout)
 - **report-bug** — Configurable, evidence-based Jira Bug reporting with explicit confirmation
 
 **Current workflows:**
@@ -264,6 +265,9 @@ ai-workflows/
 │   └── scripts/
 ├── triage/
 ├── skills/                    # Focused skills (auto-discovered via SKILL.md)
+│   ├── gh-stack/
+│   │   ├── SKILL.md
+│   │   └── references/
 │   └── report-bug/
 │       ├── SKILL.md
 │       ├── references/
