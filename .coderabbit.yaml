@@ -703,6 +703,9 @@ reviews:
 
   # ── Pre-merge checks ─────────────────────────────────────────
   pre_merge_checks:
+    # Inherited defaults enable this check, but it is not useful for this repo.
+    docstrings:
+      mode: "off"
     description:
       mode: "warning"
     custom_checks:
