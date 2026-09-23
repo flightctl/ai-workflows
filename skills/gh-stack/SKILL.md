@@ -4,7 +4,8 @@ version: 0.1.0
 description: >-
   Manages stacked PRs with gh-stack — creation, viewing, editing, push, submit,
   sync, rebase, merge, and checkout. Use when splitting work into reviewable
-  branches, managing dependent PRs, or whenever a stack is checked out.
+  branches, managing dependent PRs, whenever the user mentions a stack, branch
+  layers, or gh stack, or whenever a stack is already checked out.
 ---
 
 # gh-stack
