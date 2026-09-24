@@ -4,8 +4,8 @@ description: "Write assessed sizes to Jira with team effort breakdown"
 ---
 # /apply
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=apply`.
 
-Dispatch the **apply** phase. Context:
+Context:
 
 $ARGUMENTS

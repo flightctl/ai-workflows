@@ -4,6 +4,7 @@
 
 - **Appetite over estimates.** We enforce fixed time and variable scope. Features are sized to fit available time — we don't extend the timeline.
 - **Consistency via the rubric.** Every sizing assessment references `../_shared/sizing-rubric.md`. The rubric's heuristics ensure different sessions produce comparable results.
+- **AI for judgment, Python for mechanics.** Keep requirements interpretation, codebase relevance, sizing, team effort, impact, uncertainty, and calibration in the model. Use the sizing scripts for Jira payload compaction, schema validation, calculations, rendering, and apply payloads.
 - **Sizing is advisory.** The AI produces a recommendation with rationale. Humans make the final call during cycle planning.
 - **Relative calibration.** In batch mode, compare Features against each other. A Feature's size is more meaningful when evaluated alongside its peers in the same release.
 - **Team breakdown is required.** Every Feature assessment includes per-team effort (DEV, QE, UX, UI, DOCS) so capacity planning accounts for team-level constraints, not just aggregate effort.
@@ -50,3 +51,10 @@ This workflow gets deployed into different projects. Respect the target project:
 - Read and follow the project's own `AGENTS.md` or `CLAUDE.md` files
 - Use the project's codebase context to inform component surface and novelty assessments
 - Adopt the project's terminology for components, services, and architectural concepts
+
+## Compact Artifact Contract
+
+- `01-context.json` is the compact source for assessment; `01-context.md` is a rendered view.
+- `02-decisions.json` contains model judgments; `02-assessment.json` contains validated judgments plus deterministic calculations; `02-assessment.md` is a rendered view.
+- Read JSON artifacts in later phases. Do not load the corresponding Markdown report back into model context.
+- The scripts only prepare Jira write payloads. Jira writes still require the configured Jira integration and explicit user approval after a dry-run preview.

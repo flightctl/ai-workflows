@@ -29,8 +29,12 @@ context depends on the input mode:
 
 | Artifact | File | Written by |
 |----------|------|------------|
-| Feature context | `01-context.md` | `/ingest` |
-| Sizing assessment | `02-assessment.md` | `/assess` |
+| Compact Feature context | `01-context.json` | `/ingest` |
+| Human-readable Feature context | `01-context.md` | `/ingest` renderer |
+| Assessment judgments | `02-decisions.json` | `/assess` |
+| Validated sizing assessment | `02-assessment.json` | `/assess` renderer |
+| Human-readable sizing assessment | `02-assessment.md` | `/assess` renderer |
+| Prepared Jira actions | `03-apply-actions.json` | `/apply` helper |
 
 ## How to Execute a Phase
 
@@ -40,9 +44,8 @@ context depends on the input mode:
    WORKFLOW=`sizing`, PHASE_FILE=`{phase}.md`.
 3. **Read** the resolved skill file
 4. **Execute** the skill's steps — the user should see your progress
-5. When the skill is done, it will tell you to report findings and
-   re-read this controller. Do that — then use "Recommending Next Steps"
-   below to offer options.
+5. When the skill is done, use "Recommending Next Steps" below to offer
+   options. The phase returns its compact result; do not re-read it.
 6. Present the skill's results and your recommendations to the user
 7. **Stop and wait** for the user to tell you what to do next.
 
@@ -105,7 +108,7 @@ directly — don't force them through earlier phases.
 
 ## Error Handling
 
-If any phase fails (Jira MCP errors, codebase exploration issues):
+If any phase fails (Jira errors, codebase exploration issues, or a deterministic helper error):
 
 1. **Stop immediately.** Do not advance to the next phase.
 2. **Report the error** to the user with the specific error message.
@@ -118,5 +121,5 @@ past errors.
 ## Rules
 
 - **Never auto-advance.** Always wait for the user between phases.
-- **Recommendations come from this file, not from skills.** Skills report findings; this controller decides what to recommend next.
+- **Recommendations come from this file or the explicit-command dispatcher, not from phase skills.** Skills report findings; the router decides what to recommend next.
 - **Jira writes require explicit approval.** Never write to Jira without the user saying "yes" to a dry-run preview.

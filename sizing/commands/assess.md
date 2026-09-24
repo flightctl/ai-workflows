@@ -4,8 +4,8 @@ description: "Apply sizing rubric and produce Feature sizing recommendations"
 ---
 # /assess
 
-Read `../skills/controller.md` and follow it.
+Read `../skills/dispatch.md` and follow it with `PHASE=assess`.
 
-Dispatch the **assess** phase. Context:
+Context:
 
 $ARGUMENTS
