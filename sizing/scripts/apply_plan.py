@@ -236,7 +236,7 @@ def _write_files_transactionally(files: dict[Path, bytes | None]) -> None:
         for target, temporary in staged.items():
             installed.append(target)
             os.replace(temporary, target)
-    except Exception as exc:
+    except BaseException as exc:
         rollback_errors: list[OSError] = []
         for target in reversed(installed):
             try:
@@ -251,10 +251,13 @@ def _write_files_transactionally(files: dict[Path, bytes | None]) -> None:
                     rollback_errors.append(rollback_error)
         if rollback_errors:
             recovery_dirs = ", ".join(str(path) for path in backup_dirs)
-            raise OSError(
+            recovery_error = OSError(
                 f"artifact update failed ({exc}); rollback was incomplete, "
                 f"preserve recovery files in {recovery_dirs}"
-            ) from exc
+            )
+            if isinstance(exc, Exception):
+                raise recovery_error from exc
+            raise exc from recovery_error
         for backup_dir in backup_dirs:
             shutil.rmtree(backup_dir, ignore_errors=True)
         raise
@@ -400,6 +403,16 @@ def main(argv: list[str] | None = None) -> int:
             decisions_obj, assessment, _ = _updated_overrides(
                 directory, known_keys, overrides, cleared_keys
             )
+            if selected is not None:
+                restored_xxl = selected & {
+                    item["key"] for item in assessment["features"]
+                    if item["recommended_size"] == "XXL"
+                }
+                if restored_xxl:
+                    raise ValueError(
+                        "clearing overrides makes selected Feature(s) XXL: "
+                        f"{', '.join(sorted(restored_xxl))}; deselect them or split and rerun /assess"
+                    )
 
         actions = _actions(assessment, selected)
         payload = {"context": args.context, "actions": actions}
