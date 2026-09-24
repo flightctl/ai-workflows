@@ -42,18 +42,9 @@ Do not read `02-assessment.md`; it is generated from the JSON artifact.
 4. Read `03-apply-actions.json` and show every prepared action's Feature key,
    size, and full comment text. Wait for explicit approval of this exact
    payload before writing to Jira. If the user requests changes, regenerate
-   the payload and show it again. If the user cancels after this attempt added
-   apply-time overrides, clear those keys before returning so unapproved
-   choices do not remain in the assessment artifacts:
+   the payload and show it again.
 
-   ```bash
-   python3 "${HOME}/.ai-workflows/sizing/scripts/apply_plan.py" clear-overrides \
-     "{context}" --key EDM-2324
-   ```
-
-   Repeat `--key` for each override introduced during the canceled attempt; omit
-   `--key` to clear every stored apply-time override. This also removes any
-   prepared action payload. For each approved action:
+   **If the user explicitly approves this payload:** for each approved action:
 
    ```text
    jira_update_issue(
@@ -66,6 +57,20 @@ Do not read `02-assessment.md`; it is generated from the JSON artifact.
    The action helper does not contact Jira. If a size update fails, stop and
    report the error. If only the comment fails, report it and continue with the
    remaining approved Features.
+
+   **If the user cancels:** do not write to Jira. If this attempt added
+   apply-time overrides, clear those keys before returning so unapproved
+   choices do not remain in the assessment artifacts:
+
+   ```bash
+   python3 "${HOME}/.ai-workflows/sizing/scripts/apply_plan.py" clear-overrides \
+     "{context}" --key EDM-2324
+   ```
+
+   Repeat `--key` for each override introduced during the canceled attempt; omit
+   `--key` only when all stored apply-time overrides should be cleared. This
+   also removes any prepared action payload. Then go to step 5; do not write to
+   Jira.
 5. Report updated and skipped Features with direct Jira links, then return to
    the dispatcher for completion guidance. Do not run another phase
    automatically.

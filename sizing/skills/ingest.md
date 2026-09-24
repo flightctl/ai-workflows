@@ -122,16 +122,21 @@ to summarize requirements, connect them to the codebase, and identify uncertaint
    promotes both context files together. Only after both are installed does it
    invalidate stale `02-decisions.json`, `02-assessment.json`,
    `02-assessment.md`, and `03-apply-actions.json`. Promotion rolls back the
-   previous artifacts if any replacement fails. If rendering fails, remove
-   only `$STAGING_DIR`, leave all existing artifacts unchanged, and stop. Do
-   not refetch Jira to repair a schema error.
+   previous artifacts if any replacement fails. Do not refetch Jira to repair
+   a schema error.
 
-   If the renderer reports a validation error for model-authored JSON, correct
-   only the named field when its value is derivable from the captured Jira
-   packet and existing evidence, then rerun the renderer. Do not invent missing
-   data or impose a fixed retry count. If the value is unavailable, the same
-   error persists, or a helper error occurs, stop and report the exact error
-   under the dispatcher's retry or escalation policy.
+   If the renderer reports a validation error for model-authored JSON, keep
+   `$STAGING_DIR` intact. Correct only the named field when its value is
+   derivable from the captured Jira packet and existing evidence, then rerun
+   the renderer. Do not invent missing data or impose a fixed retry count.
+
+   If the value is unavailable or the same validation error persists, remove
+   only `$STAGING_DIR`, leave existing artifacts unchanged, stop, and report
+   the exact error under the dispatcher's retry or escalation policy. For any
+   other helper error, remove only `$STAGING_DIR`, stop, and report the exact
+   error under that policy. If the error says rollback was incomplete, preserve
+   the named recovery directory; in that case, do not assume existing artifacts
+   are unchanged.
 
    Use the compact result summary to report Feature count, existing sizes,
    explored components, and low-confidence concerns. Do not reopen the
