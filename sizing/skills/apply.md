@@ -38,9 +38,14 @@ Do not read `02-assessment.md`; it is generated from the JSON artifact.
    authorize Jira writes. The helper validates changes, updates
    `02-decisions.json`, `02-assessment.json`, and `02-assessment.md` when an
    override is added or cleared, invalidates any older prepared payload, and
-   builds Jira wiki comments deterministically.
-4. Read `03-apply-actions.json` and show every prepared action's Feature key,
-   size, and full comment text. Wait for explicit approval of this exact
+   builds Jira wiki comments deterministically. Continue only if this command
+   completes successfully. If it fails or is unavailable, stop this attempt;
+   do not proceed to step 4 or read or use an existing
+   `03-apply-actions.json`.
+4. Read `03-apply-actions.json`. If its `actions` list is empty, report that no
+   committable Features are available and go to step 5 without requesting
+   approval or calling Jira. Otherwise, show every prepared action's Feature
+   key, size, and full comment text. Wait for explicit approval of this exact
    payload before writing to Jira. If the user requests changes, regenerate
    the payload and show it again.
 
