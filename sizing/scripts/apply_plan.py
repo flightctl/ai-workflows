@@ -5,7 +5,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -167,12 +170,12 @@ def _actions(assessment: dict[str, Any], selected_keys: set[str] | None) -> list
     return actions
 
 
-def _update_overrides(
+def _updated_overrides(
     directory: Path,
     known_keys: set[str],
     overrides: dict[str, str],
     cleared_keys: set[str] | None,
-) -> tuple[dict[str, Any], int]:
+) -> tuple[dict[str, Any], dict[str, Any], int]:
     decisions_path = directory / "02-decisions.json"
     context_path = directory / "01-context.json"
     decisions_obj = require_object(read_json(decisions_path), "decisions")
@@ -191,11 +194,110 @@ def _update_overrides(
     retained = {key: value for key, value in previous.items() if key not in keys_to_clear}
     decisions_obj["user_overrides"] = {**retained, **overrides}
     assessment = finalize_assessment(context, decisions_obj)
-    (directory / "03-apply-actions.json").unlink(missing_ok=True)
-    write_json(decisions_path, decisions_obj)
-    write_json(directory / "02-assessment.json", assessment)
-    (directory / "02-assessment.md").write_text(render_assessment(assessment), encoding="utf-8")
-    return assessment, removed
+    return decisions_obj, assessment, removed
+
+
+def _json_bytes(value: Any) -> bytes:
+    return (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+
+
+def _write_files_transactionally(files: dict[Path, bytes | None]) -> None:
+    """Replace related artifacts together and restore backups if a write fails."""
+    staged: dict[Path, Path] = {}
+    backup_dirs: list[Path] = []
+    backups: list[tuple[Path, Path]] = []
+    installed: list[Path] = []
+    try:
+        for target, contents in files.items():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if target.is_dir() and not target.is_symlink():
+                raise IsADirectoryError(target)
+            if contents is None:
+                continue
+            descriptor, temporary_name = tempfile.mkstemp(
+                prefix=f".{target.name}.tmp-", dir=target.parent
+            )
+            temporary = Path(temporary_name)
+            staged[target] = temporary
+            with os.fdopen(descriptor, "wb") as stream:
+                stream.write(contents)
+                stream.flush()
+                os.fsync(stream.fileno())
+
+        for target in files:
+            if not target.exists() and not target.is_symlink():
+                continue
+            backup_dir = Path(tempfile.mkdtemp(prefix=".apply-backup-", dir=target.parent))
+            backup_dirs.append(backup_dir)
+            backup = backup_dir / target.name
+            backups.append((backup, target))
+            os.replace(target, backup)
+
+        for target, temporary in staged.items():
+            installed.append(target)
+            os.replace(temporary, target)
+    except Exception as exc:
+        rollback_errors: list[OSError] = []
+        for target in reversed(installed):
+            try:
+                target.unlink(missing_ok=True)
+            except OSError as rollback_error:
+                rollback_errors.append(rollback_error)
+        for backup, target in reversed(backups):
+            if backup.exists() or backup.is_symlink():
+                try:
+                    os.replace(backup, target)
+                except OSError as rollback_error:
+                    rollback_errors.append(rollback_error)
+        if rollback_errors:
+            recovery_dirs = ", ".join(str(path) for path in backup_dirs)
+            raise OSError(
+                f"artifact update failed ({exc}); rollback was incomplete, "
+                f"preserve recovery files in {recovery_dirs}"
+            ) from exc
+        for backup_dir in backup_dirs:
+            shutil.rmtree(backup_dir, ignore_errors=True)
+        raise
+    else:
+        for backup_dir in backup_dirs:
+            shutil.rmtree(backup_dir, ignore_errors=True)
+    finally:
+        for temporary in staged.values():
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
+def _commit_override_update(
+    directory: Path,
+    decisions_obj: dict[str, Any],
+    assessment: dict[str, Any],
+    output_path: Path | None = None,
+    payload: dict[str, Any] | None = None,
+) -> None:
+    decisions_path = Path(os.path.abspath(directory / "02-decisions.json"))
+    assessment_path = Path(os.path.abspath(directory / "02-assessment.json"))
+    markdown_path = Path(os.path.abspath(directory / "02-assessment.md"))
+    action_path = Path(os.path.abspath(directory / "03-apply-actions.json"))
+    state_paths = {decisions_path, assessment_path, markdown_path}
+    files: dict[Path, bytes | None] = {
+        decisions_path: _json_bytes(decisions_obj),
+        assessment_path: _json_bytes(assessment),
+        markdown_path: render_assessment(assessment).encode("utf-8"),
+        action_path: None,
+    }
+    if output_path is not None:
+        output_path = Path(os.path.abspath(output_path))
+        if output_path in state_paths:
+            raise ValueError("action payload output cannot overwrite sizing assessment artifacts")
+        if payload is None:
+            raise ValueError("action payload is required when an output path is provided")
+        files[output_path] = _json_bytes(payload)
+        if output_path == action_path:
+            files[action_path] = _json_bytes(payload)
+
+    _write_files_transactionally(files)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -261,7 +363,10 @@ def main(argv: list[str] | None = None) -> int:
         known_keys = {item["key"] for item in assessment["features"] if isinstance(item, dict)}
         if args.command == "clear-overrides":
             requested = {key.strip() for key in args.keys} if args.keys else None
-            assessment, removed = _update_overrides(directory, known_keys, {}, requested)
+            decisions_obj, assessment, removed = _updated_overrides(
+                directory, known_keys, {}, requested
+            )
+            _commit_override_update(directory, decisions_obj, assessment)
             print(
                 f"Cleared {removed} apply-time override(s); assessment restored for "
                 f"{len(assessment['features'])} Feature(s)."
@@ -290,13 +395,19 @@ def main(argv: list[str] | None = None) -> int:
         if selected is not None and set(overrides) - selected:
             raise ValueError("every size override must belong to a selected Feature")
 
-        if overrides or cleared_keys:
-            assessment, _ = _update_overrides(directory, known_keys, overrides, cleared_keys)
+        update_overrides = bool(overrides or cleared_keys)
+        if update_overrides:
+            decisions_obj, assessment, _ = _updated_overrides(
+                directory, known_keys, overrides, cleared_keys
+            )
 
         actions = _actions(assessment, selected)
         payload = {"context": args.context, "actions": actions}
+        if update_overrides:
+            _commit_override_update(directory, decisions_obj, assessment, args.output, payload)
         if args.output:
-            write_json(args.output, payload)
+            if not update_overrides:
+                write_json(args.output, payload)
             print(f"Prepared {len(actions)} Jira action(s) at {args.output}", file=sys.stderr)
         else:
             print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
