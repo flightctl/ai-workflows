@@ -14,10 +14,20 @@ user.
 - **assess:** If no context exists, recommend `/ingest`. If an assessment was
   produced and the user accepts it, recommend `/apply`; if they disagree,
   offer `/assess` with added context. If the context is stale, offer `/ingest`.
-- **apply:** If the user canceled the payload, confirm that Jira was unchanged
-  and that any apply-time overrides from the canceled attempt were cleared.
-  For failed or unattempted approved writes, offer to retry those actions. After
-  a successful apply, confirm the updated and skipped Features; otherwise the
-  workflow is complete.
+- **apply:** Handle exactly one outcome:
+  - If the user canceled, confirm Jira was unchanged and any apply-time
+    overrides from the canceled attempt were cleared.
+  - If no actions were prepared, report that no committable Features are
+    available. Use the assessment to identify any XXL Features, recommend
+    splitting them, and rerunning `/assess`; do not infer XXL from an empty
+    payload.
+  - If the Jira write integration was unavailable, report that Jira is
+    unchanged, include the prepared payload path, and offer to retry `/apply`
+    after the integration is available.
+  - If approved writes failed or remain unattempted, offer to retry only those
+    operations; do not repeat writes that already succeeded. Do not mark the
+    workflow complete until every approved write succeeds.
+  - After every approved write succeeds, confirm updated and skipped Features
+    and mark the workflow complete.
 
 Never run another phase automatically. Wait for the user's choice.

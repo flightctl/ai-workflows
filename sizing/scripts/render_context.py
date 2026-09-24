@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Validate compact AI context and render the human-readable ingest artifact."""
+"""Validate and render a context artifact, optionally promoting it.
+
+For a valid command, main() returns 0 after rendering and any requested
+promotion, or 1 for validation and I/O errors; argparse usage errors exit 2.
+Incomplete rollback errors name the recovery directory, which must be preserved.
+"""
 
 from __future__ import annotations
 
@@ -220,21 +225,21 @@ def _promote_context(input_json: Path, rendered_markdown: Path, destination: Pat
             target = destination / name
             if _exists(target):
                 backup = backup_dir / name
-                os.replace(target, backup)
                 backups.append((backup, target))
+                os.replace(target, backup)
 
         for staged in (input_json, rendered_markdown):
             target = destination / staged.name
-            os.replace(staged, target)
             installed.append(target)
+            os.replace(staged, target)
 
         for name in INVALIDATED_ARTIFACTS:
             target = destination / name
             if _exists(target):
                 backup = backup_dir / name
-                os.replace(target, backup)
                 backups.append((backup, target))
-    except Exception as exc:
+                os.replace(target, backup)
+    except BaseException as exc:
         rollback_errors: list[OSError] = []
         for target in reversed(installed):
             try:
@@ -248,10 +253,13 @@ def _promote_context(input_json: Path, rendered_markdown: Path, destination: Pat
                 except OSError as rollback_error:
                     rollback_errors.append(rollback_error)
         if rollback_errors:
-            raise OSError(
+            recovery_error = OSError(
                 f"context promotion failed ({exc}); rollback was incomplete, "
                 f"preserve recovery files in {backup_dir}"
-            ) from exc
+            )
+            if isinstance(exc, Exception):
+                raise recovery_error from exc
+            raise exc from recovery_error
         shutil.rmtree(backup_dir, ignore_errors=True)
         raise
     else:

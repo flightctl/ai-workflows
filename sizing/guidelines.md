@@ -61,7 +61,4 @@ This workflow gets deployed into different projects. Respect the target project:
 - `01-context.json` is the compact source for assessment; `01-context.md` is a rendered view.
 - `02-decisions.json` contains model judgments; `02-assessment.json` contains validated judgments plus deterministic calculations; `02-assessment.md` is a rendered view.
 - Read JSON artifacts in later phases. Do not load the corresponding Markdown report back into model context.
-- The scripts only prepare Jira write payloads. Jira writes require the configured
-  Jira integration and explicit user approval of the exact prepared
-  `03-apply-actions.json` payload, including full comment text; selection-preview
-  approval does not authorize writes.
+- The scripts prepare Jira write payloads but never write to Jira.

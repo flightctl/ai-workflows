@@ -3,7 +3,10 @@
 
 Use the configured Jira CLI when available; otherwise use the shared
 fetch-issue.py REST helper. Capture raw JSON in Python, keep only sizing-relevant
-fields, and write the compact analysis packet to stdout for the AI phase.
+fields, and write the compact analysis packet to stdout for the AI phase. For a
+valid command, main() returns 0 when it writes a packet (even if it warns that
+results may be truncated) and 1 for fetch or validation errors; argparse usage
+errors exit 2. Diagnostics go to stderr.
 """
 
 from __future__ import annotations
@@ -25,9 +28,11 @@ MAX_COMMENTS = 3
 MAX_COMMENT_CHARS = 700
 BOT_AUTHOR_RE = re.compile(r"\b(bot|automation|automated)\b", re.IGNORECASE)
 SIZING_COMMENT_RE = re.compile(r"^\s*(?:h\d\.\s*)?Sizing Assessment\b", re.IGNORECASE)
+STATUS_LABEL = r"[\w/-]+(?:\s+[\w/-]+){0,4}"
 STATUS_COMMENT_RE = re.compile(
-    r"^\s*(?:status\s+(?:was\s+)?changed\b|transitioned\s+from\s+\S.*\s+to\s+\S|"
-    r"moved\s+from\s+\S.*\s+to\s+\S)",
+    rf"\s*(?:status\s+(?:was\s+)?changed(?:\s+from\s+{STATUS_LABEL}\s+to\s+{STATUS_LABEL}|"
+    rf"\s+to\s+{STATUS_LABEL})?|(?:transitioned|moved)\s+from\s+{STATUS_LABEL}\s+to\s+{STATUS_LABEL})"
+    rf"\s*[.!]?\s*",
     re.IGNORECASE,
 )
 
@@ -236,8 +241,10 @@ def _jql_literal(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def _status_comment(body: str) -> bool:
-    return bool(STATUS_COMMENT_RE.search(body))
+def _status_comment(body: str, author: str) -> bool:
+    if author.casefold().strip() not in {"jira", "atlassian"}:
+        return False
+    return bool(STATUS_COMMENT_RE.fullmatch(body))
 
 
 def _comments(raw: Any) -> list[dict[str, str]]:
@@ -253,7 +260,7 @@ def _comments(raw: Any) -> list[dict[str, str]]:
             not body
             or BOT_AUTHOR_RE.search(author)
             or SIZING_COMMENT_RE.search(body)
-            or _status_comment(body)
+            or _status_comment(body, author)
         ):
             continue
         if len(body) > MAX_COMMENT_CHARS:

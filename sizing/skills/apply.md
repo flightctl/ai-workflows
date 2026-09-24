@@ -42,12 +42,19 @@ Do not read `02-assessment.md`; it is generated from the JSON artifact.
    completes successfully. If it fails or is unavailable, stop this attempt;
    do not proceed to step 4 or read or use an existing
    `03-apply-actions.json`.
-4. Read `03-apply-actions.json`. If its `actions` list is empty, report that no
-   committable Features are available and go to step 5 without requesting
-   approval or calling Jira. Otherwise, show every prepared action's Feature
-   key, size, and full comment text. Wait for explicit approval of this exact
-   payload before writing to Jira. If the user requests changes, regenerate
-   the payload and show it again.
+4. Use the action helper's result to check whether it prepared any actions. If
+   it prepared none, report that no committable Features are available and go
+   to step 5 without requesting approval or calling Jira. Refer to the
+   assessment to identify any XXL Features; do not infer their sizes from an
+   empty payload.
+
+   If no Jira write integration is available, do not read the payload, request
+   write approval, or use another channel to write. Report that Jira is
+   unchanged, give the prepared payload path, and go to step 5. Otherwise, read
+   `03-apply-actions.json`, show every prepared action's Feature key, size, and
+   full comment text, and wait for explicit approval of this exact payload
+   before writing to Jira. If the user requests changes, regenerate the
+   payload and show it again.
 
    **If the user explicitly approves this payload:** for each approved action:
 
@@ -59,9 +66,11 @@ Do not read `02-assessment.md`; it is generated from the JSON artifact.
    jira_add_comment(issue_key: action.key, comment: action.comment)
    ```
 
-   The action helper does not contact Jira. If a size update fails, stop and
-   report the error. If only the comment fails, report it and continue with the
-   remaining approved Features.
+   The action helper does not contact Jira. If a size update fails, do not
+   attempt its comment; stop before the remaining actions and go to step 5 with
+   updated, failed, and unattempted Features listed. If only a comment fails,
+   report the comment failure and continue with the remaining approved
+   Features.
 
    **If the user cancels:** do not write to Jira. If this attempt added
    apply-time overrides, clear those keys before returning so unapproved
@@ -76,9 +85,10 @@ Do not read `02-assessment.md`; it is generated from the JSON artifact.
    `--key` only when all stored apply-time overrides should be cleared. This
    also removes any prepared action payload. Then go to step 5; do not write to
    Jira.
-5. Report updated and skipped Features with direct Jira links, then return to
-   the dispatcher for completion guidance. Do not run another phase
-   automatically.
+5. Report updated, partially updated, skipped, failed, and unattempted
+   Features with direct Jira links. If no write integration was available,
+   include the prepared payload path. Then return to the dispatcher for
+   completion guidance. Do not run another phase automatically.
 
 ## Safety
 

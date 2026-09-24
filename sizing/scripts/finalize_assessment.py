@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Validate AI sizing judgments, compute derived values, and render the report."""
+"""Validate sizing judgments and write the assessment artifacts.
+
+For a valid command, main() returns 0 after both assessment files are written,
+or 1 for artifact validation and I/O errors; argparse usage errors exit 2. On
+success, a compact summary goes to stdout and the artifact location goes to
+stderr.
+"""
 
 from __future__ import annotations
 
@@ -22,7 +28,7 @@ from _common import (
     require_list,
     require_object,
     require_string,
-    write_json,
+    write_files_transactionally,
 )
 
 
@@ -563,7 +569,12 @@ def main(argv: list[str] | None = None) -> int:
         help="AI decisions JSON (defaults to 02-decisions.json in the context directory).",
     )
     args = parser.parse_args(argv)
-    if args.context_dir in {".", ".."} or "/" in args.context_dir or "\\" in args.context_dir:
+    if (
+        not args.context_dir.strip()
+        or args.context_dir in {".", ".."}
+        or "/" in args.context_dir
+        or "\\" in args.context_dir
+    ):
         print("Error: context_dir must be a single directory name", file=sys.stderr)
         return 1
     directory = Path(".artifacts") / "sizing" / args.context_dir
@@ -573,8 +584,15 @@ def main(argv: list[str] | None = None) -> int:
         context = _validate_context(read_json(context_path))
         decisions = read_json(decisions_path)
         assessment = finalize_assessment(context, decisions)
-        write_json(directory / "02-assessment.json", assessment)
-        (directory / "02-assessment.md").write_text(render_assessment(assessment), encoding="utf-8")
+        assessment_json = (
+            json.dumps(assessment, ensure_ascii=False, indent=2) + "\n"
+        ).encode("utf-8")
+        assessment_markdown = render_assessment(assessment).encode("utf-8")
+        write_files_transactionally({
+            directory / "02-assessment.json": assessment_json,
+            directory / "02-assessment.md": assessment_markdown,
+            directory / "03-apply-actions.json": None,
+        })
     except (OSError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1

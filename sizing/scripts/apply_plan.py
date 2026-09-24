@@ -1,18 +1,29 @@
 #!/usr/bin/env python3
-"""Render an apply preview and prepare selected Jira update payloads."""
+"""Render apply previews and prepare Jira payloads without writing to Jira.
+
+For a valid command, main() returns 0 on success or 1 on validation, I/O, or
+JSON errors; argparse usage errors exit 2. Previews always print to stdout;
+actions print the payload there unless --output is set.
+"""
 
 from __future__ import annotations
 
 import argparse
 import json
 import os
-import shutil
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any
 
-from _common import COMMITTABLE_SIZES, TEAMS, markdown_cell, read_json, require_object, write_json
+from _common import (
+    COMMITTABLE_SIZES,
+    TEAMS,
+    markdown_cell,
+    read_json,
+    require_object,
+    write_files_transactionally,
+    write_json,
+)
 from finalize_assessment import finalize_assessment, render_assessment
 
 
@@ -24,7 +35,12 @@ NO_WORK = {
 
 
 def _directory(context: str) -> Path:
-    if context in {".", ".."} or "/" in context or "\\" in context:
+    if (
+        not context.strip()
+        or context in {".", ".."}
+        or "/" in context
+        or "\\" in context
+    ):
         raise ValueError("context must be a single directory name")
     return Path(".artifacts") / "sizing" / context
 
@@ -201,77 +217,6 @@ def _json_bytes(value: Any) -> bytes:
     return (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
 
-def _write_files_transactionally(files: dict[Path, bytes | None]) -> None:
-    """Replace related artifacts together and restore backups if a write fails."""
-    staged: dict[Path, Path] = {}
-    backup_dirs: list[Path] = []
-    backups: list[tuple[Path, Path]] = []
-    installed: list[Path] = []
-    try:
-        for target, contents in files.items():
-            target.parent.mkdir(parents=True, exist_ok=True)
-            if target.is_dir() and not target.is_symlink():
-                raise IsADirectoryError(target)
-            if contents is None:
-                continue
-            descriptor, temporary_name = tempfile.mkstemp(
-                prefix=f".{target.name}.tmp-", dir=target.parent
-            )
-            temporary = Path(temporary_name)
-            staged[target] = temporary
-            with os.fdopen(descriptor, "wb") as stream:
-                stream.write(contents)
-                stream.flush()
-                os.fsync(stream.fileno())
-
-        for target in files:
-            if not target.exists() and not target.is_symlink():
-                continue
-            backup_dir = Path(tempfile.mkdtemp(prefix=".apply-backup-", dir=target.parent))
-            backup_dirs.append(backup_dir)
-            backup = backup_dir / target.name
-            backups.append((backup, target))
-            os.replace(target, backup)
-
-        for target, temporary in staged.items():
-            installed.append(target)
-            os.replace(temporary, target)
-    except BaseException as exc:
-        rollback_errors: list[OSError] = []
-        for target in reversed(installed):
-            try:
-                target.unlink(missing_ok=True)
-            except OSError as rollback_error:
-                rollback_errors.append(rollback_error)
-        for backup, target in reversed(backups):
-            if backup.exists() or backup.is_symlink():
-                try:
-                    os.replace(backup, target)
-                except OSError as rollback_error:
-                    rollback_errors.append(rollback_error)
-        if rollback_errors:
-            recovery_dirs = ", ".join(str(path) for path in backup_dirs)
-            recovery_error = OSError(
-                f"artifact update failed ({exc}); rollback was incomplete, "
-                f"preserve recovery files in {recovery_dirs}"
-            )
-            if isinstance(exc, Exception):
-                raise recovery_error from exc
-            raise exc from recovery_error
-        for backup_dir in backup_dirs:
-            shutil.rmtree(backup_dir, ignore_errors=True)
-        raise
-    else:
-        for backup_dir in backup_dirs:
-            shutil.rmtree(backup_dir, ignore_errors=True)
-    finally:
-        for temporary in staged.values():
-            try:
-                temporary.unlink(missing_ok=True)
-            except OSError:
-                pass
-
-
 def _commit_override_update(
     directory: Path,
     decisions_obj: dict[str, Any],
@@ -300,7 +245,7 @@ def _commit_override_update(
         if output_path == action_path:
             files[action_path] = _json_bytes(payload)
 
-    _write_files_transactionally(files)
+    write_files_transactionally(files)
 
 
 def main(argv: list[str] | None = None) -> int:

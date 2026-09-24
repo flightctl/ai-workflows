@@ -4,7 +4,10 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import shutil
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -47,6 +50,77 @@ def write_json(path: Path, value: Any) -> None:
     temporary = path.with_name(f".{path.name}.tmp")
     temporary.write_text(payload, encoding="utf-8")
     temporary.replace(path)
+
+
+def write_files_transactionally(files: dict[Path, bytes | None]) -> None:
+    """Replace related artifacts together and restore backups if a write fails."""
+    staged: dict[Path, Path] = {}
+    backup_dirs: list[Path] = []
+    backups: list[tuple[Path, Path]] = []
+    installed: list[Path] = []
+    try:
+        for target, contents in files.items():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if target.is_dir() and not target.is_symlink():
+                raise IsADirectoryError(target)
+            if contents is None:
+                continue
+            descriptor, temporary_name = tempfile.mkstemp(
+                prefix=f".{target.name}.tmp-", dir=target.parent
+            )
+            temporary = Path(temporary_name)
+            staged[target] = temporary
+            with os.fdopen(descriptor, "wb") as stream:
+                stream.write(contents)
+                stream.flush()
+                os.fsync(stream.fileno())
+
+        for target in files:
+            if not target.exists() and not target.is_symlink():
+                continue
+            backup_dir = Path(tempfile.mkdtemp(prefix=".sizing-backup-", dir=target.parent))
+            backup_dirs.append(backup_dir)
+            backup = backup_dir / target.name
+            backups.append((backup, target))
+            os.replace(target, backup)
+
+        for target, temporary in staged.items():
+            installed.append(target)
+            os.replace(temporary, target)
+    except BaseException as exc:
+        rollback_errors: list[OSError] = []
+        for target in reversed(installed):
+            try:
+                target.unlink(missing_ok=True)
+            except OSError as rollback_error:
+                rollback_errors.append(rollback_error)
+        for backup, target in reversed(backups):
+            if backup.exists() or backup.is_symlink():
+                try:
+                    os.replace(backup, target)
+                except OSError as rollback_error:
+                    rollback_errors.append(rollback_error)
+        if rollback_errors:
+            recovery_dirs = ", ".join(str(path) for path in backup_dirs)
+            recovery_error = OSError(
+                f"artifact update failed ({exc}); rollback was incomplete, "
+                f"preserve recovery files in {recovery_dirs}"
+            )
+            if isinstance(exc, Exception):
+                raise recovery_error from exc
+            raise exc from recovery_error
+        for backup_dir in backup_dirs:
+            shutil.rmtree(backup_dir, ignore_errors=True)
+        raise
+    else:
+        for backup_dir in backup_dirs:
+            shutil.rmtree(backup_dir, ignore_errors=True)
+    finally:
+        for temporary in staged.values():
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 def require_object(value: Any, label: str) -> dict[str, Any]:

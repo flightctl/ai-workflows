@@ -26,7 +26,8 @@ graph TD
 
 | Tool | Required | Purpose |
 |------|----------|---------|
-| Jira access (MCP or CLI) | Yes | Fetch Features, write Size field, add comments |
+| Jira read access | Yes | Configured Jira CLI, or `JIRA_URL` and `JIRA_TOKEN` for REST retrieval |
+| Jira write integration | To complete `/apply` writes | Apply explicitly approved Size and comment actions |
 | Git | Yes | Codebase exploration |
 
 ## Command Syntax
@@ -156,11 +157,12 @@ sizing/
 │   ├── assess.md               # Apply rubric, produce recommendations
 │   └── apply.md                # Write sizes to Jira
 ├── scripts/
-│   ├── _common.py              # Shared JSON, path, and Markdown helpers
+│   ├── _common.py              # Shared JSON, path, Markdown, and transaction helpers
 │   ├── prepare_context.py      # Capture and compact Jira Feature data
 │   ├── render_context.py       # Validate and render context artifacts
 │   ├── finalize_assessment.py  # Validate judgments, compute, and render
-│   └── apply_plan.py           # Preview and prepare Jira update payloads
+│   ├── apply_plan.py           # Preview and prepare Jira update payloads
+│   └── test_sizing_scripts.py  # Tests for deterministic sizing helpers
 └── commands/
     ├── ingest.md               # /ingest command
     ├── assess.md               # /assess command
