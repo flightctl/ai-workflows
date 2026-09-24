@@ -29,8 +29,10 @@ to summarize requirements, connect them to the codebase, and identify uncertaint
    `1.5.0` becomes `1-5-0`). The helper's JSON `context` field confirms this
    value after the Jira fetch.
 2. If `.artifacts/sizing/{context}/01-context.json` already exists and an
-   assessment exists, explain that re-ingest will make it stale and wait for
-   confirmation before fetching again.
+   assessment exists, explain that re-ingest will invalidate the assessment
+   and wait for confirmation before fetching again. Do not remove or overwrite
+   existing artifacts before replacement context has been fetched and rendered
+   successfully.
 3. Resolve the installed helper and capture its compact JSON output:
 
    ```bash
@@ -41,8 +43,8 @@ to summarize requirements, connect them to the codebase, and identify uncertaint
 
    Run only the command for the supplied mode. The helper captures the
    configured Jira CLI's raw responses when the CLI is installed; otherwise
-   it uses the shared `fetch-issue.py` REST helper, which requires `JIRA_URL`
-   and `JIRA_TOKEN` (`JIRA_EMAIL` is optional). It omits unused Jira fields,
+   it uses the shared `../../_shared/scripts/fetch-issue.py` REST helper, which
+   requires `JIRA_URL` and `JIRA_TOKEN` (`JIRA_EMAIL` is optional). It omits unused Jira fields,
    comment authors, and previous sizing-assessment comments; it retains at most
    three recent substantive comments per Feature and emits one compact JSON
    packet. It reports an approximate payload size on stderr. Stop on errors; if
@@ -55,8 +57,18 @@ to summarize requirements, connect them to the codebase, and identify uncertaint
    candidate components and inspect targeted implementation/test files. In a
    batch, do not reread shared files for every Feature. Record paths and short
    evidence; do not paste source files into the artifact.
-6. Write compact, sanitized JSON to
-   `.artifacts/sizing/{context}/01-context.json` using this shape:
+6. Create a staging directory inside the context artifact directory, then write
+   compact, sanitized JSON to its `01-context.json`. Keep the staging directory
+   on the same filesystem as the final artifacts so the renderer can promote
+   the files safely:
+
+   ```bash
+   ARTIFACT_DIR=".artifacts/sizing/{context}"
+   mkdir -p "$ARTIFACT_DIR"
+   STAGING_DIR=$(mktemp -d "$ARTIFACT_DIR/.ingest-XXXXXX")
+   ```
+
+   Use this shape for the staged JSON:
 
    ```json
    {
@@ -76,7 +88,13 @@ to summarize requirements, connect them to the codebase, and identify uncertaint
        "data_model": "None identified",
        "testing_surface": "Existing API tests cover the relevant path.",
        "novelty": "Extending existing patterns",
-       "linked_issues": [],
+       "linked_issues": [{
+         "key": "EDM-2300",
+         "relationship": "blocks",
+         "summary": "Linked issue summary",
+         "status": "In Progress",
+         "note": "Potential sizing dependency"
+       }],
        "confidence": "medium",
        "concerns": [],
        "evidence": ["src/api/handler.py: existing request flow"]
@@ -85,20 +103,39 @@ to summarize requirements, connect them to the codebase, and identify uncertaint
    ```
 
    For batch mode set `mode` to `batch`; include `project` and `fix_version`.
-   Preserve every Feature key. Copy metadata from the compact Jira packet, but
-   summarize descriptions and relevant comment details in `description_summary`
-   and `comments_summary`; never copy them verbatim.
+   Preserve every Feature key. Each linked issue requires non-empty `key`,
+   `relationship`, and `summary`; `status` and `note` are optional strings. The
+   compact Jira packet uses `Unknown` when Jira omits a relationship or summary;
+   use an empty list when there are no linked issues.
+   Copy metadata from the compact Jira packet, but summarize descriptions and
+   relevant comment details in `description_summary` and `comments_summary`;
+   never copy them verbatim.
 7. Render and validate the machine-readable context:
 
    ```bash
    python3 "${HOME}/.ai-workflows/sizing/scripts/render_context.py" \
-     ".artifacts/sizing/{context}/01-context.json"
+     "$STAGING_DIR/01-context.json" \
+     --commit-to "$ARTIFACT_DIR"
    ```
 
-   The helper writes `01-context.md` and prints a short result summary. Use
-   that summary to report Feature count, existing sizes, explored components,
-   and low-confidence concerns. Do not reopen the rendered Markdown for the
-   report.
+   The helper validates the staged JSON, renders staged `01-context.md`, then
+   promotes both context files together. Only after both are installed does it
+   invalidate stale `02-decisions.json`, `02-assessment.json`,
+   `02-assessment.md`, and `03-apply-actions.json`. Promotion rolls back the
+   previous artifacts if any replacement fails. If rendering fails, remove
+   only `$STAGING_DIR`, leave all existing artifacts unchanged, and stop. Do
+   not refetch Jira to repair a schema error.
+
+   If the renderer reports a validation error for model-authored JSON, correct
+   only the named field when its value is derivable from the captured Jira
+   packet and existing evidence, then rerun the renderer. Do not invent missing
+   data or impose a fixed retry count. If the value is unavailable, the same
+   error persists, or a helper error occurs, stop and report the exact error
+   under the dispatcher's retry or escalation policy.
+
+   Use the compact result summary to report Feature count, existing sizes,
+   explored components, and low-confidence concerns. Do not reopen the
+   rendered Markdown for the report. Remove the now-empty staging directory.
 
 ## Output
 

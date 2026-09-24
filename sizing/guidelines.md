@@ -18,13 +18,17 @@ artifacts and published output from this workflow.
 
 - No fabricated sizes. Every size must be justified by the rubric's heuristics applied to the Feature's actual content and codebase impact.
 - No auto-advancing between phases. Always wait for the user.
-- No Jira writes without explicit user approval and a dry-run preview first.
+- No Jira writes without explicit user approval of the exact prepared
+  `03-apply-actions.json` payload, including full comment text. Approval of the
+  selection preview alone never authorizes writes.
 - **XXL is never committed.** If a Feature is assessed as XXL, it must be split. Do not write XXL to Jira — recommend the user split first.
 - No scope reduction. If a Feature doesn't fit, flag it as XXL and recommend splitting — don't silently reduce its scope to make it fit a smaller size.
 
 ## Safety
 
-- Present the full assessment before applying to Jira. The user must see and approve every size before it is written.
+- Present the full assessment before applying to Jira. The user must review
+  and explicitly approve every size and full comment in the prepared action
+  payload before writing.
 - Flag low-confidence assessments. If the Feature description is vague or the codebase impact is uncertain, say so explicitly and explain what additional information would improve confidence.
 - Compare with existing Jira Size. If the Feature already has a Size in Jira, note whether the assessment agrees or differs, and why.
 
@@ -57,4 +61,7 @@ This workflow gets deployed into different projects. Respect the target project:
 - `01-context.json` is the compact source for assessment; `01-context.md` is a rendered view.
 - `02-decisions.json` contains model judgments; `02-assessment.json` contains validated judgments plus deterministic calculations; `02-assessment.md` is a rendered view.
 - Read JSON artifacts in later phases. Do not load the corresponding Markdown report back into model context.
-- The scripts only prepare Jira write payloads. Jira writes still require the configured Jira integration and explicit user approval after a dry-run preview.
+- The scripts only prepare Jira write payloads. Jira writes require the configured
+  Jira integration and explicit user approval of the exact prepared
+  `03-apply-actions.json` payload, including full comment text; selection-preview
+  approval does not authorize writes.

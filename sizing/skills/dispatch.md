@@ -23,10 +23,12 @@ controller as a return to this dispatcher. If the phase already reads
 `completion.md` once and follow it with `PHASE` only when
 `COMPLETION_CONSUMED=false`.
 
-If the phase cannot be resolved or an operational error prevents it from
-producing a phase report, report the error and stop without reading
-`completion.md`. For a reported partial outcome, including failed Jira writes,
-read the guide so it can recommend recovery. Never run another phase
-automatically.
+If a phase cannot be resolved or an operational error prevents it from
+producing a phase report, report the exact error and stop without reading
+`completion.md`; offer a retry or escalation. For a reported partial outcome,
+including failed Jira writes, read the guide so it can recommend recovery.
+Never run another phase automatically.
 
-Jira writes still require a dry-run preview and explicit user approval.
+Jira writes require explicit user approval of the exact prepared
+`03-apply-actions.json` payload, including full comment text. Approval of the
+selection preview alone is not sufficient.

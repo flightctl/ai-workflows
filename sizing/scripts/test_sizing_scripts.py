@@ -10,7 +10,7 @@ from pathlib import Path
 from _common import DIMENSIONS, IMPACT_DIMENSIONS, TEAMS, write_json
 from apply_plan import jira_comment, main as apply_main, render_preview
 from finalize_assessment import _render_quadrant_chart, finalize_assessment
-from prepare_context import _normalize_cli_issue
+from prepare_context import _comments, _normalize_cli_issue
 
 
 def make_context(*keys: str) -> dict:
@@ -57,6 +57,15 @@ def make_decisions(context: dict, *, size: str = "M", impact_scores: tuple[int, 
 
 
 class JiraNormalizationTests(unittest.TestCase):
+    def test_scope_comment_with_transition_words_is_retained(self) -> None:
+        scope_comment = "The API moved from REST to gRPC, so the client also needs changes."
+        comments = _comments([
+            {"author": "Reviewer", "created": "2026-09-01", "body": scope_comment},
+            {"author": "Jira", "created": "2026-09-02", "body": "Status changed from Open to In Progress"},
+        ])
+
+        self.assertEqual([item["body"] for item in comments], [scope_comment])
+
     def test_cli_adf_description_and_comment_are_flattened(self) -> None:
         issue = {
             "key": "EDM-1001",

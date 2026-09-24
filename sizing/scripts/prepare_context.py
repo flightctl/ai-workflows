@@ -26,8 +26,8 @@ MAX_COMMENT_CHARS = 700
 BOT_AUTHOR_RE = re.compile(r"\b(bot|automation|automated)\b", re.IGNORECASE)
 SIZING_COMMENT_RE = re.compile(r"^\s*(?:h\d\.\s*)?Sizing Assessment\b", re.IGNORECASE)
 STATUS_COMMENT_RE = re.compile(
-    r"(?:status\s+(?:was\s+)?changed|transitioned\s+from\s+.+\s+to\s+|"
-    r"moved\s+from\s+.+\s+to\s+)",
+    r"^\s*(?:status\s+(?:was\s+)?changed\b|transitioned\s+from\s+\S.*\s+to\s+\S|"
+    r"moved\s+from\s+\S.*\s+to\s+\S)",
     re.IGNORECASE,
 )
 
@@ -278,11 +278,13 @@ def _links(raw: Any) -> list[dict[str, str]]:
         linked_key = text_value(item.get("key"))
         if not linked_key:
             continue
+        relationship = text_value(item.get("type")) or "Unknown"
+        summary = text_value(linked_fields.get("summary")) or "Unknown"
         result.append({
             "key": linked_key,
-            "relationship": text_value(item.get("type")),
+            "relationship": relationship,
             "direction": text_value(item.get("direction")),
-            "summary": text_value(linked_fields.get("summary")),
+            "summary": summary,
             "status": text_value(linked_fields.get("status")),
         })
     return result

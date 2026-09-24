@@ -151,7 +151,7 @@ sizing/
 ├── skills/
 │   ├── dispatch.md             # Lightweight explicit-phase dispatcher
 │   ├── completion.md           # Next-step guidance after a phase
-│   ├── controller.md           # Phase dispatcher and transitions
+│   ├── controller.md           # Default-input discovery and routing
 │   ├── ingest.md               # Fetch Features, explore codebase
 │   ├── assess.md               # Apply rubric, produce recommendations
 │   └── apply.md                # Write sizes to Jira

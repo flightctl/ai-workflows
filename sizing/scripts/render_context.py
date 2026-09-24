@@ -5,7 +5,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +16,12 @@ from _common import markdown_cell, markdown_text, read_json, require_list, requi
 
 
 CONFIDENCE = {"low", "medium", "high"}
+INVALIDATED_ARTIFACTS = (
+    "02-decisions.json",
+    "02-assessment.json",
+    "02-assessment.md",
+    "03-apply-actions.json",
+)
 
 
 def _string_list(value: Any, label: str) -> list[str]:
@@ -183,14 +192,88 @@ def render_context(context: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def _exists(path: Path) -> bool:
+    return path.exists() or path.is_symlink()
+
+
+def _promote_context(input_json: Path, rendered_markdown: Path, destination: Path) -> None:
+    if input_json.name != "01-context.json" or rendered_markdown.name != "01-context.md":
+        raise ValueError("staged context files must be named 01-context.json and 01-context.md")
+
+    destination.mkdir(parents=True, exist_ok=True)
+    destination = destination.resolve()
+    try:
+        input_json.resolve().relative_to(destination)
+        rendered_markdown.resolve().relative_to(destination)
+    except ValueError as exc:
+        raise ValueError("staged context files must be inside the destination directory") from exc
+    if input_json.resolve().parent == destination:
+        raise ValueError("staged context files must be in a temporary subdirectory")
+    if not input_json.is_file() or not rendered_markdown.is_file():
+        raise ValueError("both staged context files must exist before promotion")
+
+    backup_dir = Path(tempfile.mkdtemp(prefix=".ingest-backup-", dir=destination))
+    backups: list[tuple[Path, Path]] = []
+    installed: list[Path] = []
+    try:
+        for name in ("01-context.json", "01-context.md"):
+            target = destination / name
+            if _exists(target):
+                backup = backup_dir / name
+                os.replace(target, backup)
+                backups.append((backup, target))
+
+        for staged in (input_json, rendered_markdown):
+            target = destination / staged.name
+            os.replace(staged, target)
+            installed.append(target)
+
+        for name in INVALIDATED_ARTIFACTS:
+            target = destination / name
+            if _exists(target):
+                backup = backup_dir / name
+                os.replace(target, backup)
+                backups.append((backup, target))
+    except Exception as exc:
+        rollback_errors: list[OSError] = []
+        for target in reversed(installed):
+            try:
+                target.unlink(missing_ok=True)
+            except OSError as rollback_error:
+                rollback_errors.append(rollback_error)
+        for backup, target in reversed(backups):
+            if _exists(backup):
+                try:
+                    os.replace(backup, target)
+                except OSError as rollback_error:
+                    rollback_errors.append(rollback_error)
+        if rollback_errors:
+            raise OSError(
+                f"context promotion failed ({exc}); rollback was incomplete, "
+                f"preserve recovery files in {backup_dir}"
+            ) from exc
+        shutil.rmtree(backup_dir, ignore_errors=True)
+        raise
+    else:
+        shutil.rmtree(backup_dir, ignore_errors=True)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Validate and render a sizing context JSON artifact.")
     parser.add_argument("input", type=Path, help="Path to 01-context.json")
+    parser.add_argument(
+        "--commit-to",
+        type=Path,
+        help="Promote staged context files and invalidate the previous assessment after validation.",
+    )
     args = parser.parse_args(argv)
     try:
         context = validate_context(read_json(args.input))
         output = args.input.with_name("01-context.md")
         output.write_text(render_context(context), encoding="utf-8")
+        if args.commit_to:
+            _promote_context(args.input, output, args.commit_to)
+            output = args.commit_to / output.name
     except (OSError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1

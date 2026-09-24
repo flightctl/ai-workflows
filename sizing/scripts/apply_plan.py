@@ -167,6 +167,37 @@ def _actions(assessment: dict[str, Any], selected_keys: set[str] | None) -> list
     return actions
 
 
+def _update_overrides(
+    directory: Path,
+    known_keys: set[str],
+    overrides: dict[str, str],
+    cleared_keys: set[str] | None,
+) -> tuple[dict[str, Any], int]:
+    decisions_path = directory / "02-decisions.json"
+    context_path = directory / "01-context.json"
+    decisions_obj = require_object(read_json(decisions_path), "decisions")
+    context = read_json(context_path)
+    previous = decisions_obj.get("user_overrides", {})
+    if not isinstance(previous, dict):
+        raise ValueError("decisions.user_overrides must be an object")
+    keys_to_clear = set(previous) if cleared_keys is None else cleared_keys
+    unknown = keys_to_clear - known_keys
+    if unknown:
+        raise ValueError(f"clear references unknown Feature key(s): {', '.join(sorted(unknown))}")
+    overlap = set(overrides) & keys_to_clear
+    if overlap:
+        raise ValueError(f"cannot override and clear the same Feature key(s): {', '.join(sorted(overlap))}")
+    removed = len(set(previous) & keys_to_clear)
+    retained = {key: value for key, value in previous.items() if key not in keys_to_clear}
+    decisions_obj["user_overrides"] = {**retained, **overrides}
+    assessment = finalize_assessment(context, decisions_obj)
+    (directory / "03-apply-actions.json").unlink(missing_ok=True)
+    write_json(decisions_path, decisions_obj)
+    write_json(directory / "02-assessment.json", assessment)
+    (directory / "02-assessment.md").write_text(render_assessment(assessment), encoding="utf-8")
+    return assessment, removed
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Prepare deterministic sizing apply previews and payloads.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -192,9 +223,27 @@ def main(argv: list[str] | None = None) -> int:
         help="Selected size override in ISSUE-KEY=SIZE form; repeat as needed.",
     )
     action_parser.add_argument(
+        "--clear-override",
+        action="append",
+        default=[],
+        help="Remove a stored size override for ISSUE-KEY; repeat as needed.",
+    )
+    action_parser.add_argument(
         "--output",
         type=Path,
         help="Write payload JSON to this path instead of stdout.",
+    )
+    clear_parser = subparsers.add_parser(
+        "clear-overrides",
+        help="Restore original recommendations by removing stored apply-time overrides.",
+    )
+    clear_parser.add_argument("context", help="Sizing artifact context directory name")
+    clear_parser.add_argument(
+        "--key",
+        action="append",
+        dest="keys",
+        default=[],
+        help="Feature key to clear; repeat for multiple keys. Omit to clear every stored override.",
     )
     args = parser.parse_args(argv)
 
@@ -210,7 +259,17 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         known_keys = {item["key"] for item in assessment["features"] if isinstance(item, dict)}
+        if args.command == "clear-overrides":
+            requested = {key.strip() for key in args.keys} if args.keys else None
+            assessment, removed = _update_overrides(directory, known_keys, {}, requested)
+            print(
+                f"Cleared {removed} apply-time override(s); assessment restored for "
+                f"{len(assessment['features'])} Feature(s)."
+            )
+            return 0
+
         overrides = _parse_overrides(args.override, known_keys)
+        cleared_keys = {value.strip() for value in args.clear_override}
         if args.all and args.selected_keys:
             raise ValueError("use --all or --approved-key, not both")
         if not args.all and not args.selected_keys:
@@ -231,20 +290,8 @@ def main(argv: list[str] | None = None) -> int:
         if selected is not None and set(overrides) - selected:
             raise ValueError("every size override must belong to a selected Feature")
 
-        if overrides:
-            decisions_path = directory / "02-decisions.json"
-            context_path = directory / "01-context.json"
-            decisions = read_json(decisions_path)
-            context = read_json(context_path)
-            decisions_obj = require_object(decisions, "decisions")
-            previous = decisions_obj.get("user_overrides", {})
-            if not isinstance(previous, dict):
-                raise ValueError("decisions.user_overrides must be an object")
-            decisions_obj["user_overrides"] = {**previous, **overrides}
-            assessment = finalize_assessment(context, decisions_obj)
-            write_json(decisions_path, decisions_obj)
-            write_json(assessment_path, assessment)
-            (directory / "02-assessment.md").write_text(render_assessment(assessment), encoding="utf-8")
+        if overrides or cleared_keys:
+            assessment, _ = _update_overrides(directory, known_keys, overrides, cleared_keys)
 
         actions = _actions(assessment, selected)
         payload = {"context": args.context, "actions": actions}

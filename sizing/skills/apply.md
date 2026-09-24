@@ -32,14 +32,28 @@ Do not read `02-assessment.md`; it is generated from the JSON artifact.
 
    Use `--all` when the user selected every committable Feature. Map preview
    row numbers to issue keys before passing `--approved-key`. Never include
-   XXL or apply an override to XXL. These options select payload actions; they
-   do not authorize Jira writes. The helper validates overrides, updates
-   `02-assessment.json` and `02-assessment.md` when needed, and builds Jira
-   wiki comments deterministically.
+   XXL or apply an override to XXL. Use `--clear-override ISSUE-KEY` (repeat as
+   needed) when restoring an original recommendation that has a stored
+   apply-time override. These options select payload actions; they do not
+   authorize Jira writes. The helper validates changes, updates
+   `02-decisions.json`, `02-assessment.json`, and `02-assessment.md` when an
+   override is added or cleared, invalidates any older prepared payload, and
+   builds Jira wiki comments deterministically.
 4. Read `03-apply-actions.json` and show every prepared action's Feature key,
    size, and full comment text. Wait for explicit approval of this exact
    payload before writing to Jira. If the user requests changes, regenerate
-   the payload and show it again. For each approved action:
+   the payload and show it again. If the user cancels after this attempt added
+   apply-time overrides, clear those keys before returning so unapproved
+   choices do not remain in the assessment artifacts:
+
+   ```bash
+   python3 "${HOME}/.ai-workflows/sizing/scripts/apply_plan.py" clear-overrides \
+     "{context}" --key EDM-2324
+   ```
+
+   Repeat `--key` for each override introduced during the canceled attempt; omit
+   `--key` to clear every stored apply-time override. This also removes any
+   prepared action payload. For each approved action:
 
    ```text
    jira_update_issue(
@@ -61,5 +75,6 @@ Do not read `02-assessment.md`; it is generated from the JSON artifact.
 - Never write before the user explicitly approves the displayed action
   payload, including its full Jira comment text.
 - A user size override is written back to the JSON and rendered assessment
-  before Jira updates, keeping artifacts aligned with the approved action.
+  before Jira updates. If the payload is canceled, clear overrides introduced
+  during that attempt before returning to the dispatcher.
 - If a Feature is XXL, do not update Jira. Point to its split recommendations.

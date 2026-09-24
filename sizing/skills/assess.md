@@ -81,6 +81,14 @@ then writes `02-assessment.json` and `02-assessment.md`. Use its compact stdout
 summary to present sizes, confidence, XXL items, Jira disagreements, and
 capacity concerns. Do not reread the rendered Markdown.
 
+If the finalizer reports a schema validation error in model-authored
+`02-decisions.json`, correct only the named field when its value is derivable
+from the rubric and existing `01-context.json`, then rerun the finalizer. Do not
+invent missing information or impose a fixed retry count. If the value is not
+derivable, the same error persists, or the failure is not a schema error in
+model-authored data, stop and report the exact error under the dispatcher's
+retry or escalation policy.
+
 If no context is known, inspect `.artifacts/sizing/` and ask which context to
 assess. If no `01-context.json` exists, recommend `/ingest`. After presenting
 results, return to the dispatcher for completion guidance; wait before
