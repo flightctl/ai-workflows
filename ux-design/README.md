@@ -32,8 +32,9 @@ already has validated data or well-understood user needs.
 |------|----------|---------|
 | Jira access (MCP or CLI) | For `/ingest` | Fetch the `[UX]` story, its Design Reference, and sibling stories |
 | Docs repo (published PRD + design doc) | For `/ingest` | Load the PRD and design document the design must honor |
-| UXD skills (`uxd-workshop`) | Required | Prototype generation, heuristic evaluation, discovery, handoff |
-| `python3` on PATH | For `/evaluate` (Standard/Full) | `uxd-prototype-evaluate` helper scripts |
+| UXD Research, Prototype, and Design plugins | Required | Discovery, prototyping, evaluation, and handoff skills |
+| Jira access (Atlassian MCP) | For Full `/evaluate` | `uxd-prototype-evaluate` fetches story acceptance criteria |
+| `python3`, Node/npm, and Playwright Chromium | For Full `/evaluate` | Prototype evaluation helper scripts and browser walkthroughs |
 
 `/ingest` loads all upstream inputs from **shared** locations (the published
 docs repo and Jira) — never from another workflow's private `.artifacts/`.
@@ -48,7 +49,7 @@ check marks its findings "unverified" when the design document was unavailable.
 | Research | `/research` | Conduct user research, synthesize findings | `02-research.md` |
 | Prototype | `/prototype` | Generate design prototypes from research | `03-prototype/` |
 | Evaluate | `/evaluate` | Heuristic evaluation and usability assessment | `04-evaluation.md` |
-| Handoff | `/handoff` | Produce implementation-ready design spec | `05-handoff.md` |
+| Design handoff | `/handoff` | Produce implementation-ready design spec | `05-handoff.md` |
 | Revise | `/revise` | Incorporate stakeholder feedback | `05-handoff.md` (updated) |
 | Publish | `/publish` | Push handoff spec to docs repo for review | `06-pr-description.md`, `publish-metadata.json`, PR in docs repo |
 | Respond | `/respond` | Address PR reviewer comments | Updated `05-handoff.md` |
@@ -115,7 +116,7 @@ All artifacts are stored in `.artifacts/ux-design/{issue-key}/`.
   provenance.json              (authoring provenance log)
 ```
 
-## Handoff Contract
+## Contract for the handoff
 
 `05-handoff.md` is the primary artifact consumed by the `ui-design` workflow.
 It contains:
@@ -132,42 +133,36 @@ It contains:
 
 ## UXD Marketplace Skills
 
-This workflow requires skills from the
-[UXD AI Skills marketplace](https://github.com/rh-uxd/ai-helpers).
-These skills are a hard dependency — phases that use them will stop and prompt
-you to run `./install.sh` if they are missing.
+This workflow uses skills from the
+[UXD AI Skills repository](https://github.com/rh-uxd/ai-helpers). The installer
+clones its current `main` branch and refreshes an existing clean checkout on
+each run of `./install.sh`; it does not pin a commit. The upstream team will
+notify us before breaking changes.
 
-`install.sh` installs them **AI-agnostically**: it clones the `rh-uxd/ai-helpers`
-repo (pinned to a specific commit) and symlinks each skill into the skills
-directory for your AI tool (Claude Code, Cursor, or Gemini). The skills are
-installed and invoked by **bare name** (`uxd-discovery`, `uxd-prototype-create`,
-…), *not* through Claude Code's `/uxd-workshop:<skill>` plugin-marketplace
-namespace — the bare-name form is the one that resolves across all three tools.
+The installer links skill folders by bare name for Claude Code, Cursor, Gemini,
+and Codex. Invoke the skill name directly rather than using a plugin-marketplace
+namespace.
 
-| Skill | Plugin | Used by |
-|-------|--------|---------|
-| `uxd-discovery` | `uxd-workshop` | `/ingest` |
-| `uxd-prototype-create` | `uxd-workshop` | `/prototype` |
-| `uxd-research-heuristic-eval` | `uxd-workshop` | `/evaluate` |
-| `uxd-evaluate-design-heuristics` | `uxd-workshop` | `/evaluate` |
-| `uxd-prototype-evaluate` | `uxd-workshop` | `/evaluate` (Standard/Full depth) |
-| `uxd-design-handoff` | `uxd-workshop` | `/handoff` |
+| Skill | Upstream plugin | Used by |
+|-------|-----------------|---------|
+| `uxd-discovery` | `uxd-research` | `/ingest` |
+| `uxd-prototype-create` | `uxd-prototype` | `/prototype` |
+| `uxd-prototype-export` | `uxd-prototype` | Optional export from prototype creation |
+| `uxd-prototype-evaluate` | `uxd-prototype` | `/evaluate` (Full) |
+| `uxd-prototype-publish` | `uxd-prototype` | Optional standalone publishing |
+| `uxd-research-heuristic-eval` | `uxd-research` | `/evaluate` |
+| `uxd-evaluate-design-heuristics` | `uxd-research` | `/evaluate` |
+| `uxd-design-handoff` | `uxd-design` | `/handoff` |
+| `uxd-figma-read` | `uxd-design` | Optional standalone use; prototype creation reads Figma links directly |
 
-`uxd-prototype-create` reads Figma links directly, so the workflow does not
-invoke `uxd-figma-read` separately (`install.sh` still symlinks it if you want to
-use it standalone).
-
-**Runtime note:** the script-backed skills (`uxd-prototype-create` and
-`uxd-prototype-evaluate`) run Python helpers via the `${CLAUDE_SKILL_DIR}`
-environment variable, which only Claude Code sets. Under Cursor or Gemini it is
-unset, so `/prototype` and `/evaluate` resolve the scripts from the deterministic
-install path (`${HOME}/.uxd-ai-skills/plugins/uxd-workshop/skills/<skill>`) and
-substitute it inline. If **neither** the variable nor that path resolves to a
-real `scripts/` directory (or a helper is missing), the phase stops and reports
-the error rather than silently downgrading a Standard/Full evaluation to Quick.
-This `${CLAUDE_SKILL_DIR}` workaround is the one runtime-specific wrinkle, and it
-would be removed by an upstream change to how the skills resolve their scripts.
-The remaining skills use no runtime-specific mechanisms.
+**Runtime paths:** Some upstream skills use `CLAUDE_SKILL_DIR` and
+`CLAUDE_PLUGIN_ROOT` to locate scripts or plugin resources. Claude Code supplies
+these variables. In other runtimes, resolve a skill under
+`${HOME}/.uxd-ai-skills/plugins/<plugin>/skills/<skill>` and its plugin root at
+`${HOME}/.uxd-ai-skills/plugins/<plugin>`. Supply the expected path to helpers
+when needed. Full evaluation also requires Atlassian MCP access, Node/npm, and
+Playwright Chromium; if those prerequisites are unavailable, do not silently
+skip or downgrade the requested Full evaluation.
 
 ## Directory Structure
 

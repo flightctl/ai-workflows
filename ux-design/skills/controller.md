@@ -10,40 +10,40 @@ by executing phases and handling transitions between them.
 
 ## Phases
 
-1. **Ingest** (`/ingest`) — `ingest.md`
+1. **Ingest** (`/ingest`) — [ingest.md](ingest.md)
    Follow the `[UX]` story's references to load the PRD, design document, and
    sibling stories from shared locations; frame the problem, identify user
    groups, and survey the competitive landscape. Produces the discovery
    artifact, grounded in the feature's real personas, NFRs, and technical
    design.
 
-2. **Research** (`/research`) — `research.md`
+2. **Research** (`/research`) — [research.md](research.md)
    Conduct user research — interviews, surveys, analytics, desk research.
    Synthesize findings into insights and design recommendations. Conditional:
    recommended when user needs are unclear or unvalidated; skippable if the
    researcher already has validated research data.
 
-3. **Prototype** (`/prototype`) — `prototype.md`
+3. **Prototype** (`/prototype`) — [prototype.md](prototype.md)
    Generate design prototypes informed by discovery and research findings.
    Iterative — loops with `/evaluate`.
 
-4. **Evaluate** (`/evaluate`) — `evaluate.md`
+4. **Evaluate** (`/evaluate`) — [evaluate.md](evaluate.md)
    Run heuristic evaluation and usability assessment against prototypes.
    Iterative — loops back to `/prototype` or advances to `/handoff`.
 
-5. **Handoff** (`/handoff`) — `handoff.md`
+5. **Design handoff** (`/handoff`) — [handoff.md](handoff.md)
    Synthesize all prior artifacts into an implementation-ready spec with
    component mapping, interaction specs, data annotations, persona-specific
    views, and acceptance criteria — reality-checked against the technical
    design, with a final-vision/MVP split when constraints require it.
 
-6. **Revise** (`/revise`) — `revise.md`
+6. **Revise** (`/revise`) — [revise.md](revise.md)
    Incorporate stakeholder feedback into the handoff spec. Repeatable.
 
-7. **Publish** (`/publish`) — `publish.md`
+7. **Publish** (`/publish`) — [publish.md](publish.md)
    Push the handoff spec as a PR to the docs repo for external review.
 
-8. **Respond** (`/respond`) — `respond.md`
+8. **Respond** (`/respond`) — [respond.md](respond.md)
    Fetch and address PR reviewer comments on the published handoff spec.
 
 ## Workspace
@@ -158,7 +158,7 @@ Researchers can enter at any phase if they bring the prerequisite artifact:
 | `/ingest` | Jira issue key or feature description |
 | `/research` | `01-discovery.md` (or equivalent problem framing) |
 | `/prototype` | `01-discovery.md` + `02-research.md` (or equivalent; research skippable) |
-| `/evaluate` | `03-prototype/` (prototype to evaluate). Standard/Full depth also needs the skill `{ID}` recorded in `03-prototype/prototype-notes.md`, and the mirrored native layout under `03-prototype/` so `.artifacts/{ID}/` can be recreated |
+| `/evaluate` | `03-prototype/` (prototype to evaluate). Full needs Jira and browser access plus the private evaluator run root described in `evaluate.md` |
 | `/handoff` | `04-evaluation.md` (or researcher confirms design is ready) |
 | `/revise` | `05-handoff.md` |
 | `/publish` | `05-handoff.md` |
@@ -232,8 +232,7 @@ phases.
   findings; this controller decides what to recommend next.
 - **Evaluation before handoff.** Never recommend `/handoff` unless
   `/evaluate` has been run or the researcher explicitly skips it.
-- **Skills are required.** The `uxd-workshop` skills are a hard dependency.
-  If a skill is unavailable, the phase stops and directs the researcher
-  to run `./install.sh`.
+- **Upstream skills are required.** Each phase names its required UXD skill.
+  If a skill is unavailable, stop and direct the researcher to run `./install.sh`.
 - **Research data is the researcher's.** The AI organizes and synthesizes
   but does not fabricate or extrapolate beyond what the data supports.

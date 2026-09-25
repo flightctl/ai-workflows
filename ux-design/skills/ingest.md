@@ -17,9 +17,9 @@ non-functional targets, and real data structures — not invented placeholders.
 
 ## Dependencies
 
-This phase requires the `uxd-workshop` skills. If the `uxd-discovery` skill
-is not available, stop and tell the researcher to run `./install.sh` to set up
-the uxd-workshop skills before proceeding.
+This phase requires `uxd-discovery` from the `uxd-research` plugin. If the
+skill is unavailable, stop and ask the researcher to run `./install.sh` before
+proceeding.
 
 ## Shared-input rule
 

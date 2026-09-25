@@ -14,8 +14,10 @@ description: >-
 
 ## Quick Start
 
-1. If the user invoked a specific command (e.g., `/prototype`, `/evaluate`),
-   read `commands/{command}.md` and follow it.
+1. If the user invoked a command, read its wrapper:
+   [ingest](commands/ingest.md), [research](commands/research.md), [prototype](commands/prototype.md),
+   [evaluate](commands/evaluate.md), [handoff](commands/handoff.md), [revise](commands/revise.md),
+   [publish](commands/publish.md), or [respond](commands/respond.md).
 2. Otherwise, read `skills/controller.md` to load the workflow controller:
    - If the user provided a Jira issue key or URL, execute the `/ingest` phase
    - Otherwise, execute the first phase the user requests

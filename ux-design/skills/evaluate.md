@@ -1,324 +1,210 @@
 ---
 name: evaluate
-description: Heuristic evaluation and usability assessment of prototypes.
+description: Heuristic evaluation, design review, and prototype validation.
 ---
 
 # Evaluate — Heuristic Evaluation
 
-Run systematic heuristic evaluation against the prototype to identify
-usability issues before real user testing. AI-driven evaluation catches
-systematic issues; only humans catch context-dependent problems.
+Evaluate the prototype before handoff. AI-driven reviews can identify systematic
+issues; only people can validate context-dependent usability with real users.
 
 ## Dependencies
 
-This phase requires the `uxd-workshop` skills. If any required skill is
-not available, stop and tell the researcher to run `./install.sh` to set up
-the uxd-workshop skills before proceeding.
+This phase uses skills from the `uxd-research` and `uxd-prototype` plugins. If a
+required skill is unavailable, stop and ask the researcher to run `./install.sh`.
 
 ## Prerequisites
 
-Read `.artifacts/ux-design/{issue-key}/03-prototype/prototype-notes.md`
-for design decisions and open questions. If `prototype-notes.md` doesn't
-exist, tell the researcher that `/prototype` should run first and stop.
+Read `.artifacts/ux-design/{issue-key}/03-prototype/prototype-notes.md` for
+design decisions and open questions. If it does not exist, stop and recommend
+`/prototype` first.
 
-Also read `.artifacts/ux-design/{issue-key}/01-discovery.md` for user group
-context and problem framing.
-
-If `.artifacts/ux-design/{issue-key}/02-research.md` exists, read it for
-user needs and insights — these inform impact descriptions in the evaluation
-findings and the cross-reference step below.
+Read `.artifacts/ux-design/{issue-key}/01-discovery.md` for user groups and
+problem framing. If `.artifacts/ux-design/{issue-key}/02-research.md` exists,
+read it for user needs and insights.
 
 ## Process
 
-### Step 1: Choose Evaluation Depth (Interactive)
+### Step 1: Choose Evaluation Depth
 
-Ask the researcher what depth of evaluation is appropriate:
+Ask the researcher which coverage is appropriate:
 
-| Depth | What it covers | Skills run |
-|-------|---------------|-----------|
-| **Quick** | Multi-evaluator heuristic inspection only (three independent AI evaluators surface usability violations against the chosen framework). No design scoring, no simulated usability. | `uxd-research-heuristic-eval` (Step 2) |
-| **Standard** | Quick + structured design-heuristics scoring (accessibility, visual hierarchy, content, state coverage, goal alignment) + simulated usability testing with personas and 4-8 task scenarios, severity-ranked. | Steps 2, 3, 4 (`--depth standard`) |
-| **Full** | Standard + desirability study (word association, emotional response mapping, desirability score 1-10). | Steps 2, 3, 4 (`--depth full`) |
+| Depth | Coverage | Skills |
+|-------|----------|--------|
+| **Quick** | Three independent heuristic evaluators inspect the prototype against the selected framework. | Step 2 |
+| **Standard** | Quick plus structured scoring for accessibility, hierarchy, content, state coverage, and goal alignment. | Steps 2–3 |
+| **Full** | Standard plus Jira acceptance-criteria validation and persona-based browser walkthroughs. | Steps 2–4 |
 
-Use Quick for early iterations and rapid feedback, Standard for most
-evaluations, and Full for the final evaluation before handoff.
+Use Quick for early iterations, Standard for most reviews, and Full when the
+prototype has Jira acceptance criteria and can be run in a browser. Default to
+Standard.
 
-Default to **Standard** unless the researcher specifies otherwise.
+The upstream `uxd-prototype-evaluate` skill is now an acceptance-criteria and
+persona walkthrough pipeline. It no longer accepts `--depth` and no longer
+produces the former desirability study. Full means that this pipeline is added
+to the review; it does not mean a desirability study.
 
-**Naming caution:** this workflow's Quick/Standard/Full tier is *not* the same
-thing as `uxd-prototype-evaluate`'s own `--depth quick|standard|full`. The
-workflow tier decides *which skills run* (Quick runs no `uxd-prototype-evaluate`
-at all); the skill's `--depth` only tunes that one skill once it does run. When
-this phase runs `uxd-prototype-evaluate` (Standard/Full), it passes
-`--depth standard` or `--depth full` accordingly (Step 4) — don't confuse the
-two scales.
-
-If the selected depth requires tools that are unavailable, stop and tell
-the researcher to run `./install.sh` before proceeding.
+If Full's Jira, browser, or runtime prerequisites are unavailable, tell the
+researcher which prerequisite is missing and ask whether to continue at Standard.
+Do not silently downgrade the evaluation.
 
 ### Step 2: Heuristic Evaluation
 
-This is the primary evaluation tool — tested with an eval suite. It uses three
-independent AI-simulated evaluators:
-- **Evaluator A:** Visual inspection
-- **Evaluator B:** Task flow analysis
-- **Evaluator C:** Edge cases and accessibility
+Run `uxd-research-heuristic-eval` with three independent evaluators. The skill
+covers usability heuristics; it is not an accessibility audit.
 
-Findings are reconciled across evaluators and tagged by agreement level
-(Unanimous, Majority, Single). Evaluators report **violations only** — they do
-not make design recommendations.
+**Choose the framework first.** Ask which framework to use:
 
-**Framework selection first.** Ask the researcher which heuristic framework to
-use before running the skill — do not default silently. Available frameworks:
 - Nielsen's 10 Usability Heuristics
 - Shneiderman's 8 Golden Rules
 - ISO 9241-110 Interaction Principles
 - Gerhardt-Powals' Cognitive Engineering Principles
 
-**Produce the evaluation input first.** `uxd-research-heuristic-eval` inspects
-screenshots, a URL, or a text description — **not** Figma links or raw HTML file
-paths. So before invoking it, turn the prototype into something the skill can
-see:
+The skill accepts screenshots, image files, text descriptions, and URLs. For a
+URL, inspect the rendered page in a live browser before invoking the skill. Do
+not use curl, WebFetch, or page source as a substitute. If no live browser is
+available, ask the researcher for screenshots. Do not evaluate a Figma link or
+raw HTML path directly.
 
-- **Standalone HTML** (`03-prototype/prototype/`): serve it and pass the URL.
-  From the prototype directory, start a local server in the background, e.g.,
-  `python3 -m http.server 8000 &` (run from
-  `.artifacts/ux-design/{issue-key}/03-prototype/prototype/`), then pass
-  `http://localhost:8000/<entry>.html`. Stop the server when the skill finishes.
-- **Screenshots** (any mode, or when a server can't run): capture one image per
-  key screen/state (empty, loading, error, populated) into
-  `04-eval-raw/screenshots/` — via a browser automation tool if available, or
-  ask the researcher to export them — and pass that directory.
-- **Workspace mode:** the prototype runs inside the codebase; serve or run the
-  app per the project's own instructions and pass the URL, or use screenshots.
+For a standalone prototype, serve `.artifacts/ux-design/{issue-key}/03-prototype/prototype/`
+and pass its URL. For workspace mode, run the app using the project's own
+directions. If serving is not possible, capture screenshots of the important
+screens and states into
+`.artifacts/ux-design/{issue-key}/04-eval-raw/screenshots/`.
 
-**Screenshots are mandatory at Standard/Full depth.** A served URL alone
-satisfies *this* step (Step 2), but Step 3's `uxd-evaluate-design-heuristics`
-requires **screenshots specifically** and will stop and ask if none are provided
-(it evaluates visual context and does not accept a URL). So whenever the chosen
-depth is Standard or Full, capture the screenshots into `04-eval-raw/screenshots/`
-now — even if you also serve a URL for Step 2 — so Step 3 has its required input
-and can't block mid-phase after `uxd-prototype-evaluate` scratch is already set
-up. At Quick depth (Step 2 only) a URL alone is sufficient.
+Screenshots are required at Standard and Full depth because Step 3 needs them.
+At Quick depth, a live URL or screenshots are sufficient. If the required input
+cannot be produced, stop and explain what the researcher needs to provide.
 
-**Gate — no fabricated input.** If you cannot produce the required input —
-a URL *or* screenshots at Quick depth, and **screenshots** at Standard/Full depth
-(e.g. an unattended run with no browser/serving capability and no exported
-images) — **stop and tell the researcher** what is needed. Do not run any skill
-against a Figma link or a raw file path, and do not describe the prototype from
-memory in place of real input — either would produce an evaluation of something
-other than the prototype.
-
-**Invocation.** Run the skill in agent-operated mode so its own researcher gate
-is deferred to this workflow's single combined gate in Step 7.
-
-The `--project` path must be relative to the source-repository root. If the
-skill execution might have changed directory, explicitly change back to the
-source-repository root before invoking, then use the relative path:
+Run the skill in agent-operated mode so its review gate is deferred to the
+single combined researcher review in Step 7. `--project` must be relative to the
+source repository root:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "Failed to find repository root"; exit 1; }
 cd "$REPO_ROOT"
-uxd-research-heuristic-eval "<prototype URL or screenshots dir>" \
+uxd-research-heuristic-eval "<prototype URL or screenshots directory>" \
   --framework "<chosen>" --review none \
   --project ".artifacts/ux-design/{issue-key}/04-eval-raw"
 ```
 
-`--review none` requires `--framework` (it activates the skill's Mode B), so
-always pass the framework the researcher chose. With `--review none` the skill
-emits an **Unreviewed Draft** with AI-*suggested* severities and skips its own
-review gate — this is intentional. We do **not** run two researcher gates; the
-single human gate is Step 7 below, over the combined findings from all methods.
+`--review none` requires `--framework`. It emits an Unreviewed Draft so the
+researcher can confirm findings in Step 7. Read the generated report from
+`.artifacts/ux-design/{issue-key}/04-eval-raw/`.
 
-`--project` directs the skill's `.md`/`.html` reports to
-`.artifacts/ux-design/{issue-key}/04-eval-raw/` (otherwise it writes them to
-the current working directory). Read that report in Step 6 to fold the findings
-into `04-evaluation.md`.
+### Step 3: Design Heuristics Scoring (Standard and Full)
 
-### Step 3: Design Heuristics Scoring (Standard and Full depth only)
+Run `uxd-evaluate-design-heuristics` with the screenshots from Step 2. It
+requires screenshots rather than a URL and returns its scores and findings
+inline; it does not write a report file. Capture the returned results for the
+combined report.
 
-Run the `uxd-evaluate-design-heuristics` skill for structured scoring
-across dimensions:
+This skill covers accessibility as one design-review dimension. The
+`uxd-research-heuristic-eval` skill does not run accessibility scanners or score
+WCAG conformance. Do not present heuristic observations as an accessibility
+audit.
 
-- Accessibility compliance
-- Visual hierarchy and scannability
-- Content and microcopy clarity
-- State coverage (empty, loading, error, populated)
-- Goal alignment
+### Step 4: Acceptance-Criteria and Persona Evaluation (Full only)
 
-**Input: the screenshots captured in Step 2.** This skill requires
-**screenshots** (it evaluates visual context and, unlike
-`uxd-research-heuristic-eval`, does not accept a served URL); it stops and asks
-if none are given. Pass it the `04-eval-raw/screenshots/` directory produced in
-Step 2. Since Step 2's gate makes screenshots mandatory at Standard/Full depth,
-they are already present; if for any reason they are not, capture them (or ask
-the researcher to export them) before invoking — do not run this skill against a
-URL or from memory.
+`uxd-prototype-evaluate` now requires a Jira story key, Atlassian MCP access, a
+reachable prototype URL, Node/npm, and Playwright Chromium. It runs acceptance-
+criteria validation and persona-based browser walkthroughs. It may fix failed
+criteria by default, so always pass `--no-fix`; never pass `--reset` or omit
+`--no-fix` in this workflow. It has no `--depth` flag. With a prototype URL but no
+workspace or MR URL, its own rules require the researcher to confirm before
+continuing.
 
-**Output is returned inline — there is no report file.** This skill is a pure
-LLM skill (no `scripts/`, no `--project` flag): it *returns* the Pass/Fail
-verdict, per-dimension scores (1-5), and critical issues directly (its `report`
-flag, default `true`, adds the full write-up to the same returned output, it does
-not write a file). Nothing lands on disk, so there is nothing to mirror or clean
-up here. Capture the returned scores and critical issues in memory and fold them
-into `04-evaluation.md` in Step 6.
+The upstream skill writes into `.artifacts/{KEY}/eval/` and `.artifacts/eval/`
+under the consumer repository's Git root. Keep those files inside this
+workflow's private namespace by giving the evaluator a private Git root for
+each run:
 
-### Step 4: Simulated Usability Assessment (Standard and Full depth only)
+1. Create a unique run directory at
+   `.artifacts/ux-design/{issue-key}/04-eval-raw/prototype-evaluate/{run-id}/`.
+2. Initialize a local Git repository in that directory. This makes the
+   evaluator's `.artifacts/` output paths resolve inside the UX Design
+   workflow's private artifact directory.
+3. Stage the prototype's `rfe-snapshot.md` at
+   `{run-directory}/.artifacts/{issue-key}/rfe-snapshot.md`. Stage any
+   `decisions/` artifacts there when available. If the consumer project has
+   `config/product-overlay.yaml`, copy it to the same path under the run
+   directory; do not invent a product overlay if it is absent.
+4. Run the evaluator from the run directory with the issue key, prototype URL,
+   `--no-fix`, and `--workspace=<path>` when a workspace clone exists:
 
-Skip this step at Quick depth.
+   ```text
+   uxd-prototype-evaluate {issue-key} "{prototype URL}" --no-fix [--workspace="{workspace path}"]
+   ```
 
-`uxd-prototype-evaluate` reads its inputs from the **native skill layout**,
-`.artifacts/{ID}/`, not from our `03-prototype/` directory. It reads different
-files by mode:
-- **Standalone mode:** the prototype files in `.artifacts/{ID}/prototype/`,
-  `.artifacts/{ID}/rfe-snapshot.md`, and `.artifacts/{ID}/metadata.json`.
-- **Workspace mode:** `.artifacts/{ID}/changeset.md` and
-  `.artifacts/{ID}/workspace-analysis.json` (plus `metadata.json`).
+5. Read the resulting report and evidence from
+   `{run-directory}/.artifacts/{issue-key}/eval/`. The cross-key files are
+   isolated under `{run-directory}/.artifacts/eval/`. Keep the run directory
+   for review; do not copy these files to `.artifacts/{issue-key}/` at the
+   repository root.
 
-If you invoke it without staging these, it silently finds nothing and produces
-wrong or unevaluable results. Before running it:
+Use a fresh run directory for each evaluation. If the skill's required Jira
+access, product configuration, URL, or browser runtime is unavailable, Full is
+not available; ask whether to continue at Standard.
 
-1. Read the **skill prototype ID** (`{ID}`) recorded in
-   `.artifacts/ux-design/{issue-key}/03-prototype/prototype-notes.md`.
-2. Ensure `.artifacts/{ID}/` contains the skill's expected layout. In a
-   continued session only our mirror under `03-prototype/` remains (Step 3 of
-   `/prototype` removes the native copy), so recreate it. The mirror preserves
-   the native layout, so this is a structure-preserving copy of whichever set
-   applies:
-   - **Standalone:** `03-prototype/prototype/` → `.artifacts/{ID}/prototype/`;
-     `03-prototype/rfe-snapshot.md` → `.artifacts/{ID}/rfe-snapshot.md`;
-     `03-prototype/metadata.json` → `.artifacts/{ID}/metadata.json`
-   - **Workspace:** `03-prototype/changeset.md` → `.artifacts/{ID}/changeset.md`;
-     `03-prototype/workspace-analysis.json` →
-     `.artifacts/{ID}/workspace-analysis.json`;
-     `03-prototype/metadata.json` → `.artifacts/{ID}/metadata.json`
-   - Copy `03-prototype/reviews/summary.md` back to `.artifacts/{ID}/reviews/`
-     too if it exists from a prior evaluation (so refinement can find it).
-3. Invoke the skill with the ID and matching depth:
-
-```
-uxd-prototype-evaluate {ID} --depth {standard|full}
-```
-
-- **Standard:** Rubric scoring + simulated usability testing with personas
-  and task scenarios, severity-ranked issues (S1 critical through S4
-  enhancement)
-- **Full:** Standard + desirability study
-
-The skill writes its outputs under `.artifacts/{ID}/` (`reviews/summary.md`,
-`report-usability.md`, and for Full `report-desirability.md`) and a
-`pipeline-report.html` at the **`.artifacts/` root** — both *outside* our
-namespace. Read those in Step 6 to fold results into `04-evaluation.md`, then:
-
-- **Mirror the canonical outputs into our namespace:** copy
-  `.artifacts/{ID}/reviews/summary.md` → `03-prototype/reviews/summary.md`
-  (refinement re-reads this), `report-usability.md` and any
-  `report-desirability.md` → `04-eval-raw/`, and `.artifacts/pipeline-report.html`
-  → `04-eval-raw/pipeline-report.html`.
-- **Clean up skill scratch (artifact isolation).** Once mirrored, remove the
-  native `.artifacts/{ID}/` and the stray `.artifacts/pipeline-report.html` so
-  nothing is left outside `.artifacts/ux-design/` (`AGENTS.md` rule). A later
-  session recreates `.artifacts/{ID}/` from the mirror as in step 2 above.
-
-This skill's usability dimension also evaluates against Nielsen's heuristics,
-which overlaps with Step 2 when the researcher chose Nielsen there. The overlap
-is intentional — two independent passes (one violation-focused, one task/persona
--focused) raise confidence in findings both flag. Note convergent findings as
-higher-confidence in Step 6 rather than deduplicating them away.
-
-**Runtime note:** `uxd-prototype-evaluate` runs Python helper scripts via
-`python3 ${CLAUDE_SKILL_DIR}/scripts/...`. `CLAUDE_SKILL_DIR` is set by Claude
-Code; under Cursor or Gemini it is unset. Before the skill runs those helpers,
-check it (`printenv CLAUDE_SKILL_DIR`). If it is empty, resolve the skill's
-directory from the deterministic install path
-`${HOME}/.uxd-ai-skills/plugins/uxd-workshop/skills/uxd-prototype-evaluate` and
-substitute that path inline for every `${CLAUDE_SKILL_DIR}` in the command
-(e.g. `CLAUDE_SKILL_DIR=<path> python3 <path>/scripts/<script>`). `./install.sh`
-clones the skills to `${HOME}/.uxd-ai-skills`. An upstream change to how the
-skill resolves its scripts would remove this workaround.
-
-If **neither** `CLAUDE_SKILL_DIR` nor that install path resolves to a real
-`scripts/` directory, or a required helper script is missing, **stop and report
-the error** — do not silently continue and do not quietly downgrade a
-Standard/Full evaluation to Quick. Tell the researcher the script could not be
-found, and let them decide: fix the install, retry under Claude Code, or
-explicitly re-run at Quick depth (heuristic evaluation only). Never present a
-downgraded evaluation as if it were the depth they asked for.
+**Runtime paths:** Upstream scripts refer to `CLAUDE_SKILL_DIR` and
+`CLAUDE_PLUGIN_ROOT`. Claude Code supplies those variables. In other runtimes,
+resolve the installed skill directory under
+`${HOME}/.uxd-ai-skills/plugins/uxd-prototype/skills/uxd-prototype-evaluate`
+and its plugin root at `${HOME}/.uxd-ai-skills/plugins/uxd-prototype`. Set the
+expected variable for a helper invocation or substitute its absolute path.
+Do not run helper scripts from an assumed plugin location.
 
 ### Step 5: Cross-Reference with Research
 
 If `02-research.md` exists, compare evaluation findings against it:
 
-- Do evaluation findings align with user needs from research?
-- Are there usability issues that conflict with prioritized user needs?
+- Do findings align with researched user needs?
+- Do usability issues conflict with prioritized needs?
 - Do competitive patterns from discovery address any identified issues?
 
-If `02-research.md` does not exist (research phase was skipped), cross-reference
-against `01-discovery.md` user groups and pain points instead. Note in the
-output that formal research findings were not available.
+If formal research was skipped, cross-reference `01-discovery.md` and say that
+formal research findings were not available.
 
 ### Step 6: Reconcile and Prioritize
 
-First, gather the raw outputs each skill wrote (use our mirrored copies from
-Step 4 — the native `.artifacts/{ID}/` has been cleaned up):
-- Heuristic evaluation: `.artifacts/ux-design/{issue-key}/04-eval-raw/heuristic-eval-*.md` (from Step 2)
-- Design heuristics scoring: the Pass/Fail report from Step 3
-- Usability/desirability (Standard/Full): `03-prototype/reviews/summary.md`,
-  `04-eval-raw/report-usability.md`, `04-eval-raw/report-desirability.md` (from Step 4)
+Gather the outputs for methods that ran:
 
-Then combine findings from all evaluation methods and rank by severity:
+- Heuristic evaluation: reports under
+  `.artifacts/ux-design/{issue-key}/04-eval-raw/`
+- Design heuristics: inline scores and findings from Step 3
+- Full prototype evaluation: `evaluation-report.html`,
+  `evaluation-report.csv`, and `journey-log.json` under the private run
+  directory from Step 4
+
+Combine related findings, note how many methods identified each one, and give
+unanimous findings the highest confidence. The upstream prototype evaluator
+reports acceptance-criteria verdicts and persona walkthrough evidence; it no
+longer assigns the previous S1–S4 severity scale. Do not infer a severity from
+an acceptance-criteria verdict or persona score. The researcher sets the final
+severity in Step 7.
 
 | Severity | Definition |
-|----------|-----------|
+|----------|------------|
 | Critical | Prevents users from completing the primary task |
 | Major | Causes significant confusion or extra effort |
-| Minor | Noticeable friction but doesn't block task completion |
-| Cosmetic | Aesthetic issue, no functional impact |
-
-The methods use two severity scales. `uxd-prototype-evaluate` ranks issues
-**S1–S4**; `uxd-research-heuristic-eval` and `uxd-evaluate-design-heuristics`
-use **Critical/Major/Minor/Cosmetic**. Normalize everything to the
-Critical/Major/Minor/Cosmetic scale above using this crosswalk before combining,
-so reconciliation is deterministic:
-
-| Skill severity | Workflow severity |
-|----------------|-------------------|
-| S1 (critical) | Critical |
-| S2 (major/serious) | Major |
-| S3 (minor) | Minor |
-| S4 (enhancement/cosmetic) | Cosmetic |
-
-The crosswalk sets the *starting* severity; the researcher can still adjust any
-finding's final severity in Step 7.
-
-Note the agreement level for each finding (how many evaluation methods
-flagged it). Unanimous findings across methods carry highest confidence.
+| Minor | Noticeable friction that does not block task completion |
+| Cosmetic | Aesthetic issue with no functional impact |
 
 ### Step 7: Researcher Review (Required)
 
-**This is a hard gate — do not skip.** It is the workflow's *single* researcher
-review. The upstream skills ran with their own review deferred
-(`uxd-research-heuristic-eval` with `--review none`; `uxd-prototype-evaluate`
-severities are AI-suggested), so every AI-suggested severity across all methods
-is confirmed here, once, over the combined set — not method by method.
+This is the workflow's single review gate. The upstream heuristic evaluation
+runs with its review deferred; the prototype evaluator's scores and verdicts
+are evidence, not researcher-approved conclusions.
 
-Present all candidate violations to the researcher. The researcher:
-- Confirms or dismisses each finding
-- Assigns final severity (AI-suggested severity is a starting point)
-- Adds context the AI evaluation may have missed
-- Decides which findings to address vs. accept
-
-The AI identifies violations; the researcher makes judgment calls.
+Present all findings. The researcher confirms or dismisses each one, assigns
+severity, adds missing context, and chooses which issues to address or accept.
+Do not make these decisions for the researcher.
 
 ## Output
 
 `.artifacts/ux-design/{issue-key}/04-evaluation.md`
 
-**Omit sections for methods that did not run.** Depth determines which sections
-appear: at Quick depth, only *Heuristic Evaluation Findings* and *Accessibility
-Findings* are populated — omit *Design Heuristics Scores* and *Usability Testing
-Results* entirely. Each template section below is annotated with the skill that
-produces it; leave a section out when that skill did not run.
+Omit sections for methods that did not run. Use this structure:
 
 ```markdown
 # Evaluation Report — {issue-key}
@@ -326,8 +212,8 @@ produces it; leave a section out when that skill did not run.
 **Date:** {date}
 **Prototype iteration:** {N}
 **Depth:** {Quick / Standard / Full}
-**Framework:** {which heuristic framework was used}
-**Methods:** {heuristic eval, design scoring, simulated usability, desirability}
+**Framework:** {heuristic framework}
+**Methods:** {methods run}
 
 ## Summary
 
@@ -336,63 +222,30 @@ produces it; leave a section out when that skill did not run.
 
 ## Heuristic Evaluation Findings
 
-{From uxd-research-heuristic-eval (Step 2) — always present}
-
-### Critical
-
-#### {Finding title}
-- **Heuristic:** {which heuristic violated}
-- **Agreement:** {Unanimous / Majority / Single}
-- **Description:** {what the issue is}
-- **Impact:** {how it affects users, traced to user group from research}
-- **Recommendation:** {specific remediation}
-- **Component:** {which part of the prototype}
-
-### Major
-...
-
-### Minor
-...
-
-### Cosmetic
-...
+{From Step 2. Group findings by researcher-confirmed severity. Include the
+heuristic, agreement, description, user impact, recommendation, and component.}
 
 ## Design Heuristics Scores
 
-{From uxd-evaluate-design-heuristics (Step 3) — omit at Quick depth}
+{From Step 3; omit at Quick depth.}
 
-| Dimension | Score (1-5) | Notes |
-|-----------|------------|-------|
-| Accessibility | {score} | {notes} |
+| Dimension | Score | Notes |
+|-----------|-------|-------|
+| Accessibility | {score} | {notes; do not claim WCAG conformance} |
 | Visual hierarchy | {score} | {notes} |
 | Content clarity | {score} | {notes} |
 | State coverage | {score} | {notes} |
 | Goal alignment | {score} | {notes} |
 
-**Verdict:** {Pass / Fail}
+## Acceptance-Criteria and Persona Results
 
-## Usability Testing Results
-
-{From uxd-prototype-evaluate (Step 4) — omit at Quick depth}
-
-**Personas tested:** {list}
-**Task scenarios:** {count}
-
-| Task | Primary User | Power User | Infrequent User |
-|------|-------------|-----------|-----------------|
-| {task} | {result} | {result} | {result} |
+{From Step 4; omit unless Full ran. Summarize AC pass/fail/flagged verdicts,
+personas and tasks, and link to the HTML evidence report.}
 
 ## Accessibility Findings
 
-{Consolidated a11y issues — color contrast, keyboard navigation, screen reader
- support, ARIA usage. Drawn from Evaluator C in uxd-research-heuristic-eval and,
- when run, the accessibility dimension of uxd-evaluate-design-heuristics.
-
- Note whether the chosen design system/framework (e.g., PatternFly, Material UI)
- provides accessible building blocks (components with built-in WCAG compliance,
- keyboard navigation, ARIA attributes) as a baseline. The handoff should rely on
- the framework's accessibility primitives rather than requiring every attribute
- to be manually specified.}
+{From the design heuristics review only. State when no accessibility audit was
+conducted; do not derive conformance claims from the heuristic evaluator.}
 
 ## Readiness Assessment
 
@@ -402,21 +255,12 @@ produces it; leave a section out when that skill did not run.
 
 ## Iteration Recommendations
 
-{If not ready: specific changes for the next prototype iteration}
-{If ready: any minor improvements to note in handoff}
+{Researcher-approved changes for the next prototype iteration, or minor items
+to carry into handoff.}
 ```
 
 ## When This Phase Is Done
 
-Present the evaluation to the researcher:
-"Evaluation complete. {N} issues found — {critical} critical, {major} major.
-{Readiness assessment}. Want to iterate on the prototype, or move to handoff?"
-
-**If iterating:** The researcher returns to `/prototype` to address findings.
-Track the iteration count. After 3 cycles, prompt: "We've iterated 3 times.
-Ready for handoff, or continue refining?" The researcher decides.
-
-**If ready for handoff:** Recommend `/handoff` to the researcher.
-
-Wait for the researcher's decision. Then **re-read the controller**
-(`controller.md`) for next-step guidance.
+Present the evaluation and readiness assessment. Ask whether the researcher
+wants to iterate or move to handoff. Wait for the answer, then re-read
+`controller.md` for next-step guidance.

@@ -5,246 +5,198 @@ description: Generate design prototypes informed by research findings for evalua
 
 # Prototype — Design Exploration
 
-Generate design prototypes based on research findings so the researcher
-can react, refine, and evaluate. A rough prototype that sparks conversation
-is more valuable than a polished one that can't be changed.
+Generate prototypes that let the researcher react to a design direction and
+iterate before handoff. A prototype should focus on the riskiest user flows and
+states rather than polish that cannot yet be validated.
 
 ## Dependencies
 
-This phase requires the `uxd-workshop` skills. If the `uxd-prototype-create`
-skill is not available, stop and tell the researcher to run `./install.sh` to
-set up the uxd-workshop skills before proceeding.
+This phase requires `uxd-prototype-create` from the `uxd-prototype` plugin. If
+the skill is unavailable, stop and ask the researcher to run `./install.sh`.
 
 ## Prerequisites
 
-Read `.artifacts/ux-design/{issue-key}/01-discovery.md` for problem context,
-user groups, and competitive landscape. If it doesn't exist, ask the
-researcher if they have an equivalent problem framing (PRD, feature brief,
-or description). If they do, use it as context. If not, tell the researcher
-that `/ingest` should run first and stop.
+Read `.artifacts/ux-design/{issue-key}/01-discovery.md` for the problem, user
+groups, and competitive landscape. If it is missing, ask for an equivalent
+problem framing. If none is available, recommend `/ingest` and stop.
 
-If this is a re-entry from `/evaluate`, read `04-evaluation.md` for the
-issues to address in this iteration.
+When returning from `/evaluate`, read `04-evaluation.md` and use the
+researcher-approved findings to guide the next iteration.
 
 ## Process
 
-The `uxd-prototype-create` skill runs its own conversational onboarding
-(what to prototype, workspace mode, decision mode, decision depth) and extracts
-user stories itself. This phase's job is **not** to duplicate that — it is to
-(1) set the strategic design direction grounded in discovery and research,
-(2) hand the skill the answers it needs so it does not re-ask what we already
-know, and (3) map the skill's output into our artifact structure so `/evaluate`
-and `/handoff` can find it.
+The create skill conducts its own onboarding and extracts user stories. This
+phase sets a strategic direction from discovery and research, supplies the
+answers already agreed with the researcher, and maps the generated artifacts
+into the UX Design namespace.
 
-### Step 1: Set the Design Direction (Interactive)
+### Step 1: Set the Design Direction
 
-Using `01-discovery.md` (and `02-research.md` if it exists), propose 1-2
-strategic design directions before generating anything:
+Using `01-discovery.md` and `02-research.md` when present, propose one or two
+design directions. For each, identify the user needs it prioritizes, the core
+interaction pattern, its tradeoffs, and how it compares with patterns from
+discovery. Present the directions and wait for the researcher to choose or
+suggest another.
 
-For each direction:
-- Which user needs does it prioritize?
-- What's the core interaction pattern?
-- What tradeoffs does it make?
-- How does it compare to competitive approaches from discovery?
+Settle the create skill's onboarding answers with the researcher:
 
-Present directions to the researcher. Wait for them to choose or suggest an
-alternative. This is higher-level than the skill's per-decision "auto vs.
-decide" choice — it sets the direction the skill then executes within.
-
-Also settle, from context, the answers to the skill's onboarding questions so
-you can supply them rather than making the researcher answer twice:
-- **Source:** the input identified in discovery (Jira RFE, Figma link, or the
-  feature description). If Figma is the source, pass the Figma link directly to
-  the `uxd-prototype-create` skill — it reads Figma itself; do not pre-run
-  `uxd-figma-read` (that would read the design twice with no defined handoff).
-- **Workspace mode:** codebase integration vs. standalone HTML.
-- **Decision mode:** interactive (`decide`) for first iterations, auto for
-  refinements — confirm with the researcher.
+- **Source:** Jira RFE, Figma link, feature description, or idea from discovery.
+  Pass a Figma link directly to `uxd-prototype-create`; it reads Figma itself.
+  Do not also run `uxd-figma-read` for the same source.
+- **Workspace:** `standalone` or a local path / Git URL for the codebase to
+  prototype in. The create skill clones a workspace into its artifact area.
+- **Decisions:** use `human` for an initial prototype so the researcher chooses
+  among design options; use `auto` for a refinement when the researcher wants
+  the skill to recommend options. `skip` is the upstream default and means no
+  decision kit, so pass a choice explicitly.
 
 ### Step 2: Generate the Prototype
 
-Invoke the `uxd-prototype-create` skill, supplying the answers settled in
-Step 1 as flags/arguments (`--workspace`, `--mode`, and the source) so its
-onboarding does not re-ask them. Let the skill drive its own user-story
-extraction and design-decision workflow within the chosen direction.
+Invoke the skill with the source and agreed choices. For example:
 
-Scope the prototype to the riskiest, most uncertain parts first:
-- Primary user flow (happy path)
-- Key interaction states (empty, loading, error, populated)
-- The most critical user need from research
-
-Don't try to cover everything — a rough prototype that sparks conversation
-beats a polished one that can't change.
-
-**Runtime note (script-backed steps).** Some `uxd-prototype-create` steps run
-Python helpers via `python3 ${CLAUDE_SKILL_DIR}/scripts/...`. `CLAUDE_SKILL_DIR`
-is set by Claude Code; under Cursor or Gemini it is unset. Before the skill runs
-those helpers, check it (`printenv CLAUDE_SKILL_DIR`). If it is empty, resolve
-the skill's directory from the deterministic install path
-`${HOME}/.uxd-ai-skills/plugins/uxd-workshop/skills/uxd-prototype-create` and
-substitute that path inline for every `${CLAUDE_SKILL_DIR}` in the command
-(e.g. `CLAUDE_SKILL_DIR=<path> python3 <path>/scripts/<script>`). If neither the
-variable nor that install path resolves to a real `scripts/` directory, **stop
-and report it** — do not silently skip the script-backed step. (`./install.sh`
-clones the skills to `${HOME}/.uxd-ai-skills`; an upstream change to how the skill
-resolves its scripts would remove this workaround.)
-
-#### Re-entry from `/evaluate` (refinement)
-
-If this is a re-entry from `/evaluate`, use the skill's refinement mode instead
-of regenerating. The refine mode does **not** read our `04-evaluation.md`; it
-reads the skill's own native input, `.artifacts/{ID}/reviews/summary.md`. So two
-things must be true before you invoke it:
-
-1. **The native layout exists.** In a continued session only our mirrored copies
-   under `.artifacts/ux-design/{issue-key}/03-prototype/` may remain. Recreate
-   `.artifacts/{ID}/` from them exactly as `/evaluate` Step 4 describes (read
-   `{ID}` from `prototype-notes.md`; stage the prototype artifacts and skill
-   metadata back). Use the same file sets defined in Step 3 below.
-2. **`reviews/summary.md` holds the findings to fix.** If `/evaluate` ran at
-   Standard/Full depth, `uxd-prototype-evaluate` wrote `reviews/summary.md`,
-   which `/evaluate` mirrored to `03-prototype/reviews/summary.md`; stage it
-   back to `.artifacts/{ID}/reviews/summary.md`. If `/evaluate` ran at Quick
-   depth, that file does
-   **not** exist, so write it yourself from the researcher-confirmed findings in
-   `04-evaluation.md`, using the skill's expected shape: a Markdown list of
-   issues, each with a title, severity (S1-S4), the affected
-   component/screen, and the recommended fix. (This input contract is implicit
-   in the skill today.)
-
-Then invoke refine against the same ID:
-
-```
-uxd-prototype-create refine {ID}
+```text
+uxd-prototype-create "{source}" --workspace "{path-or-standalone}" --decisions human
 ```
 
-Refine edits the native `.artifacts/{ID}/prototype/` in place. **After it
-finishes, run Step 3** to re-mirror the refined output back into
-`03-prototype/` and clean up the native scratch. Do not skip this — otherwise the
-refined prototype is left only in native scratch (which the next `/evaluate`
-would delete) while a stale copy lingers in `03-prototype/` and gets restored
-over it.
+For a refinement, use the same prototype ID and `--decisions auto` after
+staging the evaluator artifacts described below. `--workspace` is the codebase
+to build in; `--target` is only a later MR/PR destination. Do not pass a target
+unless the researcher requested publishing and approved the destination.
+
+Keep the scope focused on:
+
+- The primary user flow
+- Important empty, loading, error, and populated states
+- The user need with the greatest uncertainty or risk
+
+The new create skill also records user journeys and page scenarios. Preserve
+those artifacts because its evaluate and export skills consume them.
+
+**Runtime paths:** Upstream skill files refer to `CLAUDE_SKILL_DIR` and
+`CLAUDE_PLUGIN_ROOT`. Claude Code supplies those variables. In other runtimes,
+resolve the installed create skill at
+`${HOME}/.uxd-ai-skills/plugins/uxd-prototype/skills/uxd-prototype-create` and
+the plugin root at `${HOME}/.uxd-ai-skills/plugins/uxd-prototype`. Set the
+expected variable for a helper invocation or substitute its absolute path.
+Do not assume a plugin path based on another runtime.
+
+### Refinement After `/evaluate`
+
+`uxd-prototype-create refine {ID}` now reads
+`.artifacts/{ID}/eval/evaluation-report.csv` and
+`.artifacts/{ID}/eval/refinement-suggestions.json`. It no longer reads
+`reviews/summary.md` or accepts the former `--mode` flag.
+
+Before refining:
+
+1. Restore the prototype's native layout under `.artifacts/{ID}/` from the
+   mirrored files in `03-prototype/` as described in Step 3.
+2. If Full evaluation ran, copy `evaluation-report.csv` and
+   `refinement-suggestions.json` from the private evaluator run directory
+   (`04-eval-raw/prototype-evaluate/{run-id}/.artifacts/{ID}/eval/`) into
+   `.artifacts/{ID}/eval/`.
+3. If those evaluator inputs do not exist, do not invent them. Start a new
+   `uxd-prototype-create` run with the source and researcher-approved feedback
+   as context instead of using `refine`.
+
+Invoke refinement as:
+
+```text
+uxd-prototype-create refine {ID} --decisions auto
+```
+
+After it finishes, mirror the updated outputs and remove the temporary native
+`.artifacts/{ID}/` directory. Do not leave the only copy of the refined
+prototype in native skill scratch.
 
 ### Step 3: Map Skill Output Into Our Artifact Structure
 
-`uxd-prototype-create` writes to its own native location, `.artifacts/{ID}/`
-(where `{ID}` is derived from the Jira key — the same value as our
-`{issue-key}` — or a generated slug). Our workflow and `/evaluate` expect the
-output under `.artifacts/ux-design/{issue-key}/03-prototype/`. **Mirror the
-files listed below, preserving the native layout** so `/evaluate` can stage them
-back losslessly — do not flatten the `prototype/` subdirectory into the metadata
-files. Two distinct sets, kept separate:
+The create skill writes to `.artifacts/{ID}/`, where `{ID}` is the Jira key or a
+slug. Mirror its output under
+`.artifacts/ux-design/{issue-key}/03-prototype/`, preserving the prototype's
+native layout so a refinement can restore it without flattening files.
 
-**Prototype artifacts** — the contents of the skill's `prototype/` subdirectory
-(HTML/React/CSS/JS and any screenshots):
+**Standalone prototype:**
 
-- `.artifacts/{ID}/prototype/` → `.artifacts/ux-design/{issue-key}/03-prototype/prototype/`
+- `.artifacts/{ID}/prototype/` → `03-prototype/prototype/`
 
-**Skill metadata** — the files at the `{ID}` root (copy each to the
-`03-prototype/` root, *not* into the `prototype/` subdir):
+**Workspace prototype:**
 
-- `rfe-snapshot.md` — **always produced** (the skill's Step 3 saves it for
-  every source, including the Figma-link and feature-description fallbacks, not
-  only Jira) and a **required** input to `uxd-prototype-evaluate`. Never skip it.
-- `metadata.json` — always produced; also required by `uxd-prototype-evaluate`.
+- `.artifacts/{ID}/code/` contains the cloned codebase and prototype changes.
+  Preserve it under `03-prototype/code/` or record its durable path; note the
+  prototype's app entry point in `prototype-notes.md`.
+- Mirror `changeset.md` and `workspace-analysis.json` to `03-prototype/`.
+
+**Create metadata:** mirror each file when the skill produces it:
+
+- `rfe-snapshot.md`
+- `metadata.json`
 - `user-stories.json`
-- `prototype-summary.yaml` — the skill's designated machine-readable summary
-  for downstream skills; mirror it even though `uxd-prototype-evaluate` doesn't
-  require it today
-- `reviews/` — if present (created by `/evaluate` when it stages evaluation
-  findings back for refinement); preserves `reviews/summary.md` across refinement
-  iterations
+- `journeys.json`
+- `scenarios.json`
+- `prototype-summary.yaml`
+- `prototype-bar.json`
+- `verification.json`
+- `decisions/` and `exports/`, when present
 
-In **workspace mode** the prototype lives in the codebase, not in
-`.artifacts/{ID}/prototype/`, so the `prototype/` subdir may be absent. In that
-case also mirror the two workspace-mode files (both consumed by
-`uxd-prototype-evaluate` in workspace mode) and record where the integrated
-prototype lives:
+`rfe-snapshot.md` and `metadata.json` are required. If either is missing, stop
+and report that prototype creation did not complete. The new evaluator can
+consume `rfe-snapshot.md` and `decisions/` when staged into its private run
+root. Record the create skill's `{ID}` in `prototype-notes.md`.
 
-- `changeset.md` → `03-prototype/changeset.md`
-- `workspace-analysis.json` → `03-prototype/workspace-analysis.json`
-- Note the in-codebase location of the integrated prototype in
-  `prototype-notes.md`
+Once the canonical copies are mirrored, remove the native `.artifacts/{ID}/`
+created by the create skill. The evaluator uses a separate private run root
+under `04-eval-raw/`; do not move its outputs into `.artifacts/{ID}/` except
+for the two temporary refinement inputs described above.
 
-"Omit any the skill did not produce" applies only to the **mode-specific** files
-(the `prototype/` subdir and `changeset.md`/`workspace-analysis.json` are
-mutually exclusive by mode). `rfe-snapshot.md`, `metadata.json`, and
-`user-stories.json` are produced in **every** mode and every source, so always
-mirror them; if one is missing, the skill run was incomplete, so stop and report
-rather than proceeding. Of these, `rfe-snapshot.md` and `metadata.json` are
-**required inputs** to `uxd-prototype-evaluate`; `user-stories.json` is mirrored
-for completeness (no downstream skill reads it today). Record the skill's `{ID}`
-in `prototype-notes.md` (see Output) — `/evaluate` needs it to re-invoke
-`uxd-prototype-evaluate` against the same files.
+## Step 4: Document Design Rationale
 
-**Clean up skill scratch (artifact isolation).** The skill's native
-`.artifacts/{ID}/` is a sibling of our namespace, *outside*
-`.artifacts/ux-design/`, and nothing else cleans it up. Once the canonical
-copies are mirrored above, remove `.artifacts/{ID}/` so it does not leak
-outside the workflow's private namespace (`AGENTS.md` artifact-isolation rule).
-`/evaluate` and refinement recreate it on demand from the mirror when needed.
-
-The mirror set above is what `uxd-prototype-evaluate` and `refine --mode=auto`
-consume; it intentionally omits the skill's `decisions/` directory
-(`decisions.json`, decision pages, `strategy-brief.md`) and `verification.json`,
-which only `refine --mode=decide` reads. Because this workflow recommends `auto`
-for refinements (Step 1), that history is not needed across the mirror round-trip.
-If a researcher deliberately runs a `decide`-mode refinement, add `decisions/`
-and `verification.json` to the mirror set so the decision history survives the
-`.artifacts/{ID}/` cleanup.
-
-### Step 4: Document Design Rationale
-
-For each design decision in the prototype, trace it back to a research
-finding:
-
-- "This uses a wizard pattern because research showed users need step-by-step
-  guidance (Insight #2)"
-- "The empty state includes a quick-start guide because 3/5 participants
-  struggled with initial setup"
+For each significant design decision, connect it to a research finding or
+researcher direction. If neither supports it, identify it as an assumption.
+Do not invent research evidence.
 
 ## Output
 
 `.artifacts/ux-design/{issue-key}/03-prototype/`
 
-```
+```text
 03-prototype/
-├── prototype-notes.md        # Design rationale and decisions (this phase)
-├── iteration-{N}.md          # Notes from each iteration, if iterating (this phase)
-├── prototype/                # Generated prototype files (HTML/React/CSS/screenshots)
-├── reviews/                  # Evaluation findings for refinement (from /evaluate)
-│   └── summary.md            # Findings summary (created by uxd-prototype-evaluate)
-├── user-stories.json         # User stories with acceptance criteria (from the skill)
-├── rfe-snapshot.md           # Requirements snapshot (always produced; required by evaluator)
-├── metadata.json             # Prototype metadata (mode, iteration, input source)
-├── prototype-summary.yaml    # Machine-readable summary for downstream skills
-├── changeset.md              # Workspace-mode only
-└── workspace-analysis.json   # Workspace-mode only
+├── prototype-notes.md        # Direction, rationale, and open questions
+├── iteration-{N}.md          # Notes for each iteration
+├── prototype/                # Standalone prototype, when applicable
+├── code/                     # Workspace clone and prototype, when applicable
+├── user-stories.json         # User stories and acceptance criteria
+├── journeys.json             # Primary user journeys
+├── scenarios.json            # On-load scenarios per page
+├── rfe-snapshot.md           # Frozen source requirements
+├── metadata.json             # Prototype metadata and decision mode
+├── prototype-summary.yaml    # Machine-readable summary
+├── prototype-bar.json        # Prototype Bar configuration
+├── changeset.md              # Workspace mode only
+├── workspace-analysis.json   # Workspace mode only
+├── verification.json         # Workspace mode only
+├── decisions/                # When decisions are auto or human
+└── exports/                  # When export was requested
 ```
 
-The `prototype/` subdirectory and the metadata files (`user-stories.json`,
-`rfe-snapshot.md`, `metadata.json`, `prototype-summary.yaml`, and in workspace
-mode `changeset.md`/`workspace-analysis.json`) are produced by
-`uxd-prototype-create` and mirrored here in Step 3, preserving the native
-layout. `prototype-notes.md` and `iteration-{N}.md` are written by this phase.
-
-`prototype-notes.md` structure:
+`prototype-notes.md` records:
 
 ```markdown
 # Prototype — {issue-key}
 
 **Date:** {date}
 **Iteration:** {N}
-**Skill prototype ID:** {ID from uxd-prototype-create — /evaluate needs this}
+**Skill prototype ID:** {ID}
 **Design direction:** {chosen direction}
-**Mode:** {auto / interactive}
-**Input source:** {Jira RFE / Figma / feature description / refinement}
+**Prototype mode:** {standalone / workspace}
+**Decision mode:** {skip / auto / human}
+**Input source:** {Jira RFE / Figma / feature description / idea}
 
 ## Design Decisions
 
 | Decision | Rationale | Research Reference |
 |----------|-----------|-------------------|
-| {what} | {why} | {Insight #N from research} |
+| {what} | {why} | {finding or researcher direction} |
 
 ## User Stories Covered
 
@@ -258,7 +210,7 @@ layout. `prototype-notes.md` and `iteration-{N}.md` are written by this phase.
 - {flow or interaction covered}
 
 **Not yet covered:**
-- {flow or interaction deferred}
+- {flow or interaction not represented}
 
 ## Open Questions for Evaluation
 
@@ -266,11 +218,6 @@ layout. `prototype-notes.md` and `iteration-{N}.md` are written by this phase.
 - {Where is the design most uncertain?}
 ```
 
-## When This Phase Is Done
-
-Present the prototype to the researcher:
-"Here's a prototype of {direction}. It covers {scope}. Review it — what
-works, what doesn't, what's missing? We can iterate or move to evaluation."
-
-Wait for confirmation. Then **re-read the controller** (`controller.md`)
-for next-step guidance.
+Present the prototype and its scope to the researcher. Wait for feedback before
+revising or recommending `/evaluate`, then re-read `controller.md` for
+next-step guidance.

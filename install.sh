@@ -161,9 +161,9 @@ ensure_repo_linked() {
 }
 
 UXD_REPO="https://github.com/rh-uxd/ai-helpers.git"
-UXD_SHA="ad44b9c92c89730da5191487d0ff82af09b41366"
 UXD_DIR="${HOME}/.uxd-ai-skills"
-UXD_PLUGINS=(uxd-workshop)
+UXD_PLUGINS=(uxd-design uxd-prototype uxd-research)
+UXD_REFRESHED=false
 
 # Install UXD AI Skills via git clone + symlinks (AI-agnostic; works for all
 # tools). Called at the end of each install target when ux-design is in scope.
@@ -177,38 +177,59 @@ install_uxd_skills() {
   done
   "$has_ux_design" || return 0
 
-  if [[ ! -d "$UXD_DIR" ]]; then
-    echo "  Cloning UXD AI Skills repo (${UXD_SHA:0:7})..."
-    git clone "$UXD_REPO" "$UXD_DIR" 2>/dev/null || {
+  if [[ ! -d "$UXD_DIR/.git" ]]; then
+    if [[ -e "$UXD_DIR" ]]; then
+      echo "  Error: $UXD_DIR exists but is not an ai-helpers Git checkout" >&2
+      return 1
+    fi
+    echo "  Cloning UXD AI Skills repo (main)..."
+    git clone --branch main --single-branch "$UXD_REPO" "$UXD_DIR" 2>/dev/null || {
       echo "  Error: could not clone UXD AI Skills repo — ux-design workflow requires it" >&2
       echo "  Check network access to github.com and re-run install." >&2
       return 1
     }
-    git -C "$UXD_DIR" checkout "$UXD_SHA" 2>/dev/null || {
-      echo "  Error: could not check out UXD AI Skills commit ${UXD_SHA:0:7}" >&2
+  elif [[ "$UXD_REFRESHED" != true ]]; then
+    local origin_url
+    local checkout_status
+    origin_url="$(git -C "$UXD_DIR" remote get-url origin 2>/dev/null)" || {
+      echo "  Error: could not read the UXD AI Skills checkout's origin" >&2
       return 1
     }
-  else
-    # Existing install: make sure it is on the pinned SHA. Fetch first in case
-    # the local clone predates the pinned commit; a fetch failure is non-fatal
-    # only when the commit is already present locally.
-    if ! git -C "$UXD_DIR" cat-file -e "${UXD_SHA}^{commit}" 2>/dev/null; then
-      echo "  Fetching UXD AI Skills updates (${UXD_SHA:0:7})..."
-      git -C "$UXD_DIR" fetch origin 2>/dev/null || {
-        echo "  Error: could not fetch UXD AI Skills commit ${UXD_SHA:0:7}" >&2
-        echo "  Check network access to github.com and re-run install." >&2
-        return 1
-      }
+    if [[ "$origin_url" != "$UXD_REPO" ]]; then
+      echo "  Error: $UXD_DIR has unexpected origin: $origin_url" >&2
+      return 1
     fi
-    git -C "$UXD_DIR" checkout "$UXD_SHA" 2>/dev/null || {
-      echo "  Error: could not check out UXD AI Skills commit ${UXD_SHA:0:7}" >&2
+
+    checkout_status="$(git -C "$UXD_DIR" status --short 2>/dev/null)" || {
+      echo "  Error: could not inspect the UXD AI Skills checkout" >&2
+      return 1
+    }
+    if [[ -n "$checkout_status" ]]; then
+      echo "  Error: $UXD_DIR has local changes; preserve or remove them before updating" >&2
+      return 1
+    fi
+
+    echo "  Updating UXD AI Skills from main..."
+    git -C "$UXD_DIR" fetch --quiet origin main 2>/dev/null || {
+      echo "  Error: could not fetch UXD AI Skills main" >&2
+      echo "  Check network access to github.com and re-run install." >&2
+      return 1
+    }
+    git -C "$UXD_DIR" checkout --quiet -B main origin/main 2>/dev/null || {
+      echo "  Error: could not check out the latest UXD AI Skills main" >&2
       return 1
     }
   fi
+  UXD_REFRESHED=true
+  echo "  UXD AI Skills main: $(git -C "$UXD_DIR" rev-parse --short HEAD)"
 
+  local linked_count=0
   for plugin in "${UXD_PLUGINS[@]}"; do
     local plugin_skills="${UXD_DIR}/plugins/${plugin}/skills"
-    [[ -d "$plugin_skills" ]] || continue
+    if [[ ! -d "$plugin_skills" ]]; then
+      echo "  Error: expected UXD skills directory is missing: ${plugin_skills}" >&2
+      return 1
+    fi
     for skill_dir in "${plugin_skills}"/*/; do
       [[ -d "$skill_dir" ]] || continue
       local skill_name
@@ -220,8 +241,14 @@ install_uxd_skills() {
       fi
       ln -sfn "$skill_dir" "$target"
       echo "  Linked ${target} -> ${skill_dir}  (uxd)"
+      ((linked_count += 1))
     done
   done
+
+  if (( linked_count == 0 )); then
+    echo "  Error: no UXD skills were found in the expected plugin directories" >&2
+    return 1
+  fi
 }
 
 install_shared() {

@@ -3,16 +3,16 @@ name: handoff
 description: Synthesize research, prototype, and evaluation into an implementation-ready handoff spec.
 ---
 
-# Handoff — Implementation Spec
+# Design handoff — Implementation Spec
 
 Synthesize all prior artifacts into a spec that a developer can implement
 from. This is the contract between the ux-design workflow and `ui-design`.
 
 ## Dependencies
 
-This phase requires the `uxd-workshop` skills. If the `uxd-design-handoff` skill
-is not available, stop and tell the researcher to run `./install.sh` to set up
-the uxd-workshop skills before proceeding.
+This phase requires `uxd-design-handoff` from the `uxd-design` plugin. If the
+skill is unavailable, stop and ask the researcher to run `./install.sh` before
+proceeding.
 
 ## Prerequisites
 
@@ -43,7 +43,7 @@ satisfy it.
 
 ## Process
 
-### Step 1: Run UXD Design Handoff
+### Step 1: Run the UXD design-handoff skill
 
 Invoke the `uxd-design-handoff` skill with the prototype files and prior
 artifacts as input.
@@ -169,7 +169,7 @@ imply verification the phase cannot perform. Mark every finding **unverified
 against the technical design** so reviewers know it rests on codebase
 inference, not the design document.
 
-### Step 5: Assemble the Handoff Artifact
+### Step 5: Assemble the handoff artifact
 
 Combine the skill's output with Steps 2, 3, and 4 into the artifact below, and
 save it to `.artifacts/ux-design/{issue-key}/05-handoff.md`.
@@ -196,7 +196,7 @@ Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 # Implementation Handoff — {issue-key}
 
 **Date:** {date}
-**Research cycle:** {number of prototype-evaluate iterations}
+**Evaluation cycles:** {number of `/evaluate` runs}
 **Design system:** {detected or specified}
 
 ## Summary
