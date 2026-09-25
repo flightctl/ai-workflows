@@ -92,6 +92,7 @@ Capture:
 - Implementation guidance (if present)
 - Testing approach (if present)
 - `Validated by` TC IDs and `PRD Requirements` from the Design Reference (used to filter the testplan in Step 5d)
+- `Source` and `UI Design section` from the Design Reference (if present — used to select ui_design.md in Step 5c)
 - Design refs
 - Story type prefix (`[DEV]`, `[UI]`, etc.)
 - Parent key (epic) and its parent key (feature), from the `--parent --parent-fields` response
@@ -182,13 +183,33 @@ files are often thousands of lines. Search, then slice.
 Need:
 
 1. **Design document** (`design.md`) — sections that bind this story
-2. **PRD** (`prd.md`) — FR/NFR this story covers
-3. **Testplan** (`testplan.md`) — candidate test cases for Step 5d
+2. **UI design document** (`ui_design.md`) — UI-specific design context
+   (present only for features that went through the ui-design workflow)
+3. **PRD** (`prd.md`) — FR/NFR this story covers
+4. **Testplan** (`testplan.md`) — candidate test cases for Step 5d
 
-If the design document or PRD are not found, ask the user for their
-location or proceed with only the Jira story content. The design
-document and PRD are valuable context but not strictly required — the
-story's acceptance criteria are the primary contract.
+**Selecting the design source (polymorphic design reference):**
+
+Check the story's Design Reference `Source` field (captured in Step 3):
+
+- **`Source: ui-design/sync`** — this story was created by the ui-design
+  workflow's `/sync` phase. Use `ui_design.md` as the primary design
+  document: grep it for terms from the `UI Design section` field (instead
+  of the `Design section` field used for `design.md`). If `design.md`
+  also exists in the feature directory, load its relevant sections as
+  supplemental context (broader architecture around the UI change).
+- **No `Source` field (or any other value)** — existing behavior. Use
+  `design.md` as the primary design document with the `Design section`
+  field. Ignore `ui_design.md` even if present.
+
+Apply the same section-scoped reading rules (grep then slice) to
+`ui_design.md` as to `design.md`. Do not Read the entire file.
+
+If the primary design document (whichever was selected above) or PRD
+are not found, ask the user for their location or proceed with only the
+Jira story content. The design document and PRD are valuable context
+but not strictly required — the story's acceptance criteria are the
+primary contract.
 
 #### 5d: Filter Testplan to Story Scope
 
@@ -198,10 +219,18 @@ testplan's test-case headings. If `Validated by` is missing, empty, or
 whose requirement heading matches a `PRD Requirements` ID from the story's
 Design Reference.
 
+**UI-design-originated stories:** If `PRD Requirements` contains
+"Discovered during UI design" (set by ui-design `/sync` for stories that
+do not trace to original PRD requirements), skip the requirement-based
+testplan fallback — these stories will not have matching test cases in
+the feature testplan. Treat as Expected zero with a note that testplan
+coverage is deferred to the UI design's own validation criteria.
+
 | Outcome | Condition | Action |
 |---------|-----------|--------|
 | Normal | Matches found | Write `testplan.md` **once** from `../templates/story-testplan.md` |
 | Expected zero | No matches and type is `[QE]`/`[DOCS]`/`[UX]`/`[CI]` | Note expected; delete stale story testplan if present |
+| Expected zero | PRD Requirements is "Discovered during UI design" | Note UI-design origin; delete stale story testplan if present |
 | Anomalous zero | No matches and type is `[DEV]`/`[UI]` (or unknown) | Warn; delete stale story testplan if present |
 
 No feature testplan: note and continue.
