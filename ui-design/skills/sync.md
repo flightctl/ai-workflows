@@ -438,6 +438,14 @@ host are invalid — if validation failed, Step 4 already stopped.
 - **Gap Category:** {data / field / state / pagination / filtering / sorting / shape / permission}
 - **Gap Severity:** {critical / high / medium}
 
+## Design Reference
+
+Source: ui-design/sync
+Epic: {parent-key}
+UI Design section: {component section reference in ui_design.md}
+PRD Requirements: {FR/NFR IDs from parent story's Design Reference, or "Discovered during UI design — no PRD requirement"}
+Interface Changes: {API change specification from gap's "What's missing" + "Suggested approach"}
+
 ## What's Needed
 
 {Specific description of what the backend needs to provide — the "What's
@@ -457,6 +465,29 @@ missing" field from the gap detail.}
 - The response shape is compatible with the UI's data flow mapping
 - {Additional criteria based on the gap type}
 ```
+
+**Design Reference field derivation.** The Design Reference section is
+story-level metadata — its fields are **not** included in the
+`content_hash` computation and do not trigger updates when they change.
+Populate each field as follows:
+
+1. **Source** — Always the literal string `ui-design/sync`.
+2. **Epic** — The `{parent-key}` already resolved in Step 2 (the epic
+   or feature under which the `[DEV]` story is created).
+3. **UI Design section** — Derived from the gap's component mapping:
+   - If the gap's affected component appears in the Component
+     Architecture section of `02-ui-design.md`, use
+     `§Component Architecture > {ComponentName}`.
+   - If the gap maps to an entry in the Data Flow Mapping section, use
+     `§Data Flow Mapping > {entry-name}`.
+   - If neither applies, use `§API Findings`.
+4. **PRD Requirements** — Copy the FR/NFR IDs from the parent `[UI]`
+   story's Design Reference section. If the parent story has no Design
+   Reference section (or no PRD requirement IDs), use:
+   `Discovered during UI design — no PRD requirement`.
+5. **Interface Changes** — Combine the gap's "What's missing" and
+   "Suggested approach" fields into a brief API change specification
+   (e.g., `Add status field to GET /api/v1/devices response`).
 
 After creating each story, verify the parent link by reading the issue
 back. If the parent is missing, stop and report the error.
