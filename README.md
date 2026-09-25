@@ -38,6 +38,9 @@ Reusable AI coding workflows and focused skills a team member can install global
 - **Design** -- Design-and-decompose workflow: ingest a PRD, draft a technical design document, decompose into Jira-ready epics and stories, revise based on feedback, publish as a GitHub PR, respond to reviewer comments, and sync epics/stories to Jira.
   See [design/README.md](design/README.md).
 
+- **UI Design** -- UI design workflow for `[UI]` stories: ingest UX handoff and design document, decompose into component architecture with hook design, state management, route structure, and data flow mapping, review the API surface for gaps, publish as a GitHub PR, and sync `[DEV]` stories for backend work to Jira.
+  See [ui-design/README.md](ui-design/README.md).
+
 - **Implement** -- Story-to-code workflow: take a Jira Story, plan the implementation, write contract-based tests and production code via TDD, validate against the project's CI expectations, and manage review via GitHub PRs.
   See [implement/README.md](implement/README.md).
 
@@ -193,6 +196,7 @@ Each workflow or skill is intended for a specific project or use case:
 - **docs-writer** -- the [edge-manager](https://gitlab.cee.redhat.com/red-hat-enterprise-openshift-documentation/edge-manager) downstream docs project
 - **prd** -- teams drafting Product Requirements Documents from Jira features
 - **design** -- teams creating technical design documents and Jira-ready epic/story breakdowns from PRDs
+- **ui-design** -- teams creating UI design documents (component architecture, hooks, state, routes, data flow) for [UI] stories
 - **implement** -- teams implementing Jira stories produced by the design workflow
 - **e2e** -- teams writing e2e tests for [QE] stories produced by the design workflow
 - **cve-fix** -- teams patching CVEs and updating vulnerable dependencies from Jira vulnerability tickets

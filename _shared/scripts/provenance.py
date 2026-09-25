@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Capture and render provenance for prd/design planning document workflows.
+"""Capture and render provenance for prd/design/ui-design planning document workflows.
 
 Exit codes:
     0: Success (capture or render completed)
@@ -23,9 +23,17 @@ GIT_TIMEOUT_SEC = 30
 WORKFLOW_DOCS = {
     "prd": "03-prd.md",
     "design": "03-design.md",
+    "ui-design": "02-ui-design.md",
 }
 
-AUTHORING_PHASES = frozenset({"draft", "revise", "respond", "manual-edit"})
+AUTHORING_PHASES = frozenset({"draft", "plan", "review-api", "revise", "respond", "manual-edit"})
+
+# Subset of phases that establish a tracked document origin.
+# Only an explicit /draft or /plan run counts as a tracked origin.
+# Other authoring phases (revise, respond, manual-edit) that appear as
+# the first event indicate an untracked origin — the document existed
+# before provenance tracking began.
+ORIGIN_TRACKED_PHASES = frozenset({"draft", "plan"})
 
 DRIFT_FIELDS = (
     "workflow_version",
@@ -265,7 +273,7 @@ def origin_untracked(events: list[dict[str, Any]]) -> bool:
         return False
     if provenance_kind(events) == "commit_only":
         return False
-    return events[0].get("phase") != "draft"
+    return events[0].get("phase") not in ORIGIN_TRACKED_PHASES
 
 
 def capture_event(
@@ -500,7 +508,7 @@ def main() -> int:
     capture.add_argument(
         "--phase",
         required=True,
-        choices=["draft", "revise", "respond", "manual-edit", "commit"],
+        choices=["draft", "plan", "review-api", "revise", "respond", "manual-edit", "commit"],
     )
     capture.add_argument(
         "--authoring-mode",
