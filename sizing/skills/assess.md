@@ -5,6 +5,9 @@ description: Apply the rubric and return compact Feature sizing judgments.
 
 # Assess Sizing
 
+If no context is known, inspect `.artifacts/sizing/` and ask which context to
+assess. If no `01-context.json` exists, recommend `/ingest` and stop.
+
 Read `.artifacts/sizing/{context}/01-context.json` and the Feature-relevant
 sections of `../../_shared/sizing-rubric.md` (size definitions, XXL protocol,
 heuristics, team effort, and impact classification). Do not read
@@ -17,7 +20,9 @@ size remains a judgment across the dimensions; do not calculate it from a
 fixed formula. Give short, evidence-specific rationales. Explain disagreement
 with a current Jira size.
 
-Write only model judgments to `.artifacts/sizing/{context}/02-decisions.json`:
+Write only model judgments to `.artifacts/sizing/{context}/02-decisions.json`.
+For a fresh assessment, omit any prior `user_overrides` map; apply-time
+overrides belong to the previous assessment and are discarded. Use this shape:
 
 ```json
 {
@@ -90,7 +95,5 @@ derivable, the same error persists, or the failure is not a schema error in
 model-authored data, stop and report the exact error under the dispatcher's
 retry or escalation policy.
 
-If no context is known, inspect `.artifacts/sizing/` and ask which context to
-assess. If no `01-context.json` exists, recommend `/ingest`. After presenting
-results, return to the dispatcher for completion guidance; wait before
-`/apply`.
+After presenting results, return to the dispatcher for completion guidance;
+wait before `/apply`.

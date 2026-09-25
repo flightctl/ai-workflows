@@ -13,6 +13,8 @@ either file's instructions here.
 
 ## Discover and Route
 
+- For an explicit request to assess or apply an existing context, preserve the
+  context, set `PHASE=assess` or `PHASE=apply`, and follow `dispatch.md`.
 - For a Jira issue key or URL, preserve the input, set `PHASE=ingest`, and read
   and follow `dispatch.md` with `PHASE=ingest`.
 - For a release identifier such as `release:EDM:1.3.0`, preserve the input, set

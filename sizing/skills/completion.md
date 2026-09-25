@@ -15,8 +15,11 @@ user.
   produced and the user accepts it, recommend `/apply`; if they disagree,
   offer `/assess` with added context. If the context is stale, offer `/ingest`.
 - **apply:** Handle exactly one outcome:
-  - If the user canceled, confirm Jira was unchanged and any apply-time
-    overrides from the canceled attempt were cleared.
+  - If the user canceled, confirm Jira was unchanged. Confirm affected
+    apply-time overrides match their pre-attempt values only if restoration
+    succeeded. If it failed, report the exact error and recommend retrying
+    `restore-overrides` with the saved map; do not claim the artifacts were
+    restored.
   - If no actions were prepared, report that no committable Features are
     available. Use the assessment to identify any XXL Features, recommend
     splitting them, and rerunning `/assess`; do not infer XXL from an empty

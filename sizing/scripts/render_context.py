@@ -38,6 +38,20 @@ def _string_list(value: Any, label: str) -> list[str]:
 
 
 def validate_context(data: Any) -> dict[str, Any]:
+    """Validate ``01-context.json``.
+
+    Top-level fields are ``context``, ``mode`` (``single`` or ``batch``), and a
+    non-empty ``features`` list; batch metadata may also include ``project``
+    and ``fix_version``. Each feature requires ``key``, ``title``,
+    ``description_summary``, ``confidence`` (low/medium/high), ``components``
+    (each with ``name`` and optional string-list ``paths``), ``data_model``,
+    ``testing_surface``, and ``novelty``. Optional fields are string or null
+    ``status``, ``priority``, and ``current_size``; string ``comments_summary``;
+    string lists ``fix_versions``, ``integrations``, ``concerns``, and
+    ``evidence``; and ``linked_issues`` (each with required ``key``,
+    ``relationship``, and ``summary``, plus optional string ``status`` and
+    ``note``).
+    """
     context = require_object(data, "context")
     require_string(context.get("context"), "context.context")
     mode = require_string(context.get("mode"), "context.mode")

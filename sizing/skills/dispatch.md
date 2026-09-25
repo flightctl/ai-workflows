@@ -29,6 +29,5 @@ producing a phase report, report the exact error and stop without reading
 including failed Jira writes, read the guide so it can recommend recovery.
 Never run another phase automatically.
 
-Jira writes require explicit user approval of the exact prepared
-`03-apply-actions.json` payload, including full comment text. Approval of the
-selection preview alone is not sufficient.
+Before any Jira write, apply the exact-payload approval rule in
+`../guidelines.md`.

@@ -22,16 +22,25 @@ Do not read `02-assessment.md`; it is generated from the JSON artifact.
    should be overridden, or whether to cancel. If the user says "approve"
    without specifying a subset, select all committable Features for payload
    review; this is not authorization to write to Jira.
-3. Prepare the Jira action payload from the selection. For example:
+3. Prepare the Jira action payload from the selection. Before the first
+   `actions` command that changes or clears a size override, capture the
+   existing override map and keep it unchanged through payload revisions until
+   the user approves or cancels:
+
+   ```bash
+   python3 "${HOME}/.ai-workflows/sizing/scripts/apply_plan.py" show-overrides "{context}"
+   ```
+
+   For example:
 
    ```bash
    python3 "${HOME}/.ai-workflows/sizing/scripts/apply_plan.py" actions "{context}" \
-     --approved-key EDM-2324 --override EDM-2324=M \
+     --select-key EDM-2324 --override EDM-2324=M \
      --output ".artifacts/sizing/{context}/03-apply-actions.json"
    ```
 
    Use `--all` when the user selected every committable Feature. Map preview
-   row numbers to issue keys before passing `--approved-key`. Never include
+   row numbers to issue keys before passing `--select-key`. Never include
    XXL or apply an override to XXL. Use `--clear-override ISSUE-KEY` (repeat as
    needed) when restoring an original recommendation that has a stored
    apply-time override. These options select payload actions; they do not
@@ -72,19 +81,20 @@ Do not read `02-assessment.md`; it is generated from the JSON artifact.
    report the comment failure and continue with the remaining approved
    Features.
 
-   **If the user cancels:** do not write to Jira. If this attempt added
-   apply-time overrides, clear those keys before returning so unapproved
-   choices do not remain in the assessment artifacts:
+   **If the user cancels:** do not write to Jira. If this attempt changed or
+   cleared apply-time overrides, restore each affected key to its pre-attempt
+   state so unapproved choices do not remain in the assessment artifacts:
 
    ```bash
-   python3 "${HOME}/.ai-workflows/sizing/scripts/apply_plan.py" clear-overrides \
-     "{context}" --key EDM-2324
+   python3 "${HOME}/.ai-workflows/sizing/scripts/apply_plan.py" restore-overrides \
+     "{context}" --key EDM-2324 --override EDM-2300=S
    ```
 
-   Repeat `--key` for each override introduced during the canceled attempt; omit
-   `--key` only when all stored apply-time overrides should be cleared. This
-   also removes any prepared action payload. Then go to step 5; do not write to
-   Jira.
+   Use `--override ISSUE-KEY=SIZE` for each affected key that had a prior value
+   in the saved map. Use `--key ISSUE-KEY` only when it had no prior value.
+   This also removes any prepared action payload. If restoration fails, report
+   the exact error and do not assume the artifacts were restored. Then go to
+   step 5; do not write to Jira.
 5. Report updated, partially updated, skipped, failed, and unattempted
    Features with direct Jira links. If no write integration was available,
    include the prepared payload path. Then return to the dispatcher for
@@ -95,6 +105,6 @@ Do not read `02-assessment.md`; it is generated from the JSON artifact.
 - Never write before the user explicitly approves the displayed action
   payload, including its full Jira comment text.
 - A user size override is written back to the JSON and rendered assessment
-  before Jira updates. If the payload is canceled, clear overrides introduced
-  during that attempt before returning to the dispatcher.
+  before Jira updates. If the payload is canceled, restore changed override
+  keys to their pre-attempt values before returning to the dispatcher.
 - If a Feature is XXL, do not update Jira. Point to its split recommendations.

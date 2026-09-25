@@ -19,6 +19,8 @@ from typing import Any
 from _common import (
     DIMENSIONS,
     IMPACT_DIMENSIONS,
+    IMPACT_LABELS,
+    NO_WORK,
     SIZE_EFFORT,
     SIZES,
     TEAMS,
@@ -28,6 +30,7 @@ from _common import (
     require_list,
     require_object,
     require_string,
+    validate_context_name,
     write_files_transactionally,
 )
 
@@ -49,12 +52,6 @@ DIMENSION_LABELS = {
     "novelty": "Novelty",
     "risk_unknowns": "Risk/unknowns",
     "testing_surface": "Testing surface",
-}
-IMPACT_LABELS = {
-    "user_reach": "User Reach",
-    "pain_severity": "Pain Severity",
-    "strategic_alignment": "Strategic Alignment",
-    "dependency": "Dependency",
 }
 
 
@@ -87,6 +84,14 @@ def _validate_context(context: Any) -> dict[str, Any]:
 
 
 def _decision_map(decisions: Any, context_keys: set[str]) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+    """Validate the top level of ``02-decisions.json``.
+
+    The object contains a ``features`` array with exactly one decision per
+    context key. Optional fields are ``user_overrides`` (feature-key-to-size
+    map), ``calibration_notes`` (string), ``capacity_concerns`` (string list),
+    and ``defer_notes`` (feature-key-to-string map). Per-feature fields and
+    their constraints are defined by ``_validate_feature_decision``.
+    """
     root = require_object(decisions, "decisions")
     raw_features = require_list(root.get("features"), "decisions.features")
     result: dict[str, dict[str, Any]] = {}
@@ -120,6 +125,18 @@ def _decision_map(decisions: Any, context_keys: set[str]) -> tuple[dict[str, dic
 
 
 def _validate_feature_decision(key: str, raw: dict[str, Any]) -> dict[str, Any]:
+    """Validate one ``02-decisions.json`` feature record.
+
+    Required fields are ``size`` (``SIZES``), ``confidence`` (low/medium/high),
+    ``dimensions`` (each name in ``DIMENSIONS`` maps to a level from ``LEVELS``
+    and a rationale), ``rationale``, ``teams`` (each name in ``TEAMS`` maps to
+    a size from XS–XL or ``—`` and a rationale), and ``impact`` (each name in
+    ``IMPACT_DIMENSIONS`` maps to a score from 1–5 and a rationale). Optional
+    text fields are ``value_driver``, ``comparison_rationale``, and
+    ``quadrant_rationale``; optional ``quadrant`` must be in ``QUADRANTS``.
+    ``split_suggestions`` contains ``title``, ``description``, and XS–XL
+    ``size``; XXL decisions require 2–3 suggestions.
+    """
     label = f"assessment for {key}"
     size = require_string(raw.get("size"), f"{label}.size").upper()
     if size not in SIZES:
@@ -233,6 +250,20 @@ def _quadrant(
 
 
 def finalize_assessment(context: Any, decisions: Any) -> dict[str, Any]:
+    """Build ``02-assessment.json`` from validated context and decisions.
+
+    Top-level fields are ``context``, ``mode`` (single/batch), ``features``,
+    and ``aggregates``.
+    Feature records contain ``key``, ``title``, ``current_size``,
+    ``recommended_size``, ``original_recommended_size``, ``user_override``,
+    ``change``, ``dimensions``, ``rationale``, ``confidence``, ``teams``,
+    ``impact``, ``impact_score``, ``impact_band``, ``effort_score``,
+    ``priority_score``, ``quadrant``, ``quadrant_rationale``, ``value_driver``,
+    ``comparison_rationale``, and ``split_suggestions``. Aggregates contain
+    ``size_counts``, ``existing_size_count``, ``matching_size_count``,
+    ``disagreement_keys``, ``top_priority_keys``, ``calibration_notes``,
+    ``capacity_concerns``, and ``defer_notes``.
+    """
     context_obj = _validate_context(context)
     context_features = context_obj["features"]
     by_key = {item["key"]: item for item in context_features}
@@ -245,6 +276,11 @@ def finalize_assessment(context: Any, decisions: Any) -> dict[str, Any]:
         decision = _validate_feature_decision(key, decision_map[key])
         ai_size = decision["size"]
         size = overrides.get(key, ai_size)
+        if ai_size == "XXL" and size != "XXL":
+            raise ValueError(
+                f"stored override cannot make AI-sized XXL Feature {key} committable; "
+                "clear the override and use its split suggestions"
+            )
         if size == "XXL" and ai_size != "XXL":
             raise ValueError(f"user override makes {key} XXL; rerun /assess to generate split suggestions")
         impact_score = sum(decision["impact"][name]["score"] for name in IMPACT_DIMENSIONS)
@@ -374,12 +410,8 @@ def _render_quadrant_chart(features: list[dict[str, Any]]) -> list[str]:
     ]
 
 
-def render_assessment(assessment: dict[str, Any]) -> str:
-    features = assessment["features"]
-    aggregates = assessment["aggregates"]
+def _render_summary_table(features: list[dict[str, Any]]) -> list[str]:
     lines = [
-        f"# Sizing Assessment — {markdown_cell(assessment['context'])}",
-        "",
         "## Summary",
         "",
         "| Feature | Current Size | Recommended Size | Change | Impact Score | Effort Score | Priority | Quadrant | DEV | QE | UX | UI | DOCS |",
@@ -400,19 +432,26 @@ def render_assessment(assessment: dict[str, Any]) -> str:
             *(_team_size(feature, team) for team in TEAMS),
         ]
         lines.append("| " + " | ".join(markdown_cell(value) for value in fields) + " |")
+    return lines
 
-    lines.extend(["", "## Impact vs. Effort Map", "", *_render_quadrant_chart(features), "", "## Size Distribution", ""])
-    lines.extend([
+
+def _render_size_distribution(features: list[dict[str, Any]]) -> list[str]:
+    lines = [
+        "## Size Distribution",
+        "",
         "| Size | Count | Features |",
         "|------|-------|----------|",
-    ])
+    ]
     for size in reversed(SIZES):
         members = [item for item in features if item["recommended_size"] == size]
         if not members:
             continue
         names = ", ".join(f"{item['key']} ({item['title']})" for item in members)
         lines.append(f"| {size} | {len(members)} | {markdown_cell(names)} |")
+    return lines
 
+
+def _render_highlights(features: list[dict[str, Any]], aggregates: dict[str, Any]) -> list[str]:
     by_key = {item["key"]: item for item in features}
     xxl = [item for item in features if item["recommended_size"] == "XXL"]
     top = [by_key[key] for key in aggregates["top_priority_keys"]]
@@ -420,7 +459,7 @@ def render_assessment(assessment: dict[str, Any]) -> str:
     reconsider = [item for item in features if item["quadrant"] == "Reconsider"]
     low_confidence = [item for item in features if item["confidence"] == "low"]
 
-    lines.extend(["", "## Key Highlights", "", "**XXL Flags:**"])
+    lines = ["", "## Key Highlights", "", "**XXL Flags:**"]
     if xxl:
         lines.extend(f"- {item['key']}: {markdown_text(item['title'])} — must be split before committing." for item in xxl)
     else:
@@ -474,86 +513,103 @@ def render_assessment(assessment: dict[str, Any]) -> str:
                 lines.append(f"- **{item['key']}** ({item['current_size']} → {item['recommended_size']}): {markdown_text(item['comparison_rationale'])}")
     else:
         lines.append("None of the Features had existing Jira sizes to compare against.")
+    return lines
 
+
+def _render_feature_detail(feature: dict[str, Any]) -> list[str]:
+    lines = [
+        "",
+        f"## Feature: {markdown_cell(feature['key'])} — {markdown_cell(feature['title'])}",
+        "",
+        f"### Overall Size: {feature['recommended_size']}",
+        "",
+        f"**Confidence:** {feature['confidence'].title()}",
+        "",
+        "**Heuristic Evaluation:**",
+        "",
+        "| Dimension | Level | Assessment |",
+        "|-----------|-------|------------|",
+    ]
+    for dimension in DIMENSIONS:
+        item = feature["dimensions"][dimension]
+        lines.append(
+            f"| {DIMENSION_LABELS[dimension]} | {item['level']} | {markdown_cell(item['rationale'])} |"
+        )
+    lines.extend([
+        "",
+        "**Rationale:**",
+        "",
+        markdown_text(feature["rationale"]),
+        "",
+        "### Team Effort Breakdown",
+        "",
+        "| Team | Effort | Rationale |",
+        "|------|--------|-----------|",
+    ])
+    for team in TEAMS:
+        item = feature["teams"][team]
+        rationale = item["rationale"] or NO_WORK.get(team, "")
+        lines.append(f"| {team} | {item['size']} | {markdown_cell(rationale)} |")
+    lines.extend([
+        "",
+        "### Impact vs. Effort",
+        "",
+        "| Sub-dimension | Score | Rationale |",
+        "|---------------|-------|-----------|",
+    ])
+    for dimension in IMPACT_DIMENSIONS:
+        item = feature["impact"][dimension]
+        lines.append(
+            f"| {IMPACT_LABELS[dimension]} | {item['score']} | {markdown_cell(item['rationale'])} |"
+        )
+    effort_text = str(feature["effort_score"]) if feature["effort_score"] is not None else "Not scored (XXL)"
+    priority_text = f"{feature['priority_score']:.1f}" if feature["priority_score"] is not None else "Not scored (XXL)"
+    lines.extend([
+        "",
+        f"**Impact Score:** {feature['impact_score']}/20 ({feature['impact_band']})",
+        f"**Effort Score:** {effort_text} ({feature['recommended_size']})",
+        f"**Priority Score:** {priority_text}",
+        f"**Quadrant:** {feature['quadrant']}",
+        "",
+        "### Jira Comparison",
+        "",
+        markdown_text(feature["comparison_rationale"]),
+    ])
+    if feature["quadrant_rationale"]:
+        lines.extend(["", f"**Quadrant rationale:** {markdown_text(feature['quadrant_rationale'])}"])
+    if feature["recommended_size"] == "XXL":
+        lines.extend([
+            "",
+            "### Split Recommendation",
+            "",
+            "This Feature must be scoped down before committing to a cycle. Suggested user-value slices:",
+            "",
+        ])
+        for index, split in enumerate(feature["split_suggestions"], 1):
+            lines.append(
+                f"{index}. **{markdown_cell(split['title'])}:** {markdown_text(split['description'])} — estimated {split['size']}"
+            )
+    return lines
+
+
+def render_assessment(assessment: dict[str, Any]) -> str:
+    """Render the sections of the ``02-assessment.md`` report."""
+    features = assessment["features"]
+    aggregates = assessment["aggregates"]
+    lines = [
+        f"# Sizing Assessment — {markdown_cell(assessment['context'])}",
+        "",
+        *_render_summary_table(features),
+        "",
+        "## Impact vs. Effort Map",
+        "",
+        *_render_quadrant_chart(features),
+        "",
+    ]
+    lines.extend(_render_size_distribution(features))
+    lines.extend(_render_highlights(features, aggregates))
     for feature in features:
-        lines.extend([
-            "",
-            f"## Feature: {markdown_cell(feature['key'])} — {markdown_cell(feature['title'])}",
-            "",
-            f"### Overall Size: {feature['recommended_size']}",
-            "",
-            f"**Confidence:** {feature['confidence'].title()}",
-            "",
-            "**Heuristic Evaluation:**",
-            "",
-            "| Dimension | Level | Assessment |",
-            "|-----------|-------|------------|",
-        ])
-        for dimension in DIMENSIONS:
-            item = feature["dimensions"][dimension]
-            lines.append(
-                f"| {DIMENSION_LABELS[dimension]} | {item['level']} | {markdown_cell(item['rationale'])} |"
-            )
-        lines.extend([
-            "",
-            "**Rationale:**",
-            "",
-            markdown_text(feature["rationale"]),
-            "",
-            "### Team Effort Breakdown",
-            "",
-            "| Team | Effort | Rationale |",
-            "|------|--------|-----------|",
-        ])
-        no_work = {
-            "UX": "No UX work identified",
-            "UI": "No UI work identified",
-            "DOCS": "No downstream docs work identified",
-        }
-        for team in TEAMS:
-            item = feature["teams"][team]
-            rationale = item["rationale"] or no_work.get(team, "")
-            lines.append(f"| {team} | {item['size']} | {markdown_cell(rationale)} |")
-        lines.extend([
-            "",
-            "### Impact vs. Effort",
-            "",
-            "| Sub-dimension | Score | Rationale |",
-            "|---------------|-------|-----------|",
-        ])
-        for dimension in IMPACT_DIMENSIONS:
-            item = feature["impact"][dimension]
-            lines.append(
-                f"| {IMPACT_LABELS[dimension]} | {item['score']} | {markdown_cell(item['rationale'])} |"
-            )
-        effort_text = str(feature["effort_score"]) if feature["effort_score"] is not None else "Not scored (XXL)"
-        priority_text = f"{feature['priority_score']:.1f}" if feature["priority_score"] is not None else "Not scored (XXL)"
-        lines.extend([
-            "",
-            f"**Impact Score:** {feature['impact_score']}/20 ({feature['impact_band']})",
-            f"**Effort Score:** {effort_text} ({feature['recommended_size']})",
-            f"**Priority Score:** {priority_text}",
-            f"**Quadrant:** {feature['quadrant']}",
-            "",
-            "### Jira Comparison",
-            "",
-            markdown_text(feature["comparison_rationale"]),
-        ])
-        if feature["quadrant_rationale"]:
-            lines.extend(["", f"**Quadrant rationale:** {markdown_text(feature['quadrant_rationale'])}"])
-        if feature["recommended_size"] == "XXL":
-            lines.extend([
-                "",
-                "### Split Recommendation",
-                "",
-                "This Feature must be scoped down before committing to a cycle. Suggested user-value slices:",
-                "",
-            ])
-            for index, split in enumerate(feature["split_suggestions"], 1):
-                lines.append(
-                    f"{index}. **{markdown_cell(split['title'])}:** {markdown_text(split['description'])} — estimated {split['size']}"
-                )
-
+        lines.extend(_render_feature_detail(feature))
     if assessment["mode"] == "batch":
         calibration = aggregates["calibration_notes"] or "All sizes are internally consistent — no adjustments needed."
         lines.extend(["", "## Relative Calibration Notes", "", markdown_text(calibration)])
@@ -569,13 +625,10 @@ def main(argv: list[str] | None = None) -> int:
         help="AI decisions JSON (defaults to 02-decisions.json in the context directory).",
     )
     args = parser.parse_args(argv)
-    if (
-        not args.context_dir.strip()
-        or args.context_dir in {".", ".."}
-        or "/" in args.context_dir
-        or "\\" in args.context_dir
-    ):
-        print("Error: context_dir must be a single directory name", file=sys.stderr)
+    try:
+        validate_context_name(args.context_dir, "context_dir")
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
         return 1
     directory = Path(".artifacts") / "sizing" / args.context_dir
     context_path = directory / "01-context.json"
@@ -589,6 +642,9 @@ def main(argv: list[str] | None = None) -> int:
         ).encode("utf-8")
         assessment_markdown = render_assessment(assessment).encode("utf-8")
         write_files_transactionally({
+            directory / "02-decisions.json": (
+                json.dumps(decisions, ensure_ascii=False, indent=2) + "\n"
+            ).encode("utf-8"),
             directory / "02-assessment.json": assessment_json,
             directory / "02-assessment.md": assessment_markdown,
             directory / "03-apply-actions.json": None,

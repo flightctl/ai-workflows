@@ -29,6 +29,7 @@ graph TD
 | Jira read access | Yes | Configured Jira CLI, or `JIRA_URL` and `JIRA_TOKEN` for REST retrieval |
 | Jira write integration | To complete `/apply` writes | Apply explicitly approved Size and comment actions |
 | Git | Yes | Codebase exploration |
+| Python 3.10+ | Yes | Run the deterministic sizing helper scripts |
 
 ## Command Syntax
 

@@ -31,6 +31,29 @@ IMPACT_DIMENSIONS = (
     "strategic_alignment",
     "dependency",
 )
+NO_WORK = {
+    "UX": "No UX work identified",
+    "UI": "No UI work identified",
+    "DOCS": "No downstream docs work identified",
+}
+IMPACT_LABELS = {
+    "user_reach": "User Reach",
+    "pain_severity": "Pain Severity",
+    "strategic_alignment": "Strategic Alignment",
+    "dependency": "Dependency",
+}
+
+
+def validate_context_name(value: str, label: str = "context") -> str:
+    """Require a non-empty artifact context that is one directory name."""
+    if (
+        not value.strip()
+        or value in {".", ".."}
+        or "/" in value
+        or "\\" in value
+    ):
+        raise ValueError(f"{label} must be a single directory name")
+    return value
 
 
 def read_json(path: Path) -> Any:

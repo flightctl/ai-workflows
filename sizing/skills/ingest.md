@@ -36,20 +36,18 @@ to summarize requirements, connect them to the codebase, and identify uncertaint
 3. Resolve the installed helper and capture its compact JSON output:
 
    ```bash
-   SIZING_SCRIPT="${HOME}/.ai-workflows/sizing/scripts/prepare_context.py"
-   python3 "$SIZING_SCRIPT" single "$ISSUE_KEY"
-   python3 "$SIZING_SCRIPT" release "$PROJECT" "$VERSION"
+   python3 "${HOME}/.ai-workflows/sizing/scripts/prepare_context.py" single "<ISSUE-KEY>"
+   python3 "${HOME}/.ai-workflows/sizing/scripts/prepare_context.py" release "<PROJECT>" "<VERSION>"
    ```
 
-   Run only the command for the supplied mode. The helper captures the
-   configured Jira CLI's raw responses when the CLI is installed; otherwise
-   it uses the shared `../../_shared/scripts/fetch-issue.py` REST helper, which
-   requires `JIRA_URL` and `JIRA_TOKEN` (`JIRA_EMAIL` is optional). It omits unused Jira fields,
-   comment authors, and previous sizing-assessment comments; it retains at most
-   three recent substantive comments per Feature and emits one compact JSON
-   packet. It reports an approximate payload size on stderr. Stop on errors; if
-   the batch may have reached the result cap, raise `--max-results` and fetch
-   again.
+   Replace placeholders with the supplied values and run only the matching
+   command. The helper uses the Jira CLI or the shared
+   `../../_shared/scripts/fetch-issue.py` REST helper (directly if the CLI is
+   unavailable, or as fallback when REST credentials are configured). It omits
+   unused fields, comment authors, and previous sizing comments; keeps at most
+   three recent substantive comments per Feature; and emits one compact JSON
+   packet with an approximate payload size on stderr. Stop on errors. If the
+   batch may have reached the result cap, raise `--max-results` and fetch again.
 4. Check issue types. If a single issue is not a Feature, ask whether to
    continue. In batch mode, report and stop if any returned issue is not a
    Feature or if the query returns no results.
@@ -63,10 +61,13 @@ to summarize requirements, connect them to the codebase, and identify uncertaint
    the files safely:
 
    ```bash
-   ARTIFACT_DIR=".artifacts/sizing/{context}"
-   mkdir -p "$ARTIFACT_DIR"
-   STAGING_DIR=$(mktemp -d "$ARTIFACT_DIR/.ingest-XXXXXX")
+   mkdir -p ".artifacts/sizing/{context}" &&
+     mktemp -d ".artifacts/sizing/{context}/.ingest-XXXXXX"
    ```
+
+   Record mktemp's printed path and use it literally for file writing,
+   rendering, retries, and cleanup; shell variables do not persist between
+   commands.
 
    Use this shape for the staged JSON:
 
@@ -114,8 +115,8 @@ to summarize requirements, connect them to the codebase, and identify uncertaint
 
    ```bash
    python3 "${HOME}/.ai-workflows/sizing/scripts/render_context.py" \
-     "$STAGING_DIR/01-context.json" \
-     --commit-to "$ARTIFACT_DIR"
+     "<recorded-staging-path>/01-context.json" \
+     --commit-to ".artifacts/sizing/{context}"
    ```
 
    The helper validates the staged JSON, renders staged `01-context.md`, then
@@ -125,22 +126,24 @@ to summarize requirements, connect them to the codebase, and identify uncertaint
    previous artifacts if any replacement fails. Do not refetch Jira to repair
    a schema error.
 
-   If the renderer reports a validation error for model-authored JSON, keep
-   `$STAGING_DIR` intact. Correct only the named field when its value is
-   derivable from the captured Jira packet and existing evidence, then rerun
-   the renderer. Do not invent missing data or impose a fixed retry count.
+   If the renderer reports a validation error for model-authored JSON, keep the
+   recorded staging directory intact. Correct only the named field when its
+   value is derivable from the captured Jira packet and existing evidence,
+   then rerun the renderer with the same recorded path. Do not invent missing
+   data or impose a fixed retry count.
 
    If the value is unavailable or the same validation error persists, remove
-   only `$STAGING_DIR`, leave existing artifacts unchanged, stop, and report
-   the exact error under the dispatcher's retry or escalation policy. For any
-   other helper error, remove only `$STAGING_DIR`, stop, and report the exact
-   error under that policy. If the error says rollback was incomplete, preserve
-   the named recovery directory; in that case, do not assume existing artifacts
-   are unchanged.
+   only the recorded staging directory, leave existing artifacts unchanged,
+   stop, and report the exact error under the dispatcher's retry or escalation
+   policy. For any other helper error, remove only the recorded staging
+   directory, stop, and report the exact error under that policy. If the error
+   says rollback was incomplete, preserve the named recovery directory; in that
+   case, do not assume existing artifacts are unchanged.
 
    Use the compact result summary to report Feature count, existing sizes,
    explored components, and low-confidence concerns. Do not reopen the
-   rendered Markdown for the report. Remove the now-empty staging directory.
+   rendered Markdown for the report. Remove the now-empty recorded staging
+   directory.
 
 ## Output
 

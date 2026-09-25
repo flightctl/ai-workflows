@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 """Fetch and compact Jira Features for the sizing workflow.
 
-Use the configured Jira CLI when available; otherwise use the shared
-fetch-issue.py REST helper. Capture raw JSON in Python, keep only sizing-relevant
-fields, and write the compact analysis packet to stdout for the AI phase. For a
-valid command, main() returns 0 when it writes a packet (even if it warns that
-results may be truncated) and 1 for fetch or validation errors; argparse usage
-errors exit 2. Diagnostics go to stderr.
+Use the configured Jira CLI when available; on failure, use the shared
+fetch-issue.py REST helper if its credentials are configured. Capture raw JSON
+in Python, keep only sizing-relevant fields, and write the compact analysis
+packet to stdout for the AI phase. For a valid command, main() returns 0 when it
+writes a packet (even if it warns that results may be truncated) and 1 for
+fetch or validation errors; argparse usage errors exit 2. Diagnostics go to
+stderr.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -26,6 +28,7 @@ from _common import REPO_ROOT, estimate_tokens, slug, text_value
 FIELDS = "summary,description,issuetype,status,priority,fixVersions,customfield_10795"
 MAX_COMMENTS = 3
 MAX_COMMENT_CHARS = 700
+JIRA_SUBPROCESS_TIMEOUT_SECONDS = 120
 BOT_AUTHOR_RE = re.compile(r"\b(bot|automation|automated)\b", re.IGNORECASE)
 SIZING_COMMENT_RE = re.compile(r"^\s*(?:h\d\.\s*)?Sizing Assessment\b", re.IGNORECASE)
 STATUS_LABEL = r"[\w/-]+(?:\s+[\w/-]+){0,4}"
@@ -35,6 +38,7 @@ STATUS_COMMENT_RE = re.compile(
     rf"\s*[.!]?\s*",
     re.IGNORECASE,
 )
+ISSUE_KEY_RE = re.compile(r"[A-Z][A-Z0-9_]+-[0-9]+", re.ASCII | re.IGNORECASE)
 
 
 def _fetch_script(path: str | None) -> Path:
@@ -50,6 +54,8 @@ def _run_fetch(script: Path, *arguments: str) -> dict[str, Any]:
         [sys.executable, str(script), *arguments],
         check=False,
         capture_output=True,
+        stdin=subprocess.DEVNULL,
+        timeout=JIRA_SUBPROCESS_TIMEOUT_SECONDS,
         text=True,
         encoding="utf-8",
     )
@@ -70,6 +76,8 @@ def _run_jira_cli(*arguments: str) -> Any:
         ["jira", *arguments],
         check=False,
         capture_output=True,
+        stdin=subprocess.DEVNULL,
+        timeout=JIRA_SUBPROCESS_TIMEOUT_SECONDS,
         text=True,
         encoding="utf-8",
     )
@@ -204,6 +212,7 @@ def _release_cli(
         raw_bytes += len(json.dumps(page, ensure_ascii=False, indent=2).encode("utf-8"))
         if not isinstance(page, list):
             raise ValueError("Jira CLI search returned an unexpected response")
+        previous_count = len(keys)
         page_keys = [
             text_value(item.get("key"))
             for item in page
@@ -216,6 +225,12 @@ def _release_cli(
         start_at += len(page)
         if len(page) < page_size:
             break
+        if len(keys) == previous_count:
+            raise ValueError(
+                "Jira CLI pagination did not advance after "
+                f"{len(keys)} Feature(s); results may be truncated. Configure "
+                "JIRA_URL and JIRA_TOKEN to retry with cursor-based REST pagination."
+            )
 
     if not keys:
         raise ValueError(f"No Features found for project {project}, Fix Version {version!r}")
@@ -422,27 +437,67 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _validated_values(args: argparse.Namespace) -> tuple[str, ...]:
+    if args.mode == "single":
+        if len(args.values) != 1:
+            raise ValueError("single mode requires exactly one issue key")
+        key = args.values[0].strip()
+        if not ISSUE_KEY_RE.fullmatch(key):
+            raise ValueError(f"invalid Jira issue key {args.values[0]!r}; expected PROJECT-123")
+        return (key.upper(),)
+
+    if len(args.values) != 2:
+        raise ValueError("release mode requires a project key and Fix Version")
+    if args.max_results < 1:
+        raise ValueError("--max-results must be at least 1")
+    return tuple(args.values)
+
+
+def _fetch(
+    mode: str,
+    values: tuple[str, ...],
+    max_results: int,
+    *,
+    cli: bool,
+    script: Path | None,
+) -> tuple[dict[str, Any], int]:
+    if cli:
+        if mode == "single":
+            return _single_cli(values[0])
+        return _release_cli(values[0], values[1], max_results)
+    if script is None:
+        raise ValueError("REST Jira fetch script was not resolved")
+    if mode == "single":
+        return _single(script, values[0])
+    return _release(script, values[0], values[1], max_results)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        values = _validated_values(args)
         use_cli = args.fetch_script is None and shutil.which("jira") is not None
         script = None if use_cli else _fetch_script(args.fetch_script)
-        if args.mode == "single":
-            if len(args.values) != 1:
-                raise ValueError("single mode requires exactly one issue key")
-            if use_cli:
-                packet, raw_bytes = _single_cli(args.values[0])
-            else:
-                packet, raw_bytes = _single(script, args.values[0])
-        else:
-            if len(args.values) != 2:
-                raise ValueError("release mode requires a project key and Fix Version")
-            if args.max_results < 1:
-                raise ValueError("--max-results must be at least 1")
-            if use_cli:
-                packet, raw_bytes = _release_cli(args.values[0], args.values[1], args.max_results)
-            else:
-                packet, raw_bytes = _release(script, args.values[0], args.values[1], args.max_results)
+        try:
+            packet, raw_bytes = _fetch(
+                args.mode, values, args.max_results, cli=use_cli, script=script
+            )
+        except (OSError, ValueError, subprocess.SubprocessError) as cli_error:
+            has_rest_credentials = bool(
+                os.environ.get("JIRA_URL", "").strip()
+                and os.environ.get("JIRA_TOKEN", "").strip()
+            )
+            if not use_cli or not has_rest_credentials:
+                raise
+            script = _fetch_script(None)
+            print(
+                f"Jira CLI fetch failed ({cli_error}); retrying with the REST helper.",
+                file=sys.stderr,
+            )
+            packet, raw_bytes = _fetch(
+                args.mode, values, args.max_results, cli=False, script=script
+            )
+            use_cli = False
         compact = json.dumps(packet, ensure_ascii=False, separators=(",", ":"))
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
