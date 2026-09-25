@@ -1,237 +1,154 @@
 ---
 name: ingest
-description: Fetch Feature(s) from Jira and explore the codebase to understand sizing impact.
+description: Fetch and compact Feature data, then record only sizing-relevant context.
 ---
 
-# Ingest Sizing Context Skill
+# Ingest Sizing Context
 
-You are a technical researcher. Your job is to fetch Feature data from Jira
-and explore the codebase to understand the scope and impact of each Feature,
-producing the raw material that the assessment phase needs to determine sizes.
+Use Python for deterministic Jira retrieval and payload compaction. Use AI only
+to summarize requirements, connect them to the codebase, and identify uncertainty.
 
-## Your Role
+## Rules
 
-Gather two types of information for each Feature: (1) what the Feature
-requires (from Jira) and (2) what it would take to build (from the codebase).
-This is lighter than a design-level exploration — the goal is surface area
-estimation, not architectural deep-dive.
-
-## Critical Rules
-
-- **Read-only for Jira.** Fetch issue data but never create, update, delete, or transition issues, and never add comments or attachments.
-- **Capture, don't assess.** Record what you find — sizing decisions happen in `/assess`.
-- **Follow lateral links only (one level deep).** If the Feature has linked issues from related projects, fetch them for context. Do not follow child issues (Epics, Stories) — those may not exist yet. Do not follow links-of-links.
-- **Codebase exploration is scoped.** Focus on areas the Feature will affect. Target 5–10 key files per Feature that establish the scope of change, not a full codebase survey.
-
-## Shared Script
-
-This skill delegates deterministic Jira issue fetching to a shared
-script. Reference it using a relative path from this file:
-
-```
-../../_shared/scripts/fetch-issue.py
-```
-
-The script provides subcommands: `get` and `search`. See the script
-header for full usage.
-
-**Required environment variables:**
-- `JIRA_URL` — Jira Cloud base URL (must use `https://`)
-- `JIRA_TOKEN` — Jira Cloud API token
-- `JIRA_EMAIL` — your Atlassian account email (required for Cloud
-  API token auth; the script uses Basic auth with `email:token`)
-
-**Optional environment variables:**
-- `JIRA_ALLOW_INSECURE_HTTP` — set to `1` to allow `http://` URLs
-  (for local development only)
+- Jira reads only. Never create, update, transition, comment, or attach files.
+- Capture evidence; do not assign sizes in this phase.
+- Follow lateral links one level only. Do not fetch child issues or links of links.
+- Generalize personal and customer-specific details in generated artifacts, as
+  required by `../../_shared/content-rules.md`.
+- In batch mode, identify shared code evidence once and reuse it across Features.
+  Start with a few relevant files per Feature; expand only when needed to answer
+  sizing questions.
 
 ## Process
 
-### Step 1: Determine Input Mode
+1. Accept a Jira issue key/URL or `release:{project}:{version}`. For a URL,
+   extract the key from `/browse/`. For a release, derive its artifact context
+   before checking for existing artifacts: lowercase the version, replace each
+   run of characters outside `a`–`z` and `0`–`9` with `-`, trim leading and
+   trailing hyphens, and use `release` if the result is empty (for example,
+   `1.5.0` becomes `1-5-0`). The helper's JSON `context` field confirms this
+   value after the Jira fetch.
+2. If `.artifacts/sizing/{context}/01-context.json` already exists and an
+   assessment exists, explain that re-ingest will invalidate the assessment
+   and wait for confirmation before fetching again. Do not remove or overwrite
+   existing artifacts before replacement context has been fetched and rendered
+   successfully.
+3. Resolve the installed helper and capture its compact JSON output:
 
-The user will provide one of:
-- **A Jira issue key** (e.g., `EDM-2324`) or URL → single-Feature mode.
-  If a URL is provided (e.g., `https://issues.redhat.com/browse/EDM-2324`),
-  extract the issue key from the `/browse/` path before calling the script.
-- **A release identifier** (e.g., `release:EDM:1.3.0`) → batch mode.
-  Format is `release:{project}:{version}`. Map to
-  `project = {project} AND fixVersion = "{version}"` in JQL.
+   ```bash
+   python3 "${HOME}/.ai-workflows/sizing/scripts/prepare_context.py" single "<ISSUE-KEY>"
+   python3 "${HOME}/.ai-workflows/sizing/scripts/prepare_context.py" release "<PROJECT>" "<VERSION>"
+   ```
 
-### Step 2: Create Artifact Directory
+   Replace placeholders with the supplied values and run only the matching
+   command. The helper uses the Jira CLI or the shared
+   `../../_shared/scripts/fetch-issue.py` REST helper (directly if the CLI is
+   unavailable, or as fallback when REST credentials are configured). It omits
+   unused fields, comment authors, and previous sizing comments; keeps at most
+   three recent substantive comments per Feature; and emits one compact JSON
+   packet with an approximate payload size on stderr. Stop on errors. If the
+   batch may have reached the result cap, raise `--max-results` and fetch again.
+4. Check issue types. If a single issue is not a Feature, ask whether to
+   continue. In batch mode, report and stop if any returned issue is not a
+   Feature or if the query returns no results.
+5. Explore only code relevant to the requested scope. Search the codebase for
+   candidate components and inspect targeted implementation/test files. In a
+   batch, do not reread shared files for every Feature. Record paths and short
+   evidence; do not paste source files into the artifact.
+6. Create a staging directory inside the context artifact directory, then write
+   compact, sanitized JSON to its `01-context.json`. Keep the staging directory
+   on the same filesystem as the final artifacts so the renderer can promote
+   the files safely:
 
-**Single mode:**
-```bash
-mkdir -p .artifacts/sizing/{issue-key}
-```
+   ```bash
+   mkdir -p ".artifacts/sizing/{context}" &&
+     mktemp -d ".artifacts/sizing/{context}/.ingest-XXXXXX"
+   ```
 
-**Batch mode:**
-```bash
-mkdir -p .artifacts/sizing/{fix-version-slug}
-```
+   Record mktemp's printed path and use it literally for file writing,
+   rendering, retries, and cleanup; shell variables do not persist between
+   commands.
 
-Where `{fix-version-slug}` is the Fix Version name converted to kebab-case:
-lowercase all characters, replace dots and spaces with hyphens
-(e.g., "1.5" → `1-5`, "1.3.0" → `1-3-0`, "Release 2.0" → `release-2-0`).
+   Use this shape for the staged JSON:
 
-### Step 2a: Check for Existing Context
+   ```json
+   {
+     "context": "EDM-2324",
+     "mode": "single",
+     "features": [{
+       "key": "EDM-2324",
+       "title": "Jira summary",
+       "status": "Open",
+       "priority": "Major",
+       "fix_versions": ["1.3.0"],
+       "current_size": null,
+       "description_summary": "Requirements and acceptance criteria that affect scope.",
+       "comments_summary": "Recent scope updates and unresolved questions, if any.",
+       "components": [{"name": "api", "paths": ["src/api/handler.py"]}],
+       "integrations": [],
+       "data_model": "None identified",
+       "testing_surface": "Existing API tests cover the relevant path.",
+       "novelty": "Extending existing patterns",
+       "linked_issues": [{
+         "key": "EDM-2300",
+         "relationship": "blocks",
+         "summary": "Linked issue summary",
+         "status": "In Progress",
+         "note": "Potential sizing dependency"
+       }],
+       "confidence": "medium",
+       "concerns": [],
+       "evidence": ["src/api/handler.py: existing request flow"]
+     }]
+   }
+   ```
 
-If `.artifacts/sizing/{context}/01-context.md` already exists, a prior ingest
-has been run. Check whether `.artifacts/sizing/{context}/02-assessment.md`
-also exists. If it does, warn the user: "Re-running /ingest will overwrite
-the existing context. The current assessment will become stale and /assess
-should be re-run afterward." Wait for the user to confirm before proceeding.
+   For batch mode set `mode` to `batch`; include `project` and `fix_version`.
+   Preserve every Feature key. Each linked issue requires non-empty `key`,
+   `relationship`, and `summary`; `status` and `note` are optional strings. The
+   compact Jira packet uses `Unknown` when Jira omits a relationship or summary;
+   use an empty list when there are no linked issues.
+   Copy metadata from the compact Jira packet, but summarize descriptions and
+   relevant comment details in `description_summary` and `comments_summary`;
+   never copy them verbatim.
+7. Render and validate the machine-readable context:
 
-If only `01-context.md` exists (no assessment yet), proceed without warning —
-overwriting pre-assessment context is safe.
+   ```bash
+   python3 "${HOME}/.ai-workflows/sizing/scripts/render_context.py" \
+     "<recorded-staging-path>/01-context.json" \
+     --commit-to ".artifacts/sizing/{context}"
+   ```
 
-### Step 3: Fetch Feature(s) from Jira
+   The helper validates the staged JSON, renders staged `01-context.md`, then
+   promotes both context files together. Only after both are installed does it
+   invalidate stale `02-decisions.json`, `02-assessment.json`,
+   `02-assessment.md`, and `03-apply-actions.json`. Promotion rolls back the
+   previous artifacts if any replacement fails. Do not refetch Jira to repair
+   a schema error.
 
-Resolve the shared script to an absolute path so it remains valid
-regardless of working directory:
+   If the renderer reports a validation error for model-authored JSON, keep the
+   recorded staging directory intact. Correct only the named field when its
+   value is derivable from the captured Jira packet and existing evidence,
+   then rerun the renderer with the same recorded path. Do not invent missing
+   data or impose a fixed retry count.
 
-```bash
-FETCH_ISSUE_SCRIPT="${HOME}/.ai-workflows/_shared/scripts/fetch-issue.py"
-```
+   If the value is unavailable or the same validation error persists, remove
+   only the recorded staging directory, leave existing artifacts unchanged,
+   stop, and report the exact error under the dispatcher's retry or escalation
+   policy. For any other helper error, remove only the recorded staging
+   directory, stop, and report the exact error under that policy. If the error
+   says rollback was incomplete, preserve the named recovery directory; in that
+   case, do not assume existing artifacts are unchanged.
 
-Use `$FETCH_ISSUE_SCRIPT` instead of the relative path in all subsequent
-commands.
-
-**Single mode:** Fetch the issue using the shared script:
-
-```bash
-python3 "$FETCH_ISSUE_SCRIPT" get "$ISSUE_KEY" --fields summary,description,issuetype,status,priority,labels,fixVersions,customfield_10795,created,updated --comments --links --link-fields summary,description,status
-```
-
-After fetching, verify the issue type is Feature (from the `issuetype` field). If it is not, warn the
-user: "Issue {key} is a {type}, not a Feature. The sizing workflow is
-designed for Features. Continue anyway?" Wait for confirmation before
-proceeding.
-
-**Batch mode:** Search for all Features in the specified project and Fix
-Version using the shared script. Use single quotes around the JQL to
-prevent shell expansion of user-provided values:
-
-```bash
-python3 "$FETCH_ISSUE_SCRIPT" search 'project = {project} AND fixVersion = "{version}" AND issuetype = Feature' --fields summary,description,issuetype,status,priority,labels,fixVersions,customfield_10795,created,updated --max-results 200
-```
-
-If the number of returned issues equals `--max-results`, results may
-be truncated. Increase `--max-results` and re-run, or run multiple
-queries with adjusted JQL, to ensure all Features are captured.
-
-For each Feature returned, fetch full details including comments:
-
-```bash
-python3 "$FETCH_ISSUE_SCRIPT" get "$ISSUE_KEY" --fields summary,description,issuetype,status,priority,labels,fixVersions,customfield_10795,created,updated --comments --links --link-fields summary,description,status
-```
-
-Capture:
-- Summary / title
-- Description (full text, preserving any section structure)
-- Acceptance criteria / Definition of Done (if present in description)
-- Status, priority, labels, fix version
-- Current Size value (`customfield_10795` — may be null/unset)
-- Comments (substantive only — skip bot notifications and status changes)
-
-If the fetch fails (authentication error, invalid issue key), report the
-error to the user and stop. In batch mode, if the query returns zero
-Features, tell the user no Features were found for the specified project
-and Fix Version — suggest verifying the project key, version name, and
-issue types in Jira — and stop.
-
-### Step 4: Fetch Linked Issues (If Available)
-
-For each Feature, check for lateral linked issues (blocks, relates to, etc.).
-Fetch at minimum: summary, description, status, relationship type.
-
-Do **not** follow child issues (Epics, Stories). Do not follow links-of-links.
-Not all Features will have linked issues — this step is opportunistic.
-
-### Step 5: Explore the Codebase
-
-For each Feature, based on its description, identify which areas of the
-codebase would be affected. Focus on:
-
-1. **Component boundaries:** Which packages, modules, or services would this
-   Feature touch?
-2. **Integration points:** Which APIs, external systems, or cross-service
-   interactions are involved?
-3. **Data model impact:** What existing models/schemas would need to change
-   or extend?
-4. **Testing patterns:** What testing infrastructure exists? Would new test
-   types or frameworks be needed?
-5. **Novelty:** Is this extending existing patterns or introducing new ones?
-
-Use file search (glob), content search (grep), and targeted file reading.
-Target 5–10 key files per Feature. If the last 2–3 files explored introduced
-no new insights, exploration is likely complete.
-
-If the codebase doesn't provide enough signal (e.g., the Feature describes
-an entirely new subsystem with no existing code), note the uncertainty
-explicitly — this increases the risk/unknowns dimension during assessment.
-
-### Step 6: Compile Context
-
-Write `.artifacts/sizing/{context}/01-context.md`:
-
-```markdown
-# Sizing Context — {context}
-
-## Input
-
-- **Mode:** {Single Feature | Batch — Fix Version "{name}"}
-- **Features:** {count}
-- **Date:** {today}
-
-## Feature: {issue-key} — {title}
-
-### Jira Metadata
-
-- **Status:** {status}
-- **Priority:** {priority}
-- **Labels:** {labels}
-- **Fix Version:** {version}
-- **Current Size:** {value or "Not set"}
-
-### Description Summary
-
-{Condensed description preserving key requirements, user stories, and
- acceptance criteria. Not a full copy — focus on what drives sizing:
- scope, capabilities, constraints.}
-
-### Codebase Impact
-
-- **Affected components:** {list with paths}
-- **Integration points:** {APIs, external systems, cross-service interactions}
-- **Data model changes:** {expected schema impact or "None identified"}
-- **Testing surface:** {existing test infrastructure, new test types needed}
-- **Novelty assessment:** {extending existing patterns | new patterns required | uncertain}
-
-### Linked Issues
-
-{Brief summary of lateral linked issues, or "None."}
-
-{Repeat the "## Feature:" block for each Feature in batch mode}
-```
-
-### Step 7: Report to User
-
-Present a brief summary:
-- How many Features were ingested
-- Input mode (single or batch with Fix Version name)
-- Key codebase areas explored per Feature
-- Any Features with insufficient descriptions for confident sizing
-- Any Features that already have a Size set in Jira
+   Use the compact result summary to report Feature count, existing sizes,
+   explored components, and low-confidence concerns. Do not reopen the
+   rendered Markdown for the report. Remove the now-empty recorded staging
+   directory.
 
 ## Output
 
-- `.artifacts/sizing/{context}/01-context.md`
+- `.artifacts/sizing/{context}/01-context.json` — compact source for `/assess`
+- `.artifacts/sizing/{context}/01-context.md` — human-readable rendered context
 
-## When This Phase Is Done
-
-Report your findings:
-- Features ingested and their current state
-- Codebase impact highlights
-- Any concerns about description quality or codebase uncertainty
-
-Then **re-read the controller** (`controller.md`) for next-step guidance.
+After reporting ingest results, return to the dispatcher for completion
+guidance. Do not start `/assess` automatically.

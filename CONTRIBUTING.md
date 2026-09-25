@@ -312,6 +312,27 @@ Behavioral files: `SKILL.md` body, `guidelines.md`, `skills/*.md`,
 `skills/{skill-name}/SKILL.md`, `references/*`, `templates/*`, `prompts/*`,
 `scripts/*`, and other files read or executed by the skill.
 
+### Version bump baseline
+
+Version bumps are relative to the merge base with `main`, not the current
+branch state. Each PR should produce **at most one version increment per
+package**.
+
+- Compare your version against `git merge-base HEAD main` to determine
+  the correct bump.
+- If a package was already bumped in this PR, do not bump it again for
+  additional changes at the same semver level.
+- Re-bump only when the class of change escalates (PATCH → MINOR or
+  MINOR → MAJOR). Set the version to the higher level relative to the
+  merge base — do not stack increments.
+
+For example, if the merge-base version is `0.2.0` and you make two typo
+fixes and then add a new step, the final version should be `0.3.0`
+(MINOR bump from merge base), not `0.2.1` → `0.2.2` → `0.3.0`.
+
+The CI script `.github/scripts/validate-versions.sh` warns when a version
+is bumped more than one increment at the same semver level.
+
 ### Shared file cascade
 
 When a file in `_shared/` changes, PATCH-bump every workflow or simple skill that

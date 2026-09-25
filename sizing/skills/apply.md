@@ -1,170 +1,110 @@
 ---
 name: apply
-description: Write assessed Feature sizes to Jira and add team effort breakdown as a comment.
+description: Preview selected sizing actions and write approved sizes to Jira.
 ---
 
-# Apply Sizing Skill
+# Apply Sizing
 
-You are a project coordinator. Your job is to write the assessed Feature sizes
-to Jira and add a comment with the team effort breakdown, so the sizing is
-visible where cycle planning happens.
-
-## Your Role
-
-Read the sizing assessment, present a dry-run preview, get explicit user
-approval, then update each Feature in Jira with its size and a structured
-comment containing the team breakdown.
-
-## Critical Rules
-
-- **Dry-run first.** Always show what would be written before writing anything.
-- **Explicit approval required.** Never write to Jira without the user saying "yes."
-- **User can exclude Features.** In batch mode, the user may approve some and exclude others.
-- **Never write XXL.** If a Feature is assessed as XXL, do not write it to Jira. Warn the user that the Feature must be split first.
-- **Stop on failure.** If a Jira update fails, stop immediately, report the error, and offer to retry or skip.
+Use `.artifacts/sizing/{context}/02-assessment.json` as the source of truth.
+Do not read `02-assessment.md`; it is generated from the JSON artifact.
 
 ## Process
 
-### Step 1: Read Assessment
+1. If the finalized JSON is missing, recommend `/assess` and stop.
+2. Render the dry-run preview:
 
-Read `.artifacts/sizing/{context}/02-assessment.md`.
+   ```bash
+   python3 "${HOME}/.ai-workflows/sizing/scripts/apply_plan.py" preview "{context}"
+   ```
 
-If the assessment file doesn't exist, tell the user that `/assess` should
-be run first.
+   Show the preview as a selection summary. XXL Features are excluded and
+   must be split. Ask which committable Features to include, whether any sizes
+   should be overridden, or whether to cancel. If the user says "approve"
+   without specifying a subset, select all committable Features for payload
+   review; this is not authorization to write to Jira.
+3. Prepare the Jira action payload from the selection. Before the first
+   `actions` command that changes or clears a size override, capture the
+   existing override map and keep it unchanged through payload revisions until
+   the user approves or cancels:
 
-### Step 2: Dry Run
+   ```bash
+   python3 "${HOME}/.ai-workflows/sizing/scripts/apply_plan.py" show-overrides "{context}"
+   ```
 
-Present a preview of what will be written to Jira:
+   For example:
 
-```markdown
-## Apply Preview
+   ```bash
+   python3 "${HOME}/.ai-workflows/sizing/scripts/apply_plan.py" actions "{context}" \
+     --select-key EDM-2324 --override EDM-2324=M \
+     --output ".artifacts/sizing/{context}/03-apply-actions.json"
+   ```
 
-| # | Feature | Size to Set | Comment |
-|---|---------|------------|---------|
-| 1 | {key}: {title} | {size} | Team breakdown: DEV {size}, QE {size}, UX {size}, UI {size}, DOCS {size} |
-```
+   Use `--all` when the user selected every committable Feature. Map preview
+   row numbers to issue keys before passing `--select-key`. Never include
+   XXL or apply an override to XXL. Use `--clear-override ISSUE-KEY` (repeat as
+   needed) when restoring an original recommendation that has a stored
+   apply-time override. These options select payload actions; they do not
+   authorize Jira writes. The helper validates changes, updates
+   `02-decisions.json`, `02-assessment.json`, and `02-assessment.md` when an
+   override is added or cleared, invalidates any older prepared payload, and
+   builds Jira wiki comments deterministically. Continue only if this command
+   completes successfully. If it fails or is unavailable, stop this attempt;
+   do not proceed to step 4 or read or use an existing
+   `03-apply-actions.json`.
+4. Use the action helper's result to check whether it prepared any actions. If
+   it prepared none, report that no committable Features are available and go
+   to step 5 without requesting approval or calling Jira. Refer to the
+   assessment to identify any XXL Features; do not infer their sizes from an
+   empty payload.
 
-For any Feature assessed as XXL, show it separately:
+   If no Jira write integration is available, do not read the payload, request
+   write approval, or use another channel to write. Report that Jira is
+   unchanged, give the prepared payload path, and go to step 5. Otherwise, read
+   `03-apply-actions.json`, show every prepared action's Feature key, size, and
+   full comment text, and wait for explicit approval of this exact payload
+   before writing to Jira. If the user requests changes, regenerate the
+   payload and show it again.
 
-```markdown
-## Excluded — XXL (Must Split)
+   **If the user explicitly approves this payload:** for each approved action:
 
-| Feature | Recommended Action |
-|---------|-------------------|
-| {key}: {title} | Split before committing — see split recommendations in assessment |
-```
+   ```text
+   jira_update_issue(
+     issue_key: action.key,
+     fields: {"customfield_10795": {"value": action.size}}
+   )
+   jira_add_comment(issue_key: action.key, comment: action.comment)
+   ```
 
-**Wait for explicit user approval before proceeding.**
+   The action helper does not contact Jira. If a size update fails, do not
+   attempt its comment; stop before the remaining actions and go to step 5 with
+   updated, failed, and unattempted Features listed. If only a comment fails,
+   report the comment failure and continue with the remaining approved
+   Features.
 
-The user may:
-- Approve all
-- Exclude specific Features (by number)
-- Override a size (the user has the final say)
-- Cancel entirely
+   **If the user cancels:** do not write to Jira. If this attempt changed or
+   cleared apply-time overrides, restore each affected key to its pre-attempt
+   state so unapproved choices do not remain in the assessment artifacts:
 
-If the user overrides any size, update `02-assessment.md` to reflect the
-override (e.g., "M (overridden from L by user)") so the artifact stays
-consistent with what is written to Jira.
+   ```bash
+   python3 "${HOME}/.ai-workflows/sizing/scripts/apply_plan.py" restore-overrides \
+     "{context}" --key EDM-2324 --override EDM-2300=S
+   ```
 
-### Step 3: Apply to Jira
+   Use `--override ISSUE-KEY=SIZE` for each affected key that had a prior value
+   in the saved map. Use `--key ISSUE-KEY` only when it had no prior value.
+   This also removes any prepared action payload. If restoration fails, report
+   the exact error and do not assume the artifacts were restored. Then go to
+   step 5; do not write to Jira.
+5. Report updated, partially updated, skipped, failed, and unattempted
+   Features with direct Jira links. If no write integration was available,
+   include the prepared payload path. Then return to the dispatcher for
+   completion guidance. Do not run another phase automatically.
 
-For each approved Feature:
+## Safety
 
-#### 3a: Update the Size Field
-
-Update the Feature issue to set the Size field:
-
-```
-jira_update_issue(
-  issue_key: "{feature-key}",
-  fields: {"customfield_10795": {"value": "{size}"}}
-)
-```
-
-If the update fails, stop and report the error. Offer to: (a) retry, or
-(b) skip this Feature and continue with the rest.
-
-#### 3b: Add Team Breakdown Comment
-
-Add a comment to the Feature issue with the team effort breakdown and
-impact scoring. Use Jira wiki markup (not Markdown) so tables render
-correctly on Jira Cloud.
-
-```
-jira_add_comment(
-  issue_key: "{feature-key}",
-  comment: "{comment in Jira wiki markup — see template below}"
-)
-```
-
-The comment must use Jira wiki markup. Headers use `||`, rows use `|`:
-
-```text
-h2. Sizing Assessment
-
-*Overall Size: {size}*
-
-||Team||Effort||Rationale||
-|DEV|{size}|{rationale}|
-|QE|{size}|{rationale}|
-|UX|{size or —}|{rationale or "No UX work identified"}|
-|UI|{size or —}|{rationale or "No UI work identified"}|
-|DOCS|{size or —}|{rationale or "No downstream docs work identified"}|
-
-*Impact vs. Effort:*
-
-||Sub-dimension||Score||Rationale||
-|User Reach|{1–5}|{brief justification}|
-|Pain Severity|{1–5}|{brief justification}|
-|Strategic Alignment|{1–5}|{brief justification}|
-|Dependency|{1–5}|{brief justification}|
-
-*Impact:* {sum}/20 ({High/Medium/Low}) | *Effort:* {effort score} ({size})
-*Priority:* {priority score} | *Quadrant:* {quadrant}
-
-*Key sizing drivers:*
-- {driver 1}
-- {driver 2}
-- {driver 3}
-
-_Generated by AI sizing workflow_
-```
-
-If the comment fails, log the error but continue — a missing comment is
-less critical than a missing size. Report it to the user at the end.
-
-### Step 4: Report to User
-
-Summarize what was written:
-
-```markdown
-## Apply Results
-
-### Updated
-
-| Feature | Size Set | Comment Added |
-|---------|---------|---------------|
-| {key}: {title} | {size} | Yes / Failed |
-
-### Skipped
-
-| Feature | Reason |
-|---------|--------|
-| {key}: {title} | {User excluded / XXL — must split / Error: {msg}} |
-```
-
-Provide direct links to each updated Feature in Jira so the user can
-verify the results.
-
-## Output
-
-- Jira Feature issues updated with Size field and team breakdown comment
-
-## When This Phase Is Done
-
-Report your results:
-- How many Features were updated
-- Any Features skipped and why
-- Links to updated Features in Jira
-
-Then **re-read the controller** (`controller.md`) for next-step guidance.
+- Never write before the user explicitly approves the displayed action
+  payload, including its full Jira comment text.
+- A user size override is written back to the JSON and rendered assessment
+  before Jira updates. If the payload is canceled, restore changed override
+  keys to their pre-attempt values before returning to the dispatcher.
+- If a Feature is XXL, do not update Jira. Point to its split recommendations.
