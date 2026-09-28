@@ -230,7 +230,7 @@ coverage is deferred to the UI design's own validation criteria.
 |---------|-----------|--------|
 | Normal | Matches found | Write `testplan.md` **once** from `../templates/story-testplan.md` |
 | Expected zero | No matches and type is `[QE]`/`[DOCS]`/`[UX]`/`[CI]` | Note expected; delete stale story testplan if present |
-| Expected zero | No matching `Validated by` IDs and PRD Requirements is "Discovered during UI design" | Note UI-design origin; delete stale story testplan if present |
+| Expected zero | No matching `Validated by` IDs and PRD Requirements contains "Discovered during UI design" | Note UI-design origin; delete stale story testplan if present |
 | Anomalous zero | No matches and type is `[DEV]`/`[UI]` (or unknown) | Warn; delete stale story testplan if present |
 
 No feature testplan: note and continue.
