@@ -139,18 +139,29 @@ each run:
    `decisions/` artifacts there when available. If the consumer project has
    `config/product-overlay.yaml`, copy it to the same path under the run
    directory; do not invent a product overlay if it is absent.
-4. Run the evaluator from the run directory with `{story-key}`, prototype URL,
+4. Read the **Skill prototype ID** from
+   `.artifacts/ux-design/{issue-key}/03-prototype/prototype-notes.md` and call
+   it `{prototype-id}`. Keep this ID separate from the linked `[UX]` story key:
+   the evaluator needs the story key for Jira, while prototype refinement
+   needs the prototype ID for its native artifact path.
+5. Run the evaluator from the run directory with `{story-key}`, prototype URL,
    `--no-fix`, and `--workspace=<path>` when a workspace clone exists:
 
    ```text
    uxd-prototype-evaluate {story-key} "{prototype URL}" --no-fix [--workspace="{workspace path}"]
    ```
 
-5. Read the resulting report and evidence from
+6. Read the resulting report and evidence from
    `{run-directory}/.artifacts/{story-key}/eval/`. The cross-key files are
-   isolated under `{run-directory}/.artifacts/eval/`. Keep the run directory
-   for review; do not copy these files to `.artifacts/{issue-key}/` at the
-   repository root.
+   isolated under `{run-directory}/.artifacts/eval/`. Keep those files at
+   their current path if `{prototype-id}` equals `{story-key}`. Otherwise,
+   copy `evaluation-report.csv` and `refinement-suggestions.json` into
+   `{run-directory}/.artifacts/{prototype-id}/eval/`, preserving the original
+   reports. Use the ID recorded in `prototype-notes.md`; do not substitute the
+   story key. If either refinement file is absent, leave it absent and let
+   `/prototype` follow its no-input path. Keep the run directory for review;
+   do not copy evaluator files to `.artifacts/{issue-key}/` at the repository
+   root.
 
 Use a fresh run directory for each evaluation. If the skill's required Jira
 access, product configuration, URL, or browser runtime is unavailable, Full is

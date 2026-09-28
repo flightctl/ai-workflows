@@ -118,9 +118,11 @@ requires the PRD, design document, and linked `[UX]` story to be ingested.
 
 ## Artifacts
 
-All artifacts are stored in `.artifacts/ux-design/{feature-key}/`. The Feature
-key remains the stable context key when later phases are invoked with the
-linked `[UX]` story.
+All artifacts are stored in `.artifacts/ux-design/{context-key}/`. For a
+Jira-backed context, the Feature key is the stable context key, including when
+later phases are invoked with the linked `[UX]` story. For a description-only
+context, use the stable key agreed during `/ingest` (for example,
+`description-<slug>`).
 
 ```text
 .artifacts/ux-design/EDM-1234/

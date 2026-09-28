@@ -102,38 +102,41 @@ Before refining:
 
 1. Restore the prototype's native layout under `.artifacts/{ID}/` from the
    mirrored files in `03-prototype/` as described in Step 3.
-2. If Full evaluation ran, copy `evaluation-report.csv` and
-   `refinement-suggestions.json` from the private evaluator run directory
+2. If Full evaluation ran and both refinement inputs exist, copy
+   `evaluation-report.csv` and `refinement-suggestions.json` from the private
+   evaluator run directory
    (`04-eval-raw/prototype-evaluate/{run-id}/.artifacts/{ID}/eval/`) into
-   `.artifacts/{ID}/eval/`.
-3. If those evaluator inputs do not exist, do not invent them. Start a new
-   `uxd-prototype-create` run with the source and researcher-approved feedback
-   as context instead of using `refine`.
+   `.artifacts/{ID}/eval/`. If either input is missing, do not invent it or
+   use `refine`; start a new `uxd-prototype-create` run with the source and
+   researcher-approved feedback as context.
+3. Before a refinement or replacement changes the native prototype, preserve
+   the current
+   `.artifacts/ux-design/{issue-key}/03-prototype/` tree under
+   `history/prototype-iteration-{N}/`, unless that exact tree is already in the
+   current context-revision snapshot. Do not overwrite an existing snapshot.
 
-Invoke refinement as:
+Use `refine` only when both evaluator inputs are staged:
 
 ```text
 uxd-prototype-create refine {ID} --decisions auto
 ```
 
-Before replacing the active prototype, preserve the entire current
-`.artifacts/ux-design/{issue-key}/03-prototype/` tree under
-`history/prototype-iteration-{N}/`, unless that exact tree is already preserved
-in the current context-revision snapshot. Keep earlier snapshots unchanged.
-After the refinement finishes, mirror its outputs as the active prototype and
-remove the temporary native `.artifacts/{ID}/` directory. Do not leave the
-only copy of the refined prototype in native skill scratch.
+Keep either the refined output or the new prototype output under
+`.artifacts/{ID}/` until Step 3 mirrors it. Do not mirror output or remove the
+native directory in this step.
 
 ### Step 3: Map Skill Output Into Our Artifact Structure
 
 The create skill writes to `.artifacts/{ID}/`, where `{ID}` is the Jira key or a
-slug. Before mirroring a replacement over an existing active prototype,
+slug. For a refinement, Step 2 has already preserved the prior active tree;
+reuse that snapshot and do not archive it again. For any other replacement,
 preserve the current tree under
-`.artifacts/ux-design/{issue-key}/history/prototype-iteration-{N}/`, unless
-that exact tree is already preserved in the current context-revision snapshot.
-Mirror the new output under `.artifacts/ux-design/{issue-key}/03-prototype/`,
-preserving the prototype's native layout so a refinement can restore it without
-flattening files.
+`.artifacts/ux-design/{issue-key}/history/prototype-iteration-{N}/` before
+mirroring, unless that exact tree is already preserved in the current
+context-revision snapshot. Never archive the new output as the previous
+iteration. Mirror the new output under
+`.artifacts/ux-design/{issue-key}/03-prototype/`, preserving the prototype's
+native layout so a later refinement can restore it without flattening files.
 
 **Standalone prototype:**
 
@@ -163,10 +166,12 @@ and report that prototype creation did not complete. The new evaluator can
 consume `rfe-snapshot.md` and `decisions/` when staged into its private run
 root. Record the create skill's `{ID}` in `prototype-notes.md`.
 
-Once the canonical copies are mirrored, remove the native `.artifacts/{ID}/`
-created by the create skill. The evaluator uses a separate private run root
-under `04-eval-raw/`; do not move its outputs into `.artifacts/{ID}/` except
-for the two temporary refinement inputs described above.
+After mirroring the canonical prototype files, remove the native
+`.artifacts/{ID}/` created by the create or refine skill. This cleanup happens
+only here, after the refined output is safely mirrored. The evaluator uses a
+separate private run root under `04-eval-raw/`; do not move its outputs into
+`.artifacts/{ID}/` except for the two temporary refinement inputs described
+above.
 
 ## Step 4: Document Design Rationale
 
