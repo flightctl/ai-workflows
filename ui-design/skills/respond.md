@@ -38,6 +38,11 @@ should be run first.
 
 ### Step 2: Fetch PR Comments
 
+If `gh` or the GitHub API is unavailable (command not found, auth
+failure, or network error), stop and report the failure — do not
+treat a failed fetch as "no comments found" or proceed with an empty
+comment list.
+
 Using the PR number and repo from `publish-metadata.json`, fetch comments
 with paginated API queries that capture inline review comments and thread
 identifiers:
@@ -191,7 +196,10 @@ content:
 
 Resolve `target_directory` from `publish-metadata.json` (the
 `target_directory` field). Load `docs_repo_path` from
-`.artifacts/config.json`. Verify the recorded branch is checked out and
+`.artifacts/config.json`. Canonicalize both paths (resolve symlinks
+and `..` segments) and verify that `target_directory` is inside
+`docs_repo_path` — if it is not, stop and report the mismatch before
+copying any files. Verify the recorded branch is checked out and
 the push remote is valid before committing.
 
 ```bash

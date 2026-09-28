@@ -12,7 +12,7 @@ docs-repo copy before `git add`. See `../provenance-schema.md` for format.
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | WORKFLOW | Yes | `prd`, `design`, or `ui-design` |
-| ISSUE_KEY | Yes | Full Jira issue key including project prefix (e.g., `PROJ-1234`, not `1234`) |
+| ISSUE_KEY | Yes | Jira issue key (e.g., `PROJ-1234`) or workspace identifier (e.g., `device-health-panel`) for non-Jira runs |
 | TARGET_FILE | Yes | Absolute path to the local artifact or docs-repo file to render |
 | ALLOW_MISSING | No | Set to `yes` only after the user explicitly declines provenance |
 

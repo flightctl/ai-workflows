@@ -59,6 +59,12 @@ Read and follow `../../_shared/recipes/resolve-docs-publish-remotes.md` with:
 This resolves `UPSTREAM_REMOTE`, `PUSH_REMOTE`, `UPSTREAM_REPO`, `PUSH_REPO`,
 `PUSH_URL`, `FORK_OWNER`, and `CROSS_REPOSITORY`.
 
+**Validate shell-interpolated values.** Before using `UPSTREAM_REMOTE`,
+`PUSH_REMOTE`, or `BRANCH_NAME` in shell commands, verify each is a
+simple identifier (alphanumeric, hyphens, underscores, dots, slashes
+only — no shell metacharacters like `$`, `` ` ``, `|`, `;`, `&`).
+Stop and report if any resolved value fails validation.
+
 ### Step 4: Resolve Base Branch
 
 Read the docs repo's default branch using the upstream remote resolved
@@ -187,6 +193,17 @@ git -C "{docs_repo_path}" commit -m "Add UI design for {workspace-id}"
 
 ### Step 9: Push and Create PR
 
+Before pushing, check whether the branch already exists on the remote:
+
+```bash
+git -C "{docs_repo_path}" ls-remote --exit-code "{PUSH_REMOTE}" "refs/heads/{BRANCH_NAME}"
+```
+
+If the branch exists, ask the user whether to force-push (replacing the
+remote branch) or stop so they can reconcile manually. Do not push
+unconditionally when the remote branch has commits this local branch
+does not contain.
+
 Push the branch:
 
 ```bash
@@ -230,7 +247,12 @@ key hooks, state management decisions, and API findings.}
 - [ ] API gaps are correctly categorized and scoped for [DEV] stories
 ```
 
-Create the draft PR:
+Create the draft PR. If `gh` is unavailable or the PR creation command
+fails after the push has already succeeded, do not retry the push.
+Report the branch name (`{BRANCH_NAME}`), the push remote
+(`{PUSH_REMOTE}`), and the target repo (`{UPSTREAM_REPO}`) so the user
+can create the PR manually or resume with `/publish` after resolving
+the tool issue.
 
 If `CROSS_REPOSITORY` is true:
 ```bash
