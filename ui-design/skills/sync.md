@@ -275,6 +275,23 @@ a summary to the user:
 *"Manifest found (last synced {synced_at}): {N} items total — {A} new,
 {B} changed, {C} to close, {D} unchanged."*
 
+**Parent immutability check (mandatory — runs before any early exit).**
+When the manifest has a `parent_key` value, resolve the current parent
+from `01-context.md` (already read above) using the same logic as
+Step 2: use the parent epic if present, otherwise the parent feature.
+Compare the resolved parent against `manifest.parent_key`. If they
+differ, stop immediately and report:
+
+*"Parent mismatch: the manifest records parent `{manifest.parent_key}`
+but the current context resolves to `{resolved parent}`. Existing Jira
+stories are linked to the manifest parent and cannot be automatically
+re-linked. Options: (1) update `01-context.md` to restore the original
+parent, (2) delete the manifest to start a fresh sync under the new
+parent, or (3) manually re-parent the existing stories in Jira."*
+
+Do not proceed to the dry run, the "nothing to do" exit, or any Jira
+operations until the parent is reconciled.
+
 **If nothing to do** (no new, changed, or resolved items), stop and tell
 the user:
 
@@ -292,7 +309,9 @@ Determine the parent for the `[DEV]` stories. The stories should be
 created under the same parent epic as the `[UI]` story, or under the
 Feature if the `[UI]` story has no parent epic.
 
-Read the `[UI]` story's parent from `01-context.md`:
+Read the `[UI]` story's parent from `01-context.md` (the parent
+immutability check in Step 1 already verified this matches
+`manifest.parent_key` when a manifest exists):
 - If the `[UI]` story has a parent **epic**, use that epic as the parent
   for `[DEV]` stories.
 - If the `[UI]` story has a parent **feature** but no epic, use the
