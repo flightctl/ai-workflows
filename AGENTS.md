@@ -84,7 +84,7 @@ _shared/
   review-protocol.md              # Shared code review criteria, finding format, severity definitions
   sizing-rubric.md                # Shared sizing definitions (T-shirt sizes, heuristics, team effort guidance)
   scripts/
-    provenance.py                 # Capture/render CLI (used by prd and design provenance recipes)
+    provenance.py                 # Capture/render CLI (used by prd, design, and ux-design provenance recipes)
     pr-comments.py                # Deterministic PR comment operations (fetch, reply, log)
     publish.py                    # Deterministic publish operations (push, PR/MR, metadata)
     resolve-phase.py              # Deterministic phase override resolution (file-existence check)
@@ -237,7 +237,7 @@ ai-workflows/
 │   ├── review-protocol.md     # Shared code review criteria and finding format
 │   ├── sizing-rubric.md       # Shared sizing definitions and heuristics
 │   ├── scripts/
-│   │   ├── provenance.py      # Capture/render CLI for prd/design provenance
+│   │   ├── provenance.py      # Capture/render CLI for prd/design/ux-design provenance
 │   │   ├── pr-comments.py     # Deterministic PR comment operations (fetch, reply, log)
 │   │   ├── publish.py         # Deterministic publish operations (push, PR/MR, metadata)
 │   │   ├── resolve-phase.py   # Deterministic phase override resolution
