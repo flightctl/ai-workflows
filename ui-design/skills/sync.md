@@ -98,25 +98,33 @@ pending-findings marker (no gaps table), stop and report that the findings
 are incomplete. If any required file is unreadable, stop and report the
 error before performing any Jira operations.
 
-Extract every gap from the API Gaps table. Each gap row must contain
-these fields (produced by the `/review-api` phase):
+Extract every gap from the API Gaps table and its corresponding Gap
+Details block (produced by the `/review-api` phase). The summary table
+row provides `gap_id`, `title`, `category`, `severity`, and
+`affected_components` (as "UI Impact"). The Gap Details block provides
+the remaining fields. Read both sources for each gap:
 
-| Field | Required | Used in |
-|-------|----------|---------|
-| `gap_id` | Yes | Matching key for manifest entries |
-| `title` (gap title) | Yes | Jira summary, content_hash |
-| `category` | Yes | Jira description, content_hash |
-| `severity` | Yes | Sync eligibility (critical/high/medium), content_hash |
-| `ui_need` | Yes | Jira description, content_hash |
-| `whats_missing` | Yes | Jira description, content_hash |
-| `current_state` | Yes | Jira description, content_hash |
-| `suggested_approach` | Yes | Jira description, content_hash |
-| `affected_components` | Yes | Jira description, content_hash |
+| Field | Source | Required | Used in |
+|-------|--------|----------|---------|
+| `gap_id` | API Gaps row | Yes | Matching key for manifest entries |
+| `title` (gap title) | API Gaps row / Gap Details heading | Yes | Jira summary, content_hash |
+| `category` | API Gaps row + Gap Details | Yes | Jira description, content_hash |
+| `severity` | API Gaps row + Gap Details | Yes | Sync eligibility (critical/high/medium), content_hash |
+| `ui_need` | Gap Details block | Yes | Jira description, content_hash |
+| `whats_missing` | Gap Details block | Yes | Jira description, content_hash |
+| `current_state` | Gap Details block | Yes | Jira description, content_hash |
+| `suggested_approach` | Gap Details block | Yes | Jira description, content_hash |
+| `affected_components` | API Gaps row ("UI Impact") + Gap Details | Yes | Jira description, content_hash |
 
-If any gap row is missing `gap_id`, stop and tell the user to re-run
-`/review-api` — the findings pre-date the gap_id requirement. If any
-other required field is missing, warn the user and identify the
-incomplete gap before proceeding.
+**Missing field handling.** If any gap is missing `gap_id`, stop and
+ask the user to re-run `/review-api` — the findings pre-date the
+gap_id requirement. If any other required field is missing or empty
+after reading both the table row and the Gap Details block, use the
+canonical fallback value `"Not specified"` for that field. This
+fallback must be used consistently in **both** the `content_hash`
+computation and the Jira description rendering — do not use an empty
+string in one and the fallback in the other. Warn the user which
+gaps have fallback values so they can fix the findings if desired.
 
 Use the producer-provided `gap_id` as the sole matching key when
 comparing findings with the manifest; do not re-derive or recompute
