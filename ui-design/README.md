@@ -1,6 +1,6 @@
 # UI Design Workflow
 
-A UI design workflow that takes a `[UI]` Jira story and UX handoff artifact, produces a component decomposition with hook design, state management approach, route structure, and data flow mapping, reviews the API surface for gaps, publishes the design for review, and syncs `[DEV]` stories for backend work to Jira.
+A UI design workflow that takes a `[UI]` Jira story and optional UX handoff artifact, produces a component decomposition with hook design, state management approach, route structure, and data flow mapping, reviews the API surface for gaps, publishes the design for review, and syncs `[DEV]` stories for backend work to Jira.
 
 ## Pipeline Position
 

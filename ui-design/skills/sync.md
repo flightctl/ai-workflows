@@ -28,6 +28,7 @@ explicit user approval.
 - **Manifest gate.** Before proceeding past Step 1, you **must** state aloud to the user what the manifest contains (or that none exists). This is mandatory — do not silently skip this acknowledgment.
 - **Jira-side duplicate check.** Before creating each story, query Jira for existing children under the parent with a matching gap_id marker. If a match is found, stop and present the match to the user — do not create a duplicate.
 - **Sync-owned fields.** Sync owns: summary, description, and parent link (creation only). Sync never touches: assignee, sprint, comments, labels, or any other Jira-managed field.
+- **Parent immutability.** The parent link is set only at story creation and is not updated on subsequent syncs. If the resolved `{parent-key}` differs from the `parent_key` stored in the manifest, warn the user about the mismatch but do not attempt to change the parent link on existing stories — Jira parent links may be creation-only depending on the project configuration.
 - **Status transitions are limited.** Sync may only perform two status transitions: (1) transition resolved issues to Done/Closed, and (2) reopen previously closed issues when a gap reappears. Sync must not edit status for any other reason.
 - **Logical deletion via status.** Gaps are closed (not deleted) when they are resolved — the gap entry is removed from the API findings or marked as resolved. The manifest tracks the closure.
 - **Link to source.** Every Jira story description references the UI design document.
@@ -97,15 +98,31 @@ pending-findings marker (no gaps table), stop and report that the findings
 are incomplete. If any required file is unreadable, stop and report the
 error before performing any Jira operations.
 
-Extract every gap from the API Gaps table. Each gap row must contain a
-`gap_id` field produced by the `/review-api` phase (see
-`review-api.md` — Gap ID derivation). Use this producer-provided
-`gap_id` as the sole matching key when comparing findings with the
-manifest; do not re-derive or recompute it during sync, and do not
-match by `gap_number` or title alone. If any gap row is missing a
-`gap_id`, stop and tell the user to re-run `/review-api` — the
-findings pre-date the gap_id requirement. Continue using
-`content_hash` only to detect changes for matched active entries.
+Extract every gap from the API Gaps table. Each gap row must contain
+these fields (produced by the `/review-api` phase):
+
+| Field | Required | Used in |
+|-------|----------|---------|
+| `gap_id` | Yes | Matching key for manifest entries |
+| `title` (gap title) | Yes | Jira summary, content_hash |
+| `category` | Yes | Jira description, content_hash |
+| `severity` | Yes | Sync eligibility (critical/high/medium), content_hash |
+| `ui_need` | Yes | Jira description, content_hash |
+| `whats_missing` | Yes | Jira description, content_hash |
+| `current_state` | Yes | Jira description, content_hash |
+| `suggested_approach` | Yes | Jira description, content_hash |
+| `affected_components` | Yes | Jira description, content_hash |
+
+If any gap row is missing `gap_id`, stop and tell the user to re-run
+`/review-api` — the findings pre-date the gap_id requirement. If any
+other required field is missing, warn the user and identify the
+incomplete gap before proceeding.
+
+Use the producer-provided `gap_id` as the sole matching key when
+comparing findings with the manifest; do not re-derive or recompute
+it during sync, and do not match by `gap_number` or title alone.
+Continue using `content_hash` only to detect changes for matched
+active entries.
 
 **Zero-gap guard:** If the API findings section is non-empty (contains
 a gaps table or narrative content) but parsing produces zero extracted
