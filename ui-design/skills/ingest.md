@@ -162,15 +162,18 @@ resolve to an existing directory. If validation fails, stop and ask
 the user to correct the path in `.artifacts/config.json`.
 
 Search the docs repo for a directory whose name contains `{workspace-id}` or
-the parent feature key. Pass `docs_repo_path` as a quoted argument:
+the parent feature key. Pass `docs_repo_path` as a quoted argument.
+
+**When `{feature-key}` is available** (the Jira story has a parent
+epic or feature), include both predicates:
 
 ```bash
 find "${docs_repo_path}" -type d \( -name "*${workspace_id}*" -o -name "*${feature_key}*" \)
 ```
 
-**Non-Jira input.** When `{workspace-id}` was derived from non-Jira
-input (Step 1), `{feature-key}` is not available. Use only
-`{workspace-id}` or a value derived from the supplied input:
+**When `{feature-key}` is empty or unavailable** (no parent epic, or
+non-Jira input), search by `{workspace-id}` only — do not include an
+empty feature-key predicate, as `-name "**"` matches every directory:
 
 ```bash
 find "${docs_repo_path}" -type d -name "*${workspace_id}*"
