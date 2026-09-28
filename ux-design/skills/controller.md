@@ -157,7 +157,7 @@ Researchers can enter at any phase if they bring the prerequisite artifact:
 |-------|----------|
 | `/ingest` | Jira issue key or feature description |
 | `/research` | `01-discovery.md` (or equivalent problem framing) |
-| `/prototype` | `01-discovery.md` + `02-research.md` (or equivalent; research skippable) |
+| `/prototype` | `01-discovery.md` or equivalent problem framing; `02-research.md` when `/research` runs, otherwise researcher confirms sufficient domain knowledge or validated research data |
 | `/evaluate` | `03-prototype/` (prototype to evaluate). Full needs Jira and browser access plus the private evaluator run root described in `evaluate.md` |
 | `/handoff` | `04-evaluation.md` (or researcher confirms design is ready) |
 | `/revise` | `05-handoff.md` |

@@ -215,6 +215,22 @@ install_uxd_skills() {
       echo "  Check network access to github.com and re-run install." >&2
       return 1
     }
+
+    local local_main_sha
+    local unpushed_commits
+    local_main_sha="$(git -C "$UXD_DIR" rev-parse --verify refs/heads/main 2>/dev/null)" || local_main_sha=""
+    if [[ -n "$local_main_sha" ]]; then
+      unpushed_commits="$(git -C "$UXD_DIR" rev-list --count origin/main..refs/heads/main 2>/dev/null)" || {
+        echo "  Error: could not compare local main with origin/main" >&2
+        return 1
+      }
+      if [[ "$unpushed_commits" -gt 0 ]]; then
+        echo "  Error: local main has $unpushed_commits commit(s) not in origin/main; preserve them before updating." >&2
+        echo "  Create a backup branch or push the commits, then re-run install." >&2
+        return 1
+      fi
+    fi
+
     git -C "$UXD_DIR" checkout --quiet -B main origin/main 2>/dev/null || {
       echo "  Error: could not check out the latest UXD AI Skills main" >&2
       return 1

@@ -88,7 +88,11 @@ Step 2 will fall back to asking the researcher for the docs paths.
 **If only a feature description or problem statement was provided**, there is
 no story to trace. Skip the reference-following in Steps 2–3, note in the
 artifact that no PRD or design document was ingested, and proceed to Step 4.
-Do not invent a PRD or design context that does not exist.
+Do not invent a PRD or design context that does not exist. Before writing the
+artifact, ask the researcher for a stable artifact key. Prefer a provided Jira
+or feature key; otherwise, use a short descriptive key such as
+`description-<slug>`. Use it as `{issue-key}` for artifact paths, but do not use
+it for Jira queries or imply that a Jira issue exists.
 
 ### Step 2: Load the PRD and Design Document
 
