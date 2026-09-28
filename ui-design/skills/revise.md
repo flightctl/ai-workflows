@@ -70,7 +70,10 @@ applying them.
 
 ### Step 4: Apply Changes
 
-Update `02-ui-design.md` (and `03-api-findings.md` if affected):
+Update `02-ui-design.md` (and `03-api-findings.md` if affected).
+If artifact files cannot be read or written (e.g., file tools are
+unavailable or return errors), stop and report which operations
+failed — do not report the revision as complete.
 
 1. Apply the primary changes from the feedback
 2. Propagate ripple effects to all affected sections

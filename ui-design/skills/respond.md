@@ -295,18 +295,23 @@ matches the current `{comment_id}`.
   entire comment (do not append, do not post) to avoid duplicates.
 - If found with `Post result: pending` or `API Response ID: unknown`,
   reuse the existing entry — do not append a duplicate. Perform a
-  **GitHub lookup** before re-posting: query the PR's comment thread
-  for a reply matching this response's body text to determine whether
-  the prior attempt actually succeeded. If a matching reply is found,
-  update the existing entry with the discovered `API Response ID` and
-  mark it successful — skip re-posting. If no matching reply is found,
-  proceed with posting and update the existing entry in Step 6d.
+  **GitHub lookup** before re-posting to determine whether the prior
+  attempt actually succeeded. Search the correct endpoint for the
+  response type: for **inline review replies**, query the PR's review
+  comments (`pulls/{pr_number}/comments`); for **top-level responses**
+  (posted with `gh pr comment`), query issue comments
+  (`issues/{pr_number}/comments`). Match against this response's body
+  text. If a matching reply is found, update the existing entry with the
+  discovered `API Response ID` and mark it successful — skip re-posting.
+  If no matching reply is found, proceed with posting and update the
+  existing entry in Step 6d.
 - If found with a failed `Post result`, reuse the existing entry —
   do not append a duplicate. Before re-posting, perform the same
-  GitHub lookup as the `pending`/`unknown` path above: query the
-  PR's review comments for a match. If the response was already
-  posted, mark it `success` and skip. Otherwise proceed with
-  posting and update the existing entry in Step 6d.
+  GitHub lookup as the `pending`/`unknown` path above: search issue
+  comments for top-level responses and review comments for inline
+  replies. If the response was already posted, mark it `success` and
+  skip. Otherwise proceed with posting and update the existing entry
+  in Step 6d.
 - If no matching entry exists, append a new preliminary entry with
   `Post result: pending` and `API Response ID: unknown`:
 

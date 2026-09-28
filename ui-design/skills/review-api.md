@@ -87,6 +87,11 @@ For each entry the `/plan` phase flagged as unresolved, search the backend:
 3. **Search by existing UI usage** — if similar data is displayed elsewhere
    in the frontend, trace how it's fetched
 
+If search or file-read tools are unavailable or return errors for a data
+need, do not infer that the endpoint is absent — stop and report which
+tools failed and which data needs could not be investigated. An
+incomplete search must not be treated as a confirmed gap.
+
 If found: resolve the mapping with the confirmed endpoint and field.
 If not found: categorize the gap (Step 4).
 
@@ -119,7 +124,13 @@ For each unresolved data need, assign a gap category:
 | **Shape mismatch** | Endpoint returns data in a shape the UI can't efficiently use | UI needs a flat list; API returns nested tree structure |
 | **Permission gap** | No API support for the permission check the UI needs | UI needs `canManageFleet` check; no permissions endpoint exists |
 
-### Step 5: Write API Findings
+### Step 5: Consolidate and Write API Findings
+
+During Steps 3 and 4, record each verified mapping and categorized gap
+as it is investigated — do not defer all findings synthesis to this step.
+Use a running list of resolved mappings and gaps so no finding is lost
+during the per-item investigation. This step consolidates those records
+into the final output.
 
 #### Determine Output Location
 
@@ -232,7 +243,7 @@ Also update the Data Flow Mapping section in `02-ui-design.md`:
 
 Before presenting the findings, verify:
 
-- [ ] Every entry in the original Data Flow Mapping has been investigated
+- [ ] Every item in the complete data-needs inventory (Data Flow Mapping, Hook Design, Component Architecture, State Management, and Persona-Aware Decomposition) has been investigated
 - [ ] Every resolved mapping has been verified against actual backend code (not just type definitions)
 - [ ] Every gap has a specific category, severity, and UI impact
 - [ ] No `Unknown` source types remain in the Data Flow Mapping
