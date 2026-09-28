@@ -16,19 +16,23 @@ The `ui-design` workflow consumes the published UX handoff (`05-handoff.md`) and
 graph TD
     ingest([ingest]) --> plan
     plan --> review-api
+    plan -.->|no unresolved data| publish
     review-api --> revise
+    review-api -.->|confident in output| publish
     revise --> revise
     revise --> publish
     publish --> respond
     respond --> respond
     respond --> sync
+    respond -.->|no sync needed| done([done])
+    sync --> done
 ```
 
 ## Prerequisites
 
 | Tool | Required | Purpose |
 |------|----------|---------|
-| Jira access (MCP or CLI) | For `/ingest`, `/sync` | Fetch `[UI]` story, create `[DEV]` stories |
+| Jira access (MCP or CLI) | For `/ingest` (Jira flow only), `/sync` | Fetch `[UI]` story, create `[DEV]` stories |
 | Docs repository (configured) | For `/ingest`, `/publish` | Load upstream PRD, design doc, UX handoff; publish UI design |
 | GitHub CLI (`gh`) | For `/publish`, `/respond` | Create PRs, post review comments |
 | Git | Yes | Branch management, commits |
