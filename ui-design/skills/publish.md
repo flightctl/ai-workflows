@@ -193,16 +193,23 @@ git -C "{docs_repo_path}" commit -m "Add UI design for {workspace-id}"
 
 ### Step 9: Push and Create PR
 
-Before pushing, check whether the branch already exists on the remote:
+Before pushing, check whether the branch already exists at the actual
+push destination. In a triangular remote setup the fetch URL can differ
+from the push URL, so resolve the push URL explicitly:
 
 ```bash
-git -C "{docs_repo_path}" ls-remote --exit-code "{PUSH_REMOTE}" "refs/heads/{BRANCH_NAME}"
+PUSH_URL_RESOLVED=$(git -C "{docs_repo_path}" remote get-url --push "{PUSH_REMOTE}")
+git -C "{docs_repo_path}" ls-remote --exit-code "${PUSH_URL_RESOLVED}" "refs/heads/{BRANCH_NAME}"
 ```
 
-If the branch exists, ask the user whether to force-push (replacing the
-remote branch) or stop so they can reconcile manually. Do not push
-unconditionally when the remote branch has commits this local branch
-does not contain.
+Interpret the result:
+- **Exit code 2** (no matching ref): the branch is absent — safe to push.
+- **Exit code 0** (ref found): the branch exists. Ask the user whether
+  to force-push (replacing the remote branch) or stop so they can
+  reconcile manually. Do not push unconditionally when the remote branch
+  has commits this local branch does not contain.
+- **Any other exit code** (network error, auth failure, invalid URL):
+  stop and report the error — do not assume the branch is absent.
 
 Push the branch:
 
