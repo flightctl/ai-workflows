@@ -111,16 +111,16 @@ for the diff in Step 8a.
 **Jira input.** Fetch the Jira issue using the shared script:
 
 ```bash
-python3 "../../_shared/scripts/fetch-issue.py" get "{workspace-id}"
+python3 "../../_shared/scripts/fetch-issue.py" get "{workspace-id}" --parent --links
 ```
 
 From the story, extract:
 - **Summary and description** — what the UI work entails
 - **Acceptance criteria** — testable outcomes for the UI
-- **Parent epic/feature** — for hierarchy context
+- **Parent epic/feature** — for hierarchy context (requires `--parent`)
 - **Design Reference** — links to the design document, PRD, or UX handoff
 - **Linked issues** — sibling stories (`[DEV]`, `[UX]`, `[QE]`) that
-  provide implementation context
+  provide implementation context (requires `--links`)
 - **Labels and components** — for scoping codebase exploration
 
 **Non-Jira input.** When the user provided a path or description instead
@@ -155,11 +155,17 @@ the stored path is absolute. Write `.artifacts/config.json`.
 
 ### Step 5: Load Upstream Planning Artifacts
 
+Before using `docs_repo_path` in shell commands, validate that it is a
+clean filesystem path: it must be an absolute path, must not contain
+shell metacharacters (`$`, `` ` ``, `|`, `;`, `&`, newlines), and must
+resolve to an existing directory. If validation fails, stop and ask
+the user to correct the path in `.artifacts/config.json`.
+
 Search the docs repo for a directory whose name contains `{workspace-id}` or
-the parent feature key:
+the parent feature key. Pass `docs_repo_path` as a quoted argument:
 
 ```bash
-find "{docs_repo_path}" -type d \( -name "*{workspace-id}*" -o -name "*{feature-key}*" \)
+find "${docs_repo_path}" -type d \( -name "*${workspace_id}*" -o -name "*${feature_key}*" \)
 ```
 
 **Non-Jira input.** When `{workspace-id}` was derived from non-Jira
@@ -167,7 +173,7 @@ input (Step 1), `{feature-key}` is not available. Use only
 `{workspace-id}` or a value derived from the supplied input:
 
 ```bash
-find "{docs_repo_path}" -type d -name "*{workspace-id}*"
+find "${docs_repo_path}" -type d -name "*${workspace_id}*"
 ```
 
 #### 5.1: Load the PRD
@@ -180,7 +186,11 @@ Record the resolved PRD path.
 
 #### 5.2: Load the Design Document
 
-Filter matches to directories containing `design.md`. Read it for:
+Filter matches to directories containing `design.md`. If exactly one
+match, read it. If multiple, present them to the user and ask which is
+current. If none, ask the user for the path.
+
+Read the resolved design document for:
 - API Changes (§4.3) — endpoints, request/response shapes
 - Data Model / Schema Changes (§4.2) — models the UI will consume
 - Interface Changes (§5) — IC-N entries relevant to the UI
@@ -192,7 +202,9 @@ Record the resolved design document path.
 #### 5.3: Load the UX Handoff (Optional)
 
 Filter matches to directories containing `05-handoff.md` (the UX handoff
-artifact) or a file with `handoff` in its name.
+artifact) or a file with `handoff` in its name. If multiple match,
+present them to the user and ask which is current. If none, proceed
+without a handoff (it is optional).
 
 If found, read it. Extract and record:
 - **Component Mapping** — UI elements → design system components
@@ -277,6 +289,10 @@ the areas of the codebase that the UI work will affect. Focus on two domains:
    RBAC patterns exist on the API side?
 
 Use file search (glob), content search (grep), and targeted file reading.
+If these tools are unavailable or cannot execute (e.g., no file search
+tool, MCP errors, sandbox restrictions), stop and report which tools
+are missing before producing any codebase context — do not infer
+patterns from filenames or prior knowledge alone.
 Focus on 15–25 key files that establish the patterns and boundaries of change.
 If the last 3–5 files explored introduced no new patterns or constraints,
 exploration is likely complete. Note what remains uncertain in the Open

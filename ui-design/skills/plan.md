@@ -62,6 +62,10 @@ Then open **cited sources only** from `01-context.md`:
    `AGENTS.md`, and `UI-ARCHITECTURE.md` do not count).
 4. Do not glob, repo-wide grep, or run Jira queries. Read the cited files
    and the required upstream artifacts. Do not re-run ingest exploration.
+   If cited source files cannot be read (e.g., file read tools are
+   unavailable or return errors), stop and report which reads failed
+   before writing the plan — do not substitute assumptions for
+   unverified source content.
 
 ### Step 2: Map UX Handoff to Design Decisions
 
@@ -348,9 +352,11 @@ decisions:}
 
 {Live regions, announcement patterns, status updates.}
 
-{If HAS_HANDOFF is false: "Accessibility requirements are derived from
-project conventions and WCAG 2.1 AA baseline. Detailed interaction-level
-accessibility specs were not available from a UX handoff."}
+{If HAS_HANDOFF is false: "Accessibility recommendations follow
+project conventions. WCAG 2.1 AA is used as a recommended baseline
+unless the PRD, project standards, or user direction specify a
+different level. Detailed interaction-level accessibility specs were
+not available from a UX handoff."}
 
 ## Testing Strategy
 
