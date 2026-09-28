@@ -23,6 +23,12 @@ Read `.artifacts/ux-design/{issue-key}/01-discovery.md` for user groups and
 problem framing. If `.artifacts/ux-design/{issue-key}/02-research.md` exists,
 read it for user needs and insights.
 
+Read `00-context.md` and confirm that the active prototype has been reviewed
+against the current discovery revision. If not, stop and recommend `/prototype`
+to review or revise it first. Every evaluation is tied to both the prototype
+iteration and discovery revision it assessed. A prior evaluation does not
+validate a later prototype or a prototype assessed against newer context.
+
 ## Process
 
 ### Step 1: Choose Evaluation Depth
@@ -38,6 +44,10 @@ Ask the researcher which coverage is appropriate:
 Use Quick for early iterations, Standard for most reviews, and Full when the
 prototype has Jira acceptance criteria and can be run in a browser. Default to
 Standard.
+
+During Feature-only work, Quick and Standard are available. Full is available
+only when `00-context.md` contains the linked `[UX]` story key; never pass the
+Feature key in its place.
 
 The upstream `uxd-prototype-evaluate` skill is now an acceptance-criteria and
 persona walkthrough pipeline. It no longer accepts `--depth` and no longer
@@ -106,8 +116,8 @@ audit.
 
 ### Step 4: Acceptance-Criteria and Persona Evaluation (Full only)
 
-`uxd-prototype-evaluate` now requires a Jira story key, Atlassian MCP access, a
-reachable prototype URL, Node/npm, and Playwright Chromium. It runs acceptance-
+`uxd-prototype-evaluate` requires the linked `[UX]` Jira story key, Atlassian
+MCP access, a reachable prototype URL, Node/npm, and Playwright Chromium. It runs acceptance-
 criteria validation and persona-based browser walkthroughs. It may fix failed
 criteria by default, so always pass `--no-fix`; never pass `--reset` or omit
 `--no-fix` in this workflow. It has no `--depth` flag. With a prototype URL but no
@@ -125,19 +135,19 @@ each run:
    evaluator's `.artifacts/` output paths resolve inside the UX Design
    workflow's private artifact directory.
 3. Stage the prototype's `rfe-snapshot.md` at
-   `{run-directory}/.artifacts/{issue-key}/rfe-snapshot.md`. Stage any
+   `{run-directory}/.artifacts/{story-key}/rfe-snapshot.md`. Stage any
    `decisions/` artifacts there when available. If the consumer project has
    `config/product-overlay.yaml`, copy it to the same path under the run
    directory; do not invent a product overlay if it is absent.
-4. Run the evaluator from the run directory with the issue key, prototype URL,
+4. Run the evaluator from the run directory with `{story-key}`, prototype URL,
    `--no-fix`, and `--workspace=<path>` when a workspace clone exists:
 
    ```text
-   uxd-prototype-evaluate {issue-key} "{prototype URL}" --no-fix [--workspace="{workspace path}"]
+   uxd-prototype-evaluate {story-key} "{prototype URL}" --no-fix [--workspace="{workspace path}"]
    ```
 
 5. Read the resulting report and evidence from
-   `{run-directory}/.artifacts/{issue-key}/eval/`. The cross-key files are
+   `{run-directory}/.artifacts/{story-key}/eval/`. The cross-key files are
    isolated under `{run-directory}/.artifacts/eval/`. Keep the run directory
    for review; do not copy these files to `.artifacts/{issue-key}/` at the
    repository root.
@@ -204,13 +214,22 @@ Do not make these decisions for the researcher.
 
 `.artifacts/ux-design/{issue-key}/04-evaluation.md`
 
+Before replacing an existing `04-evaluation.md`, preserve it under
+`.artifacts/ux-design/{issue-key}/history/evaluation-r{N}.md`, where `{N}` is
+the prior evaluation revision, unless that exact report is already preserved
+in the current context-revision snapshot. Increment the evaluation revision
+for every new report. Keep each raw evaluator run in its unique `04-eval-raw/`
+directory.
+
 Omit sections for methods that did not run. Use this structure:
 
 ```markdown
 # Evaluation Report — {issue-key}
 
 **Date:** {date}
+**Evaluation revision:** {revision number}
 **Prototype iteration:** {N}
+**Discovery revision:** {revision evaluated}
 **Depth:** {Quick / Standard / Full}
 **Framework:** {heuristic framework}
 **Methods:** {methods run}
@@ -264,3 +283,7 @@ to carry into handoff.}
 Present the evaluation and readiness assessment. Ask whether the researcher
 wants to iterate or move to handoff. Wait for the answer, then re-read
 `controller.md` for next-step guidance.
+
+After the researcher confirms the report, update `00-context.md` with the
+evaluated prototype iteration and discovery revision. Only an evaluation whose
+revision matches the current enriched discovery can satisfy `/handoff`.

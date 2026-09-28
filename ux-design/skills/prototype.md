@@ -20,6 +20,14 @@ Read `.artifacts/ux-design/{issue-key}/01-discovery.md` for the problem, user
 groups, and competitive landscape. If it is missing, ask for an equivalent
 problem framing. If none is available, recommend `/ingest` and stop.
 
+Read `00-context.md` when present. Record the discovery revision and research
+synthesis used for each prototype iteration. If the context was enriched after
+the current prototype was created, compare its decisions with the current
+discovery and research reconciliation. Present which flows and decisions can
+carry forward and which need revision; wait for the researcher to approve the
+direction. An early prototype is a reference for exploration, not a validated
+design for the enriched context.
+
 When returning from `/evaluate`, read `04-evaluation.md` and use the
 researcher-approved findings to guide the next iteration.
 
@@ -59,9 +67,12 @@ uxd-prototype-create "{source}" --workspace "{path-or-standalone}" --decisions h
 ```
 
 For a refinement, use the same prototype ID and `--decisions auto` after
-staging the evaluator artifacts described below. `--workspace` is the codebase
-to build in; `--target` is only a later MR/PR destination. Do not pass a target
-unless the researcher requested publishing and approved the destination.
+staging current evaluator artifacts described below. If the discovery revision
+changed since the evaluation, do not feed that stale evaluation into the
+refinement; use the researcher-approved context and design feedback instead.
+`--workspace` is the codebase to build in; `--target` is only a later MR/PR
+destination. Do not pass a target unless the researcher requested publishing
+and approved the destination.
 
 Keep the scope focused on:
 
@@ -105,16 +116,24 @@ Invoke refinement as:
 uxd-prototype-create refine {ID} --decisions auto
 ```
 
-After it finishes, mirror the updated outputs and remove the temporary native
-`.artifacts/{ID}/` directory. Do not leave the only copy of the refined
-prototype in native skill scratch.
+Before replacing the active prototype, preserve the entire current
+`.artifacts/ux-design/{issue-key}/03-prototype/` tree under
+`history/prototype-iteration-{N}/`, unless that exact tree is already preserved
+in the current context-revision snapshot. Keep earlier snapshots unchanged.
+After the refinement finishes, mirror its outputs as the active prototype and
+remove the temporary native `.artifacts/{ID}/` directory. Do not leave the
+only copy of the refined prototype in native skill scratch.
 
 ### Step 3: Map Skill Output Into Our Artifact Structure
 
 The create skill writes to `.artifacts/{ID}/`, where `{ID}` is the Jira key or a
-slug. Mirror its output under
-`.artifacts/ux-design/{issue-key}/03-prototype/`, preserving the prototype's
-native layout so a refinement can restore it without flattening files.
+slug. Before mirroring a replacement over an existing active prototype,
+preserve the current tree under
+`.artifacts/ux-design/{issue-key}/history/prototype-iteration-{N}/`, unless
+that exact tree is already preserved in the current context-revision snapshot.
+Mirror the new output under `.artifacts/ux-design/{issue-key}/03-prototype/`,
+preserving the prototype's native layout so a refinement can restore it without
+flattening files.
 
 **Standalone prototype:**
 
@@ -186,6 +205,9 @@ Do not invent research evidence.
 
 **Date:** {date}
 **Iteration:** {N}
+**Discovery revision:** {revision used to make this iteration}
+**Research basis:** {research revision/findings or "Research skipped"}
+**Revalidated against discovery revision:** {revision or "Not yet revalidated"}
 **Skill prototype ID:** {ID}
 **Design direction:** {chosen direction}
 **Prototype mode:** {standalone / workspace}
@@ -221,3 +243,9 @@ Do not invent research evidence.
 Present the prototype and its scope to the researcher. Wait for feedback before
 revising or recommending `/evaluate`, then re-read `controller.md` for
 next-step guidance.
+
+Update `00-context.md` with the active prototype iteration and the discovery
+revision it has been reviewed against. If the design is materially changed,
+increment the iteration and preserve the prior tree first. If no design change
+is needed after enrichment, record the review against the new discovery
+revision without changing the prototype's original iteration or basis.

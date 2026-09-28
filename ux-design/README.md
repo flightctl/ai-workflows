@@ -1,22 +1,27 @@
 # UX Design Workflow
 
-A UX design workflow that takes a `[UX]` story through discovery, user
-research, prototyping, and heuristic evaluation to produce a validated
-design handoff artifact for the `ui-design` workflow. `/ingest` follows the
-story's references to load the PRD, design document, and sibling stories from
-shared locations, so the design is grounded in the feature's real personas,
-non-functional requirements, and technical constraints.
+A UX design workflow that supports early research and exploratory prototypes
+from a Jira Feature, then enriches that Feature context from its PRD, design
+document, and linked `[UX]` story. Feature-only work can iterate through
+research, prototyping, and evaluation. It cannot produce the implementation
+handoff consumed by `ui-design` until the context and active design have been
+reviewed against those upstream inputs.
 
 ## Phase Flow
 
 ```mermaid
 graph TD
-    ingest([ingest]) --> research
-    ingest --> prototype
+    feature_ingest([Feature-only ingest]) --> research
+    feature_ingest --> prototype
     research --> prototype
     prototype --> evaluate
     evaluate -->|iterate| prototype
-    evaluate -->|ready| handoff
+    prototype -->|research gap| research
+    feature_ingest -->|PRD, design, UX story available| enrich([Enrich same Feature context])
+    enrich --> research
+    enrich --> prototype
+    enrich --> evaluate
+    evaluate -->|current context and prototype| handoff
     handoff --> revise
     handoff --> publish
     revise --> publish
@@ -24,32 +29,35 @@ graph TD
 ```
 
 Research is conditional — skip directly to `/prototype` if the researcher
-already has validated data or well-understood user needs.
+already has validated data or well-understood user needs. Feature-only work is
+exploratory; re-ingest when the PRD, design document, and linked `[UX]` story
+are available. Reconcile prior work and evaluate the active prototype against
+the enriched context before handoff.
 
 ## Prerequisites
 
 | Tool | Required | Purpose |
 |------|----------|---------|
-| Jira access (MCP or CLI) | For `/ingest` | Fetch the `[UX]` story, its Design Reference, and sibling stories |
-| Docs repo (published PRD + design doc) | For `/ingest` | Load the PRD and design document the design must honor |
+| Jira access (MCP or CLI) | For `/ingest` | Fetch a Feature for early exploration or a `[UX]` story for enriched context |
+| Published PRD + design doc (docs repo or supplied paths) | For context enrichment in `/ingest` | Load the upstream requirements and technical constraints |
 | UXD Research, Prototype, and Design plugins | Required | Discovery, prototyping, evaluation, and handoff skills |
 | Jira access (Atlassian MCP) | For Full `/evaluate` | `uxd-prototype-evaluate` fetches story acceptance criteria |
 | `python3`, Node/npm, and Playwright Chromium | For Full `/evaluate` | Prototype evaluation helper scripts and browser walkthroughs |
 
-`/ingest` loads all upstream inputs from **shared** locations (the published
-docs repo and Jira) — never from another workflow's private `.artifacts/`.
-Missing inputs are recorded as gaps, not fabricated; `/handoff`'s feasibility
-check marks its findings "unverified" when the design document was unavailable.
+`/ingest` loads upstream inputs from **shared** locations (Jira and the
+published docs repo) — never from another workflow's private `.artifacts/`.
+Missing documents are recorded as gaps during exploratory work. `/handoff`
+requires the PRD, design document, and linked `[UX]` story to be ingested.
 
 ## Phases
 
 | Phase | Command | Purpose | Artifact(s) |
 |-------|---------|---------|-------------|
-| Ingest | `/ingest` | Load PRD + design doc + sibling stories, frame the problem, identify user groups, survey landscape | `01-discovery.md` |
+| Ingest | `/ingest` | Start from a Feature or enrich its context from a linked story, PRD, and design document | `00-context.md`, `01-discovery.md` |
 | Research | `/research` | Conduct user research, synthesize findings | `02-research.md` |
 | Prototype | `/prototype` | Generate design prototypes from research | `03-prototype/` |
 | Evaluate | `/evaluate` | Heuristic evaluation and usability assessment | `04-evaluation.md` |
-| Design handoff | `/handoff` | Produce implementation-ready design spec | `05-handoff.md` |
+| Design handoff | `/handoff` | Produce an implementation-ready spec after enriched context and current prototype evaluation | `05-handoff.md` |
 | Revise | `/revise` | Incorporate stakeholder feedback | `05-handoff.md` (updated) |
 | Publish | `/publish` | Push handoff spec to docs repo for review | `06-pr-description.md`, `publish-metadata.json`, PR in docs repo |
 | Respond | `/respond` | Address PR reviewer comments | Updated `05-handoff.md` |
@@ -57,30 +65,41 @@ check marks its findings "unverified" when the design document was unavailable.
 ## Typical Flow
 
 ```text
-/ingest EDM-1234
-  → follows the [UX] story's Design Reference to load the PRD, design
-    document, and sibling stories from the docs repo and Jira
-  → frames the problem, identifies user groups
-  → surveys competitive landscape
-  → writes .artifacts/ux-design/EDM-1234/01-discovery.md
+/ingest EDM-Feature
+  → loads the Feature issue without requiring a PRD or design document
+  → frames the problem, identifies user groups, and records assumptions
+  → writes exploratory context under .artifacts/ux-design/EDM-Feature/
 
 /research                          (conditional — skip if you have data)
   → conducts user research
   → synthesizes findings into themed insights
   → documents persona-specific needs
-  → writes 02-research.md
+  → records the discovery revision that framed the work
 
 /prototype
-  → generates design prototypes informed by research
-  → writes 03-prototype/ (files + prototype-notes.md)
+  → creates an exploratory prototype informed by research
+  → records the discovery revision and prototype iteration
 
 /evaluate
-  → runs heuristic evaluation against prototype
+  → evaluates the active prototype against its discovery revision
   → writes 04-evaluation.md
-  → loops back to /prototype if critical issues found
+  → loops to /prototype or /research as findings require
+
+/ingest EDM-UX
+  → resolves the linked Feature key and reuses its existing artifact directory
+  → loads the PRD, design document, story references, and sibling stories
+  → preserves the prior context and assesses which research/prototype findings
+    remain applicable
+  → updates 01-discovery.md with the enriched context revision
+
+/research, /prototype, /evaluate
+  → reconcile earlier evidence and design decisions with the enriched context
+  → preserve earlier research, prototypes, and evaluations in history
 
 /handoff
-  → synthesizes all artifacts into implementation spec
+  → proceeds only when PRD, design document, and linked [UX] story are ingested
+    and the active prototype and evaluation match the current context revision
+  → synthesizes current artifacts into implementation spec
   → maps UI elements to design system components
   → annotates data requirements per UI element
   → documents persona-specific views
@@ -99,17 +118,21 @@ check marks its findings "unverified" when the design document was unavailable.
 
 ## Artifacts
 
-All artifacts are stored in `.artifacts/ux-design/{issue-key}/`.
+All artifacts are stored in `.artifacts/ux-design/{feature-key}/`. The Feature
+key remains the stable context key when later phases are invoked with the
+linked `[UX]` story.
 
 ```text
 .artifacts/ux-design/EDM-1234/
-  01-discovery.md              (problem framing, user groups, landscape)
+  00-context.md                (Feature/story links, revision, maturity, active bases)
+  01-discovery.md              (current problem framing and upstream context)
   02-research.md               (research findings, insights, recommendations)
   03-prototype/                (mirrored skill output + design rationale)
     prototype-notes.md         (design decisions, user stories covered)
     prototype/                 (generated prototype files, from the skill)
   04-evaluation.md             (heuristic eval report, readiness assessment)
   04-eval-raw/                 (raw skill reports, mirrored from the eval skills)
+  history/                     (prior context snapshots, prototypes, evaluations)
   05-handoff.md                (implementation spec, component mapping, AC)
   06-pr-description.md         (generated PR body for /publish)
   publish-metadata.json        (PR tracking: number, URL, branch, head SHA)
@@ -119,6 +142,13 @@ All artifacts are stored in `.artifacts/ux-design/{issue-key}/`.
 ## Contract for the handoff
 
 `05-handoff.md` is the primary artifact consumed by the `ui-design` workflow.
+It can be created only after `00-context.md` is `enriched`, `01-discovery.md`
+contains the PRD and design document, and the linked `[UX]` story is recorded.
+Its prototype must be reviewed against that discovery revision, and its
+evaluation must cover the same revision and prototype iteration. Feature-only
+research or prototypes remain useful inputs; they are never sufficient on
+their own for this contract.
+
 It contains:
 
 - **Component mapping** — UI elements mapped to design system components

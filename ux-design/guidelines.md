@@ -21,6 +21,8 @@
 - **Research is conditional.** Not every feature needs a dedicated research
   phase. `/research` is recommended when user needs are unclear or unvalidated.
   Skip to `/prototype` if the researcher already has validated data.
+- **Feature-only work is exploratory.** Research and prototypes based only on a
+  Jira Feature can inform later planning, but cannot be handed off to `ui-design`.
 
 ## Hard Limits
 
@@ -31,6 +33,10 @@
   inclusion. Use role-based labels ("User P1", "Admin P2"), not names.
 - No publishing artifacts without explicit researcher approval.
 - No skipping the human gate between phases. Present findings, get confirmation.
+- `/handoff` requires an enriched context with the published PRD, design
+  document, and linked `[UX]` story, plus a prototype and evaluation reviewed
+  against the current context revision. Do not create a partial handoff from a
+  Feature-only context.
 - No committing to `main` directly. Use feature branches for `/publish`.
 - **No personal names in generated content.** Replace references to individuals
   from Jira tickets, interview notes, or other source material with role-based
@@ -83,7 +89,13 @@ Stop and request human guidance when:
 
 ## Artifact Persistence and Isolation
 
-- All workflow artifacts MUST be stored under `.artifacts/ux-design/{issue-key}/`
+- All workflow artifacts MUST be stored under `.artifacts/ux-design/{issue-key}/`,
+  where `{issue-key}` is the stable Feature key for a Jira-backed context.
+- Keep the Feature key as the artifact key when the workflow later receives a
+  linked `[UX]` story. Record story keys separately in `00-context.md`.
+- Preserve prior context and phase artifacts under `history/` before replacing
+  them. Never overwrite history snapshots. Record which context revision each
+  research synthesis, prototype iteration, and evaluation used.
 - NEVER read from another workflow's `.artifacts/` directory (`.artifacts/prd/`,
   `.artifacts/design/`, etc.) — those are private working directories, not
   interfaces

@@ -16,13 +16,28 @@ proceeding.
 
 ## Prerequisites
 
-Verify these artifacts exist before generating:
+Read `.artifacts/ux-design/{issue-key}/00-context.md` first. The context must
+be marked `enriched` and identify the Jira Feature, a linked `[UX]` story, the
+published PRD, and the published design document. An exploratory context that
+started from the Feature issue alone is not ready for handoff to `ui-design`.
+
+Verify these artifacts exist and apply to the current context before generating:
 - `.artifacts/ux-design/{issue-key}/01-discovery.md` — problem context
 - `.artifacts/ux-design/{issue-key}/03-prototype/` — design prototype
 - `.artifacts/ux-design/{issue-key}/04-evaluation.md` — evaluation results
 
-If any are missing, stop and ask whether to run the owning phase or proceed
-with an explicit partial-handoff caveat in the output.
+The discovery brief's context revision must match `00-context.md`. The current
+prototype must be recorded as reviewed against that revision, and the
+evaluation must cover that same revision and active prototype iteration. If
+research was run, its findings must also have a context reconciliation for the
+current revision.
+
+If any prerequisite is missing or stale, stop before invoking
+`uxd-design-handoff` and before writing `05-handoff.md`. Explain which upstream
+input or phase is missing, then recommend `/ingest`, `/research`, `/prototype`,
+or `/evaluate` as appropriate. Do not offer a partial handoff or allow a
+researcher override of the Feature-only gate. The researcher can continue the
+exploratory research and prototyping loop until the context is enriched.
 
 Read all available artifacts before proceeding. If `02-research.md` exists,
 read it — it is required for the Data Annotations and Persona-Specific Views
@@ -31,15 +46,12 @@ Research Context section that formal research findings were unavailable and
 that `01-discovery.md` supplied the evidence.
 
 Read `01-discovery.md` in full — in particular its **Technical Design
-Context** and **Non-Functional Requirements** sections. The design context
-(architecture, API shapes, data models) is the basis for the feasibility check
-in Step 4; the NFRs (accessibility targets, performance, supported browsers)
-feed the Accessibility Requirements and acceptance criteria. If either section
-reads "Not found," the feasibility check falls back to the evidence the phase
-holds — `01-discovery.md`'s Current State and the Step 2 data classifications
-(see Step 4) — and its results must be marked **unverified against the technical
-design**. Do not skip the check, and do not fabricate design constraints to
-satisfy it.
+Context** and **Non-Functional Requirements** sections. The ingested design
+document grounds the feasibility check; the PRD's NFRs feed the accessibility
+requirements and acceptance criteria. If either document is listed as missing
+or not ingested, the prerequisite gate fails. If a loaded document does not
+specify a particular constraint, record that gap and mark the affected finding
+unverified. Do not invent design constraints.
 
 ## Process
 
@@ -160,14 +172,11 @@ proposed **MVP / Phase 1** (what is deliverable now given the constraints),
 and present the split to the researcher. The researcher owns the phasing
 decision.
 
-If `01-discovery.md` has no Technical Design Context (design document was not
-ingested), still perform the check — but against the evidence the workflow
-actually holds: the **Current State** section of `01-discovery.md` (the
-codebase exploration from ingest Step 6) and the data-source classifications in
-Step 2 above. `/handoff` does no codebase exploration of its own, so do not
-imply verification the phase cannot perform. Mark every finding **unverified
-against the technical design** so reviewers know it rests on codebase
-inference, not the design document.
+If an ingested design document contains no relevant architecture, API, or data
+model information, perform the check against the available **Current State**
+and data-source classifications, and mark affected findings **unverified
+against the technical design**. `/handoff` does no codebase exploration of its
+own, so do not imply verification the phase cannot perform.
 
 ### Step 5: Assemble the handoff artifact
 
@@ -196,6 +205,10 @@ Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 # Implementation Handoff — {issue-key}
 
 **Date:** {date}
+**Feature key:** {feature-key}
+**UX story key:** {story-key}
+**Context revision:** {current enriched revision}
+**Prototype iteration:** {iteration evaluated}
 **Evaluation cycles:** {number of `/evaluate` runs}
 **Design system:** {detected or specified}
 
@@ -266,8 +279,9 @@ AC-1: {Component} — {State/Behavior}
 ## Feasibility and Phasing
 
 {Written in Step 4 above. State whether the design is verified against the
- technical design context or "unverified against the technical design" if no
- design document was ingested.}
+ technical design context. Mark individual findings "unverified against the
+ technical design" when an ingested source does not establish the needed
+ constraint.}
 
 | Design Element | Support | Notes / Backend Requirement |
 |----------------|---------|-----------------------------|
@@ -289,10 +303,10 @@ technical design supports the full design."}
 
 ## Research Context
 
-- **Discovery:** `01-discovery.md`
+- **Discovery:** `01-discovery.md` (context revision {revision})
 - **Research:** `02-research.md` (if available)
-- **Prototype:** `03-prototype/`
-- **Evaluation:** `04-evaluation.md`
+- **Prototype:** `03-prototype/` (iteration {N})
+- **Evaluation:** `04-evaluation.md` (context revision {revision})
 ```
 
 ## When This Phase Is Done
@@ -305,6 +319,9 @@ or edge cases missing?"
 Wait for confirmation. The researcher may:
 - Request additions or corrections → update the spec
 - Approve → the workflow is complete
+
+After approval, update `00-context.md` to record that `05-handoff.md` is
+approved against the current enriched discovery revision.
 
 When approved, report:
 - Summary of the research cycle (phases completed, iterations)

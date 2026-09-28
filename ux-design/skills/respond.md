@@ -41,6 +41,12 @@ Read `.artifacts/config.json` to get the docs repo path and
 number and `{branch-name}`. If either file doesn't exist, tell the user
 that `/publish` should be run first.
 
+Read `00-context.md` and compare the published handoff's discovery revision
+with the current revision. If enrichment made the handoff stale, stop before
+applying review feedback and recommend `/handoff` to regenerate it. Resume
+`/respond` after the updated handoff is approved so reviewer feedback is applied
+to the current design context.
+
 Determine `{owner}/{repo}` from the config's `docs_repo_remote`.
 
 Resolve `{AI_WORKFLOWS_ROOT}` as the git root of the ai-workflows install

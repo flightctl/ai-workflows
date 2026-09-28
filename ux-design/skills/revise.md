@@ -22,6 +22,10 @@ repeatable — the user may request multiple rounds of revision.
 Read the handoff spec and prior artifacts. If `05-handoff.md` does not exist,
 stop and tell the researcher to run `/handoff` first.
 
+Read `00-context.md`. If the context revision changed after the handoff or the
+handoff is not approved against the current enriched revision, stop and
+recommend `/handoff` to regenerate it before applying stakeholder revisions.
+
 - `.artifacts/ux-design/{issue-key}/05-handoff.md` (the deliverable)
 - `.artifacts/ux-design/{issue-key}/04-evaluation.md` (evaluation context)
 - `.artifacts/ux-design/{issue-key}/02-research.md` (research findings, if it

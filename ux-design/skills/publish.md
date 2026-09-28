@@ -23,6 +23,11 @@ Read `.artifacts/ux-design/{issue-key}/05-handoff.md`.
 
 If the file doesn't exist, tell the user that `/handoff` should be run first.
 
+Read `00-context.md` and verify that the context is `enriched` and the handoff
+is approved against the current discovery revision. If the manifest marks the
+handoff stale or its revision differs, stop and recommend `/handoff` before
+publishing. Never publish a handoff produced from Feature-only context.
+
 ### Step 2: Resolve Docs Repo
 
 Check for an existing docs repo configuration at `.artifacts/config.json`.

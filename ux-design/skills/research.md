@@ -12,10 +12,27 @@ the AI assists with organization, pattern identification, and synthesis.
 ## Prerequisites
 
 Read `.artifacts/ux-design/{issue-key}/01-discovery.md` for the problem
-framing and strategic decisions. If it doesn't exist, ask the researcher
-if they have an equivalent problem framing (PRD, feature brief, or
-description). If they do, use it as context. If not, tell the researcher
-that `/ingest` should run first and stop.
+framing and strategic decisions. For a Feature-scoped workflow, also read
+`00-context.md` to identify the current context revision and any linked
+story. If discovery doesn't exist, ask whether the researcher has equivalent
+problem framing (PRD, feature brief, or description). If they do, use it as
+context. If not, tell the researcher to run `/ingest` first and stop.
+
+If `.artifacts/ux-design/{issue-key}/02-research.md` already exists, continue
+from its evidence instead of starting over. When the context revision changed,
+read the archived discovery brief for the revision that informed the research
+and reconcile every prior finding against the current brief. Preserve its
+sources, observations, and confidence; label each finding `retained`,
+`revalidate`, or `superseded`. Run only the additional research needed to
+resolve new questions or revalidate affected findings. A changed product scope
+can change a finding's applicability without invalidating its original evidence.
+
+Before replacing an existing synthesis, preserve it under
+`history/research-r{N}/02-research.md`, unless that exact synthesis is already
+preserved in the current context-revision snapshot. Increment the research
+revision and keep the original evidence and source citations intact. For a
+first research pass, mark the context reconciliation “Not applicable — first
+research pass.”
 
 ## Process
 
@@ -104,12 +121,25 @@ Based on insights, propose design recommendations:
 
 `.artifacts/ux-design/{issue-key}/02-research.md`
 
+Record the discovery revision that framed this work. When updating prior
+research, keep the earlier report in the history snapshot created by `/ingest`
+and carry forward its evidence into the current synthesis. Do not discard or
+silently rewrite earlier findings.
+
 ```markdown
 # Research Findings — {issue-key}
 
 **Date:** {date}
+**Research revision:** {revision number}
 **Methods:** {list of methods used}
 **Participants:** {count and roles, anonymized}
+**Discovery basis:** {context revision or equivalent framing source}
+
+## Context Reconciliation
+
+| Prior finding | Evidence retained | Disposition for current context | Follow-up |
+|---------------|-------------------|---------------------------------|-----------|
+| {finding} | {source/data still available} | {retained / revalidate / superseded} | {additional research or none} |
 
 ## Research Questions & Answers
 
@@ -173,5 +203,11 @@ Wait for confirmation, then write the final synthesis to
 `.artifacts/ux-design/{issue-key}/02-research.md`. The handoff phase reads
 this file for Data Annotations and Persona-Specific Views — it must exist on
 disk before returning control.
+
+After saving the approved synthesis, update `00-context.md` so its active
+research basis matches the current discovery revision. If the researcher
+chooses not to repeat research after context enrichment, record that review in
+the existing synthesis and set its active basis only after they confirm the
+prior findings still apply.
 
 Then **re-read the controller** (`controller.md`) for next-step guidance.
