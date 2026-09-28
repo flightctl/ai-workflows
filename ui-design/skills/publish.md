@@ -26,6 +26,19 @@ description summarizes the UI design for reviewers.
 
 ### Step 1: Verify Prerequisites
 
+**Tool check.** Verify `gh` (GitHub CLI) is available and authenticated
+before making any git changes. Run `gh auth status` (or equivalent) to
+confirm. If `gh` is not installed or not authenticated, stop immediately
+and report:
+
+*"The GitHub CLI (`gh`) is required for `/publish` to create a draft PR.
+Install it and run `gh auth login` before retrying. No git changes have
+been made."*
+
+Do not proceed to branch creation, commits, or pushes without a
+confirmed `gh` installation — otherwise the push succeeds but the PR
+cannot be created, leaving an orphaned branch.
+
 Confirm these artifacts exist:
 - `.artifacts/ui-design/{workspace-id}/02-ui-design.md` (required)
 - `.artifacts/ui-design/{workspace-id}/03-api-findings.md` (optional — include if exists)
