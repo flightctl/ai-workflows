@@ -298,11 +298,17 @@ matches the current `{comment_id}`.
   **GitHub lookup** before re-posting to determine whether the prior
   attempt actually succeeded. Search the correct endpoint for the
   response type: for **inline review replies**, query the PR's review
-  comments (`pulls/{pr_number}/comments`); for **top-level responses**
-  (posted with `gh pr comment`), query issue comments
-  (`issues/{pr_number}/comments`). Match against this response's body
-  text. If a matching reply is found, update the existing entry with the
-  discovered `API Response ID` and mark it successful — skip re-posting.
+  comments (`pulls/{pr_number}/comments`) and filter to comments
+  whose `in_reply_to_id` chain traces back to the same root comment
+  as the selected thread — do not match against unrelated threads;
+  for **top-level responses** (posted with `gh pr comment`), query
+  issue comments (`issues/{pr_number}/comments`) and match by a
+  unique correlation marker embedded in the comment body (e.g.,
+  `<!-- respond-correlation: {workspace-id}/{comment_id} -->`) rather
+  than by body text alone — an identical reply on a different thread
+  must not be treated as this response. If a matching reply is found,
+  update the existing entry with the discovered `API Response ID` and
+  mark it successful — skip re-posting.
   If no matching reply is found, proceed with posting and update the
   existing entry in Step 6d.
 - If found with a failed `Post result`, reuse the existing entry —
@@ -336,9 +342,13 @@ gh api "repos/{upstream_repo}/pulls/{pr_number}/comments/${root_comment_id}/repl
   -F "body=@.artifacts/ui-design/{workspace-id}/pr-response-{N}.md"
 ```
 
-For general (non-inline) comments, use:
+For general (non-inline) comments, append a hidden correlation marker
+to the response file before posting so the retry lookup can
+distinguish this response from identical text posted elsewhere:
 
 ```bash
+echo '<!-- respond-correlation: {workspace-id}/{comment_id} -->' \
+  >> .artifacts/ui-design/{workspace-id}/pr-response-{N}.md
 gh pr comment {pr_number} --repo "{upstream_repo}" \
   --body-file .artifacts/ui-design/{workspace-id}/pr-response-{N}.md
 ```

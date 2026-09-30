@@ -116,6 +116,22 @@ the remaining fields. Read both sources for each gap:
 | `suggested_approach` | Gap Details block | Yes | Jira description, content_hash |
 | `affected_components` | API Gaps row ("UI Impact") + Gap Details | Yes | Jira description, content_hash |
 
+**Cross-source mismatch handling.** Fields sourced from both the API
+Gaps row and the Gap Details block (`category`, `severity`,
+`affected_components`) may diverge if the findings were hand-edited.
+Before using any of these fields for classification, hashing, or
+description rendering, compare the two values. If they differ for any
+gap, **stop and report the conflict to the user** — do not choose
+either value silently:
+
+*"Conflict detected for gap `{gap_id}`: `{field}` is `{row_value}` in
+the API Gaps table but `{details_value}` in the Gap Details block.
+Please reconcile the values in the API findings before re-running
+/sync."*
+
+Do not proceed with Jira operations until all cross-source conflicts
+are resolved.
+
 **Missing field handling.** If any gap is missing `gap_id`, stop and
 ask the user to re-run `/review-api` — the findings pre-date the
 gap_id requirement. If any other required field is missing or empty
@@ -294,8 +310,15 @@ differ, stop immediately and report:
 but the current context resolves to `{resolved parent}`. Existing Jira
 stories are linked to the manifest parent and cannot be automatically
 re-linked. Options: (1) update `01-context.md` to restore the original
-parent, (2) delete the manifest to start a fresh sync under the new
-parent, or (3) manually re-parent the existing stories in Jira."*
+parent, (2) manually re-parent the existing Jira stories to the new
+parent and then delete the manifest to start a fresh sync, or
+(3) manually re-parent the existing stories in Jira and update the
+manifest's `parent_key` to match."*
+
+Do not allow deleting the manifest as a standalone reset — the existing
+stories would remain under the old parent with no gap-to-Jira mapping,
+and the duplicate check (which searches only under the selected parent)
+would not find them, risking duplicate story creation.
 
 Do not proceed to the dry run, the "nothing to do" exit, or any Jira
 operations until the parent is reconciled.
