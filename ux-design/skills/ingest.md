@@ -1,19 +1,26 @@
 ---
 name: ingest
-description: Start Feature-scoped exploration, then enrich it with the PRD, design document, and linked UX story.
+description: >-
+  Start exploratory work from a Jira Feature or published PRD, then enrich it
+  with design and UX story inputs.
 ---
 
 # Ingest — Discovery and Context Enrichment
 
 Load the available feature context, frame the problem, identify who it affects,
-and survey how others have solved it. A Feature can seed early research and
-exploratory prototyping before a PRD or design document exists. Those artifacts
-remain exploratory until `/ingest` enriches the same Feature context with the
-published PRD, design document, and linked `[UX]` story.
+and survey how others have solved it. A Jira Feature or an explicitly supplied
+published `prd.md` can seed early research and exploratory prototyping before
+the design document or linked `[UX]` story exists. Those artifacts remain
+exploratory until `/ingest` enriches the same context with the design document
+and linked `[UX]` story.
 
 Use the Feature key as the stable artifact key for all work on that feature.
-When ingest starts from a `[UX]` story, resolve its Feature key and use that
-Feature's artifact directory; keep the story key as a separate linked input.
+When ingest starts from a PRD path, identify the Feature key from its Jira
+metadata or feature-directory name. If neither identifies one, ask the
+researcher for the Feature key to use as the stable context key before creating
+artifacts. When ingest starts from a `[UX]` story, resolve its Feature key and
+use that Feature's artifact directory; keep the story key as a separate linked
+input.
 
 ## Dependencies
 
@@ -25,26 +32,30 @@ proceeding.
 
 The person running `ux-design` may not be the person who ran `prd` or
 `design`. Every upstream input must be loaded from a **shared** location — the
-published docs repo or Jira — never from another workflow's private
-`.artifacts/` directory (`.artifacts/prd/`, `.artifacts/design/`). Those are
+published docs repo, an explicitly supplied published PRD path, or Jira —
+never from another workflow's private `.artifacts/` directory
+(`.artifacts/prd/`, `.artifacts/design/`). Those are
 each workflow's working directories, not interfaces.
 
 **Failure handling:** Distinguish fatal from non-fatal input failures:
 
-- **Fatal (hard-stop):** The core input — a Jira Feature, a `[UX]` story, or a
-  feature description — cannot be loaded or is invalid. Stop, report the exact error,
-  and offer to retry or ask the researcher to supply the input directly.
+- **Fatal (hard-stop):** The core input — a Jira Feature, a `[UX]` story, a
+  supplied PRD path, or a feature description — cannot be loaded or is invalid.
+  Stop, report the exact error, and offer to retry or ask the researcher to
+  supply the input directly. A PRD path that does not identify a stable context
+  key is incomplete; ask for one before creating artifacts.
 - **Non-fatal (note and continue):** An optional input (a specific sibling
   story, one document, the design system reference) is missing. Note what is
   missing in the artifact, continue with what is available, and **never
   fabricate** context to fill the gap. A downstream phase that depends on
   missing context must flag it, not paper over it.
 
-Examples: Jira Feature or story fetch failure → fatal. One sibling story
-inaccessible → non-fatal. PRD not found after docs-repo search → non-fatal
-(record "Not found"). A docs-repo path that is invalid during enrichment is
-fatal; during initial Feature-only exploration it is optional, so record that
-planning documents could not be checked and continue.
+Examples: Jira Feature or story fetch failure, or unreadable supplied PRD path
+→ fatal. One sibling story inaccessible → non-fatal. PRD not found after
+docs-repo search → non-fatal (record "Not found"). A docs-repo path that is
+invalid during enrichment is fatal; during initial Feature-only exploration it
+is optional, so record that planning documents could not be checked and
+continue.
 
 ## Process
 
@@ -52,18 +63,30 @@ planning documents could not be checked and continue.
 
 The researcher provides one of:
 - A Jira Feature issue key or URL
+- A path to a published `prd.md` file
 - A `[UX]` Jira story key or URL
 - A feature description or problem statement
 
-Fetch Jira issues read-only and inspect their issue type before following
-references. Keep the Feature key (`{issue-key}`) separate from any linked
+If an existing local path named `prd.md` is supplied, treat it as the primary
+input before interpreting the text as a Jira key or feature description. Resolve
+relative paths from the researcher's current working directory. Resolve
+symlinks before checking that the path is outside any workflow's private
+`.artifacts/` directory.
+
+For Jira-key inputs, fetch issues read-only and inspect their issue type before
+following references. A PRD-path input does not fetch Jira content. Keep the
+Feature key (`{issue-key}`) separate from any linked
 `[UX]` story key (`{story-key}`). `{issue-key}` names the stable artifact
 directory for every phase in this feature context. If the input is a Jira
 Feature, use its key. If the input is a `[UX]` story, resolve the Feature key
 through the parent chain or the epic's `Feature:` Design Reference, as below.
-For a description without a Jira Feature, ask for a stable artifact key and
-prefer a supplied Feature key; otherwise use a descriptive key such as
-`description-<slug>`.
+For a PRD path, read the Jira Feature key from the PRD metadata or the parent
+feature-directory name when present. If both provide keys and they conflict,
+ask which Feature the PRD belongs to. If neither provides a key, ask for the
+Feature key to use as the stable context key. Do not fetch Jira content just to
+validate this key. For a description without a Jira Feature, ask for a stable
+artifact key and prefer a supplied Feature key; otherwise use a descriptive
+key such as `description-<slug>`.
 
 **If a Jira Feature key was provided**, fetch the Feature and use its title,
 description, goals, and acceptance information as the initial source. Do not
@@ -74,6 +97,20 @@ setting one up; record that PRD/design documents were not checked and skip
 Steps 2–3. If the documents are not published, record that and skip Step 3.
 Continue with Step 4 and produce an exploratory brief. Do not imply that a
 missing PRD or design document was reviewed.
+
+**If a published PRD path was provided**, use that file as the primary input.
+Do not fetch Jira issue content or search for sibling documents just because a
+Feature key appears in the path. If the key is present in the PRD metadata or
+directory name, use it as `{issue-key}`; otherwise use the Feature key the
+researcher supplied as the stable context key. Do not require Jira access for
+this input. In Step 2, read only the supplied PRD; record
+the design document and linked `[UX]` story as not ingested. This is an initial
+PRD-only ingest even when a `design.md` or story exists beside it. For an
+existing context, preserve sources already recorded and add or refresh only
+the supplied PRD. On later Jira-backed enrichment, confirm the resolved Feature
+key matches this context's key. If it does not, stop and ask the researcher to
+reconcile the context; do not silently create a parallel artifact directory.
+Skip the docs-repo search for this invocation.
 
 **If a Jira `[UX]` story key was provided**, fetch the story (read-only — never
 create or modify Jira issues) and read its **Design Reference** section. In the
@@ -112,7 +149,9 @@ Jira issue exists.
 
 **When a context directory already exists**, treat this invocation as context
 enrichment only when it adds a newly available PRD, design document, or linked
-`[UX]` story. Read `00-context.md` and the current discovery, research,
+`[UX]` story. A PRD-path invocation adds only the supplied PRD; it does not
+implicitly ingest co-located clarifications, design, or story files.
+Read `00-context.md` and the current discovery, research,
 prototype, and evaluation artifacts before writing. If the same sources are
 already recorded and their contents are unchanged, resume the current context
 without incrementing its revision. Compare document content and available
@@ -128,9 +167,21 @@ They live together in the docs repo under the **feature** directory (named for
 the Feature issue, e.g., `v2.1/delta-updates-EDM-4867/`), as `prd.md`
 and `design.md` — *not* under the epic key or the `[UX]` story key.
 
+For a direct PRD-path input, use the path supplied in Step 1 and skip docs-repo
+configuration and search. Confirm the file is readable, its basename is
+`prd.md`, and its resolved path is outside every workflow's private
+`.artifacts/` directory. An explicitly supplied path is treated as the shared
+published source; Jira access and docs-repo configuration are not required.
+Record the resolved path. Read only that PRD; record the design document and
+linked `[UX]` story as not ingested, even if sibling files exist. This
+completes Step 2 for PRD-path input; do not continue to the docs-repo
+configuration or search subsections below.
+
 #### Resolve the docs repo
 
-Read `.artifacts/config.json` for `docs_repo_path` and `docs_repo_remote`.
+For Feature-key and `[UX]` story inputs, read `.artifacts/config.json` for
+`docs_repo_path` and `docs_repo_remote`. Direct PRD-path inputs use the bypass
+described above.
 
 The `docs_repo_path` is stored **relative to the source-repository root** so
 the config is portable across machines. Resolve it to an absolute path at
@@ -204,9 +255,9 @@ substitute assumptions for it.
 For a `[UX]` story input, understand how it fits into the broader feature so
 the design neither duplicates nor conflicts with adjacent work. Using the
 parent epic from Step 1, fetch the other stories in the same epic (read-only) —
-the `[UX]`, `[UI]`, and `[DEV]` siblings. If the input is a Feature or a
-description without a linked story, record that story-level scope is not yet
-available and skip this step.
+the `[UX]`, `[UI]`, and `[DEV]` siblings. If the input is a Feature, PRD path,
+or description without a linked story, record that story-level scope is not
+yet available and skip this step.
 
 For each sibling, capture just enough to map the boundaries:
 - its type and one-line summary,
@@ -232,12 +283,13 @@ tokens or patterns the project standardizes on.
 ### Step 5: Run UXD Discovery
 
 Invoke the `uxd-discovery` skill with the input source (the `[UX]` story key,
-Feature key, feature description, or problem statement) **plus the upstream
-context loaded above**. In an initial Feature-only ingest, use only the Feature
-content and clearly label resulting assumptions and strategic decisions as
-exploratory. When enriching an existing context, use the newly loaded PRD,
-design document, story, and sibling context to update the prior framing rather
-than treating discovery as a fresh feature.
+Feature key, supplied PRD path, feature description, or problem statement)
+**plus the upstream context loaded above**. In an initial Feature-only ingest,
+use only the Feature content; in an initial PRD-only ingest, use only the PRD.
+Clearly label resulting assumptions and strategic decisions as exploratory.
+When enriching an existing context, use the newly loaded PRD, design document,
+story, and sibling context to update the prior framing rather than treating
+discovery as a fresh feature.
 
 The skill handles:
 - Problem statement framing
@@ -260,8 +312,8 @@ affected UI area and the design system:
 If an optional external operation fails (one sibling story inaccessible, one
 codebase file unreadable): note what failed, continue with available data, and
 never fabricate context to fill the gap. If a core operation fails (Feature or
-story identity unresolvable, docs repo path invalid during enrichment): stop
-per the failure-handling rule above.
+story identity unresolvable, supplied PRD unreadable, docs repo path invalid
+during enrichment): stop per the failure-handling rule above.
 
 ### Step 7: Assemble the Discovery Artifact
 
@@ -330,7 +382,8 @@ research, prototype decisions, and evaluation results.}
 # Discovery — {issue-key}
 
 **Date:** {date}
-**Source:** {Feature key, [UX] story key, feature description, or problem statement}
+**Source:** {Feature key, [UX] story key, supplied PRD path, feature description,
+or problem statement}
 **Context revision:** {revision number}
 **Context state:** {exploratory / enriched}
 **Parent epic:** {epic key, or "None / not traced"}

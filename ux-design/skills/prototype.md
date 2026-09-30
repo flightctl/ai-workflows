@@ -48,7 +48,8 @@ suggest another.
 
 Settle the create skill's onboarding answers with the researcher:
 
-- **Source:** Jira RFE, Figma link, feature description, or idea from discovery.
+- **Source:** Jira RFE, published PRD path, Figma link, feature description,
+  or idea from discovery.
   Pass a Figma link directly to `uxd-prototype-create`; it reads Figma itself.
   Do not also run `uxd-figma-read` for the same source.
 - **Workspace:** `standalone` or a local path / Git URL for the codebase to
@@ -217,7 +218,7 @@ Do not invent research evidence.
 **Design direction:** {chosen direction}
 **Prototype mode:** {standalone / workspace}
 **Decision mode:** {skip / auto / human}
-**Input source:** {Jira RFE / Figma / feature description / idea}
+**Input source:** {Jira RFE / published PRD / Figma / feature description / idea}
 
 ## Design Decisions
 

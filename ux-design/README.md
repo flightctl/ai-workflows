@@ -1,23 +1,23 @@
 # UX Design Workflow
 
 A UX design workflow that supports early research and exploratory prototypes
-from a Jira Feature, then enriches that Feature context from its PRD, design
-document, and linked `[UX]` story. Feature-only work can iterate through
-research, prototyping, and evaluation. It cannot produce the implementation
-handoff consumed by `ui-design` until the context and active design have been
-reviewed against those upstream inputs.
+from a Jira Feature or a published PRD path, then enriches that context from
+the design document and linked `[UX]` story. Feature-only and PRD-only work can
+iterate through research, prototyping, and evaluation. It cannot produce the
+implementation handoff consumed by `ui-design` until all required inputs and
+the active design have been reviewed.
 
 ## Phase Flow
 
 ```mermaid
 graph TD
-    feature_ingest([Feature-only ingest]) --> research
-    feature_ingest --> prototype
+    early_ingest([Feature-only or PRD-only ingest]) --> research
+    early_ingest --> prototype
     research --> prototype
     prototype --> evaluate
     evaluate -->|iterate| prototype
     prototype -->|research gap| research
-    feature_ingest -->|PRD, design, UX story available| enrich([Enrich same Feature context])
+    early_ingest -->|design and UX story available| enrich([Enrich same Feature context])
     enrich --> research
     enrich --> prototype
     enrich --> evaluate
@@ -29,31 +29,33 @@ graph TD
 ```
 
 Research is conditional — skip directly to `/prototype` if the researcher
-already has validated data or well-understood user needs. Feature-only work is
-exploratory; re-ingest when the PRD, design document, and linked `[UX]` story
-are available. Reconcile prior work and evaluate the active prototype against
-the enriched context before handoff.
+already has validated data or well-understood user needs. Feature-only and
+PRD-only work is exploratory; re-ingest when the design document and linked
+`[UX]` story are available. Reconcile prior work and evaluate the active
+prototype against the enriched context before handoff.
 
 ## Prerequisites
 
 | Tool | Required | Purpose |
 |------|----------|---------|
-| Jira access (MCP or CLI) | For `/ingest` | Fetch a Feature for early exploration or a `[UX]` story for enriched context |
-| Published PRD + design doc (docs repo or supplied paths) | For context enrichment in `/ingest` | Load the upstream requirements and technical constraints |
+| Jira access (MCP or CLI) | For Jira-backed `/ingest` | Fetch a Feature or `[UX]` story; direct PRD-path ingestion does not fetch Jira content |
+| Published PRD (`prd.md`) | For PRD-path `/ingest` or later context enrichment | Load product requirements before the design document exists |
+| Published design doc (`design.md`) | For handoff context enrichment | Load technical constraints and data/API context |
 | UXD Research, Prototype, and Design plugins | Required | Discovery, prototyping, evaluation, and handoff skills |
 | Jira access (Atlassian MCP) | For Full `/evaluate` | `uxd-prototype-evaluate` fetches story acceptance criteria |
 | `python3`, Node/npm, and Playwright Chromium | For Full `/evaluate` | Prototype evaluation helper scripts and browser walkthroughs |
 
 `/ingest` loads upstream inputs from **shared** locations (Jira and the
-published docs repo) — never from another workflow's private `.artifacts/`.
-Missing documents are recorded as gaps during exploratory work. `/handoff`
-requires the PRD, design document, and linked `[UX]` story to be ingested.
+published docs repo or an explicitly supplied published PRD path) — never from
+another workflow's private `.artifacts/`. Missing documents are recorded as
+gaps during exploratory work. `/handoff` requires the PRD, design document,
+and linked `[UX]` story to be ingested.
 
 ## Phases
 
 | Phase | Command | Purpose | Artifact(s) |
 |-------|---------|---------|-------------|
-| Ingest | `/ingest` | Start from a Feature or enrich its context from a linked story, PRD, and design document | `00-context.md`, `01-discovery.md` |
+| Ingest | `/ingest` | Start from a Feature or published PRD path, or enrich its context from a linked story and design document | `00-context.md`, `01-discovery.md` |
 | Research | `/research` | Conduct user research, synthesize findings | `02-research.md` |
 | Prototype | `/prototype` | Generate design prototypes from research | `03-prototype/` |
 | Evaluate | `/evaluate` | Heuristic evaluation and usability assessment | `04-evaluation.md` |
@@ -69,6 +71,13 @@ requires the PRD, design document, and linked `[UX]` story to be ingested.
   → loads the Feature issue without requiring a PRD or design document
   → frames the problem, identifies user groups, and records assumptions
   → writes exploratory context under .artifacts/ux-design/EDM-Feature/
+
+Alternative when the PRD exists before the design document:
+/ingest "path/to/published/feature-directory/prd.md"
+  → uses the Feature key found in PRD metadata or the parent directory
+    (or asks for the Feature key to use as the stable context key)
+  → reads only that PRD; records design and UX story as not ingested
+  → writes an exploratory discovery brief under the same Feature-scoped path
 
 /research                          (conditional — skip if you have data)
   → conducts user research
@@ -87,7 +96,8 @@ requires the PRD, design document, and linked `[UX]` story to be ingested.
 
 /ingest EDM-UX
   → resolves the linked Feature key and reuses its existing artifact directory
-  → loads the PRD, design document, story references, and sibling stories
+  → loads the design document, story references, and sibling stories
+    (and the PRD if it was not already ingested)
   → preserves the prior context and assesses which research/prototype findings
     remain applicable
   → updates 01-discovery.md with the enriched context revision
@@ -148,8 +158,8 @@ It can be created only after `00-context.md` is `enriched`, `01-discovery.md`
 contains the PRD and design document, and the linked `[UX]` story is recorded.
 Its prototype must be reviewed against that discovery revision, and its
 evaluation must cover the same revision and prototype iteration. Feature-only
-research or prototypes remain useful inputs; they are never sufficient on
-their own for this contract.
+or PRD-only research and prototypes remain useful inputs; they are never
+sufficient on their own for this contract.
 
 It contains:
 

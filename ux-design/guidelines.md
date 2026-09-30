@@ -21,8 +21,9 @@
 - **Research is conditional.** Not every feature needs a dedicated research
   phase. `/research` is recommended when user needs are unclear or unvalidated.
   Skip to `/prototype` if the researcher already has validated data.
-- **Feature-only work is exploratory.** Research and prototypes based only on a
-  Jira Feature can inform later planning, but cannot be handed off to `ui-design`.
+- **Incomplete context is exploratory.** Research and prototypes based only on
+  a Jira Feature or PRD can inform later planning, but cannot be handed off to
+  `ui-design`.
 
 ## Hard Limits
 
@@ -36,7 +37,7 @@
 - `/handoff` requires an enriched context with the published PRD, design
   document, and linked `[UX]` story, plus a prototype and evaluation reviewed
   against the current context revision. Do not create a partial handoff from a
-  Feature-only context.
+  Feature-only or PRD-only context.
 - No committing to `main` directly. Use feature branches for `/publish`.
 - **No personal names in generated content.** Replace references to individuals
   from Jira tickets, interview notes, or other source material with role-based

@@ -45,9 +45,9 @@ Use Quick for early iterations, Standard for most reviews, and Full when the
 prototype has Jira acceptance criteria and can be run in a browser. Default to
 Standard.
 
-During Feature-only work, Quick and Standard are available. Full is available
-only when `00-context.md` contains the linked `[UX]` story key; never pass the
-Feature key in its place.
+During Feature-only or PRD-only work, Quick and Standard are available. Full is
+available only when `00-context.md` contains the linked `[UX]` story key;
+never pass the Feature key in its place.
 
 The upstream `uxd-prototype-evaluate` skill is now an acceptance-criteria and
 persona walkthrough pipeline. It no longer accepts `--depth` and no longer

@@ -1,6 +1,6 @@
 ---
 name: ux-design:ingest
-description: "Frame the problem, identify user groups, and survey the competitive landscape"
+description: "Ingest a Jira Feature, published PRD path, UX story, or feature description"
 ---
 # /ingest
 

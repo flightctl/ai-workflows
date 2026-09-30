@@ -3,9 +3,10 @@ name: ux-design
 version: 0.1.0
 description: >-
   UX design workflow that supports early research and exploratory prototyping
-  from a Jira Feature, then enriches the same context from its PRD, design
-  document, and linked [UX] story before producing an implementation handoff.
-  Feature-only work remains exploratory and cannot be handed off to ui-design.
+  from a Jira Feature or published PRD, then enriches the same context from its
+  design document and linked [UX] story before implementation handoff. Contexts
+  missing any of those upstream inputs remain exploratory and cannot be handed
+  off to ui-design.
   Activated by commands: /ingest, /research, /prototype, /evaluate, /handoff, /revise, /publish, /respond.
 ---
 # UX Design Workflow Orchestrator

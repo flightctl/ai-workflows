@@ -11,9 +11,9 @@ by executing phases and handling transitions between them.
 ## Phases
 
 1. **Ingest** (`/ingest`) — [ingest.md](ingest.md)
-   Accept a Jira Feature or `[UX]` story. A Feature can start exploratory
-   research and prototyping before planning documents exist. When the PRD,
-   design document, and linked story become available, enrich the same
+   Accept a Jira Feature, published PRD path, or `[UX]` story. Feature-only or
+   PRD-only input can start exploratory research and prototyping. When the
+   design document and linked story become available, enrich the same
    Feature-scoped context and assess which prior artifacts still apply.
 
 2. **Research** (`/research`) — [research.md](research.md)
@@ -50,7 +50,9 @@ by executing phases and handling transitions between them.
 All work happens in the **source repo** — the researcher needs codebase
 context to make informed design decisions. Planning artifacts live in
 `.artifacts/ux-design/{issue-key}/` (gitignored), where `{issue-key}` is the
-Feature key for a Jira-backed context. A linked `[UX]` story key is recorded
+Feature key for a Jira-backed context or PRD path. For a PRD without a Feature
+key in its metadata or directory, ask the researcher for the Feature key to
+use as the stable context key. A linked `[UX]` story key is recorded
 separately and used for story-specific operations such as Full evaluation.
 
 ### Artifact directory
@@ -103,12 +105,16 @@ Feature-only:
 /ingest Feature → [research] → prototype ⇄ evaluate
                            ↖ additional research when needed
 
+PRD-only:
+/ingest path/to/published/prd.md → [research] → prototype ⇄ evaluate
+  → remains exploratory until the design document and linked [UX] story are ingested
+
 Enriched:
 /ingest [UX] story → reconcile prior work → [research] → prototype ⇄ evaluate → handoff → revise → publish → respond
 ```
 
-Research is conditional in either flow. Feature-only prototypes and
-evaluations are exploratory. `/handoff` is available only after context is
+Research is conditional in either flow. Feature-only and PRD-only prototypes
+and evaluations are exploratory. `/handoff` is available only after context is
 enriched with the PRD, design document, and linked `[UX]` story, and the active
 prototype and evaluation have been reviewed against that context.
 
@@ -116,16 +122,16 @@ prototype and evaluation have been reviewed against that context.
 
 **Continuing forward:**
 
-- Initial Feature-only `/ingest` completed → recommend `/research` if user
-  needs are unclear or unvalidated; otherwise recommend `/prototype`. Keep the
-  work exploratory until the context is enriched.
+- Initial Feature-only or PRD-only `/ingest` completed → recommend `/research`
+  if user needs are unclear or unvalidated; otherwise recommend `/prototype`.
+  Keep the work exploratory until the context is enriched.
 - Enrichment `/ingest` completed → present the context-change assessment.
   Recommend `/research` for new or affected questions, `/prototype` to review
   or revise the active design, and `/evaluate` again before handoff.
 - `/research` completed → recommend `/prototype` to explore design directions
 - `/prototype` completed → recommend `/evaluate` (always — never skip evaluation)
 - `/evaluate` completed (no critical issues, enriched context, current prototype) → recommend `/handoff`
-- `/evaluate` completed on Feature-only context → keep work exploratory; recommend enrichment when the PRD, design document, and linked `[UX]` story are available
+- `/evaluate` completed on exploratory context → keep work exploratory; recommend enrichment when the design document and linked `[UX]` story are available
 - `/evaluate` completed (critical issues) → recommend `/prototype` to iterate
 - `/handoff` completed → recommend `/revise` if the researcher wants
   stakeholder feedback, or `/publish` to push the spec to the docs repo
@@ -149,7 +155,7 @@ user needs, recommend `/prototype` directly.
 **Iteration tracking:**
 
 - Track the number of prototype→evaluate cycles
-- After 3 cycles with enriched context, explicitly ask: "We've iterated 3 times. Ready for handoff, or continue refining?" With exploratory context, ask whether planning documents and the linked `[UX]` story are available yet; keep the design exploratory until they are.
+- After 3 cycles with enriched context, explicitly ask: "We've iterated 3 times. Ready for handoff, or continue refining?" With exploratory context, ask whether the design document and linked `[UX]` story are available yet; keep the design exploratory until they are.
 - The researcher decides — no hard cap
 
 **Looping back:**
@@ -175,7 +181,7 @@ Researchers can enter at any phase if they bring the prerequisite artifact:
 
 | Phase | Requires |
 |-------|----------|
-| `/ingest` | Jira Feature key, `[UX]` story key, or feature description |
+| `/ingest` | Jira Feature key, `[UX]` story key, published `prd.md` path, or feature description |
 | `/research` | `01-discovery.md` (or equivalent problem framing) |
 | `/prototype` | `01-discovery.md` or equivalent problem framing; `02-research.md` when `/research` runs, otherwise researcher confirms sufficient domain knowledge or validated research data |
 | `/evaluate` | Active prototype reviewed against current discovery. Full additionally needs the linked `[UX]` story key, Jira/browser access, and the private evaluator run root described in `evaluate.md` |
@@ -186,7 +192,7 @@ Researchers can enter at any phase if they bring the prerequisite artifact:
 
 If a prerequisite artifact is missing, tell the researcher which phase
 produces it and offer to run that phase first. For `/handoff`, do not offer a
-partial-handoff override when the context is still Feature-only or the active
+partial-handoff override when the context is still exploratory or the active
 prototype/evaluation has not been reconciled with the current revision.
 
 ### How to Present Options
@@ -254,7 +260,8 @@ phases.
   findings; this controller decides what to recommend next.
 - **Evaluation before handoff.** Recommend `/handoff` only when `/evaluate`
   covers the active prototype against the current enriched discovery revision.
-  A Feature-only evaluation or an explicit skip does not satisfy this gate.
+  An evaluation from exploratory context or an explicit skip does not satisfy
+  this gate.
 - **Upstream skills are required.** Each phase names its required UXD skill.
   If a skill is unavailable, stop and direct the researcher to run `./install.sh`.
 - **Research data is the researcher's.** The AI organizes and synthesizes

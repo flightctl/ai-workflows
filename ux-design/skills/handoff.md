@@ -18,8 +18,9 @@ proceeding.
 
 Read `.artifacts/ux-design/{issue-key}/00-context.md` first. The context must
 be marked `enriched` and identify the Jira Feature, a linked `[UX]` story, the
-published PRD, and the published design document. An exploratory context that
-started from the Feature issue alone is not ready for handoff to `ui-design`.
+published PRD, and the published design document. A context that started from
+the Feature issue or PRD alone remains exploratory and is not ready for handoff
+to `ui-design`.
 
 Verify these artifacts exist and apply to the current context before generating:
 - `.artifacts/ux-design/{issue-key}/01-discovery.md` — problem context
@@ -36,8 +37,9 @@ If any prerequisite is missing or stale, stop before invoking
 `uxd-design-handoff` and before writing `05-handoff.md`. Explain which upstream
 input or phase is missing, then recommend `/ingest`, `/research`, `/prototype`,
 or `/evaluate` as appropriate. Do not offer a partial handoff or allow a
-researcher override of the Feature-only gate. The researcher can continue the
-exploratory research and prototyping loop until the context is enriched.
+researcher override of the exploratory-context gate. The researcher can
+continue the exploratory research and prototyping loop until the context is
+enriched.
 
 Read all available artifacts before proceeding. If `02-research.md` exists,
 read it — it is required for the Data Annotations and Persona-Specific Views
