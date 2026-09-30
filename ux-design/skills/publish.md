@@ -10,8 +10,8 @@ reviewers and stakeholders can review it.
 
 ## Critical Rules
 
-- **Confirm before pushing.** Verify the target repository, branch name, and PR details with the researcher.
-- **Draft PR.** Always create as a draft — the researcher decides when to mark it ready for review.
+- **Confirm before pushing** — verify the target repository, branch name, and PR details with the researcher.
+- **Draft PR** — always create as a draft; the researcher decides when to mark it ready for review.
 - **No force-push.** No destructive git operations.
 - **No direct commits to main.** Always use a feature branch.
 
@@ -96,6 +96,29 @@ Confirm with the researcher:
 - **Feature:** A short, lowercase, hyphenated slug with the issue key appended
 - **Branch name:** Propose `ux-design/{issue-key}` and let the researcher override
 
+Validate `{branch-name}` as a Git branch name:
+
+```bash
+git -C "{docs_repo_path}" check-ref-format --branch "{branch-name}"
+```
+
+If the command fails, ask the researcher for a valid branch name. Also reject
+`main` and the selected `{base-branch}` as the feature branch name; ask for a
+different value before continuing.
+
+Before building commands from `{release}` or `{feature}`, require each value to
+match `[A-Za-z0-9][A-Za-z0-9._-]*` so each is a single safe path component.
+Set `docs_repo_root = Path(docs_repo_path).resolve()`,
+`destination_dir = (docs_repo_root / release / feature).resolve()`, and
+`handoff_target = (destination_dir / "handoff.md").resolve()`. Require
+`destination_dir.relative_to(docs_repo_root)` to succeed with a result other
+than `.`. Apply the same containment check to `handoff_target`.
+If either check fails, stop and report that the destination is outside the docs
+repo. This check also catches existing symlinks that point outside the
+repository.
+Use the resolved destination paths for filesystem operations and the provenance
+target below.
+
 The handoff spec file path in the docs repo: `{release}/{feature}/handoff.md`.
 
 ### Step 4: Create Branch and Commit
@@ -104,28 +127,32 @@ All git operations run against the **docs repo**. Use
 `git -C "{docs_repo_path}"` for all commands.
 
 ```bash
-git -C "{docs_repo_path}" checkout -b {branch-name} {base-branch}
+git -C "{docs_repo_path}" checkout -b "{branch-name}" "{base-branch}"
 ```
 
 ```bash
-mkdir -p "{docs_repo_path}/{release}/{feature}"
+mkdir -p "{destination_dir}"
 ```
 
 ```bash
-cp "{source_repo_root}/.artifacts/ux-design/{issue-key}/05-handoff.md" "{docs_repo_path}/{release}/{feature}/handoff.md"
+cp "{source_repo_root}/.artifacts/ux-design/{issue-key}/05-handoff.md" "{handoff_target}"
 ```
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ux-design`, `ISSUE_KEY={issue-key}`,
-`TARGET_FILE="{docs_repo_path}/{release}/{feature}/handoff.md"`.
+`TARGET_FILE="{handoff_target}"`.
 
 Provenance at publish time:
-- If `{source_repo_root}/.artifacts/ux-design/{issue-key}/provenance.json` exists from `/handoff`,
-  `/revise`, or `/respond`, the footer reflects the full authoring session
-  (`provenance_kind: session`).
+- If the provenance event log at
+  `{source_repo_root}/.artifacts/ux-design/{issue-key}/provenance.json` contains
+  any non-`commit` event, the footer reflects the full authoring session
+  (`provenance_kind: session`). The ux-design authoring phases are `/handoff`,
+  `/revise`, `/respond`, and `manual-edit`.
 - If the log is missing, the render recipe **auto-captures a commit-time
   snapshot** (`phase=commit`, `provenance_kind: commit_only`) so stale footers
   are replaced instead of copied forward.
+- If the existing log contains only `commit` events, the render recipe refreshes
+  the commit-time snapshot and keeps `provenance_kind: commit_only`.
 - Only if the researcher explicitly declines provenance, pass `ALLOW_MISSING=yes` to
   strip the footer and record `provenance_kind: declined`.
 
@@ -166,13 +193,13 @@ Prepare the PR description and save it to
 ### Step 6: Push and Create PR
 
 ```bash
-git -C "{docs_repo_path}" push -u origin {branch-name}
+git -C "{docs_repo_path}" push -u origin "{branch-name}"
 ```
 
 Create a draft PR:
 
 ```bash
-gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head {branch-name} --title "{issue-key}: UX Design Handoff - {title}" --body-file "{source_repo_root}/.artifacts/ux-design/{issue-key}/06-pr-description.md"
+gh pr create --draft --repo {owner}/{repo} --base "{base-branch}" --head "{branch-name}" --title "{issue-key}: UX Design Handoff - {title}" --body-file "{source_repo_root}/.artifacts/ux-design/{issue-key}/06-pr-description.md"
 ```
 
 ### Step 7: Save Publish Metadata
