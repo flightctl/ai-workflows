@@ -10,52 +10,62 @@ reviewers and stakeholders can review it.
 
 ## Critical Rules
 
-- **Confirm before pushing.** Verify the target repository, branch name, and PR details with the user.
-- **Draft PR.** Always create as a draft — the user decides when to mark it ready for review.
+- **Confirm before pushing.** Verify the target repository, branch name, and PR details with the researcher.
+- **Draft PR.** Always create as a draft — the researcher decides when to mark it ready for review.
 - **No force-push.** No destructive git operations.
 - **No direct commits to main.** Always use a feature branch.
 
 ## Process
 
+Determine `{source_repo_root}` by running `git rev-parse --show-toplevel` from
+anywhere inside the source repo. If this command fails, stop and ask the
+researcher to open the source-repo workspace. Resolve all source-repo artifact
+paths below against this root.
+
 ### Step 1: Read the Handoff Spec
 
-Read `.artifacts/ux-design/{issue-key}/05-handoff.md`.
+Read `{source_repo_root}/.artifacts/ux-design/{issue-key}/05-handoff.md`.
 
-If the file doesn't exist, tell the user that `/handoff` should be run first.
+If the file doesn't exist, tell the researcher that `/handoff` should be run first.
 
-Read `00-context.md` and verify that the context is `enriched` and the handoff
+Read `{source_repo_root}/.artifacts/ux-design/{issue-key}/00-context.md` and
+verify that the context is `enriched` and the handoff
 is approved against the current discovery revision. If the manifest marks the
 handoff stale or its revision differs, stop and recommend `/handoff` before
 publishing. Never publish a handoff produced from exploratory context.
 
 ### Step 2: Resolve Docs Repo
 
-Check for an existing docs repo configuration at `.artifacts/config.json`.
+Check for an existing docs repo configuration at
+`{source_repo_root}/.artifacts/config.json`.
 
-Before resolving the configured path, determine `{source_repo_root}` by
-running `git rev-parse --show-toplevel` from anywhere inside the source repo.
-If this command fails, stop and ask the researcher to open the source-repo
-workspace. The shared config stores `docs_repo_path` relative to this root.
+The shared config stores `docs_repo_path` relative to `{source_repo_root}`.
 Resolve a relative configured or researcher-supplied path against
 `{source_repo_root}`; keep an absolute path absolute. Use the normalized
 absolute result as runtime `{docs_repo_path}` for all validation, `git -C`
 commands, filesystem paths, and provenance targets below. Never pass the raw
 relative config value to Git or file operations.
 
-**If the config exists**, read it and validate:
-1. Verify the path exists on the local filesystem
-2. Verify the directory is a git repository
-3. Verify the remote URL matches the configured `docs_repo_remote`
+**If the config exists**, read its `docs_repo_path` and `docs_repo_remote`.
+**If it does not exist**, ask the researcher where the planning docs repo is
+checked out, accepting an absolute path or one relative to
+`{source_repo_root}`.
 
-**If the config does not exist**, ask the user:
-- **Docs repo local path:** Where is the planning docs repo checked out? Accept
-  an absolute path or a path relative to `{source_repo_root}`.
-- **Docs repo remote:** Run `git -C "{docs_repo_path}" remote get-url origin`
-  and confirm the result with the user
+Resolve the candidate path against `{source_repo_root}` if it is relative. Verify
+that the resolved path exists and is a git repository. If either check fails,
+stop, report the failed check, and ask the researcher to correct the path before
+continuing. Run `git -C "{docs_repo_path}" remote get-url origin` to read the
+actual remote. When a config already exists, verify this URL matches its
+`docs_repo_remote`. When no config exists, confirm the URL with the researcher
+and use it as `docs_repo_remote`.
 
-Validate the resolved path and remote, then save `docs_repo_path` relative to
-`{source_repo_root}` and `docs_repo_remote` to the shared config. Keep using
-the resolved absolute `{docs_repo_path}` for the rest of this phase.
+If reading or validating the remote fails, stop before publishing, report the
+error or mismatch, and ask the researcher to correct the path or remote. Re-run
+all validations after the correction. Do not write or update the shared config
+while validation is failing. Once the path and remote pass validation, save
+`docs_repo_path` relative to `{source_repo_root}` and `docs_repo_remote` to the
+shared config. Keep using the resolved absolute `{docs_repo_path}` for the rest
+of this phase.
 
 Derive `{owner}/{repo}` from the remote URL (e.g.,
 `git@github.com:org/repo.git` → `org/repo`).
@@ -80,11 +90,11 @@ If the output is not empty, stop and tell the researcher the docs repo has
 uncommitted changes that must be resolved before publishing. Do not proceed
 with a dirty working tree.
 
-Confirm with the user:
+Confirm with the researcher:
 - **Base branch:** Which branch should the PR target? (usually `main`)
 - **Release:** Which release is this for?
 - **Feature:** A short, lowercase, hyphenated slug with the issue key appended
-- **Branch name:** Propose `ux-design/{issue-key}` and let the user override
+- **Branch name:** Propose `ux-design/{issue-key}` and let the researcher override
 
 The handoff spec file path in the docs repo: `{release}/{feature}/handoff.md`.
 
@@ -102,7 +112,7 @@ mkdir -p "{docs_repo_path}/{release}/{feature}"
 ```
 
 ```bash
-cp ".artifacts/ux-design/{issue-key}/05-handoff.md" "{docs_repo_path}/{release}/{feature}/handoff.md"
+cp "{source_repo_root}/.artifacts/ux-design/{issue-key}/05-handoff.md" "{docs_repo_path}/{release}/{feature}/handoff.md"
 ```
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
@@ -110,13 +120,13 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `TARGET_FILE="{docs_repo_path}/{release}/{feature}/handoff.md"`.
 
 Provenance at publish time:
-- If `.artifacts/ux-design/{issue-key}/provenance.json` exists from `/handoff`,
+- If `{source_repo_root}/.artifacts/ux-design/{issue-key}/provenance.json` exists from `/handoff`,
   `/revise`, or `/respond`, the footer reflects the full authoring session
   (`provenance_kind: session`).
 - If the log is missing, the render recipe **auto-captures a commit-time
   snapshot** (`phase=commit`, `provenance_kind: commit_only`) so stale footers
   are replaced instead of copied forward.
-- Only if the user explicitly declines provenance, pass `ALLOW_MISSING=yes` to
+- Only if the researcher explicitly declines provenance, pass `ALLOW_MISSING=yes` to
   strip the footer and record `provenance_kind: declined`.
 
 ```bash
@@ -129,7 +139,8 @@ git -C "{docs_repo_path}" commit -m "Add UX design handoff for {issue-key}: {tit
 
 ### Step 5: Prepare PR Description
 
-Prepare the PR description and save it to `.artifacts/ux-design/{issue-key}/06-pr-description.md`
+Prepare the PR description and save it to
+`{source_repo_root}/.artifacts/ux-design/{issue-key}/06-pr-description.md`
 (in the source repo's artifact directory):
 
 ```markdown
@@ -161,12 +172,12 @@ git -C "{docs_repo_path}" push -u origin {branch-name}
 Create a draft PR:
 
 ```bash
-gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head {branch-name} --title "{issue-key}: UX Design Handoff - {title}" --body-file .artifacts/ux-design/{issue-key}/06-pr-description.md
+gh pr create --draft --repo {owner}/{repo} --base {base-branch} --head {branch-name} --title "{issue-key}: UX Design Handoff - {title}" --body-file "{source_repo_root}/.artifacts/ux-design/{issue-key}/06-pr-description.md"
 ```
 
 ### Step 7: Save Publish Metadata
 
-Write `.artifacts/ux-design/{issue-key}/publish-metadata.json`:
+Write `{source_repo_root}/.artifacts/ux-design/{issue-key}/publish-metadata.json`:
 
 ```json
 {
@@ -178,7 +189,7 @@ Write `.artifacts/ux-design/{issue-key}/publish-metadata.json`:
 }
 ```
 
-### Step 8: Report to User
+### Step 8: Report to Researcher
 
 Present:
 - PR URL
@@ -188,8 +199,8 @@ Present:
 
 ## Output
 
-- `.artifacts/ux-design/{issue-key}/06-pr-description.md`
-- `.artifacts/ux-design/{issue-key}/publish-metadata.json`
+- `{source_repo_root}/.artifacts/ux-design/{issue-key}/06-pr-description.md`
+- `{source_repo_root}/.artifacts/ux-design/{issue-key}/publish-metadata.json`
 - Handoff spec committed and pushed to feature branch in the docs repo
 - Draft PR created against the docs repo
 
