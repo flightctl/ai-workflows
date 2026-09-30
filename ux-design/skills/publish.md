@@ -17,10 +17,15 @@ reviewers and stakeholders can review it.
 
 ## Process
 
-Determine `{source_repo_root}` by running `git rev-parse --show-toplevel` from
-anywhere inside the source repo. If this command fails, stop and ask the
-researcher to open the source-repo workspace. Resolve all source-repo artifact
-paths below against this root.
+Run `git rev-parse --show-toplevel` from anywhere inside the source repo and
+store its output in the `source_repo_root` shell variable. If this command
+fails, stop and ask the researcher to open the source-repo workspace. Resolve
+all source-repo artifact paths below against this root.
+
+Before reading the handoff or constructing any path containing `{issue-key}`,
+require the entire value to match `[A-Za-z0-9][A-Za-z0-9._-]*`. If it does not,
+stop and ask the researcher for a valid artifact key. This keeps the key to a
+single path component.
 
 ### Step 1: Read the Handoff Spec
 
@@ -69,6 +74,8 @@ of this phase.
 
 Derive `{owner}/{repo}` from the remote URL (e.g.,
 `git@github.com:org/repo.git` → `org/repo`).
+Validate `{owner}` and `{repo}` separately as single components using
+`[A-Za-z0-9][A-Za-z0-9._-]*`; stop if either component is invalid.
 
 ### Step 3: Pre-Flight Checks
 
@@ -96,13 +103,15 @@ Confirm with the researcher:
 - **Feature:** A short, lowercase, hyphenated slug with the issue key appended
 - **Branch name:** Propose `ux-design/{issue-key}` and let the researcher override
 
-Validate `{branch-name}` as a Git branch name:
+Before using `{base-branch}` or `{branch-name}` in shell commands, require each
+to match `[A-Za-z0-9][A-Za-z0-9._/-]*`. Then validate both as Git branch names:
 
 ```bash
+git -C "{docs_repo_path}" check-ref-format --branch "{base-branch}"
 git -C "{docs_repo_path}" check-ref-format --branch "{branch-name}"
 ```
 
-If the command fails, ask the researcher for a valid branch name. Also reject
+If either command fails, ask the researcher for a valid branch name. Also reject
 `main` and the selected `{base-branch}` as the feature branch name; ask for a
 different value before continuing.
 
@@ -111,8 +120,8 @@ match `[A-Za-z0-9][A-Za-z0-9._-]*` so each is a single safe path component.
 Set `docs_repo_root = Path(docs_repo_path).resolve()`,
 `destination_dir = (docs_repo_root / release / feature).resolve()`, and
 `handoff_target = (destination_dir / "handoff.md").resolve()`. Require
-`destination_dir.relative_to(docs_repo_root)` to succeed with a result other
-than `.`. Apply the same containment check to `handoff_target`.
+`destination_dir.relative_to(docs_repo_root)` to succeed and return a non-`.`
+relative path. Apply the same containment check to `handoff_target`.
 If either check fails, stop and report that the destination is outside the docs
 repo. This check also catches existing symlinks that point outside the
 repository.
@@ -161,7 +170,7 @@ git -C "{docs_repo_path}" add "{release}/{feature}/handoff.md"
 ```
 
 ```bash
-git -C "{docs_repo_path}" commit -m "Add UX design handoff for {issue-key}: {title}"
+git -C "{docs_repo_path}" commit -m "Add UX design handoff for {issue-key}"
 ```
 
 ### Step 5: Prepare PR Description
@@ -198,8 +207,52 @@ git -C "{docs_repo_path}" push -u origin "{branch-name}"
 
 Create a draft PR:
 
+Treat the title in the PR description as data; do not interpolate it into shell
+source. Keep the following validated values in shell variables:
+
 ```bash
-gh pr create --draft --repo {owner}/{repo} --base "{base-branch}" --head "{branch-name}" --title "{issue-key}: UX Design Handoff - {title}" --body-file "{source_repo_root}/.artifacts/ux-design/{issue-key}/06-pr-description.md"
+pr_repo="{owner}/{repo}"
+base_branch="{base-branch}"
+branch_name="{branch-name}"
+issue_key="{issue-key}"
+pr_body_file="${source_repo_root}/.artifacts/ux-design/${issue_key}/06-pr-description.md"
+```
+
+Read the title from the PR description and invoke `gh` through a Python argument
+list so the title is passed literally:
+
+```bash
+python3 - "$pr_repo" "$base_branch" "$branch_name" "$issue_key" "$pr_body_file" <<'PY'
+from pathlib import Path
+import re
+import subprocess
+import sys
+
+repo, base, head, issue_key, body_file = sys.argv[1:]
+if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*", repo):
+    raise SystemExit("Invalid GitHub owner/repo")
+if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*", base):
+    raise SystemExit("Invalid base branch")
+if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*", head):
+    raise SystemExit("Invalid head branch")
+if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", issue_key):
+    raise SystemExit("Invalid issue key")
+
+body = Path(body_file).read_text(encoding="utf-8")
+match = re.search(r"(?m)^## UX Design Handoff: (.+)$", body)
+if not match:
+    raise SystemExit("PR description is missing its UX Design Handoff title")
+title = f"{issue_key}: UX Design Handoff - {match.group(1).strip()}"
+subprocess.run(
+    [
+        "gh", "pr", "create", "--draft", "--repo", repo,
+        "--base", base, "--head", head, "--title", title,
+        "--body-file", body_file,
+    ],
+    check=True,
+    shell=False,
+)
+PY
 ```
 
 ### Step 7: Save Publish Metadata
