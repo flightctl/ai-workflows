@@ -32,17 +32,30 @@ publishing. Never publish a handoff produced from exploratory context.
 
 Check for an existing docs repo configuration at `.artifacts/config.json`.
 
+Before resolving the configured path, determine `{source_repo_root}` by
+running `git rev-parse --show-toplevel` from anywhere inside the source repo.
+If this command fails, stop and ask the researcher to open the source-repo
+workspace. The shared config stores `docs_repo_path` relative to this root.
+Resolve a relative configured or researcher-supplied path against
+`{source_repo_root}`; keep an absolute path absolute. Use the normalized
+absolute result as runtime `{docs_repo_path}` for all validation, `git -C`
+commands, filesystem paths, and provenance targets below. Never pass the raw
+relative config value to Git or file operations.
+
 **If the config exists**, read it and validate:
 1. Verify the path exists on the local filesystem
 2. Verify the directory is a git repository
 3. Verify the remote URL matches the configured `docs_repo_remote`
 
 **If the config does not exist**, ask the user:
-- **Docs repo local path:** Where is the planning docs repo checked out?
+- **Docs repo local path:** Where is the planning docs repo checked out? Accept
+  an absolute path or a path relative to `{source_repo_root}`.
 - **Docs repo remote:** Run `git -C "{docs_repo_path}" remote get-url origin`
   and confirm the result with the user
 
-Validate the path and remote, then save the config.
+Validate the resolved path and remote, then save `docs_repo_path` relative to
+`{source_repo_root}` and `docs_repo_remote` to the shared config. Keep using
+the resolved absolute `{docs_repo_path}` for the rest of this phase.
 
 Derive `{owner}/{repo}` from the remote URL (e.g.,
 `git@github.com:org/repo.git` → `org/repo`).
