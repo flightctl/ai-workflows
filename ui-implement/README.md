@@ -114,6 +114,10 @@ All artifacts are stored in `.artifacts/ui-implement/{issue-key}/`.
   06-pr-description.md       (PR body)
   07-review-responses.md     (review comment log)
   publish-metadata.json      (PR number, branch, URL)
+
+.artifacts/ui-implement/
+  _validation-profile.md     (discovered build/test/lint commands, cached across stories)
+  .meta.json                 (file hashes/mtimes for validation cache invalidation)
 ```
 
 ## Key Design Decisions

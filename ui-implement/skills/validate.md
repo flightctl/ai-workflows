@@ -211,7 +211,7 @@ satisfied:
    it requires visual verification or describes a UX quality) — note
    it as "requires manual verification"
 
-### Step 7b: Test Plan Verification
+### Step 8: Test Plan Verification
 
 If `.artifacts/ui-implement/{issue-key}/testplan.md` exists, independently
 verify that every test case has been implemented. This check re-derives
@@ -236,7 +236,7 @@ Coverage section, skip this step entirely.
    - Re-run the relevant checks from Step 3.
 4. Record results for the validation report.
 
-### Step 8: Write Validation Report
+### Step 9: Write Validation Report
 
 Write `.artifacts/ui-implement/{issue-key}/05-validation-report.md`:
 
@@ -325,13 +325,17 @@ Write `.artifacts/ui-implement/{issue-key}/05-validation-report.md`:
 
 ## Result
 
-{PASS — all checks pass, coverage is comprehensive, all acceptance
- criteria satisfied, no regressions.
- OR
- FAIL — with explanation of what still needs fixing.}
+<!-- Result Template: first line is a single verdict token. -->
+
+PASS
+
+{When all checks pass, coverage is comprehensive, all acceptance
+ criteria satisfied, and no regressions. Otherwise:}
+
+FAIL — {explanation of what still needs fixing.}
 ```
 
-### Step 9: Present Results
+### Step 10: Present Results
 
 Summarize for the user:
 - Which checks passed and which failed
