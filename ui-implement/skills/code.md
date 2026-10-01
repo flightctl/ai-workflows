@@ -136,7 +136,7 @@ git merge origin/{local-base}
 ```
 
 If conflicts occur during either operation, follow the same conflict
-handling as Step 3h (stop, show conflicts, offer to resolve, proceed
+handling as Step 11 (stop, show conflicts, offer to resolve, proceed
 only with user approval).
 
 Verify the starting point:
@@ -147,8 +147,8 @@ git log --oneline -5
 
 ### Step 3: Execute Tasks
 
-For each task in the plan, follow this cycle. **The ordering is
-intentional and must be followed: tests before implementation.** Write
+For each task in the plan, follow the cycle in Steps 4–12. **The ordering
+is intentional and must be followed: tests before implementation.** Write
 the unit tests first, verify they fail for the right reason (the
 production code doesn't exist yet), then write the implementation that
 makes them pass. Do not write the implementation first and add tests
@@ -162,14 +162,14 @@ includes Task 0 for introducing a unit test framework, execute it as
 specified in the plan (install, configure, smoke test). This task does
 not follow TDD since it is infrastructure setup, not behavioral code.
 
-#### 3a: Read Affected Files
+### Step 4: Read Affected Files
 
 Before making any changes, read:
 - Every file listed in the task's "Files" section
 - Existing test files in the same directory/module (to match patterns)
 - Any components, hooks, or types referenced by the task
 
-#### 3b: Write Unit Tests FIRST
+### Step 5: Write Unit Tests FIRST
 
 Write tests that define the behavioral contracts for this task:
 
@@ -198,9 +198,9 @@ Write tests that define the behavioral contracts for this task:
 6. **Name tests after the contract they validate,** not after bugs
    discovered during development.
 
-#### 3c: Write Implementation (after tests exist)
+### Step 6: Write Implementation (after tests exist)
 
-Write the production code that makes the tests from 3b pass:
+Write the production code that makes the tests from Step 5 pass:
 
 1. Follow existing component/hook patterns in the project
 2. Match naming conventions, file organization, and code style
@@ -229,7 +229,7 @@ Write the production code that makes the tests from 3b pass:
    - Documenting callers or consumers
    - Repeating the same explanation at every usage site
 
-#### 3d: Run Tests
+### Step 7: Run Tests
 
 Look up the test commands from the **Pre-PR Checks** section of
 `01-context.md`. Each entry has a purpose label (e.g., "unit test",
@@ -243,7 +243,7 @@ Fix any failures before proceeding.
 
 If a test failure is ambiguous, use diagnostic failure routing (see below).
 
-#### 3e: Lint and Format
+### Step 8: Lint and Format
 
 Before committing, run the fast quality checks on the files changed by
 this task. Look up the lint and format commands from the **Pre-PR Checks**
@@ -264,7 +264,7 @@ any remaining issues once all tasks are complete and the code compiles.
 Do not run the full validation suite here — save expensive checks
 (full test suite, coverage analysis) for `/validate`.
 
-#### 3f: Code Review
+### Step 9: Code Review
 
 Stage the task's changes first — the review and commit steps both
 operate on the staged diff:
@@ -289,7 +289,7 @@ If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
 present the findings to the user before committing.
 
 If the gate made code fixes, re-stage the affected files, then re-run
-the task-scoped tests (Step 3d) and fast quality checks (Step 3e) to
+the task-scoped tests (Step 7) and fast quality checks (Step 8) to
 verify the fixes. Only proceed to commit once checks pass. Note any
 dismissed findings in the implementation report (Discoveries section)
 so there is a paper trail.
@@ -305,13 +305,13 @@ does, verify each mapped TC ID before proceeding to commit:
    inconsistency. Read the full test case entry (the Preconditions,
    Steps, and Expected Results sections). If any of these sections is
    missing, stop and report the testplan as malformed.
-2. Verify that a test exists (written in Step 3b or a prior task)
+2. Verify that a test exists (written in Step 5 or a prior task)
    whose assertions validate the Expected Results described in the
    test case. The match is behavioral, not textual — the test must
    exercise the described scenario and assert the described outcomes.
 3. If a TC ID mapped to this task has no corresponding test with
-   sufficient assertion depth, write the missing test (Step 3b), run
-   it (Step 3d), run the fast quality checks (Step 3e), stage the new
+   sufficient assertion depth, write the missing test (Step 5), run
+   it (Step 7), run the fast quality checks (Step 8), stage the new
    files (`git add`), re-run the review gate, then re-check.
 
 This is a hard gate — the task cannot proceed to commit until every
@@ -325,16 +325,12 @@ Coverage section, skip this check. However, if `02-plan.md` has TC
 mappings but `testplan.md` is missing or malformed, stop and report
 the inconsistency.
 
-#### 3g: Commit
+### Step 10: Commit
 
-The changes are already staged from Step 3f. Create the commit:
+The changes are already staged from Step 9. Create the commit using the
+format from the **Commit Format** section of `01-context.md`.
 
-```bash
-git commit -m "{issue-key}: {task description}"
-```
-
-Follow the commit format from the **Commit Format** section of
-`01-context.md`. The commit message must:
+The commit message must:
 - Use the discovered format
 - Describe what the code does, not the development journey
 - Be independently meaningful
@@ -342,7 +338,7 @@ Follow the commit format from the **Commit Format** section of
 If the commit fails (e.g., rejected by pre-commit hooks), diagnose and
 fix the issue before proceeding to the sync step.
 
-#### 3h: Sync with Base
+### Step 11: Sync with Base
 
 After committing, rebase onto the latest base branch to keep subsequent
 tasks building against head-of-line.
@@ -371,7 +367,7 @@ git rev-list --count HEAD..origin/{local-base}
 ```
 
 If the count is 0, no new upstream commits exist — skip the rebase and
-test re-run, and proceed directly to Step 3i.
+test re-run, and proceed directly to Step 12.
 
 If new commits exist, check whether a PR has already been created by
 looking for `.artifacts/ui-implement/{issue-key}/publish-metadata.json`.
@@ -390,7 +386,7 @@ git merge origin/{local-base}
 
 If the operation applies cleanly, re-run the task's tests to confirm
 the committed work still passes against the updated base. If tests
-fail, diagnose using the failure routing in Step 4.
+fail, diagnose using the failure routing in Step 14.
 
 **If there are conflicts:**
 
@@ -402,7 +398,7 @@ fail, diagnose using the failure routing in Step 4.
 5. After resolution, run `git rebase --continue` or commit the merge
    resolution as appropriate, then re-run the task's tests
 
-#### 3i: Update Plan
+### Step 12: Update Plan
 
 Mark the task as completed in `02-plan.md`:
 - Change `Pending` to `Done`
@@ -411,7 +407,7 @@ Update the status immediately after each task, not in bulk at the end.
 This is the checkpoint that allows the session to resume correctly if
 interrupted.
 
-### Step 3-post: Write Integration/E2E Test Stubs
+### Step 13: Write Integration/E2E Test Stubs
 
 After all plan tasks are complete (all marked `Done`), check whether the
 plan includes an integration/e2e test stubs task. If it does:
@@ -431,12 +427,12 @@ plan includes an integration/e2e test stubs task. If it does:
 
 ```bash
 git add {stub files}
-git commit -m "{issue-key}: add integration/e2e test stubs"
+git commit -m "{use commit format from 01-context.md}"
 ```
 
 If the project has no e2e framework, skip this step entirely.
 
-### Step 4: Diagnostic Failure Routing
+### Step 14: Diagnostic Failure Routing
 
 When tests fail, diagnose **where** the problem is before fixing:
 
@@ -449,7 +445,7 @@ When tests fail, diagnose **where** the problem is before fixing:
 | **Provider/wrapper missing** | Test fails because a required context provider is not in the test render wrapper | Add the provider to the test setup |
 | **Environment issue** | Test infrastructure unavailable, missing dependency | Report to user — this is not a code problem |
 
-### Step 5: Deviation Rules
+### Step 15: Deviation Rules
 
 During implementation, you may encounter unexpected situations:
 
@@ -464,7 +460,7 @@ During implementation, you may encounter unexpected situations:
 | Implementation is significantly more complex than planned | **Stop and ask the user** — the story may need re-scoping | Required |
 | Accessibility requirement unclear or conflicting | **Stop and ask the user** — a11y must not be guessed | Required |
 
-### Step 6: Write Reports
+### Step 16: Write Reports
 
 After all tasks are complete (or if interrupted), write:
 
