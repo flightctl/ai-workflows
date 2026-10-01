@@ -332,7 +332,8 @@ PASS
 {When all checks pass, coverage is comprehensive, all acceptance
  criteria satisfied, and no regressions. Otherwise:}
 
-FAIL — {explanation of what still needs fixing.}
+FAIL
+{explanation of what still needs fixing.}
 ```
 
 ### Step 10: Present Results

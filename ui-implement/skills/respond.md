@@ -137,18 +137,18 @@ For comments requiring code changes:
 5. Run lint and format checks on the changed files. Fix any issues.
 6. Commit using the project's commit format:
 
-```bash
-git add {specific files}
-git commit -m "{issue-key}: Address review feedback — {brief description}"
-```
+   ```bash
+   git add {specific files}
+   git commit -m "{issue-key}: Address review feedback — {brief description}"
+   ```
 
 7. After all approved code changes are committed and replies posted,
    confirm with the user before pushing. Present the list of commits
    to push:
 
-```bash
-git push
-```
+   ```bash
+   git push
+   ```
 
 #### Posting replies
 
