@@ -329,13 +329,9 @@ the inconsistency.
 
 The changes are already staged from Step 3f. Create the commit:
 
-```bash
-git commit -m "{issue-key}: {task description}"
-```
-
-Follow the commit format from the **Commit Format** section of
+Use the commit format from the **Commit Format** section of
 `01-context.md`. The commit message must:
-- Use the discovered format
+- Use the discovered format exactly
 - Describe what the code does, not the development journey
 - Be independently meaningful
 
