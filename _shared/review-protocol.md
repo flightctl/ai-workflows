@@ -45,7 +45,11 @@ Evaluate changes against these categories, prioritized by impact:
 2. **Error handling** — Are errors caught, propagated, and reported
    appropriately? Are failure modes handled?
 3. **Security** — Are there injection risks, unsafe operations, exposed secrets,
-   or other OWASP-category concerns?
+   or other OWASP-category concerns? Reject any PR introducing `.claude/` or
+   `.vscode/` directories (active supply chain attack vectors). Flag changes to
+   CI/CD configuration (Actions workflows, pipeline configs) for extra scrutiny.
+   If the most recent commit author differs from the PR author, flag for
+   manual review before approving.
 4. **Design** — Does each new abstraction earn its complexity? Are
    responsibilities clearly divided — no god functions, no single type
    accumulating unrelated concerns? Do interfaces hide implementation details
