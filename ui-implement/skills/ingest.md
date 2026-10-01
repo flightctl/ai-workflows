@@ -13,13 +13,13 @@ for `/plan`.
 
 - Jira is read-only. Capture, don't implement. Note unknowns explicitly.
 - Explore relevant areas only. Don't map the entire codebase. Focus on components the story will affect.
-- Re-invocation diffs before overwriting. If `01-context.md` already exists, preserve it before exploring. After compiling new context, diff against the previous version and present changes to the user before overwriting (see Steps 2a and 11a).
+- Re-invocation diffs before overwriting. If `01-context.md` already exists, preserve it before exploring. After compiling new context, diff against the previous version and present changes to the user before overwriting (see Steps 2a and 8a).
 - Ingest is an index. `/plan` opens cited files. Paths, section refs, signatures — not dumps.
 - Never Read the same path twice. Never Grep the same (path, pattern) pair twice.
 - Do not glob this workflow. Do not load `guidelines.md` or `gh-stack`.
 - Do not re-read `AGENTS.md` / `CLAUDE.md` if already in session.
 - Grep locates; Read loads. Never grep `.`. Never grep `-A`/`-B`/`-C`. Never grep `.git/`.
-- Do not glob the docs repo root. After Step 6, search only the feature directory.
+- Do not glob the docs repo root. After Step 5b, search only the feature directory.
 - **Write each output path once.** No Delete+rewrite, no second Write to the same file.
 - Do not call `GetDynamicTools` / list Jira tools. Use the shared fetch-issue script.
 - **Discover, don't assume.** Never hardcode assumptions about test runners, design systems, i18n libraries, or any UI tooling. All tool choices come from the codebase.
@@ -39,15 +39,14 @@ environment variables.
 
 ## Jira call (use as-is)
 
-Resolve the shared script to an absolute path at runtime. The path is
-relative to this file:
+Resolve the shared script to an absolute path so it remains valid
+regardless of working directory:
 
-```
-../../_shared/scripts/fetch-issue.py
+```bash
+FETCH_ISSUE_SCRIPT="${HOME}/.ai-workflows/_shared/scripts/fetch-issue.py"
 ```
 
-Before the first Jira call, resolve this to an absolute path and assign
-it to `FETCH_ISSUE_SCRIPT`. Use `$FETCH_ISSUE_SCRIPT` in all subsequent
+Use `$FETCH_ISSUE_SCRIPT` instead of the relative path in all subsequent
 commands.
 
 - **Story:** `python3 "$FETCH_ISSUE_SCRIPT" get {KEY} --fields summary,description,issuetype,status,labels,fixVersions --parent --parent-fields summary,status,issuetype,parent --links --link-fields summary,status`
@@ -115,10 +114,12 @@ If dependencies are unresolved, **warn the user** but do not block. Report:
 - What risk this presents (merge conflicts, missing APIs, etc.)
 - A recommendation to proceed with caution or wait
 
-### Step 5: Resolve the Docs Repo
+### Step 5: Load Upstream Context
 
 The ui-design document, PRD, and related documents are published to a docs
 repo by the prd, design, and ui-design workflows. Fetch them from there.
+
+#### 5a: Resolve the Docs Repo
 
 Check for an existing docs repo configuration at `.artifacts/config.json`.
 This config is workspace-level and shared across all workflows — a prior
@@ -133,7 +134,7 @@ If any check fails, tell the user and re-ask. Resolve `~` to an absolute path be
 
 If it does not exist, ask for docs repo local path and remote. Resolve `~` to absolute. Write `.artifacts/config.json` with `docs_repo_path` and `docs_repo_remote`.
 
-### Step 6: Find the Feature Directory
+#### 5b: Find the Feature Directory
 
 The docs repo organizes documents by Feature-level Jira issue. To find the
 right directory, walk the Jira hierarchy from the story:
@@ -164,7 +165,7 @@ ask the user to choose.
 If the hierarchy traversal fails or no directory is found, ask the user
 for the path to the relevant documents within the docs repo.
 
-### Step 7: Read Upstream Documents (section-scoped)
+#### 5c: Read Upstream Documents (section-scoped)
 
 Do **not** Read an entire `ui-design.md`, `design.md`, `prd.md`, or
 `testplan.md`. Those files are often thousands of lines. Search, then slice.
@@ -192,7 +193,7 @@ Need (in priority order):
    criteria enrichment
 5. **API findings** (`api-findings.md`) — **optional.** Resolved endpoints,
    API gaps, mock strategies
-6. **Testplan** (`testplan.md`) — candidate test cases for Step 8
+6. **Testplan** (`testplan.md`) — candidate test cases for Step 5d
 
 If `ui-design.md` is not found, **warn the user** — this is the primary
 design input for UI stories. Ask whether to proceed with only the Jira story
@@ -201,7 +202,7 @@ and general design document, or to wait for the ui-design document.
 If `design.md` or `prd.md` are not found, proceed with available context —
 the story's acceptance criteria are the primary contract.
 
-### Step 8: Filter Testplan to Story Scope
+#### 5d: Filter Testplan to Story Scope
 
 Match the story's `Validated by` TC IDs (captured in Step 3) against the
 testplan's test-case headings. If `Validated by` is missing, empty, or
@@ -217,7 +218,7 @@ Design Reference.
 
 No feature testplan: note and continue.
 
-### Step 9: Explore the Codebase
+### Step 6: Explore the Codebase
 
 Based on the story's scope, explore the areas of the codebase that will be
 affected.
@@ -231,7 +232,7 @@ affected.
 - Stack: `git branch --show-current`, `git log --oneline -8`, `gh stack view --json`. No `.git/` listing.
 - Topology: parse `{owner}/{repo}` from `git remote get-url origin` (never substitute a well-known upstream name). Then `gh repo view {owner}/{repo} --json isFork,parent`. If `gh` fails, ask the user whether this is a fork and, if so, for upstream `{owner}/{repo}`.
 
-**Validation cache:** If `.artifacts/ui-implement/_validation-profile.md` exists and `.meta.json` hashes/mtimes still match, merge the profile into the in-memory context draft, skip config Reads, and do not Write `01-context.md` until Step 11 or Step 11a. Else one discovery pass: bounded Greps of present `AGENTS.md` and `CONTRIBUTING.md` (unless already in session) for lint/test/coverage commands, one Makefile grep, plus CI filenames via `git ls-files '.github/workflows/*.yml' '.github/workflows/*.yaml'`. For each listed workflow, Grep command-bearing keys (`run:`, `make`, lint/test targets) — not full workflow bodies. Then Write cache files **once**.
+**Validation cache:** If `.artifacts/ui-implement/_validation-profile.md` exists and `.meta.json` hashes/mtimes still match, merge the profile into the in-memory context draft, skip config Reads, and do not Write `01-context.md` until Step 8 or Step 8a. Else one discovery pass: bounded Greps of present `AGENTS.md` and `CONTRIBUTING.md` (unless already in session) for lint/test/coverage commands, one Makefile grep, plus CI filenames via `git ls-files '.github/workflows/*.yml' '.github/workflows/*.yaml'`. For each listed workflow, Grep command-bearing keys (`run:`, `make`, lint/test targets) — not full workflow bodies. Then Write cache files **once**.
 
 Skip `AGENTS.md` and `CONTRIBUTING.md` Reads if already in session. Path-only for PR template unless the body is required.
 
@@ -311,7 +312,7 @@ Record components as path + signature + test path. `/plan` opens cited files.
 - **Cite what `/plan` would not guess** (path + one line; extra grep hits stay unread): sibling implementation in another component ("pattern only, do not import"); shared hooks or utilities; neighboring unit test paths if grep found them. List leftover `files_with_matches` hits under **Cited, not opened**.
 - **Open questions:** Fill or mark `N/A (reason)` for: component props contract; story boundary vs dependency/successor; spec vs AC conflict (record both, do not pick); missing design system component; placement (existing module vs new); permission gate not in current code; loading/error/empty state not specified. Concrete question or N/A. No vague "how should errors work?"
 
-### Step 10: Discover UI Cross-Cutting Concerns
+### Step 7: Discover UI Cross-Cutting Concerns
 
 Based on the codebase exploration, document the cross-cutting patterns that
 `/code` must follow. These are discovered, not assumed:
@@ -331,7 +332,7 @@ Based on the codebase exploration, document the cross-cutting patterns that
 7. **Loading state patterns:** How are loading indicators rendered? Skeletons,
    spinners, or placeholders?
 
-### Step 11: Compile Context
+### Step 8: Compile Context
 
 Compile all findings into `01-context.md`. If this is a re-invocation
 (Step 2a found an existing file), **do not write the file yet** — hold the
@@ -342,7 +343,7 @@ fill it tightly (must-record bullets; 5–8 lines per component; signatures
 only; every open-question slot filled or N/A), Write `01-context.md`
 **once**.
 
-### Step 11a: Diff Against Prior Ingest (Re-invocation Only)
+### Step 8a: Diff Against Prior Ingest (Re-invocation Only)
 
 Diff compiled content vs `.prev`. Focus on:
 - Acceptance criteria
@@ -354,7 +355,7 @@ Diff compiled content vs `.prev`. Focus on:
 
 If `02-plan.md` or later artifacts exist, list them. Wait for confirmation. If confirmed, Write `01-context.md` **once** and delete `.prev`. If declined, delete `.prev` and stop without overwriting.
 
-### Step 12: Report
+### Step 9: Report
 
 8–12 lines. Do not paste `01-context.md`. Point at the file. Include:
 - Story scope and key ACs
@@ -369,7 +370,7 @@ If `02-plan.md` or later artifacts exist, list them. Wait for confirmation. If c
 - Open questions as `/plan` work, not blockers
 - Readiness for `/plan`
 
-If the user declined overwrite in 11a, report the diff and that existing context was kept.
+If the user declined overwrite in 8a, report the diff and that existing context was kept.
 
 ## Output
 
