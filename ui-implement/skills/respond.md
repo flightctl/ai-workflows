@@ -140,6 +140,13 @@ For comments requiring code changes:
 ```bash
 git add {specific files}
 git commit -m "{issue-key}: Address review feedback — {brief description}"
+```
+
+7. After all approved code changes are committed and replies posted,
+   confirm with the user before pushing. Present the list of commits
+   to push:
+
+```bash
 git push
 ```
 

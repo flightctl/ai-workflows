@@ -58,16 +58,19 @@ Check the **Test Infrastructure** section of `01-context.md`:
 - **If a unit test framework exists:** proceed normally. Plan tests using
   the discovered framework and patterns.
 - **If no unit test framework exists:** the context will include a
-  recommendation. Plan a **Task 0: Introduce unit testing framework** that:
+  recommendation. Include a **Task 0: Introduce unit testing framework**
+  in the plan that:
   1. Installs the recommended test framework and testing library
   2. Adds test scripts to `package.json`
   3. Creates a minimal test configuration file
   4. Writes one smoke test for an existing simple component to verify the setup
   5. Runs the test to confirm the framework works
 
-  Present the framework recommendation to the user for approval. Task 0 must
-  be completed and approved before any story tasks are planned — the test
-  strategy for all subsequent tasks depends on the chosen framework.
+  Plan all story tasks normally alongside Task 0 — use the recommended
+  framework for the test strategy. Present the framework recommendation
+  as part of the plan review; the user approves it when they approve
+  the plan. `/code` runs Task 0 first so the framework is in place
+  when subsequent tasks execute.
 
 ### Step 2: Determine Local Base and PR Target
 
@@ -221,7 +224,7 @@ Write `.artifacts/ui-implement/{issue-key}/02-plan.md` with this structure:
 
 - **Files:** {package.json, test config, smoke test file}
 - **What:** {install framework, configure, write smoke test}
-- **Why:** No unit test framework exists — required before any story tasks
+- **Why:** No unit test framework exists — must run first during /code
 - **Commit message:** `{use commit format from 01-context.md}`
 - **Status:** Pending
 

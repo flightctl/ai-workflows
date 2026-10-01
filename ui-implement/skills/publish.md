@@ -186,7 +186,16 @@ In either case, save the result to
 Check the **Repository Topology** section of `01-context.md` to determine
 whether this is a fork-based workflow.
 
-First, check whether a PR already exists for this branch:
+First, check whether a PR already exists for this branch. Use the same
+`--head` format that `create-pr` uses — fork-qualified for forks:
+
+**If the repo is a fork:**
+
+```bash
+python3 "$PUBLISH_SCRIPT" check-existing --repo {upstream-owner}/{repo} --head {fork-owner}:{branch-name}
+```
+
+**If the repo is a direct clone:**
 
 ```bash
 python3 "$PUBLISH_SCRIPT" check-existing --repo {upstream-owner}/{repo} --head {branch-name}
