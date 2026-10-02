@@ -92,7 +92,7 @@ Capture:
 - Implementation guidance (if present)
 - Testing approach (if present)
 - `Validated by` TC IDs and `PRD Requirements` from the Design Reference (used to filter the testplan in Step 5d)
-- `Source` and `UI Design section` from the Design Reference (if present — used to select ui-design.md in Step 5c)
+- `Source` and `UI Design section` from the Design Reference (if present — used to resolve the UI design document filename in Step 5c)
 - Design refs
 - Story type prefix (`[DEV]`, `[UI]`, etc.)
 - Parent key (epic) and its parent key (feature), from the `--parent --parent-fields` response
@@ -183,7 +183,7 @@ files are often thousands of lines. Search, then slice.
 Need:
 
 1. **Design document** (`design.md`) — sections that bind this story
-2. **UI design document** (`ui-design.md`) — UI-specific design context
+2. **UI design document** (`ui-design-{story-key}.md`) — UI-specific design context
    (present only for features that went through the ui-design workflow)
 3. **PRD** (`prd.md`) — FR/NFR this story covers
 4. **Testplan** (`testplan.md`) — candidate test cases for Step 5d
@@ -193,17 +193,20 @@ Need:
 Check the story's Design Reference `Source` field (captured in Step 3):
 
 - **`Source: ui-design/sync`** — this story was created by the ui-design
-  workflow's `/sync` phase. Use `ui-design.md` as the primary design
-  document: grep it for terms from the `UI Design section` field (instead
-  of the `Design section` field used for `design.md`). If `design.md`
-  also exists in the feature directory, load its relevant sections as
-  supplemental context (broader architecture around the UI change).
+  workflow's `/sync` phase. Extract the UI design document filename from
+  the `UI Design section` field in the Design Reference (it will be in
+  the form `ui-design-{workspace-id}.md`). Use this as the primary
+  design document: grep it for the story's issue key, AC keywords, and
+  component names (instead of the `Design section` field used for
+  `design.md`). If `design.md` also exists in the feature directory,
+  load its relevant sections as supplemental context (broader
+  architecture around the UI change).
 - **No `Source` field (or any other value)** — existing behavior. Use
   `design.md` as the primary design document with the `Design section`
-  field. Ignore `ui-design.md` even if present.
+  field. Ignore any `ui-design-*.md` file even if present.
 
-Apply the same section-scoped reading rules (grep then slice) to
-`ui-design.md` as to `design.md`. Do not Read the entire file.
+Apply the same section-scoped reading rules (grep then slice) to the
+resolved UI design document as to `design.md`. Do not Read the entire file.
 
 If the primary design document (whichever was selected above) or PRD
 are not found, ask the user for their location or proceed with only the
