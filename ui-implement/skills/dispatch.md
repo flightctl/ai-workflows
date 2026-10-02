@@ -11,7 +11,7 @@ phases and stop before resolving a filename.
 
 Before dispatching, initialize `COMPLETION_CONSUMED=false` and read the project's
 `AGENTS.md` or `CLAUDE.md` only if neither is already in the session. For
-`PHASE=ingest`, do not glob this workflow, load `guidelines.md` or `gh-stack`, or
+`PHASE=ingest`, do not glob this workflow, load `../guidelines.md` or `gh-stack`, or
 call `GetDynamicTools`; these guards apply before loading either a built-in
 phase or a project override.
 

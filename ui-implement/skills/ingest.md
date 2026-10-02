@@ -16,7 +16,7 @@ for `/plan`.
 - Re-invocation diffs before overwriting. If `01-context.md` already exists, preserve it before exploring. After compiling new context, diff against the previous version and present changes to the user before overwriting (see Steps 2a and 8a).
 - Ingest is an index. `/plan` opens cited files. Paths, section refs, signatures — not dumps.
 - Never Read the same path twice. Never Grep the same (path, pattern) pair twice.
-- Do not glob this workflow. Do not load `guidelines.md` or `gh-stack`.
+- Do not glob this workflow. Do not load `../guidelines.md` or `gh-stack`.
 - Do not re-read `AGENTS.md` / `CLAUDE.md` if already in session.
 - Grep locates; Read loads. Never grep `.`. Never grep `-A`/`-B`/`-C`. Never grep `.git/`.
 - Do not glob the docs repo root. After Step 5b, search only the feature directory.
