@@ -19,7 +19,7 @@ One `## {tc-id}` section per filtered story test case:
 ### Steps
 
 1. {step}
-1. {step}
+2. {step}
 
 ### Expected Results
 

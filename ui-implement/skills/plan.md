@@ -61,10 +61,10 @@ Check the **Test Infrastructure** section of `01-context.md`:
   recommendation. Include a **Task 0: Introduce unit testing framework**
   in the plan that:
   1. Installs the recommended test framework and testing library
-  1. Adds test scripts to `package.json`
-  1. Creates a minimal test configuration file
-  1. Writes one smoke test for an existing simple component to verify the setup
-  1. Runs the test to confirm the framework works
+  2. Adds test scripts to `package.json`
+  3. Creates a minimal test configuration file
+  4. Writes one smoke test for an existing simple component to verify the setup
+  5. Runs the test to confirm the framework works
 
   Plan all story tasks normally alongside Task 0 — use the recommended
   framework for the test strategy. Present the framework recommendation
