@@ -111,7 +111,7 @@ for the diff in Step 8a.
 **Jira input.** Fetch the Jira issue using the shared script:
 
 ```bash
-python3 "../../_shared/scripts/fetch-issue.py" get "{workspace-id}" --parent --links
+python3 "../../_shared/scripts/fetch-issue.py" get "{workspace-id}" --parent --parent-fields summary,status,key,parent --links
 ```
 
 From the story, extract:
@@ -204,10 +204,11 @@ Record the resolved design document path.
 
 #### 5.3: Load the UX Handoff (Optional)
 
-Filter matches to directories containing `05-handoff.md` (the UX handoff
-artifact) or a file with `handoff` in its name. If multiple match,
-present them to the user and ask which is current. If none, proceed
-without a handoff (it is optional).
+Filter matches to directories containing `handoff.md` (the published
+canonical name from the `ux-design` workflow). If no match is found,
+fall back to `05-handoff.md` (the private artifact name). If multiple
+match, present them to the user and ask which is current. If none,
+proceed without a handoff (it is optional).
 
 If found, read it. Extract and record:
 - **Component Mapping** — UI elements → design system components

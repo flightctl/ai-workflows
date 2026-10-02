@@ -125,8 +125,24 @@ Wait for explicit approval.
 
 ### Step 6: Determine Target Directory
 
+**Resolve Feature key.** Read
+`.artifacts/ui-design/{workspace-id}/01-context.md` and extract the
+Feature key from the parent hierarchy in the Story Summary. If the
+`[UI]` story's grandparent is a Feature (available when
+`--parent-fields` included `parent` during ingest), use that Feature
+key. If the direct parent is a Feature, use that key instead. Set
+`{feature-key}` to the resolved key, or leave it empty if unavailable.
+
 Search the docs repo for the feature directory (the same directory that
 contains the PRD and design document):
+
+**When `{feature-key}` is available:**
+
+```bash
+find "{docs_repo_path}" -type d \( -name "*{workspace-id}*" -o -name "*{feature_key}*" \)
+```
+
+**When `{feature-key}` is empty or unavailable:**
 
 ```bash
 find "{docs_repo_path}" -type d -name "*{workspace-id}*"
@@ -174,13 +190,13 @@ git -C "{docs_repo_path}" checkout -b "{BRANCH_NAME}" "{UPSTREAM_REMOTE}/{base_b
 Copy the artifacts to the docs repo:
 
 ```bash
-cp ".artifacts/ui-design/{workspace-id}/02-ui-design.md" "{target_directory}/ui-design.md"
+cp ".artifacts/ui-design/{workspace-id}/02-ui-design.md" "{target_directory}/ui-design-{workspace-id}.md"
 ```
 
 If `03-api-findings.md` exists:
 
 ```bash
-cp ".artifacts/ui-design/{workspace-id}/03-api-findings.md" "{target_directory}/api-findings.md"
+cp ".artifacts/ui-design/{workspace-id}/03-api-findings.md" "{target_directory}/api-findings-{workspace-id}.md"
 ```
 
 Render provenance footer on the docs-repo copies:
@@ -198,9 +214,9 @@ definition.
 Stage and commit:
 
 ```bash
-git -C "{docs_repo_path}" add "{target_directory}/ui-design.md"
-# If api-findings.md was copied:
-git -C "{docs_repo_path}" add "{target_directory}/api-findings.md"
+git -C "{docs_repo_path}" add "{target_directory}/ui-design-{workspace-id}.md"
+# If api-findings-{workspace-id}.md was copied:
+git -C "{docs_repo_path}" add "{target_directory}/api-findings-{workspace-id}.md"
 git -C "{docs_repo_path}" commit -m "Add UI design for {workspace-id}"
 ```
 
@@ -314,7 +330,7 @@ Write `.artifacts/ui-design/{workspace-id}/publish-metadata.json` using
   "published_at": "2025-03-15T14:30:00Z",
   "target_directory": "{resolved target directory path in docs repo}",
   "files": [
-    "ui-design.md"
+    "ui-design-{workspace-id}.md"
   ]
 }
 ```
@@ -326,9 +342,9 @@ Write `.artifacts/ui-design/{workspace-id}/publish-metadata.json` using
 - `published_at`: current UTC timestamp in ISO-8601 format
 - `cross_repository`: the actual boolean from Step 3
 
-Include `"api-findings.md"` in the `files` array only if
+Include `"api-findings-{workspace-id}.md"` in the `files` array only if
 `03-api-findings.md` was actually copied to the docs repo. Always
-include `"ui-design.md"`. Do not list files that were not published.
+include `"ui-design-{workspace-id}.md"`. Do not list files that were not published.
 
 Present to the user:
 - PR URL and number

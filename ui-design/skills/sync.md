@@ -509,7 +509,7 @@ host are invalid — if validation failed, Step 4 already stopped.
 
 Source: ui-design/sync
 Epic: {parent-key}
-UI Design section: {component section reference in ui_design.md}
+UI Design section: {component section reference in ui-design-{workspace-id}.md}
 PRD Requirements: {FR/NFR IDs from parent story's Design Reference, or "Discovered during UI design — no PRD requirement"}
 Interface Changes: {API change specification from gap's "What's missing" + "Suggested approach"}
 
@@ -558,6 +558,35 @@ Populate each field as follows:
 
 After creating each story, verify the parent link by reading the issue
 back. If the parent is missing, stop and report the error.
+
+**Issue link to [UI] story.** After verifying the parent link, create a
+Jira issue link between the newly created `[DEV]` story and the `[UI]`
+story (`{workspace-id}`). The semantic relationship is:
+
+> The **[UI] story** depends on the **[DEV] story**.
+> Equivalently: the **[DEV] story** blocks the **[UI] story**.
+
+The [DEV] backend work must be completed before the [UI] story's
+frontend implementation can proceed.
+
+**Link type selection:** Try the "Blocks" link type first (`"blocks"` /
+`"is blocked by"`). If the Jira instance does not have this type, fall
+back to "Dependency" (`"depends on"` / `"is depended on by"`).
+
+After link creation, Jira should show:
+- On the [DEV] story: **"blocks"** {workspace-id}
+- On the [UI] story: **"is blocked by"** {DEV story key}
+
+**Getting the direction right:** Jira link-creation APIs use directional
+fields (e.g., `inwardIssue` / `outwardIssue`) whose meaning varies by
+link type. Read the chosen type's inward and outward descriptions and
+assign the [DEV] and [UI] story keys to produce the expected display.
+After creating the first link in a sync run, read the [DEV] story's
+issue links back from Jira and verify the direction. If wrong, delete
+the link, swap the field assignments, recreate, and re-verify.
+
+If the link creation fails, log the error and continue — the manifest
+entry is still recorded, and the user can add the link manually.
 
 Record the Jira key and content hash in the sync manifest immediately
 (before creating the next story). Set `synced_status: "active"`.

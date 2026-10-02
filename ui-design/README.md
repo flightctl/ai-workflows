@@ -8,7 +8,7 @@ A UI design workflow that takes a `[UI]` Jira story and optional UX handoff arti
 prd → design → ux-design → ui-design (this) → ui-implement (future)
 ```
 
-The `ui-design` workflow consumes the published UX handoff (`05-handoff.md`) and design document from the docs repo. Its output (`02-ui-design.md`) is the contract for the future `ui-implement` workflow.
+The `ui-design` workflow consumes the published UX handoff (`handoff.md`) and design document from the docs repo. Its output (`02-ui-design.md`) is the contract for the future `ui-implement` workflow.
 
 ## Phase Flow
 
@@ -46,7 +46,7 @@ The workflow draws from multiple published sources — never from another workfl
 | `[UI]` Jira story **or** workspace identifier | Jira, or user-provided slug | Yes (one of the two) |
 | Context path | User-provided filesystem path (non-Jira flow only) | No — used when starting from a local document |
 | Description | User-provided text (non-Jira flow only) | No — used when starting from a textual description |
-| UX handoff (`05-handoff.md`) | Docs repo (from `ux-design` workflow) | No — optional for purely technical work |
+| UX handoff (`handoff.md`) | Docs repo (from `ux-design` workflow) | No — optional for purely technical work |
 | PRD (`prd.md`) | Docs repo (from `prd` workflow) | Yes |
 | Design document (`design.md`) | Docs repo (from `design` workflow) | Yes |
 | `AGENTS.md` / `UI-ARCHITECTURE.md` | Project root | If available |

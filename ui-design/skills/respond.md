@@ -203,17 +203,17 @@ copying any files. Verify the recorded branch is checked out and
 the push remote is valid before committing.
 
 ```bash
-cp ".artifacts/ui-design/{workspace-id}/02-ui-design.md" "{target_directory}/ui-design.md"
-# If api-findings.md was updated:
-cp ".artifacts/ui-design/{workspace-id}/03-api-findings.md" "{target_directory}/api-findings.md"
+cp ".artifacts/ui-design/{workspace-id}/02-ui-design.md" "{target_directory}/ui-design-{workspace-id}.md"
+# If api-findings-{workspace-id}.md was updated:
+cp ".artifacts/ui-design/{workspace-id}/03-api-findings.md" "{target_directory}/api-findings-{workspace-id}.md"
 ```
 
 Render provenance footer on the docs-repo copies before staging.
 
 ```bash
-git -C "{docs_repo_path}" add "{target_directory}/ui-design.md"
-# If api-findings.md was updated during this phase:
-git -C "{docs_repo_path}" add "{target_directory}/api-findings.md"
+git -C "{docs_repo_path}" add "{target_directory}/ui-design-{workspace-id}.md"
+# If api-findings-{workspace-id}.md was updated during this phase:
+git -C "{docs_repo_path}" add "{target_directory}/api-findings-{workspace-id}.md"
 git -C "{docs_repo_path}" commit -m "Address review feedback for {workspace-id} UI design"
 git -C "{docs_repo_path}" push
 ```
