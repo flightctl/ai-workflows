@@ -33,8 +33,8 @@ review checkpoint before any code is written.
 
 Read these files in order:
 1. `.artifacts/ui-implement/{issue-key}/01-context.md` (story context)
-2. `.artifacts/ui-implement/{issue-key}/testplan.md` (story-scoped testplan, if exists)
-3. The project's `AGENTS.md` and/or `CLAUDE.md` (coding conventions)
+1. `.artifacts/ui-implement/{issue-key}/testplan.md` (story-scoped testplan, if exists)
+1. The project's `AGENTS.md` and/or `CLAUDE.md` (coding conventions)
 
 If `01-context.md` doesn't exist, tell the user that `/ingest` should be
 run first.
@@ -42,14 +42,14 @@ run first.
 Then open **citations only** from `01-context.md` (ingest is an index; this is where the files are read):
 
 1. Each `[UI Design: §…]`, `[Design: §…]`, `[Handoff: §…]`, `[API: §…]` (or equivalent) → that path + heading range. Do not Read the rest of the document.
-2. Cited source/test paths (Affected Components + Cited, not opened) as needed to name types. Signature `offset`/`limit` slices, not whole files.
-3. Cap **≤12** cited source Reads total (bootstrap reads of `01-context.md`, `testplan.md`, and `AGENTS.md`/`CLAUDE.md` do not count). Skip a citation if it is not needed to lock a task or interface.
-4. Do not glob, repo-wide grep, Jira, or unrelated sibling artifacts. Read the required `testplan.md` when it exists. Do not re-run ingest exploration.
-5. Classify each ingest open question (ingest is an index, not a spec). Do **not** treat ingest text as a complete contract:
+1. Cited source/test paths (Affected Components + Cited, not opened) as needed to name types. Signature `offset`/`limit` slices, not whole files.
+1. Cap **≤12** cited source Reads total (bootstrap reads of `01-context.md`, `testplan.md`, and `AGENTS.md`/`CLAUDE.md` do not count). Skip a citation if it is not needed to lock a task or interface.
+1. Do not glob, repo-wide grep, Jira, or unrelated sibling artifacts. Read the required `testplan.md` when it exists. Do not re-run ingest exploration.
+1. Classify each ingest open question (ingest is an index, not a spec). Do **not** treat ingest text as a complete contract:
    - **Already specified:** citations (or an unambiguous AC) define the component, hook, or behavior → **Locked decision**.
    - **Implementer default:** unspecified but `/code` needs a choice (component name, prop name, default state value, error message text). Lock a default that matches cited neighboring code; note it is a default `/revise` may change. Do not leave it open.
    - **Product fork:** spec vs AC, or two product-legal behaviors. Keep under **Open Questions**. Follow AC in the tasks until the user picks. Do not silently lock the design side.
-6. Do not paste opened file bodies into `02-plan.md` (signatures and decisions only).
+1. Do not paste opened file bodies into `02-plan.md` (signatures and decisions only).
 
 ### Step 1a: Evaluate Test Infrastructure
 

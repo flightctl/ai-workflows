@@ -35,9 +35,9 @@ existing patterns (if any).
 
 Read these files:
 1. `.artifacts/ui-implement/{issue-key}/02-plan.md` (implementation plan)
-2. `.artifacts/ui-implement/{issue-key}/01-context.md` (story context and validation profile)
-3. `.artifacts/ui-implement/{issue-key}/testplan.md` (story-scoped testplan, if exists)
-4. The project's `AGENTS.md` and/or `CLAUDE.md` (coding conventions)
+1. `.artifacts/ui-implement/{issue-key}/01-context.md` (story context and validation profile)
+1. `.artifacts/ui-implement/{issue-key}/testplan.md` (story-scoped testplan, if exists)
+1. The project's `AGENTS.md` and/or `CLAUDE.md` (coding conventions)
 
 If the plan doesn't exist, tell the user that `/plan` should be run first.
 
@@ -177,9 +177,9 @@ Write tests that define the behavioral contracts for this task:
    or modify? For components: what renders, what responds to user events, what
    ARIA attributes are present. For hooks: what values are returned, what
    side effects occur.
-2. **Write test cases:** Use the project's discovered test framework and
+1. **Write test cases:** Use the project's discovered test framework and
    conventions (from the validation profile and neighboring tests).
-3. **Cover behavioral paths:** For each public component/hook, test every
+1. **Cover behavioral paths:** For each public component/hook, test every
    meaningful input that produces distinct observable behavior. This
    includes:
    - **Components:** rendering with different props, user interactions
@@ -187,15 +187,15 @@ Write tests that define the behavioral contracts for this task:
      attributes (roles, aria-labels, keyboard navigation)
    - **Hooks:** return values for different inputs, state transitions,
      error handling, cleanup/unmount behavior
-4. **Mock only external dependencies.** Mock API calls, router, i18n
+1. **Mock only external dependencies.** Mock API calls, router, i18n
    provider, permission context — whatever the project's patterns use. Do
    not mock internal component logic or child components (unless the
    project's test patterns explicitly do so).
-5. **Wrap with required providers.** If the project's components need
+1. **Wrap with required providers.** If the project's components need
    context providers (router, i18n, theme, query client), use the project's
    existing test utilities or create a render wrapper matching existing
    patterns.
-6. **Name tests after the contract they validate,** not after bugs
+1. **Name tests after the contract they validate,** not after bugs
    discovered during development.
 
 #### 3c: Write Implementation (after tests exist)
@@ -203,18 +203,18 @@ Write tests that define the behavioral contracts for this task:
 Write the production code that makes the tests from 3b pass:
 
 1. Follow existing component/hook patterns in the project
-2. Match naming conventions, file organization, and code style
-3. Use the project's discovered design system components — do not
+1. Match naming conventions, file organization, and code style
+1. Use the project's discovered design system components — do not
    introduce raw HTML elements or inline styles when a design system
    equivalent exists
-4. Wrap all user-visible strings with the project's discovered i18n
+1. Wrap all user-visible strings with the project's discovered i18n
    mechanism (if one exists)
-5. Include appropriate ARIA attributes and keyboard event handlers
+1. Include appropriate ARIA attributes and keyboard event handlers
    for interactive elements
-6. Handle loading, error, and empty states as specified in the plan
-7. Apply permission gates as specified in the plan
-8. Keep changes focused on what the task describes
-9. **Comments must earn their place.** Default to writing no comments
+1. Handle loading, error, and empty states as specified in the plan
+1. Apply permission gates as specified in the plan
+1. Keep changes focused on what the task describes
+1. **Comments must earn their place.** Default to writing no comments
    unless the project's lint or style conventions require doc comments
    on exported symbols. Add a comment only when the *why* is non-obvious.
 
@@ -236,7 +236,7 @@ Look up the test commands from the **Pre-PR Checks** section of
 "type check"). Match the label to the type of tests you wrote:
 
 1. Run the unit test command for the specific module/file first (fast feedback)
-2. If type checking is a separate command, run it to verify TypeScript types
+1. If type checking is a separate command, run it to verify TypeScript types
 
 Run each test command as a separate invocation — do not chain commands.
 Fix any failures before proceeding.
@@ -305,11 +305,11 @@ does, verify each mapped TC ID before proceeding to commit:
    inconsistency. Read the full test case entry (the Preconditions,
    Steps, and Expected Results sections). If any of these sections is
    missing, stop and report the testplan as malformed.
-2. Verify that a test exists (written in Step 3b or a prior task)
+1. Verify that a test exists (written in Step 3b or a prior task)
    whose assertions validate the Expected Results described in the
    test case. The match is behavioral, not textual — the test must
    exercise the described scenario and assert the described outcomes.
-3. If a TC ID mapped to this task has no corresponding test with
+1. If a TC ID mapped to this task has no corresponding test with
    sufficient assertion depth, write the missing test (Step 3b), run
    it (Step 3d), run the fast quality checks (Step 3e), stage the new
    files (`git add`), re-run the review gate, then re-check.
@@ -391,11 +391,11 @@ fail, diagnose using the failure routing in Step 4.
 **If there are conflicts:**
 
 1. Stop and report the conflicting files to the user
-2. Show the conflict markers so the user can see what's colliding
-3. Offer to resolve the conflicts — describe what you would do
-4. Proceed only after the user approves the resolution (or resolves it
+1. Show the conflict markers so the user can see what's colliding
+1. Offer to resolve the conflicts — describe what you would do
+1. Proceed only after the user approves the resolution (or resolves it
    themselves)
-5. After resolution, run `git rebase --continue` or commit the merge
+1. After resolution, run `git rebase --continue` or commit the merge
    resolution as appropriate, then re-run the task's tests
 
 #### 3i: Update Plan
@@ -415,15 +415,15 @@ plan includes an integration/e2e test stubs task. If it does:
 1. Read the project's existing e2e test files (discovered during `/ingest`)
    to match patterns — file naming, describe block structure, test
    utilities, selectors
-2. Write stub test files with:
+1. Write stub test files with:
    - Describe blocks for each planned scenario
    - Pending/skipped test cases with descriptive names
    - Comments noting what each test should verify
    - Proper imports matching the project's e2e patterns
-3. Do **not** write full e2e test implementations — those are for `[QE]`
+1. Do **not** write full e2e test implementations — those are for `[QE]`
    stories. Stubs provide scaffolding only.
-4. Run lint on the stub files
-5. Commit separately:
+1. Run lint on the stub files
+1. Commit separately:
 
 ```bash
 git add {stub files}

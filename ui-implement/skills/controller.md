@@ -15,25 +15,25 @@ lightweight dispatcher.
    Fetch the Jira story, load ui-design/PRD/handoff context, explore the
    relevant codebase, discover the UI toolchain, and build a validation profile.
 
-2. **Plan** (`/plan`) — `plan.md`
+1. **Plan** (`/plan`) — `plan.md`
    Design the implementation approach: task breakdown, component/hook
    interfaces, test strategy, and risk assessment.
 
-3. **Revise** (`/revise`) — `revise.md`
+1. **Revise** (`/revise`) — `revise.md`
    Incorporate user feedback into the implementation plan. Repeatable.
 
-4. **Code** (`/code`) — `code.md`
+1. **Code** (`/code`) — `code.md`
    Write unit tests and production code via TDD (task by task), then write
    integration/e2e test stubs after all tasks complete. Commit incrementally.
 
-5. **Validate** (`/validate`) — `validate.md`
+1. **Validate** (`/validate`) — `validate.md`
    Run the full validation suite (tests, lint, type checking, coverage),
    iterate on gaps.
 
-6. **Publish** (`/publish`) — `publish.md`
+1. **Publish** (`/publish`) — `publish.md`
    Push the feature branch and create a draft PR in the source repo.
 
-7. **Respond** (`/respond`) — `respond.md`
+1. **Respond** (`/respond`) — `respond.md`
    Fetch and address PR reviewer comments. Repeatable.
 
 ## Workspace
@@ -69,7 +69,7 @@ completion routing for both built-in phases and project overrides.
 
 When the user provides a Jira issue key or URL:
 1. Set `PHASE=ingest`.
-2. Read `dispatch.md` and follow it.
+1. Read `dispatch.md` and follow it.
 
 If the user invokes a specific command (e.g., `/code`), set `PHASE` to that
 command's phase, then read `dispatch.md` and follow it. Do not force the user
@@ -85,8 +85,8 @@ If a phase cannot complete because of an operational error (for example, a
 Jira MCP, build, or git error):
 
 1. **Stop immediately.** Do not advance to the next phase.
-2. **Report the error** to the user with the specific error message.
-3. **Offer options:** retry the failed step, skip the phase (if optional), or escalate.
+1. **Report the error** to the user with the specific error message.
+1. **Offer options:** retry the failed step, skip the phase (if optional), or escalate.
 
 Do not fabricate results when a tool call fails. Do not silently continue
 past errors. A completed validation report with a failing verdict is a valid

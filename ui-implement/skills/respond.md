@@ -129,20 +129,20 @@ Wait for the user to approve, modify, or reject each response.
 For comments requiring code changes:
 
 1. Read the affected file(s)
-2. Apply the change
-3. If the change affects behavior, update or add tests. Tests must
+1. Apply the change
+1. If the change affects behavior, update or add tests. Tests must
    validate behavioral contracts through public interfaces — the same
    standard as `/code`. Match existing test patterns.
-4. Run the affected tests to verify
-5. Run lint and format checks on the changed files. Fix any issues.
-6. Commit using the project's commit format:
+1. Run the affected tests to verify
+1. Run lint and format checks on the changed files. Fix any issues.
+1. Commit using the project's commit format:
 
    ```bash
    git add {specific files}
    git commit -m "{issue-key}: Address review feedback — {brief description}"
    ```
 
-7. After all approved code changes are committed and replies posted,
+1. After all approved code changes are committed and replies posted,
    confirm with the user before pushing. Present the list of commits
    to push:
 

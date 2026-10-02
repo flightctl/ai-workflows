@@ -106,7 +106,7 @@ For each dependency identified in Step 3:
 1. Check if the dependent story's Jira status indicates completion
    (Done, Closed, Resolved). Fetch with `fetch-issue.py get` (Blocking deps
    command from the Jira call section).
-2. Check if the dependent story's code has been merged to the main branch:
+1. Check if the dependent story's code has been merged to the main branch:
    `git log main --oneline --grep="{key}" -5`.
 
 If dependencies are unresolved, **warn the user** but do not block. Report:
@@ -127,8 +127,8 @@ workflow run may have already created it.
 
 If it exists, Read it and validate:
 1. Path exists on disk
-2. Directory is a git repo
-3. `git remote get-url origin` matches `docs_repo_remote`
+1. Directory is a git repo
+1. `git remote get-url origin` matches `docs_repo_remote`
 
 If any check fails, tell the user and re-ask. Resolve `~` to an absolute path before saving.
 
@@ -141,7 +141,7 @@ right directory, walk the Jira hierarchy from the story:
 
 1. The story (e.g., `PROJ-1234`) has a parent **Epic** — its key is in the
    `parent.key` field of the story payload from Step 3
-2. The Epic has a parent **Feature** — its key is in `parent.parent.key`
+1. The Epic has a parent **Feature** — its key is in `parent.parent.key`
    (or `parent.fields.parent.key`) of the story payload, since the Story
    command fetches `--parent-fields summary,status,issuetype,parent`
 
@@ -172,10 +172,10 @@ Do **not** Read an entire `ui-design.md`, `design.md`, `prd.md`, or
 
 1. Collect search terms from the Jira story: issue key, design section
    refs, FR/NFR IDs, AC keywords, component names.
-2. Grep each document for those terms and for heading lines (`^#`).
-3. Read **only** the matching heading ranges (`offset`/`limit`). Prefer
+1. Grep each document for those terms and for heading lines (`^#`).
+1. Read **only** the matching heading ranges (`offset`/`limit`). Prefer
    one contiguous range per relevant section.
-4. If grep finds nothing useful, Read the first ~80 lines of the document
+1. If grep finds nothing useful, Read the first ~80 lines of the document
    (title, TOC, or overview) and grep again using TOC entries — still
    do not Read the rest of the file.
 
@@ -185,15 +185,15 @@ Need (in priority order):
    this story: component architecture tree, hook designs, state management,
    route structure, data flow mapping, persona decomposition, accessibility
    plan, testing strategy.
-2. **Design document** (`design.md`) — sections that bind this story (API
+1. **Design document** (`design.md`) — sections that bind this story (API
    contracts, data models, flows)
-3. **PRD** (`prd.md`) — FR/NFR this story covers
-4. **Handoff document** (`handoff.md`) — **optional.** Interaction specs,
+1. **PRD** (`prd.md`) — FR/NFR this story covers
+1. **Handoff document** (`handoff.md`) — **optional.** Interaction specs,
    state matrix, component mapping, accessibility requirements, acceptance
    criteria enrichment
-5. **API findings** (`api-findings.md`) — **optional.** Resolved endpoints,
+1. **API findings** (`api-findings.md`) — **optional.** Resolved endpoints,
    API gaps, mock strategies
-6. **Testplan** (`testplan.md`) — candidate test cases for Step 5d
+1. **Testplan** (`testplan.md`) — candidate test cases for Step 5d
 
 If `ui-design.md` is not found, **warn the user** — this is the primary
 design input for UI stories. Ask whether to proceed with only the Jira story
@@ -265,13 +265,13 @@ Focus on:
      path is enough; Read only if the template body is needed for the
      profile
 
-2. **Affected components:**
+1. **Affected components:**
    - Which components, hooks, pages, or modules will this story touch?
    - Grep for component/hook names; Read signatures (`offset`/`limit`), not full files
    - Note existing test file paths from glob/grep; Read a test file only
      to capture the test pattern, not the whole suite
 
-3. **UI toolchain discovery** (record all findings in `01-context.md`):
+1. **UI toolchain discovery** (record all findings in `01-context.md`):
    - **Test framework:** grep `package.json` for test runner (vitest, jest,
      mocha, etc.), testing library (@testing-library/react, enzyme, etc.),
      and test scripts. Record the framework, assertion library, and run command.
@@ -295,7 +295,7 @@ Focus on:
      and rationale in `01-context.md` under Test Infrastructure. This
      becomes "Task 0" material for `/plan`.
 
-4. **Relevant data models and APIs:**
+1. **Relevant data models and APIs:**
    - What TypeScript types/interfaces will be extended or consumed?
    - What API hooks or fetch patterns exist?
    - What API specifications exist (OpenAPI, GraphQL schema)?
@@ -319,17 +319,17 @@ Based on the codebase exploration, document the cross-cutting patterns that
 
 1. **Design system usage patterns:** How are design system components imported
    and composed? Are there project-specific wrappers?
-2. **i18n patterns:** How are translation keys structured? Where do translation
+1. **i18n patterns:** How are translation keys structured? Where do translation
    files live? Is there a key naming convention?
-3. **Accessibility patterns:** Does the project use specific a11y testing
+1. **Accessibility patterns:** Does the project use specific a11y testing
    utilities? Are there ARIA patterns enforced by lint rules?
-4. **Permission patterns:** How are feature gates and RBAC checks applied to
+1. **Permission patterns:** How are feature gates and RBAC checks applied to
    UI elements?
-5. **State management patterns:** How do components fetch and cache server
+1. **State management patterns:** How do components fetch and cache server
    data? How is client state managed?
-6. **Error handling patterns:** How are API errors displayed? Is there a
+1. **Error handling patterns:** How are API errors displayed? Is there a
    shared error boundary or toast system?
-7. **Loading state patterns:** How are loading indicators rendered? Skeletons,
+1. **Loading state patterns:** How are loading indicators rendered? Skeletons,
    spinners, or placeholders?
 
 ### Step 8: Compile Context
