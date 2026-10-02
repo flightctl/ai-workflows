@@ -183,7 +183,7 @@ files are often thousands of lines. Search, then slice.
 Need:
 
 1. **Design document** (`design.md`) — sections that bind this story
-2. **UI design document** (`ui-design-{story-key}.md`) — UI-specific design context
+2. **UI design document** (filename from the `UI Design section` field) — UI-specific design context
    (present only for features that went through the ui-design workflow)
 3. **PRD** (`prd.md`) — FR/NFR this story covers
 4. **Testplan** (`testplan.md`) — candidate test cases for Step 5d
