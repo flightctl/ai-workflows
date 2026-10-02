@@ -16,7 +16,7 @@ description: >-
 
 1. If the user invoked a specific command (e.g., `/plan`, `/code`), read
    the matching file in commands/ and follow it.
-2. Otherwise, read `skills/controller.md` to load the workflow controller:
+1. Otherwise, read `skills/controller.md` to load the workflow controller:
    - If the user provided a Jira issue key or URL, execute the `/ingest` phase
    - Otherwise, execute the first phase the user requests
 
