@@ -58,7 +58,7 @@ Verify readiness:
    the `## Result` section is missing, or it contains `FAIL`, tell the user
    that `/validate` should be run (or re-run) first.
 
-1. Verify the feature branch exists and has commits:
+2. Verify the feature branch exists and has commits:
 
    ```bash
    git branch --show-current
@@ -72,7 +72,7 @@ Verify readiness:
 
    If there are no commits ahead of the Local Base, there's nothing to publish.
 
-1. Run the shared pre-flight checks:
+3. Run the shared pre-flight checks:
 
    ```bash
    python3 "$PUBLISH_SCRIPT" preflight --platform github

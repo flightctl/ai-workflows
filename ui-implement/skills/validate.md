@@ -31,9 +31,9 @@ and repeat until everything passes.
 
 Read:
 1. `.artifacts/ui-implement/{issue-key}/01-context.md` (validation profile)
-1. `.artifacts/ui-implement/{issue-key}/02-plan.md` (what was implemented)
-1. `.artifacts/ui-implement/{issue-key}/04-impl-report.md` (implementation status)
-1. `.artifacts/ui-implement/{issue-key}/testplan.md` (story-scoped testplan, if exists)
+2. `.artifacts/ui-implement/{issue-key}/02-plan.md` (what was implemented)
+3. `.artifacts/ui-implement/{issue-key}/04-impl-report.md` (implementation status)
+4. `.artifacts/ui-implement/{issue-key}/testplan.md` (story-scoped testplan, if exists)
 
 Extract the validation profile's pre-PR checks list.
 
@@ -89,8 +89,8 @@ either operation, continue but note the staleness in the validation report.
 Execute each check from the validation profile in order. For each check:
 
 1. **Run the command**
-1. **Capture the output**
-1. **Assess the result:** pass, fail, or warning
+2. **Capture the output**
+3. **Assess the result:** pass, fail, or warning
 
 Typical checks (discovered, not hardcoded):
 - Type checking (e.g., TypeScript compilation)
@@ -102,19 +102,19 @@ Typical checks (discovered, not hardcoded):
 **If a check fails:**
 
 1. Diagnose the failure — is it caused by the story's changes or pre-existing?
-1. If caused by the story's changes: fix it, commit the fix, re-run the check
-1. If pre-existing: note it in the validation report, do not fix it
-1. If unclear: report to the user
+2. If caused by the story's changes: fix it, commit the fix, re-run the check
+3. If pre-existing: note it in the validation report, do not fix it
+4. If unclear: report to the user
 
 ### Step 4: Analyze Coverage
 
 Run coverage analysis on the packages affected by the story:
 
 1. Use the coverage command from the validation profile
-1. Focus on the **new and modified code** specifically — compare the
+2. Focus on the **new and modified code** specifically — compare the
    coverage report's per-function or per-line breakdown against the
    story's diff to isolate new-code coverage from pre-existing code
-1. For each public component/hook added or modified:
+3. For each public component/hook added or modified:
    - Are all rendering paths exercised by tests?
    - Are user interaction paths tested?
    - Are error, loading, and empty states tested?
@@ -123,10 +123,10 @@ Run coverage analysis on the packages affected by the story:
 If coverage analysis reveals untested behavioral paths in new code:
 
 1. Write additional tests for the missing behaviors
-1. Follow the same contract-based testing standards
-1. Run the tests to verify they pass
-1. Commit following the project's commit format
-1. Re-run coverage to confirm improvement
+2. Follow the same contract-based testing standards
+3. Run the tests to verify they pass
+4. Commit following the project's commit format
+5. Re-run coverage to confirm improvement
 
 Read the **Minimum new-code coverage** percentage from the Coverage
 Tooling section of `01-context.md` (discovered during `/ingest`,
@@ -148,8 +148,8 @@ the component is too coarse-grained. Escalate to the user:
 Verify that the story's changes haven't broken existing functionality:
 
 1. Run the full unit test suite (not just affected packages)
-1. Run the full build (if applicable)
-1. Check for any test failures unrelated to the story
+2. Run the full build (if applicable)
+3. Check for any test failures unrelated to the story
 
 If regressions are found:
 - Diagnose whether the story's changes caused them
@@ -189,8 +189,8 @@ After automated checks and code quality review, verify that every
 acceptance criterion from the story has been satisfied.
 
 1. Read the **Acceptance Criteria** from `01-context.md`
-1. Read the **Acceptance Criteria Coverage** matrix from `02-plan.md`
-1. For each acceptance criterion:
+2. Read the **Acceptance Criteria Coverage** matrix from `02-plan.md`
+3. For each acceptance criterion:
    - **Trace to implementation:** Is there code that implements this
      criterion? Follow the task mapping — check that the task is marked
      Done and that the corresponding code exists.
@@ -205,9 +205,9 @@ satisfied:
 
 1. If it's a gap in implementation or tests — fix it, commit the fix,
    and re-run the relevant checks
-1. If it's ambiguous whether the criterion is met — flag it to the
+2. If it's ambiguous whether the criterion is met — flag it to the
    user with your assessment
-1. If the criterion cannot be verified through automated means (e.g.,
+3. If the criterion cannot be verified through automated means (e.g.,
    it requires visual verification or describes a UX quality) — note
    it as "requires manual verification"
 
@@ -224,17 +224,17 @@ Coverage section, skip this step entirely.
 
 1. Read `testplan.md` and extract all TC IDs. Verify that Preconditions,
    Steps, and Expected Results sections are present for each entry.
-1. For each TC ID (except those legitimately N/A based on the plan's
+2. For each TC ID (except those legitimately N/A based on the plan's
    rationale):
    - Search the test files on the feature branch for a test whose
      scenario matches the TC's Steps and whose assertions match the
      Expected Results.
    - Record the test file and test name for each TC ID.
-1. If any TC ID lacks a corresponding test:
+3. If any TC ID lacks a corresponding test:
    - Write the missing test following contract-based testing standards.
    - Commit the test following the project's commit format.
    - Re-run the relevant checks from Step 3.
-1. Record results for the validation report.
+4. Record results for the validation report.
 
 ### Step 9: Write Validation Report
 
