@@ -192,7 +192,7 @@ class RenderIssueTests(unittest.TestCase):
         provenance = render_issue.build_provenance(self.model(), skill)
         self.assertEqual(
             provenance,
-            "Reported with AI assistance using report-bug v0.1.0. Review for accuracy.",
+            "Reported with AI assistance using report-bug v0.1.1. Review for accuracy.",
         )
 
         raw = self.raw_model()
@@ -204,7 +204,7 @@ class RenderIssueTests(unittest.TestCase):
         self.assertIn("(Codex using gpt-5.6-sol)", identified)
 
     def test_adf_provenance_is_emphasized_after_rule(self):
-        provenance = "Reported with AI assistance using report-bug v0.1.0."
+        provenance = "Reported with AI assistance using report-bug v0.1.1."
         adf = render_issue.render_adf(self.blocks(), self.model(), provenance)
         self.assertEqual(adf["content"][-2], {"type": "rule"})
         self.assertEqual(
@@ -265,7 +265,7 @@ class RenderIssueCliTests(unittest.TestCase):
         self.assertEqual(result.stderr, "")
         adf = json.loads(result.stdout)
         self.assertEqual(adf["type"], "doc")
-        self.assertIn("report-bug v0.1.0", adf["content"][-1]["content"][0]["text"])
+        self.assertIn("report-bug v0.1.1", adf["content"][-1]["content"][0]["text"])
 
     def test_cli_emits_markdown_preview(self):
         result = self.run_cli(
@@ -274,7 +274,7 @@ class RenderIssueCliTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(result.stdout.startswith("## Description of the problem\n"))
-        self.assertIn("report-bug v0.1.0", result.stdout)
+        self.assertIn("report-bug v0.1.1", result.stdout)
 
     def test_cli_can_disable_provenance_by_policy(self):
         result = self.run_cli(

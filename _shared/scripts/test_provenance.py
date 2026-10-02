@@ -55,6 +55,10 @@ class ProvenanceTests(unittest.TestCase):
         events = [{"phase": "draft"}, {"phase": "revise"}]
         self.assertFalse(provenance.origin_untracked(events))
 
+    def test_origin_untracked_false_when_first_event_is_plan(self) -> None:
+        events = [{"phase": "plan"}, {"phase": "revise"}]
+        self.assertFalse(provenance.origin_untracked(events))
+
     def test_origin_untracked_false_when_first_event_is_commit(self) -> None:
         events = [{"phase": "commit"}]
         self.assertFalse(provenance.origin_untracked(events))
@@ -69,6 +73,12 @@ class ProvenanceTests(unittest.TestCase):
         # Regression test for issue #94: /revise with no prior /draft or
         # commit snapshot must be flagged as untracked origin.
         events = [{"phase": "revise"}]
+        self.assertTrue(provenance.origin_untracked(events))
+
+    def test_origin_untracked_true_when_first_event_is_review_api(self) -> None:
+        # review-api is an authoring phase but not an origin-tracked phase,
+        # so a session starting with review-api has an untracked origin.
+        events = [{"phase": "review-api"}]
         self.assertTrue(provenance.origin_untracked(events))
 
     def test_origin_untracked_true_when_first_event_is_manual_edit(self) -> None:
@@ -125,6 +135,89 @@ class ProvenanceTests(unittest.TestCase):
         }
         metrics = provenance.build_metrics_payload(data)
         self.assertTrue(metrics["origin_untracked"])
+
+    def test_plan_only_session_is_tracked_origin(self) -> None:
+        # A plan-only provenance log should be treated as a tracked-origin
+        # session — plan is in ORIGIN_TRACKED_PHASES alongside draft.
+        events = [
+            {
+                "phase": "plan",
+                "authoring_mode": "skill",
+                "workflow_version": "0.3.5",
+                "ai_workflows": "abc1234",
+                "source_repo": "def5678",
+                "source_repo_branch": "main",
+            }
+        ]
+        data = {
+            "workflow": "ui-design",
+            "events": events,
+            "drift": {"context_changed": False},
+        }
+        # provenance_kind should be "session" (not commit_only)
+        self.assertEqual(provenance.provenance_kind(events), "session")
+        # origin should be tracked (plan is in ORIGIN_TRACKED_PHASES)
+        self.assertFalse(provenance.origin_untracked(events))
+        # metrics payload should reflect tracked origin
+        metrics = provenance.build_metrics_payload(data)
+        self.assertEqual(metrics["provenance_kind"], "session")
+        self.assertFalse(metrics["origin_untracked"])
+        self.assertEqual(metrics["phases"], ["plan"])
+        # footer should have no untracked-origin disclaimer
+        footer = provenance.build_footer(data)
+        self.assertIn("Authored: plan @ ui-design 0.3.5 - abc1234", footer)
+        self.assertNotIn("does not include an initial /draft", footer)
+        self.assertIn('"origin_untracked":false', footer)
+
+    def test_plan_review_api_revise_session(self) -> None:
+        # Regression test: review-api must appear in AUTHORING_PHASES so that
+        # skill_phase_names() includes it in the footer's Phases line.
+        # A plan → review-api → revise session should:
+        #   - list all three phases in build_metrics_payload
+        #   - render "Phases: plan, review-api, revise" in the footer
+        #   - remain tracked-origin because the first event is plan
+        events = [
+            {
+                "phase": "plan",
+                "authoring_mode": "skill",
+                "workflow_version": "0.3.5",
+                "ai_workflows": "abc1234",
+                "source_repo": "def5678",
+                "source_repo_branch": "feat-branch",
+            },
+            {
+                "phase": "review-api",
+                "authoring_mode": "skill",
+                "workflow_version": "0.3.5",
+                "ai_workflows": "abc1234",
+                "source_repo": "def5678",
+                "source_repo_branch": "feat-branch",
+            },
+            {
+                "phase": "revise",
+                "authoring_mode": "skill",
+                "workflow_version": "0.3.5",
+                "ai_workflows": "abc1234",
+                "source_repo": "def5678",
+                "source_repo_branch": "feat-branch",
+            },
+        ]
+        data = {
+            "workflow": "ui-design",
+            "events": events,
+            "drift": {"context_changed": False},
+        }
+        # metrics payload must include all three phases
+        metrics = provenance.build_metrics_payload(data)
+        self.assertEqual(metrics["phases"], ["plan", "review-api", "revise"])
+        # origin is tracked (first event is plan)
+        self.assertFalse(metrics["origin_untracked"])
+        # footer must render all three in the Phases line
+        footer = provenance.build_footer(data)
+        self.assertIn("Phases: plan, review-api, revise", footer)
+        # no untracked-origin disclaimer
+        self.assertNotIn("does not include an initial /draft", footer)
+        self.assertIn('"origin_untracked":false', footer)
 
     def test_build_metrics_payload_origin_tracked_for_draft(self) -> None:
         data = {
@@ -350,6 +443,58 @@ class ProvenanceTests(unittest.TestCase):
             "does not include an initial /draft", footer
         )
         self.assertIn('"origin_untracked":true', footer)
+
+    def test_review_api_is_authoring_phase(self) -> None:
+        # review-api must be in AUTHORING_PHASES so it appears in the
+        # Phases line and is counted by skill_phase_names.
+        self.assertIn("review-api", provenance.AUTHORING_PHASES)
+        events = [
+            {"phase": "plan", "authoring_mode": "skill"},
+            {"phase": "review-api", "authoring_mode": "skill"},
+            {"phase": "revise", "authoring_mode": "skill"},
+        ]
+        self.assertEqual(
+            provenance.skill_phase_names(events),
+            ["plan", "review-api", "revise"],
+        )
+
+    def test_build_footer_includes_review_api_in_phases(self) -> None:
+        # A session with plan → review-api → revise must list all three
+        # authoring phases in the footer and mark origin as tracked.
+        data = {
+            "workflow": "ui-design",
+            "events": [
+                {
+                    "phase": "plan",
+                    "authoring_mode": "skill",
+                    "workflow_version": "0.1.0",
+                    "ai_workflows": "abc1234",
+                    "source_repo": "def5678",
+                    "source_repo_branch": "main",
+                },
+                {
+                    "phase": "review-api",
+                    "authoring_mode": "skill",
+                    "workflow_version": "0.1.0",
+                    "ai_workflows": "abc1234",
+                    "source_repo": "def5678",
+                    "source_repo_branch": "main",
+                },
+                {
+                    "phase": "revise",
+                    "authoring_mode": "skill",
+                    "workflow_version": "0.1.0",
+                    "ai_workflows": "abc1234",
+                    "source_repo": "def5678",
+                    "source_repo_branch": "main",
+                },
+            ],
+            "drift": {"context_changed": False},
+        }
+        footer = provenance.build_footer(data)
+        self.assertIn("Phases: plan, review-api, revise", footer)
+        self.assertFalse(provenance.origin_untracked(data["events"]))
+        self.assertNotIn("does not include an initial /draft", footer)
 
     def test_build_footer_single_event(self) -> None:
         data = {
