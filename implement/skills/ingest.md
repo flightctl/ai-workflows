@@ -195,7 +195,7 @@ Check the story's Design Reference `Source` field (captured in Step 3):
 - **`Source: ui-design/sync`** — this story was created by the ui-design
   workflow's `/sync` phase. Extract the UI design document filename from
   the `UI Design section` field in the Design Reference (it will be in
-  the form `ui-design-{workspace-id}.md`). Use this as the primary
+  the form `ui-design-{story-key}.md`). Use this as the primary
   design document: grep it for the story's issue key, AC keywords, and
   component names (instead of the `Design section` field used for
   `design.md`). If `design.md` also exists in the feature directory,
