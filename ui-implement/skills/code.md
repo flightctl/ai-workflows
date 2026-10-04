@@ -338,6 +338,32 @@ Use the commit format from the **Commit Format** section of
 If the commit fails (e.g., rejected by pre-commit hooks), diagnose and
 fix the issue before proceeding to the sync step.
 
+**Post-commit: Refresh validation profile (Task 0 only)**
+
+If the task just completed was Task 0 (test framework introduction), the
+cached validation profile is now stale — it was written during `/ingest`
+before the test framework existed and may not include the new test
+command. Re-discover validation commands so that subsequent TDD tasks
+and `/validate` use the correct test runner:
+
+1. Re-run the validation profile discovery logic: scan `package.json`
+   `scripts` (and any test config files such as `vitest.config.*`,
+   `jest.config.*`, `tsconfig.json`) to identify the current test
+   command, lint command, type-check command, and build command.
+2. Overwrite `.artifacts/ui-implement/_validation-profile.md` with the
+   updated profile, preserving the existing section structure (Commit
+   Format, Pre-PR Checks, etc.).
+3. Also update the **Pre-PR Checks** section in
+   `.artifacts/ui-implement/{issue-key}/01-context.md` so that Steps 3d
+   and 3e use the new commands for the remaining tasks.
+4. Verify that a unit test command now appears in the updated profile.
+   If no test command is detected after re-discovery, warn the user:
+   "Task 0 committed but no test command detected in package.json
+   scripts. TDD tasks may not be able to run tests. Please verify the
+   test framework installation."
+
+For all other tasks, skip this step.
+
 #### 3h: Sync with Base
 
 After committing, rebase onto the latest base branch to keep subsequent
