@@ -211,6 +211,22 @@ already supports `ui-design` as a `--workflow` value (added in commit
 pre-configured. See `../../_shared/provenance-schema.md` for the schema
 definition.
 
+Update cross-references in the copied files to reflect the published
+filenames. The artifact names (`02-ui-design.md`, `03-api-findings.md`)
+differ from the published names (`ui-design-{workspace-id}.md`,
+`api-findings-{workspace-id}.md`), so any internal references must be
+updated:
+
+```bash
+sed -i 's/03-api-findings\.md/api-findings-{workspace-id}.md/g' "{target_directory}/ui-design-{workspace-id}.md"
+```
+
+If `api-findings-{workspace-id}.md` was copied:
+
+```bash
+sed -i 's/02-ui-design\.md/ui-design-{workspace-id}.md/g' "{target_directory}/api-findings-{workspace-id}.md"
+```
+
 Stage and commit:
 
 ```bash
