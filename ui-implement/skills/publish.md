@@ -53,10 +53,12 @@ commands.
 
 Verify readiness:
 
-1. Read `.artifacts/ui-implement/{issue-key}/05-validation-report.md`. Check
-   that the `## Result` section contains `PASS`. If the file doesn't exist,
-   the `## Result` section is missing, or it contains `FAIL`, tell the user
-   that `/validate` should be run (or re-run) first.
+1. Read `.artifacts/ui-implement/{issue-key}/05-validation-report.md`. Locate
+   the `## Result` heading and parse the first non-empty line after it. That
+   line must be exactly `PASS` (case-sensitive, no surrounding text). If the
+   file doesn't exist, the `## Result` section is missing, or the first
+   non-empty line is anything other than `PASS`, tell the user that
+   `/validate` should be run (or re-run) first.
 
 2. Verify the feature branch exists and has commits:
 

@@ -357,10 +357,12 @@ and `/validate` use the correct test runner:
    `.artifacts/ui-implement/{issue-key}/01-context.md` so that Steps 3d
    and 3e use the new commands for the remaining tasks.
 4. Verify that a unit test command now appears in the updated profile.
-   If no test command is detected after re-discovery, warn the user:
-   "Task 0 committed but no test command detected in package.json
-   scripts. TDD tasks may not be able to run tests. Please verify the
-   test framework installation."
+   If no test command is detected after re-discovery, **STOP** and ask
+   the user to verify the test script configuration: "Task 0 committed
+   but no test command detected in package.json scripts. Step 3d
+   requires running tests — TDD tasks cannot proceed without a working
+   test command. Please verify the test framework installation and
+   confirm the test script name before continuing."
 
 For all other tasks, skip this step.
 

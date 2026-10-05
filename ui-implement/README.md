@@ -13,8 +13,8 @@ graph TD
     revise --> code
     code --> validate
     validate -->|pass| publish
-    validate -->|fail| code
-    publish --> respond
+    validate -->|fail| validate
+    publish -->|comments| respond
     respond --> respond
 ```
 
