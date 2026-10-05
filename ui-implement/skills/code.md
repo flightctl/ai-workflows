@@ -350,13 +350,25 @@ and `/validate` use the correct test runner:
    `scripts` (and any test config files such as `vitest.config.*`,
    `jest.config.*`, `tsconfig.json`) to identify the current test
    command, lint command, type-check command, and build command.
-2. Overwrite `.artifacts/ui-implement/_validation-profile.md` with the
+2. Discover coverage commands and configuration — these could not be
+   found during `/ingest` because no test framework existed yet:
+   - **Coverage commands:** look for a `--coverage` flag on the test
+     script, a dedicated `coverage` script in `package.json`, or a
+     standalone runner (e.g., `nyc`, `c8`)
+   - **Coverage configuration:** look for a `coverage` section in
+     `vitest.config.*` or `jest.config.*`, or standalone config files
+     (`.nycrc`, `.nycrc.json`, `.c8rc.json`, `istanbul.config.*`)
+   - **Coverage output directory:** identify where reports are written
+     (e.g., `coverage/`, a custom `reportsDirectory` in the config)
+     so `/validate` knows where to find them
+3. Overwrite `.artifacts/ui-implement/_validation-profile.md` with the
    updated profile, preserving the existing section structure (Commit
-   Format, Pre-PR Checks, etc.).
-3. Also update the **Pre-PR Checks** section in
+   Format, Pre-PR Checks, etc.). Include any discovered coverage
+   command, configuration file paths, and output directory.
+4. Also update the **Pre-PR Checks** section in
    `.artifacts/ui-implement/{issue-key}/01-context.md` so that Steps 3d
    and 3e use the new commands for the remaining tasks.
-4. Verify that a unit test command now appears in the updated profile.
+5. Verify that a unit test command now appears in the updated profile.
    If no test command is detected after re-discovery, **STOP** and ask
    the user to verify the test script configuration: "Task 0 committed
    but no test command detected in package.json scripts. Step 3d
