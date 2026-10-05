@@ -41,6 +41,13 @@ Read `.artifacts/config.json` to get the docs repo path and
 number and `{branch-name}`. If either file doesn't exist, tell the user
 that `/publish` should be run first.
 
+Determine `{source_repo_root}` with `git rev-parse --show-toplevel`. Normalize
+`docs_repo_path` before using it: expand `~`, resolve a relative value against
+`{source_repo_root}`, then use `Path.resolve()` to get an absolute path. This
+also supports existing configs that stored the path relative to the source
+repository. Use only the normalized absolute path in subsequent Git commands,
+filesystem paths, and provenance targets.
+
 Read `00-context.md` and compare the published handoff's discovery revision
 with the current revision. If enrichment made the handoff stale, stop before
 applying review feedback and recommend `/handoff` to regenerate it. Resume

@@ -183,33 +183,33 @@ For Feature-key and `[UX]` story inputs, read `.artifacts/config.json` for
 `docs_repo_path` and `docs_repo_remote`. Direct PRD-path inputs use the bypass
 described above.
 
-The `docs_repo_path` is stored **relative to the source-repository root** so
-the config is portable across machines. Resolve it to an absolute path at
-runtime for validation and use.
+Store `docs_repo_path` in the shared config as a normalized absolute path.
+For an existing legacy relative value or a researcher-supplied path, expand
+`~`, resolve relative paths against the source-repository root, and normalize
+the result with `Path.resolve()`. Use that absolute path for validation and
+all filesystem or Git operations.
 
-**If the config exists**, resolve the relative path to absolute (relative to
-the source-repository root), then validate: the path exists, it is a git
-repository, and its remote URL matches `docs_repo_remote`. If validation fails
-during initial Feature-only exploration, record that the docs repo could not
-be checked and continue. Otherwise, tell the researcher and re-ask for the
-correct path and remote. Revalidate the new path and remote using the same
-checks (path exists, is a git repository, remote URL matches). After successful
-validation, convert the new path to relative (from source-repository root) and
-persist **both** the corrected `docs_repo_path` and replacement
-`docs_repo_remote` to `.artifacts/config.json`.
+**If the config exists**, normalize its path as described above, then validate:
+the path exists, it is a git repository, and its remote URL matches
+`docs_repo_remote`. If validation fails during initial Feature-only exploration,
+record that the docs repo could not be checked and continue. Otherwise, tell
+the researcher and re-ask for the correct path and remote. Revalidate the new
+path and remote using the same checks (path exists, is a git repository, remote
+URL matches). After successful validation, persist the normalized absolute
+`docs_repo_path` and `docs_repo_remote` to `.artifacts/config.json`, including
+when migrating a valid legacy relative path.
 
 **If the config does not exist**, an initial Jira Feature ingest can continue
 without docs-repo setup: record that planning documents were not checked and
 skip this step. For a `[UX]` story ingest or context enrichment, ask for the
-docs repo local path and remote, validate them (resolve `~` first), then
-convert the path to relative (from source-repository root) and write
-`.artifacts/config.json`.
+docs repo local path and remote, normalize and validate them, then write the
+absolute `docs_repo_path` and `docs_repo_remote` to `.artifacts/config.json`.
 
-Example conversion:
+Example:
 ```
 Source repository root: /home/user/src/myproject
 Docs repository path:   /home/user/src/myproject-docs
-Store in config.json:   ../myproject-docs
+Store in config.json:   /home/user/src/myproject-docs
 ```
 
 #### Find and read the documents

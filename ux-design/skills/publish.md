@@ -44,11 +44,11 @@ publishing. Never publish a handoff produced from exploratory context.
 Check for an existing docs repo configuration at
 `{source_repo_root}/.artifacts/config.json`.
 
-The shared config stores `docs_repo_path` relative to `{source_repo_root}`.
-Resolve a relative configured or researcher-supplied path against
-`{source_repo_root}`; keep an absolute path absolute. Use the normalized
+The shared config stores `docs_repo_path` as a normalized absolute path. For
+backward compatibility, expand `~` and resolve a relative configured or
+researcher-supplied path against `{source_repo_root}`. Use the normalized
 absolute result as runtime `{docs_repo_path}` for all validation, `git -C`
-commands, filesystem paths, and provenance targets below. Never pass the raw
+commands, filesystem paths, and provenance targets below. Never pass a raw
 relative config value to Git or file operations.
 
 **If the config exists**, read its `docs_repo_path` and `docs_repo_remote`.
@@ -56,10 +56,11 @@ relative config value to Git or file operations.
 checked out, accepting an absolute path or one relative to
 `{source_repo_root}`.
 
-Resolve the candidate path against `{source_repo_root}` if it is relative. Verify
-that the resolved path exists and is a git repository. If either check fails,
-stop, report the failed check, and ask the researcher to correct the path before
-continuing. Run `git -C "{docs_repo_path}" remote get-url origin` to read the
+Resolve the candidate path against `{source_repo_root}` if it is relative, then
+verify that the normalized absolute path exists and is a git repository. If
+either check fails, stop, report the failed check, and ask the researcher to
+correct the path before continuing. Run
+`git -C "{docs_repo_path}" remote get-url origin` to read the
 actual remote. When a config already exists, verify this URL matches its
 `docs_repo_remote`. When no config exists, confirm the URL with the researcher
 and use it as `docs_repo_remote`.
@@ -68,9 +69,9 @@ If reading or validating the remote fails, stop before publishing, report the
 error or mismatch, and ask the researcher to correct the path or remote. Re-run
 all validations after the correction. Do not write or update the shared config
 while validation is failing. Once the path and remote pass validation, save
-`docs_repo_path` relative to `{source_repo_root}` and `docs_repo_remote` to the
-shared config. Keep using the resolved absolute `{docs_repo_path}` for the rest
-of this phase.
+the normalized absolute `docs_repo_path` and `docs_repo_remote` to the shared
+config. Keep using the resolved absolute `{docs_repo_path}` for the rest of this
+phase.
 
 Derive `{owner}/{repo}` from the remote URL (e.g.,
 `git@github.com:org/repo.git` → `org/repo`).
@@ -135,6 +136,15 @@ The handoff spec file path in the docs repo: `{release}/{feature}/handoff.md`.
 All git operations run against the **docs repo**. Use
 `git -C "{docs_repo_path}"` for all commands.
 
+Immediately before creating the branch, repeat the clean-worktree check:
+
+```bash
+git -C "{docs_repo_path}" status --porcelain
+```
+
+If the output is not empty, stop before checkout and ask the researcher to
+resolve the changes. Leave the worktree and index untouched.
+
 ```bash
 git -C "{docs_repo_path}" checkout -b "{branch-name}" "{base-branch}"
 ```
@@ -170,7 +180,7 @@ git -C "{docs_repo_path}" add "{release}/{feature}/handoff.md"
 ```
 
 ```bash
-git -C "{docs_repo_path}" commit -m "Add UX design handoff for {issue-key}"
+git -C "{docs_repo_path}" commit --only -m "Add UX design handoff for {issue-key}" -- "{release}/{feature}/handoff.md"
 ```
 
 ### Step 5: Prepare PR Description
