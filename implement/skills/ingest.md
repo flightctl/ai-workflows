@@ -195,12 +195,20 @@ Check the story's Design Reference `Source` field (captured in Step 3):
 - **`Source: ui-design/sync`** — this story was created by the ui-design
   workflow's `/sync` phase. Extract the UI design document filename from
   the `UI Design section` field in the Design Reference (it will be in
-  the form `ui-design-{story-key}.md`). Use this as the primary
-  design document: grep it for the story's issue key, AC keywords, and
-  component names (instead of the `Design section` field used for
-  `design.md`). If `design.md` also exists in the feature directory,
-  load its relevant sections as supplemental context (broader
-  architecture around the UI change).
+  the form `ui-design-{story-key}.md`). If the field does not contain a
+  filename (no string matching `ui-design-*.md` — e.g., it holds only a
+  section reference like `§Component Architecture > HealthBadge`), fall
+  back to searching the feature directory for files matching the glob
+  `ui-design-*.md`. If exactly one file matches, use it. If multiple
+  files match, select the one whose story-key suffix matches the current
+  story's parent `[UI]` story key. Retain whatever section reference
+  appeared in the `UI Design section` field (e.g.,
+  `§Component Architecture > HealthBadge`) as the grep target within the
+  resolved file. Use this as the primary design document: grep it for the
+  story's issue key, AC keywords, and component names (instead of the
+  `Design section` field used for `design.md`). If `design.md` also
+  exists in the feature directory, load its relevant sections as
+  supplemental context (broader architecture around the UI change).
 - **No `Source` field (or any other value)** — existing behavior. Use
   `design.md` as the primary design document with the `Design section`
   field. Ignore any `ui-design-*.md` file even if present.
