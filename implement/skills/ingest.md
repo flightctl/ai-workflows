@@ -200,8 +200,13 @@ Check the story's Design Reference `Source` field (captured in Step 3):
   section reference like `§Component Architecture > HealthBadge`), fall
   back to searching the feature directory for files matching the glob
   `ui-design-*.md`. If exactly one file matches, use it. If multiple
-  files match, select the one whose story-key suffix matches the current
-  story's parent `[UI]` story key. Retain whatever section reference
+  files match, resolve the correct one by checking the [DEV] story's
+  "blocks" links (created by ui-design `/sync`): find the linked [UI]
+  story key and match it against the `{story-key}` suffix in each
+  candidate filename. If the story has no "blocks" link (legacy story
+  created before the link was added), fall back to grepping the candidate
+  `ui-design-*.md` files for the [DEV] story's gap_id or component name
+  from the story body, and select the file that references it. Retain whatever section reference
   appeared in the `UI Design section` field (e.g.,
   `§Component Architecture > HealthBadge`) as the grep target within the
   resolved file. Use this as the primary design document: grep it for the
@@ -244,7 +249,9 @@ coverage is deferred to the UI design's own validation criteria.
 | Expected zero | No matching `Validated by` IDs and PRD Requirements contains "Discovered during UI design" | Note UI-design origin; delete stale story testplan if present |
 | Anomalous zero | No matches and type is `[DEV]`/`[UI]` (or unknown) | Warn; delete stale story testplan if present |
 
-No feature testplan: note and continue.
+No feature testplan: note and continue. If a story-level testplan already
+exists from a prior ingest, emit a warning: "Source testplan not found —
+story testplan may be stale. Verify test coverage before proceeding."
 
 ### Step 6: Explore the Codebase
 
