@@ -167,7 +167,23 @@ for the path to the relevant documents within the docs repo.
 
 #### 5c: Read Upstream Documents (section-scoped)
 
-Do **not** Read an entire `ui-design.md`, `design.md`, `prd.md`, or
+**Resolve story-scoped filenames first.** The ui-design workflow publishes
+documents with story-scoped names (e.g., `ui-design-EDM-1234.md`,
+`api-findings-EDM-1234.md`). Before reading, determine the actual filenames:
+
+1. Check the story's Design Reference (captured in Step 3) for a filename
+   matching `ui-design-*.md`. Use that as `{ui-design-file}`.
+2. If no filename in the Design Reference, search the feature directory:
+   ```bash
+   find "{feature-dir}" -maxdepth 1 -name "ui-design-*.md" | head -1
+   ```
+3. Apply the same resolution for `api-findings-*.md` → `{api-findings-file}`.
+4. If neither approach finds a match, fall back to the generic names
+   without a story-key suffix (the pre-story-scoped convention).
+
+Use the resolved filenames in all subsequent references within this step.
+
+Do **not** Read an entire `{ui-design-file}`, `design.md`, `prd.md`, or
 `testplan.md`. Those files are often thousands of lines. Search, then slice.
 
 1. Collect search terms from the Jira story: issue key, design section
@@ -181,7 +197,7 @@ Do **not** Read an entire `ui-design.md`, `design.md`, `prd.md`, or
 
 Need (in priority order):
 
-1. **UI design document** (`ui-design.md`) — **required.** Sections that bind
+1. **UI design document** (`{ui-design-file}`) — **required.** Sections that bind
    this story: component architecture tree, hook designs, state management,
    route structure, data flow mapping, persona decomposition, accessibility
    plan, testing strategy.
@@ -191,11 +207,11 @@ Need (in priority order):
 4. **Handoff document** (`handoff.md`) — **optional.** Interaction specs,
    state matrix, component mapping, accessibility requirements, acceptance
    criteria enrichment
-5. **API findings** (`api-findings.md`) — **optional.** Resolved endpoints,
+5. **API findings** (`{api-findings-file}`) — **optional.** Resolved endpoints,
    API gaps, mock strategies
 6. **Testplan** (`testplan.md`) — candidate test cases for Step 5d
 
-If `ui-design.md` is not found, **warn the user** — this is the primary
+If `{ui-design-file}` is not found, **warn the user** — this is the primary
 design input for UI stories. Ask whether to proceed with only the Jira story
 and general design document, or to wait for the ui-design document.
 

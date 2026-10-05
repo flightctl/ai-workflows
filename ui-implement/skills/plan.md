@@ -239,16 +239,10 @@ Write `.artifacts/ui-implement/{issue-key}/02-plan.md` with this structure:
 ### Task 2: {description}
 ...
 
-### Task N+1: Write integration/e2e test stubs (conditional)
-
-{Include only if the project has an e2e framework discovered during /ingest.
- Otherwise omit.}
-
-- **Files:** {paths for test stubs}
-- **What:** {stub test files with describe blocks and pending/skip test cases}
-- **Why:** Provide scaffolding for QE to implement full e2e tests
-- **Commit message:** `{use commit format from 01-context.md}`
-- **Status:** Pending
+Integration/e2e test stubs are **not** a numbered task. They are handled
+by `/code`'s Step 3-post after all implementation tasks complete. Do not
+include a task for e2e stubs in the breakdown — the code phase owns that
+step.
 
 ## Acceptance Criteria Coverage
 
@@ -324,7 +318,7 @@ Before presenting the plan, verify:
 - [ ] i18n wrapping is planned for all user-visible strings (if i18n exists)
 - [ ] Accessibility attributes are specified for all interactive elements
 - [ ] Loading, error, and empty states are planned where applicable
-- [ ] Integration/e2e test stubs are planned as the final task (if e2e framework exists)
+- [ ] Integration/e2e test stubs are described in the Test Strategy section (not as a numbered task — `/code`'s Step 3-post handles execution)
 
 ### Step 6: Present to User
 

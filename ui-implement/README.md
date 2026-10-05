@@ -163,9 +163,9 @@ When `/ingest` discovers no unit testing framework exists:
 
 This workflow reads published docs from the docs repo, never from another
 workflow's `.artifacts/` directory:
-- `ui-design.md` — **required** — component architecture, hook designs, state management, accessibility plan
+- `ui-design-{workspace-id}.md` — **required** — component architecture, hook designs, state management, accessibility plan
 - `handoff.md` — **optional** — interaction specs, state matrix, acceptance criteria enrichment
-- `api-findings.md` — **optional** — resolved endpoints, API gaps
+- `api-findings-{workspace-id}.md` — **optional** — resolved endpoints, API gaps
 - `prd.md` — requirements coverage
 - `design.md` — API contracts, data models
 

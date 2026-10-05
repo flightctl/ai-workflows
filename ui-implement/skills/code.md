@@ -436,7 +436,8 @@ interrupted.
 ### Step 3-post: Write Integration/E2E Test Stubs
 
 After all plan tasks are complete (all marked `Done`), check whether the
-plan includes an integration/e2e test stubs task. If it does:
+plan's Test Strategy → Integration/E2E Test Stubs section specifies stubs
+to write. If it does:
 
 1. Read the project's existing e2e test files (discovered during `/ingest`)
    to match patterns — file naming, describe block structure, test

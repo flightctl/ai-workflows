@@ -49,7 +49,7 @@
 
 ### API Findings
 
-{If api-findings.md found: resolved endpoints, mock strategies for this story. Refs like [API: §x.y].
+{If API findings document found: resolved endpoints, mock strategies for this story. Refs like [API: §x.y].
  If not found: "No API findings document available."}
 
 ### PRD Requirements Covered
