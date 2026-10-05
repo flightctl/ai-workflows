@@ -34,7 +34,7 @@ This skill delegates deterministic Jira issue fetching to a shared
 script. Reference it using a relative path from this file:
 
 ```
-../../_shared/scripts/fetch-issue.py
+${HOME}/.ai-workflows/_shared/scripts/fetch-issue.py
 ```
 
 The script provides subcommands: `get` and `search`. See the script
@@ -111,7 +111,7 @@ for the diff in Step 8a.
 **Jira input.** Fetch the Jira issue using the shared script:
 
 ```bash
-python3 "../../_shared/scripts/fetch-issue.py" get "{workspace-id}" --parent --parent-fields summary,status,key,parent --links
+python3 "${HOME}/.ai-workflows/_shared/scripts/fetch-issue.py" get "{workspace-id}" --parent --parent-fields summary,status,key,parent --links
 ```
 
 From the story, extract:
@@ -122,6 +122,30 @@ From the story, extract:
 - **Linked issues** — sibling stories (`[DEV]`, `[UX]`, `[QE]`) that
   provide implementation context (requires `--links`)
 - **Labels and components** — for scoping codebase exploration
+
+**Grandparent Feature chase.** The `--parent-fields` flag above includes
+`parent`, which returns the parent's own parent key when one exists.
+After the initial fetch, check whether the parent's `parent` field is
+present:
+
+- **If the parent's `parent` field is present** — the parent is an Epic
+  whose parent is a Feature. Make a second fetch to retrieve the
+  grandparent Feature:
+
+  ```bash
+  python3 "${HOME}/.ai-workflows/_shared/scripts/fetch-issue.py" get "{grandparent-key}" --fields summary,status,key,issuetype
+  ```
+
+  Use the grandparent (Feature) key as `{feature-key}` for docs-repo
+  directory resolution in Steps 5 and beyond.
+
+- **If the parent's `parent` field is absent** — the parent is already a
+  Feature (or there is no grandparent). Use the direct parent key as
+  `{feature-key}`.
+
+Record the resolved `{feature-key}` in `01-context.md`'s Story Summary
+so downstream phases (`/publish`, `/sync`) can use it for directory and
+parent resolution without repeating the chase.
 
 **Non-Jira input.** When the user provided a path or description instead
 of a Jira issue key (as identified in Step 1), do not call
@@ -221,7 +245,20 @@ fall back to `05-handoff.md` (the private artifact name). If multiple
 match, present them to the user and ask which is current. If none,
 proceed without a handoff (it is optional).
 
-If found, read it. Extract and record:
+If found, read it.
+
+**Provenance freshness check.** Before extracting content, look for a
+provenance footer (`<!-- provenance:`) in the handoff file. If no
+provenance footer is found, warn the user:
+
+*"The UX handoff file (`{path}`) does not contain a provenance footer.
+This may indicate the handoff has not been finalized by the UX workflow.
+Proceed with this handoff, or wait for a finalized version?"*
+
+Wait for the user's response before continuing. If the user chooses to
+wait, skip the handoff and proceed without it (same as "not found").
+
+Extract and record:
 - **Component Mapping** — UI elements → design system components
 - **State Matrix** — component states (empty, loading, error, populated, etc.)
 - **Interaction Specs** — user flows, keyboard navigation, focus management

@@ -182,11 +182,11 @@ For each approved response that requires a document change:
 
 After all changes are applied:
 
-Read and follow `../../_shared/recipes/capture-provenance-event.md` with
+Read and follow `${HOME}/.ai-workflows/_shared/recipes/capture-provenance-event.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, `PHASE=respond`,
 `AUTHORING_MODE=skill`.
 
-Read and follow `../../_shared/recipes/render-provenance-footer.md` with
+Read and follow `${HOME}/.ai-workflows/_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, and `TARGET_FILE` set to the
 absolute source-repo path to `.artifacts/ui-design/{workspace-id}/02-ui-design.md`.
 
@@ -207,6 +207,16 @@ cp ".artifacts/ui-design/{workspace-id}/02-ui-design.md" "{target_directory}/ui-
 # If api-findings-{workspace-id}.md was updated:
 cp ".artifacts/ui-design/{workspace-id}/03-api-findings.md" "{target_directory}/api-findings-{workspace-id}.md"
 ```
+
+If `03-api-findings.md` does **not** exist (findings fit inline in
+`02-ui-design.md`), delete any stale separate findings file from a
+prior publish that may remain in the docs repo:
+
+```bash
+git -C "{docs_repo_path}" rm "{target_directory}/api-findings-{workspace-id}.md" 2>/dev/null || true
+```
+
+Include this deletion in the same commit below.
 
 Update cross-references in the copied files to reflect the published
 filenames (same rewrite as `/publish` Step 8):

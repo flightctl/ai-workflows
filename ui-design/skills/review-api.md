@@ -194,10 +194,10 @@ exist in a prior version of this document.
 
 - **Gap ID:** `{gap_id}`
 - **Category:** {gap category}
-- **UI need:** {what the UI requires — specific data, field, or capability}
+- **UI need:** {category-prefixed format — e.g., `loading-state: skeleton placeholder while device list loads`, `data-display: show device health score in summary card`. Use one of: `loading-state`, `data-display`, `error-handling`, `pagination`, `filtering`, `sorting`, `form-input`, `permission-gate`, `real-time`, `batch-operation`, or `other`}
 - **Current state:** {what the API provides now, if anything}
 - **What's missing:** {the specific delta between current and needed}
-- **Affected components:** {which UI components depend on this}
+- **Affected components:** {comma-separated PascalCase names matching Component Architecture headings in `02-ui-design.md` — e.g., `DeviceList, DeviceDetailPanel, FleetOverview`}
 - **Severity:** {critical / high / medium / low}
   - `critical` — blocks a core user flow; the feature cannot ship without this
   - `high` — significantly degrades the user experience; workaround possible but poor
@@ -260,11 +260,11 @@ Before presenting the findings, verify:
 This phase mutates `02-ui-design.md` (and may create `03-api-findings.md`),
 so it carries provenance.
 
-Read and follow `../../_shared/recipes/capture-provenance-event.md` with
+Read and follow `${HOME}/.ai-workflows/_shared/recipes/capture-provenance-event.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, `PHASE=review-api`,
 `AUTHORING_MODE=skill`.
 
-Read and follow `../../_shared/recipes/render-provenance-footer.md` with
+Read and follow `${HOME}/.ai-workflows/_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, and `TARGET_FILE` set to the
 absolute source-repo path to `.artifacts/ui-design/{workspace-id}/02-ui-design.md`.
 

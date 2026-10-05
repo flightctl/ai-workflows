@@ -64,7 +64,7 @@ matches.
 Resolve remotes **before** determining the base branch — the upstream
 remote name is needed to read the correct `HEAD` ref.
 
-Read and follow `../../_shared/recipes/resolve-docs-publish-remotes.md` with:
+Read and follow `${HOME}/.ai-workflows/_shared/recipes/resolve-docs-publish-remotes.md` with:
 - `DOCS_REPO_PATH` = the validated docs repo path
 - `CONFIGURED_DOCS_REPO_REMOTE` = `docs_repo_remote` from config
 - `BRANCH_NAME` = `{workspace-id}-ui-design` (e.g., `EDM-1234-ui-design`)
@@ -232,16 +232,26 @@ If `03-api-findings.md` exists:
 cp ".artifacts/ui-design/{workspace-id}/03-api-findings.md" "{target_directory}/api-findings-{workspace-id}.md"
 ```
 
+If `03-api-findings.md` does **not** exist (findings fit inline in
+`02-ui-design.md`), delete any stale separate findings file from a
+prior publish that may remain in the docs repo:
+
+```bash
+git -C "{docs_repo_path}" rm "{target_directory}/api-findings-{workspace-id}.md" 2>/dev/null || true
+```
+
+Include this deletion in the same commit (Step 8 staging below).
+
 Render provenance footer on the docs-repo copies:
 
-Read and follow `../../_shared/recipes/render-provenance-footer.md` with
+Read and follow `${HOME}/.ai-workflows/_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, and `TARGET_FILE` set to
 each copied file's absolute path in the docs repo.
 
-**Note:** The provenance script (`../../_shared/scripts/provenance.py`)
+**Note:** The provenance script (`${HOME}/.ai-workflows/_shared/scripts/provenance.py`)
 already supports `ui-design` as a `--workflow` value (added in commit
 `2f9381a`). The workflow-to-artifact mapping and CLI choices are
-pre-configured. See `../../_shared/provenance-schema.md` for the schema
+pre-configured. See `${HOME}/.ai-workflows/_shared/provenance-schema.md` for the schema
 definition.
 
 Update cross-references in the copied files to reflect the published

@@ -100,11 +100,11 @@ After applying changes, verify:
 
 ### Step 6: Capture Provenance
 
-Read and follow `../../_shared/recipes/capture-provenance-event.md` with
+Read and follow `${HOME}/.ai-workflows/_shared/recipes/capture-provenance-event.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, `PHASE=revise`,
 `AUTHORING_MODE=skill`.
 
-Read and follow `../../_shared/recipes/render-provenance-footer.md` with
+Read and follow `${HOME}/.ai-workflows/_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, and `TARGET_FILE` set to the
 absolute source-repo path to `.artifacts/ui-design/{workspace-id}/02-ui-design.md`.
 

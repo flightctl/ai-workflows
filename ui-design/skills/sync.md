@@ -116,6 +116,20 @@ the remaining fields. Read both sources for each gap:
 | `suggested_approach` | Gap Details block | Yes | Jira description, content_hash |
 | `affected_components` | API Gaps row ("UI Impact") + Gap Details | Yes | Jira description, content_hash |
 
+**Canonical field formats.**
+
+- `affected_components` — comma-separated PascalCase names matching
+  Component Architecture headings in `02-ui-design.md` (e.g.,
+  `DeviceList, DeviceDetailPanel, FleetOverview`). Each name must
+  correspond to a heading under the Component Architecture section.
+- `ui_need` — category-prefixed format: `{category}: {description}`
+  where `{category}` is one of `loading-state`, `data-display`,
+  `error-handling`, `pagination`, `filtering`, `sorting`, `form-input`,
+  `permission-gate`, `real-time`, `batch-operation` (e.g.,
+  `loading-state: skeleton placeholder while device list loads`,
+  `data-display: show device health score in summary card`). If no
+  category fits, use `other: {description}`.
+
 **Cross-source mismatch handling.** Fields sourced from both the API
 Gaps row and the Gap Details block (`category`, `severity`,
 `affected_components`) may diverge if the findings were hand-edited.
@@ -736,12 +750,25 @@ Fields:
   changes do not produce spurious hash differences. Used to detect
   changes on the next run. Preserved (not replaced) when closing an
   issue, to support deterministic reopen detection.
-- `synced_status` — One of `"active"`, `"closed"`, or `"tracked"`.
+- `synced_status` — One of `"active"`, `"closed"`, `"tracked"`, or
+  `"resolved"`.
   `"active"` and `"closed"` are for Jira-synchronized entries.
   `"tracked"` is for low-severity gaps that are recorded in the
   manifest but not synced to Jira. When a closed issue is reopened,
   reset to `"active"`. When a tracked gap's severity increases to
   medium/high/critical, promote to `"active"` and create a Jira story.
+  `"resolved"` is set when a manifest entry's Jira story has
+  `status=Closed` or `resolution=Done` — see the lifecycle rule below.
+- **Resolved entry lifecycle.** When reading the manifest during
+  Step 1, check each active entry's Jira story status. If the Jira
+  story has `status=Closed` or `resolution=Done`, set
+  `synced_status: "resolved"` in the manifest. Resolved entries are
+  excluded from future sync diffs — they do not appear in the new,
+  changed, or unchanged buckets. If a resolved entry's `gap_id`
+  reappears in a later version of the API findings (e.g., after a
+  subsequent `/review-api` run), reclassify it as **New** — create a
+  fresh Jira story rather than reopening the resolved one, since the
+  Jira story was closed externally (not by sync).
 - `blocks_link` — Link creation status: `"created"` if the `blocks`
   link between the [DEV] story and the [UI] story was successfully
   created, `"failed"` if creation failed. Omitted for `"tracked"` and
