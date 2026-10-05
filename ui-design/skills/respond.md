@@ -208,6 +208,19 @@ cp ".artifacts/ui-design/{workspace-id}/02-ui-design.md" "{target_directory}/ui-
 cp ".artifacts/ui-design/{workspace-id}/03-api-findings.md" "{target_directory}/api-findings-{workspace-id}.md"
 ```
 
+Update cross-references in the copied files to reflect the published
+filenames (same rewrite as `/publish` Step 8):
+
+```bash
+sed -i '' 's/03-api-findings\.md/api-findings-{workspace-id}.md/g' "{target_directory}/ui-design-{workspace-id}.md"
+```
+
+If `api-findings-{workspace-id}.md` was copied:
+
+```bash
+sed -i '' 's/02-ui-design\.md/ui-design-{workspace-id}.md/g' "{target_directory}/api-findings-{workspace-id}.md"
+```
+
 Render provenance footer on the docs-repo copies before staging.
 
 ```bash

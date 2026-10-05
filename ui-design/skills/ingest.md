@@ -153,6 +153,17 @@ Resolve `~` to an absolute path before saving. Update
 and remote, validate them. Resolve `~` to the user's home directory so
 the stored path is absolute. Write `.artifacts/config.json`.
 
+After resolving `docs_repo_path` from configuration (whether loaded from
+an existing config or provided by the user), normalize it to an absolute
+path before any downstream use:
+
+```bash
+DOCS_REPO_PATH="$(cd "${docs_repo_path}" && pwd)"
+```
+
+This resolves relative paths, `~` expansions, and symlinks to a
+canonical absolute path. Use `DOCS_REPO_PATH` in all subsequent steps.
+
 ### Step 5: Load Upstream Planning Artifacts
 
 Before using `docs_repo_path` in shell commands, validate that it is a

@@ -180,10 +180,43 @@ Do not proceed to Step 7 until the target directory passes this check.
 
 ### Step 7: Prepare the Branch
 
+**Index isolation.** Before switching branches, ensure no pre-existing
+staged or uncommitted changes leak into the publish commit:
+
+```bash
+git -C "{docs_repo_path}" stash --include-untracked --quiet 2>/dev/null || true
+```
+
+Fetch upstream and prepare the feature branch:
+
 ```bash
 git -C "{docs_repo_path}" fetch "{UPSTREAM_REMOTE}"
-git -C "{docs_repo_path}" checkout -b "{BRANCH_NAME}" "{UPSTREAM_REMOTE}/{base_branch}"
 ```
+
+**Branch-exists handling.** Check whether the branch already exists
+locally. If it does (e.g., from a previous `/publish` run), check it out
+and reset to the upstream base so updated artifacts replace the prior
+content. If it does not exist, create it fresh:
+
+```bash
+if git -C "{docs_repo_path}" show-ref --verify --quiet "refs/heads/{BRANCH_NAME}"; then
+  git -C "{docs_repo_path}" checkout "{BRANCH_NAME}"
+  git -C "{docs_repo_path}" reset --hard "{UPSTREAM_REMOTE}/{base_branch}"
+else
+  git -C "{docs_repo_path}" checkout -b "{BRANCH_NAME}" "{UPSTREAM_REMOTE}/{base_branch}"
+fi
+```
+
+After checkout, reset the index to guarantee a clean staging area — no
+pre-existing staged files will be accidentally included in the commit:
+
+```bash
+git -C "{docs_repo_path}" reset HEAD --quiet
+```
+
+When the branch already existed on the push remote (detected in Step 9),
+force-push is required to replace the old content. Step 9 handles the
+remote-exists check and user confirmation before pushing.
 
 ### Step 8: Copy and Commit
 
@@ -218,13 +251,13 @@ differ from the published names (`ui-design-{workspace-id}.md`,
 updated:
 
 ```bash
-sed -i 's/03-api-findings\.md/api-findings-{workspace-id}.md/g' "{target_directory}/ui-design-{workspace-id}.md"
+sed -i '' 's/03-api-findings\.md/api-findings-{workspace-id}.md/g' "{target_directory}/ui-design-{workspace-id}.md"
 ```
 
 If `api-findings-{workspace-id}.md` was copied:
 
 ```bash
-sed -i 's/02-ui-design\.md/ui-design-{workspace-id}.md/g' "{target_directory}/api-findings-{workspace-id}.md"
+sed -i '' 's/02-ui-design\.md/ui-design-{workspace-id}.md/g' "{target_directory}/api-findings-{workspace-id}.md"
 ```
 
 Stage and commit:

@@ -185,9 +185,11 @@ different hash while rendering an identical Jira summary.
   "category": "{gap category}",
   "current_state": "{current state}",
   "pr_url": "{pr_url}",
+  "prd_requirements": "{PRD requirement IDs or fallback text}",
   "severity": "{severity}",
   "suggested_approach": "{suggested approach}",
   "title": "{title}",
+  "ui_design_section": "{resolved section reference}",
   "ui_need": "{UI need}",
   "whats_missing": "{what's missing}"
 }
@@ -323,8 +325,22 @@ would not find them, risking duplicate story creation.
 Do not proceed to the dry run, the "nothing to do" exit, or any Jira
 operations until the parent is reconciled.
 
-**If nothing to do** (no new, changed, or resolved items), stop and tell
-the user:
+**Promotion check (tracked → active, runs before early exit).** Before
+evaluating the "nothing to do" condition, scan manifest entries with
+`synced_status: "tracked"`. For each tracked entry, compare its current
+severity in the findings:
+- If the severity has increased to `medium`, `high`, or `critical`,
+  reclassify the entry — set its bucket to **New** so it will receive a
+  Jira story in pass 4a. A tracked gap that now qualifies for Jira must
+  not be suppressed by the early exit.
+- If the severity is still `low`, leave it tracked. If the content hash
+  differs from the stored `content_hash`, update it in the manifest to
+  keep the tracked entry current.
+- If the gap is no longer in the findings, route it to the **Resolved**
+  bucket to mark it closed in the manifest.
+
+**If nothing to do** (no new, changed, resolved, or promoted items, and
+no entries with `blocks_link: "failed"`), stop and tell the user:
 
 ```text
 All items are in sync — nothing to do.
@@ -407,20 +423,8 @@ first — do not modify the findings during sync.
 Use the `pr_url` loaded and validated in Step 1. (If `pr_url` was
 invalid, Step 1 already stopped.)
 
-**Promotion check (tracked → active).** Before processing the three
-passes below, scan manifest entries with `synced_status: "tracked"`.
-For each tracked entry, compare its current severity in the findings:
-- If the severity has increased to `medium`, `high`, or `critical`,
-  promote the entry to the **New** bucket — it will receive a Jira
-  story in pass 4a.
-- If the severity is still `low`, leave it tracked. If the content hash
-  differs from the stored `content_hash`, update it in the manifest to
-  keep the tracked entry current.
-- If the gap is no longer in the findings, route it to the **Resolved**
-  bucket to mark it closed in the manifest.
-
-Process stories in four passes: promote tracked, create new, update
-changed, close resolved.
+Process stories in four passes: promote tracked (reclassified in
+Step 1), create new, update changed, close resolved.
 
 #### 4a: Create New Stories
 
@@ -533,21 +537,24 @@ missing" field from the gap detail.}
 - {Additional criteria based on the gap type}
 ```
 
-**Design Reference field derivation.** The Design Reference section is
-story-level metadata — its fields are **not** included in the
-`content_hash` computation and do not trigger updates when they change.
-Populate each field as follows:
+**Design Reference field derivation.** The `prd_requirements` and
+`ui_design_section` fields are included in the `content_hash`
+computation (see "Canonical content_hash computation" above), so changes
+to these values trigger a Jira update. The remaining Design Reference
+fields (`source`, `epic`, `interface_changes`) are static metadata and
+are not hashed. Populate each field as follows:
 
 1. **Source** — Always the literal string `ui-design/sync`.
 2. **Epic** — The `{parent-key}` already resolved in Step 2 (the epic
    or feature under which the `[DEV]` story is created).
-3. **UI Design section** — Derived from the gap's component mapping:
+3. **UI Design section** — Derived from the gap's component mapping.
+   Prepend the published filename to form a full cross-reference:
    - If the gap's affected component appears in the Component
      Architecture section of `02-ui-design.md`, use
-     `§Component Architecture > {ComponentName}`.
+     `ui-design-{workspace-id}.md#§Component Architecture > {ComponentName}`.
    - If the gap maps to an entry in the Data Flow Mapping section, use
-     `§Data Flow Mapping > {entry-name}`.
-   - If neither applies, use `§API Findings`.
+     `ui-design-{workspace-id}.md#§Data Flow Mapping > {entry-name}`.
+   - If neither applies, use `ui-design-{workspace-id}.md#§API Findings`.
 4. **PRD Requirements** — Copy the FR/NFR IDs from the parent `[UI]`
    story's Design Reference section. If the parent story has no Design
    Reference section (or no PRD requirement IDs), use:
@@ -585,8 +592,12 @@ After creating the first link in a sync run, read the [DEV] story's
 issue links back from Jira and verify the direction. If wrong, delete
 the link, swap the field assignments, recreate, and re-verify.
 
-If the link creation fails, log the error and continue — the manifest
-entry is still recorded, and the user can add the link manually.
+After link creation, record the result in the manifest entry:
+- On success: set `blocks_link: "created"`.
+- On failure: set `blocks_link: "failed"` and log the error. Continue
+  to the next story — the link will be retried on the next sync run.
+
+A story with `blocks_link: "failed"` is not considered fully in sync.
 
 Record the Jira key and content hash in the sync manifest immediately
 (before creating the next story). Set `synced_status: "active"`.
@@ -657,6 +668,15 @@ available, report the error and let the user handle it in Jira.
 
 **If close fails:** Report the error and offer to retry or skip.
 
+#### 4d: Retry Failed Links
+
+Scan manifest entries with `synced_status: "active"` and
+`blocks_link: "failed"`. For each, re-attempt the issue link creation
+between the `[DEV]` story (`jira_key`) and the `[UI]` story
+(`{workspace-id}`) using the same link type logic as Step 4a. On
+success, update `blocks_link` to `"created"`. On failure, leave
+`blocks_link` as `"failed"` and log the error.
+
 Present the results:
 
 ```markdown
@@ -689,7 +709,8 @@ it is complete and consistent. The final structure should be:
       "severity": "{severity}",
       "jira_key": "{DEV story key}",
       "content_hash": "{sha256-of-gap-content}",
-      "synced_status": "active"
+      "synced_status": "active",
+      "blocks_link": "created"
     }
   ]
 }
@@ -707,8 +728,9 @@ Fields:
   `synced_status: "active"` or `"closed"`. Omitted for entries with
   `synced_status: "tracked"` (low-severity gaps not synced to Jira).
 - `content_hash` — SHA-256 of the canonical gap payload: sorted JSON
-  of `{affected_components, category, current_state, pr_url, severity,
-  suggested_approach, title, ui_need, whats_missing}` (see "Canonical
+  of `{affected_components, category, current_state, pr_url,
+  prd_requirements, severity, suggested_approach, title,
+  ui_design_section, ui_need, whats_missing}` (see "Canonical
   content_hash computation" above). The `title` value is normalized
   via `trim(gap_title)` before hashing so whitespace-only title
   changes do not produce spurious hash differences. Used to detect
@@ -720,6 +742,11 @@ Fields:
   manifest but not synced to Jira. When a closed issue is reopened,
   reset to `"active"`. When a tracked gap's severity increases to
   medium/high/critical, promote to `"active"` and create a Jira story.
+- `blocks_link` — Link creation status: `"created"` if the `blocks`
+  link between the [DEV] story and the [UI] story was successfully
+  created, `"failed"` if creation failed. Omitted for `"tracked"` and
+  `"closed"` entries. Stories with `blocks_link: "failed"` are not
+  considered in sync — the link will be retried on the next sync run.
 - `synced_at` — top-level only. Updated to the current timestamp at the
   end of each sync run.
 
