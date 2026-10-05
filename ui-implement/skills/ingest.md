@@ -43,7 +43,7 @@ Resolve the shared script to an absolute path so it remains valid
 regardless of working directory:
 
 ```bash
-FETCH_ISSUE_SCRIPT="$(cd "$(dirname "$0")/../../_shared/scripts" && pwd)/fetch-issue.py"
+FETCH_ISSUE_SCRIPT="${HOME}/.ai-workflows/_shared/scripts/fetch-issue.py"
 ```
 
 Use `$FETCH_ISSUE_SCRIPT` instead of the relative path in all subsequent
@@ -175,9 +175,15 @@ documents with story-scoped names (e.g., `ui-design-EDM-1234.md`,
    matching `ui-design-*.md`. Use that as `{ui-design-file}`.
 2. If no filename in the Design Reference, search the feature directory:
    ```bash
-   find "{feature-dir}" -maxdepth 1 -name "ui-design-*.md" | head -1
+   find "{feature-dir}" -maxdepth 1 -name "ui-design-*.md"
    ```
-3. Apply the same resolution for `api-findings-*.md` → `{api-findings-file}`.
+   Filter the results to only those containing the current `{issue-key}`.
+   If exactly one candidate remains, use it as `{ui-design-file}`. If
+   multiple candidates remain after filtering, present them to the user
+   and ask which one to use. If no candidates match the issue key, fall
+   through to step 4.
+3. Apply the same resolution for `api-findings-*.md` → `{api-findings-file}`,
+   including the issue-key filter and user disambiguation.
 4. If neither approach finds a match, fall back to the generic names
    without a story-key suffix (the pre-story-scoped convention).
 
@@ -232,7 +238,16 @@ Design Reference.
 | Expected zero | No matches and type is `[QE]`/`[DOCS]`/`[UX]`/`[CI]` | Note expected; delete stale story testplan if present |
 | Anomalous zero | No matches and type is `[DEV]`/`[UI]` (or unknown) | Warn; delete stale story testplan if present |
 
-No feature testplan: note and continue.
+**Re-invocation guard:** If this is a re-invocation (Step 2a found an
+existing file), do **not** write or delete `testplan.md` yet. Record the
+intended action (write content, delete, or no-op) and defer it until
+Step 8a confirms the re-invocation. This prevents testplan changes from
+taking effect when the user declines the context overwrite.
+
+No feature testplan: note absence. If
+`.artifacts/ui-implement/{issue-key}/testplan.md` exists from a prior
+run, delete it to prevent `/plan` from consuming stale test cases, and
+log the deletion.
 
 ### Step 6: Explore the Codebase
 
@@ -257,6 +272,7 @@ Skip `AGENTS.md` and `CONTRIBUTING.md` Reads if already in session. Path-only fo
 ```json
 {
   "AGENTS.md": {"mtime": "{unix}", "sha256": "{hex or empty}"},
+  "CLAUDE.md": {"mtime": "{unix}", "sha256": "{hex or empty}"},
   "CONTRIBUTING.md": {"mtime": "{unix}", "sha256": "{hex or empty}"},
   "Makefile": {"mtime": "{unix}", "sha256": "{hex or empty}"},
   "package.json": {"mtime": "{unix}", "sha256": "{hex or empty}"},
@@ -369,7 +385,7 @@ Diff compiled content vs `.prev`. Focus on:
 - Validation profile
 - UI toolchain discoveries
 
-If `02-plan.md` or later artifacts exist, list them. Wait for confirmation. If confirmed, Write `01-context.md` **once** and delete `.prev`. If declined, delete `.prev` and stop without overwriting.
+If `02-plan.md` or later artifacts exist, list them. Wait for confirmation. If confirmed, Write `01-context.md` **once**, apply the deferred testplan action from Step 5d (write, delete, or no-op), and delete `.prev`. If declined, delete `.prev` and stop without overwriting — the deferred testplan action is discarded.
 
 ### Step 9: Report
 
