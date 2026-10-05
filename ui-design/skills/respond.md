@@ -210,25 +210,29 @@ cp ".artifacts/ui-design/{workspace-id}/03-api-findings.md" "{target_directory}/
 
 If `03-api-findings.md` does **not** exist (findings fit inline in
 `02-ui-design.md`), delete any stale separate findings file from a
-prior publish that may remain in the docs repo:
+prior publish that may remain in the docs repo, and also remove the
+private overflow file from the artifacts directory:
 
 ```bash
 git -C "{docs_repo_path}" rm "{target_directory}/api-findings-{workspace-id}.md" 2>/dev/null || true
+rm -f ".artifacts/ui-design/{workspace-id}/03-api-findings.md"
 ```
 
-Include this deletion in the same commit below.
+Include the docs-repo deletion in the same commit below.
 
 Update cross-references in the copied files to reflect the published
 filenames (same rewrite as `/publish` Step 8):
 
 ```bash
-sed -i '' 's/03-api-findings\.md/api-findings-{workspace-id}.md/g' "{target_directory}/ui-design-{workspace-id}.md"
+tmp=$(mktemp)
+sed 's/03-api-findings\.md/api-findings-{workspace-id}.md/g' "{target_directory}/ui-design-{workspace-id}.md" > "$tmp" && mv "$tmp" "{target_directory}/ui-design-{workspace-id}.md"
 ```
 
 If `api-findings-{workspace-id}.md` was copied:
 
 ```bash
-sed -i '' 's/02-ui-design\.md/ui-design-{workspace-id}.md/g' "{target_directory}/api-findings-{workspace-id}.md"
+tmp=$(mktemp)
+sed 's/02-ui-design\.md/ui-design-{workspace-id}.md/g' "{target_directory}/api-findings-{workspace-id}.md" > "$tmp" && mv "$tmp" "{target_directory}/api-findings-{workspace-id}.md"
 ```
 
 Render provenance footer on the docs-repo copies before staging.

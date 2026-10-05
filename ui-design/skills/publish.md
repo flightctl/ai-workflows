@@ -39,6 +39,16 @@ Do not proceed to branch creation, commits, or pushes without a
 confirmed `gh` installation — otherwise the push succeeds but the PR
 cannot be created, leaving an orphaned branch.
 
+**Validation gate (if applicable).** If
+`.artifacts/ui-design/{workspace-id}/05-validation-report.md` exists,
+read its `## Result` section. When looking for the `PASS` or `FAIL`
+verdict after the `## Result` heading, **skip blank lines and HTML
+comment lines** (`<!-- ... -->`) — the first non-empty, non-comment line
+is the verdict. If the verdict is `FAIL`, tell the user that the issues
+in the validation report should be resolved before publishing. If the
+file does not exist, skip this check — the ui-design workflow does not
+always produce a validation report.
+
 Confirm these artifacts exist:
 - `.artifacts/ui-design/{workspace-id}/02-ui-design.md` (required)
 - `.artifacts/ui-design/{workspace-id}/03-api-findings.md` (optional — include if exists)
@@ -194,14 +204,15 @@ git -C "{docs_repo_path}" fetch "{UPSTREAM_REMOTE}"
 ```
 
 **Branch-exists handling.** Check whether the branch already exists
-locally. If it does (e.g., from a previous `/publish` run), check it out
-and reset to the upstream base so updated artifacts replace the prior
-content. If it does not exist, create it fresh:
+locally. If it does (e.g., from a previous `/publish` run or after
+reviewer corrections), check it out for an incremental update — do NOT
+reset the branch, as that would destroy reviewer corrections or
+supplemental commits added directly to the docs-repo PR branch. If
+the branch does not exist, create it fresh:
 
 ```bash
 if git -C "{docs_repo_path}" show-ref --verify --quiet "refs/heads/{BRANCH_NAME}"; then
   git -C "{docs_repo_path}" checkout "{BRANCH_NAME}"
-  git -C "{docs_repo_path}" reset --hard "{UPSTREAM_REMOTE}/{base_branch}"
 else
   git -C "{docs_repo_path}" checkout -b "{BRANCH_NAME}" "{UPSTREAM_REMOTE}/{base_branch}"
 fi
@@ -214,9 +225,10 @@ pre-existing staged files will be accidentally included in the commit:
 git -C "{docs_repo_path}" reset HEAD --quiet
 ```
 
-When the branch already existed on the push remote (detected in Step 9),
-force-push is required to replace the old content. Step 9 handles the
-remote-exists check and user confirmation before pushing.
+The updated artifacts are copied over existing files in Step 8 and
+committed as an incremental update. This preserves any reviewer
+corrections or supplemental documents on the branch while replacing
+the workflow-managed artifacts with their latest versions.
 
 ### Step 8: Copy and Commit
 
@@ -234,13 +246,15 @@ cp ".artifacts/ui-design/{workspace-id}/03-api-findings.md" "{target_directory}/
 
 If `03-api-findings.md` does **not** exist (findings fit inline in
 `02-ui-design.md`), delete any stale separate findings file from a
-prior publish that may remain in the docs repo:
+prior publish that may remain in the docs repo, and also remove the
+private overflow file from the artifacts directory:
 
 ```bash
 git -C "{docs_repo_path}" rm "{target_directory}/api-findings-{workspace-id}.md" 2>/dev/null || true
+rm -f ".artifacts/ui-design/{workspace-id}/03-api-findings.md"
 ```
 
-Include this deletion in the same commit (Step 8 staging below).
+Include the docs-repo deletion in the same commit (Step 8 staging below).
 
 Render provenance footer on the docs-repo copies:
 
@@ -261,13 +275,15 @@ differ from the published names (`ui-design-{workspace-id}.md`,
 updated:
 
 ```bash
-sed -i '' 's/03-api-findings\.md/api-findings-{workspace-id}.md/g' "{target_directory}/ui-design-{workspace-id}.md"
+tmp=$(mktemp)
+sed 's/03-api-findings\.md/api-findings-{workspace-id}.md/g' "{target_directory}/ui-design-{workspace-id}.md" > "$tmp" && mv "$tmp" "{target_directory}/ui-design-{workspace-id}.md"
 ```
 
 If `api-findings-{workspace-id}.md` was copied:
 
 ```bash
-sed -i '' 's/02-ui-design\.md/ui-design-{workspace-id}.md/g' "{target_directory}/api-findings-{workspace-id}.md"
+tmp=$(mktemp)
+sed 's/02-ui-design\.md/ui-design-{workspace-id}.md/g' "{target_directory}/api-findings-{workspace-id}.md" > "$tmp" && mv "$tmp" "{target_directory}/api-findings-{workspace-id}.md"
 ```
 
 Stage and commit:

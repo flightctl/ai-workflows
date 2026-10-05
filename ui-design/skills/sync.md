@@ -457,7 +457,18 @@ double-quotes in `gap_id` (e.g., `\` → `\\`, `"` → `\"`). Then query:
 parent = {parent-key} AND issuetype = Story AND description ~ "\"gap_id: {jql_escaped_gap_id}\""
 ```
 
-If the query returns exactly one matching issue, present it to the user:
+**Exclude resolved manifest entries from duplicate matching.** When
+evaluating query results, cross-reference each match against the sync
+manifest. If a matching Jira issue corresponds to a manifest entry with
+`synced_status: "resolved"`, exclude it from duplicate detection — a
+resolved entry represents a previously completed gap, and a reappearance
+of the same `gap_id` is intentionally treated as a new occurrence (per
+the Resolved entry lifecycle rule). Only flag matches that correspond to
+`"active"` or `"tracked"` manifest entries (or have no manifest entry
+at all) as potential duplicates.
+
+If the query returns exactly one matching issue (after excluding resolved
+entries), present it to the user:
 
 ```text
 Duplicate detected — a story matching gap_id "{gap_id}" already exists
@@ -494,7 +505,17 @@ paths forward are to link to an existing story or stop to investigate.
 
 Wait for the user's choice before continuing.
 
-For each new story, create a Jira issue:
+**Adoption path.** If the user chooses to link an existing story (option
+`a` in the duplicate check above), adopt it: record the existing story's
+`jira_key` and current content in the manifest entry with
+`synced_status: "active"` and `adopted: "adopted"`. Then attempt to
+create the `blocks` link (same as new-creation link logic below). If
+adoption succeeds, skip creation for this gap. If the adoption fails
+(e.g., the selected story cannot be read or linked), set
+`adopted: "failed"` in the manifest and continue — the adoption will be
+retried in pass 4d.
+
+For each new story (not adopted), create a Jira issue:
 
 - **Type:** Story
 - **Project:** {project key}
@@ -550,6 +571,28 @@ missing" field from the gap detail.}
 - The response shape is compatible with the UI's data flow mapping
 - {Additional criteria based on the gap type}
 ```
+
+**Canonical description rendering.** To ensure consistent Jira
+descriptions across sync runs (preventing spurious diffs from
+formatting variation), follow these normalization rules when rendering
+the description template above:
+
+1. **Field order:** Always render sections in the order shown in the
+   template: Summary → Context → Design Reference → What's Needed →
+   UI Impact → Suggested Approach → Acceptance Criteria.
+2. **Context list items:** Render in the fixed order shown (UI Story,
+   UI Design, Gap ID, Gap Category, Gap Severity). Use exactly one
+   space after the colon separator.
+3. **Design Reference fields:** Render in the fixed order: Source,
+   Epic, UI Design section, PRD Requirements, Interface Changes.
+4. **Whitespace:** No trailing whitespace on any line. Exactly one
+   blank line between sections. No trailing blank lines at end of
+   description.
+5. **Component lists:** `affected_components` values are rendered as
+   comma-separated PascalCase names in a fixed alphabetical order
+   (e.g., `DeviceDetailPanel, DeviceList, FleetOverview`).
+6. **Trim all field values** before rendering to prevent
+   leading/trailing whitespace from varying between runs.
 
 **Design Reference field derivation.** The `prd_requirements` and
 `ui_design_section` fields are included in the `content_hash`
@@ -682,14 +725,31 @@ available, report the error and let the user handle it in Jira.
 
 **If close fails:** Report the error and offer to retry or skip.
 
-#### 4d: Retry Failed Links
+#### 4d: Retry Failed Links and Reconcile Adoption/Recovery
 
-Scan manifest entries with `synced_status: "active"` and
-`blocks_link: "failed"`. For each, re-attempt the issue link creation
-between the `[DEV]` story (`jira_key`) and the `[UI]` story
-(`{workspace-id}`) using the same link type logic as Step 4a. On
-success, update `blocks_link` to `"created"`. On failure, leave
-`blocks_link` as `"failed"` and log the error.
+**Retry failed links.** Scan manifest entries with
+`synced_status: "active"` and `blocks_link: "failed"`. For each,
+re-attempt the issue link creation between the `[DEV]` story
+(`jira_key`) and the `[UI]` story (`{workspace-id}`) using the same
+link type logic as Step 4a. On success, update `blocks_link` to
+`"created"`. On failure, leave `blocks_link` as `"failed"` and log the
+error.
+
+**Retry failed adoptions.** Scan manifest entries with
+`synced_status: "active"` and `adopted: "failed"`. For each, re-attempt
+the adoption: query Jira for an existing story under the parent with a
+matching `gap_id` marker. If found, present the match to the user (same
+as the duplicate-check flow in 4a). If the user confirms adoption,
+update the manifest entry with the adopted story's `jira_key` and set
+`adopted: "adopted"`. On failure, leave `adopted: "failed"`.
+
+**Recovery for stories with missing links.** Scan manifest entries with
+`synced_status: "active"` that have a `jira_key` but no `blocks_link`
+field (or `blocks_link: "failed"`). Before attempting link creation,
+verify the story still exists in Jira by reading it. If the story does
+not exist (deleted externally), remove the `jira_key` from the manifest
+and reclassify the entry as **New** for the next sync run. If the story
+exists, proceed with the link retry.
 
 Present the results:
 
@@ -724,7 +784,8 @@ it is complete and consistent. The final structure should be:
       "jira_key": "{DEV story key}",
       "content_hash": "{sha256-of-gap-content}",
       "synced_status": "active",
-      "blocks_link": "created"
+      "blocks_link": "created",
+      "adopted": false
     }
   ]
 }
@@ -774,6 +835,12 @@ Fields:
   created, `"failed"` if creation failed. Omitted for `"tracked"` and
   `"closed"` entries. Stories with `blocks_link: "failed"` are not
   considered in sync — the link will be retried on the next sync run.
+- `adopted` — Adoption status: `false` (default) for stories created
+  by sync, `"adopted"` for stories that were pre-existing in Jira and
+  adopted by sync (linked in the manifest without creating a new
+  story), `"failed"` if adoption was attempted but failed. When
+  `adopted: "failed"`, pass 4d retries the adoption on the next sync
+  run. Omitted for `"tracked"` entries.
 - `synced_at` — top-level only. Updated to the current timestamp at the
   end of each sync run.
 

@@ -125,12 +125,14 @@ From the story, extract:
 
 **Grandparent Feature chase.** The `--parent-fields` flag above includes
 `parent`, which returns the parent's own parent key when one exists.
-After the initial fetch, check whether the parent's `parent` field is
-present:
+After the initial fetch, check whether the story's parent is already a
+Feature. If the parent is not a Feature (e.g., it is an Epic), resolve
+the grandparent:
 
-- **If the parent's `parent` field is present** — the parent is an Epic
-  whose parent is a Feature. Make a second fetch to retrieve the
-  grandparent Feature:
+- **If the parent's `parent` field is present as a nested object** (with
+  sub-fields like `key`, `summary`) — the parent is an Epic whose parent
+  is a Feature. Extract the grandparent key from the nested object and
+  make a second fetch to retrieve the grandparent Feature:
 
   ```bash
   python3 "${HOME}/.ai-workflows/_shared/scripts/fetch-issue.py" get "{grandparent-key}" --fields summary,status,key,issuetype
@@ -138,6 +140,20 @@ present:
 
   Use the grandparent (Feature) key as `{feature-key}` for docs-repo
   directory resolution in Steps 5 and beyond.
+
+- **If the parent's `parent` field is present as a bare key string**
+  (just an issue key like `"PROJ-100"`, with no nested fields) — the
+  parent returns its own parent as a key reference only. Make a second
+  fetch to retrieve that parent issue and check its type:
+
+  ```bash
+  python3 "${HOME}/.ai-workflows/_shared/scripts/fetch-issue.py" get "{bare-parent-key}" --fields summary,status,key,issuetype,parent
+  ```
+
+  If the fetched issue is a Feature, use its key as `{feature-key}`.
+  If it is an Epic with its own parent, use that parent's key as
+  `{feature-key}` (one additional level). Do not chase beyond two
+  levels above the original story.
 
 - **If the parent's `parent` field is absent** — the parent is already a
   Feature (or there is no grandparent). Use the direct parent key as
@@ -248,8 +264,8 @@ proceed without a handoff (it is optional).
 If found, read it.
 
 **Provenance freshness check.** Before extracting content, look for a
-provenance footer (`<!-- provenance:`) in the handoff file. If no
-provenance footer is found, warn the user:
+provenance footer (`<!-- ai-workflow-provenance:`) in the handoff file.
+If no provenance footer is found, warn the user:
 
 *"The UX handoff file (`{path}`) does not contain a provenance footer.
 This may indicate the handoff has not been finalized by the UX workflow.
