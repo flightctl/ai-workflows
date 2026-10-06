@@ -41,7 +41,7 @@ Resolve the shared script to an absolute path so it remains valid
 regardless of working directory:
 
 ```bash
-FETCH_ISSUE_SCRIPT="${HOME}/.ai-workflows/_shared/scripts/fetch-issue.py"
+FETCH_ISSUE_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/_shared/scripts/fetch-issue.py"
 ```
 
 Use `$FETCH_ISSUE_SCRIPT` instead of the relative path in all subsequent
@@ -148,6 +148,11 @@ If the Feature key is not in the story payload (the `--parent-fields parent`
 did not return a grandparent), fetch the Epic with `fetch-issue.py get`
 (Parent epic/feature command from the Jira call section) to get its parent.
 
+If the Epic has no parent (the fetch returns no `parent` field or the
+parent is null), use the Epic key as `{feature-key}` for the directory
+search below. Warn the user: "No Feature-level parent found for Epic
+{epic-key}. Using Epic key as directory lookup slug."
+
 The docs repo structure is `{release}/{feature-slug}/prd.md` and
 `{release}/{feature-slug}/design.md`, where `{feature-slug}` includes the
 Feature issue key (e.g., `port-mappings-PROJ-1100`).
@@ -193,8 +198,19 @@ Need:
 Check the story's Design Reference `Source` field (captured in Step 3):
 
 - **`Source: ui-design/sync`** — this story was created by the ui-design
-  workflow's `/sync` phase. Extract the UI design document filename from
-  the `UI Design section` field in the Design Reference (it will be in
+  workflow's `/sync` phase.
+
+  First, split the `UI Design section` field value on `#` if present.
+  The portion before `#` is the filename (e.g., `ui-design-PROJ-456.md`);
+  the portion after `#` is the section reference (e.g., `§API Findings`).
+  If no `#` is present, the entire value is treated as either a bare
+  filename or a section-only reference (the existing fallback logic below
+  handles both cases). Use only the filename portion for file resolution
+  in the steps that follow, and retain the section reference as the grep
+  target within the resolved file.
+
+  Extract the UI design document filename from the filename portion
+  (parsed above) (it will be in
   the form `ui-design-{story-key}.md`). If the field does not contain a
   filename (no string matching `ui-design-*.md` — e.g., it holds only a
   section reference like `§Component Architecture > HealthBadge`), fall
@@ -206,14 +222,22 @@ Check the story's Design Reference `Source` field (captured in Step 3):
   candidate filename. If the story has no "blocks" link (legacy story
   created before the link was added), fall back to grepping the candidate
   `ui-design-*.md` files for the [DEV] story's gap_id or component name
-  from the story body, and select the file that references it. Retain whatever section reference
-  appeared in the `UI Design section` field (e.g.,
-  `§Component Architecture > HealthBadge`) as the grep target within the
-  resolved file. Use this as the primary design document: grep it for the
-  story's issue key, AC keywords, and component names (instead of the
-  `Design section` field used for `design.md`). If `design.md` also
-  exists in the feature directory, load its relevant sections as
-  supplemental context (broader architecture around the UI change).
+  from the story body, and select the file that references it. Use this
+  as the primary design document: grep it for the story's issue key, AC
+  keywords, and component names (instead of the `Design section` field
+  used for `design.md`). If `design.md` also exists in the feature
+  directory, load its relevant sections as supplemental context (broader
+  architecture around the UI change).
+
+  After resolving the ui-design document, also check the same feature
+  directory for `api-findings-{workspace-id}.md`, where `{workspace-id}`
+  matches the suffix of the resolved ui-design document (e.g., if the
+  resolved file is `ui-design-PROJ-456.md`, look for
+  `api-findings-PROJ-456.md`). If found, load relevant sections as
+  supplemental API context — the ui-design document's API Findings section
+  may contain only a pointer to this overflow file when the findings exceed
+  200 lines. If not found, proceed normally — the API findings are inline
+  in the main ui-design document.
 - **No `Source` field (or any other value)** — existing behavior. Use
   `design.md` as the primary design document with the `Design section`
   field. Ignore any `ui-design-*.md` file even if present.
