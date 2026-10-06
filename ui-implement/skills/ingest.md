@@ -39,15 +39,15 @@ environment variables.
 
 ## Jira call (use as-is)
 
-Resolve the shared script to an absolute path so it remains valid
-regardless of working directory:
+Use the shared fetch-issue script via the relative path above
+(`../../_shared/scripts/fetch-issue.py`). Resolve it from this file's
+location to an absolute path before running commands:
 
 ```bash
-FETCH_ISSUE_SCRIPT="${HOME}/.ai-workflows/_shared/scripts/fetch-issue.py"
+FETCH_ISSUE_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && realpath ../../_shared/scripts/fetch-issue.py)"
 ```
 
-Use `$FETCH_ISSUE_SCRIPT` instead of the relative path in all subsequent
-commands.
+Use `$FETCH_ISSUE_SCRIPT` in all subsequent commands.
 
 - **Story:** `python3 "$FETCH_ISSUE_SCRIPT" get {KEY} --fields summary,description,issuetype,status,labels,fixVersions --parent --parent-fields summary,status,issuetype,parent --links --link-fields summary,status`
 - **Parent epic/feature:** skip if `parent.key` (and its parent) are already in the story payload. Use those keys for docs lookup. Fetch only if a key is missing: `python3 "$FETCH_ISSUE_SCRIPT" get {KEY} --fields summary,status,issuetype --parent --parent-fields summary,status,issuetype,parent`
@@ -99,6 +99,16 @@ Capture:
 - Parent key (epic) and its parent key (feature), from the `--parent --parent-fields` response
 - Story dependencies (linked issues — "depends on", "is blocked by")
 - Fix version / sprint (if set)
+
+### Step 3a: Verify Story Type
+
+Check the story type prefix captured in Step 3. If the summary does not
+start with `[UI]`, **STOP** and tell the user:
+
+> This story is not a [UI] story. Use the `implement` workflow for [DEV]
+> stories or the appropriate workflow for other story types.
+
+Do not proceed with any further steps.
 
 ### Step 4: Check Story Dependencies
 
@@ -177,13 +187,16 @@ documents with story-scoped names (e.g., `ui-design-EDM-1234.md`,
    ```bash
    find "{feature-dir}" -maxdepth 1 -name "ui-design-*.md"
    ```
-   Filter the results to only those containing the current `{issue-key}`.
-   If exactly one candidate remains, use it as `{ui-design-file}`. If
-   multiple candidates remain after filtering, present them to the user
-   and ask which one to use. If no candidates match the issue key, fall
-   through to step 4.
+   Filter the results to only those whose filename is exactly
+   `ui-design-{issue-key}.md` (exact match, not substring — e.g.,
+   `EDM-12` must match `ui-design-EDM-12.md` but not
+   `ui-design-EDM-123.md`). If exactly one candidate remains, use it
+   as `{ui-design-file}`. If multiple candidates remain after filtering,
+   present them to the user and ask which one to use. If no candidates
+   match the issue key, fall through to step 4.
 3. Apply the same resolution for `api-findings-*.md` → `{api-findings-file}`,
-   including the issue-key filter and user disambiguation.
+   using the same exact-match filter (`api-findings-{issue-key}.md`) and
+   user disambiguation.
 4. If neither approach finds a match, fall back to the generic names
    without a story-key suffix (the pre-story-scoped convention).
 
