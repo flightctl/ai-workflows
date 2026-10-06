@@ -173,14 +173,27 @@ Please verify the API Findings section and re-run /sync."*
 Wait for the user to confirm before proceeding — either they fix the
 findings or explicitly confirm that zero gaps is correct.
 
-**Load `pr_url` (required for hash computation).** Before computing
-content hashes, load `pr_url` from
+**Load `pr_url` (optional — used in Jira descriptions).** Before
+proceeding, attempt to load `pr_url` from
 `.artifacts/ui-design/{workspace-id}/publish-metadata.json`. Apply
 HTTPS URL validation (non-empty string, parseable HTTPS URL with a
-valid host and at least one path segment). If the file does not exist,
-`pr_url` is absent, null, empty, or invalid, stop and tell the user
-that `/publish` should be run first — the content hash, description
-template, and closure comments all require the design PR link.
+valid host and at least one path segment).
+
+- If the file exists and `pr_url` is valid, use it in Jira description
+  templates and closure comments.
+- If the file does not exist, `pr_url` is absent, null, empty, or
+  invalid, set `pr_url` to `"Pending — design PR not yet published"`
+  and warn the user:
+
+  *"`publish-metadata.json` not found or `pr_url` is missing/invalid.
+  Jira descriptions will use a placeholder link. Run `/publish` and
+  then `/sync` again to update the link in Jira descriptions."*
+
+  Proceed with sync — the content hash does not include `pr_url`, so
+  gap tracking and change detection work without it. The placeholder
+  will be replaced on the next sync after `/publish` is run (which
+  will change the description template, triggering a content update
+  via the description diff even though the hash is unchanged).
 
 **Canonical content_hash computation.** To ensure `content_hash`
 changes whenever a Jira-rendered field changes, define the hash
@@ -198,7 +211,6 @@ different hash while rendering an identical Jira summary.
   "affected_components": "{affected components}",
   "category": "{gap category}",
   "current_state": "{current state}",
-  "pr_url": "{pr_url}",
   "prd_requirements": "{PRD requirement IDs or fallback text}",
   "severity": "{severity}",
   "suggested_approach": "{suggested approach}",
@@ -209,9 +221,29 @@ different hash while rendering an identical Jira summary.
 }
 ```
 
-Compute `content_hash = SHA-256(JSON.stringify(payload))` where keys
-are sorted alphabetically (as shown above) and values are trimmed of
-leading/trailing whitespace. The `title` field uses the
+**Note:** `pr_url` is intentionally excluded from the content hash. It is
+used in the Jira description template but changes whenever a new PR is
+opened (e.g., after `/publish`), which would cause every hash to become
+stale and trigger unnecessary Jira updates. The hash tracks only gap
+content fields that represent actual changes to the gap's substance.
+
+Compute the content hash using the helper script for deterministic
+results:
+
+```bash
+python3 "../../ui-design/scripts/compute-hash.py" content-hash \
+  --json-file "{path-to-payload.json}"
+```
+
+Or pipe the JSON payload via stdin:
+
+```bash
+echo '{ ... }' | python3 "../../ui-design/scripts/compute-hash.py" content-hash --json-stdin
+```
+
+The script computes `SHA-256(JSON.stringify(payload))` where keys
+are sorted alphabetically and values are trimmed of leading/trailing
+whitespace. The `title` field uses the
 pre-normalized `title = trim(gap_title)` (see above) so the hash
 input matches the Jira summary (`[DEV] {title}`) — a title-only
 change must trigger an update, but a whitespace-only difference that
@@ -354,7 +386,14 @@ severity in the findings:
   bucket to mark it closed in the manifest.
 
 **If nothing to do** (no new, changed, resolved, or promoted items, and
-no entries with `blocks_link: "failed"`), stop and tell the user:
+no entries with `blocks_link: "failed"` or `adopted: "failed"`):
+
+Before exiting, check for entries that need recovery (pass 4d work):
+scan manifest entries with `synced_status: "active"` for any with
+`blocks_link: "failed"` or `adopted: "failed"`. If found, skip the
+early exit and proceed to Step 2 so that pass 4d can retry them.
+
+If no recovery work is needed, stop and tell the user:
 
 ```text
 All items are in sync — nothing to do.
@@ -803,23 +842,33 @@ Fields:
   `synced_status: "active"` or `"closed"`. Omitted for entries with
   `synced_status: "tracked"` (low-severity gaps not synced to Jira).
 - `content_hash` — SHA-256 of the canonical gap payload: sorted JSON
-  of `{affected_components, category, current_state, pr_url,
+  of `{affected_components, category, current_state,
   prd_requirements, severity, suggested_approach, title,
   ui_design_section, ui_need, whats_missing}` (see "Canonical
-  content_hash computation" above). The `title` value is normalized
-  via `trim(gap_title)` before hashing so whitespace-only title
-  changes do not produce spurious hash differences. Used to detect
-  changes on the next run. Preserved (not replaced) when closing an
-  issue, to support deterministic reopen detection.
+  content_hash computation" above). `pr_url` is intentionally excluded
+  — it changes on every `/publish` cycle and would cause spurious
+  updates. The `title` value is normalized via `trim(gap_title)` before
+  hashing so whitespace-only title changes do not produce spurious hash
+  differences. Used to detect changes on the next run. Preserved (not
+  replaced) when closing an issue, to support deterministic reopen
+  detection.
 - `synced_status` — One of `"active"`, `"closed"`, `"tracked"`, or
-  `"resolved"`.
-  `"active"` and `"closed"` are for Jira-synchronized entries.
-  `"tracked"` is for low-severity gaps that are recorded in the
-  manifest but not synced to Jira. When a closed issue is reopened,
-  reset to `"active"`. When a tracked gap's severity increases to
-  medium/high/critical, promote to `"active"` and create a Jira story.
-  `"resolved"` is set when a manifest entry's Jira story has
-  `status=Closed` or `resolution=Done` — see the lifecycle rule below.
+  `"resolved"`. State transitions:
+  - `"active"` — Jira story exists and is open. Set on creation and
+    when reopening a previously closed entry.
+  - `"closed"` — Jira story was closed **by sync** (gap removed from
+    findings or marked as resolved during `/revise`/`/respond`).
+    If the same `gap_id` reappears in findings, transition back to
+    `"active"` and reopen the Jira story (see Edge case — reopened).
+  - `"tracked"` — Low-severity gap recorded in the manifest but not
+    synced to Jira. When severity increases to medium/high/critical,
+    promote to `"active"` and create a Jira story.
+  - `"resolved"` — Jira story was closed **externally** (outside of
+    sync — e.g., by the backend team completing the work). Set during
+    manifest reading in Step 1 when an active entry's Jira story has
+    `status=Closed` or `resolution=Done`. If the same `gap_id`
+    reappears in findings, create a **new** Jira story (do not reopen
+    the resolved one). See the lifecycle rule below.
 - **Resolved entry lifecycle.** When reading the manifest during
   Step 1, check each active entry's Jira story status. If the Jira
   story has `status=Closed` or `resolution=Done`, set

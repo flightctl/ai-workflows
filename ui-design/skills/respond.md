@@ -182,11 +182,11 @@ For each approved response that requires a document change:
 
 After all changes are applied:
 
-Read and follow `${HOME}/.ai-workflows/_shared/recipes/capture-provenance-event.md` with
+Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, `PHASE=respond`,
 `AUTHORING_MODE=skill`.
 
-Read and follow `${HOME}/.ai-workflows/_shared/recipes/render-provenance-footer.md` with
+Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, and `TARGET_FILE` set to the
 absolute source-repo path to `.artifacts/ui-design/{workspace-id}/02-ui-design.md`.
 
@@ -237,7 +237,11 @@ sed 's/02-ui-design\.md/ui-design-{workspace-id}.md/g' "{target_directory}/api-f
 
 Render provenance footer on the docs-repo copies before staging.
 
+**Index isolation.** Before staging, reset the index to prevent
+unrelated pre-staged files from leaking into this commit:
+
 ```bash
+git -C "{docs_repo_path}" reset HEAD --quiet
 git -C "{docs_repo_path}" add "{target_directory}/ui-design-{workspace-id}.md"
 # If api-findings-{workspace-id}.md was updated during this phase:
 git -C "{docs_repo_path}" add "{target_directory}/api-findings-{workspace-id}.md"

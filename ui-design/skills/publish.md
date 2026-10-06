@@ -39,16 +39,6 @@ Do not proceed to branch creation, commits, or pushes without a
 confirmed `gh` installation — otherwise the push succeeds but the PR
 cannot be created, leaving an orphaned branch.
 
-**Validation gate (if applicable).** If
-`.artifacts/ui-design/{workspace-id}/05-validation-report.md` exists,
-read its `## Result` section. When looking for the `PASS` or `FAIL`
-verdict after the `## Result` heading, **skip blank lines and HTML
-comment lines** (`<!-- ... -->`) — the first non-empty, non-comment line
-is the verdict. If the verdict is `FAIL`, tell the user that the issues
-in the validation report should be resolved before publishing. If the
-file does not exist, skip this check — the ui-design workflow does not
-always produce a validation report.
-
 Confirm these artifacts exist:
 - `.artifacts/ui-design/{workspace-id}/02-ui-design.md` (required)
 - `.artifacts/ui-design/{workspace-id}/03-api-findings.md` (optional — include if exists)
@@ -74,7 +64,7 @@ matches.
 Resolve remotes **before** determining the base branch — the upstream
 remote name is needed to read the correct `HEAD` ref.
 
-Read and follow `${HOME}/.ai-workflows/_shared/recipes/resolve-docs-publish-remotes.md` with:
+Read and follow `../../_shared/recipes/resolve-docs-publish-remotes.md` with:
 - `DOCS_REPO_PATH` = the validated docs repo path
 - `CONFIGURED_DOCS_REPO_REMOTE` = `docs_repo_remote` from config
 - `BRANCH_NAME` = `{workspace-id}-ui-design` (e.g., `EDM-1234-ui-design`)
@@ -190,11 +180,14 @@ Do not proceed to Step 7 until the target directory passes this check.
 
 ### Step 7: Prepare the Branch
 
-**Index isolation.** Before switching branches, ensure no pre-existing
-staged or uncommitted changes leak into the publish commit:
+**Index isolation.** Before switching branches, record the current branch
+and stash any uncommitted changes so they can be restored after publish:
 
 ```bash
+ORIGINAL_BRANCH=$(git -C "{docs_repo_path}" rev-parse --abbrev-ref HEAD)
+STASH_COUNT_BEFORE=$(git -C "{docs_repo_path}" stash list 2>/dev/null | wc -l)
 git -C "{docs_repo_path}" stash --include-untracked --quiet 2>/dev/null || true
+STASH_COUNT_AFTER=$(git -C "{docs_repo_path}" stash list 2>/dev/null | wc -l)
 ```
 
 Fetch upstream and prepare the feature branch:
@@ -258,14 +251,14 @@ Include the docs-repo deletion in the same commit (Step 8 staging below).
 
 Render provenance footer on the docs-repo copies:
 
-Read and follow `${HOME}/.ai-workflows/_shared/recipes/render-provenance-footer.md` with
+Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, and `TARGET_FILE` set to
 each copied file's absolute path in the docs repo.
 
-**Note:** The provenance script (`${HOME}/.ai-workflows/_shared/scripts/provenance.py`)
+**Note:** The provenance script (`../../_shared/scripts/provenance.py`)
 already supports `ui-design` as a `--workflow` value (added in commit
 `2f9381a`). The workflow-to-artifact mapping and CLI choices are
-pre-configured. See `${HOME}/.ai-workflows/_shared/provenance-schema.md` for the schema
+pre-configured. See `../../_shared/provenance-schema.md` for the schema
 definition.
 
 Update cross-references in the copied files to reflect the published
@@ -315,10 +308,15 @@ Interpret the result:
 - **Any other exit code** (network error, auth failure, invalid URL):
   stop and report the error — do not assume the branch is absent.
 
-Push the branch:
+Push the branch. If the user approved a force-push (exit code 0 path
+above), use `--force-with-lease` instead of a plain push:
 
 ```bash
+# Normal push (branch is absent or user did not request force):
 git -C "{docs_repo_path}" push -u "{PUSH_REMOTE}" "{BRANCH_NAME}"
+
+# Force push (only when user explicitly approved):
+git -C "{docs_repo_path}" push -u --force-with-lease "{PUSH_REMOTE}" "{BRANCH_NAME}"
 ```
 
 Generate the PR description and save to
@@ -420,6 +418,17 @@ Write `.artifacts/ui-design/{workspace-id}/publish-metadata.json` using
 Include `"api-findings-{workspace-id}.md"` in the `files` array only if
 `03-api-findings.md` was actually copied to the docs repo. Always
 include `"ui-design-{workspace-id}.md"`. Do not list files that were not published.
+
+**Restore docs-repo state.** After recording metadata, restore the docs
+repo to the branch the user was on before publish, and pop the stash if
+one was created in Step 7:
+
+```bash
+git -C "{docs_repo_path}" checkout "${ORIGINAL_BRANCH}" --quiet
+if [ "${STASH_COUNT_AFTER}" -gt "${STASH_COUNT_BEFORE}" ]; then
+  git -C "{docs_repo_path}" stash pop --quiet
+fi
+```
 
 Present to the user:
 - PR URL and number

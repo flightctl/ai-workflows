@@ -34,7 +34,7 @@ This skill delegates deterministic Jira issue fetching to a shared
 script. Reference it using a relative path from this file:
 
 ```
-${HOME}/.ai-workflows/_shared/scripts/fetch-issue.py
+../../_shared/scripts/fetch-issue.py
 ```
 
 The script provides subcommands: `get` and `search`. See the script
@@ -111,7 +111,7 @@ for the diff in Step 8a.
 **Jira input.** Fetch the Jira issue using the shared script:
 
 ```bash
-python3 "${HOME}/.ai-workflows/_shared/scripts/fetch-issue.py" get "{workspace-id}" --parent --parent-fields summary,status,key,parent --links
+python3 "../../_shared/scripts/fetch-issue.py" get "{workspace-id}" --parent --parent-fields summary,status,key,parent --links
 ```
 
 From the story, extract:
@@ -135,7 +135,7 @@ the grandparent:
   make a second fetch to retrieve the grandparent Feature:
 
   ```bash
-  python3 "${HOME}/.ai-workflows/_shared/scripts/fetch-issue.py" get "{grandparent-key}" --fields summary,status,key,issuetype
+  python3 "../../_shared/scripts/fetch-issue.py" get "{grandparent-key}" --fields summary,status,key,issuetype
   ```
 
   Use the grandparent (Feature) key as `{feature-key}` for docs-repo
@@ -147,7 +147,7 @@ the grandparent:
   fetch to retrieve that parent issue and check its type:
 
   ```bash
-  python3 "${HOME}/.ai-workflows/_shared/scripts/fetch-issue.py" get "{bare-parent-key}" --fields summary,status,key,issuetype,parent
+  python3 "../../_shared/scripts/fetch-issue.py" get "{bare-parent-key}" --fields summary,status,key,issuetype,parent
   ```
 
   If the fetched issue is a Feature, use its key as `{feature-key}`.
@@ -155,9 +155,15 @@ the grandparent:
   `{feature-key}` (one additional level). Do not chase beyond two
   levels above the original story.
 
-- **If the parent's `parent` field is absent** — the parent is already a
-  Feature (or there is no grandparent). Use the direct parent key as
-  `{feature-key}`.
+- **If the parent's `parent` field is absent** — the parent is either a
+  Feature or an Epic with no grandparent (flat project structure). Check
+  the parent's `issuetype`:
+  - If the parent is a Feature, use the parent key as `{feature-key}`.
+  - If the parent is an Epic with no grandparent, set `{feature-key}`
+    to `"N/A"` — downstream phases (`/publish`, `/sync`) will use the
+    epic as the parent for directory resolution and story creation.
+    Record this in `01-context.md` so downstream phases can detect the
+    flat hierarchy without repeating the chase.
 
 Record the resolved `{feature-key}` in `01-context.md`'s Story Summary
 so downstream phases (`/publish`, `/sync`) can use it for directory and
@@ -414,6 +420,7 @@ If this is a first invocation, write
 - **Story:** {workspace-id} — {title}
 - **Type:** [UI]
 - **Parent:** {parent epic/feature key, or "N/A (local workspace)" for non-Jira input}
+- **Feature:** {resolved feature-key from grandparent chase, or parent key if parent is a Feature, or "N/A" if unavailable}
 - **Jira:** {issue URL, or "N/A — workspace derived from: {source description}" for non-Jira input}
 
 ### Acceptance Criteria

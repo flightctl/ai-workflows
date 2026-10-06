@@ -516,13 +516,18 @@ Before presenting the UI design document, verify:
 
 Save the UI design document to `.artifacts/ui-design/{workspace-id}/02-ui-design.md`.
 
-Read and follow `${HOME}/.ai-workflows/_shared/recipes/capture-provenance-event.md` with
+Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, `PHASE=plan`,
 `AUTHORING_MODE=skill`.
 
-Read and follow `${HOME}/.ai-workflows/_shared/recipes/render-provenance-footer.md` with
+Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, and `TARGET_FILE` set to the
 absolute source-repo path to `.artifacts/ui-design/{workspace-id}/02-ui-design.md`.
+
+The provenance footer is appended after the last section of the document
+(after the Open Questions section). The `render-provenance-footer` recipe
+places it as an HTML comment block at the end of the file — it does not
+disrupt the document's content sections or any downstream parsers.
 
 ### Step 7: Present to User
 

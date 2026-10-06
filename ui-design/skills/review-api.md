@@ -170,7 +170,17 @@ Use this structure (whether inline or in a separate file):
 | 1 | {gap_id} | {description} | {data / field / state / pagination / filtering / sorting / shape / permission} | {which components are blocked or degraded} | {critical / high / medium / low} |
 
 **Gap ID derivation:** Each gap receives a stable `gap_id` computed during
-this phase and carried forward into `/sync`. The value is:
+this phase and carried forward into `/sync`. Use the helper script to
+compute it deterministically:
+
+```bash
+python3 "../../ui-design/scripts/compute-hash.py" gap-id \
+  --category "{category}" \
+  --data-element "{data_element}" \
+  --endpoint "{endpoint_or_na}"
+```
+
+The output format is:
 `{category_slug}-{first 12 hex chars of SHA-256(category + "|" + data_element + "|" + endpoint_or_na)}`
 (e.g., `field-a1b2c3d4e5f6`). `data_element` is the "Data Needed" value
 from the Verified Endpoint Mappings table (or the UI need if no mapping
@@ -260,17 +270,18 @@ Before presenting the findings, verify:
 This phase mutates `02-ui-design.md` (and may create `03-api-findings.md`),
 so it carries provenance.
 
-Read and follow `${HOME}/.ai-workflows/_shared/recipes/capture-provenance-event.md` with
+Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, `PHASE=review-api`,
 `AUTHORING_MODE=skill`.
 
-Read and follow `${HOME}/.ai-workflows/_shared/recipes/render-provenance-footer.md` with
+Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, and `TARGET_FILE` set to the
 absolute source-repo path to `.artifacts/ui-design/{workspace-id}/02-ui-design.md`.
 
 If `03-api-findings.md` was created or changed in this phase, also render
-the provenance footer on it: run the same recipe with `TARGET_FILE` set to the
-absolute source-repo path to `.artifacts/ui-design/{workspace-id}/03-api-findings.md`.
+the provenance footer on it: run the `../../_shared/recipes/render-provenance-footer.md`
+recipe with `TARGET_FILE` set to the absolute source-repo path to
+`.artifacts/ui-design/{workspace-id}/03-api-findings.md`.
 
 ### Step 8: Present to User
 
