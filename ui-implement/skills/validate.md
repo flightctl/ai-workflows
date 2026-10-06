@@ -238,6 +238,13 @@ Coverage section, skip this step entirely.
 
 ### Step 9: Write Validation Report
 
+Record the current HEAD SHA so that `/publish` can verify no code has
+changed since validation:
+
+```bash
+git rev-parse HEAD
+```
+
 Write `.artifacts/ui-implement/{issue-key}/05-validation-report.md`:
 
 ```markdown
@@ -323,11 +330,16 @@ Write `.artifacts/ui-implement/{issue-key}/05-validation-report.md`:
 {If no validation commits: "No additional commits needed during
  validation."}
 
+## Validated HEAD
+
+{SHA of HEAD at the time validation was run: output of `git rev-parse HEAD`}
+
 ## Result
 
-<!-- Result Template: first line is a single verdict token. -->
-
 PASS
+
+<!-- The first non-empty line after ## Result must be the verdict token
+     (PASS or FAIL). Do not place comments or text before it. -->
 
 {When all checks pass, coverage is comprehensive, all acceptance
  criteria satisfied, and no regressions. Otherwise:}

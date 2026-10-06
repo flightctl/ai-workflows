@@ -129,7 +129,16 @@ Wait for the user to approve, modify, or reject each response.
 For comments requiring code changes:
 
 1. Read the affected file(s)
-2. Apply the change
+2. Apply the change using test-first discipline when applicable:
+   - When the fix introduces new behavior or modifies existing
+     behavioral contracts, follow the same test-first approach as
+     `/code`: update or write test expectations first, verify they fail
+     against the current code, then apply the production code fix. This
+     ensures tests validate the contract, not just confirm the fix was
+     applied.
+   - Simple bug fixes (e.g., typo corrections, wrong variable names) or
+     style-only changes don't require full TDD — just fix and verify
+     existing tests still pass.
 3. If the change affects behavior, update or add tests. Tests must
    validate behavioral contracts through public interfaces — the same
    standard as `/code`. Match existing test patterns.

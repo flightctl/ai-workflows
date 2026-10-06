@@ -54,13 +54,18 @@ commands.
 Verify readiness:
 
 1. Read `.artifacts/ui-implement/{issue-key}/05-validation-report.md`. Locate
-   the `## Result` heading and parse the first non-empty line after it. That
-   line must be exactly `PASS` (case-sensitive, no surrounding text). If the
-   file doesn't exist, the `## Result` section is missing, or the first
-   non-empty line is anything other than `PASS`, tell the user that
-   `/validate` should be run (or re-run) first.
+   the `## Result` heading and parse the first non-empty, non-HTML-comment
+   line after it. That line must be exactly `PASS` (case-sensitive, no
+   surrounding text). If the file doesn't exist, the `## Result` section is
+   missing, or the first non-empty, non-comment line is anything other than
+   `PASS`, tell the user that `/validate` should be run (or re-run) first.
 
-2. Verify the feature branch exists and has commits:
+2. Compare the current HEAD SHA against the `## Validated HEAD` SHA
+   recorded in the validation report. If the SHAs differ, code has
+   changed since validation (e.g., via `/respond`). Tell the user that
+   `/validate` must be re-run before publishing.
+
+3. Verify the feature branch exists and has commits:
 
    ```bash
    git branch --show-current
@@ -74,7 +79,7 @@ Verify readiness:
 
    If there are no commits ahead of the Local Base, there's nothing to publish.
 
-3. Run the shared pre-flight checks:
+4. Run the shared pre-flight checks:
 
    ```bash
    python3 "$PUBLISH_SCRIPT" preflight --platform github

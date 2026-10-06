@@ -197,6 +197,13 @@ Write tests that define the behavioral contracts for this task:
    patterns.
 6. **Name tests after the contract they validate,** not after bugs
    discovered during development.
+7. **Verify tests fail for the right reason.** Run the tests before
+   writing the implementation. They must fail with an **assertion error**
+   (expected vs actual mismatch) — confirming the test reached the
+   assertion but the behavior is not yet implemented. If a test fails
+   with a compilation error, import error, or runtime error, the test
+   setup is broken — fix the test infrastructure (missing imports,
+   provider wrappers, mocks) before proceeding to the implementation.
 
 #### 3c: Write Implementation (after tests exist)
 
@@ -464,11 +471,14 @@ to write. If it does:
 3. Do **not** write full e2e test implementations — those are for `[QE]`
    stories. Stubs provide scaffolding only.
 4. Run lint on the stub files
-5. Commit separately:
+5. Commit separately using the commit format from the **Commit Format**
+   section of `01-context.md` (the same discovered format as regular
+   task commits), with a description indicating integration/e2e test
+   stubs:
 
 ```bash
 git add {stub files}
-git commit -m "{issue-key}: add integration/e2e test stubs"
+git commit -m "{discovered commit format with stub description}"
 ```
 
 If the project has no e2e framework, skip this step entirely.
