@@ -241,6 +241,10 @@ do not trace to original PRD requirements), skip the requirement-based
 testplan fallback — these stories will not have matching test cases in
 the feature testplan. Treat as Expected zero with a note that testplan
 coverage is deferred to the UI design's own validation criteria.
+If the field also lists FR/NFR IDs alongside the marker (e.g.,
+`FR-1, Discovered during UI design`), filter the testplan using those IDs
+but treat zero matches as Expected zero rather than Anomalous zero — the
+UI-design origin means missing testplan coverage is expected, not an error.
 
 | Outcome | Condition | Action |
 |---------|-----------|--------|
