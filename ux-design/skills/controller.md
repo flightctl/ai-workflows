@@ -68,10 +68,13 @@ within the source repo:
 | Prototype files | `03-prototype/` | `/prototype` |
 | Prototype notes | `03-prototype/prototype-notes.md` | `/prototype` |
 | Evaluation report | `04-evaluation.md` | `/evaluate` |
+| Raw evaluator files | `04-eval-raw/` | `/evaluate`, `/prototype` |
 | Implementation handoff | `05-handoff.md` | `/handoff` |
+| History snapshots | `history/` | `/ingest`, `/research`, `/prototype`, `/evaluate` |
 | Provenance log | `provenance.json` | `/handoff`, `/revise`, `/respond` |
 | PR description | `06-pr-description.md` | `/publish` |
 | Publish metadata | `publish-metadata.json` | `/publish` |
+| Reviewer response log | `responses.jsonl` | `/respond` |
 
 When context is enriched, `/ingest` preserves the prior active artifacts in
 `history/context-r{N}/`. Never overwrite history snapshots. Prototype

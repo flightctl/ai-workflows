@@ -86,9 +86,10 @@ Summarize what changed:
 `/revise` can run before or after `/publish`. If a PR already exists for this
 handoff spec (check for `.artifacts/ux-design/{issue-key}/publish-metadata.json`),
 the revised `05-handoff.md` is now out of sync with the published copy in the
-docs repo. Do **not** push it manually — tell the researcher the spec has
-changed and recommend `/respond` (or a fresh `/publish` round) to update the
-PR, so the docs-repo update goes through the workflow's publish path.
+docs repo. Do **not** push it manually. Tell the researcher to run `/publish`
+to update the existing open PR branch through the workflow's publish path;
+`/publish` uses the saved metadata and does not create a second PR. Use
+`/respond` separately to address reviewer comments.
 
 ## When This Phase Is Done
 

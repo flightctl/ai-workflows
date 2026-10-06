@@ -11,7 +11,7 @@ reviewers and stakeholders can review it.
 ## Critical Rules
 
 - **Confirm before pushing** — verify the target repository, branch name, and PR details with the researcher.
-- **Draft PR** — always create as a draft; the researcher decides when to mark it ready for review.
+- **Draft PR** — create new PRs as drafts; when updating an existing PR, preserve its current status.
 - **No force-push.** No destructive git operations.
 - **No direct commits to main.** Always use a feature branch.
 
@@ -32,6 +32,12 @@ single path component.
 Read `{source_repo_root}/.artifacts/ux-design/{issue-key}/05-handoff.md`.
 
 If the file doesn't exist, tell the researcher that `/handoff` should be run first.
+
+If `{source_repo_root}/.artifacts/ux-design/{issue-key}/publish-metadata.json`
+exists, read it and treat this invocation as an update to the existing PR. Keep
+its PR number, branch, release, feature, and handoff path; do not create a
+second PR for the same handoff. If the metadata is unreadable or incomplete,
+stop and ask the researcher to repair it before publishing.
 
 Read `{source_repo_root}/.artifacts/ux-design/{issue-key}/00-context.md` and
 verify that the context is `enriched` and the handoff
@@ -98,7 +104,22 @@ If the output is not empty, stop and tell the researcher the docs repo has
 uncommitted changes that must be resolved before publishing. Do not proceed
 with a dirty working tree.
 
-Confirm with the researcher:
+**If updating an existing PR**, validate the stored `release`, `feature`, and
+`branch` using the same component and branch-name checks below. Require the
+stored `handoff_file_path` to equal `{release}/{feature}/handoff.md`, and
+require `pr_number` to contain only decimal digits. Read the existing PR:
+
+```bash
+gh pr view {pr-number} --repo {owner}/{repo} --json state,url,headRefName,baseRefName
+```
+
+Require the PR to be open and its head branch to match the stored branch. If
+either check fails, stop and report the mismatch; do not create a replacement
+PR automatically. Show the researcher the PR URL, base branch, feature branch,
+and handoff path, then ask for approval to update that PR. Use its
+`baseRefName` as `{base-branch}` and the stored path and branch for this run.
+
+**If no publish metadata exists**, confirm with the researcher:
 - **Base branch:** Which branch should the PR target? (usually `main`)
 - **Release:** Which release is this for?
 - **Feature:** A short, lowercase, hyphenated slug with the issue key appended
@@ -131,12 +152,12 @@ target below.
 
 The handoff spec file path in the docs repo: `{release}/{feature}/handoff.md`.
 
-### Step 4: Create Branch and Commit
+### Step 4: Create or Update Branch and Commit
 
 All git operations run against the **docs repo**. Use
 `git -C "{docs_repo_path}"` for all commands.
 
-Immediately before creating the branch, repeat the clean-worktree check:
+Immediately before switching or creating the branch, repeat the clean-worktree check:
 
 ```bash
 git -C "{docs_repo_path}" status --porcelain
@@ -145,8 +166,27 @@ git -C "{docs_repo_path}" status --porcelain
 If the output is not empty, stop before checkout and ask the researcher to
 resolve the changes. Leave the worktree and index untouched.
 
+**For a new PR**, create the feature branch from the confirmed base branch:
+
 ```bash
 git -C "{docs_repo_path}" checkout -b "{branch-name}" "{base-branch}"
+```
+
+**For an existing PR**, fetch and check out its branch without resetting local
+work. If the local branch exists, fast-forward it to the remote; otherwise,
+create a tracking branch:
+
+```bash
+git -C "{docs_repo_path}" fetch origin "{branch-name}"
+```
+
+```bash
+if git -C "{docs_repo_path}" show-ref --verify --quiet "refs/heads/{branch-name}"; then
+  git -C "{docs_repo_path}" checkout "{branch-name}"
+  git -C "{docs_repo_path}" merge --ff-only "origin/{branch-name}"
+else
+  git -C "{docs_repo_path}" checkout --track -b "{branch-name}" "origin/{branch-name}"
+fi
 ```
 
 ```bash
@@ -179,11 +219,32 @@ Provenance at publish time:
 git -C "{docs_repo_path}" add "{release}/{feature}/handoff.md"
 ```
 
+For a new PR, commit the new handoff file:
+
 ```bash
 git -C "{docs_repo_path}" commit --only -m "Add UX design handoff for {issue-key}" -- "{release}/{feature}/handoff.md"
 ```
 
-### Step 5: Prepare PR Description
+For an existing PR, compare the rendered handoff with the branch version. If
+there is a change, commit only this path; if it is unchanged, do not create an
+empty commit.
+
+```bash
+git -C "{docs_repo_path}" diff --cached --quiet -- "{release}/{feature}/handoff.md"
+```
+
+An exit status of `0` means the file is unchanged: skip the commit and push. An
+exit status of `1` means it changed: create the update commit below. For any
+other status, stop and report the Git error.
+
+```bash
+git -C "{docs_repo_path}" commit --only -m "Update UX design handoff for {issue-key}" -- "{release}/{feature}/handoff.md"
+```
+
+### Step 5: Prepare PR Description for a New PR
+
+When updating an existing PR, keep its existing description and skip the rest
+of this step. Do not rewrite the PR body as part of a handoff-only update.
 
 Prepare the PR description and save it to
 `{source_repo_root}/.artifacts/ux-design/{issue-key}/06-pr-description.md`
@@ -210,6 +271,16 @@ Prepare the PR description and save it to
 ```
 
 ### Step 6: Push and Create PR
+
+**For an existing PR**, push the update to its existing branch only when Step 4
+created a commit. Keep the existing PR number, URL, and draft or ready status;
+do not run `gh pr create`.
+
+```bash
+git -C "{docs_repo_path}" push origin "{branch-name}"
+```
+
+**For a new PR**, push the branch and create a draft PR:
 
 ```bash
 git -C "{docs_repo_path}" push -u origin "{branch-name}"
@@ -267,7 +338,8 @@ PY
 
 ### Step 7: Save Publish Metadata
 
-Write `{source_repo_root}/.artifacts/ux-design/{issue-key}/publish-metadata.json`:
+For a new PR, write
+`{source_repo_root}/.artifacts/ux-design/{issue-key}/publish-metadata.json`:
 
 ```json
 {
@@ -279,12 +351,16 @@ Write `{source_repo_root}/.artifacts/ux-design/{issue-key}/publish-metadata.json
 }
 ```
 
+For an existing PR, retain its metadata. Do not change the PR number or branch.
+
 ### Step 8: Report to Researcher
 
-Present:
-- PR URL
+Present the existing PR URL when updating, or the new PR URL when publishing
+for the first time. Also report:
 - Docs repo and branch name
 - File location in the docs repo
+- Whether the existing PR was updated, was already current, or a new draft PR
+  was created
 - Next steps (share with reviewers, then use `/respond` when comments arrive)
 
 ## Output
@@ -292,12 +368,13 @@ Present:
 - `{source_repo_root}/.artifacts/ux-design/{issue-key}/06-pr-description.md`
 - `{source_repo_root}/.artifacts/ux-design/{issue-key}/publish-metadata.json`
 - Handoff spec committed and pushed to feature branch in the docs repo
-- Draft PR created against the docs repo
+- Existing PR updated or draft PR created against the docs repo
 
 ## When This Phase Is Done
 
 Report your results:
-- PR URL and branch name
+- PR URL and branch name, and whether it was updated, already current, or newly
+  created
 - Docs repo and file location
 - Suggested next steps
 

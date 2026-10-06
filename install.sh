@@ -163,10 +163,12 @@ ensure_repo_linked() {
 UXD_REPO="https://github.com/rh-uxd/ai-helpers.git"
 UXD_DIR="${HOME}/.uxd-ai-skills"
 UXD_PLUGINS=(uxd-design uxd-prototype uxd-research)
+# Reviewed upstream revision; update this pin only after checking compatibility.
+UXD_COMMIT="c06a62177a497412b7c7887e53851354bb1d8761"
 UXD_REFRESHED=false
 
 # Install UXD AI Skills via git clone + symlinks (AI-agnostic; works for all
-# tools). Called at the end of each install target when ux-design is in scope.
+# tools). Prepare these required dependencies before linking the workflow.
 install_uxd_skills() {
   local skills_dir="$1"
 
@@ -182,7 +184,7 @@ install_uxd_skills() {
       echo "  Error: $UXD_DIR exists but is not an ai-helpers Git checkout" >&2
       return 1
     fi
-    echo "  Cloning UXD AI Skills repo (main)..."
+    echo "  Cloning UXD AI Skills repo..."
     git clone --branch main --single-branch "$UXD_REPO" "$UXD_DIR" 2>/dev/null || {
       echo "  Error: could not clone UXD AI Skills repo — ux-design workflow requires it" >&2
       echo "  Check network access to github.com and re-run install." >&2
@@ -209,35 +211,34 @@ install_uxd_skills() {
       return 1
     fi
 
-    echo "  Updating UXD AI Skills from main..."
-    git -C "$UXD_DIR" fetch --quiet origin main 2>/dev/null || {
-      echo "  Error: could not fetch UXD AI Skills main" >&2
+  fi
+
+  if [[ "$UXD_REFRESHED" != true ]]; then
+    echo "  Fetching pinned UXD AI Skills revision..."
+    git -C "$UXD_DIR" fetch --quiet origin "$UXD_COMMIT" 2>/dev/null || {
+      echo "  Error: could not fetch pinned UXD AI Skills revision $UXD_COMMIT" >&2
       echo "  Check network access to github.com and re-run install." >&2
       return 1
     }
 
-    local local_main_sha
-    local unpushed_commits
-    local_main_sha="$(git -C "$UXD_DIR" rev-parse --verify refs/heads/main 2>/dev/null)" || local_main_sha=""
-    if [[ -n "$local_main_sha" ]]; then
-      unpushed_commits="$(git -C "$UXD_DIR" rev-list --count origin/main..refs/heads/main 2>/dev/null)" || {
-        echo "  Error: could not compare local main with origin/main" >&2
-        return 1
-      }
-      if [[ "$unpushed_commits" -gt 0 ]]; then
-        echo "  Error: local main has $unpushed_commits commit(s) not in origin/main; preserve them before updating." >&2
-        echo "  Create a backup branch or push the commits, then re-run install." >&2
-        return 1
-      fi
-    fi
-
-    git -C "$UXD_DIR" checkout --quiet -B main origin/main 2>/dev/null || {
-      echo "  Error: could not check out the latest UXD AI Skills main" >&2
+    git -C "$UXD_DIR" checkout --quiet --detach "$UXD_COMMIT" 2>/dev/null || {
+      echo "  Error: could not check out pinned UXD AI Skills revision $UXD_COMMIT" >&2
       return 1
     }
+
+    local checked_out_sha
+    checked_out_sha="$(git -C "$UXD_DIR" rev-parse HEAD 2>/dev/null)" || {
+      echo "  Error: could not verify the UXD AI Skills revision" >&2
+      return 1
+    }
+    if [[ "$checked_out_sha" != "$UXD_COMMIT" ]]; then
+      echo "  Error: UXD AI Skills checkout does not match the pinned revision" >&2
+      return 1
+    fi
+
+    UXD_REFRESHED=true
+    echo "  UXD AI Skills pinned commit: ${checked_out_sha:0:12}"
   fi
-  UXD_REFRESHED=true
-  echo "  UXD AI Skills main: $(git -C "$UXD_DIR" rev-parse --short HEAD)"
 
   local linked_count=0
   for plugin in "${UXD_PLUGINS[@]}"; do
@@ -335,6 +336,7 @@ install_cursor() {
   fi
 
   mkdir -p "$SKILLS_DIR" "$CMDS_DIR"
+  install_uxd_skills "$SKILLS_DIR"
   install_shared "$SKILLS_DIR"
   for package in "${PACKAGES[@]}"; do
     local package_dir
@@ -343,7 +345,6 @@ install_cursor() {
     echo "  Linked ${SKILLS_DIR}/${package} -> ${package_dir}  ($SCOPE)"
   done
   generate_cursor_commands "$CMDS_DIR"
-  install_uxd_skills "$SKILLS_DIR"
 }
 
 install_claude() {
@@ -357,6 +358,9 @@ install_claude() {
   MARKER="# ai-workflows"
 
   mkdir -p "$CLAUDE_DIR"
+  SKILLS_DIR="${CLAUDE_DIR}/skills"
+  mkdir -p "$SKILLS_DIR"
+  install_uxd_skills "$SKILLS_DIR"
 
   if ! [[ -f "$CLAUDE_MD" ]] || ! grep -qF "$MARKER" "$CLAUDE_MD"; then
     printf '\n%s\n' "$MARKER" >> "$CLAUDE_MD"
@@ -406,8 +410,6 @@ install_claude() {
 
   # Symlink package directories into Claude Code's skills directory so they
   # are discovered as slash commands (Claude Code scans .claude/skills/).
-  SKILLS_DIR="${CLAUDE_DIR}/skills"
-  mkdir -p "$SKILLS_DIR"
   install_shared "$SKILLS_DIR"
   for package in "${PACKAGES[@]}"; do
     local package_dir
@@ -432,7 +434,6 @@ install_claude() {
       echo "  Removed stale commands symlink ${CMDS_DIR}/${package}  ($SCOPE)"
     fi
   done
-  install_uxd_skills "$SKILLS_DIR"
 }
 
 install_gemini() {
@@ -443,6 +444,7 @@ install_gemini() {
   fi
 
   mkdir -p "$SKILLS_DIR"
+  install_uxd_skills "$SKILLS_DIR"
   install_shared "$SKILLS_DIR"
   for package in "${PACKAGES[@]}"; do
     local package_dir
@@ -450,7 +452,6 @@ install_gemini() {
     ln -sfn "$package_dir" "${SKILLS_DIR}/${package}"
     echo "  Linked ${SKILLS_DIR}/${package} -> ${package_dir}  ($SCOPE)"
   done
-  install_uxd_skills "$SKILLS_DIR"
 }
 
 install_codex() {
@@ -461,6 +462,7 @@ install_codex() {
   fi
 
   mkdir -p "$SKILLS_DIR"
+  install_uxd_skills "$SKILLS_DIR"
   install_shared "$SKILLS_DIR"
   for package in "${PACKAGES[@]}"; do
     local package_dir
@@ -468,7 +470,6 @@ install_codex() {
     ln -sfn "$package_dir" "${SKILLS_DIR}/${package}"
     echo "  Linked ${SKILLS_DIR}/${package} -> ${package_dir}  ($SCOPE)"
   done
-  install_uxd_skills "$SKILLS_DIR"
 }
 
 # Offer a daily systemd --user notifier (Linux desktop). Default: no.

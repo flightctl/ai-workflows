@@ -122,6 +122,15 @@ Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 
 Update the docs repo copy:
 
+Before switching branches, confirm the docs repo worktree and index are clean:
+
+```bash
+git -C "{docs_repo_path}" status --porcelain
+```
+
+If the output is not empty, stop before checkout and ask the researcher to
+resolve the changes. Leave the worktree and index untouched.
+
 ```bash
 git -C "{docs_repo_path}" checkout {branch-name}
 ```
@@ -143,7 +152,7 @@ git -C "{docs_repo_path}" add "{handoff_file_path}"
 ```
 
 ```bash
-git -C "{docs_repo_path}" commit -m "UX design {issue-key}: address review feedback"
+git -C "{docs_repo_path}" commit --only -m "UX design {issue-key}: address review feedback" -- "{handoff_file_path}"
 ```
 
 ```bash

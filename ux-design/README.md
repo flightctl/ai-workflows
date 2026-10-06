@@ -61,7 +61,7 @@ and linked `[UX]` story to be ingested.
 | Evaluate | `/evaluate` | Heuristic evaluation and usability assessment | `04-evaluation.md` |
 | Design handoff | `/handoff` | Produce an implementation-ready spec after enriched context and current prototype evaluation | `05-handoff.md` |
 | Revise | `/revise` | Incorporate stakeholder feedback | `05-handoff.md` (updated) |
-| Publish | `/publish` | Push handoff spec to docs repo for review | `06-pr-description.md`, `publish-metadata.json`, PR in docs repo |
+| Publish | `/publish` | Create a draft PR or update the existing PR with the handoff spec | `06-pr-description.md`, `publish-metadata.json`, PR in docs repo |
 | Respond | `/respond` | Address PR reviewer comments | Updated `05-handoff.md` |
 
 ## Typical Flow
@@ -126,6 +126,9 @@ Alternative when the PRD exists before the design document:
   → updates 05-handoff.md as needed
 ```
 
+After `/revise` changes a published handoff, run `/publish` again to update the
+same open PR branch. Use `/respond` to address reviewer comments.
+
 ## Artifacts
 
 All artifacts are stored in `.artifacts/ux-design/{context-key}/`. For a
@@ -147,7 +150,7 @@ context, use the stable key agreed during `/ingest` (for example,
   history/                     (prior context snapshots, prototypes, evaluations)
   05-handoff.md                (implementation spec, component mapping, AC)
   06-pr-description.md         (generated PR body for /publish)
-  publish-metadata.json        (PR tracking: number, URL, branch, head SHA)
+  publish-metadata.json        (PR number, branch, release, feature, handoff path)
   provenance.json              (authoring provenance log)
 ```
 
@@ -177,9 +180,9 @@ It contains:
 
 This workflow uses skills from the
 [UXD AI Skills repository](https://github.com/rh-uxd/ai-helpers). The installer
-clones its current `main` branch and refreshes an existing clean checkout on
-each run of `./install.sh`; it does not pin a commit. The upstream team will
-notify us before breaking changes.
+checks out the reviewed commit pinned by `UXD_COMMIT` in the root `install.sh`.
+It does not silently follow changes to upstream `main`; update the pin after
+reviewing upstream changes for compatibility.
 
 The installer links skill folders by bare name for Claude Code, Cursor, Gemini,
 and Codex. Invoke the skill name directly rather than using a plugin-marketplace
@@ -238,7 +241,7 @@ ux-design/
 
 ```bash
 # Install the workflow
-./install.sh claude --workflows ux-design
+./install.sh claude --packages ux-design
 
 # Or install all workflows
 ./install.sh all
