@@ -36,6 +36,34 @@ Read these files:
 If `publish-metadata.json` doesn't exist, tell the user that `/publish`
 should be run first.
 
+### Step 1a: Check Out the PR Branch
+
+After `/publish` completes, it restores the docs repo to the user's
+original branch. `/respond` needs to be on the PR branch to push review
+changes. Read the branch name from `publish-metadata.json` and check it
+out in the docs repo:
+
+```bash
+DOCS_REPO_PATH=$(python3 -c "import json; print(json.load(open('.artifacts/config.json'))['docs_repo_path'])")
+PR_BRANCH=$(python3 -c "import json; print(json.load(open('.artifacts/ui-design/{workspace-id}/publish-metadata.json'))['branch'])")
+```
+
+Check out the branch. If it doesn't exist locally, create a tracking
+branch from the push remote:
+
+```bash
+if git -C "${DOCS_REPO_PATH}" show-ref --verify --quiet "refs/heads/${PR_BRANCH}"; then
+  git -C "${DOCS_REPO_PATH}" checkout "${PR_BRANCH}"
+else
+  PUSH_REMOTE=$(python3 -c "import json; m=json.load(open('.artifacts/ui-design/{workspace-id}/publish-metadata.json')); print(m.get('push_repo','origin').split('/')[-1] if '/' in m.get('push_repo','origin') else 'origin')")
+  git -C "${DOCS_REPO_PATH}" fetch "${PUSH_REMOTE}" "${PR_BRANCH}"
+  git -C "${DOCS_REPO_PATH}" checkout -b "${PR_BRANCH}" "${PUSH_REMOTE}/${PR_BRANCH}"
+fi
+```
+
+If the checkout fails, stop and report the error — the PR branch must
+be available before proceeding.
+
 ### Step 2: Fetch PR Comments
 
 If `gh` or the GitHub API is unavailable (command not found, auth
@@ -182,11 +210,11 @@ For each approved response that requires a document change:
 
 After all changes are applied:
 
-Read and follow `../../_shared/recipes/capture-provenance-event.md` with
+Read and follow `${HOME}/.ai-workflows/_shared/recipes/capture-provenance-event.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, `PHASE=respond`,
 `AUTHORING_MODE=skill`.
 
-Read and follow `../../_shared/recipes/render-provenance-footer.md` with
+Read and follow `${HOME}/.ai-workflows/_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, and `TARGET_FILE` set to the
 absolute source-repo path to `.artifacts/ui-design/{workspace-id}/02-ui-design.md`.
 

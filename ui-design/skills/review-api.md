@@ -231,7 +231,16 @@ exist in a prior version of this document.
 
 **If writing inline:** Read `02-ui-design.md`, replace the API Findings
 section (including the Preliminary Gaps subsection) with the full findings
-above, and save.
+above, and save. Also delete any stale overflow file from a prior
+review-api run that may have written findings to a separate file:
+
+```bash
+rm -f ".artifacts/ui-design/{workspace-id}/03-api-findings.md"
+```
+
+This ensures that when findings shrink below the 200-line overflow
+threshold, no outdated separate file remains alongside the inline
+findings.
 
 **If writing separately:** Write `03-api-findings.md` with the findings
 above. Then update `02-ui-design.md`'s API Findings section to:
@@ -270,16 +279,16 @@ Before presenting the findings, verify:
 This phase mutates `02-ui-design.md` (and may create `03-api-findings.md`),
 so it carries provenance.
 
-Read and follow `../../_shared/recipes/capture-provenance-event.md` with
+Read and follow `${HOME}/.ai-workflows/_shared/recipes/capture-provenance-event.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, `PHASE=review-api`,
 `AUTHORING_MODE=skill`.
 
-Read and follow `../../_shared/recipes/render-provenance-footer.md` with
+Read and follow `${HOME}/.ai-workflows/_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, and `TARGET_FILE` set to the
 absolute source-repo path to `.artifacts/ui-design/{workspace-id}/02-ui-design.md`.
 
 If `03-api-findings.md` was created or changed in this phase, also render
-the provenance footer on it: run the `../../_shared/recipes/render-provenance-footer.md`
+the provenance footer on it: run the `${HOME}/.ai-workflows/_shared/recipes/render-provenance-footer.md`
 recipe with `TARGET_FILE` set to the absolute source-repo path to
 `.artifacts/ui-design/{workspace-id}/03-api-findings.md`.
 

@@ -385,15 +385,50 @@ severity in the findings:
 - If the gap is no longer in the findings, route it to the **Resolved**
   bucket to mark it closed in the manifest.
 
-**If nothing to do** (no new, changed, resolved, or promoted items, and
-no entries with `blocks_link: "failed"` or `adopted: "failed"`):
+**Link-repair pass (runs before early-exit evaluation).** Before
+evaluating the "nothing to do" condition, scan manifest entries with
+`synced_status: "active"` for any with `blocks_link: "failed"`,
+`adopted: "failed"`, or a missing `blocks_link` field. If any are found,
+execute the repair logic immediately (same as pass 4d in Step 4):
 
-Before exiting, check for entries that need recovery (pass 4d work):
-scan manifest entries with `synced_status: "active"` for any with
-`blocks_link: "failed"` or `adopted: "failed"`. If found, skip the
-early exit and proceed to Step 2 so that pass 4d can retry them.
+- **Retry failed links:** Re-attempt the issue link creation between the
+  `[DEV]` story (`jira_key`) and the `[UI]` story (`{workspace-id}`)
+  using the same link type logic as pass 4a. On success, update
+  `blocks_link` to `"created"`. On failure, leave as `"failed"`.
+- **Retry failed adoptions:** Re-attempt the adoption by querying Jira
+  for an existing story under the parent with a matching `gap_id` marker.
+  Present matches to the user. On success, update `adopted` to
+  `"adopted"`. On failure, leave as `"failed"`.
+- **Recovery for missing links:** Verify the story still exists in Jira.
+  If deleted externally, remove `jira_key` and reclassify as **New** for
+  the next sync. If it exists, proceed with the link retry.
 
-If no recovery work is needed, stop and tell the user:
+This ensures a previous sync that was interrupted after creating stories
+but before creating links is repaired even when no new or changed gaps
+exist. Update the manifest with repair results before proceeding.
+
+**pr_url-update check (runs before early-exit evaluation).** After
+link repair, compare the current `pr_url` (loaded from
+`publish-metadata.json` in Step 1) against the manifest's stored
+`pr_url` field. If the manifest has no `pr_url` field, or the stored
+`pr_url` differs from the current one, and the current `pr_url` is a
+valid HTTPS URL (not the placeholder), update all active stories'
+Jira descriptions with the new `pr_url`:
+
+1. For each manifest entry with `synced_status: "active"` and a
+   `jira_key`, re-render the Jira description using the current gap
+   content and the new `pr_url`, then update the issue.
+2. Store the current `pr_url` in the manifest's top-level `pr_url`
+   field.
+3. Update `synced_at` in the manifest.
+
+This update runs even during the early-exit path, ensuring `[DEV]`
+stories receive the design PR link after the first `/publish` without
+requiring a gap content change.
+
+**If nothing to do** (no new, changed, resolved, or promoted items):
+
+Stop and tell the user:
 
 ```text
 All items are in sync — nothing to do.
@@ -473,8 +508,11 @@ first — do not modify the findings during sync.
 
 ### Step 4: Sync Stories
 
-Use the `pr_url` loaded and validated in Step 1. (If `pr_url` was
-invalid, Step 1 already stopped.)
+Use the `pr_url` loaded in Step 1. If `pr_url` is the placeholder
+value (`"Pending — design PR not yet published"`), use it as-is in
+Jira description templates — the description will be updated on the
+next sync after `/publish` is run. If `pr_url` is a valid HTTPS URL,
+use it directly.
 
 Process stories in four passes: promote tracked (reclassified in
 Step 1), create new, update changed, close resolved.
@@ -562,11 +600,11 @@ For each new story (not adopted), create a Jira issue:
 - **Summary:** `[DEV] {title}` (using the normalized `title = trim(gap_title)` from hash computation)
 - **Description:**
 
-Use the `pr_url` loaded at the start of Step 4. The URL must be a
-non-empty, valid HTTPS URL with a host and at least one path segment
-(e.g., `https://github.com/org/repo/pull/123`). Values like
-`https://`, `https://placeholder`, or URLs without a path after the
-host are invalid — if validation failed, Step 4 already stopped.
+Use the `pr_url` loaded at the start of Step 4. If `pr_url` is a
+valid HTTPS URL (non-empty, valid host, at least one path segment),
+use it directly in the description template. If `pr_url` is the
+placeholder value from Step 1, include it as-is — the link will be
+updated on the next sync after `/publish` is run.
 
 ```markdown
 <!-- gap_id: {gap_id} -->
@@ -766,6 +804,11 @@ available, report the error and let the user handle it in Jira.
 
 #### 4d: Retry Failed Links and Reconcile Adoption/Recovery
 
+**Note:** Entries that had `blocks_link: "failed"` or `adopted: "failed"`
+before this sync run were already repaired during the pre-exit
+link-repair pass in Step 1. This pass catches entries that transitioned
+to a failed state during the current sync run (passes 4a–4c).
+
 **Retry failed links.** Scan manifest entries with
 `synced_status: "active"` and `blocks_link: "failed"`. For each,
 re-attempt the issue link creation between the `[DEV]` story
@@ -812,6 +855,7 @@ it is complete and consistent. The final structure should be:
   "schema_version": 2,
   "ui_story_key": "{workspace-id}",
   "parent_key": "{parent-key}",
+  "pr_url": "{pr_url from publish-metadata.json, or null if not yet published}",
   "synced_at": "{ISO timestamp}",
   "gaps": [
     {

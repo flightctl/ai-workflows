@@ -34,7 +34,7 @@ This skill delegates deterministic Jira issue fetching to a shared
 script. Reference it using a relative path from this file:
 
 ```
-../../_shared/scripts/fetch-issue.py
+${HOME}/.ai-workflows/_shared/scripts/fetch-issue.py
 ```
 
 The script provides subcommands: `get` and `search`. See the script
@@ -111,7 +111,7 @@ for the diff in Step 8a.
 **Jira input.** Fetch the Jira issue using the shared script:
 
 ```bash
-python3 "../../_shared/scripts/fetch-issue.py" get "{workspace-id}" --parent --parent-fields summary,status,key,parent --links
+python3 "${HOME}/.ai-workflows/_shared/scripts/fetch-issue.py" get "{workspace-id}" --parent --parent-fields summary,status,key,parent --links
 ```
 
 From the story, extract:
@@ -135,7 +135,7 @@ the grandparent:
   make a second fetch to retrieve the grandparent Feature:
 
   ```bash
-  python3 "../../_shared/scripts/fetch-issue.py" get "{grandparent-key}" --fields summary,status,key,issuetype
+  python3 "${HOME}/.ai-workflows/_shared/scripts/fetch-issue.py" get "{grandparent-key}" --fields summary,status,key,issuetype
   ```
 
   Use the grandparent (Feature) key as `{feature-key}` for docs-repo
@@ -147,7 +147,7 @@ the grandparent:
   fetch to retrieve that parent issue and check its type:
 
   ```bash
-  python3 "../../_shared/scripts/fetch-issue.py" get "{bare-parent-key}" --fields summary,status,key,issuetype,parent
+  python3 "${HOME}/.ai-workflows/_shared/scripts/fetch-issue.py" get "{bare-parent-key}" --fields summary,status,key,issuetype,parent
   ```
 
   If the fetched issue is a Feature, use its key as `{feature-key}`.
@@ -289,6 +289,11 @@ Extract and record:
 - **Persona-Specific Views** — user group differences, permission-gated actions
 - **Accessibility Requirements** — WCAG, ARIA, keyboard, screen reader
 - **Acceptance Criteria** — Given/When/Then with AC-N numbering
+- **Feasibility & Phasing** — phasing information from the UX handoff:
+  MVP vs Final Vision scope, Supported vs Needs backend annotations,
+  and any phasing recommendations that affect implementation order.
+  This section informs `/plan`'s component prioritization and `/sync`'s
+  story scoping.
 
 If not found, record: *"No UX handoff artifact found. Proceeding with PRD,
 design document, and codebase context only."*
@@ -463,6 +468,17 @@ If this is a first invocation, write
 
  If not available: "No UX handoff artifact. This [UI] story operates from
  PRD and design document context only."}
+
+### Feasibility & Phasing
+
+{If available from the UX handoff: summarize the phasing information —
+ which elements are MVP vs Final Vision, which are Supported by the
+ current backend vs Needs backend work, and any phasing recommendations
+ that affect implementation order. This informs /plan's component
+ prioritization and /sync's story scoping.
+
+ If not available: "No feasibility or phasing information available from
+ the UX handoff."}
 
 ### Locked Decisions
 

@@ -64,7 +64,7 @@ matches.
 Resolve remotes **before** determining the base branch — the upstream
 remote name is needed to read the correct `HEAD` ref.
 
-Read and follow `../../_shared/recipes/resolve-docs-publish-remotes.md` with:
+Read and follow `${HOME}/.ai-workflows/_shared/recipes/resolve-docs-publish-remotes.md` with:
 - `DOCS_REPO_PATH` = the validated docs repo path
 - `CONFIGURED_DOCS_REPO_REMOTE` = `docs_repo_remote` from config
 - `BRANCH_NAME` = `{workspace-id}-ui-design` (e.g., `EDM-1234-ui-design`)
@@ -185,10 +185,19 @@ and stash any uncommitted changes so they can be restored after publish:
 
 ```bash
 ORIGINAL_BRANCH=$(git -C "{docs_repo_path}" rev-parse --abbrev-ref HEAD)
+echo "${ORIGINAL_BRANCH}" > ".artifacts/ui-design/{workspace-id}/publish-original-branch.txt"
 STASH_COUNT_BEFORE=$(git -C "{docs_repo_path}" stash list 2>/dev/null | wc -l)
 git -C "{docs_repo_path}" stash --include-untracked --quiet 2>/dev/null || true
 STASH_COUNT_AFTER=$(git -C "{docs_repo_path}" stash list 2>/dev/null | wc -l)
+if [ "${STASH_COUNT_AFTER}" -gt "${STASH_COUNT_BEFORE}" ]; then
+  echo "true" > ".artifacts/ui-design/{workspace-id}/publish-stash-created.txt"
+else
+  echo "false" > ".artifacts/ui-design/{workspace-id}/publish-stash-created.txt"
+fi
 ```
+
+These values are written to files because shell variables do not persist
+across separate bash blocks in agent-executed markdown.
 
 Fetch upstream and prepare the feature branch:
 
@@ -251,14 +260,14 @@ Include the docs-repo deletion in the same commit (Step 8 staging below).
 
 Render provenance footer on the docs-repo copies:
 
-Read and follow `../../_shared/recipes/render-provenance-footer.md` with
+Read and follow `${HOME}/.ai-workflows/_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, and `TARGET_FILE` set to
 each copied file's absolute path in the docs repo.
 
-**Note:** The provenance script (`../../_shared/scripts/provenance.py`)
+**Note:** The provenance script (`${HOME}/.ai-workflows/_shared/scripts/provenance.py`)
 already supports `ui-design` as a `--workflow` value (added in commit
 `2f9381a`). The workflow-to-artifact mapping and CLI choices are
-pre-configured. See `../../_shared/provenance-schema.md` for the schema
+pre-configured. See `${HOME}/.ai-workflows/_shared/provenance-schema.md` for the schema
 definition.
 
 Update cross-references in the copied files to reflect the published
@@ -356,12 +365,33 @@ key hooks, state management decisions, and API findings.}
 - [ ] API gaps are correctly categorized and scoped for [DEV] stories
 ```
 
-Create the draft PR. If `gh` is unavailable or the PR creation command
-fails after the push has already succeeded, do not retry the push.
-Report the branch name (`{BRANCH_NAME}`), the push remote
-(`{PUSH_REMOTE}`), and the target repo (`{UPSTREAM_REPO}`) so the user
-can create the PR manually or resume with `/publish` after resolving
-the tool issue.
+**Check for existing PR.** Before creating a new PR, check if one
+already exists for this branch:
+
+```bash
+EXISTING_PR_URL=$(gh pr list --head "{BRANCH_NAME}" --state open --repo "{UPSTREAM_REPO}" --json url --jq '.[0].url // empty' 2>/dev/null)
+```
+
+If `CROSS_REPOSITORY` is true and the query returns empty, also check
+with the fork owner prefix:
+
+```bash
+EXISTING_PR_URL=$(gh pr list --head "{FORK_OWNER}:{BRANCH_NAME}" --state open --repo "{UPSTREAM_REPO}" --json url --jq '.[0].url // empty' 2>/dev/null)
+```
+
+**If an existing PR is found** (`EXISTING_PR_URL` is non-empty), skip
+the `gh pr create` step entirely. Use the existing PR's URL for
+`publish-metadata.json` in Step 10. Report to the user:
+
+*"An open PR already exists for branch `{BRANCH_NAME}`: {EXISTING_PR_URL}.
+Skipping PR creation — using the existing PR."*
+
+**If no existing PR is found**, create the draft PR. If `gh` is
+unavailable or the PR creation command fails after the push has already
+succeeded, do not retry the push. Report the branch name
+(`{BRANCH_NAME}`), the push remote (`{PUSH_REMOTE}`), and the target
+repo (`{UPSTREAM_REPO}`) so the user can create the PR manually or
+resume with `/publish` after resolving the tool issue.
 
 If `CROSS_REPOSITORY` is true:
 ```bash
@@ -379,9 +409,10 @@ gh pr create --draft --repo "{UPSTREAM_REPO}" --head "{BRANCH_NAME}" \
 
 ### Step 10: Record Metadata and Report
 
-Capture the PR URL returned by `gh pr create` (printed to stdout).
-Extract the PR number from the URL (last path segment). Get the commit
-SHA from the branch:
+Capture the PR URL — either from `gh pr create` output (printed to
+stdout) or from the existing PR detected in Step 9. Extract the PR
+number from the URL (last path segment). Get the commit SHA from the
+branch:
 
 ```bash
 git -C "{docs_repo_path}" rev-parse HEAD
@@ -421,14 +452,26 @@ include `"ui-design-{workspace-id}.md"`. Do not list files that were not publish
 
 **Restore docs-repo state.** After recording metadata, restore the docs
 repo to the branch the user was on before publish, and pop the stash if
-one was created in Step 7:
+one was created in Step 7. Read the saved values from files (shell
+variables do not persist across bash blocks):
 
 ```bash
+ORIGINAL_BRANCH=$(cat ".artifacts/ui-design/{workspace-id}/publish-original-branch.txt")
+STASH_CREATED=$(cat ".artifacts/ui-design/{workspace-id}/publish-stash-created.txt" 2>/dev/null || echo "false")
 git -C "{docs_repo_path}" checkout "${ORIGINAL_BRANCH}" --quiet
-if [ "${STASH_COUNT_AFTER}" -gt "${STASH_COUNT_BEFORE}" ]; then
+if [ "${STASH_CREATED}" = "true" ]; then
   git -C "{docs_repo_path}" stash pop --quiet
 fi
+rm -f ".artifacts/ui-design/{workspace-id}/publish-original-branch.txt" \
+      ".artifacts/ui-design/{workspace-id}/publish-stash-created.txt"
 ```
+
+**Error-path restore obligation.** If any step after Step 7 (branch
+preparation) fails or exits early — including Step 8 (copy/commit),
+Step 9 (push/PR creation), or Step 10 errors — the agent must execute
+the restore block above before stopping. This prevents leaving the
+docs repo on the publish branch with a dirty stash after a failed
+publish attempt.
 
 Present to the user:
 - PR URL and number

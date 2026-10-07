@@ -37,7 +37,7 @@ Jira; `/publish` and `/respond` need GitHub) but do not eagerly load tools
 for every phase.
 
 Announce `Starting /{PHASE}.` and read and follow
-`../../_shared/recipes/phase-override-resolution.md` with `WORKFLOW=ui-design`
+`${HOME}/.ai-workflows/_shared/recipes/phase-override-resolution.md` with `WORKFLOW=ui-design`
 and `PHASE_FILE={PHASE_FILE}` (from the mapping above). Read and execute the
 resolved phase file, passing through the command context unchanged.
 
