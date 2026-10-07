@@ -41,7 +41,7 @@ Resolve the shared script to an absolute path so it remains valid
 regardless of working directory:
 
 ```bash
-FETCH_ISSUE_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/_shared/scripts/fetch-issue.py"
+FETCH_ISSUE_SCRIPT="${HOME}/.ai-workflows/_shared/scripts/fetch-issue.py"
 ```
 
 Use `$FETCH_ISSUE_SCRIPT` instead of the relative path in all subsequent
