@@ -1,6 +1,6 @@
 ---
 name: rebase-stack:start
-description: Verify gh-stack, detect or initialize the stack, then rebase it onto the updated base.
+description: Rebase an existing gh-stack stack onto its updated base. Refuses if there is no tracked stack.
 ---
 # /start
 

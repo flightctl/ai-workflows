@@ -1,6 +1,6 @@
 ---
 name: rebase-stack:continue
-description: Resume a gh stack rebase after conflict resolution.
+description: Resume a paused gh stack rebase after conflict resolution.
 ---
 # /continue
 
