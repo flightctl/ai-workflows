@@ -198,12 +198,26 @@ Write tests that define the behavioral contracts for this task:
 6. **Name tests after the contract they validate,** not after bugs
    discovered during development.
 7. **Verify tests fail for the right reason.** Run the tests before
-   writing the implementation. They must fail with an **assertion error**
-   (expected vs actual mismatch) — confirming the test reached the
-   assertion but the behavior is not yet implemented. If a test fails
-   with a compilation error, import error, or runtime error, the test
-   setup is broken — fix the test infrastructure (missing imports,
-   provider wrappers, mocks) before proceeding to the implementation.
+   writing the implementation. The expected failure depends on whether the
+   component or module already exists:
+
+   - **New component** (module file doesn't exist yet): The test should
+     initially fail with an **import/module-not-found error**. This is the
+     correct red-phase signal — the module hasn't been created yet. After
+     confirming this failure, create the **minimal module file** (empty
+     export or skeleton component — just enough for the import to resolve),
+     then re-run. Now the test should fail with an **assertion error**.
+   - **Existing component** (module file already exists): The test must
+     fail with an **assertion error** (expected vs actual mismatch) —
+     confirming the test reached the assertion but the behavior is not yet
+     implemented. If a test fails with a compilation error, import error,
+     or runtime error, the test setup is broken — fix the test
+     infrastructure (missing imports, provider wrappers, mocks) before
+     proceeding to the implementation.
+
+   The key principle: for new components, the red phase has two sub-steps —
+   (a) confirm import failure → create minimal file → (b) confirm assertion
+   failure. For existing components, only step (b) applies.
 
 #### 3c: Write Implementation (after tests exist)
 

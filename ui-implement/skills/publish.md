@@ -61,9 +61,26 @@ Verify readiness:
    `PASS`, tell the user that `/validate` should be run (or re-run) first.
 
 2. Compare the current HEAD SHA against the `## Validated HEAD` SHA
-   recorded in the validation report. If the SHAs differ, code has
-   changed since validation (e.g., via `/respond`). Tell the user that
-   `/validate` must be re-run before publishing.
+   recorded in the validation report. Also verify the remote branch
+   hasn't diverged (e.g., from `/respond` pushing commits):
+
+   ```bash
+   git fetch origin
+   ```
+
+   ```bash
+   git rev-parse HEAD
+   ```
+
+   ```bash
+   git rev-parse origin/{branch-name}
+   ```
+
+   Compare **both** the local HEAD and `origin/{branch-name}` against
+   the validated SHA. If **either** has diverged from the validated SHA,
+   tell the user that `/validate` must be re-run before publishing.
+   This catches commits pushed to the remote by `/respond` (or anyone
+   else) even if the local working copy hasn't pulled them.
 
 3. Verify the feature branch exists and has commits:
 
