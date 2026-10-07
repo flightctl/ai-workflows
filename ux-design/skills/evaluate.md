@@ -88,14 +88,18 @@ cannot be produced, stop and explain what the researcher needs to provide.
 
 Run the skill in agent-operated mode so its review gate is deferred to the
 single combined researcher review in Step 7. `--project` must be relative to the
-source repository root:
+source repository root. Pass `prototype_input`, `chosen_framework`, and
+`project_dir` as argument data; do not interpolate raw input values into shell
+source. Supply the prototype and framework through the runtime's structured
+argument interface, and set the project path from the validated issue key:
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "Failed to find repository root"; exit 1; }
 cd "$REPO_ROOT"
-uxd-research-heuristic-eval "<prototype URL or screenshots directory>" \
-  --framework "<chosen>" --review none \
-  --project ".artifacts/ux-design/{issue-key}/04-eval-raw"
+project_dir=".artifacts/ux-design/{issue-key}/04-eval-raw"
+uxd-research-heuristic-eval "$prototype_input" \
+  --framework "$chosen_framework" --review none \
+  --project "$project_dir"
 ```
 
 `--review none` requires `--framework`. It emits an Unreviewed Draft so the
