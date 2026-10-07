@@ -1,6 +1,6 @@
 ---
 name: rebase-stack:push
-description: Push all stack branches atomically to origin and create any missing PRs.
+description: Push every stack branch atomically to the resolved push remote and open missing PRs.
 ---
 # /push
 

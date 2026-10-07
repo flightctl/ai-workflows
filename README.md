@@ -56,7 +56,7 @@ Reusable AI coding workflows and focused skills a team member can install global
 - **KCS** -- KCS Solution article workflow: gather bug context from Jira, draft a KCS article in markdown, validate against the KCS Content Standard, and produce a handoff message for the support engineer.
   See [kcs/README.md](kcs/README.md).
 
-- **Rebase Stack** -- Rebase a stacked-branch chain onto an updated base using `gh stack`, guide through conflict resolution, validate each branch, and push all updated branches.
+- **Rebase Stack** -- Rebase a `gh stack`-tracked branch chain onto its updated base: report stack health, guide conflict resolution, verify no commit was dropped, validate the trunk-adjacent branch, and push every branch atomically with fork-aware PR creation. Requires an existing stack and refuses to run on a single branch.
   See [rebase-stack/README.md](rebase-stack/README.md).
 
 - **Sizing** -- Pre-cycle Feature sizing: ingest Features from Jira (single or batch by Fix Version), assess against a T-shirt size rubric (XS–XXL) with per-team effort breakdowns (DEV, QE, UX, UI, DOCS), and write results back to Jira.
