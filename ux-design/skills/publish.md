@@ -35,8 +35,10 @@ If the file doesn't exist, tell the researcher that `/handoff` should be run fir
 
 If `{source_repo_root}/.artifacts/ux-design/{issue-key}/publish-metadata.json`
 exists, read it and treat this invocation as an update to the existing PR. Keep
-its PR number, branch, release, feature, and handoff path; do not create a
-second PR for the same handoff. If the metadata is unreadable or incomplete,
+its PR number, branch, and handoff path; do not create a second PR for the same
+handoff. Older metadata may also contain `release` and `feature` fields; treat
+those as informational and do not use them to reconstruct the handoff path. If
+the metadata is unreadable or lacks its PR number, branch, or handoff path,
 stop and ask the researcher to repair it before publishing.
 
 Read `{source_repo_root}/.artifacts/ux-design/{issue-key}/00-context.md` and
@@ -44,6 +46,9 @@ verify that the context is `enriched` and the handoff
 is approved against the current discovery revision. If the manifest marks the
 handoff stale or its revision differs, stop and recommend `/handoff` before
 publishing. Never publish a handoff produced from exploratory context.
+
+Also read `{source_repo_root}/.artifacts/ux-design/{issue-key}/01-discovery.md`;
+its **Upstream References** record the resolved published PRD and design paths.
 
 ### Step 2: Resolve Docs Repo
 
@@ -84,7 +89,36 @@ Derive `{owner}/{repo}` from the remote URL (e.g.,
 Validate `{owner}` and `{repo}` separately as single components using
 `[A-Za-z0-9][A-Za-z0-9._-]*`; stop if either component is invalid.
 
-### Step 3: Pre-Flight Checks
+### Step 3: Resolve the Canonical Handoff Location and Pre-Flight Checks
+
+Read the Feature key from `00-context.md`. It must be a valid Jira issue key
+matching `[A-Z][A-Z0-9]*-[0-9]+`; otherwise stop and ask the researcher to
+enrich the context with its Feature key.
+
+Read the resolved PRD and design document paths from `01-discovery.md`'s
+**Upstream References**. If either is missing, stop and ask the researcher to
+publish or locate both planning documents in the docs repo before publishing
+the handoff.
+
+Set `docs_repo_root = Path(docs_repo_path).resolve()`. Resolve relative source
+paths against `docs_repo_root`, then resolve both paths with `strict=True`.
+Require the files to exist, have the basenames `prd.md` and `design.md`, and
+remain inside `docs_repo_root`. Require both files to have the same parent
+directory. This is the canonical feature directory: `/ui-design:ingest` looks
+for the UX handoff alongside the PRD and design document, so `/publish` must
+put it there rather than accepting a second, independently chosen directory.
+
+Set `destination_dir` to the resolved parent directory,
+`handoff_file_path` to
+`(destination_dir / "handoff.md").relative_to(docs_repo_root).as_posix()`, and
+`handoff_target` to `(destination_dir / "handoff.md").resolve()`. Require
+`destination_dir.name` to contain the Feature key. `/ui-design:ingest`
+discovers published artifacts by matching the feature directory name to the
+Feature or story key, so a directory that cannot be found by that search is
+not a valid handoff destination. Require both the directory and target to
+remain inside the docs repo, including through existing symlinks.
+Require each component of the repo-relative directory path to match
+`[A-Za-z0-9][A-Za-z0-9._-]*` before using the path in shell commands.
 
 Verify the environment:
 
@@ -104,10 +138,10 @@ If the output is not empty, stop and tell the researcher the docs repo has
 uncommitted changes that must be resolved before publishing. Do not proceed
 with a dirty working tree.
 
-**If updating an existing PR**, validate the stored `release`, `feature`, and
-`branch` using the same component and branch-name checks below. Require the
-stored `handoff_file_path` to equal `{release}/{feature}/handoff.md`, and
-require `pr_number` to contain only decimal digits. Read the existing PR:
+**If updating an existing PR**, validate the stored `branch` using the branch
+checks below. Require the stored `handoff_file_path` to equal the canonical path
+derived above, and require `pr_number` to contain only decimal digits. Read the
+existing PR:
 
 ```bash
 gh pr view {pr-number} --repo {owner}/{repo} --json state,url,headRefName,baseRefName
@@ -116,13 +150,13 @@ gh pr view {pr-number} --repo {owner}/{repo} --json state,url,headRefName,baseRe
 Require the PR to be open and its head branch to match the stored branch. If
 either check fails, stop and report the mismatch; do not create a replacement
 PR automatically. Show the researcher the PR URL, base branch, feature branch,
-and handoff path, then ask for approval to update that PR. Use its
-`baseRefName` as `{base-branch}` and the stored path and branch for this run.
+and canonical handoff path, then ask for approval to update that PR. Use its
+`baseRefName` as `{base-branch}` and the stored branch for this run.
 
 **If no publish metadata exists**, confirm with the researcher:
 - **Base branch:** Which branch should the PR target? (usually `main`)
-- **Release:** Which release is this for?
-- **Feature:** A short, lowercase, hyphenated slug with the issue key appended
+- **Handoff path:** Show the canonical `{handoff_file_path}` derived from the
+  published PRD and design directory; do not offer a different destination
 - **Branch name:** Propose `ux-design/{issue-key}` and let the researcher override
 
 Before using `{base-branch}` or `{branch-name}` in shell commands, require each
@@ -137,20 +171,8 @@ If either command fails, ask the researcher for a valid branch name. Also reject
 `main` and the selected `{base-branch}` as the feature branch name; ask for a
 different value before continuing.
 
-Before building commands from `{release}` or `{feature}`, require each value to
-match `[A-Za-z0-9][A-Za-z0-9._-]*` so each is a single safe path component.
-Set `docs_repo_root = Path(docs_repo_path).resolve()`,
-`destination_dir = (docs_repo_root / release / feature).resolve()`, and
-`handoff_target = (destination_dir / "handoff.md").resolve()`. Require
-`destination_dir.relative_to(docs_repo_root)` to succeed and return a non-`.`
-relative path. Apply the same containment check to `handoff_target`.
-If either check fails, stop and report that the destination is outside the docs
-repo. This check also catches existing symlinks that point outside the
-repository.
-Use the resolved destination paths for filesystem operations and the provenance
-target below.
-
-The handoff spec file path in the docs repo: `{release}/{feature}/handoff.md`.
+Use only the resolved `destination_dir`, `handoff_target`, and
+`handoff_file_path` for filesystem operations and the provenance target below.
 
 ### Step 4: Create or Update Branch and Commit
 
@@ -216,13 +238,13 @@ Provenance at publish time:
   strip the footer and record `provenance_kind: declined`.
 
 ```bash
-git -C "{docs_repo_path}" add "{release}/{feature}/handoff.md"
+git -C "{docs_repo_path}" add -- "{handoff_file_path}"
 ```
 
 For a new PR, commit the new handoff file:
 
 ```bash
-git -C "{docs_repo_path}" commit --only -m "Add UX design handoff for {issue-key}" -- "{release}/{feature}/handoff.md"
+git -C "{docs_repo_path}" commit --only -m "Add UX design handoff for {issue-key}" -- "{handoff_file_path}"
 ```
 
 For an existing PR, compare the rendered handoff with the branch version. If
@@ -230,7 +252,7 @@ there is a change, commit only this path; if it is unchanged, do not create an
 empty commit.
 
 ```bash
-git -C "{docs_repo_path}" diff --cached --quiet -- "{release}/{feature}/handoff.md"
+git -C "{docs_repo_path}" diff --cached --quiet -- "{handoff_file_path}"
 ```
 
 An exit status of `0` means the file is unchanged: skip the commit and push. An
@@ -238,7 +260,7 @@ exit status of `1` means it changed: create the update commit below. For any
 other status, stop and report the Git error.
 
 ```bash
-git -C "{docs_repo_path}" commit --only -m "Update UX design handoff for {issue-key}" -- "{release}/{feature}/handoff.md"
+git -C "{docs_repo_path}" commit --only -m "Update UX design handoff for {issue-key}" -- "{handoff_file_path}"
 ```
 
 ### Step 5: Prepare PR Description for a New PR
@@ -340,12 +362,15 @@ PY
 
 For a new PR, write
 `{source_repo_root}/.artifacts/ux-design/{issue-key}/publish-metadata.json`:
+Store `handoff_file_path`, `upstream_prd_path`, and `upstream_design_path`
+relative to the docs repo root, with `/` separators. The upstream paths are the
+resolved paths used to derive the canonical handoff directory.
 
 ```json
 {
-  "release": "{release}",
-  "feature": "{feature}",
-  "handoff_file_path": "{release}/{feature}/handoff.md",
+  "handoff_file_path": "{handoff_file_path}",
+  "upstream_prd_path": "{repo-relative-prd-path}",
+  "upstream_design_path": "{repo-relative-design-path}",
   "pr_number": "{pr-number}",
   "branch": "{branch-name}"
 }

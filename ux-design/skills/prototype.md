@@ -14,6 +14,31 @@ states rather than polish that cannot yet be validated.
 This phase requires `uxd-prototype-create` from the `uxd-prototype` plugin. If
 the skill is unavailable, stop and ask the researcher to run `./install.sh`.
 
+## Artifact Path Safety
+
+Run `git rev-parse --show-toplevel` and store the result as
+`source_repo_root`. If it fails, stop and ask the researcher to open the
+source-repository workspace.
+
+Before using `{issue-key}` in a path, require it to match
+`[A-Za-z0-9][A-Za-z0-9._-]*` and reject `.` or `..`. Treat it as one path
+component.
+
+The upstream create skill returns a prototype `{ID}`; a refinement receives
+the existing `{ID}` from `prototype-notes.md`. Before using an ID in a path or
+command, require it to match the same pattern and reject `.` or `..`. Assign
+the validated value to `prototype_id`. Do not use an unchecked ID for restore,
+copy, or cleanup operations. If a newly created ID fails validation, stop,
+report the invalid ID, and leave the native artifacts in place for manual
+inspection.
+
+Resolve `.artifacts` under the source repo root and require it to be a real
+directory, not a symlink. Resolve `.artifacts/{ID}` and require it to be a
+non-symlink directory whose resolved parent is exactly the resolved
+`.artifacts` directory. If any check fails, stop before reading, copying, or
+removing the native directory. Repeat the containment check immediately before
+cleanup.
+
 ## Prerequisites
 
 Read `.artifacts/ux-design/{issue-key}/01-discovery.md` for the problem, user
@@ -101,7 +126,8 @@ Do not assume a plugin path based on another runtime.
 
 Before refining:
 
-1. Restore the prototype's native layout under `.artifacts/{ID}/` from the
+1. Validate `{ID}` using **Artifact Path Safety** before restoring the
+   prototype's native layout under `.artifacts/{ID}/` from the
    mirrored files in `03-prototype/` as described in Step 3.
 2. If Full evaluation ran and both refinement inputs exist, copy
    `evaluation-report.csv` and `refinement-suggestions.json` from the private
@@ -129,7 +155,10 @@ native directory in this step.
 ### Step 3: Map Skill Output Into Our Artifact Structure
 
 The create skill writes to `.artifacts/{ID}/`, where `{ID}` is the Jira key or a
-slug. For a refinement, Step 2 has already preserved the prior active tree;
+slug. Read the returned ID from the create skill's output, then validate it
+using **Artifact Path Safety** before constructing paths or reading
+`metadata.json`.
+For a refinement, Step 2 has already preserved the prior active tree;
 reuse that snapshot and do not archive it again. For any other replacement,
 preserve the current tree under
 `.artifacts/ux-design/{issue-key}/history/prototype-iteration-{N}/` before
@@ -169,10 +198,47 @@ root. Record the create skill's `{ID}` in `prototype-notes.md`.
 
 After mirroring the canonical prototype files, remove the native
 `.artifacts/{ID}/` created by the create or refine skill. This cleanup happens
-only here, after the refined output is safely mirrored. The evaluator uses a
-separate private run root under `04-eval-raw/`; do not move its outputs into
-`.artifacts/{ID}/` except for the two temporary refinement inputs described
-above.
+only here, after the refined output is safely mirrored. Recheck the ID and
+resolved-path containment immediately before deletion. Never run `rm -rf` on a
+path assembled directly from `{ID}`. Remove only the validated direct child of
+`.artifacts`, using the source-repo root and ID as quoted arguments:
+
+```bash
+python3 - "${source_repo_root}" "${prototype_id}" <<'PY'
+import re
+import shutil
+import sys
+from pathlib import Path
+
+repo_root = Path(sys.argv[1]).resolve(strict=True)
+prototype_id = sys.argv[2]
+if (
+    not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", prototype_id)
+    or prototype_id in {".", ".."}
+):
+    raise SystemExit("Refusing to remove an invalid prototype ID")
+
+artifact_root_path = repo_root / ".artifacts"
+if artifact_root_path.is_symlink():
+    raise SystemExit("Refusing to remove files through a symlinked .artifacts directory")
+artifact_root = artifact_root_path.resolve(strict=True)
+if artifact_root.parent != repo_root or not artifact_root.is_dir():
+    raise SystemExit("Refusing to remove files outside the source repo's .artifacts directory")
+
+native_dir = artifact_root / prototype_id
+if native_dir.is_symlink() or not native_dir.is_dir():
+    raise SystemExit("Refusing to remove a missing, non-directory, or symlinked prototype path")
+resolved_native_dir = native_dir.resolve(strict=True)
+if resolved_native_dir.parent != artifact_root:
+    raise SystemExit("Refusing to remove a prototype path outside .artifacts")
+
+shutil.rmtree(resolved_native_dir)
+PY
+```
+
+The evaluator uses a separate private run root under `04-eval-raw/`; do not
+move its outputs into `.artifacts/{ID}/` except for the two temporary
+refinement inputs described above.
 
 ## Step 4: Document Design Rationale
 

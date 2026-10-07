@@ -150,7 +150,7 @@ context, use the stable key agreed during `/ingest` (for example,
   history/                     (prior context snapshots, prototypes, evaluations)
   05-handoff.md                (implementation spec, component mapping, AC)
   06-pr-description.md         (generated PR body for /publish)
-  publish-metadata.json        (PR number, branch, release, feature, handoff path)
+  publish-metadata.json        (PR number, branch, canonical handoff and source paths)
   provenance.json              (authoring provenance log)
 ```
 
@@ -163,6 +163,10 @@ Its prototype must be reviewed against that discovery revision, and its
 evaluation must cover the same revision and prototype iteration. Feature-only
 or PRD-only research and prototypes remain useful inputs; they are never
 sufficient on their own for this contract.
+
+When published, the canonical `handoff.md` is placed beside the feature's
+published `prd.md` and `design.md`. This lets `/ui-design:ingest` find all three
+documents in the same feature directory.
 
 It contains:
 
