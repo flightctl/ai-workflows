@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Capture and render provenance for prd/design/ux-design planning documents.
+"""Capture and render provenance for prd/design/ui-design/ux-design planning document workflows.
 
 Exit codes:
     0: Success (capture or render completed)
@@ -23,27 +23,31 @@ GIT_TIMEOUT_SEC = 30
 WORKFLOW_DOCS = {
     "prd": "03-prd.md",
     "design": "03-design.md",
+    "ui-design": "02-ui-design.md",
     "ux-design": "05-handoff.md",
 }
 
-# The phase that legitimately originates each workflow's document. prd/design
-# originate from a template-checked /draft; ux-design assembles its handoff spec
-# in /handoff (there is no template-from-origin step), so `handoff` is its
-# origin. A first event other than this marks the phase history as untracked.
-ORIGIN_PHASE = {
-    "prd": "draft",
-    "design": "draft",
-    "ux-design": "handoff",
+# The phase(s) that legitimately originate each workflow's document. prd/design
+# originate from a template-checked /draft; ui-design originates from /draft
+# or /plan; ux-design assembles its handoff spec in /handoff (there is no
+# template-from-origin step), so `handoff` is its origin. A first event other
+# than these marks the phase history as untracked.
+ORIGIN_PHASES = {
+    "prd": frozenset({"draft"}),
+    "design": frozenset({"draft"}),
+    "ui-design": frozenset({"draft", "plan"}),
+    "ux-design": frozenset({"handoff"}),
 }
 
 AUTHORING_PHASES = frozenset(
-    {"draft", "handoff", "revise", "respond", "manual-edit"}
+    {"draft", "plan", "review-api", "handoff", "revise", "respond", "manual-edit"}
 )
 
 # Per-workflow valid phases (for validation in capture_event)
 WORKFLOW_PHASES = {
     "prd": frozenset({"draft", "revise", "respond", "manual-edit", "commit"}),
     "design": frozenset({"draft", "revise", "respond", "manual-edit", "commit"}),
+    "ui-design": frozenset({"draft", "plan", "review-api", "revise", "respond", "manual-edit", "commit"}),
     "ux-design": frozenset({"handoff", "revise", "respond", "manual-edit", "commit"}),
 }
 
@@ -77,7 +81,8 @@ COMMIT_ONLY_NOTE = (
     "> Authoring phases not recorded this session (commit-time snapshot only)."
 )
 def origin_untracked_note(workflow: str | None = None) -> str:
-    origin = ORIGIN_PHASE.get(workflow, "draft")
+    origins = ORIGIN_PHASES.get(workflow, frozenset({"draft"}))
+    origin = sorted(origins)[0]  # primary origin for display
     # ux-design has no template step; its /handoff assembles from scratch
     if workflow == "ux-design":
         return (
@@ -295,8 +300,8 @@ def origin_untracked(
         return False
     if provenance_kind(events) == "commit_only":
         return False
-    origin = ORIGIN_PHASE.get(workflow, "draft")
-    return events[0].get("phase") != origin
+    origins = ORIGIN_PHASES.get(workflow, frozenset({"draft", "plan"}))
+    return events[0].get("phase") not in origins
 
 
 def capture_event(
@@ -532,7 +537,7 @@ def render_footer(workflow: str, issue: str, target: Path, *, allow_missing: boo
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="PRD/design/ux-design provenance helper"
+        description="PRD/design/ui-design/ux-design provenance helper"
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -542,7 +547,7 @@ def main() -> int:
     capture.add_argument(
         "--phase",
         required=True,
-        choices=["draft", "handoff", "revise", "respond", "manual-edit", "commit"],
+        choices=["draft", "plan", "review-api", "handoff", "revise", "respond", "manual-edit", "commit"],
     )
     capture.add_argument(
         "--authoring-mode",

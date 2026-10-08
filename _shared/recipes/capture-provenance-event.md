@@ -1,6 +1,6 @@
 ---
 name: capture-provenance-event
-version: 0.1.2
+version: 0.1.3
 ---
 # Recipe: Capture Provenance Event
 
@@ -11,9 +11,9 @@ phase mutates the planning document. See `../provenance-schema.md`.
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| WORKFLOW | Yes | `prd`, `design`, or `ux-design` |
-| ISSUE_KEY | Yes | Full Jira issue key including project prefix (e.g., `PROJ-1234`, not `1234`) |
-| PHASE | Yes | For `prd` and `design`: `draft`, `revise`, or `respond`. For `ux-design`: `handoff`, `revise`, or `respond` |
+| WORKFLOW | Yes | `prd`, `design`, `ui-design`, or `ux-design` |
+| ISSUE_KEY | Yes | Jira issue key (e.g., `PROJ-1234`) or workspace identifier (e.g., `device-health-panel`) for non-Jira runs |
+| PHASE | Yes | For `prd` and `design`: `draft`, `revise`, or `respond`. For `ui-design`: `draft`, `plan`, `review-api`, `revise`, or `respond`. For `ux-design`: `handoff`, `revise`, or `respond` |
 | AUTHORING_MODE | Yes | `skill` (default for phase skills) or `manual` |
 
 ## Procedure

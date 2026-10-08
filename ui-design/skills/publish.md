@@ -1,0 +1,495 @@
+---
+name: publish
+description: Push the UI design document to the docs repo and create a draft GitHub PR.
+---
+
+# Publish UI Design Skill
+
+You are a technical writer preparing a UI design document for review. Your
+job is to commit the UI design document to the docs repo and create a draft
+PR for the team to review.
+
+## Your Role
+
+Copy the UI design document (and API findings, if separate) to the docs
+repo, commit on a feature branch, push, and create a draft PR. The PR
+description summarizes the UI design for reviewers.
+
+## Critical Rules
+
+- **Confirm before publishing.** Always confirm the target repo, branch, and PR details with the user before creating anything.
+- **Feature branch only.** Never commit to `main` directly.
+- **Draft PR.** Create the PR as a draft — the user marks it ready for review.
+- **No modification of content during publish.** Copy the artifacts as-is. Content changes happen in `/revise`. The only publish-time exception is appending the provenance footer via `render-provenance-footer.md` — this is metadata, not a content change, and does not require a `/revise` cycle.
+
+## Process
+
+### Step 1: Verify Prerequisites
+
+**Tool check.** Verify `gh` (GitHub CLI) is available and authenticated
+before making any git changes. Run `gh auth status` (or equivalent) to
+confirm. If `gh` is not installed or not authenticated, stop immediately
+and report:
+
+*"The GitHub CLI (`gh`) is required for `/publish` to create a draft PR.
+Install it and run `gh auth login` before retrying. No git changes have
+been made."*
+
+Do not proceed to branch creation, commits, or pushes without a
+confirmed `gh` installation — otherwise the push succeeds but the PR
+cannot be created, leaving an orphaned branch.
+
+Confirm these artifacts exist:
+- `.artifacts/ui-design/{workspace-id}/02-ui-design.md` (required)
+- `.artifacts/ui-design/{workspace-id}/03-api-findings.md` (optional — include if exists)
+
+If `02-ui-design.md` doesn't exist, tell the user that `/plan` should be
+run first.
+
+### Step 2: Resolve the Docs Repo
+
+Read `.artifacts/config.json` for `docs_repo_path` and `docs_repo_remote`.
+
+If the config doesn't exist, ask the user for the docs repo local path and
+remote. Before writing `docs_repo_remote` to `.artifacts/config.json`,
+strip any embedded credentials (userinfo) from the remote URL. If
+`docs_repo_remote` contains `://user:pass@` or `://token@`, remove the
+userinfo segment. Report a warning if credentials were stripped.
+
+Validate that the docs repo path exists, is a git repo, and the remote
+matches.
+
+### Step 3: Resolve Publish Remotes
+
+Resolve remotes **before** determining the base branch — the upstream
+remote name is needed to read the correct `HEAD` ref.
+
+Read and follow `${HOME}/.ai-workflows/_shared/recipes/resolve-docs-publish-remotes.md` with:
+- `DOCS_REPO_PATH` = the validated docs repo path
+- `CONFIGURED_DOCS_REPO_REMOTE` = `docs_repo_remote` from config
+- `BRANCH_NAME` = `{workspace-id}-ui-design` (e.g., `EDM-1234-ui-design`)
+
+This resolves `UPSTREAM_REMOTE`, `PUSH_REMOTE`, `UPSTREAM_REPO`, `PUSH_REPO`,
+`PUSH_URL`, `FORK_OWNER`, and `CROSS_REPOSITORY`.
+
+**Validate shell-interpolated values.** Before using `UPSTREAM_REMOTE`,
+`PUSH_REMOTE`, or `BRANCH_NAME` in shell commands, verify each is a
+simple identifier (alphanumeric, hyphens, underscores, dots, slashes
+only — no shell metacharacters like `$`, `` ` ``, `|`, `;`, `&`).
+Stop and report if any resolved value fails validation.
+
+### Step 4: Resolve Base Branch
+
+Read the docs repo's default branch using the upstream remote resolved
+in Step 3:
+
+```bash
+git -C "{docs_repo_path}" symbolic-ref "refs/remotes/{UPSTREAM_REMOTE}/HEAD" 2>/dev/null \
+  | sed "s|refs/remotes/{UPSTREAM_REMOTE}/||"
+```
+
+If the command fails (e.g., `{UPSTREAM_REMOTE}/HEAD` is not set), fall
+back to `main`. Set `{base_branch}` to this value.
+
+**Validate the base branch.** After resolving `{base_branch}`, confirm
+it exists on the upstream remote:
+
+```bash
+git -C "{docs_repo_path}" ls-remote --exit-code "{UPSTREAM_REMOTE}" "refs/heads/{base_branch}"
+```
+
+If validation fails (non-zero exit code), stop and ask the user for a
+valid base branch. Do not display the publish plan (Step 5) or create a
+branch (Step 7) until the base branch is validated.
+
+`{base_branch}` is used in subsequent steps for branch creation, PR
+targeting, and the publish plan display.
+
+### Step 5: Confirm with User
+
+Present the publish plan:
+
+```text
+Publishing UI design document:
+  Source: .artifacts/ui-design/{workspace-id}/02-ui-design.md
+  API findings: {included / not applicable}
+  Docs repo: {UPSTREAM_REPO}
+  Push to: {PUSH_URL} (branch: {BRANCH_NAME})
+  PR target: {UPSTREAM_REPO} ({base branch})
+  Cross-repository: {CROSS_REPOSITORY}
+
+Proceed?
+```
+
+Wait for explicit approval.
+
+### Step 6: Determine Target Directory
+
+**Resolve Feature key.** Read
+`.artifacts/ui-design/{workspace-id}/01-context.md` and extract the
+Feature key from the parent hierarchy in the Story Summary. If the
+`[UI]` story's grandparent is a Feature (available when
+`--parent-fields` included `parent` during ingest), use that Feature
+key. If the direct parent is a Feature, use that key instead. Set
+`{feature-key}` to the resolved key, or leave it empty if unavailable.
+
+Search the docs repo for the feature directory (the same directory that
+contains the PRD and design document):
+
+**When `{feature-key}` is available:**
+
+```bash
+find "{docs_repo_path}" -type d \( -name "*{workspace-id}*" -o -name "*{feature_key}*" \)
+```
+
+**When `{feature-key}` is empty or unavailable:**
+
+```bash
+find "{docs_repo_path}" -type d -name "*{workspace-id}*"
+```
+
+**Validate candidate directories.** For each match, verify it is a
+planning-artifacts directory by checking for both expected upstream
+files (`prd.md` and `design.md`). Discard candidates that are missing
+either file — they may be incomplete or unrelated directories that
+happen to share the workspace-id string. After filtering, if exactly one valid
+candidate remains, use it. If multiple valid candidates remain, ask the
+user to choose. If no valid candidates remain, treat it as "not found."
+
+If not found, ask the user where to place the document.
+
+**Path-traversal guard.** After resolving `{target_directory}` (whether
+from the search results or user input), canonicalize the path and verify
+it is inside the docs repo:
+
+1. Resolve `{target_directory}` to its canonical absolute path (follow
+   symlinks, collapse `..` segments — equivalent to `realpath`).
+2. Resolve `{docs_repo_path}` to its canonical absolute path the same way.
+3. Verify the canonicalized `{target_directory}` starts with
+   `{docs_repo_path}/`.
+
+If the target directory falls outside the docs repo, **stop immediately**
+and report the error:
+
+*"The resolved target directory (`{canonicalized target_directory}`) is
+outside the docs repo (`{canonicalized docs_repo_path}`). This could
+overwrite files outside the intended repository. Please provide a target
+directory inside the docs repo."*
+
+Do not proceed to Step 7 until the target directory passes this check.
+
+### Step 7: Prepare the Branch
+
+**Index isolation.** Before switching branches, record the current branch
+and stash any uncommitted changes so they can be restored after publish:
+
+```bash
+ORIGINAL_BRANCH=$(git -C "{docs_repo_path}" rev-parse --abbrev-ref HEAD)
+echo "${ORIGINAL_BRANCH}" > ".artifacts/ui-design/{workspace-id}/publish-original-branch.txt"
+STASH_COUNT_BEFORE=$(git -C "{docs_repo_path}" stash list 2>/dev/null | wc -l)
+git -C "{docs_repo_path}" stash --include-untracked --quiet 2>/dev/null || true
+STASH_COUNT_AFTER=$(git -C "{docs_repo_path}" stash list 2>/dev/null | wc -l)
+if [ "${STASH_COUNT_AFTER}" -gt "${STASH_COUNT_BEFORE}" ]; then
+  echo "true" > ".artifacts/ui-design/{workspace-id}/publish-stash-created.txt"
+else
+  echo "false" > ".artifacts/ui-design/{workspace-id}/publish-stash-created.txt"
+fi
+```
+
+These values are written to files because shell variables do not persist
+across separate bash blocks in agent-executed markdown.
+
+Fetch upstream and prepare the feature branch:
+
+```bash
+git -C "{docs_repo_path}" fetch "{UPSTREAM_REMOTE}"
+```
+
+**Branch-exists handling.** Check whether the branch already exists
+locally. If it does (e.g., from a previous `/publish` run or after
+reviewer corrections), check it out for an incremental update — do NOT
+reset the branch, as that would destroy reviewer corrections or
+supplemental commits added directly to the docs-repo PR branch. If
+the branch does not exist, create it fresh:
+
+```bash
+if git -C "{docs_repo_path}" show-ref --verify --quiet "refs/heads/{BRANCH_NAME}"; then
+  git -C "{docs_repo_path}" checkout "{BRANCH_NAME}"
+else
+  git -C "{docs_repo_path}" checkout -b "{BRANCH_NAME}" "{UPSTREAM_REMOTE}/{base_branch}"
+fi
+```
+
+After checkout, reset the index to guarantee a clean staging area — no
+pre-existing staged files will be accidentally included in the commit:
+
+```bash
+git -C "{docs_repo_path}" reset HEAD --quiet
+```
+
+The updated artifacts are copied over existing files in Step 8 and
+committed as an incremental update. This preserves any reviewer
+corrections or supplemental documents on the branch while replacing
+the workflow-managed artifacts with their latest versions.
+
+### Step 8: Copy and Commit
+
+Copy the artifacts to the docs repo:
+
+```bash
+cp ".artifacts/ui-design/{workspace-id}/02-ui-design.md" "{target_directory}/ui-design-{workspace-id}.md"
+```
+
+If `03-api-findings.md` exists:
+
+```bash
+cp ".artifacts/ui-design/{workspace-id}/03-api-findings.md" "{target_directory}/api-findings-{workspace-id}.md"
+```
+
+If `03-api-findings.md` does **not** exist (findings fit inline in
+`02-ui-design.md`), delete any stale separate findings file from a
+prior publish that may remain in the docs repo, and also remove the
+private overflow file from the artifacts directory:
+
+```bash
+git -C "{docs_repo_path}" rm "{target_directory}/api-findings-{workspace-id}.md" 2>/dev/null || true
+rm -f ".artifacts/ui-design/{workspace-id}/03-api-findings.md"
+```
+
+Include the docs-repo deletion in the same commit (Step 8 staging below).
+
+Render provenance footer on the docs-repo copies:
+
+Read and follow `${HOME}/.ai-workflows/_shared/recipes/render-provenance-footer.md` with
+`WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, and `TARGET_FILE` set to
+each copied file's absolute path in the docs repo.
+
+**Note:** The provenance script (`${HOME}/.ai-workflows/_shared/scripts/provenance.py`)
+already supports `ui-design` as a `--workflow` value (added in commit
+`2f9381a`). The workflow-to-artifact mapping and CLI choices are
+pre-configured. See `${HOME}/.ai-workflows/_shared/provenance-schema.md` for the schema
+definition.
+
+Update cross-references in the copied files to reflect the published
+filenames. The artifact names (`02-ui-design.md`, `03-api-findings.md`)
+differ from the published names (`ui-design-{workspace-id}.md`,
+`api-findings-{workspace-id}.md`), so any internal references must be
+updated:
+
+```bash
+tmp=$(mktemp)
+sed 's/03-api-findings\.md/api-findings-{workspace-id}.md/g' "{target_directory}/ui-design-{workspace-id}.md" > "$tmp" && mv "$tmp" "{target_directory}/ui-design-{workspace-id}.md"
+```
+
+If `api-findings-{workspace-id}.md` was copied:
+
+```bash
+tmp=$(mktemp)
+sed 's/02-ui-design\.md/ui-design-{workspace-id}.md/g' "{target_directory}/api-findings-{workspace-id}.md" > "$tmp" && mv "$tmp" "{target_directory}/api-findings-{workspace-id}.md"
+```
+
+Stage and commit:
+
+```bash
+git -C "{docs_repo_path}" add "{target_directory}/ui-design-{workspace-id}.md"
+# If api-findings-{workspace-id}.md was copied:
+git -C "{docs_repo_path}" add "{target_directory}/api-findings-{workspace-id}.md"
+git -C "{docs_repo_path}" commit -m "Add UI design for {workspace-id}"
+```
+
+### Step 9: Push and Create PR
+
+Before pushing, check whether the branch already exists at the actual
+push destination. In a triangular remote setup the fetch URL can differ
+from the push URL, so resolve the push URL explicitly:
+
+```bash
+PUSH_URL_RESOLVED=$(git -C "{docs_repo_path}" remote get-url --push "{PUSH_REMOTE}")
+git -C "{docs_repo_path}" ls-remote --exit-code "${PUSH_URL_RESOLVED}" "refs/heads/{BRANCH_NAME}"
+```
+
+Interpret the result:
+- **Exit code 2** (no matching ref): the branch is absent — safe to push.
+- **Exit code 0** (ref found): the branch exists. Ask the user whether
+  to force-push (replacing the remote branch) or stop so they can
+  reconcile manually. Do not push unconditionally when the remote branch
+  has commits this local branch does not contain.
+- **Any other exit code** (network error, auth failure, invalid URL):
+  stop and report the error — do not assume the branch is absent.
+
+Push the branch. If the user approved a force-push (exit code 0 path
+above), use `--force-with-lease` instead of a plain push:
+
+```bash
+# Normal push (branch is absent or user did not request force):
+git -C "{docs_repo_path}" push -u "{PUSH_REMOTE}" "{BRANCH_NAME}"
+
+# Force push (only when user explicitly approved):
+git -C "{docs_repo_path}" push -u --force-with-lease "{PUSH_REMOTE}" "{BRANCH_NAME}"
+```
+
+Generate the PR description and save to
+`.artifacts/ui-design/{workspace-id}/04-pr-description.md`:
+
+```markdown
+## UI Design — {workspace-id}: {title}
+
+### Summary
+
+{1–2 paragraph summary of the UI design — component architecture approach,
+key hooks, state management decisions, and API findings.}
+
+### Key Decisions
+
+- {decision 1 — e.g., "Component tree uses feature-based decomposition with shared layout components"}
+- {decision 2 — e.g., "State management uses React Query for server state, local state for UI state"}
+- {decision 3}
+
+### API Findings
+
+- **Confirmed mappings:** {N} of {total}
+- **Gaps identified:** {N} ({breakdown by severity})
+- **Implementation readiness:** {assessment}
+
+### Open Questions
+
+{List any open questions from the UI design document that reviewers should weigh in on.}
+
+### Review Checklist
+
+- [ ] Component decomposition is appropriate for the feature scope
+- [ ] Hook design follows project data-fetching conventions
+- [ ] State management scope decisions are justified
+- [ ] Data flow mapping is complete and accurate
+- [ ] Accessibility implementation meets project standards
+- [ ] API gaps are correctly categorized and scoped for [DEV] stories
+```
+
+**Check for existing PR.** Before creating a new PR, check if one
+already exists for this branch:
+
+```bash
+EXISTING_PR_URL=$(gh pr list --head "{BRANCH_NAME}" --state open --repo "{UPSTREAM_REPO}" --json url --jq '.[0].url // empty' 2>/dev/null)
+```
+
+If `CROSS_REPOSITORY` is true and the query returns empty, also check
+with the fork owner prefix:
+
+```bash
+EXISTING_PR_URL=$(gh pr list --head "{FORK_OWNER}:{BRANCH_NAME}" --state open --repo "{UPSTREAM_REPO}" --json url --jq '.[0].url // empty' 2>/dev/null)
+```
+
+**If an existing PR is found** (`EXISTING_PR_URL` is non-empty), skip
+the `gh pr create` step entirely. Use the existing PR's URL for
+`publish-metadata.json` in Step 10. Report to the user:
+
+*"An open PR already exists for branch `{BRANCH_NAME}`: {EXISTING_PR_URL}.
+Skipping PR creation — using the existing PR."*
+
+**If no existing PR is found**, create the draft PR. If `gh` is
+unavailable or the PR creation command fails after the push has already
+succeeded, do not retry the push. Report the branch name
+(`{BRANCH_NAME}`), the push remote (`{PUSH_REMOTE}`), and the target
+repo (`{UPSTREAM_REPO}`) so the user can create the PR manually or
+resume with `/publish` after resolving the tool issue.
+
+If `CROSS_REPOSITORY` is true:
+```bash
+gh pr create --draft --repo "{UPSTREAM_REPO}" --head "{FORK_OWNER}:{BRANCH_NAME}" \
+  --base "{base_branch}" --title "UI design: {workspace-id} — {short title}" \
+  --body-file ".artifacts/ui-design/{workspace-id}/04-pr-description.md"
+```
+
+If `CROSS_REPOSITORY` is false:
+```bash
+gh pr create --draft --repo "{UPSTREAM_REPO}" --head "{BRANCH_NAME}" \
+  --base "{base_branch}" --title "UI design: {workspace-id} — {short title}" \
+  --body-file ".artifacts/ui-design/{workspace-id}/04-pr-description.md"
+```
+
+### Step 10: Record Metadata and Report
+
+Capture the PR URL — either from `gh pr create` output (printed to
+stdout) or from the existing PR detected in Step 9. Extract the PR
+number from the URL (last path segment). Get the commit SHA from the
+branch:
+
+```bash
+git -C "{docs_repo_path}" rev-parse HEAD
+```
+
+Write `.artifacts/ui-design/{workspace-id}/publish-metadata.json` using
+**actual values** from the preceding steps — not placeholders:
+
+```json
+{
+  "pr_number": 42,
+  "pr_url": "https://github.com/{UPSTREAM_REPO}/pull/42",
+  "branch": "{BRANCH_NAME}",
+  "base_branch": "{base_branch}",
+  "upstream_repo": "{UPSTREAM_REPO}",
+  "push_repo": "{PUSH_REPO}",
+  "cross_repository": true,
+  "head_sha": "abc1234def5678...",
+  "published_at": "2025-03-15T14:30:00Z",
+  "target_directory": "{resolved target directory path in docs repo}",
+  "files": [
+    "ui-design-{workspace-id}.md"
+  ]
+}
+```
+
+- `pr_number` and `pr_url`: from the `gh pr create` output
+- `branch`: the actual `BRANCH_NAME` used in Step 7
+- `base_branch`: the actual resolved base branch from Step 4
+- `head_sha`: from `git rev-parse HEAD` above
+- `published_at`: current UTC timestamp in ISO-8601 format
+- `cross_repository`: the actual boolean from Step 3
+
+Include `"api-findings-{workspace-id}.md"` in the `files` array only if
+`03-api-findings.md` was actually copied to the docs repo. Always
+include `"ui-design-{workspace-id}.md"`. Do not list files that were not published.
+
+**Restore docs-repo state.** After recording metadata, restore the docs
+repo to the branch the user was on before publish, and pop the stash if
+one was created in Step 7. Read the saved values from files (shell
+variables do not persist across bash blocks):
+
+```bash
+ORIGINAL_BRANCH=$(cat ".artifacts/ui-design/{workspace-id}/publish-original-branch.txt")
+STASH_CREATED=$(cat ".artifacts/ui-design/{workspace-id}/publish-stash-created.txt" 2>/dev/null || echo "false")
+git -C "{docs_repo_path}" checkout "${ORIGINAL_BRANCH}" --quiet
+if [ "${STASH_CREATED}" = "true" ]; then
+  git -C "{docs_repo_path}" stash pop --quiet
+fi
+rm -f ".artifacts/ui-design/{workspace-id}/publish-original-branch.txt" \
+      ".artifacts/ui-design/{workspace-id}/publish-stash-created.txt"
+```
+
+**Error-path restore obligation.** If any step after Step 7 (branch
+preparation) fails or exits early — including Step 8 (copy/commit),
+Step 9 (push/PR creation), or Step 10 errors — the agent must execute
+the restore block above before stopping. This prevents leaving the
+docs repo on the publish branch with a dirty stash after a failed
+publish attempt.
+
+Present to the user:
+- PR URL and number
+- Branch name
+- Files published
+- Reminder that the PR is in draft state
+
+## Output
+
+- PR in the docs repo (draft)
+- `.artifacts/ui-design/{workspace-id}/04-pr-description.md`
+- `.artifacts/ui-design/{workspace-id}/publish-metadata.json`
+
+## When This Phase Is Done
+
+Report your results:
+- PR URL
+- Files published to the docs repo
+- Reminder to share the PR with reviewers
+
+Then return to the invoking workflow router for completion guidance.
