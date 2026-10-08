@@ -20,6 +20,8 @@
 set -e
 
 INSTALL_DIR="${HOME}/.ai-workflows"
+UXD_DIR="${HOME}/.uxd-ai-skills"
+UXD_PLUGINS=(uxd-design uxd-prototype uxd-research)
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --- discover all available packages ---
@@ -136,6 +138,37 @@ uninstall_shared() {
   fi
 }
 
+uninstall_uxd_skills() {
+  local skills_dir="$1"
+  local package
+  local should_remove=false
+  local link
+  local target
+  local plugin
+  local plugin_skill_prefix
+
+  for package in "${PACKAGES[@]}"; do
+    [[ "$package" == "ux-design" ]] && should_remove=true
+  done
+  [[ "$should_remove" == true ]] || return 0
+  [[ -d "$skills_dir" ]] || return 0
+
+  # These links point into the external UXD checkout, so local package
+  # discovery cannot identify them during uninstall.
+  for link in "$skills_dir"/*; do
+    [[ -L "$link" ]] || continue
+    target="$(readlink "$link")" || continue
+    for plugin in "${UXD_PLUGINS[@]}"; do
+      plugin_skill_prefix="${UXD_DIR}/plugins/${plugin}/skills/"
+      if [[ "$target" == "${plugin_skill_prefix}"* ]]; then
+        rm -f "$link"
+        echo "  Removed external UXD skill link $link"
+        break
+      fi
+    done
+  done
+}
+
 has_remaining_packages() {
   local target_dir="$1"
   [[ -d "$target_dir" ]] || return 1
@@ -193,6 +226,7 @@ uninstall_cursor() {
       echo "  Warning: $LINK exists but is not a symlink; skipping" >&2
     fi
   done
+  uninstall_uxd_skills "$SKILLS_DIR"
   if [[ "$SELECTIVE" == true ]] && ! has_remaining_packages "$SKILLS_DIR"; then
     uninstall_shared "$SKILLS_DIR"
   fi
@@ -206,6 +240,7 @@ uninstall_claude() {
   fi
 
   if [[ ! -f "$CLAUDE_MD" ]]; then
+    uninstall_uxd_skills "$(dirname "$CLAUDE_MD")/skills"
     return
   fi
 
@@ -247,6 +282,7 @@ uninstall_claude() {
       echo "  Warning: $LINK exists but is not a symlink; skipping" >&2
     fi
   done
+  uninstall_uxd_skills "$SKILLS_DIR"
   if [[ "$SELECTIVE" == true ]] && ! has_remaining_packages "$SKILLS_DIR"; then
     uninstall_shared "$SKILLS_DIR"
   fi
@@ -281,6 +317,7 @@ uninstall_gemini() {
       echo "  Warning: $LINK exists but is not a symlink; skipping" >&2
     fi
   done
+  uninstall_uxd_skills "$SKILLS_DIR"
   if [[ "$SELECTIVE" == true ]] && ! has_remaining_packages "$SKILLS_DIR"; then
     uninstall_shared "$SKILLS_DIR"
   fi
@@ -305,6 +342,7 @@ uninstall_codex() {
       echo "  Warning: $LINK exists but is not a symlink; skipping" >&2
     fi
   done
+  uninstall_uxd_skills "$SKILLS_DIR"
   if [[ "$SELECTIVE" == true ]] && ! has_remaining_packages "$SKILLS_DIR"; then
     uninstall_shared "$SKILLS_DIR"
   fi

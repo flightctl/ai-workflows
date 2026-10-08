@@ -160,6 +160,114 @@ ensure_repo_linked() {
   echo "  Linked $INSTALL_DIR -> $REPO_DIR"
 }
 
+UXD_REPO="https://github.com/rh-uxd/ai-helpers.git"
+UXD_DIR="${HOME}/.uxd-ai-skills"
+UXD_PLUGINS=(uxd-design uxd-prototype uxd-research)
+# Reviewed upstream revision; update this pin only after checking compatibility.
+UXD_COMMIT="c06a62177a497412b7c7887e53851354bb1d8761"
+UXD_REFRESHED=false
+
+# Install UXD AI Skills via git clone + symlinks (AI-agnostic; works for all
+# tools). Prepare these required dependencies before linking the workflow.
+install_uxd_skills() {
+  local skills_dir="$1"
+
+  # Only install if ux-design is in the workflow set being installed
+  local has_ux_design=false
+  for wf in "${PACKAGES[@]}"; do
+    [[ "$wf" == "ux-design" ]] && has_ux_design=true
+  done
+  "$has_ux_design" || return 0
+
+  if [[ ! -d "$UXD_DIR/.git" ]]; then
+    if [[ -e "$UXD_DIR" ]]; then
+      echo "  Error: $UXD_DIR exists but is not an ai-helpers Git checkout" >&2
+      return 1
+    fi
+    echo "  Cloning UXD AI Skills repo..."
+    git clone --branch main --single-branch "$UXD_REPO" "$UXD_DIR" 2>/dev/null || {
+      echo "  Error: could not clone UXD AI Skills repo — ux-design workflow requires it" >&2
+      echo "  Check network access to github.com and re-run install." >&2
+      return 1
+    }
+  elif [[ "$UXD_REFRESHED" != true ]]; then
+    local origin_url
+    local checkout_status
+    origin_url="$(git -C "$UXD_DIR" remote get-url origin 2>/dev/null)" || {
+      echo "  Error: could not read the UXD AI Skills checkout's origin" >&2
+      return 1
+    }
+    if [[ "$origin_url" != "$UXD_REPO" ]]; then
+      echo "  Error: $UXD_DIR has unexpected origin: $origin_url" >&2
+      return 1
+    fi
+
+    checkout_status="$(git -C "$UXD_DIR" status --short 2>/dev/null)" || {
+      echo "  Error: could not inspect the UXD AI Skills checkout" >&2
+      return 1
+    }
+    if [[ -n "$checkout_status" ]]; then
+      echo "  Error: $UXD_DIR has local changes; preserve or remove them before updating" >&2
+      return 1
+    fi
+
+  fi
+
+  if [[ "$UXD_REFRESHED" != true ]]; then
+    echo "  Fetching pinned UXD AI Skills revision..."
+    git -C "$UXD_DIR" fetch --quiet origin "$UXD_COMMIT" 2>/dev/null || {
+      echo "  Error: could not fetch pinned UXD AI Skills revision $UXD_COMMIT" >&2
+      echo "  Check network access to github.com and re-run install." >&2
+      return 1
+    }
+
+    git -C "$UXD_DIR" checkout --quiet --detach "$UXD_COMMIT" 2>/dev/null || {
+      echo "  Error: could not check out pinned UXD AI Skills revision $UXD_COMMIT" >&2
+      return 1
+    }
+
+    local checked_out_sha
+    checked_out_sha="$(git -C "$UXD_DIR" rev-parse HEAD 2>/dev/null)" || {
+      echo "  Error: could not verify the UXD AI Skills revision" >&2
+      return 1
+    }
+    if [[ "$checked_out_sha" != "$UXD_COMMIT" ]]; then
+      echo "  Error: UXD AI Skills checkout does not match the pinned revision" >&2
+      return 1
+    fi
+
+    UXD_REFRESHED=true
+    echo "  UXD AI Skills pinned commit: ${checked_out_sha:0:12}"
+  fi
+
+  local linked_count=0
+  for plugin in "${UXD_PLUGINS[@]}"; do
+    local plugin_skills="${UXD_DIR}/plugins/${plugin}/skills"
+    if [[ ! -d "$plugin_skills" ]]; then
+      echo "  Error: expected UXD skills directory is missing: ${plugin_skills}" >&2
+      return 1
+    fi
+    for skill_dir in "${plugin_skills}"/*/; do
+      [[ -d "$skill_dir" ]] || continue
+      local skill_name
+      skill_name="$(basename "$skill_dir")"
+      local target="${skills_dir}/${skill_name}"
+      if [[ -e "$target" && ! -L "$target" ]]; then
+        echo "  Warning: ${target} exists and is not a symlink; skipping" >&2
+        continue
+      fi
+      ln -sfn "$skill_dir" "$target"
+      echo "  Linked ${target} -> ${skill_dir}  (uxd)"
+      ((linked_count += 1))
+    done
+  done
+
+  if (( linked_count == 0 )); then
+    echo "  Error: no UXD skills were found in the expected plugin directories" >&2
+    return 1
+  fi
+}
+
 install_shared() {
   local target_dir="$1"
   if [[ ! -d "${INSTALL_DIR}/_shared" ]]; then
@@ -228,6 +336,7 @@ install_cursor() {
   fi
 
   mkdir -p "$SKILLS_DIR" "$CMDS_DIR"
+  install_uxd_skills "$SKILLS_DIR"
   install_shared "$SKILLS_DIR"
   for package in "${PACKAGES[@]}"; do
     local package_dir
@@ -249,6 +358,9 @@ install_claude() {
   MARKER="# ai-workflows"
 
   mkdir -p "$CLAUDE_DIR"
+  SKILLS_DIR="${CLAUDE_DIR}/skills"
+  mkdir -p "$SKILLS_DIR"
+  install_uxd_skills "$SKILLS_DIR"
 
   if ! [[ -f "$CLAUDE_MD" ]] || ! grep -qF "$MARKER" "$CLAUDE_MD"; then
     printf '\n%s\n' "$MARKER" >> "$CLAUDE_MD"
@@ -298,8 +410,6 @@ install_claude() {
 
   # Symlink package directories into Claude Code's skills directory so they
   # are discovered as slash commands (Claude Code scans .claude/skills/).
-  SKILLS_DIR="${CLAUDE_DIR}/skills"
-  mkdir -p "$SKILLS_DIR"
   install_shared "$SKILLS_DIR"
   for package in "${PACKAGES[@]}"; do
     local package_dir
@@ -334,6 +444,7 @@ install_gemini() {
   fi
 
   mkdir -p "$SKILLS_DIR"
+  install_uxd_skills "$SKILLS_DIR"
   install_shared "$SKILLS_DIR"
   for package in "${PACKAGES[@]}"; do
     local package_dir
@@ -351,6 +462,7 @@ install_codex() {
   fi
 
   mkdir -p "$SKILLS_DIR"
+  install_uxd_skills "$SKILLS_DIR"
   install_shared "$SKILLS_DIR"
   for package in "${PACKAGES[@]}"; do
     local package_dir
