@@ -1,6 +1,6 @@
 ---
 name: ux-design
-version: 0.1.0
+version: 0.1.1
 description: >-
   UX design workflow that supports early research and exploratory prototyping
   from a Jira Feature or published PRD, then enriches the same context from its
