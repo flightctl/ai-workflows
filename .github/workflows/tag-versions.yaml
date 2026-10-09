@@ -13,7 +13,7 @@ permissions: {}
 jobs:
   tag:
     name: Auto-Tag Version Bumps
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write  # required to create and push git tags
     steps:
