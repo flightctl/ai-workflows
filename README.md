@@ -300,7 +300,7 @@ package discovery or install behavior changes. To refresh a project-level
 install explicitly, run:
 
 ```bash
-aiw-update --project /path/to/repo
+aiw-update --reinstall --project /path/to/repo
 ```
 
 ### Optional: daily update notifier (Linux)
