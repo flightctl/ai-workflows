@@ -308,11 +308,11 @@ workspace may not be the frontend — check for UI framework deps, page/
 component dirs, or router config. In a monorepo, find the frontend subdir.
 If separate, record identity and ask for its local path or Git URL.
 
-Record frontend identity, path/URL, root, branch, and commit SHA via
-`git -C "{frontend-root}" rev-parse HEAD`; for a Git URL resolve the
-selected ref via `git ls-remote` or record unavailable — never
-substitute the host repo HEAD. Explore affected pages, components, and
-flows relative to the frontend root.
+Record frontend identity, path/URL, root, and ref; obtain commit SHA
+(`git -C "{frontend-root}" rev-parse HEAD` for local; `git ls-remote`
+for a Git URL's selected ref, or record unavailable — never substitute
+the host repo HEAD). Explore affected pages, components, and flows
+relative to the frontend root.
 
 If an optional external operation fails (one sibling story inaccessible, one
 codebase file unreadable): note what failed, continue with available data, and
