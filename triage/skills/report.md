@@ -22,6 +22,13 @@ and ask the user to run `/analyze` first. The scan's
 `.artifacts/triage/{PROJECT}/issues.json` must contain a non-empty
 `jiraBaseUrl`; never invent one.
 
+The renderer enforces a shared schema contract, documented in
+`../schemas/analyzed.schema.json` and `../schemas/ai-synthesis.schema.json`
+(relative to this file: `../schemas/`). Shape drift — for example
+`keyRecommendations` objects instead of strings, or `releaseRisk.level`
+instead of `releaseRisk.riskLevel` — fails loudly instead of rendering
+`[object Object]` or hiding sections.
+
 ## Process
 
 ### 1. Prepare compact synthesis context
@@ -97,7 +104,17 @@ PROJECT_ROOT="$PWD"
 ```
 
 The renderer validates JSON inputs, replaces all template placeholders, and
-fails if any placeholder remains. Stop and report stderr on a non-zero exit.
+fails if any placeholder remains. Before rendering, it validates the
+template: no `[object Object]` literal may appear in template markup or
+JavaScript, and every required section container must exist. After
+replacement, it re-checks the rendered HTML for those section containers.
+Data text is never scanned for the artifact literal — a schema-valid summary
+may legitimately contain that string. Stop and report stderr on a non-zero
+exit:
+
+- Exit 1 — input JSON does not match the renderer schema
+- Exit 2 — unreplaced placeholders remain
+- Exit 3 — template or post-render smoke validation failed
 
 ### 3. Present completion
 

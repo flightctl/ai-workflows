@@ -22,25 +22,41 @@ _spec.loader.exec_module(render_report)
 # Fixtures
 # ---------------------------------------------------------------------------
 
+SECTION_IDS_HTML = "".join(
+    f'<div id="{section_id}"></div>'
+    for section_id in render_report.REQUIRED_SECTION_IDS
+)
+
 MINIMAL_TEMPLATE = (
     "<title>{PROJECT_KEY}</title>"
     "<time>{REPORT_DATE}</time>"
     "<span>{TOTAL_ISSUES}</span>"
-    '<script>var B="{JIRA_BASE_URL}";'
-    "var I={ISSUES_JSON};"
-    "var C={CLUSTERS_JSON};"
-    "var K={KEY_RECOMMENDATIONS_JSON};"
-    "var E={EXECUTIVE_SUMMARY_JSON};"
-    "var R={RELEASE_RISK_JSON};</script>"
+    + SECTION_IDS_HTML
+    + '<script>var B="{JIRA_BASE_URL}";'
+    + "var I={ISSUES_JSON};"
+    + "var C={CLUSTERS_JSON};"
+    + "var K={KEY_RECOMMENDATIONS_JSON};"
+    + "var E={EXECUTIVE_SUMMARY_JSON};"
+    + "var R={RELEASE_RISK_JSON};</script>"
 )
 
 SAMPLE_ISSUES = [
-    {"key": "EDM-101", "summary": "Bug one", "status": "Open"},
-    {"key": "EDM-102", "summary": "Bug two", "status": "Closed"},
+    {
+        "key": "EDM-101", "summary": "Bug one", "status": "Open",
+        "recommendation": "FIX_NOW", "reason": "High impact.", "confidence": "High",
+    },
+    {
+        "key": "EDM-102", "summary": "Bug two", "status": "Closed",
+        "recommendation": "BACKLOG", "reason": "Valid but not urgent.", "confidence": "Medium",
+    },
 ]
 
 SAMPLE_CLUSTERS = [
-    {"id": "c1", "theme": "Timeouts", "issues": ["EDM-101"]},
+    {
+        "id": "c1", "theme": "Timeouts", "issues": ["EDM-101", "EDM-102"],
+        "suggestedLinkType": "relates to",
+        "nextSteps": ["Link the issues", "Investigate the shared cause"],
+    },
 ]
 
 SAMPLE_KEY_RECS = ["Fix timeouts first", "Triage duplicates"]
@@ -306,6 +322,273 @@ class TestValidateAiSynthesis(unittest.TestCase):
             render_report.validate_ai_synthesis({
                 "executiveSummary": ["One", "Two", "Three"], "releaseRisk": None,
             }, 5)
+
+    def test_non_string_risk_level_raises_value_error(self) -> None:
+        with self.assertRaises(ValueError):
+            render_report.validate_ai_synthesis({
+                "executiveSummary": ["One", "Two", "Three"],
+                "releaseRisk": {
+                    "riskLevel": ["High"], "summary": "Risk",
+                    "factors": [], "mitigations": [],
+                },
+            }, 5)
+
+    def test_missing_release_risk_key_raises_value_error(self) -> None:
+        with self.assertRaises(ValueError):
+            render_report.validate_ai_synthesis(
+                {"executiveSummary": ["One", "Two", "Three"]}, 1
+            )
+
+
+class TestValidateAnalyzed(unittest.TestCase):
+    def test_accepts_contract_shape(self) -> None:
+        render_report.validate_analyzed(SAMPLE_ANALYZED)
+
+    def test_rejects_non_object(self) -> None:
+        with self.assertRaises(ValueError):
+            render_report.validate_analyzed([])
+
+    def test_rejects_missing_issues_array(self) -> None:
+        with self.assertRaises(ValueError):
+            render_report.validate_analyzed({"clusters": [], "keyRecommendations": []})
+
+    def test_rejects_issue_without_required_fields(self) -> None:
+        bad = {
+            "issues": [{"key": "EDM-1", "summary": "Bug"}],
+            "clusters": [],
+            "keyRecommendations": [],
+        }
+        with self.assertRaises(ValueError):
+            render_report.validate_analyzed(bad)
+
+    def test_rejects_invalid_recommendation(self) -> None:
+        bad = {
+            "issues": [{
+                "key": "EDM-1", "summary": "Bug",
+                "recommendation": "MAYBE", "reason": "Because.", "confidence": "High",
+            }],
+            "clusters": [],
+            "keyRecommendations": [],
+        }
+        with self.assertRaises(ValueError):
+            render_report.validate_analyzed(bad)
+
+    def test_rejects_object_key_recommendations(self) -> None:
+        """The exact drift that rendered '[object Object]' in the dashboard."""
+        bad = {
+            **SAMPLE_ANALYZED,
+            "keyRecommendations": [{"text": "Fix the flaky tests"}],
+        }
+        with self.assertRaises(ValueError):
+            render_report.validate_analyzed(bad)
+
+    def test_non_string_recommendation_raises_value_error(self) -> None:
+        bad = {
+            **SAMPLE_ANALYZED,
+            "issues": [{**SAMPLE_ISSUES[0], "recommendation": ["FIX_NOW"]}],
+        }
+        with self.assertRaises(ValueError):
+            render_report.validate_analyzed(bad)
+
+    def test_non_string_confidence_raises_value_error(self) -> None:
+        bad = {
+            **SAMPLE_ANALYZED,
+            "issues": [{**SAMPLE_ISSUES[0], "confidence": {"level": "High"}}],
+        }
+        with self.assertRaises(ValueError):
+            render_report.validate_analyzed(bad)
+
+    def test_non_string_link_type_raises_value_error(self) -> None:
+        bad = {
+            **SAMPLE_ANALYZED,
+            "clusters": [{**SAMPLE_CLUSTERS[0], "suggestedLinkType": []}],
+        }
+        with self.assertRaises(ValueError):
+            render_report.validate_analyzed(bad)
+
+    def test_whitespace_only_strings_raise_value_error(self) -> None:
+        bad = {
+            **SAMPLE_ANALYZED,
+            "issues": [{**SAMPLE_ISSUES[0], "key": "   ", "reason": "   "}],
+            "keyRecommendations": ["   "],
+        }
+        with self.assertRaises(ValueError):
+            render_report.validate_analyzed(bad)
+
+    def test_python_only_unicode_whitespace_raises_value_error(self) -> None:
+        """U+001C and U+0085 are whitespace to Python but not to ECMA \\S."""
+        bad = {
+            **SAMPLE_ANALYZED,
+            "issues": [{**SAMPLE_ISSUES[0], "key": "\x1c", "reason": "\x85"}],
+            "keyRecommendations": ["\x1c"],
+        }
+        with self.assertRaises(ValueError):
+            render_report.validate_analyzed(bad)
+
+    def test_rejects_cluster_with_too_few_members(self) -> None:
+        bad = {
+            **SAMPLE_ANALYZED,
+            "clusters": [{
+                "id": "c1", "theme": "Timeouts", "issues": ["EDM-101"],
+                "suggestedLinkType": "relates to",
+                "nextSteps": ["Link them", "Investigate"],
+            }],
+        }
+        with self.assertRaises(ValueError):
+            render_report.validate_analyzed(bad)
+
+
+class TestValidateRenderedHtml(unittest.TestCase):
+    def test_accepts_complete_html(self) -> None:
+        render_report.validate_rendered_html(SECTION_IDS_HTML)
+
+    def test_rejects_missing_section_container(self) -> None:
+        html = SECTION_IDS_HTML.replace('<div id="keyRecsContainer"></div>', "")
+        with self.assertRaises(ValueError):
+            render_report.validate_rendered_html(html)
+
+    def test_accepts_embedded_object_object_text(self) -> None:
+        """Schema-valid data text must not trip the rendered-output check."""
+        render_report.validate_rendered_html(
+            SECTION_IDS_HTML + "<script>var data=[{\"summary\":\"[object Object]\"}]</script>"
+        )
+
+
+class TestValidateTemplate(unittest.TestCase):
+    def test_accepts_complete_template(self) -> None:
+        render_report.validate_template(MINIMAL_TEMPLATE)
+
+    def test_rejects_object_object_literal(self) -> None:
+        with self.assertRaises(ValueError):
+            render_report.validate_template(MINIMAL_TEMPLATE + "<li>[object Object]</li>")
+
+    def test_rejects_missing_section_container(self) -> None:
+        template = MINIMAL_TEMPLATE.replace('<div id="keyRecsContainer"></div>', "")
+        with self.assertRaises(ValueError):
+            render_report.validate_template(template)
+
+    def test_ignores_ids_in_comments_and_script_strings(self) -> None:
+        """Only real element ids count — comments and JS strings do not."""
+        html = (
+            SECTION_IDS_HTML.replace('<div id="keyRecsContainer"></div>', "")
+            + '<!-- id="keyRecsContainer" -->'
+            + '<script>var x = "id=\\"keyRecsContainer\\"";</script>'
+        )
+        with self.assertRaises(ValueError):
+            render_report.validate_rendered_html(html)
+
+
+class TestSchemaContractParity(unittest.TestCase):
+    """Keep the JSON Schema files and runtime validators in sync."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        schemas_dir = Path(__file__).resolve().parent.parent / "schemas"
+        cls.analyzed_schema = json.loads(
+            (schemas_dir / "analyzed.schema.json").read_text(encoding="utf-8")
+        )
+        cls.ai_synthesis_schema = json.loads(
+            (schemas_dir / "ai-synthesis.schema.json").read_text(encoding="utf-8")
+        )
+
+    def test_analyzed_recommendation_enum_matches_runtime(self) -> None:
+        enum = self.analyzed_schema["properties"]["issues"]["items"]["properties"][
+            "recommendation"
+        ]["enum"]
+        self.assertEqual(set(enum), set(render_report.ALLOWED_RECOMMENDATIONS))
+
+    def test_analyzed_bounds_match_runtime(self) -> None:
+        properties = self.analyzed_schema["properties"]
+        self.assertEqual(properties["keyRecommendations"]["maxItems"], 10)
+        cluster = properties["clusters"]["items"]["properties"]
+        self.assertEqual(cluster["issues"]["minItems"], 2)
+        self.assertEqual(cluster["nextSteps"]["minItems"], 2)
+        self.assertEqual(cluster["nextSteps"]["maxItems"], 4)
+
+    def test_analyzed_required_fields_match_runtime_contract(self) -> None:
+        issue = self.analyzed_schema["properties"]["issues"]["items"]
+        self.assertEqual(
+            set(issue["required"]), {"key", "summary", "recommendation", "reason", "confidence"}
+        )
+        cluster = self.analyzed_schema["properties"]["clusters"]["items"]
+        self.assertEqual(
+            set(cluster["required"]),
+            {"id", "theme", "issues", "suggestedLinkType", "nextSteps"},
+        )
+
+    def test_ai_synthesis_enums_match_runtime_contract(self) -> None:
+        release_risk = self.ai_synthesis_schema["properties"]["releaseRisk"]["oneOf"][1]
+        properties = release_risk["properties"]
+        self.assertEqual(set(properties["riskLevel"]["enum"]), {"High", "Medium", "Low"})
+        factor = properties["factors"]["items"]["properties"]
+        self.assertEqual(set(factor["severity"]["enum"]), {"High", "Medium", "Low"})
+        self.assertEqual(
+            set(release_risk["required"]),
+            {"riskLevel", "summary", "factors", "mitigations"},
+        )
+
+    def test_non_whitespace_patterns_match_runtime_contract(self) -> None:
+        issue = self.analyzed_schema["properties"]["issues"]["items"]["properties"]
+        for name in ("key", "reason"):
+            self.assertEqual(issue[name]["pattern"], render_report.NON_WHITESPACE_PATTERN)
+        self.assertNotIn("pattern", issue["summary"])
+
+        cluster = self.analyzed_schema["properties"]["clusters"]["items"]["properties"]
+        for name in ("id", "theme"):
+            self.assertEqual(
+                cluster[name]["pattern"], render_report.NON_WHITESPACE_PATTERN
+            )
+        self.assertEqual(
+            cluster["issues"]["items"]["pattern"],
+            render_report.NON_WHITESPACE_PATTERN,
+        )
+        self.assertEqual(
+            cluster["nextSteps"]["items"]["pattern"],
+            render_report.NON_WHITESPACE_PATTERN,
+        )
+        self.assertEqual(
+            self.analyzed_schema["properties"]["keyRecommendations"]["items"]["pattern"],
+            render_report.NON_WHITESPACE_PATTERN,
+        )
+
+        synthesis_properties = self.ai_synthesis_schema["properties"]
+        self.assertEqual(
+            synthesis_properties["executiveSummary"]["items"]["pattern"],
+            render_report.NON_WHITESPACE_PATTERN,
+        )
+        release_risk = synthesis_properties["releaseRisk"]["oneOf"][1]["properties"]
+        self.assertEqual(
+            release_risk["summary"]["pattern"],
+            render_report.NON_WHITESPACE_PATTERN,
+        )
+        factor = release_risk["factors"]["items"]["properties"]
+        for name in ("signal", "detail"):
+            self.assertEqual(
+                factor[name]["pattern"], render_report.NON_WHITESPACE_PATTERN
+            )
+        self.assertEqual(
+            release_risk["mitigations"]["items"]["pattern"],
+            render_report.NON_WHITESPACE_PATTERN,
+        )
+
+    def test_unicode_whitespace_code_points_match_runtime_contract(self) -> None:
+        """Python-only whitespace must fail both the schema and runtime."""
+        import re
+
+        pattern = re.compile(render_report.NON_WHITESPACE_PATTERN)
+        for value in ("\x1c", "\x1f", "\x85"):
+            self.assertIsNone(pattern.search(value))
+            self.assertFalse(render_report._has_non_whitespace(value))
+
+    def test_top_level_required_keys_match_runtime_contract(self) -> None:
+        self.assertEqual(
+            set(self.analyzed_schema["required"]),
+            {"issues", "clusters", "keyRecommendations"},
+        )
+        self.assertEqual(
+            set(self.ai_synthesis_schema["required"]),
+            {"executiveSummary", "releaseRisk"},
+        )
 
 
 class TestRender(unittest.TestCase):
@@ -575,6 +858,60 @@ class TestMain(unittest.TestCase):
             })
             rc = self._run(Path(tmpdir), ai_input=str(ai_path))
             self.assertEqual(rc, 1)
+
+    def test_object_key_recommendations_returns_1(self) -> None:
+        """Object recommendations must fail schema validation, not render."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            analyzed = _write_json(Path(tmpdir), "analyzed.json", {
+                **SAMPLE_ANALYZED,
+                "keyRecommendations": [{"text": "Fix the flaky tests"}],
+            })
+            rc = self._run(Path(tmpdir), analyzed=str(analyzed))
+            self.assertEqual(rc, 1)
+
+    def test_non_string_enum_value_returns_1(self) -> None:
+        """Unhashable enum values must hit the documented exit-1 path."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            analyzed = _write_json(Path(tmpdir), "analyzed.json", {
+                **SAMPLE_ANALYZED,
+                "issues": [{**SAMPLE_ISSUES[0], "recommendation": ["FIX_NOW"]}],
+            })
+            rc = self._run(Path(tmpdir), analyzed=str(analyzed))
+            self.assertEqual(rc, 1)
+
+    def test_missing_section_container_returns_3(self) -> None:
+        """A template that drops a required section must fail the smoke check."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            stripped = _write_text(
+                Path(tmpdir),
+                "stripped.html",
+                MINIMAL_TEMPLATE.replace('<div id="keyRecsContainer"></div>', ""),
+            )
+            rc = self._run(Path(tmpdir), template=str(stripped))
+            self.assertEqual(rc, 3)
+
+    def test_template_object_object_literal_returns_3(self) -> None:
+        """A hardcoded coercion artifact in the template must fail."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            polluted = _write_text(
+                Path(tmpdir),
+                "polluted.html",
+                MINIMAL_TEMPLATE + "<li>[object Object]</li>",
+            )
+            rc = self._run(Path(tmpdir), template=str(polluted))
+            self.assertEqual(rc, 3)
+
+    def test_embedded_object_object_text_renders(self) -> None:
+        """Schema-valid data text must not trip the template artifact scan."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            analyzed = _write_json(Path(tmpdir), "analyzed.json", {
+                **SAMPLE_ANALYZED,
+                "issues": [{**SAMPLE_ISSUES[0], "summary": "[object Object]"}],
+            })
+            rc = self._run(Path(tmpdir), analyzed=str(analyzed))
+            self.assertEqual(rc, 0)
+            output = (Path(tmpdir) / "output" / "report.html").read_text()
+            self.assertIn("[object Object]", output)
 
     def test_renders_real_template(self) -> None:
         """Render against the actual report.html template to catch

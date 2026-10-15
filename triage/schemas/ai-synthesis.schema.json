@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/ai-workflows/main/triage/schemas/ai-synthesis.schema.json",
+  "title": "Triage ai-synthesis.json renderer contract",
+  "description": "The structural subset of ai-synthesis.json that triage/scripts/render_report.py enforces at runtime. Count-dependent rules (executiveSummary requires 3-5 bullets for non-empty reports; releaseRisk must be null below five issues and an object at five or more) depend on the analyzed.json issue count, so they are enforced by validate_ai_synthesis() at render time rather than encoded here. Keep this file and the runtime validator in sync.",
+  "type": "object",
+  "required": ["executiveSummary", "releaseRisk"],
+  "properties": {
+    "executiveSummary": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1, "pattern": "[^\\t\\n\\v\\f\\r\\x1c-\\x1f\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]"}
+    },
+    "releaseRisk": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["riskLevel", "summary", "factors", "mitigations"],
+          "properties": {
+            "riskLevel": {"enum": ["High", "Medium", "Low"]},
+            "summary": {"type": "string", "minLength": 1, "pattern": "[^\\t\\n\\v\\f\\r\\x1c-\\x1f\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]"},
+            "factors": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["signal", "severity", "detail"],
+                "properties": {
+                  "signal": {"type": "string", "minLength": 1, "pattern": "[^\\t\\n\\v\\f\\r\\x1c-\\x1f\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]"},
+                  "severity": {"enum": ["High", "Medium", "Low"]},
+                  "detail": {"type": "string", "minLength": 1, "pattern": "[^\\t\\n\\v\\f\\r\\x1c-\\x1f\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]"}
+                }
+              }
+            },
+            "mitigations": {
+              "type": "array",
+              "items": {"type": "string", "minLength": 1, "pattern": "[^\\t\\n\\v\\f\\r\\x1c-\\x1f\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]"}
+            }
+          }
+        }
+      ]
+    }
+  }
+}

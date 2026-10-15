@@ -4,6 +4,11 @@
 The analysis skill should read this output instead of loading the full scan
 artifacts.  This script extracts stable signals and candidate matches locally
 so the model only has to make the genuinely semantic decisions.
+
+The caller must pass --source-root pointing at the target project's source
+repository checkout.  AUTO_FIX judgments depend on source context, so the
+script fails fast when that checkout is missing instead of silently degrading
+every decision to BACKLOG or NEEDS_INFO.
 """
 
 from __future__ import annotations
@@ -11,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -194,6 +200,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Prepare compact triage analysis input.")
     parser.add_argument("--issues", type=Path, required=True)
     parser.add_argument("--resolved", type=Path, default=None)
+    parser.add_argument(
+        "--source-root",
+        type=Path,
+        required=True,
+        help=(
+            "Root of the target project's Git checkout; required so "
+            "analysis fails fast when source context is unavailable"
+        ),
+    )
     parser.add_argument("--output", type=Path, required=True)
     return parser.parse_args(argv)
 
@@ -201,6 +216,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
+        probe = subprocess.run(
+            ["git", "-C", str(args.source_root), "rev-parse", "--is-inside-work-tree"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if probe.returncode != 0 or probe.stdout.strip() != "true":
+            raise ValueError(
+                f"source root is not a Git checkout: {args.source_root}. "
+                "Clone the target project and re-run /analyze from its root; "
+                "source context is required for AUTO_FIX decisions."
+            )
         resolved_data = _read_json(args.resolved) if args.resolved else {"issues": []}
         result = prepare(_read_json(args.issues), resolved_data, datetime.now(timezone.utc))
         args.output.parent.mkdir(parents=True, exist_ok=True)

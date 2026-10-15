@@ -17,6 +17,7 @@ graph TD
 
 ## Prerequisites
 
+- **Source repository checkout** — the bulk workflow (`/run`, `/analyze`) must execute from inside the target project's Git work tree. AUTO_FIX decisions require source context (code, tests, build files); without it the workflow fails fast instead of silently downgrading every issue to BACKLOG or NEEDS_INFO.
 - **Jira access** — the authenticated user must have read access to the target project
 - **Jira access method** — choose either the authenticated global `jira` CLI or a configured Jira MCP server. The Jira CLI is the preferred default because it supports the bulk scan path directly; Jira MCP is interchangeable wherever the selected workflow phase accesses Jira interactively.
 - **REST fallback variables for `/scan`** — if the Jira CLI is unavailable and the scan is run through the deterministic script, it uses the Jira REST API via `scripts/scan.py`:
@@ -76,6 +77,15 @@ Single-issue triage (issue URL or project + text):
 ## HTML Report Features
 
 The generated report is a single HTML file (Material Design styling) with inline CSS/JS and embedded data. **Google Fonts** load when online; offline, the browser falls back to system fonts.
+
+### Report data contract
+
+The analysis output and renderer share a schema contract documented in
+`schemas/analyzed.schema.json` and `schemas/ai-synthesis.schema.json`.
+`render_report.py` validates both inputs at runtime, scans the template for
+`[object Object]` literals and required section containers before rendering,
+and re-checks the rendered HTML for those containers after replacement, so
+shape drift fails loudly instead of breaking the dashboard silently.
 
 ### Overview
 
