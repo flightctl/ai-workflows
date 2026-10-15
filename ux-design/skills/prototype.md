@@ -97,10 +97,30 @@ When the frontend source is accessible — a local path or a Git URL — and the
 feature modifies existing pages or components, pass it as `--workspace`. For
 a Git URL, use `--workspace-branch` to select the clone branch; for a local
 path the resolver validates it exists (`type: local`) and ignores
-`--workspace-branch` — instead, inspect its current checkout
-(`git -C <path> rev-parse --abbrev-ref HEAD`) and record that ref. For a Git
-URL the resolver clones into `.artifacts/{ID}/code/`. Record the actual ref
-used and, for a monorepo, the frontend subdirectory within the workspace. The prototype should reuse
+`--workspace-branch`. For a Git URL the resolver clones into
+`.artifacts/{ID}/code/`. For a monorepo, record the frontend subdirectory.
+
+**Baseline SHA — pre-invocation (local workspace only):** Before invoking
+the create skill, capture the local workspace commit SHA
+(`git -C <path> rev-parse HEAD`) and read the expected **commit SHA** from
+`01-discovery.md` § Current State. Compare them:
+
+- **Match:** proceed with create invocation.
+- **Differ (both known):** the baseline differs from discovery. Stop and
+  present both SHAs. The researcher must either refresh discovery with
+  `/ingest` or explicitly accept the new baseline — recording both SHAs and
+  the reason in `prototype-notes.md`, and refreshing affected Current State
+  context before claiming fidelity.
+- **Unknown (discovery has no SHA):** baseline is unverified. Stop, explain
+  that discovery did not capture a SHA, and ask the researcher to confirm the
+  current workspace as the intended baseline. Record the confirmed SHA.
+
+Do not silently switch the researcher's checkout. Standalone mode has no
+workspace SHA — record "standalone — N/A" and skip this check.
+
+For a Git URL workspace, the clone happens inside the create skill during
+Step 2; the pre-edit baseline SHA is not available until then. Handle it in
+Step 2 below. The prototype should reuse
 unchanged page scaffolding and real components, replacing only the
 scenario-specific parts with mocks — no full production backend or reusable
 production code required. Mark which page sections are unchanged (reused from
@@ -120,6 +140,20 @@ references and what is explored without source verification.
 Record the chosen strategy and rationale in `prototype-notes.md`.
 
 ### Step 2: Generate the Prototype
+
+When invoking the create skill with a workspace (local or Git URL), supply
+the expected discovery baseline SHA as task context alongside the source and
+flags — not as a CLI flag, but as an explicit constraint in the invocation
+prompt: "The discovery baseline for this frontend is commit {SHA}. After
+resolving the workspace, capture the pre-edit commit SHA at the workspace
+root and compare it with the expected baseline before generating. Pause and
+report if they differ or the expected SHA is unknown." For a local workspace,
+this SHA was already verified in Step 1; for a Git URL, this is where the
+clone resolves and the pre-edit SHA becomes available — it must be captured
+and compared before generation begins. If create cannot provide a trustworthy
+pre-edit baseline SHA, record the baseline as **unverified** and do not
+accept the output as faithful contextual integration. Standalone mode skips
+this constraint.
 
 Invoke the skill with the source and agreed choices. For example:
 
@@ -209,6 +243,18 @@ re-enter Step 3 after the skill resumes and completes.
 skip`), `rfe-snapshot.md` and `metadata.json` are required. If either is
 missing after the skill exits, stop and report that prototype creation did
 not complete — never treat absent metadata as silent success.
+
+**Baseline SHA gate (workspace mode, before mirroring):** Use the pre-edit
+baseline SHA — the Step 1 pre-invocation capture for a local path, or the
+pre-edit SHA reported by create for a Git URL clone (per the Step 2
+constraint). Do not re-read HEAD from a post-generation workspace: generated
+changes may include commits, making HEAD unreliable as baseline evidence.
+If create did not report a pre-edit SHA for a Git URL workspace, record the
+baseline as **unverified** and do not accept the output as faithful. Apply
+the same match/differ/unknown rules from Step 1: do not mirror or accept
+completed output until the baseline is confirmed or the researcher
+explicitly accepts a new baseline — recording both SHAs, the reason, and
+refreshing affected Current State context. Standalone mode: skip.
 
 For a refinement, Step 2 has already preserved the prior active tree;
 reuse that snapshot and do not archive it again. For any other replacement,
@@ -355,7 +401,10 @@ Do not invent research evidence.
 **Prototype mode:** {standalone / workspace}
 **Workspace strategy:** {contextual affected-page review / standalone exploration / standalone greenfield}
 **Workspace input:** {local path, Git URL, or "standalone"}
-**Workspace ref:** {branch used, or "local — current checkout" / "N/A"}
+**Workspace ref:** {branch used for Git URL clone, or "N/A" for local/standalone}
+**Workspace baseline SHA:** {resolved commit SHA, or "standalone — N/A"}
+**Discovery baseline SHA:** {SHA from 01-discovery.md, or "none recorded"}
+**Baseline match:** {yes / accepted-new — reason / standalone — N/A}
 **Frontend subdir:** {subdirectory within workspace, or "root" / "N/A"}
 **Decision mode:** {skip / auto / human}
 **Input source:** {Jira RFE / published PRD / Figma / feature description / idea}

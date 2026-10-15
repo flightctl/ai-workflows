@@ -309,10 +309,10 @@ component directories, or router config. In a monorepo, identify the frontend
 subdirectory. If separate, record its identity and ask for the local path or
 Git URL.
 
-Record frontend repo identity, path or URL, revision, and root. When
-reachable, explore affected pages/routes, design-system components in use,
-current user flows, and entry points — with file paths relative to the
-frontend root. When unreachable, record that explicitly.
+Record frontend identity, path/URL, root, branch, and commit SHA
+(`git rev-parse HEAD`); the SHA pins the discovery baseline for prototype
+fidelity. Explore affected pages, components, flows, and entry points with
+paths relative to the frontend root. When unreachable, record that.
 
 If an optional external operation fails (one sibling story inaccessible, one
 codebase file unreadable): note what failed, continue with available data, and
@@ -450,7 +450,7 @@ or problem statement}
 
 ## Current State
 
-**Frontend repo:** {identity, path, revision, root — or "Not identified"}
+**Frontend repo:** {identity, path, branch, commit SHA, root — or "Not identified"}
 
 {Affected pages, components, user flows, and entry points from Step 6. Include
 file paths relative to the frontend root. If not explored: "Frontend source
