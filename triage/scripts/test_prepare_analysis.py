@@ -76,6 +76,7 @@ class TestSourceRootEnforcement(unittest.TestCase):
                 ["git", "init", "--quiet", str(root)],
                 check=True,
                 capture_output=True,
+                env=prepare_analysis._git_probe_environment(),
             )
             issues, output = self._write_inputs(root)
 
@@ -117,6 +118,7 @@ class TestSourceRootEnforcement(unittest.TestCase):
                 ["git", "init", "--quiet", str(other_repo)],
                 check=True,
                 capture_output=True,
+                env=prepare_analysis._git_probe_environment(),
             )
             plain_dir = root / "plain"
             plain_dir.mkdir()
