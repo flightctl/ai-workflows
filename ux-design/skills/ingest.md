@@ -303,11 +303,16 @@ with the researcher before proceeding.
 
 ### Step 6: Current State (Codebase Exploration)
 
-The skill does not explore the codebase. Do this manually, focused on the
-affected UI area and the design system:
-- What pages or views exist today in this area?
-- What components (from the project's design system) are already used?
-- What user flows currently exist?
+The skill does not explore the codebase. Do this manually. The current
+workspace may not be the frontend — check for UI framework deps, page/
+component directories, or router config. In a monorepo, identify the frontend
+subdirectory. If separate, record its identity and ask for the local path or
+Git URL.
+
+Record frontend repo identity, path or URL, revision, and root. When
+reachable, explore affected pages/routes, design-system components in use,
+current user flows, and entry points — with file paths relative to the
+frontend root. When unreachable, record that explicitly.
 
 If an optional external operation fails (one sibling story inaccessible, one
 codebase file unreadable): note what failed, continue with available data, and
@@ -394,8 +399,7 @@ or problem statement}
 - **PRD:** {resolved docs-repo path, or "Not found — <reason>"}
 - **Design document:** {resolved docs-repo path, or "Not found — <reason>"}
 - **Clarifications:** {resolved path, or "None published"}
-- **Traced requirements:** {FR-N / NFR-N IDs from the story's Design
-  Reference, or "None traced"}
+- **Traced requirements:** {FR-N / NFR-N IDs from Design Reference, or "None"}
 
 ## Problem Statement
 
@@ -411,19 +415,16 @@ or problem statement}
 
 ### Non-Functional Requirements
 
-{Accessibility targets, performance expectations, supported browsers/devices —
- preserve NFR-N IDs. These flow into the handoff's accessibility requirements
- and acceptance criteria. If the PRD specifies none, say so.}
+{Accessibility, performance, browser targets — preserve NFR-N IDs; these feed
+ handoff accessibility and acceptance criteria. Say so if none specified.}
 
 ## Technical Design Context
 
-{From the design document — this grounds the feasibility check in /handoff.
- If not found, state that and why; the context remains exploratory and the
- handoff gate stays closed.}
+{From design document. If absent, state why — context stays exploratory and
+ handoff gate closed.}
 
 - **Architecture:** {relevant components and how they interact}
-- **API shapes:** {endpoints/contracts the UI will consume, at the structural
-  level — do not invent fields}
+- **API shapes:** {endpoints/contracts the UI consumes — do not invent}
 - **Data models:** {existing structures the UI displays or manipulates}
 - **Cross-component interactions:** {how this piece connects to adjacent work}
 
@@ -449,8 +450,11 @@ or problem statement}
 
 ## Current State
 
-{What the product does today in this area. Include relevant file paths
- or component references from the codebase. Written in Step 6 above.}
+**Frontend repo:** {identity, path, revision, root — or "Not identified"}
+
+{Affected pages, components, user flows, and entry points from Step 6. Include
+file paths relative to the frontend root. If not explored: "Frontend source
+not explored — {reason}."}
 
 ## Strategic Decisions
 

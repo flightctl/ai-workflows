@@ -79,10 +79,45 @@ Settle the create skill's onboarding answers with the researcher:
   Do not also run `uxd-figma-read` for the same source.
 - **Workspace:** `standalone` or a local path / Git URL for the codebase to
   prototype in. The create skill clones a workspace into its artifact area.
+  Use the frontend repo path from the **Frontend repo** field in
+  `01-discovery.md` § Current State when available; do not default to the
+  source repo root if it is not the frontend codebase.
 - **Decisions:** use `human` for an initial prototype so the researcher chooses
   among design options; use `auto` for a refinement when the researcher wants
   the skill to recommend options. `skip` is the upstream default and means no
   decision kit, so pass a choice explicitly.
+
+#### Workspace Strategy Selection
+
+Choose the workspace strategy based on the **Frontend repo** field in
+`01-discovery.md` § Current State:
+
+**Contextual affected-page review** (recommended for existing UI):
+When the frontend source is accessible — a local path or a Git URL — and the
+feature modifies existing pages or components, pass it as `--workspace`. For
+a Git URL, use `--workspace-branch` to select the clone branch; for a local
+path the resolver validates it exists (`type: local`) and ignores
+`--workspace-branch` — instead, inspect its current checkout
+(`git -C <path> rev-parse --abbrev-ref HEAD`) and record that ref. For a Git
+URL the resolver clones into `.artifacts/{ID}/code/`. Record the actual ref
+used and, for a monorepo, the frontend subdirectory within the workspace. The prototype should reuse
+unchanged page scaffolding and real components, replacing only the
+scenario-specific parts with mocks — no full production backend or reusable
+production code required. Mark which page sections are unchanged (reused from
+source), changed (new or modified), and mocked (stand-in data or interactions)
+in `prototype-notes.md`.
+
+**Standalone exploration** (for greenfield features or no accessible source):
+When there is no existing UI to modify, or the frontend source is neither
+locally available nor accessible as a Git URL, use `standalone`. When the
+source is inaccessible for a feature that modifies existing UI, acknowledge
+this to the researcher: the prototype explores the design direction without
+existing page integration. Do not claim faithful integration when working
+standalone without source access. If the researcher has screenshots or design
+references, agree on a labeled baseline: note what is approximated from
+references and what is explored without source verification.
+
+Record the chosen strategy and rationale in `prototype-notes.md`.
 
 ### Step 2: Generate the Prototype
 
@@ -158,6 +193,23 @@ The create skill writes to `.artifacts/{ID}/`, where `{ID}` is the Jira key or a
 slug. Read the returned ID from the create skill's output, then validate it
 using **Artifact Path Safety** before constructing paths or reading
 `metadata.json`.
+
+**Awaiting-decisions guard (check before any mirroring):** When
+`decisions/` exists under `.artifacts/{ID}/`, read `decisions.json` for
+per-decision statuses (`pending`, `auto-resolved`, `user-decided`). If any
+decision has status `pending`, the skill is paused awaiting researcher
+input — not failed and not complete. Surface the pending decision pages and
+`decisions/index.html` to the researcher. Keep all native artifacts under
+`.artifacts/{ID}/` intact so the skill can resume after choices are made.
+Do not snapshot, mirror, delete native output, or advance to evaluation or
+handoff. Stop here and wait for the researcher to resolve decisions, then
+re-enter Step 3 after the skill resumes and completes.
+
+**Complete-run metadata:** When no decisions are pending (or `--decisions
+skip`), `rfe-snapshot.md` and `metadata.json` are required. If either is
+missing after the skill exits, stop and report that prototype creation did
+not complete — never treat absent metadata as silent success.
+
 For a refinement, Step 2 has already preserved the prior active tree;
 reuse that snapshot and do not archive it again. For any other replacement,
 preserve the current tree under
@@ -191,10 +243,28 @@ native layout so a later refinement can restore it without flattening files.
 - `verification.json`
 - `decisions/` and `exports/`, when present
 
-`rfe-snapshot.md` and `metadata.json` are required. If either is missing, stop
-and report that prototype creation did not complete. The new evaluator can
-consume `rfe-snapshot.md` and `decisions/` when staged into its private run
-root. Record the create skill's `{ID}` in `prototype-notes.md`.
+**Complete prototype verification:** Beyond the required metadata, a
+complete prototype must have:
+
+- **Agreed page/flow output:** For standalone mode, non-empty rendered
+  content under `prototype/`. For workspace mode, the codebase and changes
+  under `code/`, or a durable local workspace path recorded in
+  `workspace-analysis.json` (`workspace_path`) when the resolver used an
+  existing local directory (`type: local`). An empty output directory with
+  only metadata or decision cards is not complete.
+- **Verified page/flow review:** Serve or open the prototype entry point
+  and confirm the agreed user flow is navigable with the expected
+  unchanged/changed/mocked sections visible. If the entry point cannot be
+  served or opened, record the verification as **unverified** with the
+  reason rather than claiming completion. Copied unchanged app scaffolding
+  alone is not proof that the requested prototype content exists.
+
+Do not diagnose completion or failure from the presence or absence of a
+directory alone. Check for the actual agreed output artifacts.
+
+The new evaluator can consume `rfe-snapshot.md` and `decisions/` when staged
+into its private run root. Record the create skill's `{ID}` in
+`prototype-notes.md`.
 
 After mirroring the canonical prototype files, remove the native
 `.artifacts/{ID}/` created by the create or refine skill. This cleanup happens
@@ -283,6 +353,10 @@ Do not invent research evidence.
 **Skill prototype ID:** {ID}
 **Design direction:** {chosen direction}
 **Prototype mode:** {standalone / workspace}
+**Workspace strategy:** {contextual affected-page review / standalone exploration / standalone greenfield}
+**Workspace input:** {local path, Git URL, or "standalone"}
+**Workspace ref:** {branch used, or "local — current checkout" / "N/A"}
+**Frontend subdir:** {subdirectory within workspace, or "root" / "N/A"}
 **Decision mode:** {skip / auto / human}
 **Input source:** {Jira RFE / published PRD / Figma / feature description / idea}
 
@@ -297,6 +371,18 @@ Do not invent research evidence.
 | Story | Acceptance Criteria | Status |
 |-------|-------------------|--------|
 | {story} | {criteria} | {covered / partial / deferred} |
+
+## Page Context
+
+| Section | Status | Source |
+|---------|--------|--------|
+| {page area} | {unchanged / changed / mocked} | {component or source reference} |
+
+{For contextual affected-page review, list each page section and whether it is
+reused unchanged from existing source, changed by this prototype, or mocked
+with stand-in data. Omit for standalone greenfield prototypes. For standalone
+exploration without source access, state: "Page context not available —
+prototype explores design direction without existing page integration."}
 
 ## Scope
 
