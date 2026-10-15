@@ -450,7 +450,7 @@ or problem statement}
 
 ## Current State
 
-**Frontend repo:** {identity, path, branch, commit SHA, root — or "Not identified"}
+**Frontend repo:** {identity, path, ref, commit SHA, root — or "Not identified"}
 
 {Affected pages, components, user flows, and entry points from Step 6. Include
 file paths relative to the frontend root. If not explored: "Frontend source
