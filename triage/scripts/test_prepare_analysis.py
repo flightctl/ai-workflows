@@ -6,11 +6,13 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from contextlib import redirect_stderr
+from unittest import mock
 from pathlib import Path
 
 _SCRIPT = Path(__file__).resolve().parent / "prepare_analysis.py"
@@ -105,6 +107,79 @@ class TestSourceRootEnforcement(unittest.TestCase):
             self.assertEqual(rc, 1)
             self.assertIn("not a Git checkout", stderr.getvalue())
             self.assertFalse(output.exists())
+
+    def test_git_location_env_vars_cannot_redirect_probe(self) -> None:
+        """GIT_DIR set to another repo must not make a plain dir pass."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            other_repo = root / "other-repo"
+            subprocess.run(
+                ["git", "init", "--quiet", str(other_repo)],
+                check=True,
+                capture_output=True,
+            )
+            plain_dir = root / "plain"
+            plain_dir.mkdir()
+            issues, output = self._write_inputs(root)
+            stderr = io.StringIO()
+
+            with mock.patch.dict(
+                os.environ,
+                {"GIT_DIR": str(other_repo / ".git")},
+            ):
+                with redirect_stderr(stderr):
+                    rc = prepare_analysis.main([
+                        "--issues", str(issues),
+                        "--source-root", str(plain_dir),
+                        "--output", str(output),
+                    ])
+
+            self.assertEqual(rc, 1)
+            self.assertIn("not a Git checkout", stderr.getvalue())
+
+    def test_missing_git_binary_returns_clear_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            issues, output = self._write_inputs(root)
+            stderr = io.StringIO()
+
+            with mock.patch.object(
+                prepare_analysis.subprocess,
+                "run",
+                side_effect=FileNotFoundError("git"),
+            ):
+                with redirect_stderr(stderr):
+                    rc = prepare_analysis.main([
+                        "--issues", str(issues),
+                        "--source-root", str(root),
+                        "--output", str(output),
+                    ])
+
+            self.assertEqual(rc, 1)
+            self.assertIn("git executable not found", stderr.getvalue())
+
+    def test_git_probe_timeout_returns_clear_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            issues, output = self._write_inputs(root)
+            stderr = io.StringIO()
+
+            with mock.patch.object(
+                prepare_analysis.subprocess,
+                "run",
+                side_effect=prepare_analysis.subprocess.TimeoutExpired(
+                    cmd="git", timeout=30
+                ),
+            ):
+                with redirect_stderr(stderr):
+                    rc = prepare_analysis.main([
+                        "--issues", str(issues),
+                        "--source-root", str(root),
+                        "--output", str(output),
+                    ])
+
+            self.assertEqual(rc, 1)
+            self.assertIn("git probe timed out", stderr.getvalue())
 
 
 if __name__ == "__main__":

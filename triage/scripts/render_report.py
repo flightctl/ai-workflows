@@ -333,10 +333,11 @@ def validate_rendered_html(rendered: str) -> None:
     replacement but before the browser executes JavaScript, so it inspects
     structure only — never embedded data text.
     """
+    ids = _collect_html_ids(rendered)
     missing_ids = [
         section_id
         for section_id in REQUIRED_SECTION_IDS
-        if section_id not in _collect_html_ids(rendered)
+        if section_id not in ids
     ]
     if missing_ids:
         raise ValueError(
@@ -359,10 +360,11 @@ def validate_template(template: str) -> None:
             'template contains "[object Object]" — fix the template before '
             "rendering"
         )
+    ids = _collect_html_ids(template)
     missing_ids = [
         section_id
         for section_id in REQUIRED_SECTION_IDS
-        if section_id not in _collect_html_ids(template)
+        if section_id not in ids
     ]
     if missing_ids:
         raise ValueError(

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -34,6 +35,10 @@ ERROR_PATTERNS = (
 )
 ERROR_CODE_RE = re.compile(r"\b(?:[A-Z]{2,}[_-])?[A-Z]{2,}\d{2,}\b|\b[A-Z]{2,}-\d{3,}\b")
 JIRA_KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]+-\d+$")
+_GIT_LOCATION_ENV_VARS = frozenset({
+    "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY", "GIT_COMMON_DIR",
+})
 ENVIRONMENT_RE = re.compile(
     r"\b(?:Windows|Linux|macOS|Chrome|Firefox|Safari|Edge|Kubernetes|OpenShift)\b"
     r"|\b(?:version|v)\s*[0-9]+(?:\.[0-9]+){1,3}", re.I,
@@ -50,6 +55,15 @@ def _read_json(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict) or not isinstance(value.get("issues"), list):
         raise ValueError(f"{path} must contain an object with an issues array")
     return value
+
+
+def _git_probe_environment() -> dict[str, str]:
+    """Return an env with Git repository-location overrides removed."""
+    return {
+        name: value
+        for name, value in os.environ.items()
+        if name not in _GIT_LOCATION_ENV_VARS
+    }
 
 
 def _clean_text(value: Any, limit: int = MAX_DESCRIPTION) -> str:
@@ -216,12 +230,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
-        probe = subprocess.run(
-            ["git", "-C", str(args.source_root), "rev-parse", "--is-inside-work-tree"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        try:
+            probe = subprocess.run(
+                ["git", "-C", str(args.source_root), "rev-parse", "--is-inside-work-tree"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=30,
+                env=_git_probe_environment(),
+            )
+        except FileNotFoundError as exc:
+            raise ValueError(
+                "git executable not found; install git to run /analyze"
+            ) from exc
+        except subprocess.TimeoutExpired as exc:
+            raise ValueError(
+                f"git probe timed out for {args.source_root}"
+            ) from exc
         if probe.returncode != 0 or probe.stdout.strip() != "true":
             raise ValueError(
                 f"source root is not a Git checkout: {args.source_root}. "
