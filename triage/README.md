@@ -83,9 +83,10 @@ The generated report is a single HTML file (Material Design styling) with inline
 The analysis output and renderer share a schema contract documented in
 `schemas/analyzed.schema.json` and `schemas/ai-synthesis.schema.json`.
 `render_report.py` validates both inputs at runtime, scans the template for
-`[object Object]` literals and required section containers before rendering,
-and re-checks the rendered HTML for those containers after replacement, so
-shape drift fails loudly instead of breaking the dashboard silently.
+`[object Object]` literals, required data placeholders, and required section
+containers before rendering, and re-checks the rendered HTML for those
+containers after replacement, so shape drift fails loudly instead of breaking
+the dashboard silently.
 
 ### Overview
 

@@ -17,9 +17,10 @@ Exit codes:
 
 The analyzed.json and ai-synthesis.json inputs are validated against the
 renderer contract documented in triage/schemas/ before any HTML is emitted.
-The template is checked for "[object Object]" literals and required section
-containers before rendering, and the rendered HTML is re-checked for those
-containers after placeholder replacement.
+The template is checked for "[object Object]" literals, every required
+placeholder token, and required section containers before rendering, and the
+rendered HTML is re-checked for those containers after placeholder
+replacement.
 """
 
 from __future__ import annotations
@@ -270,6 +271,12 @@ def validate_analyzed(analyzed: object) -> None:
         confidence = issue.get("confidence")
         if not isinstance(confidence, str) or confidence not in {"High", "Medium", "Low"}:
             raise ValueError(f"{label}.confidence must be High, Medium, or Low")
+        components = issue.get("components")
+        if components is not None and (
+            not isinstance(components, list)
+            or not all(isinstance(component, str) for component in components)
+        ):
+            raise ValueError(f"{label}.components must be an array of strings or null")
 
     clusters = analyzed.get("clusters")
     if not isinstance(clusters, list):
@@ -359,6 +366,14 @@ def validate_template(template: str) -> None:
         raise ValueError(
             'template contains "[object Object]" — fix the template before '
             "rendering"
+        )
+    missing_placeholders = [
+        name for name in ALL_PLACEHOLDERS if "{" + name + "}" not in template
+    ]
+    if missing_placeholders:
+        raise ValueError(
+            "template is missing required placeholder(s): "
+            + ", ".join(missing_placeholders)
         )
     ids = _collect_html_ids(template)
     missing_ids = [

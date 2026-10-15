@@ -398,6 +398,30 @@ class TestValidateAnalyzed(unittest.TestCase):
         with self.assertRaises(ValueError):
             render_report.validate_analyzed(bad)
 
+    def test_string_components_raise_value_error(self) -> None:
+        """The template filters components with forEach; strings crash it."""
+        bad = {
+            **SAMPLE_ANALYZED,
+            "issues": [{**SAMPLE_ISSUES[0], "components": "agent"}],
+        }
+        with self.assertRaises(ValueError):
+            render_report.validate_analyzed(bad)
+
+    def test_object_components_raise_value_error(self) -> None:
+        bad = {
+            **SAMPLE_ANALYZED,
+            "issues": [{**SAMPLE_ISSUES[0], "components": {"name": "agent"}}],
+        }
+        with self.assertRaises(ValueError):
+            render_report.validate_analyzed(bad)
+
+    def test_null_and_array_components_are_accepted(self) -> None:
+        for components in (None, [], ["agent"]):
+            render_report.validate_analyzed({
+                **SAMPLE_ANALYZED,
+                "issues": [{**SAMPLE_ISSUES[0], "components": components}],
+            })
+
     def test_non_string_link_type_raises_value_error(self) -> None:
         bad = {
             **SAMPLE_ANALYZED,
@@ -464,6 +488,12 @@ class TestValidateTemplate(unittest.TestCase):
 
     def test_rejects_missing_section_container(self) -> None:
         template = MINIMAL_TEMPLATE.replace('<div id="keyRecsContainer"></div>', "")
+        with self.assertRaises(ValueError):
+            render_report.validate_template(template)
+
+    def test_rejects_missing_data_placeholder(self) -> None:
+        """A template that drops a data token must fail, not render empty."""
+        template = MINIMAL_TEMPLATE.replace("var I={ISSUES_JSON};", "var I=[];")
         with self.assertRaises(ValueError):
             render_report.validate_template(template)
 
@@ -588,6 +618,13 @@ class TestSchemaContractParity(unittest.TestCase):
         self.assertEqual(
             set(self.ai_synthesis_schema["required"]),
             {"executiveSummary", "releaseRisk"},
+        )
+
+    def test_components_contract_matches_runtime(self) -> None:
+        issue = self.analyzed_schema["properties"]["issues"]["items"]["properties"]
+        self.assertEqual(
+            issue["components"],
+            {"type": ["array", "null"], "items": {"type": "string"}},
         )
 
 
@@ -899,6 +936,17 @@ class TestMain(unittest.TestCase):
                 MINIMAL_TEMPLATE + "<li>[object Object]</li>",
             )
             rc = self._run(Path(tmpdir), template=str(polluted))
+            self.assertEqual(rc, 3)
+
+    def test_missing_data_placeholder_returns_3(self) -> None:
+        """Dropping {ISSUES_JSON} must fail instead of silently losing data."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            stripped = _write_text(
+                Path(tmpdir),
+                "stripped.html",
+                MINIMAL_TEMPLATE.replace("var I={ISSUES_JSON};", "var I=[];"),
+            )
+            rc = self._run(Path(tmpdir), template=str(stripped))
             self.assertEqual(rc, 3)
 
     def test_embedded_object_object_text_renders(self) -> None:

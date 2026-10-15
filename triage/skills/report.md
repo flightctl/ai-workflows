@@ -106,11 +106,11 @@ PROJECT_ROOT="$PWD"
 The renderer validates JSON inputs, replaces all template placeholders, and
 fails if any placeholder remains. Before rendering, it validates the
 template: no `[object Object]` literal may appear in template markup or
-JavaScript, and every required section container must exist. After
-replacement, it re-checks the rendered HTML for those section containers.
-Data text is never scanned for the artifact literal — a schema-valid summary
-may legitimately contain that string. Stop and report stderr on a non-zero
-exit:
+JavaScript, every required data placeholder must be present, and every
+required section container must exist. After replacement, it re-checks the
+rendered HTML for those section containers. Data text is never scanned for
+the artifact literal — a schema-valid summary may legitimately contain that
+string. Stop and report stderr on a non-zero exit:
 
 - Exit 1 — input JSON does not match the renderer schema
 - Exit 2 — unreplaced placeholders remain
