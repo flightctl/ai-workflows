@@ -402,9 +402,9 @@ Do not invent research evidence.
 **Workspace strategy:** {contextual affected-page review / standalone exploration / standalone greenfield}
 **Workspace input:** {local path, Git URL, or "standalone"}
 **Workspace ref:** {branch used for Git URL clone, or "N/A" for local/standalone}
-**Workspace baseline SHA:** {resolved commit SHA, or "standalone — N/A"}
+**Workspace baseline SHA:** {resolved pre-edit SHA, "unverified — reason", or "standalone — N/A"}
 **Discovery baseline SHA:** {SHA from 01-discovery.md, or "none recorded"}
-**Baseline match:** {yes / accepted-new — reason / standalone — N/A}
+**Baseline match:** {yes / accepted-new — reason / unverified — reason / standalone — N/A}
 **Frontend subdir:** {subdirectory within workspace, or "root" / "N/A"}
 **Decision mode:** {skip / auto / human}
 **Input source:** {Jira RFE / published PRD / Figma / feature description / idea}
