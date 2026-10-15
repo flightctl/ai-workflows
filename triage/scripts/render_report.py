@@ -367,8 +367,16 @@ def validate_template(template: str) -> None:
             'template contains "[object Object]" — fix the template before '
             "rendering"
         )
+    template_without_comments = re.sub(
+        r"<!--.*?-->",
+        "",
+        template,
+        flags=re.DOTALL,
+    )
     missing_placeholders = [
-        name for name in ALL_PLACEHOLDERS if "{" + name + "}" not in template
+        name
+        for name in ALL_PLACEHOLDERS
+        if "{" + name + "}" not in template_without_comments
     ]
     if missing_placeholders:
         raise ValueError(

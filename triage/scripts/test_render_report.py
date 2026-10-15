@@ -497,6 +497,14 @@ class TestValidateTemplate(unittest.TestCase):
         with self.assertRaises(ValueError):
             render_report.validate_template(template)
 
+    def test_rejects_placeholder_only_inside_html_comment(self) -> None:
+        """A commented-out placeholder must not satisfy the data contract."""
+        template = MINIMAL_TEMPLATE.replace(
+            "var I={ISSUES_JSON};", "var I=[];"
+        ) + "<!-- {ISSUES_JSON} -->"
+        with self.assertRaises(ValueError):
+            render_report.validate_template(template)
+
     def test_ignores_ids_in_comments_and_script_strings(self) -> None:
         """Only real element ids count — comments and JS strings do not."""
         html = (
@@ -947,6 +955,18 @@ class TestMain(unittest.TestCase):
                 MINIMAL_TEMPLATE.replace("var I={ISSUES_JSON};", "var I=[];"),
             )
             rc = self._run(Path(tmpdir), template=str(stripped))
+            self.assertEqual(rc, 3)
+
+    def test_placeholder_only_in_comment_returns_3(self) -> None:
+        """Data substituted into a comment must fail, not silently hide it."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            commented = _write_text(
+                Path(tmpdir),
+                "commented.html",
+                MINIMAL_TEMPLATE.replace("var I={ISSUES_JSON};", "var I=[];")
+                + "<!-- {ISSUES_JSON} -->",
+            )
+            rc = self._run(Path(tmpdir), template=str(commented))
             self.assertEqual(rc, 3)
 
     def test_embedded_object_object_text_renders(self) -> None:
