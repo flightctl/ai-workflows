@@ -295,6 +295,14 @@ For the systemd timer, add a drop-in under
 `Environment=AI_WORKFLOWS_REMOTE_REF=upstream/main`, then
 `systemctl --user daemon-reload`.
 
+`aiw-update` refreshes detected Cursor, Claude, Gemini, and Codex installs when
+package discovery or install behavior changes. To refresh a project-level
+install explicitly, run:
+
+```bash
+aiw-update --project /path/to/repo
+```
+
 ### Optional: daily update notifier (Linux)
 
 On Linux desktops with systemd user sessions and `notify-send`, `install.sh` can prompt to enable a daily check. If `~/.ai-workflows` is behind the configured upstream ref (default `origin/main`), you get a desktop notification suggesting `aiw-update`.

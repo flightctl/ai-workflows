@@ -23,6 +23,15 @@ jobs:
           persist-credentials: false
       - run: bash .github/scripts/test-install.sh
 
+  updater-tests:
+    name: Updater Tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: bash .github/scripts/test-aiw-update.sh
+
   unit-tests:
     name: Unit Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-24.04
