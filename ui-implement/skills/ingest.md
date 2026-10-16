@@ -346,8 +346,12 @@ Focus on:
      applicable path scope of each restriction (e.g. "all paths",
      "cypress/", or a specific subdirectory); a restriction scoped to
      one path does not apply to other paths.
-     Record one entry per framework in the E2E Coverage Policy section
-     of `01-context.md`:
+     Record entries in the E2E Coverage Policy section of
+     `01-context.md` — one entry per framework/scope combination.
+     When policies differ by path for the same framework, record
+     separate entries (e.g. Cypress/legacy/ = prohibited,
+     Cypress/integration/ = none). A single entry with scope "all
+     paths" covers the framework project-wide:
      - `prohibited` — an explicit directive forbids adding new test
        specs, cases, coverage, or stubs for this framework within the
        stated scope. Record the source file, section heading, and

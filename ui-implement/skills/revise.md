@@ -117,19 +117,25 @@ After applying changes, verify:
   explicit repository prohibition or unresolved source. If
   `ambiguous`, surface the conflicting guidance and let the user
   decide.
-- When the user resolves an `ambiguous` or `unresolved` restriction
-  (decides stubs are permitted or prohibited for a framework):
+- When the user resolves an `ambiguous` restriction for a readable
+  source (decides stubs are permitted or prohibited for a framework):
   update the Restriction field to the resolved value (`none` if the
   user permits stubs, `prohibited` if the user forbids them). Keep
   the original Source field unchanged (it retains the repository file
   path and section). Record the user's decision in the Resolution
   field with its scope and "user decision during /revise" as
   provenance. Also record a brief excerpt or identity of the relevant
-  source guidance at the time of the decision (e.g. the section
-  heading and a key phrase) so downstream commands can detect content
-  changes at the same file/section path, not merely a changed path
-  string. This ensures `/plan`, `/code`, and `/validate` honor the
-  effective restriction while the source is unchanged.
+  source guidance at the time of the decision so downstream commands
+  can detect content changes, not merely a changed path string.
+- User clarification CANNOT resolve `unresolved` to `none` or
+  `prohibited` — an unreadable or missing source cannot be verified
+  as unchanged by downstream commands. `unresolved` stays in effect
+  for the affected framework/scope until the source is recovered and
+  readable. A prior Resolution may remain as audit information but is
+  not effective permission while the source cannot be checked. After
+  the source is recovered, reuse the prior Resolution only if a fresh
+  read confirms the relevant guidance is unchanged; otherwise
+  invalidate it and re-evaluate from the recovered source.
 - When re-reading source guidance reveals that the Source file a
   previous Resolution addressed has changed in content (compare
   against the excerpt/identity recorded with the Resolution, not

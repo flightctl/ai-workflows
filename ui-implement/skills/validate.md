@@ -173,10 +173,12 @@ Verify that the story's changes haven't broken existing functionality:
    framework. If any are found, flag them as a policy violation and
    report the specific files/lines.
 
-   When the restriction is `ambiguous`, report the unresolved status
-   truthfully — do not label it as "policy prohibits" or silently pass
-   it as "respected." Note the ambiguity in the validation report and
-   recommend resolving it via `/revise`.
+   When the restriction is `ambiguous` for a given scope, report the
+   unresolved status truthfully for the affected paths — do not label
+   it as "policy prohibits" or silently pass it as "respected." Other
+   paths for the same framework are evaluated by their own effective
+   policy. Note the ambiguity in the validation report and recommend
+   resolving it via `/revise`.
 
    When the restriction is `unresolved` (a known, referenced, or
    previously recorded policy source is missing or unreadable),
@@ -185,7 +187,7 @@ Verify that the story's changes haven't broken existing functionality:
    placeholder tests for that framework within the affected scope —
    the same checks as `prohibited`. Report "unresolved — policy
    source missing/unreadable ({file})" in the validation report and
-   recommend recovering the source or resolving via `/revise`. Do
+   recommend recovering the source to re-evaluate the policy. Do
    not treat `unresolved` as permission to write new coverage or
    stubs, and do not suppress other frameworks or scopes. Existing
    required test runs are preserved.

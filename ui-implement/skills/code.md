@@ -494,16 +494,20 @@ Apply the restriction **per framework and per applicable path scope**: a
 prohibition scoped to one framework (e.g. Cypress) does not suppress
 stubs for a different discovered framework (e.g. Playwright), and a
 restriction scoped to a specific path does not apply outside that path.
-For each framework with stubs planned:
+For each planned stub, determine the effective restriction by
+evaluating all applicable policy entries for that framework and path:
 
 - `prohibited` (within the story's paths) → skip stubs for that
   framework in those paths. Record the skip reason, source, and scope
   in the implementation report (Step 6).
-- `ambiguous` → skip stubs for that framework. Note that the user must
-  clarify the conflicting guidance before stubs can be written.
+- `ambiguous` (within the affected scope) → skip stubs for that
+  framework in the ambiguous paths. Other paths for the same framework
+  remain eligible if their own effective policy permits. Note that the
+  user must clarify the conflicting guidance via `/revise` before
+  stubs can be written for the ambiguous scope.
 - `unresolved` → skip stubs for that framework/scope. Record that the
-  policy source is unreadable and stubs are deferred pending source
-  recovery or user clarification via `/revise`.
+  policy source is missing or unreadable and stubs are deferred
+  pending source recovery.
 - `none` → proceed with stubs for that framework.
 
 If all frameworks are skipped, record the overall skip in Step 6.

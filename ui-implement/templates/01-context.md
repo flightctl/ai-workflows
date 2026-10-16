@@ -152,16 +152,18 @@
 
 ### E2E Coverage Policy
 
-{Record one entry per discovered E2E framework. If only one framework
-exists, a single entry suffices. A restriction scoped to one framework
-does not apply to others.}
+{Record one entry per discovered E2E framework and scope combination.
+When a single policy applies project-wide, one entry with scope "all
+paths" suffices. When policies differ by path for the same framework,
+record separate entries. A restriction scoped to one framework does
+not apply to others.}
 
 - **Framework:** {framework name, e.g. "Cypress"}
 - **Restriction:** {`none` | `prohibited` | `ambiguous` | `unresolved`}
 - **Scope:** {path or area the restriction applies to, e.g. "all paths", "cypress/", "src/components/", or "N/A — no scoped restriction"}
 - **Source:** {file path and section/heading where the policy was found, or "N/A — no applicable policy found"}
 - **Details:** {verbatim or closely paraphrased policy language, or "No explicit policy — default discovery-based behavior applies"}
-- **Resolution:** {only when a user clarification was recorded during `/revise`: the user's decision (permitted or prohibited), its scope, "user decision during /revise" as provenance, and a brief excerpt or identity of the relevant source guidance at the time of the decision. Omit this field when no user clarification exists. Source always retains the original repository file/section. Restriction is updated to the effective resolved value. Resolution is invalidated when the source guidance content it addressed has changed (compared via the recorded excerpt/identity, not just the file path).}
+- **Resolution:** {only when a user clarification resolved a READABLE `ambiguous` restriction during `/revise`: the user's decision (permitted or prohibited), its scope, "user decision during /revise" as provenance, and a brief excerpt or identity of the relevant source guidance at the time of the decision. Omit this field when no user clarification exists. User clarification cannot resolve `unresolved` (unreadable/missing source) — that requires source recovery. A prior Resolution may remain as audit information while unresolved but is not effective permission until a fresh read confirms the guidance is unchanged. Source always retains the original repository file/section. Restriction is updated to the effective resolved value for readable ambiguity only.}
 
 {Restriction values:
 - `none` — no explicit restriction found, including when optional AI

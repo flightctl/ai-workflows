@@ -216,26 +216,35 @@ Write `.artifacts/ui-implement/{issue-key}/02-plan.md` with this structure:
  prohibition scoped to one framework or path does not suppress stubs
  for a different framework or path outside the restriction's scope.
 
- For each discovered e2e framework:
- - If the restriction for that framework is `prohibited` within the
+ For each policy entry (framework/scope combination), determine the
+ effective restriction for each planned artifact's framework and path.
+ Evaluate all applicable entries. `none` (no explicit restriction
+ found) is not permission to bypass a separate broader prohibition
+ from an authoritative source; conflicts between authoritative
+ entries stay `ambiguous` unless the repository's own precedence
+ resolves them. A `none` entry for one path does not release a
+ restriction at a different path:
+ - If the effective restriction is `prohibited` within the
    story's paths: do not plan stubs for it in those paths. Record:
    "No stubs for {framework} in {scope} — project policy prohibits
    new coverage (source: {file}, {section})."
- - If the restriction is `ambiguous`: do not plan stubs for it.
-   Record: "No stubs for {framework} — conflicting or unclear
-   guidance. Sources: {list}. Clarify with the user during `/revise`
-   before planning stubs."
+ - If the restriction is `ambiguous` within a specific scope: do not
+   plan stubs for that framework in the ambiguous paths. Other paths
+   for the same framework remain eligible if their own effective
+   policy permits (but a separate broad prohibition still applies).
+   Record: "No stubs for {framework} in {scope} — conflicting or
+   unclear guidance. Sources: {list}. Clarify via `/revise`."
  - If the restriction is `unresolved`: do not plan stubs for it.
    Record: "No stubs for {framework} in {scope} — policy source
-   unreadable ({file}). Resolve via `/revise` or recover the source."
+   unreadable ({file}). Recover the source to re-evaluate."
  - If the restriction is `none`: plan stubs for that framework
    normally.
  - If no e2e framework is present: "No stubs — no e2e framework in
    project."}
 
 - **Framework(s):** {discovered e2e framework(s), or "None"}
-- **Policy restriction:** {per-framework: `none` | `prohibited` | `ambiguous` | `unresolved` — from E2E Coverage Policy}
-- **Scope:** {per-framework: path scope of the restriction, or "all paths"}
+- **Policy restriction:** {per entry: `none` | `prohibited` | `ambiguous` | `unresolved` — from E2E Coverage Policy; list each framework/scope entry}
+- **Scope:** {per entry: path scope of the restriction, or "all paths"}
 - **Stubs planned:** {per-framework list of test scenarios, or reason stubs are omitted}
 
 ### Coverage Goals
