@@ -94,6 +94,51 @@ After applying changes, verify:
 - Are commit messages still properly formatted?
 - If a Test Plan Coverage section exists: do the TC ID → Task mappings still reflect the current task breakdown?
 - Does the UI Cross-Cutting Concerns table still accurately reflect the tasks?
+- **E2E coverage policy (check on every revision, not only stub
+  requests):** re-read the project's current `AGENTS.md`, `CLAUDE.md`,
+  and any testing guidance they reference. Compare against the E2E
+  Coverage Policy section of `01-context.md` (if present). This
+  re-read is unconditional — source guidance can change between
+  commands. If the section is absent (older context), perform full
+  discovery and record the result. If the section is present but a
+  Source file has changed since it was recorded, re-evaluate that
+  framework's restriction and update the entry. If a known or
+  previously recorded source file is missing or unreadable, set the
+  restriction to `unresolved` for that framework/scope only — do not
+  suppress other frameworks or scopes. A previously recorded source
+  that is now missing stays `unresolved`, not `none`. An optional
+  convention file that was never present and never recorded is `none`.
+- If the user requests adding e2e test stubs: check the refreshed
+  policy for each relevant framework and path scope. If the
+  restriction is `prohibited` or `unresolved` within the story's
+  paths, explain the restriction (cite the source for `prohibited`;
+  cite the unreadable path for `unresolved`) and recommend against
+  adding stubs. A routine stub request must not silently bypass an
+  explicit repository prohibition or unresolved source. If
+  `ambiguous`, surface the conflicting guidance and let the user
+  decide.
+- When the user resolves an `ambiguous` or `unresolved` restriction
+  (decides stubs are permitted or prohibited for a framework):
+  update the Restriction field to the resolved value (`none` if the
+  user permits stubs, `prohibited` if the user forbids them). Keep
+  the original Source field unchanged (it retains the repository file
+  path and section). Record the user's decision in the Resolution
+  field with its scope and "user decision during /revise" as
+  provenance. Also record a brief excerpt or identity of the relevant
+  source guidance at the time of the decision (e.g. the section
+  heading and a key phrase) so downstream commands can detect content
+  changes at the same file/section path, not merely a changed path
+  string. This ensures `/plan`, `/code`, and `/validate` honor the
+  effective restriction while the source is unchanged.
+- When re-reading source guidance reveals that the Source file a
+  previous Resolution addressed has changed in content (compare
+  against the excerpt/identity recorded with the Resolution, not
+  just the file path), invalidate the Resolution field, revert
+  Restriction to the re-evaluated value from the new source, and
+  notify the user that the prior decision may no longer apply.
+  Surface the updated guidance for a fresh decision. If the Source
+  file content is unchanged, preserve the existing Resolution and
+  its effective Restriction.
 
 ### Step 5: Update Artifact
 

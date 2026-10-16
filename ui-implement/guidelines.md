@@ -46,6 +46,12 @@ artifacts and published output from this workflow.
 - No committing to `main` directly. Use a feature branch.
 - No force-push or destructive git operations.
 - **No hardcoded tool assumptions.** Never assume a specific test runner (Vitest, Jest, Mocha), design system (PatternFly, MUI, Chakra), i18n library (react-i18next, FormatJS), or e2e framework (Cypress, Playwright). All tooling is discovered during `/ingest`.
+- **Respect explicit test coverage policies.**
+  - When the project's `AGENTS.md`, `CLAUDE.md`, or referenced testing guidance explicitly prohibits new test coverage for a discovered framework, do not generate test specs, cases, stubs, or placeholders for that framework within the restriction's applicable scope.
+  - Apply restrictions per framework and per path scope — a prohibition scoped to one framework or path does not suppress work for other frameworks or paths.
+  - The presence of an existing test suite is not permission to extend it. Existing tests and their CI validation must be preserved — the policy restricts new coverage, not existing checks.
+  - Re-read source guidance before each policy decision. A known, referenced, or previously recorded policy source that is missing or unreadable is `unresolved`, not evidence of no restriction. A previously recorded source that disappears stays `unresolved`. An optional convention file that was never present and never recorded is `none` — complete discovery finding no policy.
+  - When policy wording is ambiguous or conflicts with other guidance, surface the conflict for user clarification rather than silently creating prohibited coverage or suppressing existing checks.
 
 ## Safety
 

@@ -15,9 +15,9 @@ for `/plan`.
 - Explore relevant areas only. Don't map the entire codebase. Focus on components the story will affect.
 - Re-invocation diffs before overwriting. If `01-context.md` already exists, preserve it before exploring. After compiling new context, diff against the previous version and present changes to the user before overwriting (see Steps 2a and 8a).
 - Ingest is an index. `/plan` opens cited files. Paths, section refs, signatures — not dumps.
-- Never Read the same path twice. Never Grep the same (path, pattern) pair twice.
+- Never Read the same path twice. Never Grep the same (path, pattern) pair twice. **Exception:** the E2e coverage policy step always re-reads `AGENTS.md`/`CLAUDE.md` for policy freshness, even on cache hit or when already in session.
 - Do not glob this workflow. Do not load `../guidelines.md` or `gh-stack`.
-- Do not re-read `AGENTS.md` / `CLAUDE.md` if already in session.
+- Do not re-read `AGENTS.md` / `CLAUDE.md` if already in session — except for E2e coverage policy freshness.
 - Grep locates; Read loads. Never grep `.`. Never grep `-A`/`-B`/`-C`. Never grep `.git/`.
 - Do not glob the docs repo root. After Step 5b, search only the feature directory.
 - **Write each output path once.** No Delete+rewrite, no second Write to the same file.
@@ -333,6 +333,39 @@ Focus on:
      mechanism if found.
    - **E2e framework:** grep for e2e test tooling (Cypress, Playwright,
      etc.) if present. Record for integration/e2e stub writing.
+   - **E2e coverage policy (unconditional — runs even on validation
+     cache hit):** if one or more e2e frameworks were discovered, read
+     the project's current `AGENTS.md`, `CLAUDE.md`, and any testing-
+     related documents they reference (e.g. architecture or testing
+     guidance files) for explicit directives about new e2e test
+     coverage. This step always reads current source files, never
+     relies on cached content, because policy guidance can change
+     independently of the validation profile's tracked files.
+     Evaluate each discovered framework independently — a restriction
+     scoped to one framework does not apply to others. Also record the
+     applicable path scope of each restriction (e.g. "all paths",
+     "cypress/", or a specific subdirectory); a restriction scoped to
+     one path does not apply to other paths.
+     Record one entry per framework in the E2E Coverage Policy section
+     of `01-context.md`:
+     - `prohibited` — an explicit directive forbids adding new test
+       specs, cases, coverage, or stubs for this framework within the
+       stated scope. Record the source file, section heading, and
+       applicable path scope.
+     - `ambiguous` — wording is unclear (e.g. "deprecated" without
+       specifying whether new coverage is forbidden) or conflicts with
+       other guidance. Record both sources so `/plan` can surface the
+       conflict for user clarification.
+     - `none` — no restriction found. Includes projects where optional
+       `AGENTS.md`/`CLAUDE.md` are absent (never present = no policy).
+     - `unresolved` — a known, referenced, or previously recorded
+       policy source is missing or unreadable. Record the file path
+       and error. Prevents new coverage/stubs for the affected
+       framework/scope only; does not suppress others. A previously
+       recorded source now missing stays `unresolved`, not `none`.
+       Never-present optional files are `none`, not `unresolved`.
+     If no e2e framework was discovered, omit the E2E Coverage Policy
+     section entirely.
    - **If no unit test framework is found:** note the absence. Identify
      candidate frameworks based on the project's build tooling (e.g.,
      Vite → Vitest, Create React App → Jest). Record the recommendation

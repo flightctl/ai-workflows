@@ -119,6 +119,11 @@ Before writing the plan, create a mental map:
 - What accessibility requirements apply (ARIA roles, keyboard navigation, screen reader text)?
 - Are there loading, error, and empty states to implement?
 - Are there permission gates to implement?
+- Does the E2E Coverage Policy restrict new e2e test stubs for any
+  framework within the story's scope? Check per framework and per
+  applicable path scope — a restriction scoped to one framework or
+  path does not suppress stubs for others (see the Integration/E2E
+  Test Stubs template).
 
 ### Step 4: Write the Implementation Plan
 
@@ -195,10 +200,43 @@ Write `.artifacts/ui-implement/{issue-key}/02-plan.md` with this structure:
 
 ### Integration/E2E Test Stubs
 
-{Written after all tasks complete. Describe what stubs will cover:}
+{Written after all tasks complete. Describe what stubs will cover.
+ Before planning stubs, re-read the project's current `AGENTS.md`,
+ `CLAUDE.md`, and any testing guidance they reference to verify the
+ E2E Coverage Policy in `01-context.md` still reflects the current
+ source guidance. If the section is absent, perform full discovery.
+ If the section is present, compare each entry's Source file against
+ its current content — if the source has changed or is unreadable,
+ re-evaluate that framework's restriction before proceeding. An
+ unreadable source is not evidence of no restriction. Update
+ `01-context.md` if the re-check yields a different result, but
+ preserve user clarifications from `/revise` only when the underlying
+ source guidance they addressed has not changed.
+ Apply restrictions per framework AND per applicable path scope — a
+ prohibition scoped to one framework or path does not suppress stubs
+ for a different framework or path outside the restriction's scope.
 
-- **Framework:** {discovered e2e framework, or "None — project has no e2e framework"}
-- **Stubs planned:** {list of test scenarios, or "No stubs — no e2e framework in project"}
+ For each discovered e2e framework:
+ - If the restriction for that framework is `prohibited` within the
+   story's paths: do not plan stubs for it in those paths. Record:
+   "No stubs for {framework} in {scope} — project policy prohibits
+   new coverage (source: {file}, {section})."
+ - If the restriction is `ambiguous`: do not plan stubs for it.
+   Record: "No stubs for {framework} — conflicting or unclear
+   guidance. Sources: {list}. Clarify with the user during `/revise`
+   before planning stubs."
+ - If the restriction is `unresolved`: do not plan stubs for it.
+   Record: "No stubs for {framework} in {scope} — policy source
+   unreadable ({file}). Resolve via `/revise` or recover the source."
+ - If the restriction is `none`: plan stubs for that framework
+   normally.
+ - If no e2e framework is present: "No stubs — no e2e framework in
+   project."}
+
+- **Framework(s):** {discovered e2e framework(s), or "None"}
+- **Policy restriction:** {per-framework: `none` | `prohibited` | `ambiguous` | `unresolved` — from E2E Coverage Policy}
+- **Scope:** {per-framework: path scope of the restriction, or "all paths"}
+- **Stubs planned:** {per-framework list of test scenarios, or reason stubs are omitted}
 
 ### Coverage Goals
 

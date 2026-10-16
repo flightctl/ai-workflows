@@ -150,6 +150,48 @@ Verify that the story's changes haven't broken existing functionality:
 1. Run the full unit test suite (not just affected packages)
 2. Run the full build (if applicable)
 3. Check for any test failures unrelated to the story
+4. **E2E coverage policy:** re-read the project's current `AGENTS.md`,
+   `CLAUDE.md`, and any testing guidance they reference for explicit
+   directives about new e2e coverage. Compare against the E2E Coverage
+   Policy section of `01-context.md` (if present). This re-read is
+   unconditional — perform it whether the section is present, absent,
+   or was populated during a prior command — because source guidance
+   can change between workflow commands. If a Source file has changed
+   since the entry was recorded, re-evaluate that framework's
+   restriction. If a source file is missing or unreadable, do not
+   treat that as evidence of no restriction; report the unresolved
+   source. Apply restrictions per framework and per applicable path
+   scope — a Cypress-only prohibition does not affect Playwright
+   stubs, and a restriction scoped to one path does not apply outside
+   that path.
+
+   When the restriction is `prohibited` for a given framework, the
+   absence of stubs for that framework is expected and must not be
+   flagged as a coverage gap. Additionally, verify the story's diff
+   does not contain new test specs, added test cases or coverage in
+   existing specs, or pending/skipped placeholder tests for that
+   framework. If any are found, flag them as a policy violation and
+   report the specific files/lines.
+
+   When the restriction is `ambiguous`, report the unresolved status
+   truthfully — do not label it as "policy prohibits" or silently pass
+   it as "respected." Note the ambiguity in the validation report and
+   recommend resolving it via `/revise`.
+
+   When the restriction is `unresolved` (a known, referenced, or
+   previously recorded policy source is missing or unreadable),
+   verify the story's diff does not contain new test specs, added
+   test cases or coverage in existing specs, or pending/skipped
+   placeholder tests for that framework within the affected scope —
+   the same checks as `prohibited`. Report "unresolved — policy
+   source missing/unreadable ({file})" in the validation report and
+   recommend recovering the source or resolving via `/revise`. Do
+   not treat `unresolved` as permission to write new coverage or
+   stubs, and do not suppress other frameworks or scopes. Existing
+   required test runs are preserved.
+
+   The existing e2e test suite must still pass for all frameworks —
+   the policy restricts new coverage, not existing validation.
 
 If regressions are found:
 - Diagnose whether the story's changes caused them
@@ -311,6 +353,7 @@ Write `.artifacts/ui-implement/{issue-key}/05-validation-report.md`:
 | i18n completeness | {pass/issues found} | {details} |
 | Accessibility | {pass/issues found} | {details} |
 | State completeness | {pass/issues found} | {details} |
+| E2E coverage policy | {per-framework: respected/violated/unresolved/N/A} | {prohibited: "No new {framework} coverage — diff verified clean (source: {file})" / ambiguous: "Unresolved — guidance unclear, recommend `/revise` (sources: {list})" / unresolved: "Unresolved — policy source unreadable ({file}), no new stubs written, recommend `/revise`" / none: "No restriction — stubs written per plan" / no framework: "N/A"} |
 
 ## Quality Review Findings
 

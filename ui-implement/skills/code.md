@@ -472,7 +472,43 @@ interrupted.
 
 After all plan tasks are complete (all marked `Done`), check whether the
 plan's Test Strategy → Integration/E2E Test Stubs section specifies stubs
-to write. If it does:
+to write.
+
+**Policy gate:** Before writing any stubs, re-read the project's current
+`AGENTS.md`, `CLAUDE.md`, and any testing guidance they reference for
+explicit directives about new e2e coverage for each framework the plan
+targets. Compare against the E2E Coverage Policy section of
+`01-context.md` (if present). This re-read is unconditional — perform
+it whether the section is present, absent, or was populated by a prior
+ingest — because source guidance can change between workflow commands.
+If the section is absent, perform full discovery and record the result.
+If the section is present but a Source file has changed since it was
+recorded, re-evaluate that framework's restriction. Preserve user
+clarifications from `/revise` only when the underlying source guidance
+they addressed has not changed. If a source file is missing or
+unreadable, do not treat that as evidence of no restriction; report the
+unresolved source. Record any backfilled or updated result in the
+implementation report.
+
+Apply the restriction **per framework and per applicable path scope**: a
+prohibition scoped to one framework (e.g. Cypress) does not suppress
+stubs for a different discovered framework (e.g. Playwright), and a
+restriction scoped to a specific path does not apply outside that path.
+For each framework with stubs planned:
+
+- `prohibited` (within the story's paths) → skip stubs for that
+  framework in those paths. Record the skip reason, source, and scope
+  in the implementation report (Step 6).
+- `ambiguous` → skip stubs for that framework. Note that the user must
+  clarify the conflicting guidance before stubs can be written.
+- `unresolved` → skip stubs for that framework/scope. Record that the
+  policy source is unreadable and stubs are deferred pending source
+  recovery or user clarification via `/revise`.
+- `none` → proceed with stubs for that framework.
+
+If all frameworks are skipped, record the overall skip in Step 6.
+
+For each framework with restriction `none` and stubs planned:
 
 1. Read the project's existing e2e test files (discovered during `/ingest`)
    to match patterns — file naming, describe block structure, test
