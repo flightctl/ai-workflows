@@ -251,6 +251,56 @@ sections directly.
 two-digit zero-padded counter within that requirement. Examples:
 `TC-FR1-01`, `TC-FR1-02`, `TC-NFR3-01`.
 
+**Shared preconditions:** When *all* test cases under the same
+requirement share identical setup (e.g., same fleet enrollment state,
+same configuration baseline), extract the common setup into a
+`##### Shared Preconditions` block directly under the `### FR-N` /
+`### NFR-N` heading, before the first test case. Individual test
+cases then list only their *additional* preconditions (if any) under
+`##### Additional Preconditions` — or omit that subsection entirely
+when the shared preconditions are sufficient. If only a subset of
+cases shares setup, keep inline preconditions on each case instead.
+
+**Compact format for simple cases:** When a test case has ≤ 2 steps
+and a single expected result, use inline format instead of subsection
+headings:
+
+```markdown
+**Steps:** 1. {action} → 2. {action}
+**Expected:** {observable outcome}
+```
+
+**Parameterized test cases:** When multiple test cases share identical
+preconditions AND steps but differ only in a parameter value and its
+expected result, express them as a single test case with a
+parameterization table under Expected Results instead of duplicating
+the entire case. All other required fields (metadata table, Steps)
+remain present — the variation table supplements them, not replaces
+them:
+
+```markdown
+#### TC-FR1-01: {scenario title} (parameterized)
+
+| Interface Change | Priority | Automation |
+|-----------------|----------|------------|
+| IC-{N} | {priority} | {automation} |
+
+##### Steps
+
+1. {action with `{parameter}` placeholder}
+2. {next action}
+
+##### Expected Results
+
+| {Parameter} | Expected Result |
+|-------------|-----------------|
+| {value-1}   | {outcome-1}     |
+| {value-2}   | {outcome-2}     |
+```
+
+Each row counts as one test case for the Summary counts. The TC ID
+covers all rows (do not assign separate IDs to individual rows).
+
 **Test case fields** (all required per test case; the requirement is
 identified by the parent section heading):
 
@@ -289,6 +339,12 @@ change in the design.
 or design specifies error handling behavior. Do not invent error
 scenarios beyond what the requirements and design describe.
 
+**Documentation-only requirements:** Requirements that are satisfied
+by documentation delivery — not system behavior — should be listed in
+the Requirement Coverage Gaps section as documentation-only with a
+brief rationale. Do not generate test cases with Steps and Expected
+Results for documentation deliverables.
+
 **Expected Results quality gate:** The Expected Results section must
 describe concrete, observable outcomes — not restatements of the
 requirements in vaguer terms. Banned phrases in Expected Results:
@@ -307,6 +363,30 @@ you cannot state the expected result concretely, the requirement or
 design is underspecified — flag it in the testplan's Gaps section
 rather than writing a vague test case.
 
+**Observability rule:** Every Expected Results section must describe
+an outcome observable through the product's *public interfaces* — API
+responses, CLI output, device behavior, operator-visible conditions
+or events, documented file formats. Internal state (database rows,
+internal lookup keys, scheduler queue internals) must not be the
+primary assertion. If a requirement can only be verified by inspecting
+internal state, flag it as a testplan gap — the requirement itself may
+need refinement to expose an observable surface.
+
+**Final-state rule:** If a requirement's customer value is a final
+outcome (device updated, delta applied, fallback succeeded), test the
+final outcome. Do not generate test cases for intermediate condition
+or event sequences (e.g., conditions flipping through phases, events
+progressing through stages) unless the intermediate state is itself a
+customer-facing feature such as a progress indicator the user actively
+monitors.
+
+**Redundancy rule:** If an API field's presence is already proven by
+an e2e test case that exercises the behavior consuming that field, do
+not add a separate field-existence test case. For example, if a test
+case verifies that a device applies a delta (proving `deltaImage`
+exists in the rendered spec), a separate test verifying that
+`deltaImage` is present in the API response is redundant.
+
 #### 9b: Write the Testplan
 
 Write `.artifacts/design/{issue-key}/04-testplan.md`:
@@ -321,9 +401,21 @@ Write `.artifacts/design/{issue-key}/04-testplan.md`:
 - **Requirements covered:** {N} of {total FR + NFR count}
 - **Interface changes covered:** {N} of {total IC count}
 
+## Test Case Index
+
+| ID | Scenario | IC | Priority |
+|----|----------|----|----------|
+| TC-FR1-01 | {one-line scenario} | IC-1 | high |
+| TC-FR1-02 | {one-line scenario} | IC-1 | medium |
+| TC-NFR1-01 | {one-line scenario} | — | high |
+
 ## Test Cases
 
 ### FR-1: {requirement description}
+
+##### Shared Preconditions
+
+- {common setup shared by all test cases under this requirement}
 
 #### TC-FR1-01: {scenario title}
 
@@ -331,18 +423,21 @@ Write `.artifacts/design/{issue-key}/04-testplan.md`:
 |-----------------|----------|------------|
 | IC-1 | high | automated |
 
-##### Preconditions
+##### Additional Preconditions
 
-- {system state required before the test}
+- {extra setup beyond the shared preconditions — omit section if none}
 
-##### Steps
+**Steps:** 1. {what the tester does} → 2. {next action}
+**Expected:** {observable outcome the tester verifies}
 
-1. {what the tester does}
-2. {next action}
+#### TC-FR1-02: {compact-case scenario title}
 
-##### Expected Results
+| Interface Change | Priority | Automation |
+|-----------------|----------|------------|
+| IC-1 | medium | automated |
 
-- {observable outcome the tester verifies}
+**Steps:** 1. {action} → 2. {action}
+**Expected:** {observable outcome}
 
 ### NFR-1: {requirement description}
 
@@ -352,14 +447,11 @@ Write `.artifacts/design/{issue-key}/04-testplan.md`:
 |-----------------|----------|------------|
 | — | high | manual |
 
-##### Preconditions
-
-- {precondition}
-
 ##### Steps
 
 1. {step}
 2. {step}
+3. {compare or verify against a baseline or control}
 
 ##### Expected Results
 
@@ -401,6 +493,13 @@ Write `.artifacts/design/{issue-key}/04-testplan.md`:
 Test cases are grouped under requirement headings because the
 testplan's purpose is requirement traceability. The Interface Change
 field in each test case's metadata table links to the design's §5.
+The Test Case Index gives reviewers a one-screen overview of all
+scenarios before they read the full body. Shared Preconditions reduce
+repetition when cases under the same requirement share identical
+setup. The compact inline format (Steps/Expected on single lines) is
+used for simple cases with ≤ 2 steps and one expected result.
+Parameterized test cases collapse near-identical cases that differ
+only in a parameter value into a single case with a variation table.
 
 #### 9c: Self-Review
 
@@ -412,13 +511,21 @@ Before presenting the testplan, verify:
 - [ ] Every `—` Interface Change value is used only for a requirement without a direct IC mapping
 - [ ] Every IC named in an Interface Change Coverage Gap entry exists in §5
 - [ ] Expected Results contain no banned vague phrases
+- [ ] Every Expected Results section (or compact `**Expected:**` field) asserts outcomes observable through public interfaces; no test case's primary assertion references internal state (database rows, lookup keys, scheduler internals)
+- [ ] No test case's Expected Results section (or compact `**Expected:**` field) describes intermediate condition/event sequences when only the final outcome is customer-relevant
+- [ ] No test case duplicates an assertion already covered by an e2e behavior test (e.g., field-existence check redundant with a behavior test)
+- [ ] Documentation-only requirements appear in Gaps, not as test cases
 - [ ] Priority assignment follows the Step 9a criteria (`critical` = core workflows or data integrity; `high` = important non-core; `medium` = edge cases and secondary workflows; `low` = cosmetic or informational) and is not defaulted to `high` across the board
-- [ ] All test case fields are present and non-empty — heading, metadata table, Preconditions, Steps, and Expected Results — with actionable Preconditions and Steps (not placeholder or empty headings)
+- [ ] All test case fields are present and non-empty — heading, metadata table, Steps, and Expected Results (full subsections or compact inline format) — with actionable content (not placeholder or empty headings)
+- [ ] When all test cases under the same requirement share identical setup, a non-empty, actionable Shared Preconditions block is present under the requirement heading — individual cases use a non-empty, actionable Additional Preconditions block when case-specific setup exists, and omit Additional Preconditions entirely when no case-specific setup exists — if only a subset of cases shares setup, each case keeps its own inline preconditions instead
+- [ ] Compact inline format (`**Steps:**` / `**Expected:**`) is used for every case with ≤ 2 steps and a single expected result, and never for cases that exceed those limits
+- [ ] Parameterized test cases are used when cases share identical preconditions and steps but differ only in parameter values — the variation table has at least two rows with different parameter values and a concrete expected result in every row — each row counts toward the Summary totals
+- [ ] The Test Case Index is complete — every TC ID appears exactly once, and the Scenario, IC, and Priority columns match the corresponding test case body
 - [ ] Gap analysis is accurate — requirement and IC coverage gaps are identified with rationale
 - [ ] Test case IDs follow the scheme (`TC-{req}-{NN}`) with no duplicates
 - [ ] Each test case's `TC-{req}-{NN}` prefix matches the PRD requirement heading it is grouped under (a `TC-FR2-*` case never appears under `### FR-1`)
 - [ ] Every `### FR-*` / `### NFR-*` requirement heading matches a real PRD requirement, and every PRD requirement appears exactly once — either as a requirement heading with test cases or in the Requirement Coverage Gaps section
-- [ ] The Overview counts and Summary table are accurate
+- [ ] The Overview counts and Summary table are accurate (parameterized rows are counted individually)
 
 #### 9d: Write Artifact
 
