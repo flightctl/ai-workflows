@@ -447,7 +447,7 @@ git merge origin/{local-base}
 
 If the operation applies cleanly, re-run the task's tests to confirm
 the committed work still passes against the updated base. If tests
-fail, diagnose using the failure routing in Step 4.
+fail, diagnose using the failure routing in Step 5.
 
 **If there are conflicts:**
 
@@ -468,7 +468,7 @@ Update the status immediately after each task, not in bulk at the end.
 This is the checkpoint that allows the session to resume correctly if
 interrupted.
 
-### Step 3-post: Write Integration/E2E Test Stubs
+### Step 4: Write Integration/E2E Test Stubs
 
 After all plan tasks are complete (all marked `Done`), check whether the
 plan's Test Strategy → Integration/E2E Test Stubs section specifies stubs
@@ -495,11 +495,17 @@ prohibition scoped to one framework (e.g. Cypress) does not suppress
 stubs for a different discovered framework (e.g. Playwright), and a
 restriction scoped to a specific path does not apply outside that path.
 For each planned stub, determine the effective restriction by
-evaluating all applicable policy entries for that framework and path:
+evaluating all applicable policy entries for that framework and path.
+Apply the same repository-authorized policy-resolution rules used in
+`/plan`: `none` (no explicit restriction found) is not permission to
+bypass a separate broader prohibition from an authoritative source;
+conflicts between authoritative entries stay `ambiguous` unless the
+repository's own precedence resolves them. Do not blindly reuse a
+stale plan result — recompute from current readable sources:
 
 - `prohibited` (within the story's paths) → skip stubs for that
   framework in those paths. Record the skip reason, source, and scope
-  in the implementation report (Step 6).
+  in the implementation report (Step 7).
 - `ambiguous` (within the affected scope) → skip stubs for that
   framework in the ambiguous paths. Other paths for the same framework
   remain eligible if their own effective policy permits. Note that the
@@ -508,11 +514,12 @@ evaluating all applicable policy entries for that framework and path:
 - `unresolved` → skip stubs for that framework/scope. Record that the
   policy source is missing or unreadable and stubs are deferred
   pending source recovery.
-- `none` → proceed with stubs for that framework.
+- `none` (after evaluating all applicable entries) → proceed with
+  stubs for that framework in the permitted path scope.
 
-If all frameworks are skipped, record the overall skip in Step 6.
+If all frameworks are skipped, record the overall skip in Step 7.
 
-For each framework with restriction `none` and stubs planned:
+For each planned stub whose effective restriction is `none`:
 
 1. Read the project's existing e2e test files (discovered during `/ingest`)
    to match patterns — file naming, describe block structure, test
@@ -537,7 +544,7 @@ git commit -m "{discovered commit format with stub description}"
 
 If the project has no e2e framework, skip this step entirely.
 
-### Step 4: Diagnostic Failure Routing
+### Step 5: Diagnostic Failure Routing
 
 When tests fail, diagnose **where** the problem is before fixing:
 
@@ -550,7 +557,7 @@ When tests fail, diagnose **where** the problem is before fixing:
 | **Provider/wrapper missing** | Test fails because a required context provider is not in the test render wrapper | Add the provider to the test setup |
 | **Environment issue** | Test infrastructure unavailable, missing dependency | Report to user — this is not a code problem |
 
-### Step 5: Deviation Rules
+### Step 6: Deviation Rules
 
 During implementation, you may encounter unexpected situations:
 
@@ -565,7 +572,7 @@ During implementation, you may encounter unexpected situations:
 | Implementation is significantly more complex than planned | **Stop and ask the user** — the story may need re-scoping | Required |
 | Accessibility requirement unclear or conflicting | **Stop and ask the user** — a11y must not be guessed | Required |
 
-### Step 6: Write Reports
+### Step 7: Write Reports
 
 After all tasks are complete (or if interrupted), write:
 

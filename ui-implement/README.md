@@ -241,7 +241,7 @@ behaves under different project configurations. These are instruction-level
 contracts — the workflow instructions specify this behavior; actual execution
 depends on the LLM following the instructions at runtime.
 
-| Scenario | Ingest | Plan | Code (Step 3-post) | Validate |
+| Scenario | Ingest | Plan | Code (Step 4) | Validate |
 |----------|--------|------|---------------------|----------|
 | No E2E framework discovered | Policy section omitted | "No stubs — no e2e framework" | Step skipped entirely | No stub gap flagged |
 | Framework present, no restriction (`none`) | Records `none` per framework | Plans stubs normally | Writes stubs normally | Reports stubs per plan |
@@ -268,3 +268,5 @@ depends on the LLM following the instructions at runtime.
 | `unresolved` prevents coverage AND stubs | — | No new coverage or stubs for affected framework/scope | No new specs, cases, coverage, or stubs | Verifies diff has no new specs/cases/coverage/stubs in affected scope; existing tests preserved |
 | Separate broad prohibition still applies across paths | — | Even if one path's ambiguity is resolved, a separate applicable prohibition still blocks | Honors effective policy after considering all applicable entries; a broad prohibition is not bypassed by a narrower resolution | Validates against all applicable entries |
 | Restriction scoped to specific path (e.g. `cypress/`) | Records scope per entry | Applies restriction only within scoped path; plans stubs outside scope normally | Writes stubs only outside scoped path | Verifies no new coverage within scoped path; allows stubs outside |
+| Broad prohibition + narrow `none`: generation recomputes | — | — | Recomputes from current sources; inferred narrow `none` does not bypass broader explicit prohibition; writes stubs only where effective restriction is `none` | Validates against freshly computed effective policy |
+| Prohibited scope: validation checks only within scope | — | — | — | Checks new specs/cases/coverage/stubs within prohibited path scope only; stubs outside the scope evaluated by their own effective policy |

@@ -287,7 +287,7 @@ Write `.artifacts/ui-implement/{issue-key}/02-plan.md` with this structure:
 ...
 
 Integration/e2e test stubs are **not** a numbered task. They are handled
-by `/code`'s Step 3-post after all implementation tasks complete. Do not
+by `/code`'s Step 4 after all implementation tasks complete. Do not
 include a task for e2e stubs in the breakdown — the code phase owns that
 step.
 
@@ -365,7 +365,7 @@ Before presenting the plan, verify:
 - [ ] i18n wrapping is planned for all user-visible strings (if i18n exists)
 - [ ] Accessibility attributes are specified for all interactive elements
 - [ ] Loading, error, and empty states are planned where applicable
-- [ ] Integration/e2e test stubs are described in the Test Strategy section (not as a numbered task — `/code`'s Step 3-post handles execution)
+- [ ] Integration/e2e test stubs are described in the Test Strategy section (not as a numbered task — `/code`'s Step 4 handles execution)
 
 ### Step 6: Present to User
 

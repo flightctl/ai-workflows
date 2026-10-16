@@ -165,12 +165,15 @@ Verify that the story's changes haven't broken existing functionality:
    stubs, and a restriction scoped to one path does not apply outside
    that path.
 
-   When the restriction is `prohibited` for a given framework, the
-   absence of stubs for that framework is expected and must not be
-   flagged as a coverage gap. Additionally, verify the story's diff
-   does not contain new test specs, added test cases or coverage in
-   existing specs, or pending/skipped placeholder tests for that
-   framework. If any are found, flag them as a policy violation and
+   When the restriction is `prohibited` for a given framework within
+   a specific path scope, the absence of stubs for that framework in
+   that scope is expected and must not be flagged as a coverage gap.
+   Additionally, verify the story's diff does not contain new test
+   specs, added test cases or coverage in existing specs, or
+   pending/skipped placeholder tests for that framework within the
+   prohibited path scope. Stubs outside the prohibited scope are
+   evaluated by their own effective policy. If violations are found
+   within the prohibited scope, flag them as a policy violation and
    report the specific files/lines.
 
    When the restriction is `ambiguous` for a given scope, report the
