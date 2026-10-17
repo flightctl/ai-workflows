@@ -119,6 +119,13 @@ Before writing the plan, create a mental map:
 - What accessibility requirements apply (ARIA roles, keyboard navigation, screen reader text)?
 - Are there loading, error, and empty states to implement?
 - Are there permission gates to implement?
+- Does the E2E Coverage Policy restrict new e2e test stubs? Read and
+  follow `../../_shared/recipes/e2e-coverage-policy.md` with
+  PRIOR_ENTRIES from `01-context.md` and DISCOVERED_FRAMEWORKS from
+  the E2E Framework section. Merge returned entries into the E2E
+  Coverage Policy section of `01-context.md` (preserving other
+  sections) before planning stubs (see the Integration/E2E Test Stubs
+  template).
 
 ### Step 4: Write the Implementation Plan
 
@@ -195,10 +202,24 @@ Write `.artifacts/ui-implement/{issue-key}/02-plan.md` with this structure:
 
 ### Integration/E2E Test Stubs
 
-{Written after all tasks complete. Describe what stubs will cover:}
+{Written after all tasks complete. Describe what stubs will cover.
+ The recipe was already invoked in Step 3 and its returned entries
+ merged into `01-context.md`. Use the effective restrictions from
+ that merge to determine stubs per planned artifact's framework and
+ path:
+ - `prohibited` → "No stubs for {framework} in {scope} — project
+   policy prohibits new coverage (source: {file}, {section})."
+ - `ambiguous` → "No stubs for {framework} in {scope} — conflicting
+   or unclear guidance. Sources: {list}. Clarify via `/revise`."
+ - `unresolved` → "No stubs for {framework} in {scope} — policy
+   source unreadable ({file}). Recover the source to re-evaluate."
+ - `none` → plan stubs for that framework normally.
+ - No e2e framework → "No stubs — no e2e framework in project."}
 
-- **Framework:** {discovered e2e framework, or "None — project has no e2e framework"}
-- **Stubs planned:** {list of test scenarios, or "No stubs — no e2e framework in project"}
+- **Framework(s):** {discovered e2e framework(s), or "None"}
+- **Policy restriction:** {per entry: `none` | `prohibited` | `ambiguous` | `unresolved` — from E2E Coverage Policy; list each framework/scope entry}
+- **Scope:** {per entry: path scope of the restriction, or "all paths"}
+- **Stubs planned:** {per-framework list of test scenarios, or reason stubs are omitted}
 
 ### Coverage Goals
 
@@ -240,7 +261,7 @@ Write `.artifacts/ui-implement/{issue-key}/02-plan.md` with this structure:
 ...
 
 Integration/e2e test stubs are **not** a numbered task. They are handled
-by `/code`'s Step 3-post after all implementation tasks complete. Do not
+by `/code`'s Step 4 after all implementation tasks complete. Do not
 include a task for e2e stubs in the breakdown — the code phase owns that
 step.
 
@@ -318,7 +339,7 @@ Before presenting the plan, verify:
 - [ ] i18n wrapping is planned for all user-visible strings (if i18n exists)
 - [ ] Accessibility attributes are specified for all interactive elements
 - [ ] Loading, error, and empty states are planned where applicable
-- [ ] Integration/e2e test stubs are described in the Test Strategy section (not as a numbered task — `/code`'s Step 3-post handles execution)
+- [ ] Integration/e2e test stubs are described in the Test Strategy section (not as a numbered task — `/code`'s Step 4 handles execution)
 
 ### Step 6: Present to User
 
@@ -333,6 +354,7 @@ Show the user the complete plan and highlight:
 
 ## Output
 
+- `.artifacts/ui-implement/{issue-key}/01-context.md` (E2E Coverage Policy section refreshed)
 - `.artifacts/ui-implement/{issue-key}/02-plan.md`
 
 ## When This Phase Is Done

@@ -447,7 +447,7 @@ git merge origin/{local-base}
 
 If the operation applies cleanly, re-run the task's tests to confirm
 the committed work still passes against the updated base. If tests
-fail, diagnose using the failure routing in Step 4.
+fail, diagnose using the failure routing in Step 5.
 
 **If there are conflicts:**
 
@@ -468,11 +468,40 @@ Update the status immediately after each task, not in bulk at the end.
 This is the checkpoint that allows the session to resume correctly if
 interrupted.
 
-### Step 3-post: Write Integration/E2E Test Stubs
+### Step 4: Write Integration/E2E Test Stubs
 
 After all plan tasks are complete (all marked `Done`), check whether the
 plan's Test Strategy → Integration/E2E Test Stubs section specifies stubs
-to write. If it does:
+to write.
+
+**Policy gate:** Before writing any stubs, read and follow
+`../../_shared/recipes/e2e-coverage-policy.md` with:
+
+- PRIOR_ENTRIES: current E2E Coverage Policy entries from `01-context.md`
+- DISCOVERED_FRAMEWORKS: from the E2E Framework section of `01-context.md`
+  (the canonical framework list, not the plan's Test Strategy)
+
+Merge the recipe's returned entries and effective restrictions into the
+E2E Coverage Policy section of `01-context.md`, preserving other context
+sections. Then use the effective restriction for each planned stub's
+framework and path. The plan provides target artifact paths, but the
+canonical framework list and fresh policy come from context:
+
+- `prohibited` → skip stubs for that framework in those paths. Record
+  the skip reason, source, and scope in the implementation report
+  (Step 7).
+- `ambiguous` → skip stubs for that framework in the ambiguous paths.
+  Other paths remain eligible if their own effective policy permits.
+  Note that the user must clarify via `/revise`.
+- `unresolved` → skip stubs for that framework/scope. Record that
+  the policy source is missing or unreadable and stubs are deferred
+  pending source recovery.
+- `none` → proceed with stubs for that framework in the permitted
+  path scope.
+
+If all frameworks are skipped, record the overall skip in Step 7.
+
+For each planned stub whose effective restriction is `none`:
 
 1. Read the project's existing e2e test files (discovered during `/ingest`)
    to match patterns — file naming, describe block structure, test
@@ -497,7 +526,7 @@ git commit -m "{discovered commit format with stub description}"
 
 If the project has no e2e framework, skip this step entirely.
 
-### Step 4: Diagnostic Failure Routing
+### Step 5: Diagnostic Failure Routing
 
 When tests fail, diagnose **where** the problem is before fixing:
 
@@ -510,7 +539,7 @@ When tests fail, diagnose **where** the problem is before fixing:
 | **Provider/wrapper missing** | Test fails because a required context provider is not in the test render wrapper | Add the provider to the test setup |
 | **Environment issue** | Test infrastructure unavailable, missing dependency | Report to user — this is not a code problem |
 
-### Step 5: Deviation Rules
+### Step 6: Deviation Rules
 
 During implementation, you may encounter unexpected situations:
 
@@ -525,7 +554,7 @@ During implementation, you may encounter unexpected situations:
 | Implementation is significantly more complex than planned | **Stop and ask the user** — the story may need re-scoping | Required |
 | Accessibility requirement unclear or conflicting | **Stop and ask the user** — a11y must not be guessed | Required |
 
-### Step 6: Write Reports
+### Step 7: Write Reports
 
 After all tasks are complete (or if interrupted), write:
 
@@ -615,6 +644,7 @@ After all tasks are complete (or if interrupted), write:
 - Production code in the source repo (on the feature branch)
 - Integration/e2e test stubs (if applicable)
 - Incremental commits (following the project's commit format)
+- `.artifacts/ui-implement/{issue-key}/01-context.md` (E2E Coverage Policy section refreshed)
 - `.artifacts/ui-implement/{issue-key}/02-plan.md` (updated with task status)
 - `.artifacts/ui-implement/{issue-key}/03-test-report.md`
 - `.artifacts/ui-implement/{issue-key}/04-impl-report.md`
