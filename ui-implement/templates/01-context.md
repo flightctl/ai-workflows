@@ -152,41 +152,17 @@
 
 ### E2E Coverage Policy
 
-{Record one entry per discovered E2E framework and scope combination.
-When a single policy applies project-wide, one entry with scope "all
-paths" suffices. When policies differ by path for the same framework,
-record separate entries. A restriction scoped to one framework does
-not apply to others.}
+{One entry per discovered E2E framework/scope combination. Populated
+and refreshed by `_shared/recipes/e2e-coverage-policy.md` — see that
+recipe for restriction values, resolution rules, and invariants.
+If no E2E framework was discovered, omit this section entirely.}
 
 - **Framework:** {framework name, e.g. "Cypress"}
 - **Restriction:** {`none` | `prohibited` | `ambiguous` | `unresolved`}
-- **Scope:** {path or area the restriction applies to, e.g. "all paths", "cypress/", "src/components/", or "N/A — no scoped restriction"}
-- **Source:** {file path and section/heading where the policy was found, or "N/A — no applicable policy found"}
-- **Details:** {verbatim or closely paraphrased policy language, or "No explicit policy — default discovery-based behavior applies"}
-- **Resolution:** {only when a user clarification resolved a READABLE `ambiguous` restriction during `/revise`: the user's decision (permitted or prohibited), its scope, "user decision during /revise" as provenance, and a brief excerpt or identity of the relevant source guidance at the time of the decision. Omit this field when no user clarification exists. User clarification cannot resolve `unresolved` (unreadable/missing source) — that requires source recovery. A prior Resolution may remain as audit information while unresolved but is not effective permission until a fresh read confirms the guidance is unchanged. Source always retains the original repository file/section. Restriction is updated to the effective resolved value for readable ambiguity only.}
-
-{Restriction values:
-- `none` — no explicit restriction found, including when optional AI
-  convention files (`AGENTS.md`/`CLAUDE.md`) are absent from the
-  project. An absent optional file is complete discovery, not an
-  unresolved source. Default discovery-based behavior applies.
-- `prohibited` — an explicit directive forbids new coverage for this
-  framework within the stated Scope.
-- `ambiguous` — wording is unclear or conflicts with other guidance.
-  Record both sources for user clarification.
-- `unresolved` — a known, referenced, or previously recorded
-  applicable policy source is missing or cannot be read/parsed.
-  Prevents new coverage or stubs for the affected framework/scope
-  only; does not suppress other frameworks or scopes. A previously
-  recorded source that is now missing stays `unresolved`, not `none`.
-  Not used for optional convention files that were never present and
-  never recorded.
-Record the applicable path Scope — use "all paths" when project-wide.
-If no E2E framework was discovered, omit this section entirely.
-Downstream commands re-read source files before each policy decision
-and update this section if the source has changed. User clarifications
-(Resolution field) are preserved only when the underlying Source
-guidance has not changed since the clarification was made.}
+- **Scope:** {path scope, e.g. "all paths", "cypress/", "src/components/"}
+- **Source:** {file path and section/heading, or "N/A"}
+- **Details:** {policy language or "No explicit policy — default applies"}
+- **Resolution:** {user clarification from `/revise` if any: decision, scope, provenance, source excerpt. Omit when none exists. Only readable `ambiguous` can be user-resolved; `unresolved` requires source recovery. See recipe Step 3.}
 
 ## Validation Profile
 

@@ -150,50 +150,27 @@ Verify that the story's changes haven't broken existing functionality:
 1. Run the full unit test suite (not just affected packages)
 2. Run the full build (if applicable)
 3. Check for any test failures unrelated to the story
-4. **E2E coverage policy:** re-read the project's current `AGENTS.md`,
-   `CLAUDE.md`, and any testing guidance they reference for explicit
-   directives about new e2e coverage. Compare against the E2E Coverage
-   Policy section of `01-context.md` (if present). This re-read is
-   unconditional — perform it whether the section is present, absent,
-   or was populated during a prior command — because source guidance
-   can change between workflow commands. If a Source file has changed
-   since the entry was recorded, re-evaluate that framework's
-   restriction. If a source file is missing or unreadable, do not
-   treat that as evidence of no restriction; report the unresolved
-   source. Apply restrictions per framework and per applicable path
-   scope — a Cypress-only prohibition does not affect Playwright
-   stubs, and a restriction scoped to one path does not apply outside
-   that path.
+4. **E2E coverage policy:** read and follow
+   `../../_shared/recipes/e2e-coverage-policy.md` with PHASE=`validate`,
+   CONTEXT_PATH=this story's `01-context.md`, and
+   DISCOVERED_FRAMEWORKS from the context. The recipe freshly re-reads
+   current sources and refreshes the classification.
 
-   When the restriction is `prohibited` for a given framework within
-   a specific path scope, the absence of stubs for that framework in
-   that scope is expected and must not be flagged as a coverage gap.
-   Additionally, verify the story's diff does not contain new test
-   specs, added test cases or coverage in existing specs, or
-   pending/skipped placeholder tests for that framework within the
-   prohibited path scope. Stubs outside the prohibited scope are
-   evaluated by their own effective policy. If violations are found
-   within the prohibited scope, flag them as a policy violation and
-   report the specific files/lines.
+   Then enforce policy per the recipe's effective restriction for each
+   framework and applicable path scope:
 
-   When the restriction is `ambiguous` for a given scope, report the
-   unresolved status truthfully for the affected paths — do not label
-   it as "policy prohibits" or silently pass it as "respected." Other
-   paths for the same framework are evaluated by their own effective
-   policy. Note the ambiguity in the validation report and recommend
-   resolving it via `/revise`.
-
-   When the restriction is `unresolved` (a known, referenced, or
-   previously recorded policy source is missing or unreadable),
-   verify the story's diff does not contain new test specs, added
-   test cases or coverage in existing specs, or pending/skipped
-   placeholder tests for that framework within the affected scope —
-   the same checks as `prohibited`. Report "unresolved — policy
-   source missing/unreadable ({file})" in the validation report and
-   recommend recovering the source to re-evaluate the policy. Do
-   not treat `unresolved` as permission to write new coverage or
-   stubs, and do not suppress other frameworks or scopes. Existing
-   required test runs are preserved.
+   - `prohibited` (within a specific path scope): the absence of stubs
+     in that scope is expected. Verify the story's diff does not
+     contain new test specs, added test cases or coverage in existing
+     specs, or pending/skipped placeholder tests for that framework
+     within the prohibited path scope. Stubs outside the prohibited
+     scope are evaluated by their own effective policy.
+   - `ambiguous`: report truthfully for the affected paths; recommend
+     `/revise`. Other paths evaluated by their own effective policy.
+   - `unresolved`: same diff checks as `prohibited` within the
+     affected scope. Report "unresolved — policy source
+     missing/unreadable ({file})" and recommend recovering the source.
+   - `none`: stubs written per plan; no violation.
 
    The existing e2e test suite must still pass for all frameworks —
    the policy restricts new coverage, not existing validation.

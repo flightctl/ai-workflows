@@ -152,7 +152,7 @@ The workflow does not hardcode any tool assumptions. During `/ingest`, it discov
 - State management approach
 - Routing library
 - E2e framework (Cypress, Playwright, etc.)
-- E2e coverage policy — per-framework restrictions from AI convention files
+- E2e coverage policy — per-framework/path restrictions via `_shared/recipes/e2e-coverage-policy.md`
 - Permission/RBAC patterns
 - Build, test, lint, and type-check commands
 
@@ -240,6 +240,13 @@ The following matrix describes how E2E test stub planning and generation
 behaves under different project configurations. These are instruction-level
 contracts — the workflow instructions specify this behavior; actual execution
 depends on the LLM following the instructions at runtime.
+
+All five phases invoke `_shared/recipes/e2e-coverage-policy.md` unconditionally before policy decisions:
+- **Ingest**: PHASE=ingest — discovers frameworks, records initial evidence; caller persists in Step 8/8a
+- **Plan**: PHASE=plan — freshly refreshes before stub strategy per artifact path
+- **Revise**: PHASE=revise — freshly refreshes; handles user clarification for readable ambiguity; persists Resolution
+- **Code**: PHASE=code — recomputes from current sources before writing stubs; never trusts stale plan
+- **Validate**: PHASE=validate — freshly refreshes before diff enforcement within applicable scope
 
 | Scenario | Ingest | Plan | Code (Step 4) | Validate |
 |----------|--------|------|---------------------|----------|

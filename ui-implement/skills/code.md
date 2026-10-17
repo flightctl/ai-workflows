@@ -474,48 +474,30 @@ After all plan tasks are complete (all marked `Done`), check whether the
 plan's Test Strategy → Integration/E2E Test Stubs section specifies stubs
 to write.
 
-**Policy gate:** Before writing any stubs, re-read the project's current
-`AGENTS.md`, `CLAUDE.md`, and any testing guidance they reference for
-explicit directives about new e2e coverage for each framework the plan
-targets. Compare against the E2E Coverage Policy section of
-`01-context.md` (if present). This re-read is unconditional — perform
-it whether the section is present, absent, or was populated by a prior
-ingest — because source guidance can change between workflow commands.
-If the section is absent, perform full discovery and record the result.
-If the section is present but a Source file has changed since it was
-recorded, re-evaluate that framework's restriction. Preserve user
-clarifications from `/revise` only when the underlying source guidance
-they addressed has not changed. If a source file is missing or
-unreadable, do not treat that as evidence of no restriction; report the
-unresolved source. Record any backfilled or updated result in the
-implementation report.
+**Policy gate:** Before writing any stubs, read and follow
+`../../_shared/recipes/e2e-coverage-policy.md` with these parameters:
 
-Apply the restriction **per framework and per applicable path scope**: a
-prohibition scoped to one framework (e.g. Cypress) does not suppress
-stubs for a different discovered framework (e.g. Playwright), and a
-restriction scoped to a specific path does not apply outside that path.
-For each planned stub, determine the effective restriction by
-evaluating all applicable policy entries for that framework and path.
-Apply the same repository-authorized policy-resolution rules used in
-`/plan`: `none` (no explicit restriction found) is not permission to
-bypass a separate broader prohibition from an authoritative source;
-conflicts between authoritative entries stay `ambiguous` unless the
-repository's own precedence resolves them. Do not blindly reuse a
-stale plan result — recompute from current readable sources:
+| Parameter | Value |
+|-----------|-------|
+| CONTEXT_PATH | `.artifacts/ui-implement/{issue-key}/01-context.md` |
+| DISCOVERED_FRAMEWORKS | Frameworks from the plan's Test Strategy |
+| PHASE | `code` |
 
-- `prohibited` (within the story's paths) → skip stubs for that
-  framework in those paths. Record the skip reason, source, and scope
-  in the implementation report (Step 7).
-- `ambiguous` (within the affected scope) → skip stubs for that
-  framework in the ambiguous paths. Other paths for the same framework
-  remain eligible if their own effective policy permits. Note that the
-  user must clarify the conflicting guidance via `/revise` before
-  stubs can be written for the ambiguous scope.
-- `unresolved` → skip stubs for that framework/scope. Record that the
-  policy source is missing or unreadable and stubs are deferred
+Do not blindly reuse a stale plan result — the recipe recomputes from
+current readable sources. For each planned stub, use the recipe's
+effective restriction for that framework and path:
+
+- `prohibited` → skip stubs for that framework in those paths. Record
+  the skip reason, source, and scope in the implementation report
+  (Step 7).
+- `ambiguous` → skip stubs for that framework in the ambiguous paths.
+  Other paths remain eligible if their own effective policy permits.
+  Note that the user must clarify via `/revise`.
+- `unresolved` → skip stubs for that framework/scope. Record that
+  the policy source is missing or unreadable and stubs are deferred
   pending source recovery.
-- `none` (after evaluating all applicable entries) → proceed with
-  stubs for that framework in the permitted path scope.
+- `none` → proceed with stubs for that framework in the permitted
+  path scope.
 
 If all frameworks are skipped, record the overall skip in Step 7.
 
