@@ -336,20 +336,14 @@ Focus on:
    - **E2e coverage policy (unconditional — runs even on validation
      cache hit):** if one or more e2e frameworks were discovered,
      read and follow `../../_shared/recipes/e2e-coverage-policy.md`
-     with these parameters:
-
-     | Parameter | Value |
-     |-----------|-------|
-     | CONTEXT_PATH | `.artifacts/ui-implement/{issue-key}/01-context.md` |
-     | DISCOVERED_FRAMEWORKS | The frameworks found in this step |
-     | PHASE | `ingest` |
-
-     The recipe reads current source files (and any previously
-     recorded sources from prior context), classifies restrictions
-     per framework/scope, and returns refreshed policy evidence.
-     Merge the returned entries into the in-memory context draft;
-     persist in Step 8/8a (respecting the write-each-output-once
-     rule). If no e2e framework was discovered, omit the section.
+     with PRIOR_ENTRIES from existing `01-context.md` (if any, from
+     re-invocation) and DISCOVERED_FRAMEWORKS from this step. The
+     recipe reads current source files, classifies restrictions per
+     framework/scope, and returns refreshed policy evidence. Merge
+     the returned entries into the in-memory context draft; persist
+     in Step 8/8a (respecting the write-each-output-once rule and
+     user confirmation). If no e2e framework was discovered, omit
+     the section.
    - **If no unit test framework is found:** note the absence. Identify
      candidate frameworks based on the project's build tooling (e.g.,
      Vite → Vitest, Create React App → Jest). Record the recommendation

@@ -3,47 +3,43 @@ name: e2e-coverage-policy
 version: 0.1.0
 description: >-
   Discover and resolve E2E test coverage policy from repository guidance.
-  Used by ui-implement phases to determine per-framework, per-path
-  restrictions on new test coverage.
+  Returns refreshed candidate entries and effective restrictions for the
+  caller to persist.
 ---
 # Recipe: E2E Coverage Policy
 
 Discover, refresh, and resolve E2E test coverage policy from the project's
 AI convention files and referenced testing guidance. This recipe owns the
-shared policy semantics; consuming phases read and follow it before every
-policy-dependent decision.
+shared policy algorithm; it returns refreshed evidence and effective
+restrictions — the **caller** is responsible for persisting results and
+acting on them (writing artifacts, notifying users, gating decisions).
 
 ## Parameters
 
 | Parameter | Description |
 |-----------|-------------|
-| CONTEXT_PATH | Path to `01-context.md` for this story |
-| DISCOVERED_FRAMEWORKS | List of E2E frameworks discovered during `/ingest` (from the E2E Framework section of `01-context.md`) |
-| PHASE | The calling phase (`ingest`, `plan`, `revise`, `code`, or `validate`) |
+| PRIOR_ENTRIES | Prior E2E Coverage Policy entries from the caller's context (if any), including Resolution fields and Source provenance. Empty on first invocation. |
+| DISCOVERED_FRAMEWORKS | List of discovered E2E frameworks and their test locations |
 
 ## When to invoke
 
 Every phase that makes or evaluates a policy-dependent decision **must**
-invoke this recipe unconditionally — even when the E2E Coverage Policy
-section already exists in `01-context.md`, even on a validation cache hit,
-and even when `AGENTS.md`/`CLAUDE.md` are already in session. Policy
-guidance can change between workflow commands; a stale snapshot is never
-sufficient.
+invoke this recipe unconditionally — even when policy entries already
+exist, even on a validation cache hit, and even when `AGENTS.md`/`CLAUDE.md`
+are already in session. Policy guidance can change between workflow
+commands; a stale snapshot is never sufficient.
 
 ## Process
 
 ### Step 1: Snapshot prior evidence and read current sources
 
-If CONTEXT_PATH already has an E2E Coverage Policy section, snapshot the
-prior entries (including any Resolution fields and Source provenance)
-before proceeding. This snapshot is used in Step 3 for
-preservation/invalidation comparison.
-
-Then read the project's **current** `AGENTS.md`, `CLAUDE.md`, and any
-testing-related documents they reference for explicit directives about
-new E2E test coverage. Also freshly check any source files or sections
-previously recorded in the snapshot — a previously known source that is
-now missing or unreadable must be detected, not silently discarded.
+Snapshot PRIOR_ENTRIES (including any Resolution fields and Source
+provenance) for use in Step 3. Then read the project's **current**
+`AGENTS.md`, `CLAUDE.md`, and any testing-related documents they
+reference for explicit directives about new E2E test coverage. Also
+freshly check any source files or sections previously recorded in the
+snapshot — a previously known source that is now missing or unreadable
+must be detected, not silently discarded.
 
 This read is always fresh — never rely on cached or previously loaded
 content for policy decisions.
@@ -55,7 +51,6 @@ guidance **and** any previously recorded sources from the Step 1 snapshot.
 Build candidate entries — one per framework/scope combination. When
 policies differ by path for the same framework, record separate entries
 (e.g. `Cypress/legacy/` = prohibited, `Cypress/integration/` = none).
-These are candidate entries; the caller persists them (see Step 5).
 
 **Restriction values:**
 
@@ -79,18 +74,27 @@ These are candidate entries; the caller persists them (see Step 5).
 ### Step 3: Preserve or invalidate prior user clarifications
 
 Using the prior-evidence snapshot from Step 1, for each candidate entry
-that had a Resolution field from a prior `/revise`:
+that had a Resolution field:
 
 - Compare the Source file's current content against the excerpt/identity
   recorded with the Resolution (not just the file path).
-- **Source unchanged:** preserve the existing Resolution. Set the entry's
-  Restriction to the resolved value (`none` if the user permitted,
-  `prohibited` if the user forbade). The Resolution applies only to its
-  own entry's framework/scope — it cannot override a separate applicable
-  entry.
+- **Source unchanged:** preserve the existing Resolution. Apply the
+  Resolution's decision to derive per-path effective values:
+  - **Full-scope Resolution** (Resolution.scope equals entry Scope):
+    set the entry's Restriction to the resolved value (`none` if
+    permitted, `prohibited` if forbidden).
+  - **Partial-scope Resolution** (Resolution.scope is narrower than
+    entry Scope, e.g. `cypress/smoke/` within `cypress/**`): the
+    entry's raw Restriction stays `ambiguous`. The Resolution
+    provides an effective override only within Resolution.scope —
+    Step 4 uses this scoped value when evaluating paths inside
+    Resolution.scope, and the raw `ambiguous` for paths outside it.
+    The whole parent entry does NOT become `none` from a partial
+    permission. If the unclarified remainder cannot be precisely
+    determined, keep `ambiguous` rather than widen permission.
 - **Source changed:** invalidate the Resolution field, set Restriction
-  to the re-evaluated value from the new source, and (if PHASE is
-  `revise`) notify the user that the prior decision may no longer apply.
+  to the re-evaluated value from the new source, and include a
+  diagnostic indicating the prior decision may no longer apply.
 - **Source unreadable/missing:** set Restriction to `unresolved`. A prior
   Resolution may remain as audit information but is NOT effective
   permission while the source cannot be checked. After recovery, reuse
@@ -102,42 +106,54 @@ User clarification CANNOT resolve `unresolved` to `none` or `prohibited`.
 
 ### Step 4: Compute final effective restriction
 
-After Steps 2–3 produce candidate entries (with preserved or invalidated
-Resolutions), compute the final effective restriction for each
-framework/path by considering ALL applicable entries:
+For each target framework/path, derive the effective restriction by
+considering ALL applicable entries from Steps 2–3:
 
-- `none` (no explicit restriction found) is not permission to bypass a
-  separate broader prohibition from an authoritative source.
-- A valid prior Resolution on one entry cannot erase a NEW separate
-  applicable broad prohibition or conflict on another entry.
-- Conflicts between authoritative entries stay `ambiguous` unless the
-  repository's own precedence resolves them.
-- A restriction scoped to one framework does not apply to others.
-- A restriction scoped to one path does not apply outside that path.
-- A `none` entry for one path does not release a restriction at a
-  different path.
+1. For each entry whose Scope covers the target path, determine the
+   per-path value: use the Resolution's scoped effective value if the
+   target path is within Resolution.scope; otherwise use the entry's
+   raw Restriction.
+2. Combine all applicable per-path values for the target:
+   - `none` is not permission to bypass a separate broader `prohibited`
+     from an authoritative source.
+   - A valid prior Resolution on one entry cannot erase a NEW separate
+     applicable broad prohibition or conflict on another entry.
+   - Conflicts between authoritative entries stay `ambiguous` unless
+     the repository's own precedence resolves them.
+   - A restriction scoped to one framework does not apply to others.
+   - A `none` entry for one path does not release a restriction at a
+     different path.
+
+**Worked cases** (static contract, not executed agent proof):
+
+| Input | Resolution | Target path | Effective |
+|-------|-----------|-------------|-----------|
+| Cypress `ambiguous` scope=`cypress/**` | full-scope permit | `cypress/smoke/` | `none` |
+| Cypress `ambiguous` scope=`cypress/**` | partial permit scope=`cypress/smoke/` | `cypress/smoke/foo.cy.ts` | `none` (within Resolution.scope) |
+| Same partial as above | same | `cypress/e2e/bar.cy.ts` | `ambiguous` (outside Resolution.scope) |
+| Same partial + independent broad `prohibited` scope=`all paths` | same | `cypress/smoke/foo.cy.ts` | `prohibited` (broad ban overrides) |
+| Cypress `ambiguous` scope=`cypress/**` | source changed → invalidated | any | re-evaluated from new source |
+| Cypress `ambiguous` scope=`cypress/**` | source unreadable → `unresolved` | any | `unresolved` (Resolution audit-only) |
 
 ### Step 5: Return refreshed policy evidence
 
-Return the refreshed candidate entries and effective restrictions to the
-calling phase. The **caller** is responsible for persisting these entries
-into CONTEXT_PATH via its own artifact write/confirmation path:
+Return the refreshed candidate entries, effective restrictions, and any
+diagnostics (e.g. invalidated Resolutions, source errors) to the calling
+phase. The **caller** is responsible for:
 
-- `/ingest`: merges into the context draft and writes in Step 8/8a
-  (respecting the write-each-output-once rule and user confirmation).
-- `/plan`, `/code`, `/validate`: update the E2E Coverage Policy section
-  of the existing `01-context.md` before their own policy decisions.
-- `/revise`: updates the E2E Coverage Policy section of `01-context.md`;
-  the plan revision (`02-plan.md`) is updated separately by `/revise`
-  Step 5.
+- Merging returned entries into its context artifacts
+- Persisting via its own artifact write/confirmation path
+- Acting on diagnostics (e.g. notifying users of invalidated Resolutions)
+- Gating its own decisions on the effective restrictions
 
-If no E2E framework was discovered, omit the section entirely.
+If no E2E framework was discovered, return an empty result so the caller
+can omit the policy section.
 
 ## Output
 
-The E2E Coverage Policy section of CONTEXT_PATH, with one entry per
-framework/scope combination containing: Framework, Restriction, Scope,
-Source, Details, and (when applicable) Resolution.
+Refreshed candidate entries (one per framework/scope combination) with:
+Framework, Restriction, Scope, Source, Details, Resolution (if any),
+and diagnostics (invalidations, source errors).
 
 ## Invariants
 

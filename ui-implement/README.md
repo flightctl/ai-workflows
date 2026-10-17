@@ -152,7 +152,7 @@ The workflow does not hardcode any tool assumptions. During `/ingest`, it discov
 - State management approach
 - Routing library
 - E2e framework (Cypress, Playwright, etc.)
-- E2e coverage policy — per-framework/path restrictions via `_shared/recipes/e2e-coverage-policy.md`
+- E2e coverage policy — per-framework/path restrictions via `../_shared/recipes/e2e-coverage-policy.md`
 - Permission/RBAC patterns
 - Build, test, lint, and type-check commands
 
@@ -241,12 +241,12 @@ behaves under different project configurations. These are instruction-level
 contracts — the workflow instructions specify this behavior; actual execution
 depends on the LLM following the instructions at runtime.
 
-All five phases invoke `_shared/recipes/e2e-coverage-policy.md` unconditionally before policy decisions:
-- **Ingest**: PHASE=ingest — discovers frameworks, records initial evidence; caller persists in Step 8/8a
-- **Plan**: PHASE=plan — freshly refreshes before stub strategy per artifact path
-- **Revise**: PHASE=revise — freshly refreshes; handles user clarification for readable ambiguity; persists Resolution
-- **Code**: PHASE=code — recomputes from current sources before writing stubs; never trusts stale plan
-- **Validate**: PHASE=validate — freshly refreshes before diff enforcement within applicable scope
+All five phases invoke `../_shared/recipes/e2e-coverage-policy.md` unconditionally before policy decisions:
+- **Ingest**: discovers frameworks, invokes recipe, merges returned evidence into context draft; persists in Step 8/8a
+- **Plan**: invokes recipe, merges into `01-context.md`, applies effective restrictions to stub strategy per artifact path
+- **Revise**: invokes recipe, merges into `01-context.md`; handles user clarification for readable ambiguity; persists Resolution
+- **Code**: invokes recipe, merges into `01-context.md`; recomputes from current sources before writing stubs
+- **Validate**: invokes recipe, merges into `01-context.md`; enforces diff checks within applicable scope
 
 | Scenario | Ingest | Plan | Code (Step 4) | Validate |
 |----------|--------|------|---------------------|----------|
@@ -265,8 +265,10 @@ All five phases invoke `_shared/recipes/e2e-coverage-policy.md` unconditionally 
 | Known/referenced source missing or unreadable (`unresolved`) | Records `unresolved` with file path and error for affected framework/scope only | Does not plan stubs or coverage for that framework/scope; others unaffected | Does not write stubs or coverage for that framework/scope | Verifies no new coverage/stubs in affected scope; reports "unresolved"; recommends `/revise` |
 | Previously recorded source now missing | Records `unresolved` — does not silently become `none` | Does not plan stubs; reports unresolved source | Does not write stubs | Reports "unresolved — previously recorded source missing" |
 | Optional `AGENTS.md`/`CLAUDE.md` never present, never recorded | Records `none` — never-present optional file is complete discovery, not unresolved | Plans stubs normally (no restriction found) | Writes stubs normally | No policy violation; reports per plan |
-| `/revise` resolves readable ambiguous to permitted (`none`) | — | — | — | — |
-| ↳ Source content unchanged since resolution | — | Restriction=`none`; honors Resolution; plans stubs normally | Writes stubs normally | Reports stubs per plan |
+| `/revise` resolves readable ambiguous to permitted (scope-limited) | — | — | — | — |
+| ↳ Full-scope clarification, source unchanged | — | Restriction=`none` for that entry; honors Resolution | Writes stubs normally | Reports stubs per plan |
+| ↳ Partial-scope clarification (e.g. only `cypress/smoke/`) | — | `none` only in clarified sub-scope; unclarified remainder stays `ambiguous` | Writes stubs only in clarified sub-scope | Reports per-scope: clarified scope per plan, remainder ambiguous |
+| ↳ Partial permission + independent broad ban still applies | — | Broad prohibition overrides narrow permission per Step 4 | Does not write stubs despite partial permission | Reports prohibition respected |
 | ↳ Source content changed since resolution | — | Invalidates Resolution; re-reads source; re-evaluates restriction | Re-reads; applies new restriction | Re-reads; validates against new restriction |
 | `/revise` Resolution provenance | — | Source retains repo file/section; Resolution stores decision + excerpt identity + "user decision during /revise" | Traces both Source and Resolution | Traces both; detects content changes via recorded excerpt |
 | `unresolved` cannot be user-resolved to `none` | — | `unresolved` stays until source recovered and readable | Stubs deferred; prior Resolution is audit only, not permission | Verifies no new coverage/stubs; reports "unresolved" |

@@ -46,7 +46,7 @@ artifacts and published output from this workflow.
 - No committing to `main` directly. Use a feature branch.
 - No force-push or destructive git operations.
 - **No hardcoded tool assumptions.** Never assume a specific test runner (Vitest, Jest, Mocha), design system (PatternFly, MUI, Chakra), i18n library (react-i18next, FormatJS), or e2e framework (Cypress, Playwright). All tooling is discovered during `/ingest`.
-- **Respect explicit test coverage policies.** The shared recipe `_shared/recipes/e2e-coverage-policy.md` owns the discovery and resolution semantics. Every phase that makes or evaluates a policy-dependent decision must invoke the recipe unconditionally. Key rules:
+- **Respect explicit test coverage policies.** The shared recipe `../_shared/recipes/e2e-coverage-policy.md` owns the discovery and resolution semantics. Every phase that makes or evaluates a policy-dependent decision must invoke the recipe unconditionally. Key rules:
   - Restrictions apply per framework and per path scope — a prohibition scoped to one framework or path does not suppress work for others.
   - Existing tests and CI validation must be preserved — the policy restricts new coverage, not existing checks.
   - A known/previously recorded policy source that is missing or unreadable is `unresolved`, not evidence of no restriction. A never-present optional convention file is `none`.

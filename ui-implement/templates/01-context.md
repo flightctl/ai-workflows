@@ -153,7 +153,7 @@
 ### E2E Coverage Policy
 
 {One entry per discovered E2E framework/scope combination. Populated
-and refreshed by `_shared/recipes/e2e-coverage-policy.md` — see that
+and refreshed by `../../_shared/recipes/e2e-coverage-policy.md` — see that
 recipe for restriction values, resolution rules, and invariants.
 If no E2E framework was discovered, omit this section entirely.}
 

@@ -96,30 +96,34 @@ After applying changes, verify:
 - Does the UI Cross-Cutting Concerns table still accurately reflect the tasks?
 - **E2E coverage policy (check on every revision, not only stub
   requests):** read and follow `../../_shared/recipes/e2e-coverage-policy.md`
-  with PHASE=`revise`, CONTEXT_PATH=this story's `01-context.md`, and
-  DISCOVERED_FRAMEWORKS from the context. The recipe freshly re-reads
-  current sources, refreshes classification, and handles Resolution
-  preservation/invalidation. When the recipe invalidates a prior
-  Resolution due to changed source content, notify the user that the
-  prior decision may no longer apply and surface the updated guidance.
+  with PRIOR_ENTRIES from the E2E Coverage Policy section of
+  `01-context.md` and DISCOVERED_FRAMEWORKS from the E2E Framework
+  section. Merge the returned entries into the E2E Coverage Policy
+  section of `01-context.md`, preserving other sections. If the recipe
+  returns diagnostics indicating invalidated Resolutions, notify the
+  user that the prior decision may no longer apply and surface the
+  updated guidance.
 - If the user requests adding e2e test stubs: check the refreshed
-  policy for each relevant framework and path scope. If the
-  restriction is `prohibited` or `unresolved`, explain the restriction
-  and recommend against adding stubs. If `ambiguous`, surface the
-  conflicting guidance and let the user decide.
+  policy for each relevant framework and path scope. If the effective
+  restriction is `prohibited` or `unresolved`, **do not add** the
+  requested stubs — explain the restriction and cite the source.
+  This is a hard gate, not a recommendation. If `ambiguous`, surface
+  the conflicting guidance and let the user decide.
 - When the user resolves a readable `ambiguous` restriction (decides
-  stubs are permitted or prohibited): update that entry's Restriction
-  field to `none` (if permitted) or `prohibited` (if forbidden). Keep
-  the original Source field unchanged — it retains the repository file
-  path and section. Record the user's decision in the Resolution field
-  with its scope, provenance, and a brief excerpt/identity of the
-  relevant source guidance for downstream content-change detection.
-  After any new clarification, reapply the recipe's Step 4
-  (combined effective restriction) using all entries before updating
-  the stub strategy — no new permission may release a separate
-  applicable ban. Update the E2E Coverage Policy section of
-  `01-context.md` with the refreshed entries and Resolution. The
-  plan revision in Step 5 updates `02-plan.md` as usual.
+  stubs are permitted or prohibited): record the Resolution with its
+  scope, the decision (`none` if permitted, `prohibited` if forbidden),
+  provenance, and a brief excerpt/identity of the source guidance.
+  - **Full-scope clarification** (Resolution.scope equals entry Scope):
+    set the entry's Restriction to the resolved value.
+  - **Partial-scope clarification** (Resolution.scope narrower than
+    entry Scope): the entry's raw Restriction stays `ambiguous`;
+    the Resolution provides an effective override only within
+    Resolution.scope. Unclarified paths remain `ambiguous`.
+  Keep the original Source field unchanged. After any new clarification,
+  reapply the recipe's Step 4 using all entries — no new permission
+  may release a separate applicable ban. Merge refreshed entries and
+  Resolution into the E2E Coverage Policy section of `01-context.md`.
+  The plan revision in Step 5 updates `02-plan.md` as usual.
 - User clarification CANNOT resolve `unresolved` — the recipe enforces
   this invariant. `unresolved` stays until the source is recovered and
   readable. See the recipe's Step 3 for recovery and Resolution reuse

@@ -151,13 +151,16 @@ Verify that the story's changes haven't broken existing functionality:
 2. Run the full build (if applicable)
 3. Check for any test failures unrelated to the story
 4. **E2E coverage policy:** read and follow
-   `../../_shared/recipes/e2e-coverage-policy.md` with PHASE=`validate`,
-   CONTEXT_PATH=this story's `01-context.md`, and
-   DISCOVERED_FRAMEWORKS from the context. The recipe freshly re-reads
-   current sources and refreshes the classification.
+   `../../_shared/recipes/e2e-coverage-policy.md` with PRIOR_ENTRIES
+   from the E2E Coverage Policy section of `01-context.md` and
+   DISCOVERED_FRAMEWORKS from the E2E Framework section. Merge the
+   recipe's returned entries, effective restrictions, and diagnostics
+   (invalidations, source errors) into the E2E Coverage Policy section
+   of `01-context.md`, preserving other context sections. Record any
+   source errors or invalidated Resolutions in the validation report.
 
-   Then enforce policy per the recipe's effective restriction for each
-   framework and applicable path scope:
+   Then enforce policy per the effective restriction for each framework
+   and applicable path scope:
 
    - `prohibited` (within a specific path scope): the absence of stubs
      in that scope is expected. Verify the story's diff does not
@@ -387,6 +390,7 @@ Summarize for the user:
 
 ## Output
 
+- `.artifacts/ui-implement/{issue-key}/01-context.md` (E2E Coverage Policy section refreshed)
 - `.artifacts/ui-implement/{issue-key}/05-validation-report.md`
 - Additional test files (if coverage gaps were found)
 - Fix commits (if issues were found and fixed)

@@ -121,8 +121,11 @@ Before writing the plan, create a mental map:
 - Are there permission gates to implement?
 - Does the E2E Coverage Policy restrict new e2e test stubs? Read and
   follow `../../_shared/recipes/e2e-coverage-policy.md` with
-  PHASE=`plan` to freshly refresh policy before planning stubs (see
-  the Integration/E2E Test Stubs template).
+  PRIOR_ENTRIES from `01-context.md` and DISCOVERED_FRAMEWORKS from
+  the E2E Framework section. Merge returned entries into the E2E
+  Coverage Policy section of `01-context.md` (preserving other
+  sections) before planning stubs (see the Integration/E2E Test Stubs
+  template).
 
 ### Step 4: Write the Implementation Plan
 
@@ -200,15 +203,10 @@ Write `.artifacts/ui-implement/{issue-key}/02-plan.md` with this structure:
 ### Integration/E2E Test Stubs
 
 {Written after all tasks complete. Describe what stubs will cover.
- Before planning stubs, read and follow
- `../../_shared/recipes/e2e-coverage-policy.md` with PHASE=`plan`,
- CONTEXT_PATH=this story's `01-context.md`, and
- DISCOVERED_FRAMEWORKS=the frameworks from that context. The recipe
- freshly re-reads current source guidance, refreshes classification,
- and applies effective restriction rules.
-
- Then determine stubs per planned artifact's framework and path
- using the recipe's output:
+ The recipe was already invoked in Step 3 and its returned entries
+ merged into `01-context.md`. Use the effective restrictions from
+ that merge to determine stubs per planned artifact's framework and
+ path:
  - `prohibited` → "No stubs for {framework} in {scope} — project
    policy prohibits new coverage (source: {file}, {section})."
  - `ambiguous` → "No stubs for {framework} in {scope} — conflicting
@@ -356,6 +354,7 @@ Show the user the complete plan and highlight:
 
 ## Output
 
+- `.artifacts/ui-implement/{issue-key}/01-context.md` (E2E Coverage Policy section refreshed)
 - `.artifacts/ui-implement/{issue-key}/02-plan.md`
 
 ## When This Phase Is Done

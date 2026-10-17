@@ -475,17 +475,17 @@ plan's Test Strategy → Integration/E2E Test Stubs section specifies stubs
 to write.
 
 **Policy gate:** Before writing any stubs, read and follow
-`../../_shared/recipes/e2e-coverage-policy.md` with these parameters:
+`../../_shared/recipes/e2e-coverage-policy.md` with:
 
-| Parameter | Value |
-|-----------|-------|
-| CONTEXT_PATH | `.artifacts/ui-implement/{issue-key}/01-context.md` |
-| DISCOVERED_FRAMEWORKS | Frameworks from the plan's Test Strategy |
-| PHASE | `code` |
+- PRIOR_ENTRIES: current E2E Coverage Policy entries from `01-context.md`
+- DISCOVERED_FRAMEWORKS: from the E2E Framework section of `01-context.md`
+  (the canonical framework list, not the plan's Test Strategy)
 
-Do not blindly reuse a stale plan result — the recipe recomputes from
-current readable sources. For each planned stub, use the recipe's
-effective restriction for that framework and path:
+Merge the recipe's returned entries and effective restrictions into the
+E2E Coverage Policy section of `01-context.md`, preserving other context
+sections. Then use the effective restriction for each planned stub's
+framework and path. The plan provides target artifact paths, but the
+canonical framework list and fresh policy come from context:
 
 - `prohibited` → skip stubs for that framework in those paths. Record
   the skip reason, source, and scope in the implementation report
@@ -644,6 +644,7 @@ After all tasks are complete (or if interrupted), write:
 - Production code in the source repo (on the feature branch)
 - Integration/e2e test stubs (if applicable)
 - Incremental commits (following the project's commit format)
+- `.artifacts/ui-implement/{issue-key}/01-context.md` (E2E Coverage Policy section refreshed)
 - `.artifacts/ui-implement/{issue-key}/02-plan.md` (updated with task status)
 - `.artifacts/ui-implement/{issue-key}/03-test-report.md`
 - `.artifacts/ui-implement/{issue-key}/04-impl-report.md`
