@@ -57,8 +57,9 @@ policies differ by path for the same framework, record separate entries
 - `none` — no explicit restriction found for this framework in the
   applicable scope. This includes projects where optional convention
   files (`AGENTS.md`/`CLAUDE.md`) are absent — a never-present optional
-  file is complete discovery, not an unresolved source. Default
-  discovery-based behavior applies.
+  file is complete discovery, not an unresolved source. The caller
+  decides what action `none` means for its phase (e.g. plan stubs,
+  write stubs, or report no restriction).
 - `prohibited` — an explicit directive forbids adding new test specs,
   cases, coverage, or stubs for this framework within the stated scope.
   Record the source file, section heading, and applicable path scope.
@@ -134,6 +135,9 @@ considering ALL applicable entries from Steps 2–3:
 | Same partial + independent broad `prohibited` scope=`all paths` | same | `cypress/smoke/foo.cy.ts` | `prohibited` (broad ban overrides) |
 | Cypress `ambiguous` scope=`cypress/**` | source changed → invalidated | any | re-evaluated from new source |
 | Cypress `ambiguous` scope=`cypress/**` | source unreadable → `unresolved` | any | `unresolved` (Resolution audit-only) |
+| Playwright `none` scope=`all paths` (no policy found) | — | `tests/e2e/login.spec.ts` | `none` (Playwright-only project, no restriction) |
+| Cypress `prohibited` scope=`all paths` + Playwright `none` scope=`all paths` | — | Cypress: any | `prohibited` (Cypress-specific ban) |
+| Same mixed as above | — | Playwright: `tests/e2e/login.spec.ts` | `none` (Cypress ban does not apply to Playwright) |
 
 ### Step 5: Return refreshed policy evidence
 
@@ -146,8 +150,11 @@ phase. The **caller** is responsible for:
 - Acting on diagnostics (e.g. notifying users of invalidated Resolutions)
 - Gating its own decisions on the effective restrictions
 
-If no E2E framework was discovered, return an empty result so the caller
-can omit the policy section.
+If DISCOVERED_FRAMEWORKS is empty, still perform Step 1 (read current
+sources and check previously known sources from PRIOR_ENTRIES), then
+return an empty candidate collection with any source diagnostics. The
+caller decides how to handle an empty result (e.g. omit the policy
+section, skip stub planning).
 
 ## Output
 
@@ -155,12 +162,23 @@ Refreshed candidate entries (one per framework/scope combination) with:
 Framework, Restriction, Scope, Source, Details, Resolution (if any),
 and diagnostics (invalidations, source errors).
 
+## Framework neutrality
+
+This recipe applies the same rules to **every** framework in
+DISCOVERED_FRAMEWORKS — Cypress, Playwright, or any other. Framework
+names, test locations, and filename patterns in examples are illustrative
+input values, not required assumptions or an allowlist. A restriction
+scoped to one framework does not apply to others; each framework is
+classified independently from the same source guidance.
+
 ## Invariants
 
-- No E2E framework discovered → omit the section; do not introduce a
-  framework.
-- Framework present, no contrary policy → `none`; planned-stub default
-  applies.
+- Empty DISCOVERED_FRAMEWORKS → return empty candidates (with source
+  diagnostics); caller decides rendering. The recipe does not introduce
+  frameworks.
+- Framework present, effective restriction `none` → no prohibition
+  found; caller decides whether to plan/generate stubs based on its
+  own phase logic.
 - Explicit applicable policy from authoritative source overrides inferred
   presence-based convention.
 - Unreadable known source → `unresolved`; no new coverage or stubs for

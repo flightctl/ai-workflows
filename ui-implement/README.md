@@ -253,7 +253,8 @@ All five phases invoke `../_shared/recipes/e2e-coverage-policy.md` unconditional
 | No E2E framework discovered | Policy section omitted | "No stubs — no e2e framework" | Step skipped entirely | No stub gap flagged |
 | Framework present, no restriction (`none`) | Records `none` per framework | Plans stubs normally | Writes stubs normally | Reports stubs per plan |
 | Framework present, `prohibited` | Records `prohibited` with source | No stubs planned for that framework | Skips stubs for that framework | Verifies diff has no new prohibited coverage; reports "respected" |
-| Framework A prohibited, Framework B unrestricted | A=`prohibited`, B=`none` | Plans stubs for B only | Writes stubs for B only; skips A | Verifies A clean; reports B per plan |
+| Framework A prohibited, Framework B unrestricted (e.g. Cypress banned, Playwright none) | A=`prohibited`, B=`none` | Plans stubs for B only; A-specific ban does not apply to B | Writes stubs for B only; skips A | Verifies A clean; reports B per plan |
+| Playwright-only project, no policy found | Records `none` for Playwright | Plans stubs normally | Writes stubs normally | Reports per plan |
 | `ambiguous` restriction (scoped) | Records `ambiguous` with both sources per scope | No stubs in ambiguous paths; other paths for same framework eligible if own policy permits | Skips stubs in ambiguous scope only | Reports "ambiguous" per affected scope; recommends `/revise` |
 | Same framework: pathA `ambiguous`, pathB `none` | Both entries recorded | Skips stubs for pathA; plans stubs for pathB normally | Writes stubs for pathB only | Reports ambiguous for A, stubs per plan for B |
 | `/revise` resolves readable ambiguous → `prohibited` | — | Updated in next revision | Honors resolved restriction | Verifies prohibition respected |
