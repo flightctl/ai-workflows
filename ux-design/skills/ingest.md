@@ -280,16 +280,34 @@ rather than generic ones:
 Capture the design system name, the component set available, and any design
 tokens or patterns the project standardizes on.
 
-### Step 5: Run UXD Discovery
+### Step 5: Current State
+
+The skill does not explore the codebase; do this **before** UXD discovery. The
+current workspace may not be the frontend — check for UI framework deps,
+page/component dirs, or router config. In a monorepo, find the frontend
+subdir. If separate, record identity, ask for path.
+
+Record frontend identity, path/URL, root, and ref; obtain commit SHA
+(`git -C "{frontend-root}" rev-parse HEAD` for local; `git ls-remote` for
+selected ref — peel annotated tags via `^{}`, verify commit, or record
+unavailable; never substitute host repo HEAD). Explore affected pages,
+components, and flows relative to frontend root — record journey, references,
+evidence type, uncertainties.
+
+If an optional external operation fails (one sibling story inaccessible, one
+codebase file unreadable): note what failed, continue with available data, and
+never fabricate context to fill the gap. If a core operation fails (Feature or
+story identity unresolvable, supplied PRD unreadable, docs repo path invalid
+during enrichment): stop per the failure-handling rule above.
+
+### Step 6: Run UXD Discovery
 
 Invoke the `uxd-discovery` skill with the input source (the `[UX]` story key,
 Feature key, supplied PRD path, feature description, or problem statement)
-**plus the upstream context loaded above**. In an initial Feature-only ingest,
-use only the Feature content; in an initial PRD-only ingest, use only the PRD.
-Clearly label resulting assumptions and strategic decisions as exploratory.
-When enriching an existing context, use the newly loaded PRD, design document,
-story, and sibling context to update the prior framing rather than treating
-discovery as a fresh feature.
+**plus upstream context and Step 5 baseline**. In initial Feature-only, use
+the Feature as upstream requirements; in PRD-only, the PRD. Mark assumptions and strategic decisions exploratory. When enriching use
+loaded PRD, design document, story, sibling context, and Step 5 baseline to
+update prior framing rather than treating discovery as fresh.
 
 The skill handles:
 - Problem statement framing
@@ -300,25 +318,6 @@ The skill handles:
 
 Wait for the skill to complete and present its output. Confirm understanding
 with the researcher before proceeding.
-
-### Step 6: Current State (Codebase Exploration)
-
-The skill does not explore the codebase. Do this manually. The current
-workspace may not be the frontend — check for UI framework deps, page/
-component dirs, or router config. In a monorepo, find the frontend subdir.
-If separate, record identity and ask for its local path or Git URL.
-
-Record frontend identity, path/URL, root, and ref; obtain commit SHA
-(`git -C "{frontend-root}" rev-parse HEAD` for local; `git ls-remote`
-for a Git URL's selected ref, or record unavailable — never substitute
-the host repo HEAD). Explore affected pages, components, and flows
-relative to the frontend root.
-
-If an optional external operation fails (one sibling story inaccessible, one
-codebase file unreadable): note what failed, continue with available data, and
-never fabricate context to fill the gap. If a core operation fails (Feature or
-story identity unresolvable, supplied PRD unreadable, docs repo path invalid
-during enrichment): stop per the failure-handling rule above.
 
 ### Step 7: Assemble the Discovery Artifact
 
@@ -452,9 +451,8 @@ or problem statement}
 
 **Frontend repo:** {identity, path, ref, commit SHA, root — or "Not identified"}
 
-{Affected pages, components, user flows, and entry points from Step 6. Include
-file paths relative to the frontend root. If not explored: "Frontend source
-not explored — {reason}."}
+{From Step 5 with paths relative to frontend root: journey and evidence type,
+gap/intended change, departures with rationale, preserved behaviors. If not explored: "Frontend source not explored — {reason}."}
 
 ## Strategic Decisions
 
