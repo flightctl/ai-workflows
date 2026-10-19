@@ -282,7 +282,7 @@ tokens or patterns the project standardizes on.
 
 ### Step 5: Current State
 
-The skill does not explore the codebase; do this **before** UXD discovery. The
+UXD Discovery does not explore the codebase; do this before invoking it. The
 current workspace may not be the frontend — check for UI framework deps,
 page/component dirs, or router config. In a monorepo, find the frontend
 subdir. If separate, record identity, ask for path.
