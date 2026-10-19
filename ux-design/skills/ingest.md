@@ -451,8 +451,9 @@ or problem statement}
 
 **Frontend repo:** {identity, path, ref, commit SHA, root — or "Not identified"}
 
-{From Step 5 with paths relative to frontend root: journey and evidence type,
-gap/intended change, departures with rationale, preserved behaviors. If not explored: "Frontend source not explored — {reason}."}
+{Step 5: journey/evidence type, frontend-relative paths; Step 6:
+gap/intended change, departures/rationale, preserved behaviors. Missing: unavailable + why.
+Unexplored: "Frontend source not explored — {reason}."}
 
 ## Strategic Decisions
 
