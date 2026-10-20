@@ -76,8 +76,8 @@ reference and classify as **reuse** (keep) or **depart** (change, with
 rationale). Present the directions and this reuse organization together;
 wait for the researcher to choose or suggest changes. After selection, persist
 that direction's examples in **Source Example Baseline** in
-`prototype-notes.md` — conformance baseline for this iteration; preserve on
-regeneration/refinement; update on human-approved direction change.
+`prototype-notes.md` — conformance baseline; preserve on regen/refinement,
+update on human-approved direction change.
 Standalone: "No source baseline — {reason}".
 
 Settle the create skill's onboarding answers with the researcher:
@@ -318,18 +318,19 @@ complete prototype must have:
   served or opened, record the verification as **unverified** with the
   reason rather than claiming completion. Copied unchanged app scaffolding
   alone is not proof that the requested prototype content exists.
-- **Source-conformance check (workspace mode):** Read **Source Example
-  Baseline** from `prototype-notes.md` and compare rendered result against
-  it. Confirm reused elements match and departures are intended. When
-  source or browser unavailable, record as limited — do not claim
-  conformity. Justified departures expected; focused, not whole-app.
-- **Coverage update:** Update every **User Stories Covered** row against
-  the actual prototype: `verified` when rendered behavior matches, `mocked`
-  for stand-in data (mocks never imply production), `partial`, `deferred`
-  (with researcher approval), or `missing`. Recheck previous rows on each
-  revision — not only new edits. A missing or incomplete core flow must be
-  surfaced at the researcher's existing review gate; it cannot silently be
-  marked complete or removed from scope.
+- **Source-conformance check (workspace mode):** Compare rendered prototype
+  against saved **Source Example Baseline** in `prototype-notes.md`; outcome
+  starts `unverified`, write `matched`/`mismatch`/`limited` + Evidence per
+  entry. Approved departures can match; unavailable → `limited`+reason.
+  Never inherit passes or silently rebaseline mismatches; refresh each
+  generation/revision. Step 4 preserves results.
+- **Coverage update:** Update every **User Stories Covered** row. `verified`
+  requires browser-observed match without stand-in data/interactions.
+  Otherwise-complete flows using stand-ins are `mocked` even if behavior
+  matches — record checks+limits in Evidence (no production claim);
+  `partial`/`deferred`(researcher-approved)/`missing` for gaps/scope
+  (disclose mocks too). Surface core gaps at existing gate; never silently
+  complete or drop scope; recheck previous rows each revision.
 
 Do not diagnose completion or failure from the presence or absence of a
 directory alone. Check for the actual agreed output artifacts.
@@ -443,21 +444,20 @@ Do not invent research evidence.
 
 ## Source Example Baseline
 
-| Area | Source Reference | Classification | Rationale |
-|------|-----------------|----------------|-----------|
-| {area} | {path relative to frontend root} | {reuse / depart} | {why} |
+| Area | Source Reference | Classification | Rationale | Outcome | Evidence |
+|------|-----------------|----------------|-----------|---------|----------|
+| {area} | {frontend-relative path} | {reuse/depart} | {why} | {unverified/matched/mismatch/limited} | {observation or reason} |
 
-{From Step 1. Preserve on regeneration/refinement; update on human-approved
-direction change. Standalone: "No source baseline — {reason}"}
+{Metadata: Step 1, preserve on regen/refinement. Outcome/Evidence: Step 3.
+Standalone: "No source baseline"}
 
 ## User Stories Covered
 
 | Requirement / Decision | Screen / Control | State / Action | Status | Evidence / Reason |
 |------------------------|------------------|----------------|--------|-------------------|
-| {source requirement or confirmed decision} | {screen or control} | {relevant state or action} | {planned / verified / mocked / partial / deferred / missing} | {evidence or reason} |
+| {source requirement or confirmed decision} | {screen/control} | {state/action} | {planned/verified/mocked/partial/deferred/missing} | {evidence, mock limits, or reason} |
 
-{Populated before generation (Step 2) and updated before each review and
-after each revision (Step 3). See Steps 2–3 for lifecycle rules.}
+{See Steps 2–3 for lifecycle.}
 
 ## Page Context
 
