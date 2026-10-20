@@ -74,7 +74,11 @@ scaffolding, table/list layouts, filter controls, action menus, inline
 editors, modal patterns as applicable. For each, record the source file
 reference and classify as **reuse** (keep) or **depart** (change, with
 rationale). Present the directions and this reuse organization together;
-wait for the researcher to choose or suggest changes.
+wait for the researcher to choose or suggest changes. After selection, persist
+that direction's examples in **Source Example Baseline** in
+`prototype-notes.md` — conformance baseline for this iteration; preserve on
+regeneration/refinement; update on human-approved direction change.
+Standalone: "No source baseline — {reason}".
 
 Settle the create skill's onboarding answers with the researcher:
 
@@ -314,11 +318,11 @@ complete prototype must have:
   served or opened, record the verification as **unverified** with the
   reason rather than claiming completion. Copied unchanged app scaffolding
   alone is not proof that the requested prototype content exists.
-- **Source-conformance check (workspace mode):** Compare rendered result
-  against the source examples from Step 1. Confirm reused elements match
-  and departed elements have the intended change. When source or browser is
-  unavailable, record as limited — do not claim conformity. Justified
-  departures are expected; this is a focused check, not a whole-app audit.
+- **Source-conformance check (workspace mode):** Read **Source Example
+  Baseline** from `prototype-notes.md` and compare rendered result against
+  it. Confirm reused elements match and departures are intended. When
+  source or browser unavailable, record as limited — do not claim
+  conformity. Justified departures expected; focused, not whole-app.
 - **Coverage update:** Update every **User Stories Covered** row against
   the actual prototype: `verified` when rendered behavior matches, `mocked`
   for stand-in data (mocks never imply production), `partial`, `deferred`
@@ -436,6 +440,15 @@ Do not invent research evidence.
 | Decision | Rationale | Research Reference |
 |----------|-----------|-------------------|
 | {what} | {why} | {finding or researcher direction} |
+
+## Source Example Baseline
+
+| Area | Source Reference | Classification | Rationale |
+|------|-----------------|----------------|-----------|
+| {area} | {path relative to frontend root} | {reuse / depart} | {why} |
+
+{From Step 1. Preserve on regeneration/refinement; update on human-approved
+direction change. Standalone: "No source baseline — {reason}"}
 
 ## User Stories Covered
 
