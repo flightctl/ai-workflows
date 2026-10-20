@@ -70,13 +70,12 @@ design directions. For each, identify the user needs it prioritizes, the core
 interaction pattern, its tradeoffs, and how it compares with patterns from
 discovery. When the feature modifies existing UI (workspace mode), also
 prepare concrete source examples for affected areas — navigation, scaffolding,
-tables/lists, filters, actions, editors, modals as applicable. For each,
-record the source file reference and classify as **reuse** (keep) or
-**depart** (change — record rationale+expected treatment). Present both;
-wait for the researcher to choose or suggest changes. After selection, persist
-that direction's examples in **Source Example Baseline** in
-`prototype-notes.md` — conformance baseline; preserve on regen/refinement,
-update on human-approved direction change.
+tables/lists, filters, actions, editors, modals as applicable. Record source
+reference, classify **reuse** or **depart** (record rationale+expected
+treatment). Present both; researcher chooses or suggests.
+After selection, persist that direction's examples in **Source Example
+Baseline** in `prototype-notes.md`; preserve on regen/refinement; update on
+human-approved direction change.
 Standalone: "No source baseline — {reason}".
 
 Settle the create skill's onboarding answers with the researcher:
@@ -317,19 +316,21 @@ complete prototype must have:
   served or opened, record the verification as **unverified** with the
   reason rather than claiming completion. Copied unchanged app scaffolding
   alone is not proof that the requested prototype content exists.
-- **Source-conformance check (workspace mode):** Compare rendered prototype
-  against saved **Source Example Baseline** in `prototype-notes.md`; starts
-  `unverified`, write `matched`/`mismatch`/`limited` + Evidence per
-  entry. Reuse: check against source; depart: against saved expected
-  treatment; unavailable → `limited`+reason; never inherit passes or
-  silently rebaseline; refresh each gen/revision. Step 4 preserves.
+- **Source-conformance check (workspace mode):** Read **Source Example
+  Baseline** from `prototype-notes.md`. If absent or empty (no selected
+  entries), stop — restore at Step 1 gate; do not invent entries or treat
+  empty as passed. Compare rendered prototype against saved record; outcome
+  starts `unverified`; per entry: reuse vs source, depart vs saved expected
+  treatment; write `matched`/`mismatch`/`limited`+Evidence; unavailable
+  → `limited`+reason; never inherit passes or silently rebaseline; refresh
+  each gen/revision. Step 4 preserves.
 - **Coverage update:** Update every **User Stories Covered** row. `verified`
   requires browser-observed match without stand-in data/interactions.
   Otherwise-complete flows using stand-ins are `mocked` even if behavior
   matches — record checks+limits in Evidence (no production claim);
   `partial`/`deferred`(researcher-approved)/`missing` for gaps/scope
-  (disclose mocks too). Surface core gaps at existing gate; never silently
-  complete or drop scope; recheck previous rows each revision.
+  (disclose mocks). Surface core gaps at existing gate; never silently
+  complete/drop scope. Recheck previous rows each revision.
 
 Do not diagnose completion or failure from the presence or absence of a
 directory alone. Check for the actual agreed output artifacts.
@@ -455,7 +456,7 @@ Do not invent research evidence.
 |------------------------|------------------|----------------|--------|-------------------|
 | {source requirement or confirmed decision} | {screen/control} | {state/action} | {planned/verified/mocked/partial/deferred/missing} | {evidence, mock limits, or reason} |
 
-{See Steps 2–3 for lifecycle.}
+{Steps 2–3.}
 
 ## Page Context
 
