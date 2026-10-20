@@ -68,8 +68,13 @@ into the UX Design namespace.
 Using `01-discovery.md` and `02-research.md` when present, propose one or two
 design directions. For each, identify the user needs it prioritizes, the core
 interaction pattern, its tradeoffs, and how it compares with patterns from
-discovery. Present the directions and wait for the researcher to choose or
-suggest another.
+discovery. When the feature modifies existing UI (workspace mode), also
+prepare concrete source examples for affected areas — navigation, page
+scaffolding, table/list layouts, filter controls, action menus, inline
+editors, modal patterns as applicable. For each, record the source file
+reference and classify as **reuse** (keep) or **depart** (change, with
+rationale). Present the directions and this reuse organization together;
+wait for the researcher to choose or suggest changes.
 
 Settle the create skill's onboarding answers with the researcher:
 
@@ -140,6 +145,11 @@ references and what is explored without source verification.
 Record the chosen strategy and rationale in `prototype-notes.md`.
 
 ### Step 2: Generate the Prototype
+
+Before invoking the create skill, populate the **User Stories Covered**
+table in `prototype-notes.md` with the planned mapping (status `planned`
+for every row). Derive rows from discovery goals, PRD requirements, or
+confirmed decisions; a linked `[UX]` story is not required.
 
 When invoking the create skill with a workspace (local or Git URL), supply
 the expected discovery baseline SHA as task context alongside the source and
@@ -304,6 +314,18 @@ complete prototype must have:
   served or opened, record the verification as **unverified** with the
   reason rather than claiming completion. Copied unchanged app scaffolding
   alone is not proof that the requested prototype content exists.
+- **Source-conformance check (workspace mode):** Compare rendered result
+  against the source examples from Step 1. Confirm reused elements match
+  and departed elements have the intended change. When source or browser is
+  unavailable, record as limited — do not claim conformity. Justified
+  departures are expected; this is a focused check, not a whole-app audit.
+- **Coverage update:** Update every **User Stories Covered** row against
+  the actual prototype: `verified` when rendered behavior matches, `mocked`
+  for stand-in data (mocks never imply production), `partial`, `deferred`
+  (with researcher approval), or `missing`. Recheck previous rows on each
+  revision — not only new edits. A missing or incomplete core flow must be
+  surfaced at the researcher's existing review gate; it cannot silently be
+  marked complete or removed from scope.
 
 Do not diagnose completion or failure from the presence or absence of a
 directory alone. Check for the actual agreed output artifacts.
@@ -417,9 +439,12 @@ Do not invent research evidence.
 
 ## User Stories Covered
 
-| Story | Acceptance Criteria | Status |
-|-------|-------------------|--------|
-| {story} | {criteria} | {covered / partial / deferred} |
+| Requirement / Decision | Screen / Control | State / Action | Status | Evidence / Reason |
+|------------------------|------------------|----------------|--------|-------------------|
+| {source requirement or confirmed decision} | {screen or control} | {relevant state or action} | {planned / verified / mocked / partial / deferred / missing} | {evidence or reason} |
+
+{Populated before generation (Step 2) and updated before each review and
+after each revision (Step 3). See Steps 2–3 for lifecycle rules.}
 
 ## Page Context
 
