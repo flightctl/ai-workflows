@@ -69,11 +69,10 @@ Using `01-discovery.md` and `02-research.md` when present, propose one or two
 design directions. For each, identify the user needs it prioritizes, the core
 interaction pattern, its tradeoffs, and how it compares with patterns from
 discovery. When the feature modifies existing UI (workspace mode), also
-prepare concrete source examples for affected areas — navigation, page
-scaffolding, table/list layouts, filter controls, action menus, inline
-editors, modal patterns as applicable. For each, record the source file
-reference and classify as **reuse** (keep) or **depart** (change, with
-rationale). Present the directions and this reuse organization together;
+prepare concrete source examples for affected areas — navigation, scaffolding,
+tables/lists, filters, actions, editors, modals as applicable. For each,
+record the source file reference and classify as **reuse** (keep) or
+**depart** (change — record rationale+expected treatment). Present both;
 wait for the researcher to choose or suggest changes. After selection, persist
 that direction's examples in **Source Example Baseline** in
 `prototype-notes.md` — conformance baseline; preserve on regen/refinement,
@@ -319,11 +318,11 @@ complete prototype must have:
   reason rather than claiming completion. Copied unchanged app scaffolding
   alone is not proof that the requested prototype content exists.
 - **Source-conformance check (workspace mode):** Compare rendered prototype
-  against saved **Source Example Baseline** in `prototype-notes.md`; outcome
-  starts `unverified`, write `matched`/`mismatch`/`limited` + Evidence per
-  entry. Approved departures can match; unavailable → `limited`+reason.
-  Never inherit passes or silently rebaseline mismatches; refresh each
-  generation/revision. Step 4 preserves results.
+  against saved **Source Example Baseline** in `prototype-notes.md`; starts
+  `unverified`, write `matched`/`mismatch`/`limited` + Evidence per
+  entry. Reuse: check against source; depart: against saved expected
+  treatment; unavailable → `limited`+reason; never inherit passes or
+  silently rebaseline; refresh each gen/revision. Step 4 preserves.
 - **Coverage update:** Update every **User Stories Covered** row. `verified`
   requires browser-observed match without stand-in data/interactions.
   Otherwise-complete flows using stand-ins are `mocked` even if behavior
@@ -444,12 +443,11 @@ Do not invent research evidence.
 
 ## Source Example Baseline
 
-| Area | Source Reference | Classification | Rationale | Outcome | Evidence |
-|------|-----------------|----------------|-----------|---------|----------|
-| {area} | {frontend-relative path} | {reuse/depart} | {why} | {unverified/matched/mismatch/limited} | {observation or reason} |
+| Area | Source Reference | Classification | Rationale | Expected Treatment | Outcome | Evidence |
+|------|-----------------|----------------|-----------|-------------------|---------|----------|
+| {area} | {frontend-relative path} | {reuse/depart} | {why} | {unchanged/approved change} | {unverified/matched/mismatch/limited} | {observation or reason} |
 
-{Metadata: Step 1, preserve on regen/refinement. Outcome/Evidence: Step 3.
-Standalone: "No source baseline"}
+{Step 1 metadata+treatment; Step 3 outcome/evidence. Standalone: no baseline}
 
 ## User Stories Covered
 
