@@ -221,9 +221,85 @@ This is the workflow's single review gate. The upstream heuristic evaluation
 runs with its review deferred; the prototype evaluator's scores and verdicts
 are evidence, not researcher-approved conclusions.
 
-Present all findings. The researcher confirms or dismisses each one, assigns
-severity, adds missing context, and chooses which issues to address or accept.
-Do not make these decisions for the researcher.
+#### Saving the Canonical Assessment
+
+Before presenting findings to the researcher, durably write
+`04-evaluation.md` with `Researcher review: Pending` and
+`Authorized fixes: None`. Assign a single register of stable IDs
+(EVL-1, EVL-2, …) across all actionable findings from every method that
+ran — heuristic evaluation, design heuristics (when issues are found, not
+numeric scores alone), and Full acceptance-criteria/persona results (when
+flagged verdicts identify issues). Back-reference each ID to its source
+evidence (raw report path or inline Step 3 results). Record the evaluation
+revision, prototype iteration, discovery revision, and Full evaluation
+run ID (or "N/A") in the report header. Save the file, then present the
+same saved IDs.
+
+A new assessment (new evaluation run) archives the prior canonical
+`04-evaluation.md` per the existing history rules, increments the
+evaluation revision, and assigns its own IDs with default
+`Authorized fixes: None`. Do not rebind an old assessment to a new
+prototype iteration or discovery revision.
+
+Human annotations on the **same** assessment — selected fix authorization,
+per-finding severity endorsement, finding confirmation or
+rejection/deferral — update the saved report in place, preserving its
+evaluation revision, IDs, and underlying evidence references. Do not
+rerun the evaluation merely to record human decisions.
+
+#### Researcher Review
+
+Present the saved findings. The researcher confirms or dismisses each
+one, endorses severity per finding, adds missing context, and chooses
+which issues to address or accept. Do not make these decisions for the
+researcher. Do not infer severity from acceptance-criteria verdicts,
+persona scores, or fix requests. Report confirmation alone is not fix
+permission; fix authorization alone is not severity endorsement or report
+confirmation.
+
+Each finding carries its own severity status: **endorsed** (researcher
+confirmed the rating) or **provisional** (upstream proposed, not yet
+endorsed). Display unendorsed severity as provisional. Severity counts
+in the Summary reflect only endorsed ratings; provisional findings show
+their count separately as unconfirmed. Unknown severity is not zero.
+
+`Researcher review` tracks the overall report state:
+
+- **Pending** — initial state; some or all findings lack endorsed severity
+  or researcher disposition.
+- **Confirmed** — the researcher has confirmed the report: all finding
+  dispositions (confirmed, dismissed, deferred) and severity ratings are
+  endorsed. This is a human decision, not an automatic promotion.
+
+Every non-Confirmed report displays readiness as "No — pending review"
+regardless of how many individual severities are endorsed. A zero-findings
+report or all-dismissed report still requires explicit human confirmation.
+
+#### Remediation Authorization
+
+Before or after severity endorsement, the researcher may explicitly
+authorize fixing identified findings — either "fix all currently presented
+findings" or specific IDs (e.g., "fix EVL-1, EVL-3"). This authorization:
+
+- Applies ONLY to the finite set of saved IDs from the current assessment,
+  bound to this evaluation revision, prototype iteration, and discovery
+  revision. Expand "fix all" to actual current IDs — not future, raw, or
+  unpresented findings.
+- Does NOT constitute report confirmation, severity endorsement, finding
+  acceptance/deferral, or authority to fix unselected items.
+- Requires clarification for ambiguous selection, consequential or
+  underspecified fixes, malformed or empty requests, stale reports, or
+  changed context. Fix authorization with zero findings is a no-op, not
+  an approval.
+
+When fix authorization is given, update only the `Authorized fixes` field
+in the saved report. Fix authorization on an already-Confirmed report
+updates `Authorized fixes` without resetting the Confirmed status — the
+endorsed severity and finding dispositions stand.
+
+After fix authorization, recommend `/prototype` to address the authorized
+findings. The revised prototype requires a new evaluation before handoff;
+the prior authorization does not carry forward to the new iteration.
 
 ## Output
 
@@ -233,7 +309,8 @@ Before replacing an existing `04-evaluation.md`, preserve it under
 `.artifacts/ux-design/{issue-key}/history/evaluation-r{N}.md`, where `{N}` is
 the prior evaluation revision, unless that exact report is already preserved
 in the current context-revision snapshot. Increment the evaluation revision
-for every new report. Keep each raw evaluator run in its unique `04-eval-raw/`
+for every new assessment; same-assessment annotations retain the existing
+revision per the rules above. Keep each raw evaluator run in its unique `04-eval-raw/`
 directory.
 
 Omit sections for methods that did not run. Use this structure:
@@ -248,20 +325,32 @@ Omit sections for methods that did not run. Use this structure:
 **Depth:** {Quick / Standard / Full}
 **Framework:** {heuristic framework}
 **Methods:** {methods run}
+**Full evaluation run:** {run-id from Step 4, or "N/A" if Full did not run}
+**Researcher review:** {Pending / Confirmed}
+**Authorized fixes:** {ID list, or "None"}
 
 ## Summary
 
 **Total issues:** {count}
-**Critical:** {count} | **Major:** {count} | **Minor:** {count} | **Cosmetic:** {count}
+**Endorsed severity:** Critical: {n} | Major: {n} | Minor: {n} | Cosmetic: {n}
+**Provisional (unconfirmed):** {count remaining}
+{All counts reflect per-finding endorsed vs provisional status. Unknown
+severity is not zero; unendorsed findings appear under Provisional.}
 
-## Heuristic Evaluation Findings
+## Findings
 
-{From Step 2. Group findings by researcher-confirmed severity. Include the
-heuristic, agreement, description, user impact, recommendation, and component.}
+{Unified register from Steps 2, 3, and 4. Each actionable finding has a
+stable ID (EVL-1, EVL-2, …) and a source back-reference to its raw
+evidence. Per-finding severity is marked endorsed or provisional. Include
+the heuristic or method, agreement, description, user impact,
+recommendation, and component. Group by endorsed severity when available;
+list provisional findings separately.}
 
 ## Design Heuristics Scores
 
-{From Step 3; omit at Quick depth.}
+{From Step 3; omit at Quick depth. Actionable issues from design heuristics
+receive EVL-IDs in the Findings section above; this table holds the
+non-actionable numeric dimension scores.}
 
 | Dimension | Score | Notes |
 |-----------|-------|-------|
@@ -283,9 +372,9 @@ conducted; do not derive conformance claims from the heuristic evaluator.}
 
 ## Readiness Assessment
 
-**Ready for handoff:** {Yes / No — needs iteration}
+**Ready for handoff:** {Yes / No — needs iteration / No — pending review}
 **Confidence:** {HIGH / MEDIUM / LOW}
-**Rationale:** {why}
+**Rationale:** {why; pending review cannot be ready}
 
 ## Iteration Recommendations
 
@@ -299,6 +388,10 @@ Present the evaluation and readiness assessment. Ask whether the researcher
 wants to iterate or move to handoff. Wait for the answer, then re-read
 `controller.md` for next-step guidance.
 
-After the researcher confirms the report, update `00-context.md` with the
-evaluated prototype iteration and discovery revision. Only an evaluation whose
-revision matches the current enriched discovery can satisfy `/handoff`.
+Update `00-context.md` only after the researcher confirms the final report
+(`Researcher review: Confirmed`) AND the confirmed evaluation's prototype
+iteration and discovery revision match the current active values. A Pending
+evaluation does not qualify. A Confirmed evaluation whose bindings are stale
+(prototype iterated or discovery revised since confirmation) requires a
+current evaluation, not retagging. Historical reports without the review
+field require matching explicit confirmation under existing review rules.

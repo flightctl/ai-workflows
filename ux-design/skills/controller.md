@@ -133,9 +133,10 @@ prototype and evaluation have been reviewed against that context.
   or revise the active design, and `/evaluate` again before handoff.
 - `/research` completed → recommend `/prototype` to explore design directions
 - `/prototype` completed → recommend `/evaluate` (always — never skip evaluation)
-- `/evaluate` completed (no critical issues, enriched context, current prototype) → recommend `/handoff`
-- `/evaluate` completed on exploratory context → keep work exploratory; recommend enrichment when the design document and linked `[UX]` story are available
-- `/evaluate` completed (critical issues) → recommend `/prototype` to iterate
+- `/evaluate` Pending with valid finite authorized fixes (non-empty IDs from the current saved assessment, bound to the current prototype iteration and discovery revision) → recommend `/prototype` to address authorized findings; this is a requested repair loop, not phase completion. Stale authorization (changed prototype or discovery since the assessment) requires a current `/evaluate` instead. Pending without valid authorization → stay in evaluation review, do not auto-advance
+- `/evaluate` Confirmed (no critical issues, enriched context, current prototype and discovery binding) → recommend `/handoff`
+- `/evaluate` Confirmed on exploratory context → keep work exploratory; recommend enrichment when the design document and linked `[UX]` story are available
+- `/evaluate` Confirmed (critical issues) → recommend `/prototype` to iterate
 - `/handoff` completed → recommend `/revise` if the researcher wants
   stakeholder feedback, or `/publish` to push the spec to the docs repo
 - `/revise` completed → recommend `/publish` (or another `/revise` round)
