@@ -54,11 +54,10 @@ direction. An early prototype is a reference for exploration, not a validated
 design for the enriched context.
 
 When returning from `/evaluate`, read `04-evaluation.md`. Before
-evaluation-driven work, verify `Authorized fixes` are non-empty saved
-IDs whose evaluation revision, prototype iteration, and discovery
-revision match current values. None/empty/unresolved → ask for
-selection; stale → current `/evaluate`. Does not restrict ordinary
-prototyping.
+evaluation-driven work, resolve `Authorized fixes` IDs against the
+saved finding register; verify input-snapshot bindings match
+`00-context.md`. None/empty/unresolved → ask; stale → current
+`/evaluate`. Does not restrict ordinary prototyping.
 
 ## Process
 
@@ -206,30 +205,30 @@ Do not assume a plugin path based on another runtime.
 ### Refinement After `/evaluate`
 
 `uxd-prototype-create refine {ID}` reads `.artifacts/{ID}/eval/evaluation-report.csv`
-and `refinement-suggestions.json`. It does not read `reviews/summary.md` or
-accept `--mode`.
+and `refinement-suggestions.json`; not `reviews/summary.md` or `--mode`.
 
 Before refining:
 
 1. Validate `{ID}` using **Artifact Path Safety** before restoring the
    prototype's native layout under `.artifacts/{ID}/` from the
    mirrored files in `03-prototype/` as described in Step 3.
-2. **Full-input gate.** When Full ran, check both inputs in
-   `04-eval-raw/prototype-evaluate/{run-id}/.artifacts/{ID}/eval/`:
-   run-id matches `Full evaluation run` in `04-evaluation.md`, bindings
-   current, every entailed edit maps to an `Authorized fixes` ID.
-   **Pass:** copy both into `.artifacts/{ID}/eval/`. **Fail** (unproven
-   mapping, broader edits, missing/stale): copy neither; new-create
-   with source and only authorized feedback.
+2. **Full-input gate.** Read `Full evaluation run` from `04-evaluation.md`;
+   apply evaluate.md § Run-ID and Path Safety — **unsafe → stop**. Confirm
+   bindings current; map each edit to `Authorized fixes`. **Pass:**
+   copy `evaluation-report.csv` and `refinement-suggestions.json` from
+   `04-eval-raw/prototype-evaluate/{validated-run-id}/.artifacts/{ID}/eval/`
+   into `.artifacts/{ID}/eval/`. **Fail** (unproven mapping, broader edits,
+   valid-missing, stale): copy neither; new-create with source and
+   selected feedback only.
 3. Before a refinement or replacement changes the native prototype, preserve
    the current
    `.artifacts/ux-design/{issue-key}/03-prototype/` tree under
    `history/prototype-iteration-{N}/`, unless that exact tree is already in the
    current context-revision snapshot. Do not overwrite an existing snapshot.
 
-Use `refine` only when step 2 passed; otherwise new-create with source
-and only authorized feedback. Keep output under `.artifacts/{ID}/` until
-Step 3 mirrors it; do not mirror or remove the native directory here.
+Use `refine` only when the Full-input gate passes; otherwise new-create
+with source and authorized feedback. Keep output under `.artifacts/{ID}/`
+until Step 3 mirrors; do not mirror or remove here.
 
 ### Step 3: Map Skill Output Into Our Artifact Structure
 

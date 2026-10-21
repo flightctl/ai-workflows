@@ -26,10 +26,13 @@ Verify these artifacts exist and apply to the current context before generating:
 - `.artifacts/ux-design/{issue-key}/01-discovery.md` — problem context
 - `.artifacts/ux-design/{issue-key}/03-prototype/` — design prototype
 - `.artifacts/ux-design/{issue-key}/04-evaluation.md` — evaluation results
-  (must have `Researcher review: Confirmed` with current prototype iteration
-  and discovery revision bindings; Pending evaluations, authorization-only
-  reports, stale Confirmed evaluations, and reports missing the review field
-  without matching explicit confirmation do not satisfy this prerequisite)
+  (must have `Researcher review: Confirmed` and explicit
+  `Authorized fixes: None` with current prototype iteration, discovery
+  revision, and context revision bindings; Pending evaluations, reports
+  with outstanding authorized repairs, stale Confirmed evaluations, and
+  reports missing the review or context-revision field without provable
+  assessed-current context and matching explicit confirmation do not
+  satisfy this prerequisite; missing or unknown fields are not `None`)
 
 The discovery brief's context revision must match `00-context.md`. The current
 prototype must be recorded as reviewed against that revision, and the
