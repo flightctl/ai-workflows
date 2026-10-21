@@ -345,10 +345,17 @@ reading, composing, or copying any path. Use the same validated
    namespace. Perform this check before `git init`, evaluator
    invocation, or any artifact writes.
 5. **Input containment (producer read + consumer read/copy).** Each raw
-   input (`evaluation-report.csv`, `refinement-suggestions.json`) under
-   `{run-dir}/.artifacts/{ID}/eval/` must resolve within the resolved
-   run directory. A symlinked input pointing to a sibling run or outside
-   the tree fails. Apply before reading or copying.
+   input (`evaluation-report.csv`, `refinement-suggestions.json`) may
+   appear under the same-key path `{run-dir}/.artifacts/{ID}/eval/` or
+   the cross-key path `{run-dir}/.artifacts/eval/` (Step 4 §6 detects
+   and normalizes cross-key outputs when `{prototype-id}` ≠
+   `{story-key}`). Apply containment checks to each actual candidate
+   source path BEFORE opening, reading content, copying, or normalizing
+   — not only to the normalized destination after copy. Each candidate
+   must resolve within the resolved run directory; a symlinked input
+   pointing to a sibling run or outside the tree fails. These checks
+   assume non-adversarial artifact handling and do not claim protection
+   against intentional concurrent tampering.
 6. **Failure handling.** Unsafe path (symlink escape, non-directory,
    containment failure) → stop and report; leave artifacts intact. Do
    not fall back or mask the failure. A safe planned path where the run
