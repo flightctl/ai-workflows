@@ -323,6 +323,26 @@ uninstall_gemini() {
   fi
 }
 
+remove_codex_phase_skills() {
+  local skills_dir="$1"
+  local package target
+  for package in "${PACKAGES[@]}"; do
+    # Ownership markers also find adapters for commands removed since install.
+    for target in "${skills_dir}/${package}"-*; do
+      [[ -d "$target" && ! -L "$target" ]] || continue
+      [[ -f "$target/.ai-workflows-phase" && ! -L "$target/.ai-workflows-phase" ]] || continue
+      [[ "$(cat "$target/.ai-workflows-phase")" == "$package" ]] || continue
+      rm -f "$target/SKILL.md" "$target/.ai-workflows-phase"
+      if [[ -L "$target/workflow" ]]; then
+        rm -f "$target/workflow"
+      fi
+      # Retain any user-added files rather than deleting the whole directory.
+      rmdir "$target" 2>/dev/null || true
+      echo "  Removed generated phase skill $target"
+    done
+  done
+}
+
 uninstall_codex() {
   if [[ "$SCOPE" == "project" ]]; then
     SKILLS_DIR="${PROJECT_ROOT}/.agents/skills"
@@ -330,6 +350,7 @@ uninstall_codex() {
     SKILLS_DIR="${HOME}/.agents/skills"
   fi
 
+  remove_codex_phase_skills "$SKILLS_DIR"
   if [[ "$SELECTIVE" == false ]]; then
     uninstall_shared "$SKILLS_DIR"
   fi
