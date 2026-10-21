@@ -284,9 +284,8 @@ owned adapters for the selected packages and preserves unrelated user skills.
 Discovery and explicit skill loading are tested with Codex CLI 0.163.0 using its
 app server and a local response fixture; no model credentials are required.
 The tests verify both installation scopes and retain the top-level entry points.
-They do not evaluate a live model's execution of workflow phases. T3's skill
-picker should use these entries when running through Codex; its UI is not
-covered by this smoke test.
+They do not evaluate a live model's execution of workflow phases. This smoke
+test does not cover the skill picker UI.
 
 ## Updating
 

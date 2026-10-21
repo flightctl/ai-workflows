@@ -61,8 +61,16 @@ class AppServer:
             raise
 
     def _read(self):
-        for line in self.process.stdout:
-            self.messages.put(json.loads(line))
+        try:
+            for line in self.process.stdout:
+                message = json.loads(line)
+                if not isinstance(message, dict):
+                    raise ValueError("app-server stdout message must be a JSON object")
+                self.messages.put(message)
+        except Exception as error:
+            self.messages.put(error)
+        else:
+            self.messages.put(EOFError("app-server stdout closed"))
 
     def send(self, message):
         self.process.stdin.write(json.dumps(message) + "\n")
@@ -74,6 +82,9 @@ class AppServer:
         self.send({"id": request_id, "method": method, "params": params})
         while True:
             message = self.messages.get(timeout=30)
+            if isinstance(message, Exception):
+                self.messages.put(message)
+                raise RuntimeError("app-server stdout reader stopped") from message
             if message.get("id") == request_id:
                 if "error" in message:
                     raise RuntimeError(message["error"])
@@ -90,6 +101,18 @@ class AppServer:
         self.process.stdout.close()
 
 
+def build_test_environment(home):
+    env = {**os.environ, "HOME": str(home), "CODEX_HOME": str(home / ".codex")}
+    env["NO_PROXY"] = env["no_proxy"] = "127.0.0.1"
+    env["GIT_CONFIG_GLOBAL"] = os.devnull
+    env["XDG_CONFIG_HOME"] = str(home / ".config")
+    for variable in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
+                     "http_proxy", "https_proxy", "all_proxy",
+                     "OPENAI_API_KEY", "OPENAI_BASE_URL", "CODEX_API_KEY"):
+        env.pop(variable, None)
+    return env
+
+
 def main():
     print(subprocess.check_output(["codex", "--version"], text=True).strip())
     with tempfile.TemporaryDirectory(prefix="aiw-codex-runtime-") as root:
@@ -97,13 +120,9 @@ def main():
         home, project = root / "home", root / "project"
         home.mkdir()
         project.mkdir()
-        env = {**os.environ, "HOME": str(home), "CODEX_HOME": str(home / ".codex")}
-        # No inherited account credentials or configuration are needed.
-        env.pop("OPENAI_API_KEY", None)
-        env.pop("OPENAI_BASE_URL", None)
-        env.pop("CODEX_API_KEY", None)
+        env = build_test_environment(home)
         (home / ".codex").mkdir()
-        subprocess.run(["git", "init", "-q", str(project)], check=True)
+        subprocess.run(["git", "init", "-q", str(project)], env=env, check=True)
         server = ThreadingHTTPServer(("127.0.0.1", 0), ModelFixture)
         threading.Thread(target=server.serve_forever, daemon=True).start()
         try:

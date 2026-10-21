@@ -116,6 +116,42 @@ class CodexAdaptersTest(unittest.TestCase):
                         "--project", str(self.project))
         self.assertFalse((self.project / ".agents/skills/bugfix-assess").exists())
 
+    def test_reinstall_removes_only_stale_owned_adapters(self):
+        self.install()
+        stale = self.skills / "bugfix-assess"
+        (stale / "personal.txt").write_text("keep")
+        unowned = self.skills / "bugfix-custom"
+        unowned.mkdir()
+        (unowned / "SKILL.md").write_text("user skill")
+        conflict = self.skills / "bugfix-fix"
+        (conflict / "workflow").unlink()
+        (conflict / "workflow").mkdir()
+        (conflict / "workflow/custom.txt").write_text("keep workflow")
+        for phase in ("assess", "fix", "test"):
+            (self.repo / f"bugfix/commands/{phase}.md").unlink()
+        self.run_script("install.sh", "codex", "--packages", "bugfix", "--no-update-timer")
+        self.assertFalse((stale / "SKILL.md").exists())
+        self.assertFalse((stale / "workflow").is_symlink())
+        self.assertFalse((stale / ".ai-workflows-phase").exists())
+        self.assertEqual((stale / "personal.txt").read_text(), "keep")
+        self.assertFalse((self.skills / "bugfix-test").exists())
+        self.assertEqual((unowned / "SKILL.md").read_text(), "user skill")
+        self.assertEqual((conflict / "workflow/custom.txt").read_text(), "keep workflow")
+        self.assertTrue((conflict / "SKILL.md").is_file())
+        self.assertTrue((self.skills / "bugfix-review/SKILL.md").is_file())
+        self.assertTrue((self.skills / "sizing-assess/SKILL.md").is_file())
+
+    def test_later_package_collision_creates_no_adapters(self):
+        collision = self.repo / "skills/sizing-assess"
+        collision.mkdir()
+        (collision / "SKILL.md").write_text("package skill")
+        result = self.run_script("install.sh", "codex", "--packages", "bugfix,sizing",
+                                 "--no-update-timer", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("conflicts with a package name", result.stderr)
+        self.assertFalse(any(self.skills.glob("*/.ai-workflows-phase")))
+        self.assertEqual((collision / "SKILL.md").read_text(), "package skill")
+
     def test_package_name_collision_fails_without_overwriting(self):
         collision = self.repo / "skills/bugfix-assess"
         collision.mkdir()
