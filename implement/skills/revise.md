@@ -44,7 +44,7 @@ The user's feedback may target:
 - Task splitting ("Task 3 is too large, split it")
 - Task combining ("Tasks 2 and 3 can be a single commit")
 
-**Scope decisions (from `/code` or `/respond` pause):**
+**Scope decisions (from `/code`, `/respond`, or `/validate` pause):**
 The `## Pending Scope Decision` section of `02-plan.md` records the
 unresolved decision (`/code`, `/respond`, and `/validate` create it;
 `/revise` is the only phase that resolves or clears the recorded

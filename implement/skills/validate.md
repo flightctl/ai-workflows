@@ -27,6 +27,38 @@ and repeat until everything passes.
 
 ## Process
 
+### Scope-First Remediation Policy
+
+This policy applies to every remediation action in Steps 3–6, including
+fixes proposed by the self-review gate's external-tool path (shared
+recipe Step 1) and subagent/inline path (Steps 2–3). Before applying
+any proposed fix — code edit, new test, or commit — assess whether it
+stays within the approved Scope Baseline in `02-plan.md` (when present):
+
+- **In-scope fix** (correctness, regression, coverage for code within
+  baseline boundaries): apply using the existing step's behavior.
+- **Material scope expansion** (fix would modify interfaces, components,
+  or files outside baseline boundaries, or add substantial unplanned
+  structural work): classify as blocking HIGH. Immediately record a
+  `## Pending Scope Decision` section in `02-plan.md` with the delta,
+  necessity, affected boundaries, and keep/extract/defer options. Stop
+  the current step — do not apply the fix, commit, write or overwrite
+  `05-validation-report.md`, or advance to later steps. Recommend
+  `/revise`. Preserve valid in-scope work already committed.
+
+For the self-review gate invocation (Step 6): if the project specifies
+a non-interactive review tool (shared recipe Step 1), prefer a
+findings-only / read-only mode when available so findings can be scope-
+assessed before edits. If the tool only operates in fix mode, assess
+each fix against scope before accepting it. For inline or subagent
+review (Steps 2–3), assess each finding for scope before fixing — the
+supplementary criteria instruct the reviewer to report scope drift
+unfixed, but this caller policy is the primary guard against auto-fix
+in the tool path which does not consume supplementary criteria.
+
+Plans without a Scope Baseline skip this assessment — the existing
+step-level remediation behavior applies unchanged.
+
 ### Step 1: Read Context and Check Entry Conditions
 
 Read:
