@@ -209,6 +209,37 @@ Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
  the set assigned to tasks or marked N/A. If the difference is
  non-empty, the plan is incomplete — resolve before proceeding.}
 
+## Scope Baseline
+
+{Explicit record of intended scope. `/code` compares actual work against
+ this baseline to detect material scope drift.}
+
+### Intended Feature Changes
+{What new or modified behavior this story delivers. One bullet per
+ distinct behavioral change.}
+
+### Known Supporting Refactoring
+{Existing code that must change to support the feature — renames,
+ interface adjustments, caller updates, extracted helpers. Distinguish
+ from new feature code. If none: “None — all changes are new code.”}
+
+### Affected Interfaces and Components
+{Public interfaces, shared types, or cross-component surfaces that the
+ story modifies. These are the boundaries `/code` monitors for
+ unexpected expansion.}
+
+### Expected Delivery Boundaries
+{What this story does NOT change. Defines the outer edge of scope so
+ `/code` can flag drift when work crosses these boundaries.}
+
+### Prerequisite Rationale
+{For each item in Known Supporting Refactoring: why it is required for
+ this story rather than independent cleanup. If the refactoring is
+ substantial enough to warrant a separate prerequisite story, note that
+ it should be proposed to the user during `/revise` or flagged during
+ `/code`. If no supporting refactoring: “N/A — no supporting
+ refactoring identified.”}
+
 ## Risk Assessment
 
 {Things the plan author is uncertain about. Ordered by impact.}
@@ -240,6 +271,7 @@ Before presenting the plan, verify:
 - [ ] Every ingest open question is a locked decision (specified or implementer default) or a product fork still listed
 - [ ] Open Questions contains only product forks, not pins/timeouts/names `/code` could default
 - [ ] Cited Reads stayed within the cap; `02-plan.md` has no pasted file bodies
+- [ ] Scope Baseline is complete: Intended Feature Changes, Known Supporting Refactoring (with prerequisite rationale), Affected Interfaces, and Expected Delivery Boundaries are all populated based on actual inspected code, not guesses
 
 ### Step 6: Present to User
 

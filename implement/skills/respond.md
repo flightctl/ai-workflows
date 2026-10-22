@@ -116,7 +116,38 @@ Group comments into categories:
 | **Approval / positive** | Acknowledge |
 | **Out of scope** | Draft a reply explaining why |
 
-### Step 3: Propose Responses
+### Step 3: Assess Scope Impact
+
+Before proposing responses, read the Scope Baseline section of
+`02-plan.md` (if present). For each review comment that requests code
+changes, assess whether the requested work stays within the story's
+baseline boundaries:
+
+- **Within scope** — the request addresses the story's own code,
+  fixes a defect introduced by this story, or is a small cohesive
+  improvement within the baseline boundaries. Proceed to propose a
+  response normally.
+- **Necessary correction** — the request identifies a bug or defect
+  in code introduced by this story. These must be addressed regardless
+  of scope; they are not scope expansion.
+- **Material scope expansion** — the request would require substantial
+  changes to existing code outside the baseline, modifications to
+  shared interfaces not listed in the baseline, or broad caller
+  updates. **Pause the affected work.** Present the scope delta to the
+  user: explain what the reviewer is requesting, why it exceeds the
+  current baseline, which boundaries it would cross, and the options:
+  1. Keep the expanded work in this story (update the plan first)
+  2. Extract it as a separate prerequisite story
+  3. Decline the expansion with a technical rationale to the reviewer
+
+  Await the user's decision. If the user approves expansion, update
+  `02-plan.md` (Scope Baseline and affected tasks) before applying the
+  changes. Do not defer a necessary fix to an introduced defect — that
+  is a correction, not expansion.
+
+Classify each comment's scope impact before proceeding to Step 4.
+
+### Step 4: Propose Responses
 
 Evaluate each comment on its technical merit. Do not reflexively agree
 with every suggestion — assess whether the proposed change would
@@ -146,7 +177,7 @@ call on whether to push back or comply.
 
 Wait for the user to approve, modify, or reject each response.
 
-### Step 4: Apply Approved Changes
+### Step 5: Apply Approved Changes
 
 #### Code changes
 
@@ -224,7 +255,7 @@ Clean up the temporary reply file:
 rm .artifacts/implement/{issue-key}/tmp-reply.md
 ```
 
-### Step 5: Update Response Log
+### Step 6: Update Response Log
 
 Write or update `.artifacts/implement/{issue-key}/07-review-responses.md`:
 
@@ -241,7 +272,7 @@ Write or update `.artifacts/implement/{issue-key}/07-review-responses.md`:
 - **Commit:** {hash, if code was changed}
 ```
 
-### Step 6: Assess Re-Validation Need
+### Step 7: Assess Re-Validation Need
 
 If code changes were made:
 - Recommend re-running `/validate` to ensure all checks still pass
@@ -250,7 +281,7 @@ If code changes were made:
 If only clarification replies were posted:
 - No re-validation needed
 
-### Step 7: Report to User
+### Step 8: Report to User
 
 Summarize:
 - How many comments were addressed

@@ -24,6 +24,7 @@ must leave the system in a stable state.
 - **Every story leaves the system stable.** Code merges to main via CI/CD. All locally-executable tests must pass.
 - **No scope reduction.** Never silently drop requirements, defer to "v2", or say "placeholder." If a requirement can't be decomposed cleanly, flag it.
 - **Right-sized stories.** Not too small (process overhead) and not too large (hard to review). A story should represent a meaningful, reviewable unit of work.
+- **Prerequisite refactoring stories.** Substantial, necessary, behavior-preserving refactoring that the feature depends on may be decomposed into separate stories when it is independently reviewable and mergeable. Each prerequisite story must explicitly justify why it is necessary for the feature, state which feature stories depend on it, and include tests demonstrating that existing behavior is preserved. Keep small, cohesive supporting cleanup within the feature story that motivates it — only extract a prerequisite when the refactoring is substantial enough to warrant independent review. Do not invent user-visible capabilities or requirement mappings to justify infrastructure work; prerequisite stories trace to the feature stories they enable, not directly to PRD functional requirements.
 - **Documentation is integrated.** Each story evaluates and updates documentation as appropriate. `[DOCS]` stories are acceptable for cross-cutting documentation that requires a holistic view (e.g., architecture overview, migration guide). For larger features, consider per-epic `[DOCS]` stories when different epics introduce distinct user-facing surfaces that benefit from focused documentation. Choose whichever structure produces the highest-quality documentation.
 
 ## Process
@@ -321,6 +322,7 @@ the last epic.
 **Story quality checks:**
 - For `[DEV]` stories: does this story add a capability AND testing for that capability?
 - For `[QE]` stories: does this story define concrete e2e test scenarios that validate user-facing behavior from the associated `[DEV]` stories?
+- For prerequisite refactoring stories: does this story justify why it is necessary, state which feature stories depend on it, and include tests demonstrating preserved behavior? Is the refactoring substantial enough to warrant independent review, or should it stay with the feature story that motivates it?
 - Does the system remain stable (all tests pass) after this story is merged?
 - Is this story reviewable in a single PR? If not, it's too large — split it.
 - Is this story meaningful? If the PR would be trivially small, consider
@@ -416,11 +418,12 @@ Interface Changes: IC-1, IC-2
 Validated by: TC-FR1-01, TC-FR3-02, TC-FR7-01
 ```
 
-For infrastructure prerequisite stories that implement no ICs:
+For infrastructure prerequisite or prerequisite refactoring stories that
+implement no ICs:
 
 ```markdown
-Interface Changes: None — infrastructure prerequisite
-Validated by: None — infrastructure prerequisite
+Interface Changes: None — prerequisite (behavior-preserving)
+Validated by: None — prerequisite (behavior-preserving); existing tests verify preserved behavior
 ```
 
 ### Step 8: Write Coverage Matrix

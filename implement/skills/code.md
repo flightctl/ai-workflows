@@ -295,6 +295,42 @@ verify the fixes. Only proceed to commit once checks pass. Note any
 dismissed findings in the implementation report (Discoveries section)
 so there is a paper trail.
 
+**Scope baseline comparison:**
+
+After the self-review gate passes, compare the actual work in this task
+against the Scope Baseline section of `02-plan.md` (if present). Check:
+
+1. **File count signal.** Count the files modified or created by this
+   task. A task that touches substantially more files than its plan
+   entry described is a warning signal — not a hard violation, but a
+   prompt to assess whether the scope is drifting.
+2. **Boundary check.** Are any changes outside the Affected Interfaces
+   and Components listed in the baseline? Do any changes cross the
+   Expected Delivery Boundaries?
+3. **Structural work classification.** For each change that was not
+   anticipated in the task's plan entry, classify it:
+   - **Required existing-code prerequisite** — the feature cannot work
+     without this change to existing code. If substantial (broad caller
+     updates, shared-interface changes), this may warrant extraction
+     into a separate prerequisite story. Note it in the implementation
+     report (Discoveries section) for user review.
+   - **Correction of new implementation** — fixing or adjusting code
+     introduced by this story. This is normal development.
+   - **Unrelated preference** — cleanup, style improvement, or
+     refactoring that is not required by the story. Do not apply it;
+     note it in the implementation report (Discoveries section).
+
+If the comparison reveals material unplanned structural work — broad
+shared-interface changes, modifications to components outside the
+baseline boundaries, or substantial refactoring of existing code —
+**stop and present the scope delta to the user** before committing.
+Explain what changed beyond the baseline, why it appears necessary,
+and whether it should remain in this story, be extracted as a
+prerequisite, or be deferred. Await the user's decision and update
+`02-plan.md` (Scope Baseline and affected tasks) before continuing.
+Small, cohesive supporting changes that stay within the baseline
+boundaries proceed without interruption.
+
 **Test plan reconciliation (if story-scoped testplan exists):**
 
 After the self-review gate passes, check whether this task has TC IDs
@@ -457,6 +493,7 @@ During implementation, you may encounter unexpected situations:
 | Story guidance contradicts current codebase state | **Stop and ask the user** | Required |
 | Implementation is significantly simpler than planned | Note in report, continue | Auto |
 | Implementation is significantly more complex than planned | **Stop and ask the user** — the story may need re-scoping | Required |
+| Material scope expansion detected by baseline comparison | **Stop and present the scope delta** — explain necessity, affected boundaries, and options (keep together, extract prerequisite, defer). Await user decision and update the plan before continuing. Do not bypass a pending scope decision by proceeding to commit, validate, or publish. | Required |
 
 ### Step 6: Write Reports
 

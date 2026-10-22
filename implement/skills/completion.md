@@ -18,9 +18,15 @@ user.
   `/revise` round when further changes remain.
 - **code:** Recommend `/validate`. If implementation exposed a plan gap, note
   the inline plan update or offer `/plan` when redesign requires user review.
-- **validate:** Recommend `/publish` only when validation passed. When failures
-  remain, recommend fixing them and rerunning `/validate`; offer `/plan` for a
-  design concern or ambiguous acceptance criterion that requires re-scoping.
+  If `/code` paused for a pending scope decision (material scope expansion
+  detected by baseline comparison), recommend `/revise` to update the plan
+  with the user's decision before resuming `/code`. Do not recommend
+  `/validate` or `/publish` while a scope decision is pending.
+- **validate:** Recommend `/publish` only when validation passed and no scope
+  decisions are pending. When failures remain, recommend fixing them and
+  rerunning `/validate`; offer `/plan` for a design concern or ambiguous
+  acceptance criterion that requires re-scoping. If the scope baseline check
+  flagged unresolved drift, recommend `/revise` before `/publish`.
 - **publish:** Recommend `/respond` when review comments arrive; otherwise the
   workflow is complete for now.
 - **respond:** Recommend `/validate` after code changes, another `/respond`

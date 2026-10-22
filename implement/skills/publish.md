@@ -19,9 +19,11 @@ user before taking action.
 - **Confirm before pushing.** Verify the target branch, PR title, and PR details with the user.
 - **One story per PR.** Each pull request corresponds to exactly one Jira story. Do not combine multiple stories into a single PR.
 - **Draft PR.** Always create as a draft — the user decides when to mark it ready for review.
-- **No force-push.** No destructive git operations.
+- **No force-push.** No destructive git operations. Do not rebase an open PR — rebasing rewrites commit SHAs, requires a force-push, orphans review comments, and disrupts the reviewer's context.
 - **No direct commits to main.** The feature branch must already exist from `/code`.
 - **Validation must have passed.** Check for a passing validation report before proceeding.
+- **Reconcile via merge, not rebase.** After independently validated prerequisite stories merge into the target branch, reconcile the existing feature PR by merging the updated target branch into the feature branch. Do not rebase the feature branch. Keep the original PR unless the author and reviewer explicitly agree to a replacement; carry unresolved findings and discussion references to any replacement PR.
+- **No pending scope decisions.** Do not publish while a scope decision from `/code` or `/respond` is pending. The Scope Baseline section of `02-plan.md` must reflect all approved work. Recommend `/revise` to resolve pending decisions before publishing.
 
 ## Shared Script
 
