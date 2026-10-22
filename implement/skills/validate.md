@@ -46,15 +46,14 @@ stays within the approved Scope Baseline in `02-plan.md` (when present):
   `05-validation-report.md`, or advance to later steps. Recommend
   `/revise`. Preserve valid in-scope work already committed.
 
-For the self-review gate invocation (Step 6): if the project specifies
-a non-interactive review tool (shared recipe Step 1), prefer a
-findings-only / read-only mode when available so findings can be scope-
-assessed before edits. If the tool only operates in fix mode, assess
-each fix against scope before accepting it. For inline or subagent
-review (Steps 2–3), assess each finding for scope before fixing — the
-supplementary criteria instruct the reviewer to report scope drift
-unfixed, but this caller policy is the primary guard against auto-fix
-in the tool path which does not consume supplementary criteria.
+For the self-review gate invocation (Step 6): only use a non-interactive
+review tool (shared recipe Step 1) if it supports a non-mutating /
+findings-only invocation that reports findings without editing code. If
+the configured tool cannot produce findings before code mutation, do not
+run it — fall back to the read-only subagent or inline review path
+instead (shared recipe Step 2). In either path, assess each finding for
+scope before applying fixes; this caller policy takes precedence over
+the shared recipe's default tool-then-fix sequence.
 
 Plans without a Scope Baseline skip this assessment — the existing
 step-level remediation behavior applies unchanged.
