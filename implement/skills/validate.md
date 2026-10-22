@@ -241,12 +241,13 @@ the review, or invent a replacement base. The base must be repaired
 git status --porcelain --untracked-files=normal
 ```
 
-Ignore paths under `.artifacts/` (workflow working state, gitignored).
-If any other modified, staged, or untracked implementation files
-remain, stop — report the affected paths. Do not auto-commit, stash,
-reset, or delete them. The implementation must be completed and
-committed through normal `/code` or user-approved `/revise` handling
-before rerunning `/validate`.
+If the command fails (non-zero exit), stop and report the error — do
+not assume an empty result means clean. Otherwise, ignore paths under
+`.artifacts/` (workflow working state, gitignored). If any other
+modified, staged, or untracked implementation files remain, stop —
+report the affected paths. Do not auto-commit, stash, reset, or delete
+them. The implementation must be completed and committed through normal
+`/code` or user-approved `/revise` handling before rerunning `/validate`.
 
 **6c: Pre-gate scope check.** If `02-plan.md` has a Scope Baseline
 section, compare the branch diff (`git diff {local-base}...HEAD`)
@@ -279,26 +280,25 @@ within the validation phase.
 **6e: Commit and re-validate fixes.** If the gate made code fixes (the
 gate edits files but does not commit — shared recipe lines 174-176):
 
-1. Re-run affected pre-PR checks from Step 3 and Step 4 coverage
-   analysis if fixes touch covered packages. Fix failures before
-   committing.
+1. Re-run affected pre-PR checks from Step 3. Additionally re-run
+   Step 4 coverage analysis when fixes touch covered packages.
 2. Commit the fixes:
    ```bash
    git add {fixed files}
    git commit -m "{issue-key}: address validation review findings"
    ```
 3. Re-run 6b (clean worktree) then 6c (scope check) on the new HEAD.
-4. Re-run 6d (self-review gate) on the committed HEAD so the final
-   quality review reflects the actual committed snapshot. The gate's
-   DIFF_COMMAND (`git diff {local-base}...HEAD`) now includes the
-   committed fixes. This re-run consumes remaining rounds from the
-   original MAX_ROUNDS budget — do not reset the round counter. If
-   the budget is exhausted or the re-run introduces no new fixes,
-   the cycle ends.
+4. Re-run 6d (self-review gate) on the committed HEAD. The gate's
+   DIFF_COMMAND now includes committed fixes. This re-run consumes
+   remaining rounds from the original MAX_ROUNDS budget — do not
+   reset the counter. The cycle ends successfully only when the
+   committed clean HEAD passes re-review without further code fixes.
+   If MAX_ROUNDS is exhausted before reaching a clean pass, stop with
+   FLAG — do not write the validation report or advance to Step 7.
 
-The validation report (Step 9) must reflect this final committed and
-reviewed HEAD, not the pre-fix state. If the re-run gate returns FLAG
-or scope drift is found, record and pause per the existing rules.
+The validation report (Step 9) must reflect the final committed and
+reviewed HEAD. If the re-run gate returns FLAG or scope drift is found,
+record and pause per the existing rules.
 
 ### Step 7: Acceptance Criteria Verification
 
