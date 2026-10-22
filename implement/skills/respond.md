@@ -133,17 +133,22 @@ baseline boundaries:
 - **Material scope expansion** — the request would require substantial
   changes to existing code outside the baseline, modifications to
   shared interfaces not listed in the baseline, or broad caller
-  updates. **Pause the affected work.** Present the scope delta to the
-  user: explain what the reviewer is requesting, why it exceeds the
-  current baseline, which boundaries it would cross, and the options:
-  1. Keep the expanded work in this story (update the plan first)
-  2. Extract it as a separate prerequisite story
-  3. Decline the expansion with a technical rationale to the reviewer
+  updates. **Record and pause** the affected work:
+  1. Append a `## Pending Scope Decision` section to `02-plan.md`
+     (or update an existing one) describing the reviewer's request,
+     why it exceeds the baseline, which boundaries it crosses, and
+     the options: keep in this story, extract prerequisite, or
+     decline with rationale. This persists across session restarts.
+  2. Present the recorded pending decision to the user. Do not apply
+     code changes, push, or post replies for the affected comment
+     until the user decides.
+  3. The user routes to `/revise` to update the plan and clear the
+     pending section. If a prerequisite is extracted, feature work
+     that depends on it waits until it merges. Then resume
+     `/respond` for remaining comments.
 
-  Await the user's decision. If the user approves expansion, update
-  `02-plan.md` (Scope Baseline and affected tasks) before applying the
-  changes. Do not defer a necessary fix to an introduced defect — that
-  is a correction, not expansion.
+  Do not defer a necessary fix to an introduced defect — that is a
+  correction, not expansion.
 
 Classify each comment's scope impact before proceeding to Step 4.
 
@@ -178,6 +183,11 @@ call on whether to push back or comply.
 Wait for the user to approve, modify, or reject each response.
 
 ### Step 5: Apply Approved Changes
+
+Before applying any code changes or posting replies, check whether
+`02-plan.md` contains a `## Pending Scope Decision` section. If it
+does, stop — report the pending decision and recommend `/revise` to
+resolve it before changes can be applied or pushed.
 
 #### Code changes
 

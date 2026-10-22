@@ -221,7 +221,7 @@ Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
 ### Known Supporting Refactoring
 {Existing code that must change to support the feature — renames,
  interface adjustments, caller updates, extracted helpers. Distinguish
- from new feature code. If none: “None — all changes are new code.”}
+ from new feature code. If none: “None identified.”}
 
 ### Affected Interfaces and Components
 {Public interfaces, shared types, or cross-component surfaces that the
@@ -229,16 +229,21 @@ Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
  unexpected expansion.}
 
 ### Expected Delivery Boundaries
-{What this story does NOT change. Defines the outer edge of scope so
- `/code` can flag drift when work crosses these boundaries.}
+{The intended delivery shape: one cohesive feature PR, or a proposed
+ prerequisite PR followed by a feature PR. State what this story WILL
+ deliver and what it will NOT change. `/code` flags drift when work
+ crosses these boundaries.}
 
 ### Prerequisite Rationale
 {For each item in Known Supporting Refactoring: why it is required for
- this story rather than independent cleanup. If the refactoring is
- substantial enough to warrant a separate prerequisite story, note that
- it should be proposed to the user during `/revise` or flagged during
- `/code`. If no supporting refactoring: “N/A — no supporting
- refactoring identified.”}
+ this story rather than independent cleanup. If any known refactoring
+ is substantial enough to warrant a separate prerequisite story,
+ propose it here — surface the boundary decision at this plan approval
+ checkpoint so the user can agree before coding begins. Record which
+ existing tests cover the affected behavior and which feature tasks
+ depend on the refactoring completing first.
+
+ If no supporting refactoring is identified: “N/A.”}
 
 ## Risk Assessment
 

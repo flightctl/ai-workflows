@@ -19,7 +19,7 @@ must leave the system in a stable state.
 
 - **Epics are user-value oriented.** Organize around user outcomes, not technical layers. "Image Building Workflow" is a good epic; "API Development" is not.
 - **Each epic is standalone.** An epic delivers complete functionality and enables future epics without requiring them.
-- **Every `[DEV]` story includes functionality AND testing.** Each `[DEV]` story adds a capability and the tests that validate it. Tests should validate the software's contract, not its implementation. `[DEV]` stories must include comprehensive unit tests; integration tests should be included when natural, but may be split into a separate `[DEV]` story when the integration test surface warrants it. Use the test types appropriate to what the story changes — unit tests for isolated logic, integration tests for component interactions (database, API, services), and e2e tests for user-facing workflows. Match the project's existing test infrastructure as captured in `01-context.md`.
+- **Every `[DEV]` story includes functionality AND testing.** Each `[DEV]` story adds a capability and the tests that validate it — or, for a justified behavior-preserving prerequisite, restructures existing code and includes tests demonstrating that existing behavior is preserved. Tests should validate the software's contract, not its implementation. `[DEV]` stories must include comprehensive unit tests; integration tests should be included when natural, but may be split into a separate `[DEV]` story when the integration test surface warrants it. Use the test types appropriate to what the story changes — unit tests for isolated logic, integration tests for component interactions (database, API, services), and e2e tests for user-facing workflows. Match the project's existing test infrastructure as captured in `01-context.md`.
 - **`[QE]` stories track standalone e2e test automation.** The QE team owns e2e test automation, manual test execution, and negative test coverage as separate stories. These are not "just tests" — they represent dedicated QE work that tracks independently from the unit/integration tests embedded in `[DEV]` stories. Each epic should include at least one `[QE]` story when the feature has e2e-testable surface.
 - **Every story leaves the system stable.** Code merges to main via CI/CD. All locally-executable tests must pass.
 - **No scope reduction.** Never silently drop requirements, defer to "v2", or say "placeholder." If a requirement can't be decomposed cleanly, flag it.
@@ -320,7 +320,7 @@ place them as the last story within their own epic. For a cross-cutting
 the last epic.
 
 **Story quality checks:**
-- For `[DEV]` stories: does this story add a capability AND testing for that capability?
+- For `[DEV]` stories: does this story add a capability AND testing for that capability? For a justified behavior-preserving prerequisite, does it restructure existing code AND include tests demonstrating preserved behavior?
 - For `[QE]` stories: does this story define concrete e2e test scenarios that validate user-facing behavior from the associated `[DEV]` stories?
 - For prerequisite refactoring stories: does this story justify why it is necessary, state which feature stories depend on it, and include tests demonstrating preserved behavior? Is the refactoring substantial enough to warrant independent review, or should it stay with the feature story that motivates it?
 - Does the system remain stable (all tests pass) after this story is merged?

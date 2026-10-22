@@ -274,6 +274,11 @@ operate on the staged diff:
 git add {specific files}
 ```
 
+Before running the self-review gate, check whether `02-plan.md`
+contains a `## Pending Scope Decision` section. If it does, stop — do
+not run the review gate, commit, or write reports until the decision
+is resolved via `/revise`.
+
 Run the self-review gate on the staged changes.
 
 Read and follow `../../_shared/recipes/self-review-gate.md` with these
@@ -293,12 +298,19 @@ If the gate made code fixes, re-stage the affected files, then re-run
 the task-scoped tests (Step 3c) and fast quality checks (Step 3d) to
 verify the fixes. Only proceed to commit once checks pass. Note any
 dismissed findings in the implementation report (Discoveries section)
-so there is a paper trail.
+so there is a paper trail. If a self-review fix itself introduces
+material unplanned structural work (changes to files or interfaces
+outside the baseline), treat it as scope expansion — run the scope
+baseline comparison below and record/pause if material drift is found
+before applying the expanded fix.
 
 **Scope baseline comparison:**
 
 After the self-review gate passes, compare the actual work in this task
-against the Scope Baseline section of `02-plan.md` (if present). Check:
+against the Scope Baseline section of `02-plan.md`. If `02-plan.md` has
+no Scope Baseline section (plans created before this feature), skip
+this comparison — the per-task review gate and deviation rules still
+apply. When the baseline is present, check:
 
 1. **File count signal.** Count the files modified or created by this
    task. A task that touches substantially more files than its plan
@@ -323,11 +335,25 @@ against the Scope Baseline section of `02-plan.md` (if present). Check:
 If the comparison reveals material unplanned structural work — broad
 shared-interface changes, modifications to components outside the
 baseline boundaries, or substantial refactoring of existing code —
-**stop and present the scope delta to the user** before committing.
-Explain what changed beyond the baseline, why it appears necessary,
-and whether it should remain in this story, be extracted as a
-prerequisite, or be deferred. Await the user's decision and update
-`02-plan.md` (Scope Baseline and affected tasks) before continuing.
+**record and pause** before committing:
+
+1. **Record the pending decision.** Append a `## Pending Scope
+   Decision` section to `02-plan.md` (or update an existing one)
+   before stopping. Include: what changed beyond the baseline, why it
+   appears necessary, which boundaries it crosses, and the options
+   (keep together, extract prerequisite, defer). This section persists
+   across session restarts so a fresh phase load can observe the
+   pending status.
+2. **Stop and present the scope delta to the user.** Explain the
+   recorded pending decision. Do not commit, write reports, or read
+   `completion.md` until the user decides.
+3. **After the user decides**, the user routes to `/revise` to update
+   the plan (Scope Baseline, affected tasks) and clear the Pending
+   Scope Decision section. `/code` can then resume from the current
+   task. If the user agrees to extract a prerequisite, `/revise`
+   records the dependency; feature work on tasks that depend on the
+   prerequisite waits until it merges.
+
 Small, cohesive supporting changes that stay within the baseline
 boundaries proceed without interruption.
 

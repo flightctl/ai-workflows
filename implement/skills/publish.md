@@ -55,12 +55,16 @@ commands.
 
 Verify readiness:
 
-1. Read `.artifacts/implement/{issue-key}/05-validation-report.md`. Check
+1. Check whether `02-plan.md` contains a `## Pending Scope Decision`
+   section. If it does, stop — report the pending decision and
+   recommend `/revise` to resolve it before publishing.
+
+2. Read `.artifacts/implement/{issue-key}/05-validation-report.md`. Check
    that the `## Result` section contains `PASS`. If the file doesn't exist,
    the `## Result` section is missing, or it contains `FAIL`, tell the user
    that `/validate` should be run (or re-run) first.
 
-2. Verify the feature branch exists and has commits:
+3. Verify the feature branch exists and has commits:
 
    ```bash
    git branch --show-current
@@ -74,7 +78,7 @@ Verify readiness:
 
    If there are no commits ahead of the Local Base, there's nothing to publish.
 
-3. Run the shared pre-flight checks:
+4. Run the shared pre-flight checks:
 
    ```bash
    python3 "$PUBLISH_SCRIPT" preflight --platform github

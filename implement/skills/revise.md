@@ -45,13 +45,21 @@ The user's feedback may target:
 - Task combining ("Tasks 2 and 3 can be a single commit")
 
 **Scope decisions (from `/code` or `/respond` pause):**
-- Approving scope expansion — update the Scope Baseline (Known Supporting
-  Refactoring, Affected Interfaces, Expected Delivery Boundaries) and add
-  or modify tasks to cover the expanded work
-- Extracting a prerequisite — remove the expanded work from this plan,
-  note it as a dependency, and adjust remaining tasks accordingly
-- Declining expansion — document the decision and rationale so `/code`
-  can resume without the expanded changes
+The `## Pending Scope Decision` section of `02-plan.md` records the
+unresolved decision. `/revise` is the only phase that clears it. After
+applying the user's decision:
+- **Approving scope expansion** — update the Scope Baseline (Known
+  Supporting Refactoring, Affected Interfaces, Expected Delivery
+  Boundaries), add or modify tasks to cover the expanded work, then
+  remove the `## Pending Scope Decision` section
+- **Extracting a prerequisite** — remove the expanded work from this
+  plan, record it as a dependency in the plan's Dependencies or Risk
+  Assessment section, adjust remaining tasks accordingly, then remove
+  the `## Pending Scope Decision` section. Note that feature tasks
+  depending on the prerequisite cannot proceed until it merges.
+- **Declining expansion** — document the decision and rationale, then
+  remove the `## Pending Scope Decision` section so `/code` or
+  `/respond` can resume without the expanded changes
 
 **Test strategy changes:**
 - Additional test coverage ("Add tests for the concurrent update edge case")
@@ -97,7 +105,7 @@ After applying changes, verify:
 - Do interface definitions match what the tasks describe?
 - Are commit messages still properly formatted?
 - If a Test Plan Coverage section exists: do the TC ID → Task mappings still reflect the current task breakdown? If tasks were added, removed, split, or combined, update the Covered by Task column accordingly.
-- If a Scope Baseline section exists: do the Known Supporting Refactoring, Affected Interfaces, and Expected Delivery Boundaries still reflect the current plan? If scope was expanded or narrowed, update the baseline to match. Clear any pending scope decision markers so `/code` can resume.
+- If a Scope Baseline section exists: do the Known Supporting Refactoring, Affected Interfaces, and Expected Delivery Boundaries still reflect the current plan? If scope was expanded or narrowed, update the baseline to match. Remove the `## Pending Scope Decision` section from `02-plan.md` after applying the user's decision — this is the gate that allows `/code`, `/respond`, `/validate`, and `/publish` to proceed.
 
 ### Step 5: Update Artifact
 

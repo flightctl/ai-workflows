@@ -96,7 +96,8 @@ impact:
    it be split?
 
 4. **Testing Commitment** — Does every `[DEV]` story include both
-   functionality AND testing? Do `[QE]` stories define concrete e2e test
+   functionality AND testing (or, for a justified behavior-preserving
+   prerequisite, preserved-behavior tests)? Do `[QE]` stories define concrete e2e test
    scenarios that validate user-facing behavior, not duplicate
    unit/integration tests from `[DEV]` stories? Does each epic with
    e2e-testable surface include at least one `[QE]` story? Does any

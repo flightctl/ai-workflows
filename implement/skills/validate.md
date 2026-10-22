@@ -187,7 +187,16 @@ If regressions are found:
 
 After automated checks pass, review the story's full diff for issues
 that automated tooling does not catch. Read the Local Base from the
-`## Branch` section of `02-plan.md`, then run the self-review gate.
+`## Branch` section of `02-plan.md`.
+
+Before running the self-review gate, check whether `02-plan.md`
+contains a `## Pending Scope Decision` section. If it does, stop —
+report the pending decision and recommend `/revise` to resolve it
+before validation can continue. Do not run the review gate, commit
+fixes, or write the validation report while a scope decision is
+pending.
+
+Run the self-review gate:
 
 Read and follow `../../_shared/recipes/self-review-gate.md` with these
 parameters:
