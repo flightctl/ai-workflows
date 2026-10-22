@@ -29,7 +29,7 @@ and repeat until everything passes.
 
 ### Scope-First Remediation Policy
 
-This policy applies to every remediation action in Steps 4–7, including
+This policy applies to every remediation action in Steps 4–8b, including
 fixes proposed by the self-review gate's external-tool path (shared
 recipe Step 1) and subagent/inline path (Steps 2–3). Before applying
 any proposed fix — code edit, new test, or commit — assess whether it
@@ -249,18 +249,21 @@ If regressions are found:
 ### Step 7: Code Quality Review
 
 After automated checks pass, review the story's full diff for issues
-that automated tooling does not catch. Use the Local Base resolved in
-Step 3.
+that automated tooling does not catch.
 
-First, if `02-plan.md` has a Scope Baseline section, compare the branch
-diff (`git diff {local-base}...HEAD`) against it. If the comparison
-command fails, stop and report the error. If material work falls outside
-the baseline boundaries and was not approved, record a complete
+Re-run Step 3 (resolve Local Base, verify clean worktree) before
+proceeding — Steps 4–6 may have committed fixes that changed HEAD or
+left the worktree dirty. Stop on any failure per Step 3's rules.
+
+If `02-plan.md` has a Scope Baseline section, compare the branch diff
+(`git diff {local-base}...HEAD`) against it. If the comparison command
+fails, stop and report the error. If material work falls outside the
+baseline boundaries and was not approved, record a complete
 `## Pending Scope Decision` in `02-plan.md` per the Scope-First
 Remediation Policy and stop. Recommend `/revise`. Ordinary in-scope
 fixes do not trigger this check.
 
-Then run the self-review gate. Read and follow
+Run the self-review gate. Read and follow
 `../../_shared/recipes/self-review-gate.md` with these parameters:
 
 | Parameter | Value |
@@ -268,7 +271,7 @@ Then run the self-review gate. Read and follow
 | DIFF_COMMAND | `git diff {local-base}...HEAD` |
 | MAX_ROUNDS | `3` |
 | CONTEXT_FILES | `.artifacts/implement/{issue-key}/01-context.md`, `.artifacts/implement/{issue-key}/02-plan.md` (if they exist) |
-| SUPPLEMENTARY_CRITERIA | Full-branch validation review — last quality gate before PR. Evaluate: (1) **Backward compatibility** — public APIs, error formats, configuration, wire protocols changed? Backward-compatible or break justified? (2) **Completeness across call sites** — pattern applied in one location but needed in similar locations is a bug. (3) **Scope baseline compliance** — flag material work outside Expected Delivery Boundaries or Affected Interfaces and Components not in Known Supporting Refactoring or an approved update. Classify unapproved scope drift as HIGH; do not auto-fix — report unfixed so gate returns FLAG. |
+| SUPPLEMENTARY_CRITERIA | Full-branch validation review — last quality gate before PR. Evaluate: (1) **Backward compatibility** — public APIs, error formats, configuration, wire protocols changed? Backward-compatible or is the break documented and justified? (2) **Completeness across call sites** — pattern applied in one location but needed in similar locations is a bug. (3) **Scope baseline compliance** — if `02-plan.md` has a Scope Baseline section, flag material work outside Expected Delivery Boundaries or Affected Interfaces and Components not in Known Supporting Refactoring or an approved update. Classify unapproved scope drift as HIGH; do not auto-fix — report unfixed so gate returns FLAG. A pending scope decision already in the plan must be resolved before publishing. |
 
 If the gate reports FLAG, stop and present findings. For scope-drift
 FLAG findings, record a complete `## Pending Scope Decision` in
@@ -276,16 +279,16 @@ FLAG findings, record a complete `## Pending Scope Decision` in
 `/revise`.
 
 If the gate made code fixes (the gate edits but does not commit —
-shared recipe lines 174-176): re-run affected Step 4 pre-PR checks and
-Step 5 coverage analysis when fixes touch covered packages, then commit
-the fixes. After committing, re-run Step 3 (clean worktree, base
-resolution), the scope comparison, and the self-review gate on the new
-committed HEAD. This re-run consumes remaining rounds from the original
-MAX_ROUNDS budget — do not reset the counter. The cycle ends
-successfully only when the committed clean HEAD passes re-review
-without further code fixes. If MAX_ROUNDS is exhausted before reaching
-a clean pass, stop with FLAG — do not write the validation report or
-advance to Step 8.
+shared recipe lines 174-176): re-run affected Step 4 pre-PR checks.
+Additionally re-run Step 5 coverage analysis when fixes touch covered
+packages. Then commit the fixes. After committing, re-run Step 3
+(clean worktree, base resolution), the scope comparison, and the
+self-review gate on the new committed HEAD. This re-run consumes
+remaining rounds from the original MAX_ROUNDS budget — do not reset
+the counter. The cycle ends successfully only when the committed clean
+HEAD passes re-review without further code fixes. If MAX_ROUNDS is
+exhausted before reaching a clean pass, stop with FLAG — do not write
+the validation report or advance to Step 8.
 
 The validation report (Step 9) must reflect the final committed and
 reviewed HEAD.
@@ -355,7 +358,10 @@ has TC mappings but `testplan.md` is missing, unreadable, or malformed
 3. If any TC ID lacks a corresponding test:
    - Write the missing test following contract-based testing standards.
    - Commit the test following the project's commit format.
-   - Re-run the relevant checks from Step 4.
+   - Re-run the relevant checks from Step 4. Then re-run Step 3 (clean
+     worktree, base), the Step 7 scope comparison, and the self-review
+     gate on the new committed HEAD (consuming remaining MAX_ROUNDS
+     budget) so the validation report reflects a reviewed snapshot.
 4. Record results for the validation report.
 
 ### Step 9: Write Validation Report
