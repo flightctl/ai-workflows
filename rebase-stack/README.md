@@ -1,121 +1,198 @@
 # Rebase Stack Workflow
 
-Rebases a stacked-branch chain onto an updated base branch using `gh stack`,
-guides you through conflict resolution if needed, validates each branch, and
-pushes all updated branches. Creates any missing PRs afterwards, with
-fork-aware targeting.
+Rebases a `gh stack`-tracked chain of branches onto its updated base, guides
+conflict resolution layer by layer, verifies that no commit was silently
+dropped, validates the trunk-adjacent branch (or every branch, on request), and pushes
+every branch with fork-aware PR creation.
+
+## When to Use It — and When Not To
+
+Use it when you have a **tracked stack of two or more dependent branches** and
+the base branch has moved.
+
+Do **not** use it when:
+
+| Situation | Use instead |
+|-----------|-------------|
+| Rebasing a single branch onto `main` | `git fetch <remote> && git rebase <remote>/main` |
+| The branches are not in a stack yet | `gh stack init --base <base> <bottom> … <top>` first |
+| You only want to see the stack | `gh stack view --json` |
+
+The workflow enforces this itself: `scripts/preflight.sh` exits 2 when
+`gh stack view --json` reports "not in a stack", and every phase stops there.
+It will never initialize a stack for you.
+
+## Hard Requirements
+
+| Requirement | Behavior if missing |
+|-------------|---------------------|
+| `git` | Refuse (exit 8) |
+| `jq` | Refuse (exit 8) |
+| `gh` (GitHub CLI), authenticated | Refuse (exit 8 / exit 4) |
+| `gh stack` extension | **Refuse (exit 8).** Never installed automatically, never emulated with `git rebase --onto`. |
+| A tracked stack | **Refuse (exit 2).** Never initialized automatically. |
+
+Install the extension yourself once:
+
+```bash
+gh extension install github/gh-stack
+```
+
+> `gh stack submit` additionally needs the Stacked PRs feature enabled on the
+> upstream repository. If it exits 9, `/push` opens the PRs with `gh pr create`
+> instead. That is PR plumbing, not a `gh stack` fallback — the extension
+> itself is still mandatory.
+
+## Remote Resolution — `origin` Is Not Assumed
+
+The workflow resolves two remotes separately, because in a fork workflow they
+differ:
+
+| Name | What it is | Resolution order |
+|------|------------|------------------|
+| `{base-remote}` | Hosts the base branch the stack targets. Used for fetch and `gh stack rebase --remote`. | base branch's upstream tracking ref → `branch.<base>.remote` → the remotes that carry the ref (`upstream` then `origin` as tiebreak) → the single configured remote |
+| `{push-remote}` | Where the stack's branches are published. Used for `gh stack push --remote`. | `remote.pushDefault` → the current branch's `@{push}` → the single configured remote → `{base-remote}` |
+
+If either is ambiguous, preflight exits 9 and the workflow asks you instead of
+guessing. Every `gh stack` call passes `--remote` explicitly.
+
+## Validation Policy — Trunk-Adjacent by Default, `--all` on Request
+
+The **entire** stack is always rebased and every branch is always pushed. Only
+the amount of linting and testing changes.
+
+| | `/validate` (default) | `/validate --all` |
+|---|---|---|
+| Branches rebased | all | all |
+| Branches linted and tested | the trunk-adjacent branch only | every branch, bottom to top |
+| Stops at | the single failure | the first failing layer |
+| Worktrees created | none | one per branch, removed afterwards |
+| Branches pushed | all | all |
+| Cost | one suite run | N suite runs |
+
+The default is the trunk-adjacent branch — the layer closest to the base, the
+one that merges first — so one run exercises the change that lands soonest. It
+does not exercise any layer above it.
+
+Reach for `--all` when the layers above the bottom have to be covered:
+
+- the stack's final state must be exercised before pushing;
+- an upper layer must be independently releasable or mergeable;
+- the trunk-adjacent layer passed and you want the layers above it attributed
+  individually rather than left to per-PR CI.
+
+Both modes state what they covered. In the default mode the overview marks the
+other layers `not run`, never `pass`, and per-PR CI is the first independent
+check on them after `/push`.
+
+If the suite needs dependencies installed in the main working tree
+(`node_modules`, `vendor`, `.venv`), worktrees will not have them — `/validate`
+switches to `--mode checkout`, which checks each branch out in turn and
+restores the starting branch afterwards.
 
 ## Phase Flow
 
+```text
+/start ──► already up to date ──► done
+       │
+       ├─── clean ─────────────► /validate ──► /push ──► done
+       └─── conflict ──► (resolve) ──► /continue ──┐
+                                                    │
+                          conflict ◄────────────────┤
+                          clean ──► /validate ──► /push ──► done
 ```
-/start ──── success ──────────────────────── /validate ──── /push ──── done
-       └─── conflict ──── (resolve) ──── /continue ──┐
-                                                      │
-                          conflict ──── (resolve) ────┘
-                          success ──────────────── /validate ──── /push ──── done
-```
-
-## Prerequisites
-
-| Tool | Purpose |
-|------|---------|
-| `git` | Rebase and push operations |
-| `gh` (GitHub CLI) | Stack management, PR creation |
-| `gh-stack` extension | `gh extension install github/gh-stack` |
-| Remote access (`origin`) | Fetch and push |
-
-`/start` installs the extension automatically if it is not found.
-
-> **Note:** `gh-stack` is in private preview. The CLI extension installs for
-> anyone, but the Stacked PRs feature (used by `gh stack submit`) requires
-> enablement on the upstream repository. If `gh stack submit` exits with
-> code 9, the repo does not have it enabled — the skill falls back to
-> `gh pr create` automatically.
-
-## Stack Initialization
-
-`/start` detects whether your branches are already tracked by `gh stack`:
-
-- **Already tracked** (`gh stack view --json` exits 0): proceeds directly to
-  the rebase.
-- **Not yet tracked** (exit code 2): discovers branches from the commit graph
-  (`git log --reverse --decorate origin/{base}..HEAD`), presents the
-  bottom-to-top list for your confirmation, then runs:
-  ```bash
-  gh stack init --base {base} branch-1 branch-2 branch-3 ...
-  ```
-  `gh stack` adopts the existing branches and detects any open PRs automatically.
-
-You only need to initialize once per stack. Subsequent `/start` runs skip
-this step.
 
 ## Commands
 
-| Command | When to use |
-|---------|-------------|
-| `/start` | Begin the rebase. Takes an optional base branch (default: `main`). Installs `gh-stack` if needed, initializes the stack if not yet tracked, then rebases. Local only — does not push. |
-| `/continue` | Resume after resolving a conflict mid-rebase. Repeat as needed. Local only — does not push. |
-| `/validate` | After rebase completes: re-fetches to check remote currency, runs lint and unit tests on each branch independently, and shows a branch overview table. Does not push. |
-| `/push` | After validation: asks for confirmation, pushes all branches atomically with `gh stack push`, then creates any missing PRs with fork-aware targeting. |
+| Command | What it does |
+|---------|--------------|
+| `/start` | Preflight, health report, snapshot every branch tip, then `gh stack rebase --remote {base-remote}` across the whole stack. Exits early if nothing needs rebasing. Local only. |
+| `/continue` | Resume a paused rebase after you staged the resolution. Repeatable. Local only. |
+| `/validate` | Re-fetch, re-check health, discover the project's lint and test commands, run them on the trunk-adjacent branch, print the push overview. |
+| `/validate --all` | Same, but runs the suite on every branch bottom-to-top, stopping at the first failing layer. Use when the layers above the bottom must be exercised too. |
+| `/push` | Confirm, `gh stack push --remote {push-remote}`, then open PRs for branches that lack one, fork-aware. |
 
-## Usage Examples
+## The Health Report
 
-### Typical: rebase a stack onto updated main
+`/start` prints this before it snapshots or rebases anything, and `/validate`
+prints it again after re-fetching. It is read-only; seeing it never commits you
+to the rebase.
 
-You have three branches stacked: `main → story-1 → story-2 → story-3 (HEAD)`.
-Main has moved forward. Run:
+```text
+Stack: (main) <- story-1 <- story-2 <- story-3
+Base remote: upstream (upstream tracking ref of main)   Push remote: origin (remote.pushDefault)
+Base drift: upstream/main is 14 commit(s) ahead of your local main
 
-```
-/start
-```
+LAYER                        COMMITS    STALE     VS-PUBLISHED  PR         NOTES
+----------------------------------------------------------------------------------------------
+story-1                      3          YES       in sync       412
+story-2                      2          YES       +2/-0         418        1 commit(s) already in main (will be dropped)
+story-3 *                    0          YES       unpublished   none       EMPTY layer; no PR yet
 
-The agent checks for `gh-stack`, detects the stack (or initializes it),
-then runs `gh stack rebase --remote origin`. On success it prompts you to
-run `/validate`, which checks each branch and shows an overview table. Then
-run `/push` to push all branches atomically with `gh stack push` after
-confirmation.
-
-### With conflicts
-
-Same scenario, but `story-2` conflicts with a change on main:
-
-1. `/start` — rebase stops at `story-2`, shows the conflicting files
-2. Resolve conflicts. For "old version vs evolved version" conflicts (the lower
-   branch was rebased and this branch has older copies): `git checkout --ours <file> && git add <file>`.
-   For genuine new-code conflicts: merge manually, then `git add <file>`. Do not `git commit`.
-3. `/continue` — rebase resumes; if clean, prompts you to run `/validate`
-4. If another conflict appears, repeat steps 2–3
-5. `/validate` — shows branch overview table after per-branch lint/test
-6. `/push` — pushes after confirmation, creates any missing PRs
-
-### Rebasing onto a branch other than main
-
-```
-/start feature/platform-upgrade
+* = currently checked out
+Trunk-adjacent branch (what /validate builds by default; --all covers every layer): story-1
+VERDICT: rebase needed
 ```
 
-The agent fetches `origin/feature/platform-upgrade` and rebases onto it.
+Each column exists because it changes what you should do next: `-N` under
+`VS-PUBLISHED` means a force push would destroy someone's commits, an `EMPTY
+layer` means you are about to open an empty PR, and `already in main` names the
+commits the rebase is about to drop on purpose.
 
-### Fork-based workflow (no Stacked PRs)
+## Safety Net
 
-After `/push` completes the push, it tries `gh stack submit --auto`. If the
-upstream repo does not have Stacked PRs enabled (exit code 9), it falls back
-to `gh pr create` with `--head fork-owner:branch --repo upstream/repo`, setting
-`Depends on: #N` in each PR body. All PRs target the upstream default branch.
+`/start` records every branch tip and commit subject to
+`.artifacts/rebase-stack/pre-rebase-state.json` before rewriting history.
+After the rebase, `scripts/snapshot.sh verify` compares the two and reports any
+commit that is no longer reachable. A dropped commit is legitimate only when
+that change already landed in the base, and the workflow makes you confirm each
+one before continuing.
+
+If the rebase has to be undone and `gh stack rebase --abort` is no longer
+available:
+
+```bash
+bash "{scripts}/snapshot.sh" restore-plan
+```
+
+prints one `git branch -f <name> <sha>` line per branch. It only prints; you
+decide whether to run them. `{scripts}` is the `scripts/` directory of this
+package — resolved relative to the installed files, never a fixed path, so the
+same instructions work for global, project-local, and symlinked installs.
+
+## Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/preflight.sh` | Hard gates (tooling, stack membership, clean tree) plus remote resolution. Emits the JSON context every phase reads. |
+| `scripts/stack-status.sh` | Health table and the `rebase needed` / `up to date` verdict. Run by `/start` before it snapshots, and by `/validate` before it tests. |
+| `scripts/validate-branches.sh` | Runs the lint and test commands against one or more branches, in throwaway worktrees or by sequential checkout. Backs both `/validate` modes. |
+| `scripts/snapshot.sh` | `save`, `verify`, and `restore-plan` for the pre-rebase safety net. |
+
+All four read and write only the current repository and
+`.artifacts/rebase-stack/`. None of them push.
 
 ## Artifacts
 
-Local state written to `.artifacts/rebase-stack/` during the workflow (gitignored):
+Local state under `.artifacts/rebase-stack/` (gitignored):
 
 | File | Written by | Purpose | How to clear |
 |------|-----------|---------|--------------|
-| `validation-cache` | `/validate` | `branch:sha` pairs for each branch that has passed validation. Persists across runs; stale entries are ignored automatically when SHAs change after a rebase. | `rm .artifacts/rebase-stack/validation-cache` to force full re-validation on the next `/validate` run. |
-| `logs/{branch}.log` | `/validate` | Full lint and test output per branch. Kept on failure for inspection; deleted on success. | Inspect directly; deleted automatically on the next successful `/validate` run. |
+| `context.json` | every phase | Resolved stack, branch order, and remotes. Rewritten on each preflight. | Regenerated automatically; safe to delete. |
+| `pre-rebase-state.json` | `/start` | Branch tips and commit subjects captured before the rebase. Backs `snapshot.sh verify` and `restore-plan`. | Removed by `/push` after a successful push; `rm` it to discard the safety net early. |
+| `logs/{branch}.log` | `/validate` | Full lint and test output for one branch. Deleted on pass, kept on failure. | Inspect, then re-run `/validate`. |
+| `validated` | `/validate` | `mode=` line plus one `<state> <branch> <sha>` line for **every** stack branch, where state is `validated` or `not-run`. `/push` refuses if any recorded SHA has moved. | Deleted at the start of each `/validate` run, rewritten only on success. |
 
 ## Push Safety
 
-- Branches are pushed **atomically**: `gh stack push` uses `--force-with-lease
-  --atomic`, so if any remote branch was updated since the last fetch, the
-  entire push is rejected rather than partially applied.
-- Protected branches (`main`, `master`, `develop`, PR targets) are never
-  pushed — only the stack branches above them.
+- `gh stack push --remote {push-remote}` requests `--force-with-lease --atomic`.
+  A moved remote branch rejects the push. All-or-nothing holds only when the
+  remote supports the `atomic` push capability — otherwise branches whose lease
+  still held may already have updated, so run `/validate` after any rejection
+  instead of assuming nothing moved.
+- The base branch is never pushed, and neither are `main`, `master`, or
+  `develop`.
+- `/push` refuses to run when `.artifacts/rebase-stack/validated` is missing or
+  records a SHA that no longer matches, because `/validate` performs the fetch
+  that makes the lease check meaningful. The push report states whether the run
+  was `mode=tip` or `mode=all`.
