@@ -45,6 +45,11 @@ script header for full usage.
 
 ### Step 1: Read Context and Fetch PR Comments
 
+Read `.artifacts/implement/{issue-key}/02-plan.md` and check whether it
+contains a `## Pending Scope Decision` section or records an unmerged
+prerequisite dependency. If either condition holds, stop and recommend
+`/revise` — do not fetch comments, apply changes, or push.
+
 Read `.artifacts/implement/{issue-key}/publish-metadata.json` to get the
 PR number and `{owner}/{repo}` (the `repo` field). If metadata doesn't
 exist, tell the user that `/publish` should be run first. If the user
@@ -183,11 +188,6 @@ call on whether to push back or comply.
 Wait for the user to approve, modify, or reject each response.
 
 ### Step 5: Apply Approved Changes
-
-Before applying any code changes or posting replies, check whether
-`02-plan.md` contains a `## Pending Scope Decision` section. If it
-does, stop — report the pending decision and recommend `/revise` to
-resolve it before changes can be applied or pushed.
 
 #### Code changes
 

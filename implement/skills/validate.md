@@ -27,11 +27,15 @@ and repeat until everything passes.
 
 ## Process
 
-### Step 1: Read Context
+### Step 1: Read Context and Check Entry Conditions
 
 Read:
-1. `.artifacts/implement/{issue-key}/01-context.md` (validation profile)
-2. `.artifacts/implement/{issue-key}/02-plan.md` (what was implemented)
+1. `.artifacts/implement/{issue-key}/02-plan.md` — check whether it
+   contains a `## Pending Scope Decision` section or records an unmerged
+   prerequisite dependency. If either condition holds, stop and recommend
+   `/revise` — do not run checks, commit fixes, or write the validation
+   report.
+2. `.artifacts/implement/{issue-key}/01-context.md` (validation profile)
 3. `.artifacts/implement/{issue-key}/04-impl-report.md` (implementation status)
 4. `.artifacts/implement/{issue-key}/testplan.md` (story-scoped testplan, if exists)
 
@@ -188,13 +192,6 @@ If regressions are found:
 After automated checks pass, review the story's full diff for issues
 that automated tooling does not catch. Read the Local Base from the
 `## Branch` section of `02-plan.md`.
-
-Before running the self-review gate, check whether `02-plan.md`
-contains a `## Pending Scope Decision` section. If it does, stop —
-report the pending decision and recommend `/revise` to resolve it
-before validation can continue. Do not run the review gate, commit
-fixes, or write the validation report while a scope decision is
-pending.
 
 Run the self-review gate:
 

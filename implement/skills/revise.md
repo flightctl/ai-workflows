@@ -46,20 +46,25 @@ The user's feedback may target:
 
 **Scope decisions (from `/code` or `/respond` pause):**
 The `## Pending Scope Decision` section of `02-plan.md` records the
-unresolved decision. `/revise` is the only phase that clears it. After
-applying the user's decision:
-- **Approving scope expansion** — update the Scope Baseline (Known
-  Supporting Refactoring, Affected Interfaces, Expected Delivery
-  Boundaries), add or modify tasks to cover the expanded work, then
-  remove the `## Pending Scope Decision` section
+unresolved decision. `/revise` is the only phase that modifies it.
+After applying the user's decision:
+- **Approving scope expansion** — update the Scope Baseline, add or
+  modify tasks, then remove the `## Pending Scope Decision` section.
+  Reconcile any already-written out-of-plan changes: retain work that
+  aligns with the revised plan and revert or set aside declined scope.
 - **Extracting a prerequisite** — remove the expanded work from this
-  plan, record it as a dependency in the plan's Dependencies or Risk
-  Assessment section, adjust remaining tasks accordingly, then remove
-  the `## Pending Scope Decision` section. Note that feature tasks
-  depending on the prerequisite cannot proceed until it merges.
-- **Declining expansion** — document the decision and rationale, then
-  remove the `## Pending Scope Decision` section so `/code` or
-  `/respond` can resume without the expanded changes
+  plan, adjust remaining tasks. **Do not remove the `## Pending Scope
+  Decision` section.** Instead, update it to record the extraction
+  decision and the prerequisite identifier (story key or branch). The
+  section acts as a durable dependency marker: entry guards in `/code`,
+  `/validate`, `/respond`, and `/publish` observe it and block until
+  the prerequisite has merged. Once the user confirms the prerequisite
+  is merged, invoke `/revise` again to remove the section. Reconcile
+  any already-committed out-of-plan changes before resuming.
+- **Declining expansion** — document the rationale, revert or set
+  aside any already-written declined-scope changes, then remove the
+  `## Pending Scope Decision` section so `/code` or `/respond` can
+  resume
 
 **Test strategy changes:**
 - Additional test coverage ("Add tests for the concurrent update edge case")
@@ -105,7 +110,8 @@ After applying changes, verify:
 - Do interface definitions match what the tasks describe?
 - Are commit messages still properly formatted?
 - If a Test Plan Coverage section exists: do the TC ID → Task mappings still reflect the current task breakdown? If tasks were added, removed, split, or combined, update the Covered by Task column accordingly.
-- If a Scope Baseline section exists: do the Known Supporting Refactoring, Affected Interfaces, and Expected Delivery Boundaries still reflect the current plan? If scope was expanded or narrowed, update the baseline to match. Remove the `## Pending Scope Decision` section from `02-plan.md` after applying the user's decision — this is the gate that allows `/code`, `/respond`, `/validate`, and `/publish` to proceed.
+- If a Scope Baseline section exists: do the Known Supporting Refactoring, Affected Interfaces, and Expected Delivery Boundaries still reflect the current plan? If scope was expanded or narrowed, update the baseline to match.
+- `## Pending Scope Decision` lifecycle: remove it on approve-expansion or decline. On extract-prerequisite, update it to record the extraction decision and keep it as a dependency marker until the prerequisite merges and the user confirms via a subsequent `/revise`.
 
 ### Step 5: Update Artifact
 

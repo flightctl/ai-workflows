@@ -144,6 +144,10 @@ git log --oneline -5
 
 ### Step 3: Execute Tasks
 
+Before starting any task, check `02-plan.md` for a `## Pending Scope
+Decision` section or an unmerged prerequisite dependency blocking the
+current task. If found, stop and recommend `/revise`.
+
 For each task in the plan, follow this cycle. **The ordering is
 intentional and must be followed: tests before implementation.** Write
 the tests first, verify they fail for the right reason (the production
@@ -274,11 +278,6 @@ operate on the staged diff:
 git add {specific files}
 ```
 
-Before running the self-review gate, check whether `02-plan.md`
-contains a `## Pending Scope Decision` section. If it does, stop — do
-not run the review gate, commit, or write reports until the decision
-is resolved via `/revise`.
-
 Run the self-review gate on the staged changes.
 
 Read and follow `../../_shared/recipes/self-review-gate.md` with these
@@ -298,64 +297,25 @@ If the gate made code fixes, re-stage the affected files, then re-run
 the task-scoped tests (Step 3c) and fast quality checks (Step 3d) to
 verify the fixes. Only proceed to commit once checks pass. Note any
 dismissed findings in the implementation report (Discoveries section)
-so there is a paper trail. If a self-review fix itself introduces
-material unplanned structural work (changes to files or interfaces
-outside the baseline), treat it as scope expansion — run the scope
-baseline comparison below and record/pause if material drift is found
-before applying the expanded fix.
+so there is a paper trail. If a self-review fix touches files or
+interfaces outside the baseline, run the scope baseline comparison
+below before applying the expanded fix.
 
 **Scope baseline comparison:**
 
-After the self-review gate passes, compare the actual work in this task
-against the Scope Baseline section of `02-plan.md`. If `02-plan.md` has
-no Scope Baseline section (plans created before this feature), skip
-this comparison — the per-task review gate and deviation rules still
-apply. When the baseline is present, check:
+After the self-review gate passes, if `02-plan.md` has a Scope Baseline
+section, compare this task's actual changes against it. (Plans without
+a Scope Baseline skip this — deviation rules still apply.) Check
+whether changes cross the Expected Delivery Boundaries or touch
+interfaces outside the baseline. Classify unanticipated changes per
+`guidelines.md` (required prerequisite, correction, or unrelated
+preference). Small cohesive changes within boundaries proceed normally.
 
-1. **File count signal.** Count the files modified or created by this
-   task. A task that touches substantially more files than its plan
-   entry described is a warning signal — not a hard violation, but a
-   prompt to assess whether the scope is drifting.
-2. **Boundary check.** Are any changes outside the Affected Interfaces
-   and Components listed in the baseline? Do any changes cross the
-   Expected Delivery Boundaries?
-3. **Structural work classification.** For each change that was not
-   anticipated in the task's plan entry, classify it:
-   - **Required existing-code prerequisite** — the feature cannot work
-     without this change to existing code. If substantial (broad caller
-     updates, shared-interface changes), this may warrant extraction
-     into a separate prerequisite story. Note it in the implementation
-     report (Discoveries section) for user review.
-   - **Correction of new implementation** — fixing or adjusting code
-     introduced by this story. This is normal development.
-   - **Unrelated preference** — cleanup, style improvement, or
-     refactoring that is not required by the story. Do not apply it;
-     note it in the implementation report (Discoveries section).
-
-If the comparison reveals material unplanned structural work — broad
-shared-interface changes, modifications to components outside the
-baseline boundaries, or substantial refactoring of existing code —
-**record and pause** before committing:
-
-1. **Record the pending decision.** Append a `## Pending Scope
-   Decision` section to `02-plan.md` (or update an existing one)
-   before stopping. Include: what changed beyond the baseline, why it
-   appears necessary, which boundaries it crosses, and the options
-   (keep together, extract prerequisite, defer). This section persists
-   across session restarts so a fresh phase load can observe the
-   pending status.
-2. **Stop and present the scope delta to the user.** Explain the
-   recorded pending decision. Do not commit, write reports, or read
-   `completion.md` until the user decides.
-3. **After the user decides**, the user routes to `/revise` to update
-   the plan (Scope Baseline, affected tasks) and clear the Pending
-   Scope Decision section. `/code` can then resume from the current
-   task. If the user agrees to extract a prerequisite, `/revise`
-   records the dependency; feature work on tasks that depend on the
-   prerequisite waits until it merges.
-
-Small, cohesive supporting changes that stay within the baseline
-boundaries proceed without interruption.
+If material unplanned structural work is found, **record and pause**:
+append a `## Pending Scope Decision` section to `02-plan.md` describing
+the delta, necessity, and options (keep/extract/defer). Do not commit,
+write reports, or read `completion.md`. The user routes to `/revise` to
+resolve the decision and clear the section before `/code` resumes.
 
 **Test plan reconciliation (if story-scoped testplan exists):**
 
@@ -519,7 +479,7 @@ During implementation, you may encounter unexpected situations:
 | Story guidance contradicts current codebase state | **Stop and ask the user** | Required |
 | Implementation is significantly simpler than planned | Note in report, continue | Auto |
 | Implementation is significantly more complex than planned | **Stop and ask the user** — the story may need re-scoping | Required |
-| Material scope expansion detected by baseline comparison | **Stop and present the scope delta** — explain necessity, affected boundaries, and options (keep together, extract prerequisite, defer). Await user decision and update the plan before continuing. Do not bypass a pending scope decision by proceeding to commit, validate, or publish. | Required |
+| Material scope expansion (baseline comparison) | **Record and pause** per Step 3f scope baseline comparison. Do not bypass via commit, validate, or publish. | Required |
 
 ### Step 6: Write Reports
 

@@ -418,12 +418,19 @@ Interface Changes: IC-1, IC-2
 Validated by: TC-FR1-01, TC-FR3-02, TC-FR7-01
 ```
 
-For infrastructure prerequisite or prerequisite refactoring stories that
-implement no ICs:
+For infrastructure prerequisite stories that implement no ICs:
 
 ```markdown
-Interface Changes: None — prerequisite (behavior-preserving)
-Validated by: None — prerequisite (behavior-preserving); existing tests verify preserved behavior
+Interface Changes: None — infrastructure prerequisite
+Validated by: None — infrastructure prerequisite
+```
+
+For behavior-preserving prerequisite refactoring stories that implement
+no ICs:
+
+```markdown
+Interface Changes: None — behavior-preserving prerequisite
+Validated by: None — behavior-preserving prerequisite; existing tests verify preserved behavior
 ```
 
 ### Step 8: Write Coverage Matrix
