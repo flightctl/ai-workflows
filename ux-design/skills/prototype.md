@@ -212,23 +212,24 @@ Before refining:
 1. Validate `{ID}` using **Artifact Path Safety** before restoring the
    prototype's native layout under `.artifacts/{ID}/` from the
    mirrored files in `03-prototype/` as described in Step 3.
-2. **Full-input gate.** Read `Full evaluation run` from `04-evaluation.md`;
-   apply evaluate.md § Run-ID and Path Safety — **unsafe → stop**. Confirm
-   bindings current; map each edit to `Authorized fixes`. **Pass:**
-   copy `evaluation-report.csv` and `refinement-suggestions.json` from
+2. **Full-input gate.** Read `Full evaluation run` from `04-evaluation.md`.
+   `N/A` (no Full run) → no Full-run validation or staging.
+   Actual run-id: apply evaluate.md § Run-ID and Path Safety —
+   **unsafe → stop**; confirm bindings; map each edit to `Authorized
+   fixes`. **Pass:** copy `evaluation-report.csv` and
+   `refinement-suggestions.json` from
    `04-eval-raw/prototype-evaluate/{validated-run-id}/.artifacts/{ID}/eval/`
-   into `.artifacts/{ID}/eval/`. **Fail** (unproven mapping, broader edits,
-   valid-missing, stale): copy neither; new-create with source and
-   selected feedback only.
+   into `.artifacts/{ID}/eval/`. Ineligible (N/A, unproven mapping,
+   broader edits, valid-missing, stale): copy neither; new-create with
+   source and only authorized feedback.
 3. Before a refinement or replacement changes the native prototype, preserve
    the current
    `.artifacts/ux-design/{issue-key}/03-prototype/` tree under
    `history/prototype-iteration-{N}/`, unless that exact tree is already in the
    current context-revision snapshot. Do not overwrite an existing snapshot.
 
-Use `refine` only when the Full-input gate passes; otherwise new-create
-with source and authorized feedback. Keep output under `.artifacts/{ID}/`
-until Step 3 mirrors; do not mirror or remove here.
+Use `refine` only when the Full-input gate passes; keep output under
+`.artifacts/{ID}/`; do not mirror/remove before Step 3.
 
 ### Step 3: Map Skill Output Into Our Artifact Structure
 
