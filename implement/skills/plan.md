@@ -209,6 +209,42 @@ Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
  the set assigned to tasks or marked N/A. If the difference is
  non-empty, the plan is incomplete — resolve before proceeding.}
 
+## Scope Baseline
+
+{Explicit record of intended scope. `/code` compares actual work against
+ this baseline to detect material scope drift.}
+
+### Intended Feature Changes
+{What new or modified behavior this story delivers. One bullet per
+ distinct behavioral change.}
+
+### Known Supporting Refactoring
+{Existing code that must change to support the feature — renames,
+ interface adjustments, caller updates, extracted helpers. Distinguish
+ from new feature code. If none: “None identified.”}
+
+### Affected Interfaces and Components
+{Public interfaces, shared types, or cross-component surfaces that the
+ story modifies. These are the boundaries `/code` monitors for
+ unexpected expansion.}
+
+### Expected Delivery Boundaries
+{The intended delivery shape: one cohesive feature PR, or a proposed
+ prerequisite PR followed by a feature PR. State what this story WILL
+ deliver and what it will NOT change. `/code` flags drift when work
+ crosses these boundaries.}
+
+### Prerequisite Rationale
+{For each item in Known Supporting Refactoring: why it is required for
+ this story rather than independent cleanup. If any known refactoring
+ is substantial enough to warrant a separate prerequisite story,
+ propose it here — surface the boundary decision at this plan approval
+ checkpoint so the user can agree before coding begins. Record which
+ existing tests cover the affected behavior and which feature tasks
+ depend on the refactoring completing first.
+
+ If no supporting refactoring is identified: “N/A.”}
+
 ## Risk Assessment
 
 {Things the plan author is uncertain about. Ordered by impact.}
@@ -240,6 +276,7 @@ Before presenting the plan, verify:
 - [ ] Every ingest open question is a locked decision (specified or implementer default) or a product fork still listed
 - [ ] Open Questions contains only product forks, not pins/timeouts/names `/code` could default
 - [ ] Cited Reads stayed within the cap; `02-plan.md` has no pasted file bodies
+- [ ] Scope Baseline is complete: Intended Feature Changes, Known Supporting Refactoring (with prerequisite rationale), Affected Interfaces and Components, and Expected Delivery Boundaries are all populated based on actual inspected code, not guesses
 
 ### Step 6: Present to User
 

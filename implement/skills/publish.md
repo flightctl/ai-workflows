@@ -19,9 +19,11 @@ user before taking action.
 - **Confirm before pushing.** Verify the target branch, PR title, and PR details with the user.
 - **One story per PR.** Each pull request corresponds to exactly one Jira story. Do not combine multiple stories into a single PR.
 - **Draft PR.** Always create as a draft — the user decides when to mark it ready for review.
-- **No force-push.** No destructive git operations.
+- **No force-push.** No destructive git operations. Do not rebase an open PR — rebasing rewrites commit SHAs, requires a force-push, orphans review comments, and disrupts the reviewer's context.
 - **No direct commits to main.** The feature branch must already exist from `/code`.
-- **Validation must have passed.** Check for a passing validation report before proceeding.
+- **Validation must follow reconciliation.** If the target branch has been updated (e.g., after a prerequisite merges), reconcile first, then re-run `/validate` on the reconciled branch. A validation report produced before reconciliation does not authorize publication — the PASS must reflect the reconciled state. Check for a passing validation report before proceeding.
+- **Reconcile via merge, not rebase.** After independently validated prerequisite stories merge into the target branch, reconcile the existing feature PR by merging the updated target branch into the feature branch. Do not rebase the feature branch. Keep the original PR unless the author and reviewer explicitly agree to a replacement; carry unresolved findings and discussion references to any replacement PR.
+- **No pending scope decisions.** Do not publish while a scope decision from `/code` or `/respond` is pending. The Scope Baseline section of `02-plan.md` must reflect all approved work. Recommend `/revise` to resolve pending decisions before publishing.
 
 ## Shared Script
 
@@ -53,12 +55,22 @@ commands.
 
 Verify readiness:
 
-1. Read `.artifacts/implement/{issue-key}/05-validation-report.md`. Check
+1. Read `02-plan.md` and check for blocking conditions:
+   - A `## Pending Scope Decision` section (undecided or awaiting
+     prerequisite merge) — stop and recommend `/revise`.
+   - An unmerged prerequisite dependency recorded in the Scope Baseline
+     or plan dependencies (e.g., Expected Delivery Boundaries states
+     "prerequisite PR followed by feature PR" and the prerequisite has
+     not merged) — stop and report. Do not assume an unverified
+     prerequisite has merged. An old PASS report cannot override an
+     unresolved dependency.
+
+2. Read `.artifacts/implement/{issue-key}/05-validation-report.md`. Check
    that the `## Result` section contains `PASS`. If the file doesn't exist,
    the `## Result` section is missing, or it contains `FAIL`, tell the user
    that `/validate` should be run (or re-run) first.
 
-2. Verify the feature branch exists and has commits:
+3. Verify the feature branch exists and has commits:
 
    ```bash
    git branch --show-current
@@ -72,7 +84,7 @@ Verify readiness:
 
    If there are no commits ahead of the Local Base, there's nothing to publish.
 
-3. Run the shared pre-flight checks:
+4. Run the shared pre-flight checks:
 
    ```bash
    python3 "$PUBLISH_SCRIPT" preflight --platform github

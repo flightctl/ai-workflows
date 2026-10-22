@@ -44,6 +44,29 @@ The user's feedback may target:
 - Task splitting ("Task 3 is too large, split it")
 - Task combining ("Tasks 2 and 3 can be a single commit")
 
+**Scope decisions (from `/code`, `/respond`, or `/validate` pause):**
+The `## Pending Scope Decision` section of `02-plan.md` records the
+unresolved decision (`/code`, `/respond`, and `/validate` create it;
+`/revise` is the only phase that resolves or clears the recorded
+decision or dependency marker). After applying the user's decision:
+- **Approving scope expansion** — update the Scope Baseline, add or
+  modify tasks, then remove the `## Pending Scope Decision` section.
+  Reconcile any already-written out-of-plan changes: retain work that
+  aligns with the revised plan and revert or set aside declined scope.
+- **Extracting a prerequisite** — remove the expanded work from this
+  plan, adjust remaining tasks. **Do not remove the `## Pending Scope
+  Decision` section.** Instead, update it to record the extraction
+  decision and the prerequisite identifier (story key or branch). The
+  section acts as a durable dependency marker: entry guards in `/code`,
+  `/validate`, `/respond`, and `/publish` observe it and block until
+  the prerequisite has merged. Once the user confirms the prerequisite
+  is merged, invoke `/revise` again to remove the section. Reconcile
+  any already-committed out-of-plan changes before resuming.
+- **Declining expansion** — document the rationale, revert or set
+  aside any already-written declined-scope changes, then remove the
+  `## Pending Scope Decision` section so `/code` or `/respond` can
+  resume
+
 **Test strategy changes:**
 - Additional test coverage ("Add tests for the concurrent update edge case")
 - Different test approach ("Use integration tests instead of mocks for the store layer")
@@ -88,6 +111,8 @@ After applying changes, verify:
 - Do interface definitions match what the tasks describe?
 - Are commit messages still properly formatted?
 - If a Test Plan Coverage section exists: do the TC ID → Task mappings still reflect the current task breakdown? If tasks were added, removed, split, or combined, update the Covered by Task column accordingly.
+- If a Scope Baseline section exists: do the Intended Feature Changes, Known Supporting Refactoring (including Prerequisite Rationale), Affected Interfaces and Components, and Expected Delivery Boundaries still reflect the current plan? If scope was expanded or narrowed, update the baseline to match.
+- `## Pending Scope Decision` lifecycle: remove it on approve-expansion or decline. On extract-prerequisite, update it to record the extraction decision and keep it as a dependency marker until the prerequisite merges and the user confirms via a subsequent `/revise`.
 
 ### Step 5: Update Artifact
 

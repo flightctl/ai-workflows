@@ -96,7 +96,8 @@ impact:
    it be split?
 
 4. **Testing Commitment** — Does every `[DEV]` story include both
-   functionality AND testing? Do `[QE]` stories define concrete e2e test
+   functionality AND testing (or, for a justified behavior-preserving
+   prerequisite, preserved-behavior tests)? Do `[QE]` stories define concrete e2e test
    scenarios that validate user-facing behavior, not duplicate
    unit/integration tests from `[DEV]` stories? Does each epic with
    e2e-testable surface include at least one `[QE]` story? Does any
@@ -131,7 +132,19 @@ impact:
    complete? Does each story leave the system in a stable state (all
    tests passing after merge)?
 
-7. **Documentation** — Do `[DOCS]` stories use the `[DOCS]` template
+7. **Prerequisite Refactoring** — If the decomposition includes
+   prerequisite refactoring stories, does each one explicitly justify why
+   it is necessary for the feature? Does it state which feature stories
+   depend on it? Does it include tests demonstrating preserved behavior?
+   Is the refactoring substantial enough to warrant independent review,
+   or should it stay with the feature story? Prerequisite stories trace to
+   the feature stories they enable, not directly to PRD functional
+   requirements — they should appear in the "Stories Without PRD
+   Traceability" section of the coverage matrix with justification, not
+   as gaps. Do not reject a legitimate prerequisite for adding no new
+   feature behavior — that is its nature.
+
+8. **Documentation** — Do `[DOCS]` stories use the `[DOCS]` template
    (Documentation Scope and Documentation Inputs instead of
    Implementation Guidance and Testing Approach)? Does the Documentation
    Scope describe what the reader needs to understand without prescribing
@@ -166,8 +179,8 @@ Reference section.
 
 | Severity | Meaning | Action |
 |----------|---------|--------|
-| CRITICAL | Would cause incorrect implementation — missing requirements, contradictory acceptance criteria, broken dependency chain, scope reduction, stories referencing non-existent ICs or TCs, ICs with no implementing story | Must fix before presenting |
-| HIGH | Would cause rework — story too large to review in a single PR, missing testing commitment, integration gap between stories, `[QE]` story duplicating `[DEV]` test scope, stories missing Interface Changes or Validated by references | Should fix before presenting |
+| CRITICAL | Would cause incorrect implementation — missing requirements, contradictory acceptance criteria, broken dependency chain, scope reduction, stories referencing non-existent ICs or TCs, ICs with no implementing story, prerequisite story without justification or dependency declaration | Must fix before presenting |
+| HIGH | Would cause rework — story too large to review in a single PR, missing testing commitment, integration gap between stories, `[QE]` story duplicating `[DEV]` test scope, stories missing Interface Changes or Validated by references, prerequisite story missing preserved-behavior tests | Should fix before presenting |
 | MEDIUM | Would reduce clarity — vague acceptance criteria, imprecise implementation guidance or documentation scope, sizing concerns, minor coverage matrix inconsistencies, minor IC or TC reference inconsistencies | Fix if it adds value |
 | LOW | Structural improvements — naming consistency, ordering suggestions, documentation clarity | Fix only if clearly valuable |
 
