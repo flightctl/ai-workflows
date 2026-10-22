@@ -55,9 +55,15 @@ commands.
 
 Verify readiness:
 
-1. Check whether `02-plan.md` contains a `## Pending Scope Decision`
-   section. If it does, stop — report the pending decision and
-   recommend `/revise` to resolve it before publishing.
+1. Read `02-plan.md` and check for blocking conditions:
+   - A `## Pending Scope Decision` section (undecided or awaiting
+     prerequisite merge) — stop and recommend `/revise`.
+   - An unmerged prerequisite dependency recorded in the Scope Baseline
+     or plan dependencies (e.g., Expected Delivery Boundaries states
+     "prerequisite PR followed by feature PR" and the prerequisite has
+     not merged) — stop and report. Do not assume an unverified
+     prerequisite has merged. An old PASS report cannot override an
+     unresolved dependency.
 
 2. Read `.artifacts/implement/{issue-key}/05-validation-report.md`. Check
    that the `## Result` section contains `PASS`. If the file doesn't exist,

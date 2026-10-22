@@ -221,24 +221,43 @@ If regressions are found:
 ### Step 6: Code Quality Review
 
 After automated checks pass, review the story's full diff for issues
-that automated tooling does not catch. Read the Local Base from the
-`## Branch` section of `02-plan.md`.
+that automated tooling does not catch.
 
-**Pre-gate scope check.** Before running the self-review gate, if
-`02-plan.md` has a Scope Baseline section, compare the full branch diff
-(`git diff {local-base}...HEAD`) against it. If material work falls
-outside the Expected Delivery Boundaries or Affected Interfaces and
-Components and was not recorded in Known Supporting Refactoring or an
-approved scope update, classify it as a HIGH scope-compliance finding:
-append a `## Pending Scope Decision` section to `02-plan.md` with the
-delta, necessity, affected boundaries, and keep/extract/defer options.
-Stop — do not run the self-review gate, commit fixes, or write the
-validation report. Recommend `/revise` to resolve the decision. Preserve
-valid in-scope work; do not auto-fix by broadening the baseline, removing
-required code, or resolving the scope question without the user. Ordinary
-in-scope correctness and regression fixes do not trigger this check.
+**6a: Resolve Local Base.** Read the Local Base from the `## Branch`
+section of `02-plan.md`. Verify the ref resolves:
 
-Run the self-review gate:
+```bash
+git rev-parse --verify {local-base}
+```
+
+If the ref is missing, unresolvable, or the command fails, stop —
+report the error with details. Do not substitute an empty diff, skip
+the review, or invent a replacement base. The base must be repaired
+(e.g., fetch the missing ref) before validation can continue.
+
+**6b: Clean-worktree snapshot.** Verify the worktree is clean:
+
+```bash
+git status --porcelain --untracked-files=normal
+```
+
+Ignore paths under `.artifacts/` (workflow working state, gitignored).
+If any other modified, staged, or untracked implementation files
+remain, stop — report the affected paths. Do not auto-commit, stash,
+reset, or delete them. The implementation must be completed and
+committed through normal `/code` or user-approved `/revise` handling
+before rerunning `/validate`.
+
+**6c: Pre-gate scope check.** If `02-plan.md` has a Scope Baseline
+section, compare the branch diff (`git diff {local-base}...HEAD`)
+against it. If the comparison command fails, stop and report the error.
+If material work falls outside the baseline boundaries and was not
+approved, record a `## Pending Scope Decision` section in `02-plan.md`
+and stop — do not run the self-review gate or write the validation
+report. Recommend `/revise`. Ordinary in-scope fixes do not trigger
+this check.
+
+**6d: Run the self-review gate.**
 
 Read and follow `../../_shared/recipes/self-review-gate.md` with these
 parameters:
@@ -257,17 +276,21 @@ is unapproved scope drift (scope baseline compliance), record a
 options, then recommend `/revise` — do not attempt to fix scope drift
 within the validation phase.
 
-If the gate made code fixes, re-run the affected pre-PR checks from
-Step 3 (and Step 4 coverage analysis if the fixes touch covered
-packages) to verify the post-fix state. Once checks pass, commit:
+**6e: Post-fix snapshot.** If the gate made code fixes (the gate edits
+files but does not commit — shared recipe lines 174-176), re-run the
+affected pre-PR checks from Step 3 to verify the post-fix state. Then
+commit:
 
 ```bash
 git add {fixed files}
-```
-
-```bash
 git commit -m "{issue-key}: address validation review findings"
 ```
+
+After committing, re-run the scope check (6c) and clean-worktree check
+(6b) against the new HEAD to confirm the committed snapshot matches the
+reviewed state and no scope drift was introduced by the fixes. If scope
+drift is found, record and pause per 6c. The validation report (Step 9)
+must reflect this final committed snapshot, not the pre-fix state.
 
 ### Step 7: Acceptance Criteria Verification
 
