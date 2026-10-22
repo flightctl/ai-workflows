@@ -29,8 +29,10 @@ user.
 - **validate:** Recommend `/publish` only when validation passed and no scope
   decisions are pending. When failures remain, recommend fixing them and
   rerunning `/validate`; offer `/plan` for a design concern or ambiguous
-  acceptance criterion that requires re-scoping. If the scope baseline check
-  flagged unresolved drift, recommend `/revise` before `/publish`.
+  acceptance criterion that requires re-scoping. If `/validate` recorded a
+  `## Pending Scope Decision` (material drift found before or during the
+  review gate), recommend `/revise` — the user can invoke it with existing
+  `01-context.md` and `02-plan.md`, without a completed validation report.
 - **publish:** Recommend `/respond` when review comments arrive; otherwise the
   workflow is complete for now.
 - **respond:** Recommend `/validate` after code changes, another `/respond`

@@ -193,6 +193,20 @@ After automated checks pass, review the story's full diff for issues
 that automated tooling does not catch. Read the Local Base from the
 `## Branch` section of `02-plan.md`.
 
+**Pre-gate scope check.** Before running the self-review gate, if
+`02-plan.md` has a Scope Baseline section, compare the full branch diff
+(`git diff {local-base}...HEAD`) against it. If material work falls
+outside the Expected Delivery Boundaries or Affected Interfaces and
+Components and was not recorded in Known Supporting Refactoring or an
+approved scope update, classify it as a HIGH scope-compliance finding:
+append a `## Pending Scope Decision` section to `02-plan.md` with the
+delta, necessity, affected boundaries, and keep/extract/defer options.
+Stop — do not run the self-review gate, commit fixes, or write the
+validation report. Recommend `/revise` to resolve the decision. Preserve
+valid in-scope work; do not auto-fix by broadening the baseline, removing
+required code, or resolving the scope question without the user. Ordinary
+in-scope correctness and regression fixes do not trigger this check.
+
 Run the self-review gate:
 
 Read and follow `../../_shared/recipes/self-review-gate.md` with these
@@ -203,10 +217,14 @@ parameters:
 | DIFF_COMMAND | `git diff {local-base}...HEAD` |
 | MAX_ROUNDS | `3` |
 | CONTEXT_FILES | `.artifacts/implement/{issue-key}/01-context.md`, `.artifacts/implement/{issue-key}/02-plan.md` (if they exist) |
-| SUPPLEMENTARY_CRITERIA | This is the full-branch validation review — the last quality gate before PR creation. The reviewer has the complete diff, not a per-task slice. In addition to the standard protocol criteria, evaluate: (1) **Backward compatibility** — does the change modify public APIs, error formats, configuration, or wire protocols? If so, is it backward-compatible or is the break documented and justified? (2) **Completeness across call sites** — if the story introduces a guard, wrapper, or handling pattern in one location, search the codebase for similar patterns needing the same treatment. A pattern applied to 7 of 8 identical call sites is itself a bug. (3) **Scope baseline compliance** — if `02-plan.md` has a Scope Baseline section, compare the full branch diff against it. Flag any material work outside the Expected Delivery Boundaries or Affected Interfaces and Components that was not recorded in the plan's Known Supporting Refactoring or added through an approved scope update. A pending scope decision (noted in the plan but awaiting user agreement) must be resolved before publishing — do not bypass it. |
+| SUPPLEMENTARY_CRITERIA | This is the full-branch validation review — the last quality gate before PR creation. The reviewer has the complete diff, not a per-task slice. In addition to the standard protocol criteria, evaluate: (1) **Backward compatibility** — does the change modify public APIs, error formats, configuration, or wire protocols? If so, is it backward-compatible or is the break documented and justified? (2) **Completeness across call sites** — if the story introduces a guard, wrapper, or handling pattern in one location, search the codebase for similar patterns needing the same treatment. A pattern applied to 7 of 8 identical call sites is itself a bug. (3) **Scope baseline compliance** — if `02-plan.md` has a Scope Baseline section, compare the full branch diff against it. Flag any material work outside the Expected Delivery Boundaries or Affected Interfaces and Components that was not recorded in the plan's Known Supporting Refactoring or added through an approved scope update. Classify unapproved scope drift as HIGH. Do not auto-fix scope drift by broadening the baseline, removing required code, or resolving the scope question — report it unfixed so the gate returns FLAG and the calling workflow can record and pause. A pending scope decision already in the plan must be resolved before publishing — do not bypass it. |
 
 If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
-present the findings to the user before proceeding.
+present the findings to the user before proceeding. If a FLAG finding
+is unapproved scope drift (scope baseline compliance), record a
+`## Pending Scope Decision` section in `02-plan.md` with the delta and
+options, then recommend `/revise` — do not attempt to fix scope drift
+within the validation phase.
 
 If the gate made code fixes, re-run the affected pre-PR checks from
 Step 3 (and Step 4 coverage analysis if the fixes touch covered
