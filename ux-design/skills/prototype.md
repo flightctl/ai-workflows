@@ -53,8 +53,11 @@ carry forward and which need revision; wait for the researcher to approve the
 direction. An early prototype is a reference for exploration, not a validated
 design for the enriched context.
 
-When returning from `/evaluate`, read `04-evaluation.md` and use the
-researcher-approved findings to guide the next iteration.
+When returning from `/evaluate`, read `04-evaluation.md`. Before
+evaluation-driven work, resolve `Authorized fixes` IDs against the
+saved finding register; verify input-snapshot bindings match
+`00-context.md`. None/empty/unresolved → ask; stale → current
+`/evaluate`. Does not restrict ordinary prototyping.
 
 ## Process
 
@@ -201,38 +204,32 @@ Do not assume a plugin path based on another runtime.
 
 ### Refinement After `/evaluate`
 
-`uxd-prototype-create refine {ID}` now reads
-`.artifacts/{ID}/eval/evaluation-report.csv` and
-`.artifacts/{ID}/eval/refinement-suggestions.json`. It no longer reads
-`reviews/summary.md` or accepts the former `--mode` flag.
+`uxd-prototype-create refine {ID}` reads `.artifacts/{ID}/eval/evaluation-report.csv`
+and `refinement-suggestions.json`; not `reviews/summary.md` or `--mode`.
 
 Before refining:
 
 1. Validate `{ID}` using **Artifact Path Safety** before restoring the
    prototype's native layout under `.artifacts/{ID}/` from the
    mirrored files in `03-prototype/` as described in Step 3.
-2. If Full evaluation ran and both refinement inputs exist, copy
-   `evaluation-report.csv` and `refinement-suggestions.json` from the private
-   evaluator run directory
-   (`04-eval-raw/prototype-evaluate/{run-id}/.artifacts/{ID}/eval/`) into
-   `.artifacts/{ID}/eval/`. If either input is missing, do not invent it or
-   use `refine`; start a new `uxd-prototype-create` run with the source and
-   researcher-approved feedback as context.
+2. **Full-input gate.** Read `Full evaluation run` from `04-evaluation.md`.
+   **Stale bindings → stop**; require current `/evaluate`. `N/A` (no
+   Full run) → no Full-run validation or staging. Else: apply
+   evaluate.md § Run-ID and Path Safety — **unsafe → stop**; map each
+   edit to `Authorized fixes`. **Pass:** copy `evaluation-report.csv`
+   and `refinement-suggestions.json` from
+   `04-eval-raw/prototype-evaluate/{validated-run-id}/.artifacts/{ID}/eval/`
+   into `.artifacts/{ID}/eval/`. Ineligible (N/A, unproven mapping,
+   broader edits, valid-missing): copy neither; new-create with source
+   and authorized feedback only.
 3. Before a refinement or replacement changes the native prototype, preserve
    the current
    `.artifacts/ux-design/{issue-key}/03-prototype/` tree under
    `history/prototype-iteration-{N}/`, unless that exact tree is already in the
    current context-revision snapshot. Do not overwrite an existing snapshot.
 
-Use `refine` only when both evaluator inputs are staged:
-
-```text
-uxd-prototype-create refine {ID} --decisions auto
-```
-
-Keep either the refined output or the new prototype output under
-`.artifacts/{ID}/` until Step 3 mirrors it. Do not mirror output or remove the
-native directory in this step.
+`refine` only when the Full-input gate passes; do not mirror/remove
+`.artifacts/{ID}/` before Step 3.
 
 ### Step 3: Map Skill Output Into Our Artifact Structure
 
@@ -449,17 +446,17 @@ Do not invent research evidence.
 
 | Area | Source Reference | Classification | Rationale | Expected Treatment | Outcome | Evidence |
 |---|---|---|---|---|---|---|
-| {area} | {frontend-relative path} | {reuse/depart} | {why} | {unchanged/approved change} | {unverified/matched/mismatch/limited} | {observation or reason} |
+| {area} | {frontend-relative path} | {reuse/depart} | {why} | {unchanged/approved change} | {per Step 3} | {per Step 3} |
 
-{Step 1 metadata+treatment; Step 3 outcome/evidence. Standalone: no baseline}
+{Step 1; Step 3. Standalone: no baseline}
 
 ## User Stories Covered
 
 | Requirement / Decision | Screen / Control | State / Action | Status | Evidence / Reason |
 |---|---|---|---|---|
-| {source requirement or confirmed decision} | {screen/control} | {state/action} | {planned/verified/mocked/partial/deferred/missing} | {evidence, mock limits, or reason} |
+| {requirement or confirmed decision} | {screen/control} | {state/action} | {per Steps 2–3} | {evidence, limits, or reason} |
 
-{Steps 2–3.}
+{Steps 2–3}
 
 ## Page Context
 

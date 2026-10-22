@@ -133,9 +133,10 @@ prototype and evaluation have been reviewed against that context.
   or revise the active design, and `/evaluate` again before handoff.
 - `/research` completed → recommend `/prototype` to explore design directions
 - `/prototype` completed → recommend `/evaluate` (always — never skip evaluation)
-- `/evaluate` completed (no critical issues, enriched context, current prototype) → recommend `/handoff`
-- `/evaluate` completed on exploratory context → keep work exploratory; recommend enrichment when the design document and linked `[UX]` story are available
-- `/evaluate` completed (critical issues) → recommend `/prototype` to iterate
+- `/evaluate` Pending or Confirmed with valid finite authorized fixes (non-empty IDs from the current saved assessment, bound to current prototype iteration, discovery revision, and context revision) → recommend `/prototype` to address authorized findings; this is a requested repair loop, not phase completion — Confirmed status and severity endorsement are preserved. Stale bindings (changed prototype, discovery, or context since the assessment) require a current `/evaluate` instead. Pending without valid authorization → stay in evaluation review; severity endorsement alone is not fix permission
+- `/evaluate` Confirmed with explicit `Authorized fixes: None` (no critical issues, no outstanding repairs, enriched context, current bindings) → recommend `/handoff`; missing or unknown `Authorized fixes` field is not `None`
+- `/evaluate` Confirmed on exploratory context → keep work exploratory; recommend enrichment when the design document and linked `[UX]` story are available
+- `/evaluate` Confirmed (critical issues, `Authorized fixes: None`) → recommend ordinary `/prototype` iteration based on researcher direction; `Authorized fixes: None` means no evaluation findings are authorized as repair inputs — do not use evaluation findings to drive the prototype without explicit fix authorization
 - `/handoff` completed → recommend `/revise` if the researcher wants
   stakeholder feedback, or `/publish` to push the spec to the docs repo
 - `/revise` completed → recommend `/publish` (or another `/revise` round)
