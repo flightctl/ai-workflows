@@ -46,8 +46,9 @@ The user's feedback may target:
 
 **Scope decisions (from `/code` or `/respond` pause):**
 The `## Pending Scope Decision` section of `02-plan.md` records the
-unresolved decision. `/revise` is the only phase that modifies it.
-After applying the user's decision:
+unresolved decision (`/code` and `/respond` create it; `/revise` is the
+only phase that resolves or clears the recorded decision or dependency
+marker). After applying the user's decision:
 - **Approving scope expansion** — update the Scope Baseline, add or
   modify tasks, then remove the `## Pending Scope Decision` section.
   Reconcile any already-written out-of-plan changes: retain work that

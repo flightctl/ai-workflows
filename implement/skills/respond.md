@@ -124,9 +124,12 @@ Group comments into categories:
 ### Step 3: Assess Scope Impact
 
 Before proposing responses, read the Scope Baseline section of
-`02-plan.md` (if present). For each review comment that requests code
+`02-plan.md` (if present). If no Scope Baseline section exists (plans
+created before this feature), assess requests against the story's
+accepted acceptance criteria and approved plan tasks — do not treat the
+absence as unlimited scope. For each review comment that requests code
 changes, assess whether the requested work stays within the story's
-baseline boundaries:
+scope:
 
 - **Within scope** — the request addresses the story's own code,
   fixes a defect introduced by this story, or is a small cohesive
