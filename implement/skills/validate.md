@@ -276,21 +276,29 @@ is unapproved scope drift (scope baseline compliance), record a
 options, then recommend `/revise` — do not attempt to fix scope drift
 within the validation phase.
 
-**6e: Post-fix snapshot.** If the gate made code fixes (the gate edits
-files but does not commit — shared recipe lines 174-176), re-run the
-affected pre-PR checks from Step 3 to verify the post-fix state. Then
-commit:
+**6e: Commit and re-validate fixes.** If the gate made code fixes (the
+gate edits files but does not commit — shared recipe lines 174-176):
 
-```bash
-git add {fixed files}
-git commit -m "{issue-key}: address validation review findings"
-```
+1. Re-run affected pre-PR checks from Step 3 and Step 4 coverage
+   analysis if fixes touch covered packages. Fix failures before
+   committing.
+2. Commit the fixes:
+   ```bash
+   git add {fixed files}
+   git commit -m "{issue-key}: address validation review findings"
+   ```
+3. Re-run 6b (clean worktree) then 6c (scope check) on the new HEAD.
+4. Re-run 6d (self-review gate) on the committed HEAD so the final
+   quality review reflects the actual committed snapshot. The gate's
+   DIFF_COMMAND (`git diff {local-base}...HEAD`) now includes the
+   committed fixes. This re-run consumes remaining rounds from the
+   original MAX_ROUNDS budget — do not reset the round counter. If
+   the budget is exhausted or the re-run introduces no new fixes,
+   the cycle ends.
 
-After committing, re-run the scope check (6c) and clean-worktree check
-(6b) against the new HEAD to confirm the committed snapshot matches the
-reviewed state and no scope drift was introduced by the fixes. If scope
-drift is found, record and pause per 6c. The validation report (Step 9)
-must reflect this final committed snapshot, not the pre-fix state.
+The validation report (Step 9) must reflect this final committed and
+reviewed HEAD, not the pre-fix state. If the re-run gate returns FLAG
+or scope drift is found, record and pause per the existing rules.
 
 ### Step 7: Acceptance Criteria Verification
 
