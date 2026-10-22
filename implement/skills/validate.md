@@ -49,13 +49,15 @@ stays within the approved Scope Baseline in `02-plan.md` (when present):
 For the self-review gate invocation (Step 7): only use a non-interactive
 review tool (shared recipe Step 1) in non-mutating / findings-only
 mode. If the tool cannot report findings without editing code, fall
-back to the subagent or inline path (shared recipe Step 2). The shared
-recipe's Step 1 caller-assessment (lines 48-49) and Step 3 fix path
-(line 121) both produce findings that this validation caller assesses
-for scope before applying. Approved in-scope fixes are applied and
-re-reviewed through the bounded post-fix cycle; material unapproved
-scope findings remain unfixed HIGH → FLAG → complete record → `/revise`.
-Optional unrelated nits can be declined per existing value assessment.
+back to the subagent or inline path (shared recipe Step 2). The review
+tool or subagent produces findings; this validation caller consumes
+and assesses them for scope before applying any fixes. The shared
+recipe's caller-assessment path (Step 1) and inline-fix path (Step 3)
+both return findings to the caller for this assessment. Approved
+in-scope fixes are applied and re-reviewed through the bounded post-fix
+cycle. Material unapproved scope findings remain unfixed HIGH → FLAG →
+complete record → `/revise`. Optional unrelated nits can be declined
+per existing value assessment.
 
 Plans without a Scope Baseline skip this assessment — the existing
 step-level remediation behavior applies unchanged.
@@ -262,11 +264,12 @@ If `02-plan.md` has a Scope Baseline section, compare the branch diff
 Feature Changes, Known Supporting Refactoring (including Prerequisite
 Rationale), Affected Interfaces and Components, and Expected Delivery
 Boundaries. If the comparison command fails, stop and report the error.
-Unapproved work outside any baseline field — including unapproved
-behavior within an already-affected component — is material scope
-drift: record a complete `## Pending Scope Decision` per the
+Material unapproved work outside any baseline field — including
+unapproved new behavior within an already-affected component — is
+scope drift: record a complete `## Pending Scope Decision` per the
 Scope-First Remediation Policy and stop. Recommend `/revise`. Ordinary
-in-scope correctness fixes do not trigger this check.
+in-scope correctness fixes and small cohesive supporting cleanup within
+baseline boundaries do not trigger this check.
 
 Run the self-review gate. Read and follow
 `../../_shared/recipes/self-review-gate.md` with these parameters:
@@ -276,7 +279,7 @@ Run the self-review gate. Read and follow
 | DIFF_COMMAND | `git diff {local-base}...HEAD` |
 | MAX_ROUNDS | `3` |
 | CONTEXT_FILES | `.artifacts/implement/{issue-key}/01-context.md`, `.artifacts/implement/{issue-key}/02-plan.md` (if they exist) |
-| SUPPLEMENTARY_CRITERIA | Full-branch validation review — last quality gate before PR. Evaluate: (1) **Backward compatibility** — public APIs, error formats, configuration, wire protocols changed? Backward-compatible or is the break documented and justified? (2) **Completeness across call sites** — pattern applied in one location but needed in similar locations is a bug. (3) **Scope baseline compliance** — if `02-plan.md` has a Scope Baseline section, compare against all baseline fields (Intended Feature Changes, Known Supporting Refactoring, Affected Interfaces and Components, Expected Delivery Boundaries). Unapproved work outside any field — including unapproved behavior within an already-affected component — is HIGH scope drift; do not auto-fix, report unfixed so gate returns FLAG. A pending scope decision already in the plan must be resolved before publishing. |
+| SUPPLEMENTARY_CRITERIA | Full-branch validation review — last quality gate before PR. Evaluate: (1) **Backward compatibility** — public APIs, error formats, configuration, wire protocols changed? Backward-compatible or is the break documented and justified? (2) **Completeness across call sites** — pattern applied in one location but needed in similar locations is a bug. (3) **Scope baseline compliance** — if `02-plan.md` has a Scope Baseline section, compare against all baseline fields (Intended Feature Changes, Known Supporting Refactoring, Affected Interfaces and Components, Expected Delivery Boundaries). Material unapproved work outside any field — including unapproved new behavior within an already-affected component — is HIGH scope drift; do not auto-fix, report unfixed so gate returns FLAG. Ordinary correctness fixes and small cohesive supporting cleanup within boundaries are not scope drift. A pending scope decision already in the plan must be resolved before publishing. |
 
 If the gate reports FLAG, stop and present findings. For scope-drift
 FLAG findings, record a complete `## Pending Scope Decision` in
@@ -372,8 +375,9 @@ has TC mappings but `testplan.md` is missing, unreadable, or malformed
      covered packages, Step 6 regression when production code changed,
      Step 3 (clean/base), the Step 7 scope comparison and self-review
      gate on the committed HEAD (consuming remaining MAX_ROUNDS), and
-     re-verify Step 8 AC. If the review gate proposes production fixes,
-     route them through the same post-fix cycle as Step 7.
+     re-verify Step 8 AC and applicable Step 8b TC consistency on the
+     new HEAD. If the review gate proposes production fixes, route them
+     through the same post-fix cycle as Step 7.
 4. Record results for the validation report.
 
 ### Step 9: Write Validation Report
