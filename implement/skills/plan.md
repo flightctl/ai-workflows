@@ -276,7 +276,7 @@ Before presenting the plan, verify:
 - [ ] Every ingest open question is a locked decision (specified or implementer default) or a product fork still listed
 - [ ] Open Questions contains only product forks, not pins/timeouts/names `/code` could default
 - [ ] Cited Reads stayed within the cap; `02-plan.md` has no pasted file bodies
-- [ ] Scope Baseline is complete: Intended Feature Changes, Known Supporting Refactoring (with prerequisite rationale), Affected Interfaces, and Expected Delivery Boundaries are all populated based on actual inspected code, not guesses
+- [ ] Scope Baseline is complete: Intended Feature Changes, Known Supporting Refactoring (with prerequisite rationale), Affected Interfaces and Components, and Expected Delivery Boundaries are all populated based on actual inspected code, not guesses
 
 ### Step 6: Present to User
 

@@ -22,8 +22,9 @@ user.
   Decision` section exists in `02-plan.md`), recommend `/revise` to update
   the plan with the user's decision before resuming `/code`. The user can
   invoke `/revise` directly even though `/code` did not complete — `/revise`
-  only requires `02-plan.md`, not the code/test/implementation reports that
-  `/code` writes on completion. Do not recommend `/validate` or `/publish`
+  requires `02-plan.md` and `01-context.md` (for acceptance criteria and
+  validation profile), not the code/test/implementation reports that `/code`
+  writes on completion. Do not recommend `/validate` or `/publish`
   while a scope decision is pending.
 - **validate:** Recommend `/publish` only when validation passed and no scope
   decisions are pending. When failures remain, recommend fixing them and

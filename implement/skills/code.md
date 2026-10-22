@@ -311,11 +311,12 @@ interfaces outside the baseline. Classify unanticipated changes per
 `guidelines.md` (required prerequisite, correction, or unrelated
 preference). Small cohesive changes within boundaries proceed normally.
 
-If material unplanned structural work is found, **record and pause**:
-append a `## Pending Scope Decision` section to `02-plan.md` describing
-the delta, necessity, and options (keep/extract/defer). Do not commit,
-write reports, or read `completion.md`. The user routes to `/revise` to
-resolve the decision and clear the section before `/code` resumes.
+If material drift is found, **record and pause**: append a `## Pending
+Scope Decision` section to `02-plan.md` with the delta, necessity, and
+options (keep/extract/defer). Do not commit, write reports, or read
+`completion.md`. The user routes to `/revise` for resolution (see
+`revise.md` for the canonical lifecycle: approve/decline clears the
+section; extraction retains it until the prerequisite merges).
 
 **Test plan reconciliation (if story-scoped testplan exists):**
 

@@ -150,10 +150,12 @@ scope:
   2. Present the recorded pending decision to the user. Do not apply
      code changes, push, or post replies for the affected comment
      until the user decides.
-  3. The user routes to `/revise` to update the plan and clear the
-     pending section. If a prerequisite is extracted, feature work
-     that depends on it waits until it merges. Then resume
-     `/respond` for remaining comments.
+  3. The user routes to `/revise` to resolve the decision. On
+     approve-expansion or decline, `/revise` clears the section.
+     On extraction, `/revise` retains the section as a dependency
+     marker until the prerequisite merges — feature work remains
+     blocked (see `revise.md` for the canonical lifecycle). Then
+     resume `/respond` for remaining comments.
 
   Do not defer a necessary fix to an introduced defect — that is a
   correction, not expansion.

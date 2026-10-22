@@ -111,7 +111,7 @@ After applying changes, verify:
 - Do interface definitions match what the tasks describe?
 - Are commit messages still properly formatted?
 - If a Test Plan Coverage section exists: do the TC ID → Task mappings still reflect the current task breakdown? If tasks were added, removed, split, or combined, update the Covered by Task column accordingly.
-- If a Scope Baseline section exists: do the Known Supporting Refactoring, Affected Interfaces, and Expected Delivery Boundaries still reflect the current plan? If scope was expanded or narrowed, update the baseline to match.
+- If a Scope Baseline section exists: do the Known Supporting Refactoring, Affected Interfaces and Components, and Expected Delivery Boundaries still reflect the current plan? If scope was expanded or narrowed, update the baseline to match.
 - `## Pending Scope Decision` lifecycle: remove it on approve-expansion or decline. On extract-prerequisite, update it to record the extraction decision and keep it as a dependency marker until the prerequisite merges and the user confirms via a subsequent `/revise`.
 
 ### Step 5: Update Artifact
