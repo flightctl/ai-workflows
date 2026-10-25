@@ -250,10 +250,11 @@ evaluation revision, and assigns its own IDs with default
 prototype iteration or discovery revision.
 
 Human annotations on the **same** assessment — selected fix authorization,
-per-finding severity endorsement, and Disposition updates (`Confirmed`,
-`Dismissed`, `Deferred`) — update the saved report in place, preserving
-its evaluation revision, IDs, and underlying evidence references. Do not
-rerun the evaluation merely to record human decisions.
+per-finding severity endorsement, Disposition updates (`Confirmed`,
+`Dismissed`, `Deferred`), and overall report confirmation — update the
+saved report in place, preserving its evaluation revision, IDs, and
+underlying evidence references. Do not rerun the evaluation merely to
+record human decisions.
 
 #### Researcher Review
 
@@ -286,8 +287,17 @@ count separately as unconfirmed.
   are endorsed. This is a human decision, not an automatic promotion.
 
 Every non-Confirmed report displays readiness as "No — pending review"
-regardless of how many individual severities are endorsed. A zero-findings
-report or all-dismissed report still requires explicit human confirmation.
+regardless of how many individual severities are endorsed.
+
+Obtain and persist the researcher's explicit overall confirmation before
+setting `Researcher review: Confirmed`. Do not derive it from fix
+authorization, severity endorsements, or finding dispositions alone.
+Without an explicit overall confirmation for this assessment, the report
+remains Pending — even when zero findings exist or all are dismissed.
+An existing confirmation remains valid for an unchanged assessment; a
+later fix authorization does not reset or require repeating it. Overall
+confirmation is not a prerequisite for accepting valid current fix
+authorization; the Pending-with-authorized-repairs route is unaffected.
 
 #### Remediation Authorization
 
