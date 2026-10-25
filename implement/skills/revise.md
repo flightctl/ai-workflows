@@ -78,11 +78,15 @@ decision or dependency marker). After applying the user's decision:
   explain what will be reverted or set aside and obtain explicit user
   approval before modifying source; preserve in-scope and unrelated
   edits. Declining expansion alone does not authorize discarding
-  edits — the user must approve the concrete cleanup. If no
-  declined-scope changes exist, confirm that explicitly. Remove the
-  `## Pending Scope Decision` section only after approved cleanup is
-  complete (or the user confirms no cleanup is needed after reviewing
-  the current state) so `/code` or `/respond` can resume
+  edits — the user must approve the concrete cleanup. If the user
+  withholds cleanup approval, retain the `## Pending Scope Decision`
+  section and stop; entry guards in `/code`, `/validate`, `/respond`,
+  and `/publish` continue to block until the decision is fully
+  resolved. If no declined-scope changes exist, confirm that
+  explicitly. Remove the `## Pending Scope Decision` section only
+  after approved cleanup is complete (or the user confirms no cleanup
+  is needed after reviewing the current state), subject to all normal
+  phase entry and validation requirements before resuming.
 
 **Test strategy changes:**
 - Additional test coverage ("Add tests for the concurrent update edge case")
