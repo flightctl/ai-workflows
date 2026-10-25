@@ -81,7 +81,8 @@ by hand mid-rebase, stop and report it.
 ## Step 3: Continue
 
 ```bash
-gh stack rebase --continue --remote {base-remote}
+base_remote=$(jq -r '.baseRemote' .artifacts/rebase-stack/context.json)
+gh stack rebase --continue --remote "$base_remote"
 echo "continue exit: $?"
 ```
 

@@ -190,23 +190,41 @@ Name the command that failed **and where it came from** — `{command-source}`
 from Step 4 — so the user knows which file to fix if the command itself is
 wrong rather than the code.
 
+Before issuing a checkout or upstack command, bind the failing branch and base
+remote from the context. Never paste either value into shell source:
+
+```bash
+ctx=.artifacts/rebase-stack/context.json
+failing_branch=$(jq -r '.validationBranch' "$ctx")
+base_remote=$(jq -r '.baseRemote' "$ctx")
+```
+
 For `{mode} = all`, the failing branch is the attribution — the first layer
 bottom-to-top that breaks:
 
 > `{failing-branch}` failed `{failed-command}` (from `{command-source}`).
 > Layers above it were not run; they contain its commits and would fail the
 > same way.
-> Fix it on that layer: `gh stack checkout {failing-branch}`, commit, then
-> `gh stack rebase --upstack --remote {base-remote}`, then `/validate --all`.
+> Fix it on that layer, then `/validate --all`:
+>
+> ```bash
+> gh stack checkout "$failing_branch"
+> # make and commit the fix
+> gh stack rebase --upstack --remote "$base_remote"
+> ```
 
 For `{mode} = tip`, the failure belongs to `{validation-branch}` — it is the
 only layer that ran:
 
 > `{validation-branch}` is the trunk-adjacent layer, so this failure of
 > `{failed-command}` (from `{command-source}`) is already
-> attributed to it. Fix it there: `gh stack checkout {validation-branch}`,
-> commit, then `gh stack rebase --upstack --remote {base-remote}`, then
-> `/validate`.
+> attributed to it. Fix it there, then `/validate`:
+>
+> ```bash
+> gh stack checkout "$failing_branch"
+> # make and commit the fix
+> gh stack rebase --upstack --remote "$base_remote"
+> ```
 >
 > The layers above it were never exercised. Once this one is green, run
 > `/validate --all` to cover them.
@@ -231,10 +249,8 @@ tips. Record **every** branch in the stack, not only the ones the suite ran agai
 not — otherwise a changed layer gets published having never been tested at that
 SHA. The first field says which branches actually ran.
 
-Bind `{validated-branches}` before you run the block below. Its format is
-fixed: **the bare branch names the suite actually passed in Step 5, joined by
-single ASCII spaces** — exactly the arguments you gave `validate-branches.sh`,
-in the same order.
+Build `validated_branches` from the context in the block below. It contains the
+same branch names passed to `validate-branches.sh`, in the same order.
 
 - Separator: one space between names. Nothing else — no commas, no quotes, no
   brackets, no newlines, no leading or trailing space.
@@ -243,26 +259,20 @@ in the same order.
 - Git branch names cannot contain spaces, so the space-delimited `case` match
   below is exact.
 
-It is assigned to a shell **variable** in the block below, never spliced into a
-command line, so the names are compared as data and are not shell syntax even
-if a branch name contains metacharacters. The value must still expand to text
-like `story-1 story-2` and never to `"story-1","story-2"` or
-`[story-1 story-2]`.
+The names are read from JSON into a shell **variable**, never spliced into a
+command line, so they are compared as data and are not shell syntax.
 
-- `{mode} = tip` → exactly one name, `{validation-branch}` — the
-  trunk-adjacent branch, which is `.branches[0]`: `story-1`
-- `{mode} = all` → every branch in `{push-list}`, bottom to top, starting with
-  `{validation-branch}`: `story-1 story-2 story-3`
-
-Getting the format wrong fails silently: a comma-separated list matches
-nothing, every line is written `not-run`, and in `--all` mode `/push` then
-reports that no layer was validated.
+- `mode=tip` → exactly one name: `.validationBranch`
+- `mode=all` → every `.branches[].name`, bottom to top
 
 ```bash
-# {validated-branches}: branch names that passed Step 5, single-space
-# separated, no commas/quotes/brackets — e.g. story-1 story-2
-validated_branches="{validated-branches}"
-mode="{mode}"
+ctx=.artifacts/rebase-stack/context.json
+if [ "$mode" = "tip" ]; then
+  validated_branches=$(jq -r '.validationBranch' "$ctx")
+else
+  mapfile -t passed_branches < <(jq -r '.branches[].name' "$ctx")
+  validated_branches="${passed_branches[*]}"
+fi
 {
   echo "mode=$mode"
   jq -r '.branches[].name' .artifacts/rebase-stack/context.json | while read -r b; do

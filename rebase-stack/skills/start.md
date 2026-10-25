@@ -72,8 +72,11 @@ without publishing anything — again through variables, never by splicing the
 name into the command:
 
 ```bash
-branch="{branch}"; push_remote="{push-remote}"
-git log --oneline "${branch}..${push_remote}/${branch}"
+ctx=.artifacts/rebase-stack/context.json
+push_remote=$(jq -r '.pushRemote' "$ctx")
+jq -r '.branches[].name' "$ctx" | while read -r branch; do
+  git log --oneline "${branch}..${push_remote}/${branch}" --
+done
 ```
 
 Then let the user decide how to reconcile — cherry-pick them onto the layer
@@ -127,7 +130,8 @@ Offer `rerere` once, and set it only if the user agrees:
 ## Step 4: Rebase the Whole Stack
 
 ```bash
-gh stack rebase --remote {base-remote}
+base_remote=$(jq -r '.baseRemote' .artifacts/rebase-stack/context.json)
+gh stack rebase --remote "$base_remote"
 echo "rebase exit: $?"
 ```
 
@@ -158,7 +162,10 @@ compares only the conflicting commit; without the limit it walks every commit
 reachable from `REBASE_HEAD` and can report an ancestor as already-upstream:
 
 ```bash
-git cherry {base-remote}/{base} REBASE_HEAD REBASE_HEAD^
+ctx=.artifacts/rebase-stack/context.json
+base_remote=$(jq -r '.baseRemote' "$ctx")
+base=$(jq -r '.trunk' "$ctx")
+git cherry "${base_remote}/${base}" REBASE_HEAD REBASE_HEAD^
 ```
 
 One line of output. A leading `-` means this commit's change is already in the
@@ -182,7 +189,8 @@ then:
 
 ```bash
 git diff --name-only --diff-filter=U   # must print nothing
-gh stack rebase --continue --remote {base-remote}
+base_remote=$(jq -r '.baseRemote' .artifacts/rebase-stack/context.json)
+gh stack rebase --continue --remote "$base_remote"
 echo "continue exit: $?"
 ```
 
@@ -218,8 +226,11 @@ pre-rebase SHA next to each missing commit; that object is still in the
 repository, so ask git directly whether its patch is upstream:
 
 ```bash
-# {missing-sha}: the 12-char SHA snapshot.sh printed for the missing commit.
-git cherry {base-remote}/{base} {missing-sha} {missing-sha}^
+ctx=.artifacts/rebase-stack/context.json
+base_remote=$(jq -r '.baseRemote' "$ctx")
+base=$(jq -r '.trunk' "$ctx")
+missing_sha='<full SHA printed by snapshot.sh>'
+git cherry "${base_remote}/${base}" "$missing_sha" "${missing_sha}^"
 ```
 
 One line. A leading `-` means this exact patch is already in the base — the
@@ -229,8 +240,8 @@ If the commit does not resolve (it was never recorded with a usable parent) or
 `git cherry` cannot be run against it, compare patch-ids explicitly:
 
 ```bash
-git show {missing-sha} | git patch-id --stable | cut -d' ' -f1
-git log --format=%H {base-remote}/{base} -50 \
+git show "$missing_sha" | git patch-id --stable | cut -d' ' -f1
+git log --format=%H "${base_remote}/${base}" -50 \
   | while read -r c; do git show "$c" | git patch-id --stable; done \
   | cut -d' ' -f1
 ```

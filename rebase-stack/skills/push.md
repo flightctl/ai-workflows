@@ -103,7 +103,8 @@ jq -r '"push remote : \(.pushRemote)  (\(.pushRemoteSource))",
 ## Step 3: Push
 
 ```bash
-gh stack push --remote {push-remote}
+push_remote=$(jq -r '.pushRemote' .artifacts/rebase-stack/context.json)
+gh stack push --remote "$push_remote"
 echo "push exit: $?"
 ```
 
@@ -111,15 +112,16 @@ echo "push exit: $?"
 |------|---------|--------|
 | 0 | Every branch pushed. | Go to Step 4. |
 | 1 | Lease rejected — someone pushed since the fetch. | Re-run `/validate`: it re-fetches and re-reads stack health, so it shows what actually moved and re-establishes the lease. Never add `--force`. |
-| 4 | GitHub API failure. | Report `gh auth status`; re-read the state as below, then ask before retrying. |
-| 8 | Stack file locked. | Wait about 5s, re-read the state as below, retry once, then stop. |
+| 4 | GitHub API failure. | Stop. Report `gh auth status`; run preflight and `/validate` again before asking for a new push confirmation. |
+| 8 | Stack file locked. | Stop. Another `gh stack` process may be writing; run preflight and `/validate` again before asking for a new push confirmation. |
 | other | Unknown. | Stop and report the exit code and full stderr. |
 
-**Never retry a rejected push blind.** `gh stack push` requests
+**Never retry a rejected push in this phase.** `gh stack push` requests
 `--force-with-lease`, and the lease is only safe against the remote state the
 last fetch recorded. A failed push may still have updated some branches
 (see atomicity below), and the lock or API failure may have been another
-client pushing. Re-read the stack before every retry:
+client pushing. Stop, report the exit code, and start over with preflight and
+`/validate` before a new push confirmation:
 
 ```bash
 view=$(gh stack view --json); echo "view exit: $?"
@@ -130,11 +132,9 @@ Capture first and report that exit code: reading `$?` after a pipe reports
 `jq`, not `gh`, and a failed `gh stack view` piped into `jq` looks like an
 empty stack rather than an error.
 
-Compare that against the tips recorded in `.artifacts/rebase-stack/validated`.
-Retry only when `gh stack view --json` exits 0 and every branch head still
-matches its recorded SHA. If any head moved, or the command does not exit 0,
-stop and send the user back to `/validate` — it re-fetches and re-establishes
-the lease. Never add `--force`.
+`/validate` re-fetches, re-reads stack health, and rewrites the record against
+the current tips. Its SHA check then rejects any branch that moved during the
+failed push or lock contention. Never add `--force`.
 
 `gh stack push` also requests `--atomic`, but atomicity depends on the remote
 supporting the `atomic` push capability: when it does, a single rejected
@@ -155,7 +155,8 @@ If the list is empty, skip to Step 5.
 **Direct clone (`isFork` is `false`):**
 
 ```bash
-gh stack submit --auto --remote {push-remote}
+push_remote=$(jq -r '.pushRemote' .artifacts/rebase-stack/context.json)
+gh stack submit --auto --remote "$push_remote"
 echo "submit exit: $?"
 ```
 
@@ -178,16 +179,31 @@ fork_owner=$(jq -r '.forkOwner' "$ctx")
 base=$(jq -r '.trunk' "$ctx")
 ```
 
-Then for each unpublished branch, bottom to top:
+Then create PRs bottom to top. Use the trunk only for the bottom PR and the
+preceding stack branch for every PR above it:
 
 ```bash
-gh pr create \
-  --repo "$parent_repo" \
-  --head "${fork_owner}:${branch}" \
-  --base "$base" \
-  --title "$branch_title" \
-  --draft \
-  --body "Depends on: #${previous_pr_number}"
+mapfile -t branches < <(jq -r '.branches[] | select(.pr == null) | .name' "$ctx")
+previous_branch="$base"
+for branch in "${branches[@]}"; do
+  if [ -n "${previous_pr_number:-}" ]; then
+    gh pr create \
+      --repo "$parent_repo" \
+      --head "${fork_owner}:${branch}" \
+      --base "$previous_branch" \
+      --title "$branch" \
+      --draft \
+      --body "Depends on: #${previous_pr_number}"
+  else
+    gh pr create \
+      --repo "$parent_repo" \
+      --head "${fork_owner}:${branch}" \
+      --base "$previous_branch" \
+      --title "$branch" \
+      --draft
+  fi
+  previous_branch="$branch"
+done
 ```
 
 For a direct clone drop `--repo` and use `--head "$branch"`. Omit the

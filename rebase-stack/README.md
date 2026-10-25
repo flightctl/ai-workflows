@@ -51,7 +51,7 @@ differ:
 | Name | What it is | Resolution order |
 |------|------------|------------------|
 | `{base-remote}` | Hosts the base branch the stack targets. Used for fetch and `gh stack rebase --remote`. | base branch's upstream tracking ref → `branch.<base>.remote` → the remotes that carry the ref (`upstream` then `origin` as tiebreak) → the single configured remote |
-| `{push-remote}` | Where the stack's branches are published. Used for `gh stack push --remote`. | `remote.pushDefault` → the current branch's `@{push}` → the single configured remote → `{base-remote}` |
+| `{push-remote}` | Where the stack's branches are published. Used for `gh stack push --remote`. | `remote.pushDefault` → the current branch's `@{push}` → the single configured remote; otherwise preflight stops |
 
 If either is ambiguous, preflight exits 9 and the workflow asks you instead of
 guessing. Every `gh stack` call passes `--remote` explicitly.

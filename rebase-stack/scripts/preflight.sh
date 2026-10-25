@@ -252,12 +252,23 @@ if [ "$remote_count" -gt 1 ] && [ -z "$(git config --get remote.pushDefault)" ];
 fi
 
 # --------------------------------------------------------------------------
-# Repository topology (fork awareness). Non-fatal: push reporting only.
+# Repository topology (fork awareness). /push needs this to choose its
+# direct-clone or fork path, so an unavailable topology is a hard failure.
 # --------------------------------------------------------------------------
-push_url=$(git remote get-url "$push_remote" 2>/dev/null || true)
-repo_json='{}'
-if [ -n "$push_url" ]; then
-  repo_json=$(gh repo view "$push_url" --json isFork,nameWithOwner,owner,parent 2>/dev/null || echo '{}')
+push_url=$(git remote get-url "$push_remote") \
+  || die "Could not read the URL for remote '${push_remote}'." 9
+if ! repo_json=$(gh repo view "$push_url" \
+                  --json isFork,nameWithOwner,owner,parent 2>/dev/null); then
+  die "Could not read repository topology for '${push_url}'.
+  The fork-aware /push path needs the repository owner and parent repository.
+  Check authentication and access to the repository, then retry." 4
+fi
+if ! jq -e 'has("isFork") and has("nameWithOwner") and has("owner")
+            and (.isFork != true or ((.owner.login // "") != ""
+                                     and (.parent.nameWithOwner // "") != ""))' \
+    >/dev/null 2>&1 <<<"$repo_json"; then
+  die "'gh repo view' returned incomplete repository topology for '${push_url}'.
+  The fork-aware /push path needs the repository owner and parent repository." 4
 fi
 
 # --------------------------------------------------------------------------

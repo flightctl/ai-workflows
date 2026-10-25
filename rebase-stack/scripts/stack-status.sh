@@ -44,14 +44,12 @@ if [ "$do_fetch" -eq 1 ]; then
     echo "  or pass --no-fetch to accept the local view explicitly." >&2
     exit 3
   fi
-  if [ "$push_remote" != "$base_remote" ]; then
-    if ! git fetch --quiet "$push_remote"; then
-      echo "stack-status: could not fetch ${push_remote}." >&2
-      echo "  Divergence against the published branches cannot be trusted." >&2
-      echo "  Fix connectivity and retry, or pass --no-fetch to accept the" >&2
-      echo "  local view explicitly." >&2
-      exit 3
-    fi
+  if ! git fetch --quiet "$push_remote"; then
+    echo "stack-status: could not fetch ${push_remote}." >&2
+    echo "  Divergence against the published branches cannot be trusted." >&2
+    echo "  Fix connectivity and retry, or pass --no-fetch to accept the" >&2
+    echo "  local view explicitly." >&2
+    exit 3
   fi
 else
   echo "stack-status: --no-fetch — remote columns reflect the last fetch, not GitHub." >&2
