@@ -352,9 +352,11 @@ reading, composing, or copying any path. Use the same validated
    and normalizes cross-key outputs when `{prototype-id}` ≠
    `{story-key}`). Apply containment checks to each actual candidate
    source path BEFORE opening, reading content, copying, or normalizing
-   — not only to the normalized destination after copy. Each candidate
-   must resolve within the resolved run directory; a symlinked input
-   pointing to a sibling run or outside the tree fails. These checks
+   — not only to the normalized destination after copy. Validate both
+   selected source paths before copying either file; if either source
+   is unsafe, stop before staging any input. Each candidate must resolve
+   within the resolved run directory; a symlinked input pointing to a
+   sibling run or outside the tree fails. These checks
    assume non-adversarial artifact handling and do not claim protection
    against intentional concurrent tampering.
 6. **Failure handling.** Unsafe path (symlink escape, non-directory,
