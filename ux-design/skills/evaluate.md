@@ -250,9 +250,9 @@ evaluation revision, and assigns its own IDs with default
 prototype iteration or discovery revision.
 
 Human annotations on the **same** assessment — selected fix authorization,
-per-finding severity endorsement, finding confirmation or
-rejection/deferral — update the saved report in place, preserving its
-evaluation revision, IDs, and underlying evidence references. Do not
+per-finding severity endorsement, and Disposition updates (`Confirmed`,
+`Dismissed`, `Deferred`) — update the saved report in place, preserving
+its evaluation revision, IDs, and underlying evidence references. Do not
 rerun the evaluation merely to record human decisions.
 
 #### Researcher Review
@@ -319,10 +319,13 @@ the prior authorization does not carry forward to the new iteration.
 
 #### Run-ID and Path Safety for Full Evaluation Artifacts
 
-Apply this rule in the evaluate producer (Step 4) BEFORE creating the
-run directory and in the prototype consumer (refinement gate) BEFORE
-reading, composing, or copying any path. Use the same validated
-`evaluation_run_id` value in both producer and consumer.
+The evaluate producer (Step 4) applies this rule BEFORE creating the
+run directory. The prototype consumer first reads the canonical
+`04-evaluation.md` to obtain `Full evaluation run`; if the value is
+`N/A` no run-derived paths exist and this rule does not apply.
+Otherwise, apply this rule BEFORE reading, composing, or copying any
+run-derived path. Use the same validated `evaluation_run_id` in both
+producer and consumer.
 
 1. **Component validation.** Full-match the entire `{run-id}` against
    `^[A-Za-z0-9][A-Za-z0-9._-]*$`. Reject empty, `.`, `..`, absolute
