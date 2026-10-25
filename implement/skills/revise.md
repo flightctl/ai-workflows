@@ -12,7 +12,10 @@ implementation plan while maintaining internal consistency.
 
 Read the user's feedback, apply changes to the plan, and ensure the plan
 remains coherent after edits. This phase is repeatable — the user may request
-multiple rounds of revision. This phase only modifies the plan, not code.
+multiple rounds of revision. By default this phase modifies the plan only, not
+source code. The one exception is reconciling already-written source changes to
+an approved scope decision (see Scope decisions below): the user must explicitly
+approve any concrete source cleanup before it is applied.
 
 ## Critical Rules
 
@@ -22,6 +25,7 @@ multiple rounds of revision. This phase only modifies the plan, not code.
 - **Preserve traceability.** Every task must still trace to an acceptance criterion after revision.
 - **Show your changes.** After revising, summarize what changed so the user can verify.
 - **No scope reduction.** Do not silently simplify, even when revising.
+- **Source reconciliation requires explicit approval.** When a scope decision requires reconciling already-written source changes (revert declined scope, set aside extracted work), explain the concrete changes to the user and obtain explicit approval before modifying source files. Do not discard unrelated or user-owned work. If safe isolation is unclear, keep the `## Pending Scope Decision` section and stop for clarification rather than claiming the plan is ready.
 
 ## Process
 
@@ -50,22 +54,30 @@ unresolved decision (`/code`, `/respond`, and `/validate` create it;
 `/revise` is the only phase that resolves or clears the recorded
 decision or dependency marker). After applying the user's decision:
 - **Approving scope expansion** — update the Scope Baseline, add or
-  modify tasks, then remove the `## Pending Scope Decision` section.
-  Reconcile any already-written out-of-plan changes: retain work that
-  aligns with the revised plan and revert or set aside declined scope.
+  modify tasks. If already-written source changes need reconciliation
+  (retain aligned work, revert or set aside declined scope), explain
+  the concrete cleanup to the user and apply only after explicit
+  approval. Remove the `## Pending Scope Decision` section only after
+  approved reconciliation is complete (or the user confirms no cleanup
+  is needed).
 - **Extracting a prerequisite** — remove the expanded work from this
   plan, adjust remaining tasks. **Do not remove the `## Pending Scope
   Decision` section.** Instead, update it to record the extraction
   decision and the prerequisite identifier (story key or branch). The
   section acts as a durable dependency marker: entry guards in `/code`,
   `/validate`, `/respond`, and `/publish` observe it and block until
-  the prerequisite has merged. Once the user confirms the prerequisite
-  is merged, invoke `/revise` again to remove the section. Reconcile
-  any already-committed out-of-plan changes before resuming.
-- **Declining expansion** — document the rationale, revert or set
-  aside any already-written declined-scope changes, then remove the
-  `## Pending Scope Decision` section so `/code` or `/respond` can
-  resume
+  the prerequisite has merged. If already-committed source changes
+  need cleanup to isolate the extracted work, explain the changes and
+  obtain explicit user approval before modifying source. Once the user
+  confirms the prerequisite is merged, invoke `/revise` again to
+  remove the section.
+- **Declining expansion** — document the rationale. If already-written
+  declined-scope source changes exist, explain what will be reverted
+  or set aside and obtain explicit user approval before modifying
+  source; preserve in-scope and unrelated edits. Remove the
+  `## Pending Scope Decision` section only after approved cleanup is
+  complete (or verified no cleanup needed) so `/code` or `/respond`
+  can resume
 
 **Test strategy changes:**
 - Additional test coverage ("Add tests for the concurrent update edge case")
@@ -141,12 +153,15 @@ Summarize what changed:
 ## Output
 
 - `.artifacts/implement/{issue-key}/02-plan.md` (updated)
+- Source files (only when reconciling already-written changes to a
+  user-approved scope decision; not for new feature implementation)
 
 ## When This Phase Is Done
 
 Report your results:
 - What was changed and why
 - Any consistency updates made as a side effect
+- Whether source reconciliation was needed and completed (or confirmed unnecessary)
 - Assessment of plan readiness for `/code`
 
 Then return to the invoking workflow router for completion guidance.
