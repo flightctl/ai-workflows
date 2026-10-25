@@ -29,6 +29,14 @@ to review or revise it first. Every evaluation is tied to both the prototype
 iteration and discovery revision it assessed. A prior evaluation does not
 validate a later prototype or a prototype assessed against newer context.
 
+### Input Snapshot
+
+Before running any evaluation method, read `00-context.md` and record the
+current context revision, prototype iteration, and discovery revision as
+the assessment's **input snapshot**. These assessed values are persisted
+in the report header and all binding checks. Never backfill with a later
+value; if context changes during evaluation the assessment is stale.
+
 ## Process
 
 ### Step 1: Choose Evaluation Depth
@@ -222,14 +230,6 @@ This is the workflow's single review gate. The upstream heuristic evaluation
 runs with its review deferred; the prototype evaluator's scores and verdicts
 are evidence, not researcher-approved conclusions.
 
-#### Input Snapshot
-
-Before running any evaluation method, read `00-context.md` and record the
-current context revision, prototype iteration, and discovery revision as
-the assessment's **input snapshot**. These assessed values are persisted
-in the report header and all binding checks. Never backfill with a later
-value; if context changes during evaluation the assessment is stale.
-
 #### Saving the Canonical Assessment
 
 Before presenting findings, durably write `04-evaluation.md` with
@@ -237,9 +237,10 @@ Before presenting findings, durably write `04-evaluation.md` with
 IDs (EVL-1, EVL-2, …) across all actionable findings from every method
 that ran — heuristic evaluation, design heuristics (issues, not scores
 alone), and Full acceptance-criteria/persona results (flagged verdicts).
-Back-reference each ID to its source evidence. Record the input-snapshot
-values (evaluation revision, prototype iteration, discovery revision,
-context revision) and Full evaluation run ID (or "N/A") in the header.
+Back-reference each ID to its source evidence. Record the assessment's
+evaluation revision, the input-snapshot values captured in Prerequisites
+(prototype iteration, discovery revision, context revision), and Full
+evaluation run ID (or "N/A") in the header.
 Save the file, then present the same saved IDs.
 
 A new assessment (new evaluation run) archives the prior canonical
