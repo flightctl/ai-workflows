@@ -66,18 +66,23 @@ decision or dependency marker). After applying the user's decision:
   decision and the prerequisite identifier (story key or branch). The
   section acts as a durable dependency marker: entry guards in `/code`,
   `/validate`, `/respond`, and `/publish` observe it and block until
-  the prerequisite has merged. If already-committed source changes
-  need cleanup to isolate the extracted work, explain the changes and
-  obtain explicit user approval before modifying source. Once the user
-  confirms the prerequisite is merged, invoke `/revise` again to
-  remove the section.
+  the prerequisite has merged. If already-written source changes
+  (committed or uncommitted) need cleanup to isolate the extracted
+  work, explain the changes and obtain explicit user approval before
+  modifying source. The section remains until BOTH: (a) any required
+  source cleanup is approved and complete (or verified unnecessary),
+  and (b) the user confirms the prerequisite has merged. A subsequent
+  `/revise` removes the section only when both conditions hold.
 - **Declining expansion** — document the rationale. If already-written
-  declined-scope source changes exist, explain what will be reverted
-  or set aside and obtain explicit user approval before modifying
-  source; preserve in-scope and unrelated edits. Remove the
+  declined-scope source changes exist (committed or uncommitted),
+  explain what will be reverted or set aside and obtain explicit user
+  approval before modifying source; preserve in-scope and unrelated
+  edits. Declining expansion alone does not authorize discarding
+  edits — the user must approve the concrete cleanup. If no
+  declined-scope changes exist, confirm that explicitly. Remove the
   `## Pending Scope Decision` section only after approved cleanup is
-  complete (or verified no cleanup needed) so `/code` or `/respond`
-  can resume
+  complete (or the user confirms no cleanup is needed after reviewing
+  the current state) so `/code` or `/respond` can resume
 
 **Test strategy changes:**
 - Additional test coverage ("Add tests for the concurrent update edge case")
@@ -124,7 +129,7 @@ After applying changes, verify:
 - Are commit messages still properly formatted?
 - If a Test Plan Coverage section exists: do the TC ID → Task mappings still reflect the current task breakdown? If tasks were added, removed, split, or combined, update the Covered by Task column accordingly.
 - If a Scope Baseline section exists: do the Intended Feature Changes, Known Supporting Refactoring (including Prerequisite Rationale), Affected Interfaces and Components, and Expected Delivery Boundaries still reflect the current plan? If scope was expanded or narrowed, update the baseline to match.
-- `## Pending Scope Decision` lifecycle: remove it on approve-expansion or decline. On extract-prerequisite, update it to record the extraction decision and keep it as a dependency marker until the prerequisite merges and the user confirms via a subsequent `/revise`.
+- `## Pending Scope Decision` lifecycle: on approve-expansion or decline, remove it only after any required source cleanup is approved and complete (or verified unnecessary). On extract-prerequisite, update it to record the extraction decision and keep it as a dependency marker until both required cleanup is done and the prerequisite has merged with user confirmation.
 
 ### Step 5: Update Artifact
 
