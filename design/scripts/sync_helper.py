@@ -17,6 +17,8 @@ Subcommands:
                    manifest (atomic per-item checkpoint).
   compute-hash     Print the SHA-256 hex digest of a file's content.
   migrate-manifest Upgrade a v1 manifest to v2 schema in place.
+  prepare          Compute hash and render description in one call,
+                   returning both from a single file read.
 
 Environment variables:
   None required.  All inputs come from command-line arguments and local
@@ -48,6 +50,9 @@ EXIT_SUCCESS = 0
 EXIT_ERROR = 1
 # argparse uses exit code 2 for usage errors
 
+# Supported manifest schema versions
+_SUPPORTED_SCHEMA_VERSIONS = {1, 2}
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -73,34 +78,62 @@ def compute_file_hash(filepath: str | Path) -> str:
     return h.hexdigest()
 
 
+def _hash_bytes(data: bytes) -> str:
+    """Return the SHA-256 hex digest of raw bytes."""
+    return hashlib.sha256(data).hexdigest()
+
+
 def read_frontmatter(filepath: str | Path) -> dict[str, str]:
     """Extract YAML frontmatter key-value pairs from a markdown file.
 
     Supports only simple ``key: value`` lines (no nested YAML).  Returns
-    an empty dict if no frontmatter is found.
+    an empty dict if no frontmatter is found.  Raises ``OSError`` on I/O
+    errors -- callers must handle this explicitly.
     """
     result: dict[str, str] = {}
-    try:
-        with open(filepath, "r", encoding="utf-8") as f:
-            first_line = f.readline().rstrip("\n")
-            if first_line != "---":
-                return result
-            for line in f:
-                line = line.rstrip("\n")
-                if line == "---":
-                    break
-                if ":" in line:
-                    key, _, value = line.partition(":")
-                    result[key.strip()] = value.strip()
-    except OSError:
-        pass
+    with open(filepath, "r", encoding="utf-8") as f:
+        first_line = f.readline().rstrip("\n")
+        if first_line != "---":
+            return result
+        for line in f:
+            line = line.rstrip("\n")
+            if line == "---":
+                break
+            if ":" in line:
+                key, _, value = line.partition(":")
+                result[key.strip()] = value.strip()
     return result
 
 
 def has_removed_status(filepath: str | Path) -> bool:
-    """Return True if the file's frontmatter has ``status: removed``."""
-    fm = read_frontmatter(filepath)
+    """Return True if the file's frontmatter has ``status: removed``.
+
+    Returns False (not removed) if the file cannot be read -- the caller
+    will encounter the error when reading the file for other purposes.
+    """
+    try:
+        fm = read_frontmatter(filepath)
+    except OSError:
+        return False
     return fm.get("status", "").lower() == "removed"
+
+
+def _validate_manifest_shape(manifest: Any, source: str) -> dict[str, Any]:
+    """Validate that a parsed manifest has the expected shape.
+
+    Checks: top-level is a dict, has an ``epics`` list, schema version
+    is supported.  Returns the validated manifest dict or calls fail().
+    """
+    if not isinstance(manifest, dict):
+        fail(f"Manifest {source}: expected JSON object, got {type(manifest).__name__}")
+    version = manifest.get("schema_version", 1)
+    if version not in _SUPPORTED_SCHEMA_VERSIONS:
+        fail(f"Manifest {source}: unsupported schema_version {version} "
+             f"(supported: {sorted(_SUPPORTED_SCHEMA_VERSIONS)})")
+    epics = manifest.get("epics")
+    if epics is not None and not isinstance(epics, list):
+        fail(f"Manifest {source}: 'epics' must be a list, got {type(epics).__name__}")
+    return manifest
 
 
 def load_manifest(manifest_path: str | Path) -> dict[str, Any] | None:
@@ -110,19 +143,30 @@ def load_manifest(manifest_path: str | Path) -> dict[str, Any] | None:
         return None
     try:
         with open(p, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
     except (json.JSONDecodeError, OSError) as exc:
         fail(f"Cannot read manifest {p}: {exc}")
+    return _validate_manifest_shape(data, str(p))
 
 
 def save_manifest(manifest: dict[str, Any], manifest_path: str | Path) -> None:
-    """Write the manifest atomically (write-then-rename)."""
+    """Write the manifest atomically (write-to-unique-tmp-then-rename)."""
+    import os
     p = Path(manifest_path)
-    tmp = p.with_suffix(".tmp")
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(manifest, f, indent=2)
-        f.write("\n")
-    tmp.rename(p)
+    # Use PID-based suffix to avoid clobbering unrelated .tmp files
+    tmp = p.with_name(f".sync-manifest.{os.getpid()}.tmp")
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2)
+            f.write("\n")
+        tmp.rename(p)
+    except BaseException:
+        # Clean up temp file on any failure
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
 
 
 def _parse_epic_index(filename: str) -> int | None:
@@ -250,7 +294,7 @@ def resolve_refs(text: str, manifest: dict[str, Any]) -> str:
 def _discover_artifact_files(artifacts_dir: Path) -> tuple[list[Path], list[Path]]:
     """Discover epic and story files under the artifacts directory.
 
-    Returns (epic_files, story_files) as sorted lists of Paths.
+    Returns (epic_files, story_files) sorted numerically by index.
     Epic files:  ``06-stories/epic-{N}-{slug}.md``
     Story files: ``06-stories/epic-{N}/story-{NN}-{slug}.md``
     """
@@ -258,11 +302,21 @@ def _discover_artifact_files(artifacts_dir: Path) -> tuple[list[Path], list[Path
     if not stories_dir.is_dir():
         return [], []
 
-    epic_files = sorted(stories_dir.glob("epic-*.md"))
+    epic_files = sorted(
+        stories_dir.glob("epic-*.md"),
+        key=lambda p: (_parse_epic_index(p.name) or 0, p.name),
+    )
     story_files: list[Path] = []
-    for epic_dir in sorted(stories_dir.iterdir()):
-        if epic_dir.is_dir() and epic_dir.name.startswith("epic-"):
-            story_files.extend(sorted(epic_dir.glob("story-*.md")))
+    epic_dirs = sorted(
+        (d for d in stories_dir.iterdir()
+         if d.is_dir() and d.name.startswith("epic-")),
+        key=lambda d: (_parse_epic_index(d.name) or 0, d.name),
+    )
+    for epic_dir in epic_dirs:
+        story_files.extend(sorted(
+            epic_dir.glob("story-*.md"),
+            key=lambda p: (_parse_story_index(p.name) or 0, p.name),
+        ))
     return epic_files, story_files
 
 
@@ -300,7 +354,6 @@ def _check_removed_story_in_epic(
     except OSError:
         return None
 
-    # Look for references like "Story 1.03" or "story-03" in the epic content
     story_ref = f"Story {epic_index}.{story_index:02d}"
     story_file_ref = f"story-{story_index:02d}"
     if story_ref in epic_content or story_file_ref in epic_content:
@@ -411,7 +464,6 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
 
         if manifest_entry is not None:
             matched_epic_files.add(ef.name)
-            # v1 migration: no synced_status or content_hash
             m_status = manifest_entry.get("synced_status", "active")
             m_hash = manifest_entry.get("content_hash")
             jira_key = manifest_entry.get("jira_key")
@@ -429,7 +481,6 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
                 "synced_status": m_status,
             })
         else:
-            # No manifest entry
             if removed:
                 continue  # Never synced, skip
             items.append({
@@ -452,14 +503,12 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
         removed = has_removed_status(sf)
         current_hash = compute_file_hash(sf)
 
-        # Find the corresponding epic file for this story's epic dir
         epic_file_candidates = [
             ef.name for ef in epic_files
             if _parse_epic_index(ef.name) == epic_idx
         ]
         epic_file_name = epic_file_candidates[0] if epic_file_candidates else None
 
-        # Find manifest entry for this story
         manifest_entry = None
         if epic_file_name and epic_file_name in story_lookup:
             stories_map = story_lookup[epic_file_name]
@@ -476,7 +525,6 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
 
             category = _categorize_item(removed, m_status, current_hash, m_hash)
 
-            # Check removed-story-under-active-epic warning
             if category == "removed" and epic_file_name:
                 epic_path = artifacts_dir / "06-stories" / epic_file_name
                 warn = _check_removed_story_in_epic(
@@ -508,7 +556,7 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
                 "epic_index": epic_idx,
                 "story_index": story_idx,
                 "jira_key": None,
-                "content_hash": current_hash,
+                "content_hash": compute_file_hash(sf),
                 "old_hash": None,
                 "synced_status": None,
             })
@@ -529,7 +577,6 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
                     "old_hash": epic_entry.get("content_hash"),
                     "synced_status": m_status,
                 })
-            # closed entries whose files were deleted: silently ignored
 
     for epic_file, stories_map in story_lookup.items():
         matched = matched_story_files.get(epic_file, set())
@@ -603,33 +650,73 @@ def _compute_summary(items: list[dict[str, Any]]) -> dict[str, int]:
 # ---------------------------------------------------------------------------
 
 def _extract_sections(filepath: Path) -> dict[str, str]:
-    """Extract markdown sections from a file (heading -> content)."""
+    """Extract markdown sections from a file (heading -> content).
+
+    Skips headings inside fenced code blocks (``` ... ```) to avoid
+    treating example code as real sections.
+
+    Content between ``# Title`` and the first ``##`` section is stored
+    under the key ``_preamble`` — this captures the user story text that
+    the decompose template places directly after the title heading.
+    """
+    content = _read_file_content(filepath)
+    return _extract_sections_from_text(content)
+
+
+def _extract_sections_from_text(text: str) -> dict[str, str]:
+    """Extract markdown sections from text content.
+
+    See ``_extract_sections`` for semantics.
+    """
     sections: dict[str, str] = {}
     current_heading: str | None = None
     current_lines: list[str] = []
     in_frontmatter = False
+    in_code_fence = False
+    seen_title = False
 
-    with open(filepath, "r", encoding="utf-8") as f:
-        for line in f:
-            stripped = line.strip()
-            if stripped == "---":
-                if current_heading is None and not in_frontmatter:
-                    in_frontmatter = True
-                    continue
-                elif in_frontmatter:
-                    in_frontmatter = False
-                    continue
-            if in_frontmatter:
+    for raw_line in text.splitlines(keepends=True):
+        line = raw_line.rstrip("\n")
+        stripped = line.strip()
+
+        # Frontmatter
+        if stripped == "---":
+            if not seen_title and not in_frontmatter and not in_code_fence:
+                in_frontmatter = True
                 continue
+            elif in_frontmatter:
+                in_frontmatter = False
+                continue
+        if in_frontmatter:
+            continue
 
-            if stripped.startswith("## ") or stripped.startswith("# "):
-                if current_heading is not None:
-                    sections[current_heading] = "\n".join(current_lines).strip()
-                level = 2 if stripped.startswith("## ") else 1
-                current_heading = stripped[level + 1:].strip()
-                current_lines = []
-            elif current_heading is not None:
-                current_lines.append(line.rstrip("\n"))
+        # Fenced code blocks
+        if stripped.startswith("```"):
+            in_code_fence = not in_code_fence
+            if current_heading is not None:
+                current_lines.append(line)
+            continue
+        if in_code_fence:
+            if current_heading is not None:
+                current_lines.append(line)
+            continue
+
+        # Headings
+        if stripped.startswith("## "):
+            if current_heading is not None:
+                sections[current_heading] = "\n".join(current_lines).strip()
+            current_heading = stripped[3:].strip()
+            current_lines = []
+            seen_title = True
+        elif stripped.startswith("# "):
+            if current_heading is not None:
+                sections[current_heading] = "\n".join(current_lines).strip()
+            # Store content after # title under _preamble
+            current_heading = "_preamble"
+            current_lines = []
+            seen_title = True
+        elif current_heading is not None:
+            current_lines.append(line)
 
     if current_heading is not None:
         sections[current_heading] = "\n".join(current_lines).strip()
@@ -642,10 +729,20 @@ def render_epic_description(
     manifest: dict[str, Any] | None,
     design_doc_link: str = "",
     feature_key: str = "",
+    *,
+    _content: str | None = None,
 ) -> str:
-    """Render a Jira-ready epic description from an artifact file."""
+    """Render a Jira-ready epic description from an artifact file.
+
+    When ``_content`` is provided, sections are extracted from it instead
+    of reading the file again (used by ``prepare`` for snapshot
+    consistency).
+    """
     epic_path = Path(epic_path)
-    sections = _extract_sections(epic_path)
+    if _content is not None:
+        sections = _extract_sections_from_text(_content)
+    else:
+        sections = _extract_sections(epic_path)
 
     summary_text = sections.get("Summary", "")
     ac_text = sections.get("Acceptance Criteria", "")
@@ -672,6 +769,8 @@ def render_story_description(
     design_doc_link: str = "",
     epic_jira_key: str = "",
     story_type: str = "",
+    *,
+    _content: str | None = None,
 ) -> str:
     """Render a Jira-ready story description from an artifact file.
 
@@ -679,21 +778,47 @@ def render_story_description(
     If not provided, it is inferred from the story title.
     """
     story_path = Path(story_path)
-    sections = _extract_sections(story_path)
-    fm = read_frontmatter(story_path)
+    if _content is not None:
+        sections = _extract_sections_from_text(_content)
+        # Parse frontmatter from content string for metadata
+        fm: dict[str, str] = {}
+        if _content.startswith("---\n"):
+            end = _content.find("\n---\n", 4)
+            if end != -1:
+                for fmline in _content[4:end].splitlines():
+                    if ":" in fmline:
+                        k, _, v = fmline.partition(":")
+                        fm[k.strip()] = v.strip()
+    else:
+        sections = _extract_sections(story_path)
+        try:
+            fm = read_frontmatter(story_path)
+        except OSError:
+            fm = {}
 
     # Infer type from title if not provided
     if not story_type:
-        title = _extract_title_from_file(story_path)
+        title = sections.get("", "")  # H1 title
+        if not title:
+            title = _extract_title_from_file(story_path) if _content is None else ""
         m = re.match(r"\[(\w+)\]", title)
+        if not m and _content is not None:
+            # Try from first heading in content
+            for cline in (_content or "").splitlines():
+                cs = cline.strip()
+                if cs.startswith("# "):
+                    m = re.match(r"\[(\w+)\]", cs[2:].strip())
+                    break
         story_type = m.group(1) if m else ""
 
     is_docs = story_type.upper() == "DOCS"
 
     parts: list[str] = []
 
-    # User Story section
-    user_story = sections.get("User Story", "")
+    # User Story section — decompose template places the user story
+    # directly after the # title (no ## User Story heading), so it ends
+    # up in _preamble. Wrap it in ## User Story for the Jira description.
+    user_story = sections.get("User Story", "") or sections.get("_preamble", "")
     if user_story:
         parts.extend(["## User Story", "", user_story, ""])
 
@@ -703,7 +828,6 @@ def render_story_description(
         parts.extend(["## Acceptance Criteria", "", ac, ""])
 
     if is_docs:
-        # DOCS-specific sections
         doc_scope = sections.get("Documentation Scope", "")
         if doc_scope:
             parts.extend(["## Documentation Scope", "", doc_scope, ""])
@@ -711,7 +835,6 @@ def render_story_description(
         if doc_inputs:
             parts.extend(["## Documentation Inputs", "", doc_inputs, ""])
     else:
-        # DEV/UI/UX/QE/CI sections
         impl = sections.get("Implementation Guidance", "")
         if impl:
             parts.extend(["## Implementation Guidance", "", impl, ""])
@@ -724,7 +847,7 @@ def render_story_description(
     if deps:
         parts.extend(["## Dependencies", "", deps, ""])
 
-    # Design Reference
+    # Design Reference — preserve all fields from the artifact body
     design_ref = sections.get("Design Reference", "")
     if design_ref:
         parts.extend(["## Design Reference", "", design_ref, ""])
@@ -734,7 +857,6 @@ def render_story_description(
             f"Design document: {design_doc_link}" if design_doc_link else "Design document:",
             f"Epic: {epic_jira_key}" if epic_jira_key else "Epic:",
         ]
-        # Add PRD Requirements and Design section from frontmatter if available
         if fm.get("prd_requirements"):
             ref_parts.append(f"PRD Requirements: {fm['prd_requirements']}")
         if fm.get("design_section"):
@@ -745,6 +867,51 @@ def render_story_description(
     if manifest:
         description = resolve_refs(description, manifest)
     return description
+
+
+# ---------------------------------------------------------------------------
+# Prepare (snapshot-consistent hash + description)
+# ---------------------------------------------------------------------------
+
+def prepare(
+    artifact_path: str | Path,
+    manifest_path: str | Path,
+    item_type: str,
+    design_doc_link: str = "",
+    feature_key: str = "",
+    epic_jira_key: str = "",
+    story_type: str = "",
+) -> dict[str, str]:
+    """Read a file once and return both its hash and rendered description.
+
+    Guarantees that ``content_hash`` corresponds to exactly the content
+    used to produce ``description``.  The caller should pass this hash
+    to ``update-manifest`` after a successful Jira write.
+    """
+    artifact_path = Path(artifact_path)
+    raw_bytes = artifact_path.read_bytes()
+    content_hash = _hash_bytes(raw_bytes)
+    content_text = raw_bytes.decode("utf-8")
+
+    manifest = load_manifest(manifest_path)
+
+    if item_type == "epic":
+        description = render_epic_description(
+            artifact_path, manifest,
+            design_doc_link=design_doc_link,
+            feature_key=feature_key,
+            _content=content_text,
+        )
+    else:
+        description = render_story_description(
+            artifact_path, manifest,
+            design_doc_link=design_doc_link,
+            epic_jira_key=epic_jira_key,
+            story_type=story_type,
+            _content=content_text,
+        )
+
+    return {"content_hash": content_hash, "description": description}
 
 
 # ---------------------------------------------------------------------------
@@ -760,6 +927,8 @@ def update_manifest(
     item_type: str = "epic",
     title: str = "",
     size: str = "",
+    epic_file: str = "",
+    feature_key: str = "",
 ) -> dict[str, Any]:
     """Record a single successful Jira operation in the manifest.
 
@@ -770,6 +939,11 @@ def update_manifest(
 
     ``operation`` must be one of: ``create``, ``update``, ``close``.
     ``item_type`` must be ``epic`` or ``story``.
+    ``epic_file`` is required for story operations to ensure correct
+    placement under the right parent epic.
+    ``feature_key`` is recorded on manifest creation and preserved on
+    subsequent calls.
+    ``content_hash`` may be empty for orphan closures (no file on disk).
     """
     manifest_path = Path(manifest_path)
     manifest = load_manifest(manifest_path)
@@ -777,7 +951,7 @@ def update_manifest(
     if manifest is None:
         manifest = {
             "schema_version": 2,
-            "feature_key": "",
+            "feature_key": feature_key or "",
             "synced_at": "",
             "epics": [],
         }
@@ -785,10 +959,15 @@ def update_manifest(
     # Ensure v2
     manifest["schema_version"] = 2
 
-    if operation == "close":
-        synced_status = "closed"
-    else:
-        synced_status = "active"
+    # Set feature_key on first call; preserve on subsequent calls
+    if feature_key and not manifest.get("feature_key"):
+        manifest["feature_key"] = feature_key
+    elif feature_key and manifest.get("feature_key") != feature_key:
+        # Feature key conflict — preserve existing, warn
+        info(f"Feature key mismatch: manifest has '{manifest['feature_key']}', "
+             f"caller passed '{feature_key}'. Keeping existing.")
+
+    synced_status = "closed" if operation == "close" else "active"
 
     if item_type == "epic":
         _update_manifest_epic(
@@ -796,9 +975,12 @@ def update_manifest(
             synced_status, title, size,
         )
     elif item_type == "story":
-        _update_manifest_story(
+        if not epic_file:
+            fail("--epic-file is required for story operations to ensure "
+                 "correct parent placement.")
+        _update_manifest_story_under_epic(
             manifest, artifact_file, jira_key, content_hash,
-            synced_status, title,
+            synced_status, title, epic_file,
         )
     else:
         fail(f"Unknown item_type: {item_type}")
@@ -841,49 +1023,7 @@ def _update_manifest_epic(
     manifest.setdefault("epics", []).append(entry)
 
 
-def _update_manifest_story(
-    manifest: dict[str, Any],
-    story_file: str,
-    jira_key: str,
-    content_hash: str,
-    synced_status: str,
-    title: str,
-) -> None:
-    """Update or insert a story entry in the manifest.
-
-    ``story_file`` is in the form ``story-01-foo.md`` (basename only).
-    The parent epic is inferred from the story's path context: the
-    caller must ensure the epic already exists in the manifest.  If no
-    parent epic is found, the story is appended to the last epic.
-    """
-    # Try to find which epic this story belongs to by checking epic
-    # directories.  The story_file is just the basename; the epic
-    # association comes from the detect-changes item's ``epic_index``.
-    # Since we don't have the full path here, search all epics.
-    for epic in manifest.get("epics", []):
-        for story in epic.get("stories", []):
-            if story.get("file") == story_file:
-                story["jira_key"] = jira_key
-                story["content_hash"] = content_hash
-                story["synced_status"] = synced_status
-                if title:
-                    story["title"] = title
-                return
-
-    # New story — append to the last epic (caller is expected to have
-    # created the epic entry first, per the spec's ordering).
-    if manifest.get("epics"):
-        entry: dict[str, Any] = {
-            "file": story_file,
-            "jira_key": jira_key,
-            "title": title,
-            "content_hash": content_hash,
-            "synced_status": synced_status,
-        }
-        manifest["epics"][-1].setdefault("stories", []).append(entry)
-
-
-def _update_manifest_story_with_epic(
+def _update_manifest_story_under_epic(
     manifest: dict[str, Any],
     story_file: str,
     jira_key: str,
@@ -892,7 +1032,10 @@ def _update_manifest_story_with_epic(
     title: str,
     epic_file: str,
 ) -> None:
-    """Update or insert a story entry under a specific epic."""
+    """Update or insert a story entry under a specific epic.
+
+    Fails if the specified epic is not found in the manifest.
+    """
     for epic in manifest.get("epics", []):
         if epic.get("file") == epic_file:
             for story in epic.get("stories", []):
@@ -913,10 +1056,8 @@ def _update_manifest_story_with_epic(
             }
             epic.setdefault("stories", []).append(entry)
             return
-    # Epic not found — fall back to last epic
-    _update_manifest_story(
-        manifest, story_file, jira_key, content_hash, synced_status, title,
-    )
+    fail(f"Cannot record story '{story_file}': parent epic '{epic_file}' "
+         f"not found in manifest. Ensure the epic is recorded first.")
 
 
 def migrate_manifest(manifest_path: str | Path) -> dict[str, Any]:
@@ -1001,6 +1142,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_render.add_argument("--epic-jira-key", default="", help="Epic Jira key (stories only).")
     p_render.add_argument("--story-type", default="", help="Story prefix (DEV, UI, etc.).")
 
+    # prepare
+    p_prepare = sub.add_parser(
+        "prepare",
+        help="Compute hash and render description from a single file read.",
+    )
+    p_prepare.add_argument("artifact_file", help="Path to the artifact .md file.")
+    p_prepare.add_argument("manifest_path", help="Path to sync-manifest.json.")
+    p_prepare.add_argument(
+        "--type", choices=["epic", "story"], required=True,
+        help="Whether to render an epic or story description.",
+    )
+    p_prepare.add_argument("--design-doc-link", default="", help="Link to design doc.")
+    p_prepare.add_argument("--feature-key", default="", help="Feature issue key.")
+    p_prepare.add_argument("--epic-jira-key", default="", help="Epic Jira key (stories only).")
+    p_prepare.add_argument("--story-type", default="", help="Story prefix (DEV, UI, etc.).")
+
     # update-manifest
     p_update = sub.add_parser(
         "update-manifest",
@@ -1014,12 +1171,15 @@ def build_parser() -> argparse.ArgumentParser:
                           help="Artifact filename (e.g. epic-1-foo.md).")
     p_update.add_argument("--jira-key", required=True, help="Jira issue key.")
     p_update.add_argument("--content-hash", required=True,
-                          help="SHA-256 hash of the submitted content.")
+                          help="SHA-256 hash of the submitted content. "
+                               "Use empty string for orphan closures.")
     p_update.add_argument("--item-type", choices=["epic", "story"], default="epic")
     p_update.add_argument("--title", default="")
     p_update.add_argument("--size", default="")
     p_update.add_argument("--epic-file", default="",
-                          help="Parent epic filename (stories only, for precise placement).")
+                          help="Parent epic filename (required for stories).")
+    p_update.add_argument("--feature-key", default="",
+                          help="Feature issue key (recorded on first call).")
 
     # compute-hash
     p_hash = sub.add_parser(
@@ -1077,29 +1237,33 @@ def main(argv: list[str] | None = None) -> int:
         print(desc, end="")
         return EXIT_SUCCESS
 
+    elif args.command == "prepare":
+        result = prepare(
+            args.artifact_file,
+            args.manifest_path,
+            args.type,
+            design_doc_link=args.design_doc_link,
+            feature_key=args.feature_key,
+            epic_jira_key=args.epic_jira_key,
+            story_type=args.story_type,
+        )
+        json.dump(result, sys.stdout, indent=2)
+        print()
+        return EXIT_SUCCESS
+
     elif args.command == "update-manifest":
-        if args.epic_file and args.item_type == "story":
-            manifest = load_manifest(args.manifest_path) or {
-                "schema_version": 2, "feature_key": "", "synced_at": "", "epics": [],
-            }
-            _update_manifest_story_with_epic(
-                manifest, args.artifact_file, args.jira_key,
-                args.content_hash, "closed" if args.operation == "close" else "active",
-                args.title, args.epic_file,
-            )
-            manifest["synced_at"] = datetime.now(timezone.utc).isoformat()
-            save_manifest(manifest, args.manifest_path)
-        else:
-            update_manifest(
-                args.manifest_path,
-                args.operation,
-                args.artifact_file,
-                args.jira_key,
-                args.content_hash,
-                item_type=args.item_type,
-                title=args.title,
-                size=args.size,
-            )
+        update_manifest(
+            args.manifest_path,
+            args.operation,
+            args.artifact_file,
+            args.jira_key,
+            args.content_hash,
+            item_type=args.item_type,
+            title=args.title,
+            size=args.size,
+            epic_file=args.epic_file,
+            feature_key=args.feature_key,
+        )
         return EXIT_SUCCESS
 
     elif args.command == "compute-hash":

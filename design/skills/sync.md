@@ -24,18 +24,11 @@ explicit user approval.
 ## Sync Helper
 
 This skill delegates deterministic file operations to a Python helper
-script. Locate the helper relative to this file:
+script at `scripts/sync_helper.py` within the design workflow directory.
+Locate the helper using the same pattern as other workflows:
 
 ```
-SYNC_HELPER="$(cd "$(dirname "$0")" && pwd)/../scripts/sync_helper.py"
-```
-
-Or, when running from an installed layout (symlinked skill directory),
-resolve the real path first:
-
-```
-SKILL_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
-SYNC_HELPER="${SKILL_DIR}/../scripts/sync_helper.py"
+SYNC_HELPER="${HOME}/.ai-workflows/design/scripts/sync_helper.py"
 ```
 
 The helper **never contacts Jira** and **never mutates external state**.
@@ -48,11 +41,18 @@ Available subcommands:
 | Subcommand | Purpose |
 |------------|---------|
 | `detect-changes <artifacts-dir>` | Compare files against manifest; output JSON change plan |
+| `prepare <file> <manifest> --type epic\|story [options]` | Read file once; return hash + rendered description (snapshot-consistent) |
 | `resolve-refs <manifest-path> <text>` | Replace local refs (Story 1.01, Epic 1) with Jira keys |
 | `render-description <file> <manifest> --type epic\|story [options]` | Render Jira-ready description with resolved refs |
-| `update-manifest <manifest> --operation create\|update\|close --file <f> --jira-key <K> --content-hash <H> [options]` | Record one successful Jira operation |
+| `update-manifest <manifest> --operation create\|update\|close --file <f> --jira-key <K> --content-hash <H> --epic-file <E> [options]` | Record one successful Jira operation |
 | `compute-hash <file>` | Print SHA-256 of file content |
 | `migrate-manifest <manifest>` | Upgrade v1 manifest to v2 in place |
+
+The `prepare` subcommand is preferred over separate `compute-hash` +
+`render-description` calls. It reads the file once and guarantees the
+hash corresponds to exactly the content used in the description.  Pass
+the returned `content_hash` to `update-manifest` after a successful
+Jira write.
 
 ## Critical Rules
 
@@ -319,19 +319,20 @@ Options:
 
 Wait for the user's choice before continuing.
 
-For each new epic, first compute the hash and render the description
-**before** the Jira call (so the hash reflects what was submitted):
+For each new epic, prepare the hash and description in one call
+**before** the Jira call (so the hash reflects exactly the submitted
+content):
 
 ```bash
-HASH=$(python3 "$SYNC_HELPER" compute-hash .artifacts/design/{issue-key}/06-stories/{epic-file})
-
-DESCRIPTION=$(python3 "$SYNC_HELPER" render-description \
+PREP=$(python3 "$SYNC_HELPER" prepare \
   .artifacts/design/{issue-key}/06-stories/{epic-file} \
   .artifacts/design/{issue-key}/sync-manifest.json \
   --type epic \
   --design-doc-link "{link}" \
   --feature-key "{feature-key}")
 ```
+
+`PREP` is JSON with `content_hash` and `description` fields.
 
 Then create the Jira issue:
 
@@ -350,7 +351,8 @@ linking to a "Next Steps" section.** The Feature→Epic hierarchy is a
 required outcome of this step, not an optional follow-up.
 
 Record the Jira key and content hash in the sync manifest immediately
-(before creating the next epic):
+(before creating the next epic). Pass `--feature-key` on the first call
+to populate the manifest's `feature_key` field:
 
 ```bash
 python3 "$SYNC_HELPER" update-manifest \
@@ -358,10 +360,11 @@ python3 "$SYNC_HELPER" update-manifest \
   --operation create \
   --file "{epic-file}" \
   --jira-key "{created-key}" \
-  --content-hash "$HASH" \
+  --content-hash "{content_hash from PREP}" \
   --item-type epic \
   --title "{epic title}" \
-  --size "{size}"
+  --size "{size}" \
+  --feature-key "{feature-key}"
 ```
 
 **If creation fails:** Stop immediately. Report which epics were created
@@ -372,13 +375,11 @@ continue past a failure.
 
 #### 4b: Update Changed Epics
 
-For each epic categorized as **Changed** or **Reopened**, render an
-updated description and compute the current hash before updating:
+For each epic categorized as **Changed** or **Reopened**, prepare the
+updated description and hash in one call:
 
 ```bash
-HASH=$(python3 "$SYNC_HELPER" compute-hash .artifacts/design/{issue-key}/06-stories/{epic-file})
-
-DESCRIPTION=$(python3 "$SYNC_HELPER" render-description \
+PREP=$(python3 "$SYNC_HELPER" prepare \
   .artifacts/design/{issue-key}/06-stories/{epic-file} \
   .artifacts/design/{issue-key}/sync-manifest.json \
   --type epic \
@@ -404,7 +405,7 @@ python3 "$SYNC_HELPER" update-manifest \
   --operation update \
   --file "{epic-file}" \
   --jira-key "{jira-key}" \
-  --content-hash "$HASH" \
+  --content-hash "{content_hash from PREP}" \
   --item-type epic
 ```
 
@@ -419,17 +420,16 @@ For each epic categorized as **Removed** (file has `status: removed`):
    "active"` in the manifest (stories before parent). For each closed
    story, checkpoint with `update-manifest --operation close`.
 2. Then transition the epic to Done/Closed in Jira.
-3. Record the close:
+3. Record the close. Use `compute-hash` if the file exists on disk;
+   for orphaned entries (no file on disk), pass an empty hash:
 
 ```bash
-HASH=$(python3 "$SYNC_HELPER" compute-hash .artifacts/design/{issue-key}/06-stories/{epic-file})
-
 python3 "$SYNC_HELPER" update-manifest \
   .artifacts/design/{issue-key}/sync-manifest.json \
   --operation close \
   --file "{epic-file}" \
   --jira-key "{jira-key}" \
-  --content-hash "$HASH" \
+  --content-hash "{hash or empty for orphans}" \
   --item-type epic
 ```
 
@@ -474,14 +474,10 @@ story.** Instead, stop and present the match to the user with the same
 options as in Step 4a (skip and record, create anyway, or stop entirely).
 Wait for the user's choice before continuing.
 
-For each new story, compute the hash and render the description before
-the Jira call:
+For each new story, prepare the hash and description in one call:
 
 ```bash
-HASH=$(python3 "$SYNC_HELPER" compute-hash \
-  .artifacts/design/{issue-key}/06-stories/{epic-dir}/{story-file})
-
-DESCRIPTION=$(python3 "$SYNC_HELPER" render-description \
+PREP=$(python3 "$SYNC_HELPER" prepare \
   .artifacts/design/{issue-key}/06-stories/{epic-dir}/{story-file} \
   .artifacts/design/{issue-key}/sync-manifest.json \
   --type story \
@@ -503,7 +499,8 @@ equal to the epic's Jira key by reading the issue back. If the parent
 is missing, stop and report the error — **do not silently defer parent
 linking.** The Epic→Story hierarchy is a required outcome of this step.
 
-Record the Jira key and content hash immediately:
+Record the Jira key and content hash immediately. The `--epic-file`
+flag is required to ensure the story is placed under the correct epic:
 
 ```bash
 python3 "$SYNC_HELPER" update-manifest \
@@ -511,7 +508,7 @@ python3 "$SYNC_HELPER" update-manifest \
   --operation create \
   --file "{story-file}" \
   --jira-key "{created-key}" \
-  --content-hash "$HASH" \
+  --content-hash "{content_hash from PREP}" \
   --item-type story \
   --title "[{prefix}] {story title}" \
   --epic-file "{epic-file}"
@@ -584,14 +581,11 @@ so re-running `/sync` later will only attempt uncreated items.
 
 #### 5b: Update Changed Stories
 
-For each story categorized as **Changed** or **Reopened**, render an
-updated description and compute the hash before updating:
+For each story categorized as **Changed** or **Reopened**, prepare the
+updated description and hash in one call:
 
 ```bash
-HASH=$(python3 "$SYNC_HELPER" compute-hash \
-  .artifacts/design/{issue-key}/06-stories/{epic-dir}/{story-file})
-
-DESCRIPTION=$(python3 "$SYNC_HELPER" render-description \
+PREP=$(python3 "$SYNC_HELPER" prepare \
   .artifacts/design/{issue-key}/06-stories/{epic-dir}/{story-file} \
   .artifacts/design/{issue-key}/sync-manifest.json \
   --type story \
@@ -625,7 +619,7 @@ python3 "$SYNC_HELPER" update-manifest \
   --operation update \
   --file "{story-file}" \
   --jira-key "{jira-key}" \
-  --content-hash "$HASH" \
+  --content-hash "{content_hash from PREP}" \
   --item-type story \
   --epic-file "{epic-file}"
 ```
@@ -638,18 +632,16 @@ retry or skip.
 For each story categorized as **Removed** (file has `status: removed`):
 
 1. Transition the story to Done/Closed in Jira.
-2. Record the close:
+2. Record the close. Use `compute-hash` if the file exists on disk;
+   for orphaned entries pass an empty hash:
 
 ```bash
-HASH=$(python3 "$SYNC_HELPER" compute-hash \
-  .artifacts/design/{issue-key}/06-stories/{epic-dir}/{story-file})
-
 python3 "$SYNC_HELPER" update-manifest \
   .artifacts/design/{issue-key}/sync-manifest.json \
   --operation close \
   --file "{story-file}" \
   --jira-key "{jira-key}" \
-  --content-hash "$HASH" \
+  --content-hash "{hash or empty for orphans}" \
   --item-type story \
   --epic-file "{epic-file}"
 ```
