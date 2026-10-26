@@ -134,17 +134,38 @@ def _validate_manifest_shape(manifest: Any, source: str) -> dict[str, Any]:
     epics = manifest.get("epics")
     if epics is not None and not isinstance(epics, list):
         fail(f"Manifest {source}: 'epics' must be a list, got {type(epics).__name__}")
-    # Check for duplicate epic file entries
+    # Validate epic entries and check for duplicates
     if epics is not None:
         seen_files: set[str] = set()
-        for epic in epics:
+        for i, epic in enumerate(epics):
             if not isinstance(epic, dict):
-                fail(f"Manifest {source}: epic entry must be a dict")
-            ef = epic.get("file", "")
+                fail(f"Manifest {source}: epic entry [{i}] must be a dict")
+            ef = epic.get("file")
+            if not ef or not isinstance(ef, str):
+                fail(f"Manifest {source}: epic entry [{i}] missing "
+                     f"required 'file' field")
             if ef in seen_files:
                 fail(f"Manifest {source}: duplicate epic file '{ef}'")
-            if ef:
-                seen_files.add(ef)
+            seen_files.add(ef)
+            # Validate stories list within each epic
+            stories = epic.get("stories")
+            if stories is not None:
+                if not isinstance(stories, list):
+                    fail(f"Manifest {source}: epic '{ef}' stories must "
+                         f"be a list")
+                seen_story_files: set[str] = set()
+                for j, story in enumerate(stories):
+                    if not isinstance(story, dict):
+                        fail(f"Manifest {source}: epic '{ef}' "
+                             f"story [{j}] must be a dict")
+                    sf = story.get("file")
+                    if not sf or not isinstance(sf, str):
+                        fail(f"Manifest {source}: epic '{ef}' "
+                             f"story [{j}] missing required 'file' field")
+                    if sf in seen_story_files:
+                        fail(f"Manifest {source}: epic '{ef}' has "
+                             f"duplicate story file '{sf}'")
+                    seen_story_files.add(sf)
     return manifest
 
 
@@ -412,15 +433,17 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
     feature_key = None
     synced_at = None
 
-    # If manifest exists but 06-stories/ is missing, warn rather than
-    # silently presenting all entries as orphaned
+    # If 06-stories/ is missing entirely, fail closed rather than silently
+    # presenting all manifest entries as orphans or showing zero items.
     stories_dir = artifacts_dir / "06-stories"
-    if manifest is not None and not stories_dir.is_dir():
-        warnings.append(
-            "The 06-stories/ directory is missing. All manifest entries "
-            "will appear as orphaned. This may indicate the artifacts "
-            "directory is incomplete — verify the path before proceeding."
-        )
+    if not stories_dir.is_dir():
+        if manifest is not None:
+            fail(f"06-stories/ directory missing at {artifacts_dir}. "
+                 f"Cannot compare manifest entries against artifacts. "
+                 f"Verify the artifacts path or run /decompose first.")
+        else:
+            fail(f"No decomposition artifacts found at {artifacts_dir}. "
+                 f"Run /decompose before /sync.")
 
     # Build set of removed epic indices (for skipping their children)
     removed_epic_indices: set[int] = set()
@@ -536,16 +559,28 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
                 "synced_status": None,
             })
 
-    # Build set of epic indices whose epics are removed or closed in
-    # the manifest.  Children under these epics should not be
-    # created/reopened/updated — they follow the parent's lifecycle.
-    # This covers both fresh-sync (removed_epic_indices) and
-    # manifest-based closure (epic closed in prior sync).
+    # Build set of epic indices whose epics are effectively removed/closed.
+    # Children under these epics should not be created/reopened/updated.
+    # A manifest-closed epic that has been REOPENED (file exists without
+    # removed marker) is NOT in this set — its children can be processed.
     closed_epic_indices: set[int] = set(removed_epic_indices)
+    # Map epic files by index for quick lookup
+    _epic_file_by_idx: dict[int, Path] = {}
+    for ef in epic_files:
+        idx = _parse_epic_index(ef.name)
+        if idx is not None:
+            _epic_file_by_idx[idx] = ef
     for ef_name, entry in epic_lookup.items():
         idx = _parse_epic_index(ef_name)
-        if idx is not None and entry.get("synced_status") == "closed":
-            closed_epic_indices.add(idx)
+        if idx is None:
+            continue
+        if entry.get("synced_status") != "closed":
+            continue
+        # Check if the epic file exists and is NOT removed → reopened
+        disk_file = _epic_file_by_idx.get(idx)
+        if disk_file is not None and not has_removed_status(disk_file):
+            continue  # Will be categorized as reopened; allow children
+        closed_epic_indices.add(idx)
 
     # Process story files
     for sf in story_files:
@@ -562,6 +597,11 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
             ef.name for ef in epic_files
             if _parse_epic_index(ef.name) == epic_idx
         ]
+        if len(epic_file_candidates) > 1:
+            warnings.append(
+                f"Ambiguous epic index {epic_idx}: multiple epic files "
+                f"({', '.join(epic_file_candidates)}). Using first match."
+            )
         epic_file_name = epic_file_candidates[0] if epic_file_candidates else None
 
         manifest_entry = None
@@ -974,10 +1014,18 @@ def prepare(
     used to produce ``description``.  The caller should pass this hash
     to ``update-manifest`` after a successful Jira write.
 
-    Returns a dict with ``content_hash``, ``description``, ``title``,
-    and for epics ``size``.  The ``title`` and ``size`` come from the
-    same snapshot used for the hash, so the caller never needs to re-read
-    the file for these Jira-owned fields.
+    Returns a dict with:
+    - ``content_hash``: SHA-256 of the raw file bytes
+    - ``description``: rendered Jira-ready description
+    - ``title``: raw artifact title (from ``# ...`` heading)
+    - ``summary``: Jira-ready summary field (epic title without
+      numbering; story ``[PREFIX] title`` without numbering)
+    - ``size``: T-Shirt size (epics only)
+    - ``story_type``: detected prefix like ``DEV``, ``DOCS`` (stories)
+    - ``dependencies``: raw Dependencies section text with refs resolved
+
+    The caller uses ``summary`` as the Jira Summary field and all other
+    metadata directly from this output — no re-reading the file.
     """
     artifact_path = Path(artifact_path)
     raw_bytes = artifact_path.read_bytes()
@@ -987,39 +1035,83 @@ def prepare(
     manifest = load_manifest(manifest_path)
     sections = _extract_sections_from_text(content_text)
 
-    # Extract title from snapshot
-    title = ""
+    # Extract raw title from snapshot
+    raw_title = ""
     for cline in content_text.splitlines():
         cs = cline.strip()
         if cs.startswith("# "):
-            title = cs[2:].strip()
+            raw_title = cs[2:].strip()
             break
 
     result: dict[str, str] = {
         "content_hash": content_hash,
-        "title": title,
+        "title": raw_title,
     }
 
     if item_type == "epic":
+        # Validate essential epic sections
+        if not sections.get("Summary", "").strip():
+            fail(f"Epic artifact missing required Summary section: "
+                 f"{artifact_path}")
+        if not sections.get("Acceptance Criteria", "").strip():
+            fail(f"Epic artifact missing required Acceptance Criteria "
+                 f"section: {artifact_path}")
+
         description = render_epic_description(
             artifact_path, manifest,
             design_doc_link=design_doc_link,
             feature_key=feature_key,
             _content=content_text,
         )
-        # Extract T-Shirt Size from preamble (decompose format: "- **T-Shirt Size:** M")
+        # Jira summary: strip "Epic N " prefix from canonical title
+        jira_summary = re.sub(r"^Epic\s+\d+\s*", "", raw_title).strip()
+        result["summary"] = jira_summary
+
+        # Extract T-Shirt Size from preamble
         preamble = sections.get("_preamble", "")
         size_match = re.search(r"\*\*T-Shirt Size:\*\*\s*(\S+)", preamble)
         if size_match:
             result["size"] = size_match.group(1)
     else:
+        # Detect story type from title
+        detected_type = story_type
+        if not detected_type:
+            m = re.search(r"\[(\w+)\]", raw_title)
+            detected_type = m.group(1) if m else ""
+        result["story_type"] = detected_type
+
+        is_docs = detected_type.upper() == "DOCS"
+
+        # Validate essential story sections
+        has_user_story = (sections.get("User Story", "").strip()
+                          or sections.get("_preamble", "").strip())
+        if not has_user_story:
+            fail(f"Story artifact missing required User Story content: "
+                 f"{artifact_path}")
+        if not sections.get("Acceptance Criteria", "").strip():
+            fail(f"Story artifact missing required Acceptance Criteria "
+                 f"section: {artifact_path}")
+        if is_docs and not sections.get("Documentation Scope", "").strip():
+            fail(f"DOCS story missing required Documentation Scope "
+                 f"section: {artifact_path}")
+
         description = render_story_description(
             artifact_path, manifest,
             design_doc_link=design_doc_link,
             epic_jira_key=epic_jira_key,
-            story_type=story_type,
+            story_type=detected_type,
             _content=content_text,
         )
+
+        # Jira summary: "[PREFIX] title" — strip "Story N.NN: " prefix
+        jira_summary = re.sub(r"^Story\s+\d+\.\d+:\s*", "", raw_title).strip()
+        result["summary"] = jira_summary
+
+        # Dependencies text with refs resolved (for issue links)
+        deps_text = sections.get("Dependencies", "")
+        if deps_text and manifest:
+            deps_text = resolve_refs(deps_text, manifest)
+        result["dependencies"] = deps_text
 
     result["description"] = description
     return result

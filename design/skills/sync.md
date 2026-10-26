@@ -332,17 +332,18 @@ PREP=$(python3 "$SYNC_HELPER" prepare \
   --feature-key "{feature-key}")
 ```
 
-`PREP` is JSON with `content_hash` and `description` fields.
+`PREP` is JSON with `content_hash`, `description`, `summary` (Jira-ready
+title without numbering), `size` (T-Shirt size), and `title` (raw).
 
-Then create the Jira issue:
+Then create the Jira issue using fields from `PREP`:
 
 - **Type:** Epic
 - **Project:** {project key}
 - **Parent:** {feature-key} — **mandatory; set via the `fields` parameter: `{"parent": {"key": "{feature-key}"}}`**
-- **Summary:** {epic title from the change plan item}
-- **Description:** the rendered description from above
-- **T-Shirt Size:** {size} — set via `additional_fields`:
-  `{"customfield_10795": {"value": "{size}"}}`
+- **Summary:** `summary` from PREP (e.g. "Image Building" — without "Epic 1" prefix)
+- **Description:** `description` from PREP
+- **T-Shirt Size:** `size` from PREP — set via `additional_fields`:
+  `{"customfield_10795": {"value": "{size from PREP}"}}`
 
 After creating each epic, verify the created issue has `parent.key`
 equal to `{feature-key}` by reading the issue back. If the parent is
@@ -387,11 +388,13 @@ PREP=$(python3 "$SYNC_HELPER" prepare \
   --feature-key "{feature-key}")
 ```
 
-Update the Jira issue using the Jira key from the change plan item:
+Update the Jira issue using the Jira key from the change plan item.
+All field values come from `PREP` (the same snapshot that produced the
+hash):
 
-- **Summary:** re-read the epic title from the current file
-- **Description:** the rendered description
-- **T-Shirt Size:** re-read from the current file
+- **Summary:** `summary` from PREP
+- **Description:** `description` from PREP
+- **T-Shirt Size:** `size` from PREP
 
 Update only the sync-owned fields. Do not touch status, assignee, or
 other Jira-managed fields. For **Reopened** items, transition the Jira
@@ -456,8 +459,31 @@ Present all epic operations to the user:
 
 ### Step 5: Sync Stories
 
+**Refresh the change plan** before processing stories. Epic operations
+in Step 4 may have changed the manifest (e.g., closing an epic closes
+its children, reopening an epic enables its children). Re-run
+`detect-changes` to get an updated plan that reflects the current
+manifest state:
+
+```bash
+STORY_PLAN=$(python3 "$SYNC_HELPER" detect-changes .artifacts/design/{issue-key}/)
+```
+
+Use the refreshed plan's `type: "story"` items for story operations.
+This ensures:
+- Children already closed by cascaded epic closure (Step 4c) are not
+  re-closed
+- Stories under a reopened epic are correctly categorized
+- User orphan choices from Step 1 that were not acted on in Step 4 are
+  preserved (orphan entries the user chose to ignore remain in the
+  manifest and will still appear as orphaned in the refreshed plan)
+
+If a parent epic's create or reopen operation failed/was skipped in
+Step 4, do not create, update, or reopen stories under that epic —
+skip them and report which stories were skipped due to the parent
+failure.
+
 Process stories per epic, in the same three passes: create, update, close.
-Use the change plan items filtered by `type: "story"`.
 
 #### 5a: Create New Stories
 
@@ -486,13 +512,17 @@ PREP=$(python3 "$SYNC_HELPER" prepare \
   --story-type "{prefix}")
 ```
 
-Create the Jira issue:
+`PREP` is JSON with `content_hash`, `description`, `summary` (Jira-ready
+`[PREFIX] title` without numbering), `story_type`, `dependencies`
+(resolved text), and `title` (raw).
+
+Create the Jira issue using fields from `PREP`:
 
 - **Type:** Story
 - **Project:** {project key}
 - **Parent:** {epic jira key} (from Step 4) — **set via the `fields` parameter: `{"parent": {"key": "{epic jira key}"}}`**
-- **Summary:** `[{prefix}] {story title}`
-- **Description:** the rendered description from above
+- **Summary:** `summary` from PREP (e.g. "[DEV] Scaffold Build Pipeline" — without "Story 1.01:" prefix)
+- **Description:** `description` from PREP
 
 After creating each story, verify the created issue has `parent.key`
 equal to the epic's Jira key by reading the issue back. If the parent
@@ -510,23 +540,15 @@ python3 "$SYNC_HELPER" update-manifest \
   --jira-key "{created-key}" \
   --content-hash "{content_hash from PREP}" \
   --item-type story \
-  --title "[{prefix}] {story title}" \
+  --title "{summary from PREP}" \
   --epic-file "{epic-file}"
 ```
 
-**Issue links:** After creating the story, create Jira issue links for each
-dependency listed in the story. Use `resolve-refs` to resolve dependency
-references to Jira keys:
-
-```bash
-python3 "$SYNC_HELPER" resolve-refs \
-  .artifacts/design/{issue-key}/sync-manifest.json \
-  "Story 1.01"
-```
-
-If a dependency's Jira key isn't in the manifest (it
-wasn't created or failed), the helper annotates it with `[unresolved]` —
-skip the link and note it for the user. These links enable downstream
+**Issue links:** After creating the story, create Jira issue links for
+each dependency. The `dependencies` field in `PREP` contains the
+resolved dependency text (local refs already replaced with Jira keys).
+Parse each Jira key from this text. If a dependency shows
+`[unresolved]`, skip the link and note it for the user. These links enable downstream
 workflows (e.g., docs-writer) to traverse the dependency chain via the
 Jira API.
 
@@ -594,10 +616,10 @@ PREP=$(python3 "$SYNC_HELPER" prepare \
   --story-type "{prefix}")
 ```
 
-Update the Jira issue:
+Update the Jira issue using fields from `PREP`:
 
-- **Summary:** re-read the `[{prefix}] {story title}` from the current file
-- **Description:** the rendered description
+- **Summary:** `summary` from PREP
+- **Description:** `description` from PREP
 - **Issue links:** read the Jira issue's current issue links and filter
   to only those matching the link type selected in Step 5a (either
   "Dependency" or "Blocks", whichever was used during creation).
