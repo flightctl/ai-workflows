@@ -298,8 +298,14 @@ them:
 | {value-2}   | {outcome-2}     |
 ```
 
-Each row counts as one test case for the Summary counts. The TC ID
-covers all rows (do not assign separate IDs to individual rows).
+Each parameterized row counts as one test case toward the "Total
+test cases" count and toward the priority and automation counts in
+the Summary table. Requirement and IC coverage ratios count distinct
+mapped requirements and ICs once each, regardless of how many rows
+or TC IDs exercise them — a two-row parameterized case under FR-1
+exercising IC-3 contributes 2 to the total, but FR-1 and IC-3 each
+count once for coverage. The TC ID covers all rows (do not assign
+separate IDs to individual rows).
 
 **Test case fields** (all required per test case; the requirement is
 identified by the parent section heading):
@@ -531,13 +537,13 @@ Before presenting the testplan, verify:
 - [ ] All test case fields are present and non-empty — heading, metadata table, Steps, and Expected Results (full subsections or compact inline format) — with actionable content (not placeholder or empty headings)
 - [ ] When all test cases under the same requirement share identical setup, a non-empty, actionable Shared Preconditions block is present under the requirement heading — individual cases use a non-empty, actionable Additional Preconditions block when case-specific setup exists, and omit Additional Preconditions entirely when no case-specific setup exists — if only a subset of cases shares setup, each case keeps its own inline preconditions instead
 - [ ] Compact inline format (`**Steps:**` / `**Expected:**`) is used for every case with ≤ 2 steps and a single expected result, and never for cases that exceed those limits
-- [ ] Parameterized test cases are used when cases share identical preconditions and steps but differ only in parameter values — the variation table has at least two rows with different parameter values and a concrete expected result in every row — each row counts toward the Summary totals
+- [ ] Parameterized test cases are used when cases share identical preconditions and steps but differ only in parameter values — the variation table has at least two rows with different parameter values and a concrete expected result in every row — each row counts toward the total and priority/automation counts
 - [ ] The Test Case Index is complete — every TC ID appears exactly once, and the Scenario, IC, and Priority columns match the corresponding test case body
 - [ ] Gap analysis is accurate — requirement and IC coverage gaps are identified with rationale
 - [ ] Test case IDs follow the scheme (`TC-{req}-{NN}`) with no duplicates
 - [ ] Each test case's `TC-{req}-{NN}` prefix matches the PRD requirement heading it is grouped under (a `TC-FR2-*` case never appears under `### FR-1`)
 - [ ] Every `### FR-*` / `### NFR-*` requirement heading matches a real PRD requirement, and every PRD requirement appears exactly once — either as a requirement heading with test cases or in the Requirement Coverage Gaps section
-- [ ] The Overview counts and Summary table are accurate (parameterized rows are counted individually)
+- [ ] The Overview counts and Summary table are accurate — parameterized rows count individually toward the total, priority, and automation counts; requirement and IC coverage ratios count distinct mapped values once each
 
 #### 9d: Write Artifact
 

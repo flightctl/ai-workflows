@@ -213,27 +213,44 @@ discussion into a proposed resolution:
 When approved changes include testplan modifications (category: Testplan
 feedback), apply them in this order:
 
-1. **Modify `04-testplan.md`.** Before making any changes, record the
-   IC and requirement mappings of any test cases that will be removed,
-   reassigned, or have their IC or requirement mapping changed (even
-   if the TC ID is retained) — both are needed for the cascade in
-   step 2 (IC mappings for IC-based matching, requirement mappings for
-   cross-cutting TCs with `Interface Change: —`). Then add, modify, or
-   remove test cases as directed by the approved response.
-   For all mutations, apply the test case format, setup-inheritance,
-   and self-review rules from the draft skill's Step 9a and 9c — those
-   are the canonical source for compact vs. full format eligibility,
-   Shared and Additional Preconditions, parameterized cases, and the
-   Expected Results quality gate. Older testplans using full-format
-   Preconditions sections remain valid; match the testplan's existing
-   conventions.
+1. **Modify `04-testplan.md`.** Before making any changes:
+   - Record the IC and requirement mappings of any test cases that
+     will be removed, reassigned, or have their IC or requirement
+     mapping changed (even if the TC ID is retained) — both are needed
+     for the cascade in step 2 (IC mappings for IC-based matching,
+     requirement mappings for cross-cutting TCs with `Interface
+     Change: —`).
+   - Build a **reserved-ID high-water mark** for each requirement
+     group from the current testplan: scan all TC IDs under each
+     `### FR-*` / `### NFR-*` heading (including any about to be
+     removed) and record the highest sequence number per group. If
+     the testplan's history section, provenance log, or review thread
+     names previously retired IDs higher than any current ID, include
+     those in the high-water mark. If historical allocation cannot be
+     reliably determined and a gap might hide a retired ID, ask for
+     the missing history before mutating — never guess. Deletion
+     never releases a reserved sequence; new IDs are always allocated
+     above the high-water mark.
+
+   Then add, modify, or remove test cases as directed by the approved
+   response. For all mutations, apply the test case format,
+   setup-inheritance, and self-review rules from the draft skill's
+   Step 9a and 9c — those are the canonical source for compact vs.
+   full format eligibility, Shared and Additional Preconditions,
+   parameterized cases, and the Expected Results quality gate. Older
+   testplans using full-format Preconditions sections remain valid;
+   match the testplan's existing conventions.
 
    For each change:
-   - **Adding a test case:** Assign a sequence number using
-     `max(existing sequences) + 1` within the requirement group (e.g.,
-     if TC-FR2-01 and TC-FR2-03 exist and TC-FR2-02 was previously
-     removed, the new case is TC-FR2-04 — do not reuse gaps, as ALM
-     systems track by ID). Create the test case entry: H4 heading with
+   - **Adding a test case:** Allocate the next sequence number above
+     the requirement group's reserved high-water mark (e.g., if
+     TC-FR2-01 and TC-FR2-03 exist and TC-FR2-02 was previously
+     removed, the high-water mark is 03, so the new case is
+     TC-FR2-04). Reserve the new ID immediately — subsequent adds in
+     the same mutation round use the updated high-water mark. For a
+     genuinely new requirement with no prior IDs, start at 01. Never
+     reuse gaps or retired IDs; ALM systems track by ID. Create the
+     test case entry: H4 heading with
      ID and title, metadata table (Interface Change, Priority,
      Automation), and Steps / Expected Results in the format matching
      the testplan's existing cases. If the requirement has a Shared
@@ -248,7 +265,10 @@ feedback), apply them in this order:
      all content).
 
    After all mutations, update the testplan's Overview counts and
-   Summary table (count parameterized rows individually).
+   Summary table per the counting rules in the draft skill's Step 9a:
+   parameterized rows count individually toward totals, priority, and
+   automation counts; requirement and IC coverage ratios count distinct
+   mapped values once each.
 
    After all mutations, rebuild the Test Case Index from the current
    test cases using the canonical schema from the draft skill's Step 9b
