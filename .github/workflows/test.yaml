@@ -66,3 +66,4 @@ jobs:
       - run: python3 -m unittest discover -s sizing/scripts -p 'test_*.py' -v
       - run: python3 -m unittest discover -s triage/scripts -p 'test_*.py' -v
       - run: python3 -m unittest discover -s skills/report-bug/scripts -p 'test_*.py' -v
+      - run: python3 -m unittest discover -s design/scripts -p 'test_*.py' -v
