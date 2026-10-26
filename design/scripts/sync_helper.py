@@ -122,7 +122,8 @@ def _validate_manifest_shape(manifest: Any, source: str) -> dict[str, Any]:
     """Validate that a parsed manifest has the expected shape.
 
     Checks: top-level is a dict, has an ``epics`` list, schema version
-    is supported.  Returns the validated manifest dict or calls fail().
+    is supported, no duplicate epic file entries.  Returns the validated
+    manifest dict or calls fail().
     """
     if not isinstance(manifest, dict):
         fail(f"Manifest {source}: expected JSON object, got {type(manifest).__name__}")
@@ -133,6 +134,17 @@ def _validate_manifest_shape(manifest: Any, source: str) -> dict[str, Any]:
     epics = manifest.get("epics")
     if epics is not None and not isinstance(epics, list):
         fail(f"Manifest {source}: 'epics' must be a list, got {type(epics).__name__}")
+    # Check for duplicate epic file entries
+    if epics is not None:
+        seen_files: set[str] = set()
+        for epic in epics:
+            if not isinstance(epic, dict):
+                fail(f"Manifest {source}: epic entry must be a dict")
+            ef = epic.get("file", "")
+            if ef in seen_files:
+                fail(f"Manifest {source}: duplicate epic file '{ef}'")
+            if ef:
+                seen_files.add(ef)
     return manifest
 
 
@@ -150,22 +162,31 @@ def load_manifest(manifest_path: str | Path) -> dict[str, Any] | None:
 
 
 def save_manifest(manifest: dict[str, Any], manifest_path: str | Path) -> None:
-    """Write the manifest atomically (write-to-unique-tmp-then-rename)."""
-    import os
+    """Write the manifest atomically (exclusive-tmp-then-rename)."""
+    import tempfile as _tmpmod
     p = Path(manifest_path)
-    # Use PID-based suffix to avoid clobbering unrelated .tmp files
-    tmp = p.with_name(f".sync-manifest.{os.getpid()}.tmp")
+    fd = -1
+    tmp_path: Path | None = None
     try:
-        with open(tmp, "w", encoding="utf-8") as f:
+        fd, tmp_name = _tmpmod.mkstemp(
+            prefix=".sync-manifest-", suffix=".tmp", dir=str(p.parent),
+        )
+        tmp_path = Path(tmp_name)
+        with open(fd, "w", encoding="utf-8", closefd=True) as f:
+            fd = -1  # now owned by the file object
             json.dump(manifest, f, indent=2)
             f.write("\n")
-        tmp.rename(p)
+        tmp_path.rename(p)
+        tmp_path = None  # rename succeeded
     except BaseException:
-        # Clean up temp file on any failure
-        try:
-            tmp.unlink(missing_ok=True)
-        except OSError:
-            pass
+        if fd >= 0:
+            import os
+            os.close(fd)
+        if tmp_path is not None:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
         raise
 
 
@@ -391,6 +412,23 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
     feature_key = None
     synced_at = None
 
+    # If manifest exists but 06-stories/ is missing, warn rather than
+    # silently presenting all entries as orphaned
+    stories_dir = artifacts_dir / "06-stories"
+    if manifest is not None and not stories_dir.is_dir():
+        warnings.append(
+            "The 06-stories/ directory is missing. All manifest entries "
+            "will appear as orphaned. This may indicate the artifacts "
+            "directory is incomplete — verify the path before proceeding."
+        )
+
+    # Build set of removed epic indices (for skipping their children)
+    removed_epic_indices: set[int] = set()
+    for ef in epic_files:
+        idx = _parse_epic_index(ef.name)
+        if idx is not None and has_removed_status(ef):
+            removed_epic_indices.add(idx)
+
     if manifest is None:
         # Fresh sync — all non-removed items are new
         for ef in epic_files:
@@ -415,6 +453,9 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
             story_idx = _parse_story_index(sf.name)
             if has_removed_status(sf):
                 continue  # Never synced, skip
+            # Skip children of removed epics on fresh sync
+            if epic_idx is not None and epic_idx in removed_epic_indices:
+                continue
             items.append({
                 "file": f"{epic_dir}/{sf.name}",
                 "type": "story",
@@ -495,6 +536,17 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
                 "synced_status": None,
             })
 
+    # Build set of epic indices whose epics are removed or closed in
+    # the manifest.  Children under these epics should not be
+    # created/reopened/updated — they follow the parent's lifecycle.
+    # This covers both fresh-sync (removed_epic_indices) and
+    # manifest-based closure (epic closed in prior sync).
+    closed_epic_indices: set[int] = set(removed_epic_indices)
+    for ef_name, entry in epic_lookup.items():
+        idx = _parse_epic_index(ef_name)
+        if idx is not None and entry.get("synced_status") == "closed":
+            closed_epic_indices.add(idx)
+
     # Process story files
     for sf in story_files:
         epic_dir = sf.parent.name
@@ -502,6 +554,9 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
         story_idx = _parse_story_index(sf.name)
         removed = has_removed_status(sf)
         current_hash = compute_file_hash(sf)
+
+        # If parent epic is removed/closed, treat child as following parent
+        parent_removed = epic_idx is not None and epic_idx in closed_epic_indices
 
         epic_file_candidates = [
             ef.name for ef in epic_files
@@ -525,6 +580,15 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
 
             category = _categorize_item(removed, m_status, current_hash, m_hash)
 
+            # If parent is removed/closed and child would be
+            # reopened/changed/new, suppress — treat as removed if
+            # manifest entry is active, or unchanged if already closed
+            if parent_removed and category in ("reopened", "changed", "new"):
+                if m_status == "active":
+                    category = "removed"
+                else:
+                    category = "unchanged"
+
             if category == "removed" and epic_file_name:
                 epic_path = artifacts_dir / "06-stories" / epic_file_name
                 warn = _check_removed_story_in_epic(
@@ -546,8 +610,8 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
                 "synced_status": m_status,
             })
         else:
-            if removed:
-                continue  # Never synced, skip
+            if removed or parent_removed:
+                continue  # Never synced and parent removed, skip
             items.append({
                 "file": f"{epic_dir}/{sf.name}",
                 "type": "story",
@@ -796,19 +860,22 @@ def render_story_description(
         except OSError:
             fm = {}
 
-    # Infer type from title if not provided
+    # Infer type from title if not provided.
+    # Canonical decompose title: "# Story 1.01: [DEV] Scaffold"
+    # The prefix is after ":" — extract from _preamble source or file title.
     if not story_type:
-        title = sections.get("", "")  # H1 title
-        if not title:
-            title = _extract_title_from_file(story_path) if _content is None else ""
-        m = re.match(r"\[(\w+)\]", title)
-        if not m and _content is not None:
-            # Try from first heading in content
-            for cline in (_content or "").splitlines():
+        # Try extracting from the raw content/file title
+        raw_title = ""
+        if _content is not None:
+            for cline in _content.splitlines():
                 cs = cline.strip()
                 if cs.startswith("# "):
-                    m = re.match(r"\[(\w+)\]", cs[2:].strip())
+                    raw_title = cs[2:].strip()
                     break
+        else:
+            raw_title = _extract_title_from_file(story_path)
+        # Match [PREFIX] anywhere in the title (handles "Story 1.01: [DEV] ...")
+        m = re.search(r"\[(\w+)\]", raw_title)
         story_type = m.group(1) if m else ""
 
     is_docs = story_type.upper() == "DOCS"
@@ -847,10 +914,29 @@ def render_story_description(
     if deps:
         parts.extend(["## Dependencies", "", deps, ""])
 
-    # Design Reference — preserve all fields from the artifact body
+    # Design Reference — preserve body fields and merge in provided links.
+    # The canonical decompose template includes a Design Reference section
+    # with Epic, PRD Requirements, Design section, Interface Changes, and
+    # Validated by, but NO design document URL.  The caller provides the
+    # URL via design_doc_link; merge it at the top of the section.
     design_ref = sections.get("Design Reference", "")
     if design_ref:
-        parts.extend(["## Design Reference", "", design_ref, ""])
+        ref_lines = ["## Design Reference", ""]
+        # Insert design document link at top if provided and not already present
+        if design_doc_link and "Design document:" not in design_ref:
+            ref_lines.append(f"Design document: {design_doc_link}")
+        # Merge epic_jira_key: replace local "Epic: Epic N — title" with Jira key
+        if epic_jira_key:
+            updated_ref = re.sub(
+                r"^(Epic:\s*)Epic \d+.*$",
+                rf"\g<1>{epic_jira_key}",
+                design_ref,
+                flags=re.MULTILINE,
+            )
+            ref_lines.append(updated_ref)
+        else:
+            ref_lines.append(design_ref)
+        parts.extend(ref_lines)
     else:
         ref_parts = [
             "## Design Reference", "",
@@ -882,11 +968,16 @@ def prepare(
     epic_jira_key: str = "",
     story_type: str = "",
 ) -> dict[str, str]:
-    """Read a file once and return both its hash and rendered description.
+    """Read a file once and return its hash, rendered description, and metadata.
 
     Guarantees that ``content_hash`` corresponds to exactly the content
     used to produce ``description``.  The caller should pass this hash
     to ``update-manifest`` after a successful Jira write.
+
+    Returns a dict with ``content_hash``, ``description``, ``title``,
+    and for epics ``size``.  The ``title`` and ``size`` come from the
+    same snapshot used for the hash, so the caller never needs to re-read
+    the file for these Jira-owned fields.
     """
     artifact_path = Path(artifact_path)
     raw_bytes = artifact_path.read_bytes()
@@ -894,6 +985,20 @@ def prepare(
     content_text = raw_bytes.decode("utf-8")
 
     manifest = load_manifest(manifest_path)
+    sections = _extract_sections_from_text(content_text)
+
+    # Extract title from snapshot
+    title = ""
+    for cline in content_text.splitlines():
+        cs = cline.strip()
+        if cs.startswith("# "):
+            title = cs[2:].strip()
+            break
+
+    result: dict[str, str] = {
+        "content_hash": content_hash,
+        "title": title,
+    }
 
     if item_type == "epic":
         description = render_epic_description(
@@ -902,6 +1007,11 @@ def prepare(
             feature_key=feature_key,
             _content=content_text,
         )
+        # Extract T-Shirt Size from preamble (decompose format: "- **T-Shirt Size:** M")
+        preamble = sections.get("_preamble", "")
+        size_match = re.search(r"\*\*T-Shirt Size:\*\*\s*(\S+)", preamble)
+        if size_match:
+            result["size"] = size_match.group(1)
     else:
         description = render_story_description(
             artifact_path, manifest,
@@ -911,7 +1021,8 @@ def prepare(
             _content=content_text,
         )
 
-    return {"content_hash": content_hash, "description": description}
+    result["description"] = description
+    return result
 
 
 # ---------------------------------------------------------------------------

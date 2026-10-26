@@ -1151,5 +1151,355 @@ class TestEndToEndCLI(_TmpDirMixin, unittest.TestCase):
         self.assertEqual(manifest["feature_key"], "FEAT-100")
 
 
+# ---------------------------------------------------------------------------
+# Defect A: design_doc_link merge + DOCS inference via CLI/prepare
+# ---------------------------------------------------------------------------
+
+class TestDefectA_DesignDocLink(_TmpDirMixin, unittest.TestCase):
+    """Verify design_doc_link is merged into body Design Reference and
+    DOCS type is inferred from canonical '# Story 1.02: [DOCS] ...' title."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.manifest = {
+            "epics": [{
+                "file": "epic-1-building.md", "jira_key": "EDM-101",
+                "stories": [
+                    {"file": "story-01-scaffold.md", "jira_key": "EDM-201"},
+                ],
+            }],
+        }
+        self.mf = Path(self.tmpdir) / "manifest.json"
+        _write(self.mf, json.dumps(self.manifest))
+
+    def test_design_doc_link_merged_via_prepare(self) -> None:
+        """Sentinel link appears in body Design Reference via prepare CLI."""
+        sf = Path(self.tmpdir) / "story-01-scaffold.md"
+        _write(sf, _DEV_STORY_TEMPLATE.format(
+            extra_fm="", epic_idx=1, story_idx=1, prefix="DEV",
+            title="Scaffold", role="dev", want="build", so_that="done",
+            ac="AC", impl="Do.", testing="Test.", deps="None",
+            epic_title="Building", prd_reqs="FR-1",
+            design_section="§4.1", ic="IC-1", validated_by="TC-FR1-01",
+        ))
+        out = StringIO()
+        with mock.patch("sys.stdout", out):
+            sync_helper.main([
+                "prepare", str(sf), str(self.mf), "--type", "story",
+                "--design-doc-link", "https://SENTINEL.example.com",
+                "--epic-jira-key", "EDM-101",
+            ])
+        result = json.loads(out.getvalue())
+        desc = result["description"]
+        self.assertIn("https://SENTINEL.example.com", desc,
+                      "design_doc_link must appear in rendered description")
+        self.assertIn("IC-1", desc, "Interface Changes preserved")
+        self.assertIn("TC-FR1-01", desc, "Validated by preserved")
+        self.assertIn("EDM-101", desc, "Epic ref resolved to Jira key")
+
+    def test_docs_inferred_from_canonical_title_via_prepare(self) -> None:
+        """DOCS type inferred from '# Story 1.02: [DOCS] ...' title."""
+        sf = Path(self.tmpdir) / "story-02-docs.md"
+        _write(sf, _DOCS_STORY_TEMPLATE.format(
+            extra_fm="", epic_idx=1, story_idx=2,
+            title="API Guide", role="writer", want="document",
+            so_that="understand", ac="Done",
+            doc_scope="API reference.", doc_inputs="From Story 1.01.",
+            deps="Story 1.01", epic_title="Building",
+            prd_reqs="FR-1", design_section="§4.1",
+        ))
+        # No --story-type — must infer from title
+        out = StringIO()
+        with mock.patch("sys.stdout", out):
+            sync_helper.main([
+                "prepare", str(sf), str(self.mf), "--type", "story",
+            ])
+        result = json.loads(out.getvalue())
+        desc = result["description"]
+        self.assertIn("## Documentation Scope", desc)
+        self.assertIn("API reference.", desc)
+        self.assertNotIn("## Implementation Guidance", desc)
+
+    def test_dev_description_content_values(self) -> None:
+        """DEV description contains actual content, not just headings."""
+        sf = Path(self.tmpdir) / "story.md"
+        _write(sf, _DEV_STORY_TEMPLATE.format(
+            extra_fm="", epic_idx=1, story_idx=1, prefix="DEV",
+            title="Scaffold", role="platform engineer",
+            want="scaffold the build pipeline",
+            so_that="images can be built automatically",
+            ac="Pipeline runs end-to-end",
+            impl="Use Tekton pipelines.", testing="Integration tests.",
+            deps="None", epic_title="Building", prd_reqs="FR-1",
+            design_section="§4.1", ic="IC-1", validated_by="TC-FR1-01",
+        ))
+        result = sync_helper.prepare(str(sf), str(self.mf), "story")
+        desc = result["description"]
+        self.assertIn("platform engineer", desc)
+        self.assertIn("scaffold the build pipeline", desc)
+        self.assertIn("Use Tekton pipelines.", desc)
+        self.assertIn("Integration tests.", desc)
+        self.assertIn("Pipeline runs end-to-end", desc)
+
+
+# ---------------------------------------------------------------------------
+# Defect B: Parent closure → child lifecycle
+# ---------------------------------------------------------------------------
+
+class TestDefectB_ParentClosure(_TmpDirMixin, unittest.TestCase):
+    """Children under removed/closed epics must not be created/reopened."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.arts = Path(self.tmpdir) / "art"
+        self.sd = self.arts / "06-stories"
+        self.sd.mkdir(parents=True)
+        self.mf = self.arts / "sync-manifest.json"
+
+    def test_fresh_removed_parent_skips_active_child(self) -> None:
+        """Fresh sync: removed epic's non-removed child NOT emitted as new."""
+        _make_epic(self.sd, 1, "building", removed=True)
+        _make_dev_story(self.sd, 1, 1, "scaffold")  # NOT removed
+
+        plan = sync_helper.detect_changes(self.arts)
+        self.assertEqual(plan["summary"]["new"], 0,
+                         "Child under removed epic must not be new on fresh sync")
+
+    def test_manifest_closed_parent_active_child_not_reopened(self) -> None:
+        """Active child under closed epic → removed (not reopened/changed)."""
+        _make_epic(self.sd, 1, "building", removed=True)
+        sf = _make_dev_story(self.sd, 1, 1, "scaffold")  # NOT removed
+        ef_hash = sync_helper.compute_file_hash(
+            self.sd / "epic-1-building.md")
+        sf_hash = sync_helper.compute_file_hash(sf)
+
+        _make_manifest(self.arts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "old", "synced_status": "closed",
+            "stories": [{
+                "file": "story-01-scaffold.md", "jira_key": "EDM-201",
+                "content_hash": "old", "synced_status": "active",
+            }],
+        }])
+
+        plan = sync_helper.detect_changes(self.arts)
+        story_items = [i for i in plan["items"] if i["type"] == "story"]
+        self.assertEqual(len(story_items), 1)
+        self.assertEqual(story_items[0]["category"], "removed",
+                         "Active child under closed parent → removed")
+
+    def test_full_cascade_detect_checkpoint_redetect(self) -> None:
+        """Full sequence: detect → close stories → close epic → re-detect."""
+        ef = _make_epic(self.sd, 1, "building")
+        sf = _make_dev_story(self.sd, 1, 1, "scaffold")
+        ef_hash = sync_helper.compute_file_hash(ef)
+        sf_hash = sync_helper.compute_file_hash(sf)
+
+        # Initial sync
+        sync_helper.update_manifest(
+            self.mf, "create", "epic-1-building.md", "EDM-101",
+            ef_hash, item_type="epic", feature_key="F-1")
+        sync_helper.update_manifest(
+            self.mf, "create", "story-01-scaffold.md", "EDM-201",
+            sf_hash, item_type="story", epic_file="epic-1-building.md")
+
+        # Mark removed
+        ef = _make_epic(self.sd, 1, "building", removed=True)
+        sf = _make_dev_story(self.sd, 1, 1, "scaffold", removed=True)
+
+        # Detect
+        plan = sync_helper.detect_changes(self.arts)
+        removed = [i for i in plan["items"] if i["category"] == "removed"]
+        self.assertEqual(len(removed), 2, "Both epic and story removed")
+
+        # Close story then epic
+        sync_helper.update_manifest(
+            self.mf, "close", "story-01-scaffold.md", "EDM-201",
+            sync_helper.compute_file_hash(sf),
+            item_type="story", epic_file="epic-1-building.md")
+        sync_helper.update_manifest(
+            self.mf, "close", "epic-1-building.md", "EDM-101",
+            sync_helper.compute_file_hash(ef), item_type="epic")
+
+        # Re-detect: all unchanged (already closed)
+        plan2 = sync_helper.detect_changes(self.arts)
+        self.assertEqual(plan2["summary"]["unchanged"], 2)
+        self.assertEqual(plan2["summary"]["reopened"], 0)
+
+    def test_interrupted_cascade_resume(self) -> None:
+        """Interrupted after closing story but before closing epic;
+        resume correctly finishes."""
+        ef = _make_epic(self.sd, 1, "building")
+        sf = _make_dev_story(self.sd, 1, 1, "scaffold")
+
+        sync_helper.update_manifest(
+            self.mf, "create", "epic-1-building.md", "EDM-101",
+            sync_helper.compute_file_hash(ef),
+            item_type="epic", feature_key="F-1")
+        sync_helper.update_manifest(
+            self.mf, "create", "story-01-scaffold.md", "EDM-201",
+            sync_helper.compute_file_hash(sf),
+            item_type="story", epic_file="epic-1-building.md")
+
+        # Mark both removed
+        ef = _make_epic(self.sd, 1, "building", removed=True)
+        sf = _make_dev_story(self.sd, 1, 1, "scaffold", removed=True)
+
+        # Close story only (interrupted before epic close)
+        sync_helper.update_manifest(
+            self.mf, "close", "story-01-scaffold.md", "EDM-201",
+            sync_helper.compute_file_hash(sf),
+            item_type="story", epic_file="epic-1-building.md")
+
+        # Resume: re-detect should show epic removed, story unchanged
+        plan = sync_helper.detect_changes(self.arts)
+        epic_items = [i for i in plan["items"] if i["type"] == "epic"]
+        story_items = [i for i in plan["items"] if i["type"] == "story"]
+        self.assertEqual(epic_items[0]["category"], "removed")
+        self.assertEqual(story_items[0]["category"], "unchanged")
+
+
+# ---------------------------------------------------------------------------
+# Defect C: Manifest validation — duplicates, shapes, exclusive temp
+# ---------------------------------------------------------------------------
+
+class TestDefectC_ManifestValidation(_TmpDirMixin, unittest.TestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.mf = Path(self.tmpdir) / "sync-manifest.json"
+
+    def test_duplicate_epic_files_rejected(self) -> None:
+        """Duplicate epic file entries in manifest → fail."""
+        _write(self.mf, json.dumps({
+            "schema_version": 2, "feature_key": "F",
+            "epics": [
+                {"file": "epic-1-a.md", "jira_key": "K-1",
+                 "content_hash": "h", "synced_status": "active", "stories": []},
+                {"file": "epic-1-a.md", "jira_key": "K-2",
+                 "content_hash": "h2", "synced_status": "active", "stories": []},
+            ],
+        }))
+        with self.assertRaises(SystemExit):
+            sync_helper.load_manifest(self.mf)
+
+    def test_non_dict_epic_entry_rejected(self) -> None:
+        _write(self.mf, json.dumps({
+            "schema_version": 2, "epics": ["not a dict"],
+        }))
+        with self.assertRaises(SystemExit):
+            sync_helper.load_manifest(self.mf)
+
+    def test_invalid_shape_preserves_bytes(self) -> None:
+        """Failed validation does not modify the manifest file."""
+        content = json.dumps({"schema_version": 99, "epics": []})
+        _write(self.mf, content)
+        original = self.mf.read_bytes()
+        with self.assertRaises(SystemExit):
+            sync_helper.load_manifest(self.mf)
+        self.assertEqual(self.mf.read_bytes(), original)
+
+    def test_v1_manifest_loads_successfully(self) -> None:
+        """V1 without content_hash/synced_status loads OK."""
+        _write(self.mf, json.dumps({
+            "schema_version": 1, "feature_key": "F",
+            "epics": [{"file": "epic-1.md", "jira_key": "K",
+                        "title": "T", "stories": []}],
+        }))
+        m = sync_helper.load_manifest(self.mf)
+        self.assertIsNotNone(m)
+        self.assertEqual(m["schema_version"], 1)
+
+
+# ---------------------------------------------------------------------------
+# Defect D: Empty sections handling
+# ---------------------------------------------------------------------------
+
+class TestDefectD_EmptySections(_TmpDirMixin, unittest.TestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.mf = Path(self.tmpdir) / "manifest.json"
+        _write(self.mf, json.dumps({"epics": []}))
+
+    def test_no_frontmatter_canonical_epic(self) -> None:
+        """Epic without frontmatter renders normally."""
+        ef = Path(self.tmpdir) / "epic.md"
+        _write(ef, "# Building\n\n- **T-Shirt Size:** L\n\n## Summary\n\nBuild things.\n\n## Acceptance Criteria\n\n- [ ] AC\n")
+        result = sync_helper.prepare(str(ef), str(self.mf), "epic")
+        self.assertIn("Build things.", result["description"])
+        self.assertEqual(result["size"], "L")
+
+    def test_missing_summary_renders_empty(self) -> None:
+        """Missing Summary section renders empty (compatible, not error)."""
+        ef = Path(self.tmpdir) / "epic.md"
+        _write(ef, "---\n---\n# Building\n\n## Acceptance Criteria\n\n- AC\n")
+        result = sync_helper.prepare(str(ef), str(self.mf), "epic")
+        self.assertIn("## Summary", result["description"])
+
+    def test_removed_story_frontmatter_variant(self) -> None:
+        """Story with 'status: removed' frontmatter still parseable."""
+        sf = Path(self.tmpdir) / "story.md"
+        _write(sf, "---\nstatus: removed\n---\n# [DEV] Removed Story\n\n## Acceptance Criteria\n\n- AC\n")
+        result = sync_helper.prepare(str(sf), str(self.mf), "story")
+        self.assertIn("content_hash", result)
+
+
+# ---------------------------------------------------------------------------
+# Defect E: Size in prepare, missing 06-stories
+# ---------------------------------------------------------------------------
+
+class TestDefectE_SizeAndMissing(_TmpDirMixin, unittest.TestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.mf = Path(self.tmpdir) / "manifest.json"
+        _write(self.mf, json.dumps({"epics": []}))
+
+    def test_prepare_epic_extracts_size(self) -> None:
+        """prepare output includes size from T-Shirt Size line."""
+        ef = Path(self.tmpdir) / "epic.md"
+        _write(ef, _EPIC_TEMPLATE.format(
+            extra_fm="", title="Building", size="XL",
+            summary="Build.", ac="AC", feature_key="F",
+            prd_reqs="FR-1", design_sections="§4.1"))
+        result = sync_helper.prepare(str(ef), str(self.mf), "epic")
+        self.assertEqual(result["size"], "XL")
+        self.assertEqual(result["title"], "Building")
+
+    def test_prepare_story_has_title(self) -> None:
+        """prepare output includes title for stories."""
+        sf = Path(self.tmpdir) / "story.md"
+        _write(sf, _DEV_STORY_TEMPLATE.format(
+            extra_fm="", epic_idx=1, story_idx=1, prefix="DEV",
+            title="Scaffold", role="dev", want="build", so_that="done",
+            ac="AC", impl="Do.", testing="Test.", deps="None",
+            epic_title="Building", prd_reqs="FR-1",
+            design_section="§4.1", ic="IC-1", validated_by="TC-FR1-01"))
+        result = sync_helper.prepare(str(sf), str(self.mf), "story")
+        self.assertIn("Story 1.01", result["title"])
+
+    def test_missing_06_stories_with_manifest_warns(self) -> None:
+        """Missing 06-stories/ dir with manifest → warning, not silent orphan."""
+        arts = Path(self.tmpdir) / "art"
+        arts.mkdir()
+        _make_manifest(arts, [{
+            "file": "epic-1.md", "jira_key": "K-1",
+            "content_hash": "h", "synced_status": "active", "stories": [],
+        }])
+        plan = sync_helper.detect_changes(arts)
+        self.assertTrue(
+            any("06-stories" in w for w in plan["warnings"]),
+            "Should warn about missing 06-stories directory")
+
+    def test_numeric_sort_epic2_before_epic10(self) -> None:
+        """Epic-2 processed before epic-10 (numeric, not lexicographic)."""
+        arts = Path(self.tmpdir) / "art"
+        sd = arts / "06-stories"
+        sd.mkdir(parents=True)
+        _make_epic(sd, 10, "tenth")
+        _make_epic(sd, 2, "second")
+        plan = sync_helper.detect_changes(arts)
+        indices = [i["epic_index"] for i in plan["items"]]
+        self.assertEqual(indices, [2, 10])
+
+
 if __name__ == "__main__":
     unittest.main()
