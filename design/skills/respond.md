@@ -224,21 +224,25 @@ feedback), apply them in this order:
      `max(existing sequences) + 1` within the requirement group (e.g.,
      if TC-FR2-01 and TC-FR2-03 exist and TC-FR2-02 was previously
      removed, the new case is TC-FR2-04 — do not reuse gaps, as ALM
-     systems track by ID). Create the full test case entry:
-     H4 heading with ID and title, metadata table (Interface Change,
-     Priority, Automation), and H5 sub-sections (Preconditions, Steps,
-     Expected Results). Update the testplan's Overview counts and Summary
-     table.
+     systems track by ID). Create the test case entry matching the
+     testplan's existing format: H4 heading with ID and title, metadata
+     table (Interface Change, Priority, Automation), and either compact
+     inline format (`**Steps:**` / `**Expected:**` for cases with ≤ 2
+     steps and a single expected result) or full H5 sub-sections (Steps,
+     Expected Results, and Additional Preconditions only when
+     case-specific setup beyond any Shared Preconditions is needed).
+     Update the testplan's Overview counts, Summary table, and Test Case
+     Index.
    - **Modifying a test case:** Update the affected heading, metadata
-     table fields, or sub-section content. The same Expected Results
-     quality gate applies — no banned vague phrases. If the Interface
-     Change assignment changes, update the affected stories' `Validated
-     by` in step 2 below. If any metadata field changed (Priority,
-     Automation, or Interface Change), update the testplan's Overview
-     counts and Summary table.
+     table fields, or content (sub-sections or compact inline fields).
+     The same Expected Results quality gate applies — no banned vague
+     phrases. If the Interface Change assignment changes, update the
+     affected stories' `Validated by` in step 2 below. If any metadata
+     field changed (Priority, Automation, or Interface Change), update
+     the testplan's Overview counts, Summary table, and Test Case Index.
    - **Removing a test case:** Delete the test case entry (heading and
-     all sub-sections). Update the testplan's Overview counts and
-     Summary table.
+     all content). Update the testplan's Overview counts, Summary table,
+     and Test Case Index.
 
 2. **Cascade to story files (if decomposition exists).** Skip this step
    if no decomposition artifacts exist (`06-stories/` directory not

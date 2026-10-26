@@ -146,7 +146,7 @@ After applying changes, verify:
   requirement IDs changed.
 - If test cases were added, removed, or modified, **or** if design
   Interface Changes (§5) were added, removed, or renamed: recompute the
-  testplan's Overview counts and Summary table. Rebuild the Gaps
+  testplan's Overview counts, Summary table, and Test Case Index. Rebuild the Gaps
   section from the current requirement-to-TC and IC-to-TC mappings.
   Adding, removing, or renaming an IC changes the "Interface changes
   covered" totals or the identifiers in the Interface Change Coverage
