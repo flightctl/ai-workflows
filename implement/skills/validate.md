@@ -27,11 +27,50 @@ and repeat until everything passes.
 
 ## Process
 
-### Step 1: Read Context
+### Scope-First Remediation Policy
+
+This policy applies to every remediation action in Steps 4–8b, including
+fixes proposed by the self-review gate's external-tool path (shared
+recipe Step 1) and subagent/inline path (Steps 2–3). Before applying
+any proposed fix — code edit, new test, or commit — assess whether it
+stays within the approved Scope Baseline in `02-plan.md` (when present):
+
+- **In-scope fix** (correctness, regression, coverage for code within
+  baseline boundaries): apply using the existing step's behavior.
+- **Material scope expansion** (fix would modify interfaces, components,
+  or files outside baseline boundaries, or add substantial unplanned
+  structural work): classify as blocking HIGH. Immediately record a
+  `## Pending Scope Decision` section in `02-plan.md` with the delta,
+  necessity, affected boundaries, and keep/extract/defer options. Stop
+  the current step — do not apply the fix, commit, write or overwrite
+  `05-validation-report.md`, or advance to later steps. Recommend
+  `/revise`. Preserve valid in-scope work already committed.
+
+For the self-review gate invocation (Step 7): only use a non-interactive
+review tool (shared recipe Step 1) in non-mutating / findings-only
+mode. If the tool cannot report findings without editing code, fall
+back to the subagent or inline path (shared recipe Step 2). The review
+tool or subagent produces findings; this validation caller consumes
+and assesses them for scope before applying any fixes. The shared
+recipe's caller-assessment path (Step 1) and inline-fix path (Step 3)
+both return findings to the caller for this assessment. Approved
+in-scope fixes are applied and re-reviewed through the bounded post-fix
+cycle. Material unapproved scope findings remain unfixed HIGH → FLAG →
+complete record → `/revise`. Optional unrelated nits can be declined
+per existing value assessment.
+
+Plans without a Scope Baseline skip this assessment — the existing
+step-level remediation behavior applies unchanged.
+
+### Step 1: Read Context and Check Entry Conditions
 
 Read:
-1. `.artifacts/implement/{issue-key}/01-context.md` (validation profile)
-2. `.artifacts/implement/{issue-key}/02-plan.md` (what was implemented)
+1. `.artifacts/implement/{issue-key}/02-plan.md` — check whether it
+   contains a `## Pending Scope Decision` section or records an unmerged
+   prerequisite dependency. If either condition holds, stop and recommend
+   `/revise` — do not run checks, commit fixes, or write the validation
+   report.
+2. `.artifacts/implement/{issue-key}/01-context.md` (validation profile)
 3. `.artifacts/implement/{issue-key}/04-impl-report.md` (implementation status)
 4. `.artifacts/implement/{issue-key}/testplan.md` (story-scoped testplan, if exists)
 
@@ -102,7 +141,35 @@ in the validation report.
 Validation results against a stale base may not reflect the actual
 PR state.
 
-### Step 3: Run Pre-PR Checks
+### Step 3: Resolve Local Base and Verify Clean Worktree
+
+Read the Local Base from the `## Branch` section of `02-plan.md`.
+Verify the ref resolves:
+
+```bash
+git rev-parse --verify {local-base}
+```
+
+If the ref is missing, unresolvable, or the command fails, stop —
+report the error with details. Do not substitute an empty diff, skip
+the review, or invent a replacement base. The base must be repaired
+(e.g., fetch the missing ref) before validation can continue.
+
+Verify the worktree is clean:
+
+```bash
+git status --porcelain --untracked-files=normal
+```
+
+If the command fails (non-zero exit), stop and report the error — do
+not assume an empty result means clean. Otherwise, ignore paths under
+`.artifacts/` (workflow working state, gitignored). If any other
+modified, staged, or untracked implementation files remain, stop —
+report the affected paths. Do not auto-commit, stash, reset, or delete
+them. The implementation must be completed and committed through normal
+`/code` or user-approved `/revise` handling before rerunning `/validate`.
+
+### Step 4: Run Pre-PR Checks
 
 Execute each check from the validation profile in order. For each check:
 
@@ -124,7 +191,7 @@ Typical checks (discovered, not hardcoded):
 3. If pre-existing: note it in the validation report, do not fix it
 4. If unclear: report to the user
 
-### Step 4: Analyze Coverage
+### Step 5: Analyze Coverage
 
 Run coverage analysis on the packages affected by the story:
 
@@ -170,7 +237,7 @@ The user decides whether to decompose (which may require looping back
 to `/plan`) or to accept the coverage level as an exception (e.g., a
 thin wrapper over an external system).
 
-### Step 5: Regression Check
+### Step 6: Regression Check
 
 Verify that the story's changes haven't broken existing functionality:
 
@@ -183,38 +250,58 @@ If regressions are found:
 - Fix regressions caused by the story, commit separately
 - Note pre-existing failures in the validation report
 
-### Step 6: Code Quality Review
+### Step 7: Code Quality Review
 
 After automated checks pass, review the story's full diff for issues
-that automated tooling does not catch. Read the Local Base from the
-`## Branch` section of `02-plan.md`, then run the self-review gate.
+that automated tooling does not catch.
 
-Read and follow `../../_shared/recipes/self-review-gate.md` with these
-parameters:
+Re-run Step 3 (resolve Local Base, verify clean worktree) before
+proceeding — Steps 4–6 may have committed fixes that changed HEAD or
+left the worktree dirty. Stop on any failure per Step 3's rules.
+
+If `02-plan.md` has a Scope Baseline section, compare the branch diff
+(`git diff {local-base}...HEAD`) against all baseline fields: Intended
+Feature Changes, Known Supporting Refactoring (including Prerequisite
+Rationale), Affected Interfaces and Components, and Expected Delivery
+Boundaries. If the comparison command fails, stop and report the error.
+Material unapproved work outside any baseline field — including
+unapproved new behavior within an already-affected component — is
+scope drift: record a complete `## Pending Scope Decision` per the
+Scope-First Remediation Policy and stop. Recommend `/revise`. Ordinary
+in-scope correctness fixes and small cohesive supporting cleanup within
+baseline boundaries do not trigger this check.
+
+Run the self-review gate. Read and follow
+`../../_shared/recipes/self-review-gate.md` with these parameters:
 
 | Parameter | Value |
 |-----------|-------|
 | DIFF_COMMAND | `git diff {local-base}...HEAD` |
 | MAX_ROUNDS | `3` |
 | CONTEXT_FILES | `.artifacts/implement/{issue-key}/01-context.md`, `.artifacts/implement/{issue-key}/02-plan.md` (if they exist) |
-| SUPPLEMENTARY_CRITERIA | This is the full-branch validation review — the last quality gate before PR creation. The reviewer has the complete diff, not a per-task slice. In addition to the standard protocol criteria, evaluate: (1) **Backward compatibility** — does the change modify public APIs, error formats, configuration, or wire protocols? If so, is it backward-compatible or is the break documented and justified? (2) **Completeness across call sites** — if the story introduces a guard, wrapper, or handling pattern in one location, search the codebase for similar patterns needing the same treatment. A pattern applied to 7 of 8 identical call sites is itself a bug. |
+| SUPPLEMENTARY_CRITERIA | Full-branch validation review — last quality gate before PR. Evaluate: (1) **Backward compatibility** — public APIs, error formats, configuration, wire protocols changed? Backward-compatible or is the break documented and justified? (2) **Completeness across call sites** — pattern applied in one location but needed in similar locations is a bug. (3) **Scope baseline compliance** — if `02-plan.md` has a Scope Baseline section, compare against all baseline fields (Intended Feature Changes, Known Supporting Refactoring, Affected Interfaces and Components, Expected Delivery Boundaries). Material unapproved work outside any field — including unapproved new behavior within an already-affected component — is HIGH scope drift; do not auto-fix, report unfixed so gate returns FLAG. Ordinary correctness fixes and small cohesive supporting cleanup within boundaries are not scope drift. A pending scope decision already in the plan must be resolved before publishing. |
 
-If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
-present the findings to the user before proceeding.
+If the gate reports FLAG, stop and present findings. For scope-drift
+FLAG findings, record a complete `## Pending Scope Decision` in
+`02-plan.md` per the Scope-First Remediation Policy and recommend
+`/revise`.
 
-If the gate made code fixes, re-run the affected pre-PR checks from
-Step 3 (and Step 4 coverage analysis if the fixes touch covered
-packages) to verify the post-fix state. Once checks pass, commit:
+If the gate made code fixes (the gate edits but does not commit —
+shared recipe lines 174-176): re-run affected Step 4 pre-PR checks,
+Step 5 coverage analysis when fixes touch covered packages, and full
+Step 6 regression check when fixes change production code. Then commit.
+After committing, re-run Step 3 (clean worktree, base), the scope
+comparison, and the self-review gate on the new committed HEAD. This
+re-run consumes remaining rounds from the original MAX_ROUNDS budget —
+do not reset the counter. The cycle ends successfully only when the
+committed clean HEAD passes re-review without further code fixes. If
+MAX_ROUNDS is exhausted before a clean pass, stop with FLAG — do not
+write the validation report or advance to Step 8.
 
-```bash
-git add {fixed files}
-```
+The validation report (Step 9) must reflect the final committed and
+reviewed HEAD.
 
-```bash
-git commit -m "{issue-key}: address validation review findings"
-```
-
-### Step 7: Acceptance Criteria Verification
+### Step 8: Acceptance Criteria Verification
 
 After automated checks and code quality review, verify that every
 acceptance criterion from the story has been satisfied. This is the
@@ -239,14 +326,19 @@ Record the result for each criterion. If any criterion is not fully
 satisfied:
 
 1. If it's a gap in implementation or tests — fix it, commit the fix,
-   and re-run the relevant checks
+   then re-run Step 3 (clean/base), Step 4 affected checks, Step 5
+   coverage when covered packages touched, Step 6 regression when
+   production code changed, the Step 7 scope comparison and self-review
+   gate (consuming remaining MAX_ROUNDS), and re-verify Step 8 AC on
+   the new committed HEAD. Do not reuse acceptance judgments from before
+   the fix.
 2. If it's ambiguous whether the criterion is met — flag it to the
    user with your assessment and let them decide
 3. If the criterion cannot be verified through automated means (e.g.,
    it requires manual verification or describes a UX quality) — note
    it as "requires manual verification" with an explanation of why
 
-### Step 7b: Test Plan Verification
+### Step 8b: Test Plan Verification
 
 If `.artifacts/implement/{issue-key}/testplan.md` exists, independently
 verify that every test case has been implemented. This check re-derives
@@ -279,10 +371,16 @@ has TC mappings but `testplan.md` is missing, unreadable, or malformed
 3. If any TC ID lacks a corresponding test:
    - Write the missing test following contract-based testing standards.
    - Commit the test following the project's commit format.
-   - Re-run the relevant checks from Step 3.
+   - Re-run Step 4 affected checks, Step 5 coverage when tests affect
+     covered packages, Step 6 regression when production code changed,
+     Step 3 (clean/base), the Step 7 scope comparison and self-review
+     gate on the committed HEAD (consuming remaining MAX_ROUNDS), and
+     re-verify Step 8 AC and applicable Step 8b TC consistency on the
+     new HEAD. If the review gate proposes production fixes, route them
+     through the same post-fix cycle as Step 7.
 4. Record results for the validation report.
 
-### Step 8: Write Validation Report
+### Step 9: Write Validation Report
 
 Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
 
@@ -400,7 +498,7 @@ Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
  FAIL — with explanation of what still needs fixing.}
 ```
 
-### Step 9: Present Results
+### Step 10: Present Results
 
 Summarize for the user:
 - Which checks passed and which failed

@@ -45,6 +45,11 @@ script header for full usage.
 
 ### Step 1: Read Context and Fetch PR Comments
 
+Read `.artifacts/implement/{issue-key}/02-plan.md` and check whether it
+contains a `## Pending Scope Decision` section or records an unmerged
+prerequisite dependency. If either condition holds, stop and recommend
+`/revise` — do not fetch comments, apply changes, or push.
+
 Read `.artifacts/implement/{issue-key}/publish-metadata.json` to get the
 PR number and `{owner}/{repo}` (the `repo` field). If metadata doesn't
 exist, tell the user that `/publish` should be run first. If the user
@@ -116,7 +121,48 @@ Group comments into categories:
 | **Approval / positive** | Acknowledge |
 | **Out of scope** | Draft a reply explaining why |
 
-### Step 3: Propose Responses
+### Step 3: Assess Scope Impact
+
+Before proposing responses, read the Scope Baseline section of
+`02-plan.md` (if present). If no Scope Baseline section exists (plans
+created before this feature), assess requests against the story's
+accepted acceptance criteria and approved plan tasks — do not treat the
+absence as unlimited scope. For each review comment that requests code
+changes, assess whether the requested work stays within the story's
+scope:
+
+- **Within scope** — the request addresses the story's own code,
+  fixes a defect introduced by this story, or is a small cohesive
+  improvement within the baseline boundaries. Proceed to propose a
+  response normally.
+- **Necessary correction** — the request identifies a bug or defect
+  in code introduced by this story. These must be addressed regardless
+  of scope; they are not scope expansion.
+- **Material scope expansion** — the request would require substantial
+  changes to existing code outside the baseline, modifications to
+  shared interfaces not listed in the baseline, or broad caller
+  updates. **Record and pause** the affected work:
+  1. Append a `## Pending Scope Decision` section to `02-plan.md`
+     (or update an existing one) describing the reviewer's request,
+     why it exceeds the baseline, which boundaries it crosses, and
+     the options: keep in this story, extract prerequisite, or
+     decline with rationale. This persists across session restarts.
+  2. Present the recorded pending decision to the user. Do not apply
+     code changes, push, or post replies for the affected comment
+     until the user decides.
+  3. The user routes to `/revise` to resolve the decision. On
+     approve-expansion or decline, `/revise` clears the section.
+     On extraction, `/revise` retains the section as a dependency
+     marker until the prerequisite merges — feature work remains
+     blocked (see `revise.md` for the canonical lifecycle). Then
+     resume `/respond` for remaining comments.
+
+  Do not defer a necessary fix to an introduced defect — that is a
+  correction, not expansion.
+
+Classify each comment's scope impact before proceeding to Step 4.
+
+### Step 4: Propose Responses
 
 Evaluate each comment on its technical merit. Do not reflexively agree
 with every suggestion — assess whether the proposed change would
@@ -146,7 +192,7 @@ call on whether to push back or comply.
 
 Wait for the user to approve, modify, or reject each response.
 
-### Step 4: Apply Approved Changes
+### Step 5: Apply Approved Changes
 
 #### Code changes
 
@@ -224,7 +270,7 @@ Clean up the temporary reply file:
 rm .artifacts/implement/{issue-key}/tmp-reply.md
 ```
 
-### Step 5: Update Response Log
+### Step 6: Update Response Log
 
 Write or update `.artifacts/implement/{issue-key}/07-review-responses.md`:
 
@@ -241,7 +287,7 @@ Write or update `.artifacts/implement/{issue-key}/07-review-responses.md`:
 - **Commit:** {hash, if code was changed}
 ```
 
-### Step 6: Assess Re-Validation Need
+### Step 7: Assess Re-Validation Need
 
 If code changes were made:
 - Recommend re-running `/validate` to ensure all checks still pass
@@ -250,7 +296,7 @@ If code changes were made:
 If only clarification replies were posted:
 - No re-validation needed
 
-### Step 7: Report to User
+### Step 8: Report to User
 
 Summarize:
 - How many comments were addressed

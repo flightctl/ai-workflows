@@ -848,7 +848,7 @@
           <th class="sortable" data-sort="confidence">Confidence</th>
         </tr>
       </thead>
-      <tbody id="tbody"></tbody>
+      <tbody id="issuesTableBody"></tbody>
     </table>
     <div class="no-results" id="noResults" style="display:none">No issues match the current filters.</div>
   </div>
@@ -1424,7 +1424,7 @@
 
   function renderTable() {
     var issues = doSort(getFiltered());
-    var tbody  = document.getElementById("tbody");
+    var tbody  = document.getElementById("issuesTableBody");
     var noRes  = document.getElementById("noResults");
     tbody.innerHTML = "";
 

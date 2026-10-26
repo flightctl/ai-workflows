@@ -150,6 +150,20 @@
 - **Test location:** {path or "N/A"}
 - **Run command:** {command or "N/A"}
 
+### E2E Coverage Policy
+
+{One entry per discovered E2E framework/scope combination. Populated
+and refreshed by `../../_shared/recipes/e2e-coverage-policy.md` — see that
+recipe for restriction values, resolution rules, and invariants.
+If no E2E framework was discovered, omit this section entirely.}
+
+- **Framework:** {framework name, e.g. "Cypress"}
+- **Restriction:** {`none` | `prohibited` | `ambiguous` | `unresolved`}
+- **Scope:** {path scope, e.g. "all paths", "cypress/", "src/components/"}
+- **Source:** {file path and section/heading, or "N/A"}
+- **Details:** {policy language or "No explicit policy — default applies"}
+- **Resolution:** {user clarification from `/revise` if any: decision, scope, provenance, source excerpt. Omit when none exists. Only readable `ambiguous` can be user-resolved; `unresolved` requires source recovery. See recipe Step 3.}
+
 ## Validation Profile
 
 ### Commit Format

@@ -35,13 +35,14 @@ Execute the phases sequentially. After each phase, verify its exit criteria befo
 ### Phase 3 — Analyze
 
 1. Read `analyze.md` and execute it
-2. **Exit criteria:** `analyzed.json` written, analyzed count matches scanned count
-3. On success → announce the recommendation breakdown and proceed to Phase 4
+2. **Prerequisite:** the target project's source repository checkout must be the current working directory; AUTO_FIX decisions require source context
+3. **Exit criteria:** `analyzed.json` written, analyzed count matches scanned count
+4. On success → announce the recommendation breakdown and proceed to Phase 4
 
 ### Phase 4 — Report
 
 1. Read `report.md` and execute it
-2. **Exit criteria:** `report.html` written, all placeholders replaced
+2. **Exit criteria:** `report.html` written, all placeholders replaced, renderer schema validation and post-render smoke checks passed
 3. On success → announce the report location and present a summary
 
 ## Progress Reporting
@@ -67,8 +68,9 @@ After all four phases finish successfully, present a final summary:
 
 - **Jira access failure (Phase 1):** Stop. Report the error and suggest checking credentials or project key.
 - **Zero issues (Phase 2):** Stop. The project has no unresolved bugs — nothing to triage.
+- **Missing source checkout (Phase 3):** Stop. Report that `/analyze` must run from the target project's Git work tree and ask the user to clone/open it before re-running.
 - **Analysis mismatch (Phase 3):** If the analyzed count doesn't match the scanned count, report which issues were missed and whether it's safe to continue.
-- **Template or placeholder error (Phase 4):** Stop. Report which placeholders were not replaced.
+- **Template, schema, or placeholder error (Phase 4):** Stop. Report which validation failed (schema mismatch, unreplaced placeholder, or post-render smoke check).
 
 ## Rules
 

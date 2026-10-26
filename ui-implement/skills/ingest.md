@@ -15,9 +15,9 @@ for `/plan`.
 - Explore relevant areas only. Don't map the entire codebase. Focus on components the story will affect.
 - Re-invocation diffs before overwriting. If `01-context.md` already exists, preserve it before exploring. After compiling new context, diff against the previous version and present changes to the user before overwriting (see Steps 2a and 8a).
 - Ingest is an index. `/plan` opens cited files. Paths, section refs, signatures — not dumps.
-- Never Read the same path twice. Never Grep the same (path, pattern) pair twice.
+- Never Read the same path twice. Never Grep the same (path, pattern) pair twice. **Exception:** the E2E coverage policy recipe always re-reads source files for policy freshness, even on cache hit or when already in session.
 - Do not glob this workflow. Do not load `../guidelines.md` or `gh-stack`.
-- Do not re-read `AGENTS.md` / `CLAUDE.md` if already in session.
+- Do not re-read `AGENTS.md` / `CLAUDE.md` if already in session — except when following the E2E coverage policy recipe.
 - Grep locates; Read loads. Never grep `.`. Never grep `-A`/`-B`/`-C`. Never grep `.git/`.
 - Do not glob the docs repo root. After Step 5b, search only the feature directory.
 - **Write each output path once.** No Delete+rewrite, no second Write to the same file.
@@ -333,6 +333,17 @@ Focus on:
      mechanism if found.
    - **E2e framework:** grep for e2e test tooling (Cypress, Playwright,
      etc.) if present. Record for integration/e2e stub writing.
+   - **E2e coverage policy (unconditional — runs even on validation
+     cache hit):** if one or more e2e frameworks were discovered,
+     read and follow `../../_shared/recipes/e2e-coverage-policy.md`
+     with PRIOR_ENTRIES from existing `01-context.md` (if any, from
+     re-invocation) and DISCOVERED_FRAMEWORKS from this step. The
+     recipe reads current source files, classifies restrictions per
+     framework/scope, and returns refreshed policy evidence. Merge
+     the returned entries into the in-memory context draft; persist
+     in Step 8/8a (respecting the write-each-output-once rule and
+     user confirmation). If no e2e framework was discovered, omit
+     the section.
    - **If no unit test framework is found:** note the absence. Identify
      candidate frameworks based on the project's build tooling (e.g.,
      Vite → Vitest, Create React App → Jest). Record the recommendation

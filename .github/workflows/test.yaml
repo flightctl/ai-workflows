@@ -22,6 +22,30 @@ jobs:
         with:
           persist-credentials: false
       - run: bash .github/scripts/test-install.sh
+      - run: python3 .github/scripts/test-codex-adapters.py -v
+      - run: python3 .github/scripts/test-codex-runtime-client.py -v
+
+  codex-runtime-tests:
+    name: Codex Discovery and Invocation (0.163.0)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --global @openai/codex@0.163.0
+      - run: python3 .github/scripts/test-codex-runtime.py
+
+  updater-tests:
+    name: Updater Tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: bash .github/scripts/test-aiw-update.sh
 
   unit-tests:
     name: Unit Tests (Python ${{ matrix.python-version }})
@@ -36,6 +60,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - run: python3 -m pip install pytest
+      - run: python3 -m pytest skill-reviewer/scripts/test_pre_review_checks.py -q
       - run: python3 -m unittest discover -s _shared/scripts -p 'test_*.py' -v
       - run: python3 -m unittest discover -s sizing/scripts -p 'test_*.py' -v
       - run: python3 -m unittest discover -s triage/scripts -p 'test_*.py' -v

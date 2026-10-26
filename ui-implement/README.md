@@ -63,7 +63,7 @@ discovery and ambiguous requests.
   → designs implementation approach
   → defines component props and hook signatures (the contracts)
   → plans unit test strategy per component/hook
-  → plans integration/e2e test stubs (if e2e framework exists)
+  → plans integration/e2e test stubs (if framework exists and policy permits)
   → plans UI cross-cutting concerns (design system, i18n, a11y, permissions, states)
   → breaks work into ordered tasks
   → optionally includes Task 0 for test framework introduction
@@ -76,7 +76,7 @@ discovery and ambiguous requests.
 /code
   → creates feature branch
   → for each task: write unit tests → write code → review → commit
-  → after all tasks: write integration/e2e test stubs (if planned)
+  → after all tasks: write integration/e2e test stubs (if planned and policy permits)
   → updates 02-plan.md with task completion status
   → writes 03-test-report.md, 04-impl-report.md
 
@@ -136,6 +136,12 @@ Integration and e2e test stubs are written **after** all implementation tasks co
 - Stubs follow the project's existing e2e patterns (if any)
 - They provide scaffolding (describe blocks, pending tests) — not full implementations
 - Full e2e test suites are the responsibility of `[QE]` stories
+- **Policy-gated:** `/ingest` discovers explicit test coverage policies from
+  `AGENTS.md`, `CLAUDE.md`, and referenced testing guidance. When a project
+  prohibits new coverage for a specific framework, no stubs are planned or
+  generated for that framework. Restrictions are per-framework — a Cypress
+  prohibition does not suppress Playwright stubs. Ambiguous or conflicting
+  guidance is surfaced for user clarification during `/revise`.
 
 ### Discovery-Based Everything
 
@@ -146,6 +152,7 @@ The workflow does not hardcode any tool assumptions. During `/ingest`, it discov
 - State management approach
 - Routing library
 - E2e framework (Cypress, Playwright, etc.)
+- E2e coverage policy — per-framework/path restrictions via `../_shared/recipes/e2e-coverage-policy.md`
 - Permission/RBAC patterns
 - Build, test, lint, and type-check commands
 
@@ -226,3 +233,50 @@ ui-implement/
 ```
 
 Then in your project, run the `ui-implement` workflow's `ingest` command for your Jira story (e.g., EDM-1234).
+
+## E2E Coverage Policy — Behavioral Scenarios
+
+The following matrix describes how E2E test stub planning and generation
+behaves under different project configurations. These are instruction-level
+contracts — the workflow instructions specify this behavior; actual execution
+depends on the LLM following the instructions at runtime.
+
+All five phases invoke `../_shared/recipes/e2e-coverage-policy.md` unconditionally before policy decisions:
+- **Ingest**: discovers frameworks, invokes recipe, merges returned evidence into context draft; persists in Step 8/8a
+- **Plan**: invokes recipe, merges into `01-context.md`, applies effective restrictions to stub strategy per artifact path
+- **Revise**: invokes recipe, merges into `01-context.md`; handles user clarification for readable ambiguity; persists Resolution
+- **Code**: invokes recipe, merges into `01-context.md`; recomputes from current sources before writing stubs
+- **Validate**: invokes recipe, merges into `01-context.md`; enforces diff checks within applicable scope
+
+| Scenario | Ingest | Plan | Code (Step 4) | Validate |
+|----------|--------|------|---------------------|----------|
+| No E2E framework discovered | Policy section omitted | "No stubs — no e2e framework" | Step skipped entirely | No stub gap flagged |
+| Framework present, no restriction (`none`) | Records `none` per framework | Plans stubs normally | Writes stubs normally | Reports stubs per plan |
+| Framework present, `prohibited` | Records `prohibited` with source | No stubs planned for that framework | Skips stubs for that framework | Verifies diff has no new prohibited coverage; reports "respected" |
+| Framework A prohibited, Framework B unrestricted (e.g. Cypress banned, Playwright none) | A=`prohibited`, B=`none` | Plans stubs for B only; A-specific ban does not apply to B | Writes stubs for B only; skips A | Verifies A clean; reports B per plan |
+| Playwright-only project, no policy found | Records `none` for Playwright | Plans stubs normally | Writes stubs normally | Reports per plan |
+| `ambiguous` restriction (scoped) | Records `ambiguous` with both sources per scope | No stubs in ambiguous paths; other paths for same framework eligible if own policy permits | Skips stubs in ambiguous scope only | Reports "ambiguous" per affected scope; recommends `/revise` |
+| Same framework: pathA `ambiguous`, pathB `none` | Both entries recorded | Skips stubs for pathA; plans stubs for pathB normally | Writes stubs for pathB only | Reports ambiguous for A, stubs per plan for B |
+| `/revise` resolves readable ambiguous → `prohibited` | — | Updated in next revision | Honors resolved restriction | Verifies prohibition respected |
+| `/revise` resolves readable ambiguous → `none` | — | Plans stubs in next revision | Writes stubs normally | Reports stubs per plan |
+| Older `01-context.md` without policy section | — | Re-reads current sources; performs full discovery | Re-reads current sources; backfills result | Re-reads current sources before assuming default |
+| `AGENTS.md` adds new policy after initial ingest | — | Re-read finds new policy; applies it | Re-read finds new policy; applies it | Re-read finds new policy; applies it |
+| Existing `none` entry becomes `prohibited` after `AGENTS.md` changes | — | Re-read detects changed source; updates entry to `prohibited`; suppresses stubs | Re-read detects changed source; updates entry; skips stubs | Re-read detects changed source; verifies no new prohibited coverage |
+| Cached validation profile reused across stories | Policy discovery runs unconditionally even on cache hit | Same freshness re-read as new ingest | Same freshness re-read | Same freshness re-read |
+| Known/referenced source missing or unreadable (`unresolved`) | Records `unresolved` with file path and error for affected framework/scope only | Does not plan stubs or coverage for that framework/scope; others unaffected | Does not write stubs or coverage for that framework/scope | Verifies no new coverage/stubs in affected scope; reports "unresolved"; recommends `/revise` |
+| Previously recorded source now missing | Records `unresolved` — does not silently become `none` | Does not plan stubs; reports unresolved source | Does not write stubs | Reports "unresolved — previously recorded source missing" |
+| Optional `AGENTS.md`/`CLAUDE.md` never present, never recorded | Records `none` — never-present optional file is complete discovery, not unresolved | Plans stubs normally (no restriction found) | Writes stubs normally | No policy violation; reports per plan |
+| `/revise` resolves readable ambiguous to permitted (scope-limited) | — | — | — | — |
+| ↳ Full-scope clarification, source unchanged | — | Restriction=`none` for that entry; honors Resolution | Writes stubs normally | Reports stubs per plan |
+| ↳ Partial-scope clarification (e.g. only `cypress/smoke/`) | — | `none` only in clarified sub-scope; unclarified remainder stays `ambiguous` | Writes stubs only in clarified sub-scope | Reports per-scope: clarified scope per plan, remainder ambiguous |
+| ↳ Partial permission + independent broad ban still applies | — | Broad prohibition overrides narrow permission per Step 4 | Does not write stubs despite partial permission | Reports prohibition respected |
+| ↳ Source content changed since resolution | — | Invalidates Resolution; re-reads source; re-evaluates restriction | Re-reads; applies new restriction | Re-reads; validates against new restriction |
+| `/revise` Resolution provenance | — | Source retains repo file/section; Resolution stores decision + excerpt identity + "user decision during /revise" | Traces both Source and Resolution | Traces both; detects content changes via recorded excerpt |
+| `unresolved` cannot be user-resolved to `none` | — | `unresolved` stays until source recovered and readable | Stubs deferred; prior Resolution is audit only, not permission | Verifies no new coverage/stubs; reports "unresolved" |
+| Previously permitted resolution → source becomes unreadable | — | Resolution suspended; restriction reverts to `unresolved`; no stubs | No new stubs or coverage in affected scope | Reports "unresolved"; prior permission not effective |
+| Source recovered after `unresolved` | — | Fresh read; if guidance unchanged, prior Resolution reused; if changed, invalidated | Honors reused or re-evaluated restriction | Validates against effective restriction |
+| `unresolved` prevents coverage AND stubs | — | No new coverage or stubs for affected framework/scope | No new specs, cases, coverage, or stubs | Verifies diff has no new specs/cases/coverage/stubs in affected scope; existing tests preserved |
+| Separate broad prohibition still applies across paths | — | Even if one path's ambiguity is resolved, a separate applicable prohibition still blocks | Honors effective policy after considering all applicable entries; a broad prohibition is not bypassed by a narrower resolution | Validates against all applicable entries |
+| Restriction scoped to specific path (e.g. `cypress/`) | Records scope per entry | Applies restriction only within scoped path; plans stubs outside scope normally | Writes stubs only outside scoped path | Verifies no new coverage within scoped path; allows stubs outside |
+| Broad prohibition + narrow `none`: generation recomputes | — | — | Recomputes from current sources; inferred narrow `none` does not bypass broader explicit prohibition; writes stubs only where effective restriction is `none` | Validates against freshly computed effective policy |
+| Prohibited scope: validation checks only within scope | — | — | — | Checks new specs/cases/coverage/stubs within prohibited path scope only; stubs outside the scope evaluated by their own effective policy |

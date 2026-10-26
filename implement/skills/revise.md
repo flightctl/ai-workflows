@@ -12,7 +12,10 @@ implementation plan while maintaining internal consistency.
 
 Read the user's feedback, apply changes to the plan, and ensure the plan
 remains coherent after edits. This phase is repeatable — the user may request
-multiple rounds of revision. This phase only modifies the plan, not code.
+multiple rounds of revision. By default this phase modifies the plan only, not
+source code. The one exception is reconciling already-written source changes to
+an approved scope decision (see Scope decisions below): the user must explicitly
+approve any concrete source cleanup before it is applied.
 
 ## Critical Rules
 
@@ -22,6 +25,7 @@ multiple rounds of revision. This phase only modifies the plan, not code.
 - **Preserve traceability.** Every task must still trace to an acceptance criterion after revision.
 - **Show your changes.** After revising, summarize what changed so the user can verify.
 - **No scope reduction.** Do not silently simplify, even when revising.
+- **Source reconciliation requires explicit approval.** When a scope decision requires reconciling already-written source changes (revert declined scope, set aside extracted work), explain the concrete changes to the user and obtain explicit approval before modifying source files. Do not discard unrelated or user-owned work. If safe isolation is unclear, keep the `## Pending Scope Decision` section and stop for clarification rather than claiming the plan is ready.
 
 ## Process
 
@@ -43,6 +47,46 @@ The user's feedback may target:
 - Task reordering ("Move the API types task before the test task")
 - Task splitting ("Task 3 is too large, split it")
 - Task combining ("Tasks 2 and 3 can be a single commit")
+
+**Scope decisions (from `/code`, `/respond`, or `/validate` pause):**
+The `## Pending Scope Decision` section of `02-plan.md` records the
+unresolved decision (`/code`, `/respond`, and `/validate` create it;
+`/revise` is the only phase that resolves or clears the recorded
+decision or dependency marker). After applying the user's decision:
+- **Approving scope expansion** — update the Scope Baseline, add or
+  modify tasks. If already-written source changes need reconciliation
+  (retain aligned work, revert or set aside declined scope), explain
+  the concrete cleanup to the user and apply only after explicit
+  approval. Remove the `## Pending Scope Decision` section only after
+  approved reconciliation is complete (or the user confirms no cleanup
+  is needed).
+- **Extracting a prerequisite** — remove the expanded work from this
+  plan, adjust remaining tasks. **Do not remove the `## Pending Scope
+  Decision` section.** Instead, update it to record the extraction
+  decision and the prerequisite identifier (story key or branch). The
+  section acts as a durable dependency marker: entry guards in `/code`,
+  `/validate`, `/respond`, and `/publish` observe it and block until
+  the prerequisite has merged. If already-written source changes
+  (committed or uncommitted) need cleanup to isolate the extracted
+  work, explain the changes and obtain explicit user approval before
+  modifying source. The section remains until BOTH: (a) any required
+  source cleanup is approved and complete (or verified unnecessary),
+  and (b) the user confirms the prerequisite has merged. A subsequent
+  `/revise` removes the section only when both conditions hold.
+- **Declining expansion** — document the rationale. If already-written
+  declined-scope source changes exist (committed or uncommitted),
+  explain what will be reverted or set aside and obtain explicit user
+  approval before modifying source; preserve in-scope and unrelated
+  edits. Declining expansion alone does not authorize discarding
+  edits — the user must approve the concrete cleanup. If the user
+  withholds cleanup approval, retain the `## Pending Scope Decision`
+  section and stop; entry guards in `/code`, `/validate`, `/respond`,
+  and `/publish` continue to block until the decision is fully
+  resolved. If no declined-scope changes exist, confirm that
+  explicitly. Remove the `## Pending Scope Decision` section only
+  after approved cleanup is complete (or the user confirms no cleanup
+  is needed after reviewing the current state), subject to all normal
+  phase entry and validation requirements before resuming.
 
 **Test strategy changes:**
 - Additional test coverage ("Add tests for the concurrent update edge case")
@@ -88,6 +132,8 @@ After applying changes, verify:
 - Do interface definitions match what the tasks describe?
 - Are commit messages still properly formatted?
 - If a Test Plan Coverage section exists: do the TC ID → Task mappings still reflect the current task breakdown? If tasks were added, removed, split, or combined, update the Covered by Task column accordingly.
+- If a Scope Baseline section exists: do the Intended Feature Changes, Known Supporting Refactoring (including Prerequisite Rationale), Affected Interfaces and Components, and Expected Delivery Boundaries still reflect the current plan? If scope was expanded or narrowed, update the baseline to match.
+- `## Pending Scope Decision` lifecycle: on approve-expansion or decline, remove it only after any required source cleanup is approved and complete (or verified unnecessary). On extract-prerequisite, update it to record the extraction decision and keep it as a dependency marker until both required cleanup is done and the prerequisite has merged with user confirmation.
 
 ### Step 5: Update Artifact
 
@@ -116,12 +162,15 @@ Summarize what changed:
 ## Output
 
 - `.artifacts/implement/{issue-key}/02-plan.md` (updated)
+- Source files (only when reconciling already-written changes to a
+  user-approved scope decision; not for new feature implementation)
 
 ## When This Phase Is Done
 
 Report your results:
 - What was changed and why
 - Any consistency updates made as a side effect
+- Whether source reconciliation was needed and completed (or confirmed unnecessary)
 - Assessment of plan readiness for `/code`
 
 Then return to the invoking workflow router for completion guidance.

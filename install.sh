@@ -454,7 +454,106 @@ install_gemini() {
   done
 }
 
+validate_codex_phase_names() {
+  local package package_dir cmd_file phase name existing
+  for package in "${PACKAGES[@]}"; do
+    package_dir="$(resolve_package_dir "$package")"
+    for cmd_file in "${package_dir}"/commands/*.md; do
+      [[ -f "$cmd_file" ]] || continue
+      phase="$(basename "$cmd_file" .md)"
+      name="${package}-${phase}"
+      for existing in "${ALL_PACKAGES[@]}"; do
+        if [[ "$name" == "$existing" ]]; then
+          echo "Error: Codex phase skill '$name' conflicts with a package name" >&2
+          return 1
+        fi
+      done
+      if [[ ! "$name" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ || ${#name} -gt 64 ]]; then
+        echo "Error: invalid Codex phase skill name '$name'" >&2
+        return 1
+      fi
+    done
+  done
+}
+
+prune_codex_phase_skills() {
+  local skills_dir="$1" package="$2" package_dir="$3"
+  local target phase
+  for target in "${skills_dir}/${package}"-*; do
+    [[ -d "$target" && ! -L "$target" ]] || continue
+    [[ -f "$target/.ai-workflows-phase" && ! -L "$target/.ai-workflows-phase" ]] || continue
+    [[ "$(cat "$target/.ai-workflows-phase")" == "$package" ]] || continue
+    if [[ -L "$target/SKILL.md" ||
+          ( -e "$target/workflow" && ! -L "$target/workflow" ) ]]; then
+      continue
+    fi
+    phase="${target##*/}"
+    phase="${phase#"${package}-"}"
+    [[ -f "${package_dir}/commands/${phase}.md" ]] && continue
+    rm -f "$target/SKILL.md" "$target/.ai-workflows-phase"
+    if [[ -L "$target/workflow" ]]; then
+      rm -f "$target/workflow"
+    fi
+    rmdir "$target" 2>/dev/null || true
+    echo "  Removed stale generated phase skill $target"
+  done
+}
+
+# Adapt existing commands rather than exposing phase implementations directly.
+# Each wrapper keeps command routing, project overrides, and argument handling.
+generate_codex_phase_skills() {
+  local skills_dir="$1"
+  local package package_dir cmd_file phase name target description
+  for package in "${PACKAGES[@]}"; do
+    package_dir="$(resolve_package_dir "$package")"
+    prune_codex_phase_skills "$skills_dir" "$package" "$package_dir"
+    for cmd_file in "${package_dir}"/commands/*.md; do
+      [[ -f "$cmd_file" ]] || continue
+      phase="$(basename "$cmd_file" .md)"
+      name="${package}-${phase}"
+      target="${skills_dir}/${name}"
+      # Only refresh directories owned by this adapter. Never follow a symlink
+      # here: writing through it could overwrite a canonical or user skill.
+      if [[ -e "$target" || -L "$target" ]]; then
+        if [[ -L "$target" || ! -f "$target/.ai-workflows-phase" ]] ||
+           [[ "$(cat "$target/.ai-workflows-phase")" != "$package" ]]; then
+          echo "  Warning: $target is not a generated phase skill; skipping" >&2
+          continue
+        fi
+        if [[ -L "$target/SKILL.md" || -L "$target/.ai-workflows-phase" ||
+              ( -e "$target/workflow" && ! -L "$target/workflow" ) ]]; then
+          echo "  Warning: $target contains conflicting files; skipping" >&2
+          continue
+        fi
+      fi
+      description="$(awk '/^---/{n++; next} n==1 && /^description:/{sub(/^description:[[:space:]]*"?/, ""); sub(/"[[:space:]]*$/, ""); print; exit}' "$cmd_file")"
+      [[ -n "$description" ]] || description="Run the ${phase} command of the ${package} workflow."
+      description="${description//\\/\\\\}"
+      description="${description//\"/\\\"}"
+      mkdir -p "$target"
+      printf '%s\n' "$package" > "$target/.ai-workflows-phase"
+      ln -sfn "$package_dir" "$target/workflow"
+      cat > "$target/SKILL.md" <<SKILL_EOF
+---
+name: ${name}
+description: "${description}"
+---
+
+Invoke the **${phase}** command of the **${package}** workflow.
+
+Read [the existing command](workflow/commands/${phase}.md) and follow it.
+Resolve its relative references from its own directory, not this adapter.
+Pass the user's context and arguments unchanged; use them wherever the command
+references \$ARGUMENTS. Preserve its routing, override resolution, approval
+requirements, and completion behavior.
+SKILL_EOF
+      echo "  Generated ${target}/SKILL.md  ($SCOPE)"
+    done
+  done
+}
+
 install_codex() {
+  validate_codex_phase_names
   if [[ "$SCOPE" == "project" ]]; then
     SKILLS_DIR="${PROJECT_ROOT}/.agents/skills"
   else
@@ -470,6 +569,7 @@ install_codex() {
     ln -sfn "$package_dir" "${SKILLS_DIR}/${package}"
     echo "  Linked ${SKILLS_DIR}/${package} -> ${package_dir}  ($SCOPE)"
   done
+  generate_codex_phase_skills "$SKILLS_DIR"
 }
 
 # Offer a daily systemd --user notifier (Linux desktop). Default: no.

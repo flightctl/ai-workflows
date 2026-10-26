@@ -22,6 +22,14 @@ meaning and actions, and prioritized recommendations.
 `.artifacts/triage/{PROJECT}/issues.json` must exist. If it does not, stop and
 ask the user to run `/scan` first. `resolved.json` is optional.
 
+**Source repository checkout (required).** `/analyze` must run from inside
+the target project's Git work tree. AUTO_FIX decisions depend on source
+context — searching code, tests, and build files to judge whether a fix is
+bounded and testable. Running without the checkout silently degrades every
+decision to BACKLOG or NEEDS_INFO, so the preparation script fails fast when
+no source tree is detected. If the user is not in a checkout, stop and ask
+them to clone/open the target repository and re-run `/analyze` from its root.
+
 ## Process
 
 ### 1. Prepare compact input
@@ -36,14 +44,27 @@ PROJECT_ROOT="$PWD"
   python3 triage/scripts/prepare_analysis.py \
     --issues "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/issues.json" \
     --resolved "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/resolved.json" \
+    --source-root "$PROJECT_ROOT" \
     --output "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/analysis-input.json"
 )
 ```
 
 If `resolved.json` is absent, omit `--resolved`; the script uses an empty
-resolved set. Read only `analysis-input.json` for AI analysis. It contains
+resolved set. The script verifies `$PROJECT_ROOT` is a real Git work tree
+(`git rev-parse --is-inside-work-tree`) and exits non-zero when it is not;
+report that error verbatim and stop — do not retry analysis from a different
+directory. Read only `analysis-input.json` for issue data. It contains
 compact issue text, deterministic signatures and age/activity signals, stale
 `CLOSE` candidates, and at most three bounded match candidates per issue.
+
+**Source inspection is required for AUTO_FIX.** Before assigning
+`AUTO_FIX` to any issue, inspect the source repository for the affected
+files, related tests, and build configuration. Confirm the fix is bounded
+and testable with concrete evidence from the checkout (file paths, existing
+test coverage, or a clear reproduction path in code). If source inspection
+cannot confirm that a fix is bounded and testable, use `BACKLOG`,
+`NEEDS_INFO`, or `FIX_NOW` instead — never assign `AUTO_FIX` from issue
+text alone.
 
 If preparation exits non-zero, stop and report stderr. Do not read or reuse an
 existing `analysis-input.json`. If `sourceCount` is zero, write

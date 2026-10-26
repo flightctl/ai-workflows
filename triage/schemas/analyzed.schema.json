@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/ai-workflows/main/triage/schemas/analyzed.schema.json",
+  "title": "Triage analyzed.json renderer contract",
+  "description": "The subset of analyzed.json that triage/scripts/render_report.py enforces at runtime. Fields emitted by finalize_analysis.py but not validated by the renderer (project, analyzedAt, totalCount, summary) are intentionally omitted so this schema and validate_analyzed() accept and reject exactly the same documents. Keep this file and the runtime validator in sync.",
+  "type": "object",
+  "required": ["issues", "clusters", "keyRecommendations"],
+  "properties": {
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "summary", "recommendation", "reason", "confidence"],
+        "properties": {
+          "key": {"type": "string", "minLength": 1, "pattern": "[^\\t\\n\\v\\f\\r\\x1c-\\x1f\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]"},
+          "summary": {"type": "string"},
+          "recommendation": {
+            "enum": ["CLOSE", "FIX_NOW", "AUTO_FIX", "BACKLOG", "NEEDS_INFO", "DUPLICATE", "ESCALATE", "WONT_FIX"]
+          },
+          "components": {
+            "type": ["array", "null"],
+            "items": {"type": "string"}
+          },
+          "reason": {"type": "string", "minLength": 1, "pattern": "[^\\t\\n\\v\\f\\r\\x1c-\\x1f\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]"},
+          "confidence": {"enum": ["High", "Medium", "Low"]}
+        }
+      }
+    },
+    "clusters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "theme", "issues", "suggestedLinkType", "nextSteps"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1, "pattern": "[^\\t\\n\\v\\f\\r\\x1c-\\x1f\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]"},
+          "theme": {"type": "string", "minLength": 1, "pattern": "[^\\t\\n\\v\\f\\r\\x1c-\\x1f\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]"},
+          "issues": {
+            "type": "array",
+            "minItems": 2,
+            "items": {"type": "string", "minLength": 1, "pattern": "[^\\t\\n\\v\\f\\r\\x1c-\\x1f\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]"}
+          },
+          "suggestedLinkType": {
+            "enum": ["relates to", "is caused by", "is duplicated by", "blocks"]
+          },
+          "nextSteps": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 4,
+            "items": {"type": "string", "minLength": 1, "pattern": "[^\\t\\n\\v\\f\\r\\x1c-\\x1f\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]"}
+          }
+        }
+      }
+    },
+    "keyRecommendations": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {"type": "string", "minLength": 1, "pattern": "[^\\t\\n\\v\\f\\r\\x1c-\\x1f\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]"}
+    }
+  }
+}

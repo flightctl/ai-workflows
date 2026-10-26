@@ -93,6 +93,7 @@ _shared/
     fetch-issue.py                # Deterministic Jira issue fetching (get, search)
   recipes/
     capture-provenance-event.md   # Append session-local provenance on doc-mutating phases
+    e2e-coverage-policy.md        # E2E test coverage policy discovery and resolution (used by ui-implement)
     phase-override-resolution.md  # Project-level phase override lookup and activation
     record-manual-edit.md         # Tier 3 manual-edit attribution (wraps capture recipe)
     render-provenance-footer.md   # Render durable footer into docs-repo markdown before commit
@@ -246,6 +247,7 @@ ai-workflows/
 │   │   └── fetch-issue.py    # Deterministic Jira issue fetching (get, search)
 │   └── recipes/
 │       ├── capture-provenance-event.md
+│       ├── e2e-coverage-policy.md   # E2E test coverage policy discovery/resolution
 │       ├── phase-override-resolution.md  # Project-level phase override lookup
 │       ├── record-manual-edit.md
 │       ├── render-provenance-footer.md

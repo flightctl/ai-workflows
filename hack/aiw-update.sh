@@ -2,21 +2,32 @@
 # Pull latest ai-workflows and refresh installs if command wrappers changed.
 #
 # Usage:
-#   aiw-update                  # ff-only pull origin/main (must be on main)
+#   aiw-update                  # ff-only pull AI_WORKFLOWS_REMOTE_REF (default origin/main)
 #   aiw-update --checkout-main  # checkout main first, then pull
 #   aiw-update --reinstall      # always re-run install.sh for detected targets
-#   aiw-update --project PATH   # also reinstall Cursor skills for PATH (repeatable)
-#   aiw-update --target NAME    # force install target(s): cursor|claude|gemini|all
+#   aiw-update --project PATH   # also reinstall detected project skills for PATH (repeatable)
+#   aiw-update --target NAME    # force install target(s): cursor|claude|gemini|codex|all
 #                               # (repeatable; default: auto-detect from ~/.cursor etc.)
 
 set -euo pipefail
 
 INSTALL_DIR="${AI_WORKFLOWS_DIR:-${HOME}/.ai-workflows}"
+REMOTE_REF="${AI_WORKFLOWS_REMOTE_REF:-origin/main}"
 REPO_DIR="$(readlink -f "$INSTALL_DIR")"
 CHECKOUT_MAIN=false
 FORCE_REINSTALL=false
 PROJECTS=()
 FORCED_TARGETS=()
+
+validate_target() {
+  case "$1" in
+    cursor|claude|gemini|codex|all) ;;
+    *)
+      echo "Error: unknown --target '$1' (cursor|claude|gemini|codex|all)" >&2
+      exit 1
+      ;;
+  esac
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -32,9 +43,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --target)
       if [[ -z "${2:-}" || "${2:0:1}" == "-" ]]; then
-        echo "Error: --target requires cursor|claude|gemini|all" >&2
+        echo "Error: --target requires cursor|claude|gemini|codex|all" >&2
         exit 1
       fi
+      validate_target "$2"
       FORCED_TARGETS+=("$2")
       shift
       ;;
@@ -53,17 +65,7 @@ done
 detect_install_targets() {
   local targets=()
   if [[ ${#FORCED_TARGETS[@]} -gt 0 ]]; then
-    local t
-    for t in "${FORCED_TARGETS[@]}"; do
-      case "$t" in
-        cursor|claude|gemini|all) targets+=("$t") ;;
-        *)
-          echo "Error: unknown --target '$t' (cursor|claude|gemini|all)" >&2
-          exit 1
-          ;;
-      esac
-    done
-    printf '%s\n' "${targets[@]}"
+    printf '%s\n' "${FORCED_TARGETS[@]}"
     return
   fi
 
@@ -79,6 +81,39 @@ detect_install_targets() {
   if [[ -d "${HOME}/.gemini/skills" ]]; then
     targets+=(gemini)
   fi
+  if [[ -d "${HOME}/.agents/skills" ]]; then
+    targets+=(codex)
+  fi
+
+  if [[ ${#targets[@]} -eq 0 ]]; then
+    return 0
+  fi
+  printf '%s\n' "${targets[@]}"
+}
+
+detect_project_install_targets() {
+  local project_root="$1"
+  local targets=()
+
+  if [[ ${#FORCED_TARGETS[@]} -gt 0 ]]; then
+    printf '%s\n' "${FORCED_TARGETS[@]}"
+    return
+  fi
+
+  if [[ -d "${project_root}/.cursor/skills" ]] || [[ -d "${project_root}/.cursor/commands" ]]; then
+    targets+=(cursor)
+  fi
+  if [[ -f "${project_root}/.claude/CLAUDE.md" ]] && grep -qF '# ai-workflows' "${project_root}/.claude/CLAUDE.md" 2>/dev/null; then
+    targets+=(claude)
+  elif [[ -d "${project_root}/.claude/skills" ]]; then
+    targets+=(claude)
+  fi
+  if [[ -d "${project_root}/.gemini/skills" ]]; then
+    targets+=(gemini)
+  fi
+  if [[ -d "${project_root}/.agents/skills" ]]; then
+    targets+=(codex)
+  fi
 
   if [[ ${#targets[@]} -eq 0 ]]; then
     return 0
@@ -92,7 +127,7 @@ CURRENT_BRANCH="$(git branch --show-current 2>/dev/null || true)"
 if [[ "$CURRENT_BRANCH" != "main" ]] && ! $CHECKOUT_MAIN; then
   echo "ai-workflows: not on main (branch=${CURRENT_BRANCH:-detached})." >&2
   echo "  Use: aiw-update --checkout-main" >&2
-  echo "  Or rebase/merge origin/main into this branch, then retry." >&2
+  echo "  Or rebase/merge ${REMOTE_REF} into this branch, then retry." >&2
   exit 1
 fi
 
@@ -102,10 +137,18 @@ if $CHECKOUT_MAIN; then
   git checkout main
 fi
 
-git fetch origin main
-if ! git pull --ff-only origin main; then
-  echo "ai-workflows: fast-forward pull from origin/main failed." >&2
-  echo "  Resolve local commits on main, or: git reset --hard origin/main (destructive)." >&2
+FETCH_REMOTE="${REMOTE_REF%%/*}"
+FETCH_BRANCH="${REMOTE_REF#*/}"
+if [[ "$FETCH_REMOTE" == "$REMOTE_REF" ]]; then
+  FETCH_REMOTE="origin"
+  FETCH_BRANCH="$REMOTE_REF"
+fi
+MERGE_REF="refs/remotes/${FETCH_REMOTE}/${FETCH_BRANCH}"
+
+git fetch "$FETCH_REMOTE" "$FETCH_BRANCH"
+if ! git merge --ff-only "$MERGE_REF"; then
+  echo "ai-workflows: fast-forward pull from ${REMOTE_REF} failed." >&2
+  echo "  Resolve local commits on main, or: git reset --hard ${MERGE_REF} (destructive)." >&2
   exit 1
 fi
 
@@ -123,8 +166,8 @@ mapfile -t INSTALL_TARGETS < <(detect_install_targets)
 
 if $FORCE_REINSTALL || $CHANGED_COMMANDS; then
   if [[ ${#INSTALL_TARGETS[@]} -eq 0 ]]; then
-    echo "No Cursor/Claude/Gemini install detected; skipping user-level refresh."
-    echo "  Pass --target cursor|claude|gemini|all to force."
+    echo "No Cursor/Claude/Gemini/Codex install detected; skipping user-level refresh."
+    echo "  Pass --target cursor|claude|gemini|codex|all to force."
   else
     for tgt in "${INSTALL_TARGETS[@]}"; do
       echo "Refreshing user-level install (${tgt})..."
@@ -135,8 +178,16 @@ if $FORCE_REINSTALL || $CHANGED_COMMANDS; then
 
   for p in "${PROJECTS[@]}"; do
     if [[ -d "$p" ]]; then
-      echo "Reinstalling Cursor skills for $p"
-      "${REPO_DIR}/install.sh" cursor --project "$p" --no-update-timer
+      mapfile -t PROJECT_INSTALL_TARGETS < <(detect_project_install_targets "$p")
+      if [[ ${#PROJECT_INSTALL_TARGETS[@]} -eq 0 ]]; then
+        echo "No Cursor/Claude/Gemini/Codex project install detected for $p; skipping."
+        continue
+      fi
+
+      for tgt in "${PROJECT_INSTALL_TARGETS[@]}"; do
+        echo "Reinstalling ${tgt} skills for $p"
+        "${REPO_DIR}/install.sh" "$tgt" --project "$p" --no-update-timer
+      done
     else
       echo "Warning: project path not found, skipping: $p" >&2
     fi

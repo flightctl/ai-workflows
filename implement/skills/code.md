@@ -144,6 +144,10 @@ git log --oneline -5
 
 ### Step 3: Execute Tasks
 
+Before starting any task, check `02-plan.md` for a `## Pending Scope
+Decision` section or an unmerged prerequisite dependency blocking the
+current task. If found, stop and recommend `/revise`.
+
 For each task in the plan, follow this cycle. **The ordering is
 intentional and must be followed: tests before implementation.** Write
 the tests first, verify they fail for the right reason (the production
@@ -293,7 +297,26 @@ If the gate made code fixes, re-stage the affected files, then re-run
 the task-scoped tests (Step 3c) and fast quality checks (Step 3d) to
 verify the fixes. Only proceed to commit once checks pass. Note any
 dismissed findings in the implementation report (Discoveries section)
-so there is a paper trail.
+so there is a paper trail. If a self-review fix touches files or
+interfaces outside the baseline, run the scope baseline comparison
+below before applying the expanded fix.
+
+**Scope baseline comparison:**
+
+After the self-review gate passes, if `02-plan.md` has a Scope Baseline
+section, compare this task's actual changes against it. (Plans without
+a Scope Baseline skip this — deviation rules still apply.) Check
+whether changes cross the Expected Delivery Boundaries or touch
+interfaces outside the baseline. Classify unanticipated changes per
+`guidelines.md` (required prerequisite, correction, or unrelated
+preference). Small cohesive changes within boundaries proceed normally.
+
+If material drift is found, **record and pause**: append a `## Pending
+Scope Decision` section to `02-plan.md` with the delta, necessity, and
+options (keep/extract/defer). Do not commit, write reports, or read
+`completion.md`. The user routes to `/revise` for resolution (see
+`revise.md` for the canonical lifecycle: approve/decline clears the
+section; extraction retains it until the prerequisite merges).
 
 **Test plan reconciliation (if story-scoped testplan exists):**
 
@@ -457,6 +480,7 @@ During implementation, you may encounter unexpected situations:
 | Story guidance contradicts current codebase state | **Stop and ask the user** | Required |
 | Implementation is significantly simpler than planned | Note in report, continue | Auto |
 | Implementation is significantly more complex than planned | **Stop and ask the user** — the story may need re-scoping | Required |
+| Material scope expansion (baseline comparison) | **Record and pause** per Step 3f scope baseline comparison. Do not bypass via commit, validate, or publish. | Required |
 
 ### Step 6: Write Reports
 

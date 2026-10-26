@@ -264,14 +264,28 @@ Cursor scans both project-level (`.cursor/commands/`) and user-level (`~/.cursor
 
 ### Codex
 
-Invoke a package as a skill and pass the workflow phase as context:
+The installer exposes workflow commands as individual skills in the skill picker:
 
-- `$bugfix assess EDM-123`
-- `$design ingest PRD-123`
-- `$report-bug`
+- `$bugfix-assess EDM-123`
+- `$design-ingest PRD-123`
+- `$docs-writer-gather DOCS-123`
 
-Codex discovers user-level and repository-level skill symlinks automatically;
-see [Where Codex loads local skills](https://developers.openai.com/codex/skills#where-codex-loads-local-skills).
+Existing top-level entry points still work, including `$bugfix assess EDM-123`
+and `$report-bug`. These are flat skill names such as `$bugfix-assess`, rather
+than plugin-qualified names such as `$bugfix:assess`.
+
+Each generated `SKILL.md` has a unique workflow-and-command name and delegates
+to the existing command wrapper. Workflow instructions, dispatchers, project
+phase overrides, and commands for other tools stay in their existing locations.
+User installs use `~/.agents/skills/`; project installs use `.agents/skills/`.
+Re-run the installer to refresh adapters after updating. The uninstaller removes
+owned adapters for the selected packages and preserves unrelated user skills.
+
+Discovery and explicit skill loading are tested with Codex CLI 0.163.0 using its
+app server and a local response fixture; no model credentials are required.
+The tests verify both installation scopes and retain the top-level entry points.
+They do not evaluate a live model's execution of workflow phases. This smoke
+test does not cover the skill picker UI.
 
 ## Updating
 
@@ -281,9 +295,31 @@ cd ~/.ai-workflows && git pull
 aiw-update
 ```
 
+If your upstream remote is not named `origin` (for example `upstream`), set
+`AI_WORKFLOWS_REMOTE_REF` so `aiw-update` and the daily update check use the
+same ref:
+
+```bash
+export AI_WORKFLOWS_REMOTE_REF=upstream/main
+aiw-update
+```
+
+For the systemd timer, add a drop-in under
+`~/.config/systemd/user/ai-workflows-update-check.service.d/` with
+`Environment=AI_WORKFLOWS_REMOTE_REF=upstream/main`, then
+`systemctl --user daemon-reload`.
+
+`aiw-update` refreshes detected Cursor, Claude, Gemini, and Codex installs when
+package discovery or install behavior changes. To refresh a project-level
+install explicitly, run:
+
+```bash
+aiw-update --reinstall --project /path/to/repo
+```
+
 ### Optional: daily update notifier (Linux)
 
-On Linux desktops with systemd user sessions and `notify-send`, `install.sh` can prompt to enable a daily check. If `~/.ai-workflows` is behind `origin/main`, you get a desktop notification suggesting `aiw-update`.
+On Linux desktops with systemd user sessions and `notify-send`, `install.sh` can prompt to enable a daily check. If `~/.ai-workflows` is behind the configured upstream ref (default `origin/main`), you get a desktop notification suggesting `aiw-update`.
 
 ```bash
 ./install.sh cursor                  # prompts [y/N] when supported

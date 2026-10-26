@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Check whether the local ai-workflows clone is behind origin/main.
+# Check whether the local ai-workflows clone is behind the configured remote
 # If so, write a marker file and send a desktop notification (Fedora/Linux).
 #
 # Intended to run from a systemd --user timer. Safe to run repeatedly:
-# notifies at most once per new origin/main SHA.
+# notifies at most once per new SHA in the configured remote.
 
 set -euo pipefail
 
@@ -40,6 +40,7 @@ if [[ "$FETCH_REMOTE" == "$REMOTE_REF" ]]; then
   FETCH_REMOTE="origin"
   FETCH_BRANCH="$REMOTE_REF"
 fi
+MERGE_REF="refs/remotes/${FETCH_REMOTE}/${FETCH_BRANCH}"
 
 # Fetch quietly; network failures should not spam the user.
 if ! git fetch --quiet "$FETCH_REMOTE" "$FETCH_BRANCH" 2>/dev/null; then
@@ -47,13 +48,13 @@ if ! git fetch --quiet "$FETCH_REMOTE" "$FETCH_BRANCH" 2>/dev/null; then
   exit 0
 fi
 
-if ! git rev-parse --verify "$REMOTE_REF" >/dev/null 2>&1; then
-  echo "ai-workflows: missing ref $REMOTE_REF" >&2
+if ! git rev-parse --verify "$MERGE_REF" >/dev/null 2>&1; then
+  echo "ai-workflows: missing ref $MERGE_REF" >&2
   exit 0
 fi
 
-REMOTE_SHA="$(git rev-parse "$REMOTE_REF")"
-BEHIND="$(git rev-list --count "HEAD..${REMOTE_REF}" 2>/dev/null || echo 0)"
+REMOTE_SHA="$(git rev-parse "$MERGE_REF")"
+BEHIND="$(git rev-list --count "HEAD..${MERGE_REF}" 2>/dev/null || echo 0)"
 BRANCH="$(git branch --show-current 2>/dev/null || echo detached)"
 UPDATE_CMD="aiw-update"
 if [[ "$BRANCH" != "main" ]]; then
@@ -91,7 +92,7 @@ COMMIT_WORD="commits"
 [[ "$BEHIND" -eq 1 ]] && COMMIT_WORD="commit"
 
 TITLE="New update for ai-workflows"
-BODY="${BEHIND} new ${COMMIT_WORD} on main
+BODY="${BEHIND} new ${COMMIT_WORD} on ${REMOTE_REF}
 
 Update with:
   ${UPDATE_CMD}"

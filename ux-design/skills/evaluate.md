@@ -29,6 +29,14 @@ to review or revise it first. Every evaluation is tied to both the prototype
 iteration and discovery revision it assessed. A prior evaluation does not
 validate a later prototype or a prototype assessed against newer context.
 
+### Input Snapshot
+
+Before running any evaluation method, read `00-context.md` and record the
+current context revision, prototype iteration, and discovery revision as
+the assessment's **input snapshot**. These assessed values are persisted
+in the report header and all binding checks. Never backfill with a later
+value; if context changes during evaluation the assessment is stale.
+
 ## Process
 
 ### Step 1: Choose Evaluation Depth
@@ -133,8 +141,9 @@ under the consumer repository's Git root. Keep those files inside this
 workflow's private namespace by giving the evaluator a private Git root for
 each run:
 
-1. Create a unique run directory at
-   `.artifacts/ux-design/{issue-key}/04-eval-raw/prototype-evaluate/{run-id}/`.
+1. Generate a unique `{run-id}`. Apply § Run-ID and Path Safety
+   (steps 1–4) to validate, create, and post-check the run directory.
+   Store the validated value as `evaluation_run_id`.
 2. Initialize a local Git repository in that directory. This makes the
    evaluator's `.artifacts/` output paths resolve inside the UX Design
    workflow's private artifact directory.
@@ -221,9 +230,153 @@ This is the workflow's single review gate. The upstream heuristic evaluation
 runs with its review deferred; the prototype evaluator's scores and verdicts
 are evidence, not researcher-approved conclusions.
 
-Present all findings. The researcher confirms or dismisses each one, assigns
-severity, adds missing context, and chooses which issues to address or accept.
-Do not make these decisions for the researcher.
+#### Saving the Canonical Assessment
+
+Before presenting findings, durably write `04-evaluation.md` with
+`Researcher review: Pending` and `Authorized fixes: None`. Assign stable
+IDs (EVL-1, EVL-2, …) across all actionable findings from every method
+that ran — heuristic evaluation, design heuristics (issues, not scores
+alone), and Full acceptance-criteria/persona results (flagged verdicts).
+Back-reference each ID to its source evidence. Record the assessment's
+evaluation revision, the input-snapshot values captured in Prerequisites
+(prototype iteration, discovery revision, context revision), and Full
+evaluation run ID (or "N/A") in the header.
+Save the file, then present the same saved IDs.
+
+A new assessment (new evaluation run) archives the prior canonical
+`04-evaluation.md` per the existing history rules, increments the
+evaluation revision, and assigns its own IDs with default
+`Authorized fixes: None`. Do not rebind an old assessment to a new
+prototype iteration or discovery revision.
+
+Human annotations on the **same** assessment — selected fix authorization,
+per-finding severity endorsement, Disposition updates (`Confirmed`,
+`Dismissed`, `Deferred`), and overall report confirmation — update the
+saved report in place, preserving its evaluation revision, IDs, and
+underlying evidence references. Do not rerun the evaluation merely to
+record human decisions.
+
+#### Researcher Review
+
+Present the saved findings. The researcher confirms, dismisses, or defers
+each one, endorses severity per finding, and adds missing context. Do not
+make these decisions for the
+researcher. Do not infer severity from acceptance-criteria verdicts,
+persona scores, or fix requests. Report confirmation alone is not fix
+permission; fix authorization alone is not severity endorsement or report
+confirmation.
+
+Each saved finding carries two per-ID fields:
+
+- **Severity:** endorsed (researcher confirmed) or provisional (proposed,
+  not yet endorsed). Unknown severity is not zero.
+- **Disposition:** Pending (default for new findings before presentation),
+  Confirmed, Dismissed, or Deferred. The researcher sets each finding's
+  disposition during review; fix authorization does not change it.
+
+Display unendorsed severity as provisional. Severity counts in the
+Summary reflect only endorsed ratings; provisional findings show their
+count separately as unconfirmed.
+
+`Researcher review` tracks the overall report state:
+
+- **Pending** — some findings have Pending disposition or unendorsed
+  severity.
+- **Confirmed** — all finding dispositions are decided (Confirmed,
+  Dismissed, or Deferred — no Pending remains) and all severity ratings
+  are endorsed. This is a human decision, not an automatic promotion.
+
+Every non-Confirmed report displays readiness as "No — pending review"
+regardless of how many individual severities are endorsed.
+
+Obtain and persist the researcher's explicit overall confirmation before
+setting `Researcher review: Confirmed`. Do not derive it from fix
+authorization, severity endorsements, or finding dispositions alone.
+Without an explicit overall confirmation for this assessment, the report
+remains Pending — even when zero findings exist or all are dismissed.
+An existing confirmation remains valid for an unchanged assessment; a
+later fix authorization does not reset or require repeating it. Overall
+confirmation is not a prerequisite for accepting valid current fix
+authorization; the Pending-with-authorized-repairs route is unaffected.
+
+#### Remediation Authorization
+
+Before or after severity endorsement, the researcher may explicitly
+authorize fixing identified findings — either "fix all currently presented
+findings" or specific IDs (e.g., "fix EVL-1, EVL-3"). This authorization:
+
+- Applies ONLY to the finite set of saved IDs from the current assessment,
+  bound to this evaluation revision, prototype iteration, discovery
+  revision, and context revision. Expand "fix all" to actual current
+  IDs — not future, raw, or
+  unpresented findings.
+- Does NOT constitute report confirmation, severity endorsement, finding
+  disposition (confirmation/dismissal/deferral), or authority to fix
+  unselected items.
+- Requires clarification for ambiguous selection, consequential or
+  underspecified fixes, malformed or empty requests, stale reports, or
+  changed context. Fix authorization with zero findings is a no-op, not
+  an approval.
+
+When fix authorization is given, update only the `Authorized fixes` field
+in the saved report. Fix authorization on an already-Confirmed report
+updates `Authorized fixes` without resetting the Confirmed status — the
+endorsed severity and finding dispositions stand.
+
+After fix authorization, recommend `/prototype` to address the authorized
+findings. The revised prototype requires a new evaluation before handoff;
+the prior authorization does not carry forward to the new iteration.
+
+#### Run-ID and Path Safety for Full Evaluation Artifacts
+
+The evaluate producer (Step 4) applies this rule BEFORE creating the
+run directory. The prototype consumer first reads the canonical
+`04-evaluation.md` to obtain `Full evaluation run`; if the value is
+`N/A` no run-derived paths exist and this rule does not apply.
+Otherwise, apply this rule BEFORE reading, composing, or copying any
+run-derived path. Use the same validated `evaluation_run_id` in both
+producer and consumer.
+
+1. **Component validation.** Full-match the entire `{run-id}` against
+   `^[A-Za-z0-9][A-Za-z0-9._-]*$`. Reject empty, `.`, `..`, absolute
+   paths, or any value containing `/` or `\`.
+2. **Planned-path validation (pre-create).** Starting from the known
+   workflow-private namespace `.artifacts/ux-design/{issue-key}/`, walk
+   each ancestor toward `04-eval-raw/prototype-evaluate/{run-id}`.
+   For each existing component: `lstat` to confirm it is a non-symlink
+   directory (reject symlinks including broken ones, regular files, or
+   other non-directories). A non-existent component is a safe planned
+   path — not unsafe. If the resolved path of each existing ancestor
+   remains within the resolved private namespace, the planned path is
+   safe. A symlinked `04-eval-raw/` inside the namespace that resolves
+   outside it fails.
+3. **Creation (producer only).** After planned-path validation passes,
+   create missing base directories and the new run directory. Do not
+   overwrite an existing run directory.
+4. **Post-create validation.** Confirm the created run directory is a
+   non-symlink directory whose resolved parent is exactly the resolved
+   base. Confirm the resolved base is within the resolved private
+   namespace. Perform this check before `git init`, evaluator
+   invocation, or any artifact writes.
+5. **Input containment (producer read + consumer read/copy).** Each raw
+   input (`evaluation-report.csv`, `refinement-suggestions.json`) may
+   appear under the same-key path `{run-dir}/.artifacts/{ID}/eval/` or
+   the cross-key path `{run-dir}/.artifacts/eval/` (Step 4 §6 detects
+   and normalizes cross-key outputs when `{prototype-id}` ≠
+   `{story-key}`). Apply containment checks to each actual candidate
+   source path BEFORE opening, reading content, copying, or normalizing
+   — not only to the normalized destination after copy. Validate both
+   selected source paths before copying either file; if either source
+   is unsafe, stop before staging any input. Each candidate must resolve
+   within the resolved run directory; a symlinked input pointing to a
+   sibling run or outside the tree fails. These checks
+   assume non-adversarial artifact handling and do not claim protection
+   against intentional concurrent tampering.
+6. **Failure handling.** Unsafe path (symlink escape, non-directory,
+   containment failure) → stop and report; leave artifacts intact. Do
+   not fall back or mask the failure. A safe planned path where the run
+   or input file does not exist is a valid-missing condition (not unsafe)
+   and follows existing scoped-fallback rules.
 
 ## Output
 
@@ -233,7 +386,8 @@ Before replacing an existing `04-evaluation.md`, preserve it under
 `.artifacts/ux-design/{issue-key}/history/evaluation-r{N}.md`, where `{N}` is
 the prior evaluation revision, unless that exact report is already preserved
 in the current context-revision snapshot. Increment the evaluation revision
-for every new report. Keep each raw evaluator run in its unique `04-eval-raw/`
+for every new assessment; same-assessment annotations retain the existing
+revision per the rules above. Keep each raw evaluator run in its unique `04-eval-raw/`
 directory.
 
 Omit sections for methods that did not run. Use this structure:
@@ -245,23 +399,35 @@ Omit sections for methods that did not run. Use this structure:
 **Evaluation revision:** {revision number}
 **Prototype iteration:** {N}
 **Discovery revision:** {revision evaluated}
+**Context revision:** {from 00-context.md at assessment time}
 **Depth:** {Quick / Standard / Full}
 **Framework:** {heuristic framework}
 **Methods:** {methods run}
+**Full evaluation run:** {run-id from Step 4, or "N/A" if Full did not run}
+**Researcher review:** {Pending / Confirmed}
+**Authorized fixes:** {ID list, or "None"}
 
 ## Summary
 
 **Total issues:** {count}
-**Critical:** {count} | **Major:** {count} | **Minor:** {count} | **Cosmetic:** {count}
+**Endorsed severity:** Critical: {n} | Major: {n} | Minor: {n} | Cosmetic: {n}
+**Provisional (unconfirmed):** {count remaining}
+{All counts reflect per-finding endorsed vs provisional status. Unknown
+severity is not zero; unendorsed findings appear under Provisional.}
 
-## Heuristic Evaluation Findings
+## Findings
 
-{From Step 2. Group findings by researcher-confirmed severity. Include the
-heuristic, agreement, description, user impact, recommendation, and component.}
+{Unified register from Steps 2, 3, and 4. Each finding entry includes:
+ID (EVL-1, …), Severity (endorsed or provisional), Disposition (Pending
+before presentation; set by researcher to Confirmed/Dismissed/Deferred),
+source back-reference, heuristic or method, agreement, description,
+user impact, recommendation, and component.}
 
 ## Design Heuristics Scores
 
-{From Step 3; omit at Quick depth.}
+{From Step 3; omit at Quick depth. Actionable issues from design heuristics
+receive EVL-IDs in the Findings section above; this table holds the
+non-actionable numeric dimension scores.}
 
 | Dimension | Score | Notes |
 |-----------|-------|-------|
@@ -283,9 +449,9 @@ conducted; do not derive conformance claims from the heuristic evaluator.}
 
 ## Readiness Assessment
 
-**Ready for handoff:** {Yes / No — needs iteration}
+**Ready for handoff:** {Yes / No — needs iteration / No — pending review / No — repairs pending}
 **Confidence:** {HIGH / MEDIUM / LOW}
-**Rationale:** {why}
+**Rationale:** {why; pending review or outstanding authorized repairs cannot be ready}
 
 ## Iteration Recommendations
 
@@ -299,6 +465,15 @@ Present the evaluation and readiness assessment. Ask whether the researcher
 wants to iterate or move to handoff. Wait for the answer, then re-read
 `controller.md` for next-step guidance.
 
-After the researcher confirms the report, update `00-context.md` with the
-evaluated prototype iteration and discovery revision. Only an evaluation whose
-revision matches the current enriched discovery can satisfy `/handoff`.
+Update `00-context.md` only after the researcher confirms the final report
+(`Researcher review: Confirmed`, `Authorized fixes: None`) AND the
+assessment's input-snapshot bindings (prototype iteration, discovery
+revision, context revision) match the current active values. Record the
+evaluation in the `Active evaluation` field with its assessed context
+revision; do not increment the context revision — `/ingest` controls
+source-input revisions. A Pending evaluation or one with outstanding
+authorized repairs does not qualify. A Confirmed evaluation whose
+bindings are stale requires a current evaluation, not retagging.
+Historical reports missing the review or context-revision fields require
+provable assessed-current context and matching explicit confirmation;
+otherwise require a current evaluation — do not assume latest or retag.

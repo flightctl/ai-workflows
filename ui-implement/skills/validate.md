@@ -150,6 +150,33 @@ Verify that the story's changes haven't broken existing functionality:
 1. Run the full unit test suite (not just affected packages)
 2. Run the full build (if applicable)
 3. Check for any test failures unrelated to the story
+4. **E2E coverage policy:** read and follow
+   `../../_shared/recipes/e2e-coverage-policy.md` with PRIOR_ENTRIES
+   from the E2E Coverage Policy section of `01-context.md` and
+   DISCOVERED_FRAMEWORKS from the E2E Framework section. Merge the
+   recipe's returned entries, effective restrictions, and diagnostics
+   (invalidations, source errors) into the E2E Coverage Policy section
+   of `01-context.md`, preserving other context sections. Record any
+   source errors or invalidated Resolutions in the validation report.
+
+   Then enforce policy per the effective restriction for each framework
+   and applicable path scope:
+
+   - `prohibited` (within a specific path scope): the absence of stubs
+     in that scope is expected. Verify the story's diff does not
+     contain new test specs, added test cases or coverage in existing
+     specs, or pending/skipped placeholder tests for that framework
+     within the prohibited path scope. Stubs outside the prohibited
+     scope are evaluated by their own effective policy.
+   - `ambiguous`: report truthfully for the affected paths; recommend
+     `/revise`. Other paths evaluated by their own effective policy.
+   - `unresolved`: same diff checks as `prohibited` within the
+     affected scope. Report "unresolved — policy source
+     missing/unreadable ({file})" and recommend recovering the source.
+   - `none`: stubs written per plan; no violation.
+
+   The existing e2e test suite must still pass for all frameworks —
+   the policy restricts new coverage, not existing validation.
 
 If regressions are found:
 - Diagnose whether the story's changes caused them
@@ -311,6 +338,7 @@ Write `.artifacts/ui-implement/{issue-key}/05-validation-report.md`:
 | i18n completeness | {pass/issues found} | {details} |
 | Accessibility | {pass/issues found} | {details} |
 | State completeness | {pass/issues found} | {details} |
+| E2E coverage policy | {per-framework: respected/violated/unresolved/N/A} | {prohibited: "No new {framework} coverage — diff verified clean (source: {file})" / ambiguous: "Unresolved — guidance unclear, recommend `/revise` (sources: {list})" / unresolved: "Unresolved — policy source unreadable ({file}), no new stubs written, recommend `/revise`" / none: "No restriction — stubs written per plan" / no framework: "N/A"} |
 
 ## Quality Review Findings
 
@@ -362,6 +390,7 @@ Summarize for the user:
 
 ## Output
 
+- `.artifacts/ui-implement/{issue-key}/01-context.md` (E2E Coverage Policy section refreshed)
 - `.artifacts/ui-implement/{issue-key}/05-validation-report.md`
 - Additional test files (if coverage gaps were found)
 - Fix commits (if issues were found and fixed)

@@ -280,16 +280,34 @@ rather than generic ones:
 Capture the design system name, the component set available, and any design
 tokens or patterns the project standardizes on.
 
-### Step 5: Run UXD Discovery
+### Step 5: Current State
+
+UXD Discovery does not explore the codebase; do this before invoking it. The
+current workspace may not be the frontend — check for UI framework deps,
+page/component dirs, or router config. In a monorepo, find the frontend
+subdir. If separate, record identity, ask for path.
+
+Record frontend identity, path/URL, root, and ref; obtain commit SHA
+(`git -C "{frontend-root}" rev-parse HEAD` for local; `git ls-remote` for
+selected ref — peel annotated tags via `^{}`, verify commit, or record
+unavailable; never substitute host repo HEAD). Explore affected pages,
+components, and flows relative to frontend root — record journey, references,
+evidence type, uncertainties.
+
+If an optional external operation fails (one sibling story inaccessible, one
+codebase file unreadable): note what failed, continue with available data, and
+never fabricate context to fill the gap. If a core operation fails (Feature or
+story identity unresolvable, supplied PRD unreadable, docs repo path invalid
+during enrichment): stop per the failure-handling rule above.
+
+### Step 6: Run UXD Discovery
 
 Invoke the `uxd-discovery` skill with the input source (the `[UX]` story key,
 Feature key, supplied PRD path, feature description, or problem statement)
-**plus the upstream context loaded above**. In an initial Feature-only ingest,
-use only the Feature content; in an initial PRD-only ingest, use only the PRD.
-Clearly label resulting assumptions and strategic decisions as exploratory.
-When enriching an existing context, use the newly loaded PRD, design document,
-story, and sibling context to update the prior framing rather than treating
-discovery as a fresh feature.
+**plus upstream context and Step 5 baseline**. In initial Feature-only, use
+the Feature as upstream requirements; in PRD-only, the PRD. Mark assumptions and strategic decisions exploratory. When enriching use
+loaded PRD, design document, story, sibling context, and Step 5 baseline to
+update prior framing rather than treating discovery as fresh.
 
 The skill handles:
 - Problem statement framing
@@ -300,20 +318,6 @@ The skill handles:
 
 Wait for the skill to complete and present its output. Confirm understanding
 with the researcher before proceeding.
-
-### Step 6: Current State (Codebase Exploration)
-
-The skill does not explore the codebase. Do this manually, focused on the
-affected UI area and the design system:
-- What pages or views exist today in this area?
-- What components (from the project's design system) are already used?
-- What user flows currently exist?
-
-If an optional external operation fails (one sibling story inaccessible, one
-codebase file unreadable): note what failed, continue with available data, and
-never fabricate context to fill the gap. If a core operation fails (Feature or
-story identity unresolvable, supplied PRD unreadable, docs repo path invalid
-during enrichment): stop per the failure-handling rule above.
 
 ### Step 7: Assemble the Discovery Artifact
 
@@ -394,8 +398,7 @@ or problem statement}
 - **PRD:** {resolved docs-repo path, or "Not found — <reason>"}
 - **Design document:** {resolved docs-repo path, or "Not found — <reason>"}
 - **Clarifications:** {resolved path, or "None published"}
-- **Traced requirements:** {FR-N / NFR-N IDs from the story's Design
-  Reference, or "None traced"}
+- **Traced requirements:** {FR-N / NFR-N IDs from Design Reference, or "None"}
 
 ## Problem Statement
 
@@ -411,19 +414,16 @@ or problem statement}
 
 ### Non-Functional Requirements
 
-{Accessibility targets, performance expectations, supported browsers/devices —
- preserve NFR-N IDs. These flow into the handoff's accessibility requirements
- and acceptance criteria. If the PRD specifies none, say so.}
+{Accessibility, performance, browser targets — preserve NFR-N IDs; these feed
+ handoff accessibility and acceptance criteria. Say so if none specified.}
 
 ## Technical Design Context
 
-{From the design document — this grounds the feasibility check in /handoff.
- If not found, state that and why; the context remains exploratory and the
- handoff gate stays closed.}
+{From design document. If absent, state why — context stays exploratory and
+ handoff gate closed.}
 
 - **Architecture:** {relevant components and how they interact}
-- **API shapes:** {endpoints/contracts the UI will consume, at the structural
-  level — do not invent fields}
+- **API shapes:** {endpoints/contracts the UI consumes — do not invent}
 - **Data models:** {existing structures the UI displays or manipulates}
 - **Cross-component interactions:** {how this piece connects to adjacent work}
 
@@ -449,8 +449,11 @@ or problem statement}
 
 ## Current State
 
-{What the product does today in this area. Include relevant file paths
- or component references from the codebase. Written in Step 6 above.}
+**Frontend repo:** {identity, path, ref, commit SHA, root — or "Not identified"}
+
+{Step 5: journey/evidence type, frontend-relative paths; Step 6:
+gap/intended change, departures/rationale, preserved behaviors. Missing: unavailable + why.
+Unexplored: "Frontend source not explored — {reason}."}
 
 ## Strategic Decisions
 

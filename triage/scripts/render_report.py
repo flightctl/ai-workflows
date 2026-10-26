@@ -13,12 +13,21 @@ Exit codes:
     0 — report rendered successfully
     1 — invalid or missing input (file not found, malformed JSON)
     2 — unreplaced placeholders remain in the output
+    3 — template or rendered output failed smoke validation
+
+The analyzed.json and ai-synthesis.json inputs are validated against the
+renderer contract documented in triage/schemas/ before any HTML is emitted.
+The template is checked for "[object Object]" literals, every required
+placeholder token, and required section containers before rendering, and the
+rendered HTML is re-checked for those containers after placeholder
+replacement.
 """
 
 from __future__ import annotations
 
 import argparse
 import html
+from html.parser import HTMLParser
 import json
 import re
 import sys
@@ -38,6 +47,41 @@ _JSON_PLACEHOLDERS = (
     "RELEASE_RISK_JSON",
 )
 ALL_PLACEHOLDERS = _STRING_PLACEHOLDERS + _URL_PLACEHOLDERS + _JSON_PLACEHOLDERS
+
+# Section container ids the template contract requires.  The report's
+# inline JavaScript populates these at runtime; a template that removes or
+# renames one of them silently hides a dashboard section.
+REQUIRED_SECTION_IDS = (
+    "statsContainer",
+    "execSummaryContainer",
+    "riskContainer",
+    "keyRecsContainer",
+    "priorityBreakdown",
+    "assigneeLoad",
+    "agingAnalysis",
+    "statusDistribution",
+    "clustersContainer",
+    "issuesTableBody",
+)
+
+ALLOWED_RECOMMENDATIONS = frozenset({
+    "CLOSE", "FIX_NOW", "AUTO_FIX", "BACKLOG", "NEEDS_INFO", "DUPLICATE",
+    "ESCALATE", "WONT_FIX",
+})
+
+# The exact whitespace set matched by Python's str.isspace(), shared with
+# the JSON Schema patterns.  ECMA-262's \s differs (it excludes
+# U+001C-U+001F and U+0085), so the class is explicit rather than \S.
+NON_WHITESPACE_PATTERN = (
+    r"[^\t\n\v\f\r\x1c-\x1f\u0020\u0085\u00a0\u1680"
+    r"\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]"
+)
+_NON_WHITESPACE_RE = re.compile(NON_WHITESPACE_PATTERN)
+
+
+def _has_non_whitespace(value: str) -> bool:
+    """Return True when value contains at least one non-whitespace char."""
+    return _NON_WHITESPACE_RE.search(value) is not None
 
 # Matches the exact placeholder tokens used in the template.  Must not
 # match JavaScript's {} empty-object literals or CSS var(...) values.
@@ -188,19 +232,209 @@ def build_replacements(
     }
 
 
+def validate_analyzed(analyzed: object) -> None:
+    """Validate the analyzed.json renderer contract before rendering.
+
+    This is the runtime enforcement point for the schema documented in
+    ``triage/schemas/analyzed.schema.json``.  It exists so that shape drift
+    between the analysis phase and the HTML template (for example,
+    ``keyRecommendations`` changing from strings to objects) fails loudly
+    instead of rendering ``[object Object]`` or hiding a section.
+    """
+    if not isinstance(analyzed, dict):
+        raise ValueError("analyzed.json must contain a JSON object")
+
+    issues = analyzed.get("issues")
+    if not isinstance(issues, list):
+        raise ValueError("analyzed.json must contain an issues array")
+    for index, issue in enumerate(issues):
+        label = f"issues[{index}]"
+        if not isinstance(issue, dict):
+            raise ValueError(f"{label} must be an object")
+        key = issue.get("key")
+        if not isinstance(key, str) or not _has_non_whitespace(key):
+            raise ValueError(f"{label}.key must be a non-empty string")
+        if not isinstance(issue.get("summary"), str):
+            raise ValueError(f"{label}.summary must be a string")
+        recommendation = issue.get("recommendation")
+        if (
+            not isinstance(recommendation, str)
+            or recommendation not in ALLOWED_RECOMMENDATIONS
+        ):
+            raise ValueError(
+                f"{label}.recommendation must be one of: "
+                f"{', '.join(sorted(ALLOWED_RECOMMENDATIONS))}"
+            )
+        reason = issue.get("reason")
+        if not isinstance(reason, str) or not _has_non_whitespace(reason):
+            raise ValueError(f"{label}.reason must be a non-empty string")
+        confidence = issue.get("confidence")
+        if not isinstance(confidence, str) or confidence not in {"High", "Medium", "Low"}:
+            raise ValueError(f"{label}.confidence must be High, Medium, or Low")
+        components = issue.get("components")
+        if components is not None and (
+            not isinstance(components, list)
+            or not all(isinstance(component, str) for component in components)
+        ):
+            raise ValueError(f"{label}.components must be an array of strings or null")
+
+    clusters = analyzed.get("clusters")
+    if not isinstance(clusters, list):
+        raise ValueError("analyzed.json must contain a clusters array")
+    for index, cluster in enumerate(clusters):
+        label = f"clusters[{index}]"
+        if not isinstance(cluster, dict):
+            raise ValueError(f"{label} must be an object")
+        if not isinstance(cluster.get("id"), str) or not _has_non_whitespace(cluster["id"]):
+            raise ValueError(f"{label}.id must be a non-empty string")
+        theme = cluster.get("theme")
+        if not isinstance(theme, str) or not _has_non_whitespace(theme):
+            raise ValueError(f"{label}.theme must be a non-empty string")
+        members = cluster.get("issues")
+        if (
+            not isinstance(members, list)
+            or len(members) < 2
+            or not all(
+                isinstance(member, str) and _has_non_whitespace(member)
+                for member in members
+            )
+        ):
+            raise ValueError(f"{label}.issues must be an array of at least two issue keys")
+        link_type = cluster.get("suggestedLinkType")
+        if (
+            not isinstance(link_type, str)
+            or link_type not in {"relates to", "is caused by", "is duplicated by", "blocks"}
+        ):
+            raise ValueError(f"{label}.suggestedLinkType is not a supported link type")
+        next_steps = cluster.get("nextSteps")
+        if (
+            not isinstance(next_steps, list)
+            or not 2 <= len(next_steps) <= 4
+            or not all(
+                isinstance(step, str) and _has_non_whitespace(step)
+                for step in next_steps
+            )
+        ):
+            raise ValueError(f"{label}.nextSteps must contain 2-4 non-empty strings")
+
+    key_recommendations = analyzed.get("keyRecommendations")
+    if (
+        not isinstance(key_recommendations, list)
+        or len(key_recommendations) > 10
+        or not all(
+            isinstance(item, str) and _has_non_whitespace(item)
+            for item in key_recommendations
+        )
+    ):
+        raise ValueError(
+            "keyRecommendations must be an array of at most 10 non-empty "
+            "strings (objects are not part of the renderer contract)"
+        )
+
+
+def validate_rendered_html(rendered: str) -> None:
+    """Smoke-check rendered HTML for silent template failures.
+
+    Catches a template that dropped a section container the dashboard
+    JavaScript expects to populate.  The check runs after placeholder
+    replacement but before the browser executes JavaScript, so it inspects
+    structure only — never embedded data text.
+    """
+    ids = _collect_html_ids(rendered)
+    missing_ids = [
+        section_id
+        for section_id in REQUIRED_SECTION_IDS
+        if section_id not in ids
+    ]
+    if missing_ids:
+        raise ValueError(
+            "rendered HTML is missing required section container(s): "
+            + ", ".join(missing_ids)
+        )
+
+
+def validate_template(template: str) -> None:
+    """Validate the template before any data is substituted into it.
+
+    The template is controlled code, so a literal ``[object Object]`` in it
+    is always a defect.  Scanning the template — not the rendered output —
+    avoids rejecting schema-valid issue text that legitimately contains
+    that string, while still catching hardcoded coercion artifacts in the
+    template markup or JavaScript.
+    """
+    if "[object Object]" in template:
+        raise ValueError(
+            'template contains "[object Object]" — fix the template before '
+            "rendering"
+        )
+    template_without_comments = re.sub(
+        r"<!--.*?-->",
+        "",
+        template,
+        flags=re.DOTALL,
+    )
+    missing_placeholders = [
+        name
+        for name in ALL_PLACEHOLDERS
+        if "{" + name + "}" not in template_without_comments
+    ]
+    if missing_placeholders:
+        raise ValueError(
+            "template is missing required placeholder(s): "
+            + ", ".join(missing_placeholders)
+        )
+    ids = _collect_html_ids(template)
+    missing_ids = [
+        section_id
+        for section_id in REQUIRED_SECTION_IDS
+        if section_id not in ids
+    ]
+    if missing_ids:
+        raise ValueError(
+            "template is missing required section container(s): "
+            + ", ".join(missing_ids)
+        )
+
+
+class _IdCollector(HTMLParser):
+    """Collect element ids from rendered HTML, ignoring script content."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.ids: set[str] = set()
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        for name, value in attrs:
+            if name == "id" and value:
+                self.ids.add(value)
+
+
+def _collect_html_ids(rendered: str) -> set[str]:
+    collector = _IdCollector()
+    collector.feed(rendered)
+    collector.close()
+    return collector.ids
+
+
 def validate_ai_synthesis(ai_input: object, issue_count: int) -> None:
     """Validate the semantic report-synthesis contract before rendering."""
     if not isinstance(ai_input, dict):
         raise ValueError("AI input must be an object")
     executive_summary = ai_input.get("executiveSummary")
     if not isinstance(executive_summary, list) or not all(
-        isinstance(item, str) and item.strip() for item in executive_summary
+        isinstance(item, str) and _has_non_whitespace(item)
+        for item in executive_summary
     ):
         raise ValueError("executiveSummary must be an array of non-empty strings")
     if issue_count and not 3 <= len(executive_summary) <= 5:
         raise ValueError("non-empty reports require 3-5 executiveSummary bullets")
 
-    release_risk = ai_input.get("releaseRisk")
+    if "releaseRisk" not in ai_input:
+        raise ValueError(
+            "releaseRisk is required (use null for reports with fewer than "
+            "five issues)"
+        )
+    release_risk = ai_input["releaseRisk"]
     if issue_count < 5 and release_risk is not None:
         raise ValueError("releaseRisk must be null for reports with fewer than five issues")
     if issue_count >= 5 and release_risk is None:
@@ -209,16 +443,20 @@ def validate_ai_synthesis(ai_input: object, issue_count: int) -> None:
         return
     if not isinstance(release_risk, dict):
         raise ValueError("releaseRisk must be an object or null")
-    if release_risk.get("riskLevel") not in {"High", "Medium", "Low"}:
+    risk_level = release_risk.get("riskLevel")
+    if not isinstance(risk_level, str) or risk_level not in {"High", "Medium", "Low"}:
         raise ValueError("releaseRisk.riskLevel must be High, Medium, or Low")
-    if not isinstance(release_risk.get("summary"), str) or not release_risk["summary"].strip():
+    if (
+        not isinstance(release_risk.get("summary"), str)
+        or not _has_non_whitespace(release_risk["summary"])
+    ):
         raise ValueError("releaseRisk.summary must be a non-empty string")
     factors = release_risk.get("factors")
     if not isinstance(factors, list) or not all(isinstance(item, dict) for item in factors):
         raise ValueError("releaseRisk.factors must be an array of objects")
     for factor in factors:
         if not all(
-            isinstance(factor.get(name), str) and factor[name].strip()
+            isinstance(factor.get(name), str) and _has_non_whitespace(factor[name])
             for name in ("signal", "severity", "detail")
         ):
             raise ValueError("releaseRisk factors require signal, severity, and detail strings")
@@ -226,7 +464,7 @@ def validate_ai_synthesis(ai_input: object, issue_count: int) -> None:
             raise ValueError("releaseRisk factor severity must be High, Medium, or Low")
     mitigations = release_risk.get("mitigations")
     if not isinstance(mitigations, list) or not all(
-        isinstance(item, str) and item.strip() for item in mitigations
+        isinstance(item, str) and _has_non_whitespace(item) for item in mitigations
     ):
         raise ValueError("releaseRisk.mitigations must be an array of non-empty strings")
 
@@ -334,10 +572,17 @@ def main(argv: list[str] | None = None) -> int:
     analyzed_issues = analyzed.get("issues", []) if isinstance(analyzed, dict) else []
     issue_count = len(analyzed_issues) if isinstance(analyzed_issues, list) else 0
     try:
+        validate_analyzed(analyzed)
         validate_ai_synthesis(ai_input, issue_count)
     except ValueError as exc:
-        print(f"Error: invalid AI synthesis schema: {exc}", file=sys.stderr)
+        print(f"Error: invalid renderer input schema: {exc}", file=sys.stderr)
         return 1
+
+    try:
+        validate_template(template)
+    except ValueError as exc:
+        print(f"Error: template validation failed: {exc}", file=sys.stderr)
+        return 3
 
     replacements = build_replacements(
         analyzed=analyzed,
@@ -355,6 +600,12 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+
+    try:
+        validate_rendered_html(rendered)
+    except ValueError as exc:
+        print(f"Error: post-render validation failed: {exc}", file=sys.stderr)
+        return 3
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(rendered, encoding="utf-8")
