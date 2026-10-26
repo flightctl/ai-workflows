@@ -83,6 +83,7 @@ Jira write.
 - **Link to source.** Every Jira issue description references the design document.
 - **Jira-native references.** Local identifiers (`Story 1.01`, `Epic 1`) have meaning only within the `.artifacts/` directory. When constructing Jira issue descriptions, resolve all local references (in Dependencies, Documentation Inputs, Design Reference, and any other cross-references) to Jira issue keys using the sync manifest. Jira is the source of truth — readers of a Jira issue should never need to decode a local artifact numbering scheme.
 - **Checkpoint only on success.** Call `update-manifest` only after a Jira operation succeeds. Pass the `content_hash` that was computed *before* the Jira call (the hash of the content actually submitted), not a freshly recomputed hash. Never record failed or unattempted operations.
+- **Close-checkpoint recovery.** For every close path (child, epic, standalone story): retain the exact operation identity (file, Jira key, item type, parent, captured hash) until its checkpoint succeeds. If the Jira close succeeded but `update-manifest` failed, **pause in this run**, remediate the actual local error, and retry **only the exact saved checkpoint invocation** with the original hash. Never repeat a terminal Jira transition, recompute a newer hash, clear the captured state, start other Jira writes, or offer fresh-sync/defer/end while a completed close is uncheckpointed. Pre-transition failures (hash-prep error, transition unavailable, known-rejected Jira call) have no pending Jira success — normal retry/skip/defer choices remain valid. If the Jira outcome is uncertain (network timeout, server error), verify the issue's current status before retrying — do not assume the call was non-mutating. If the captured state is lost (forced abort, new run, lost context) and the manifest entry is still active but Jira is already terminal, **stop for manual reconciliation** rather than blindly repeating the terminal transition or fabricating a hash. Respect a user stop: report incomplete status and hand off rather than ignoring the stop or claiming success.
 
 ## Reference Resolution
 
@@ -445,27 +446,48 @@ or **Orphaned** where the user chose to close it in Step 1:
       hash. Use a distinct variable per child to avoid overwriting
       sibling hashes (e.g., `CHILD_HASH_01`, `CHILD_HASH_02`).
    b. Transition the child story to Done/Closed in Jira.
-   c. On success, checkpoint with `update-manifest --operation close`,
-      passing the hash from step (a).
-   d. **If any child operation fails** (hash-prep error, transition
-      unavailable, Jira error, checkpoint save failure, or user
-      skip): **stop the cascade immediately.** Do not proceed to the
-      parent epic. Preserve all already-successful child checkpoints.
-      Report: the parent epic and its Jira key; which children are
-      closed and checkpointed (complete); which child failed and the
-      error (note whether it is Jira-closed but uncheckpointed, or
-      not yet attempted); and which children remain unattempted. Do
-      not imply that already-closed children will be rolled back or
-      reopened. Offer the user two choices: **retry after
-      remediation** (resolve the reported error — Jira or local —
-      then re-run) or **defer the entire parent cascade** (leave the
-      epic and remaining children in their current state). Never skip
-      a failing child and then close the parent.
-   e. **Reconciliation on resume:** If a child's Jira transition
-      succeeded but its checkpoint failed, retry the checkpoint using
-      the hash captured in step (a) rather than repeating the Jira
-      transition. Skip children whose checkpoints already recorded
-      `synced_status: "closed"`.
+   c. On success, checkpoint the child close:
+      ```bash
+      python3 "$SYNC_HELPER" update-manifest \
+        .artifacts/design/{issue-key}/sync-manifest.json \
+        --operation close \
+        --file "{child-story-file}" \
+        --jira-key "{child-story-jira-key}" \
+        --content-hash "{child hash from step (a)}" \
+        --item-type story \
+        --epic-file "{parent-epic-file}"
+      ```
+      Retain this exact parameter bundle (file, key, hash, type,
+      parent) for checkpoint-only retry per the close-checkpoint
+      recovery rule.
+   d. **If any child operation fails** — distinguish:
+      - **Pre-transition failure** (hash-prep error, transition
+        unavailable, known-rejected Jira call, user skip): no pending
+        Jira success exists. Normal retry/skip/defer choices apply.
+        If the Jira outcome is uncertain (network timeout, server
+        error), verify the issue's current status before retrying.
+      - **Post-success checkpoint failure** (`update-manifest` failed
+        after Jira close succeeded): follow the close-checkpoint
+        recovery rule — pause, remediate the local error, retry only
+        the saved checkpoint invocation with the original hash.
+      In either case: **stop the cascade immediately.** Do not
+      proceed to the parent epic. Preserve all already-successful
+      child checkpoints. Report: the parent epic and its Jira key;
+      which children are closed and checkpointed (complete); which
+      child failed and the error (note whether it is Jira-closed but
+      uncheckpointed, or not yet attempted); and which children
+      remain unattempted. Do not imply that already-closed children
+      will be rolled back or reopened. For pre-transition failures,
+      offer: **retry after remediation** or **defer the entire parent
+      cascade** (leave the epic and remaining children in their
+      current state). Never skip a failing child and then close the
+      parent.
+   e. **Resume:** Skip children whose checkpoints already recorded
+      `synced_status: "closed"`. For a child whose Jira close
+      succeeded but whose checkpoint is missing, apply the
+      close-checkpoint recovery rule (retry checkpoint with the
+      captured hash). If the captured state was lost (forced abort or
+      new run), stop for manual reconciliation.
 2. After **all** child closures and their checkpoints have succeeded,
    compute the epic hash: use `compute-hash` if the file exists on
    disk; for orphaned entries (no file on disk), use an empty hash.
@@ -489,8 +511,9 @@ transition. If multiple terminal transitions are available, prefer
 "Done" over "Closed." If no terminal transition is available from the
 current status, report the error and let the user handle it in Jira.
 
-**If epic close fails:** Report the error and offer to retry or defer.
-Already-closed children remain closed.
+**If epic close fails:** For pre-transition failures, offer retry or
+defer. For post-success checkpoint failure, follow the close-checkpoint
+recovery rule. Already-closed children remain closed.
 
 Present all epic operations to the user:
 
@@ -728,7 +751,9 @@ python3 "$SYNC_HELPER" update-manifest \
   --epic-file "{epic-file}"
 ```
 
-**If close fails:** Report the error and offer to retry or skip.
+**If close fails:** For pre-transition failures, offer retry or skip.
+For post-success checkpoint failure, follow the close-checkpoint
+recovery rule.
 
 Present the stories synced for each epic:
 

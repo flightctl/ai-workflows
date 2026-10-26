@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import importlib.util
 import json
@@ -2857,7 +2858,7 @@ class TestCascadeGateContract(unittest.TestCase):
             "must forbid skip-child-close-parent")
 
     def test_step4c_offers_retry_or_defer(self) -> None:
-        """4c: on failure offers retry-after-remediation or defer."""
+        """4c: pre-transition failure offers retry or defer."""
         import re
         self.assertTrue(
             re.search(r"retry after\s+remediation", self._step4c),
@@ -2868,21 +2869,30 @@ class TestCascadeGateContract(unittest.TestCase):
         """4c: already-successful child checkpoints preserved on failure."""
         import re
         self.assertTrue(
-            re.search(r"Preserve all\s+already-successful child checkpoints",
+            re.search(r"Preserve all\s+already-successful\s+child checkpoints",
                       self._step4c),
             "must preserve completed child checkpoints")
 
-    def test_step4c_reconciliation_on_resume(self) -> None:
-        """4c: resume retries checkpoint, not Jira transition."""
+    def test_step4c_distinguishes_pre_and_post_failure(self) -> None:
+        """4c: distinguishes pre-transition from post-success checkpoint
+        failure, referencing the shared close-checkpoint recovery rule."""
+        self.assertIn("Pre-transition failure", self._step4c)
+        self.assertIn("Post-success checkpoint failure", self._step4c)
+        self.assertIn("close-checkpoint", self._step4c)
+
+    def test_step4c_uncertain_outcome_requires_verification(self) -> None:
+        """4c: uncertain Jira outcome (timeout/5xx) must be verified
+        before retrying, not assumed non-mutating."""
         import re
         self.assertTrue(
-            re.search(r"retry the checkpoint using\s+the hash captured",
-                      self._step4c),
-            "must retry checkpoint with captured hash")
-        self.assertTrue(
-            re.search(r"rather than repeating the Jira\s+transition",
-                      self._step4c),
-            "must not repeat Jira transition on resume")
+            re.search(r"uncertain.*verify.*current status",
+                      self._step4c, re.DOTALL),
+            "must require verification for uncertain Jira outcomes")
+
+    def test_step4c_resume_manual_reconciliation(self) -> None:
+        """4c: resume stops for manual reconciliation when captured
+        state is lost (forced abort/new run)."""
+        self.assertIn("stop for manual reconciliation", self._step4c)
 
     # -- Step 5c: hash before transition ---
 
@@ -2903,16 +2913,88 @@ class TestCascadeGateContract(unittest.TestCase):
     def test_step4c_report_distinguishes_child_states(self) -> None:
         """4c: failure report distinguishes complete, uncheckpointed,
         and unattempted children."""
+        import re
         self.assertIn("closed and checkpointed (complete)", self._step4c)
-        self.assertIn("Jira-closed but uncheckpointed", self._step4c)
+        self.assertTrue(
+            re.search(r"Jira-closed but\s+uncheckpointed", self._step4c),
+            "must mention Jira-closed but uncheckpointed")
         self.assertIn("unattempted", self._step4c)
 
     def test_step4c_no_rollback_implication(self) -> None:
         """4c: does not imply already-closed children are rolled back."""
         import re
         self.assertTrue(
-            re.search(r"not imply.*rolled back", self._step4c),
+            re.search(r"not imply that already-closed children\s+will be rolled back",
+                      self._step4c),
             "must not imply rollback of closed children")
+
+    # -- Step 4c: child checkpoint has complete CLI args ---
+
+    def test_step4c_child_checkpoint_has_item_type_story(self) -> None:
+        """4c child checkpoint command specifies --item-type story."""
+        self.assertIn("--item-type story", self._step4c)
+
+    def test_step4c_child_checkpoint_has_epic_file(self) -> None:
+        """4c child checkpoint command specifies --epic-file."""
+        self.assertIn("--epic-file", self._step4c)
+
+    def test_step4c_child_checkpoint_has_file_and_key(self) -> None:
+        """4c child checkpoint command specifies --file and --jira-key."""
+        self.assertIn("--file", self._step4c)
+        self.assertIn("--jira-key", self._step4c)
+
+    # -- Shared close-checkpoint recovery rule ---
+
+    def test_shared_recovery_rule_exists(self) -> None:
+        """Contract section contains the close-checkpoint recovery rule."""
+        self.assertIn("Close-checkpoint recovery", self._sync_md)
+
+    def test_recovery_rule_never_repeat_terminal_transition(self) -> None:
+        """Recovery rule forbids repeating a terminal Jira transition."""
+        import re
+        m = re.search(r"Close-checkpoint recovery.*?(?=\n- \*\*|## )",
+                      self._sync_md, re.DOTALL)
+        self.assertIsNotNone(m, "recovery rule section not found")
+        rule = m.group()
+        self.assertIn("Never repeat a terminal Jira transition", rule)
+
+    def test_recovery_rule_pause_in_this_run(self) -> None:
+        """Recovery rule specifies same-run pause and retry."""
+        import re
+        m = re.search(r"Close-checkpoint recovery.*?(?=\n- \*\*|## )",
+                      self._sync_md, re.DOTALL)
+        rule = m.group()
+        self.assertIn("pause in this run", rule)
+        self.assertIn("only the exact saved checkpoint invocation", rule)
+
+    def test_recovery_rule_lost_state_manual_reconciliation(self) -> None:
+        """Recovery rule: lost captured state → manual reconciliation."""
+        import re
+        m = re.search(r"Close-checkpoint recovery.*?(?=\n- \*\*|## )",
+                      self._sync_md, re.DOTALL)
+        rule = m.group()
+        self.assertIn("stop for manual reconciliation", rule)
+
+    def test_recovery_rule_uncertain_outcome_verification(self) -> None:
+        """Recovery rule: uncertain Jira outcome requires verification."""
+        import re
+        m = re.search(r"Close-checkpoint recovery.*?(?=\n- \*\*|## )",
+                      self._sync_md, re.DOTALL)
+        rule = m.group()
+        self.assertIn("uncertain", rule)
+        self.assertIn("verify", rule)
+
+    def test_all_close_paths_reference_recovery_rule(self) -> None:
+        """All three close paths (child, epic, 5c) reference the shared
+        close-checkpoint recovery rule."""
+        self.assertIn("close-checkpoint", self._step4c)
+        # Epic close failure handler
+        epic_fail_pos = self._step4c.find("If epic close fails")
+        self.assertGreater(epic_fail_pos, -1)
+        epic_fail_text = self._step4c[epic_fail_pos:]
+        self.assertIn("close-checkpoint", epic_fail_text)
+        # Step 5c
+        self.assertIn("close-checkpoint", self._step5c)
 
     # -- Step 5 plan refresh: deferred cascades ---
 
@@ -3133,6 +3215,297 @@ class TestCascadeCheckpointBehavior(_TmpDirMixin, unittest.TestCase):
         self.assertEqual(s1["content_hash"], hash1)
         self.assertEqual(s2["content_hash"], hash2,
                          "Second child hash must not be overwritten by first")
+
+
+# ---------------------------------------------------------------------------
+# Test: child checkpoint CLI args extracted from actual sync.md
+# (finding 4383291745)
+# ---------------------------------------------------------------------------
+
+def _extract_step4c_child_bash(sync_md_text: str) -> str:
+    """Extract the child-close bash block from sync.md Step 4c (c).
+
+    Returns the raw bash text between the first ````` ```bash ````` and
+    ````` ``` ````` inside the #### 4c section, which is the child-close
+    checkpoint command.  Raises if not found.
+    """
+    import re
+    m4c = re.search(r"#### 4c:.*?(?=####|### )", sync_md_text, re.DOTALL)
+    assert m4c, "Step 4c not found in sync.md"
+    # First fenced bash block inside 4c is the child checkpoint
+    m_bash = re.search(r"```bash\n(.*?)```", m4c.group(), re.DOTALL)
+    assert m_bash, "No bash block found in Step 4c"
+    return m_bash.group(1)
+
+
+def _substitute_child_bash(
+    bash_text: str,
+    manifest_path: str,
+    child_file: str,
+    child_key: str,
+    child_hash: str,
+    epic_file: str,
+) -> list[str]:
+    """Substitute placeholder values in the extracted bash command and
+    return the argv list for ``build_parser().parse_args()``.
+
+    Replaces documented placeholders with *shell-quoted* fixture values,
+    joins line continuations, then tokenises with ``shlex.split`` so
+    that paths containing spaces are preserved as single tokens.  No
+    shell evaluation of untrusted path strings.
+    """
+    import shlex
+    text = bash_text
+    # Strip the leading "python3 "$SYNC_HELPER" " — we call the parser directly
+    text = text.replace('python3 "$SYNC_HELPER" ', "")
+    # Substitute placeholders with properly quoted fixture values.
+    # The Markdown placeholders include surrounding quotes, e.g.
+    # "{child-story-file}", which we replace entirely — the
+    # shlex.quote wrapping ensures tokens survive shlex.split.
+    text = text.replace(
+        ".artifacts/design/{issue-key}/sync-manifest.json",
+        shlex.quote(manifest_path))
+    text = text.replace('"{child-story-file}"', shlex.quote(child_file))
+    text = text.replace('"{child-story-jira-key}"', shlex.quote(child_key))
+    text = text.replace('"{child hash from step (a)}"',
+                        shlex.quote(child_hash))
+    text = text.replace('"{parent-epic-file}"', shlex.quote(epic_file))
+    # Join line continuations, then tokenise
+    text = text.replace("\\\n", " ")
+    return shlex.split(text)
+
+
+class TestChildCheckpointCLI(_TmpDirMixin, unittest.TestCase):
+    """Exercise the ACTUAL child-close bash block extracted from sync.md
+    Step 4c through the real CLI parser and checkpoint path.
+
+    The tests extract the documented command from the live Markdown,
+    substitute fixture values, and parse the resulting flags through
+    ``build_parser()`` — so they fail if the documented command drifts
+    from the parser contract.
+    """
+
+    _child_bash: str
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        sync_md_path = Path(__file__).resolve().parent.parent / "skills" / "sync.md"
+        cls._child_bash = _extract_step4c_child_bash(
+            sync_md_path.read_text(encoding="utf-8"))
+        # Sanity: the extracted block must contain story-specific flags
+        assert "--item-type story" in cls._child_bash, (
+            "Extracted bash block missing --item-type story")
+        assert "--epic-file" in cls._child_bash, (
+            "Extracted bash block missing --epic-file")
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.artifacts = Path(self.tmpdir) / "art"
+        sd = self.artifacts / "06-stories"
+        sd.mkdir(parents=True)
+        self.ef = _make_epic(sd, 1, "building", removed=True)
+        self.sf1 = _make_dev_story(sd, 1, 1, "scaffold")
+        self.mf = _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "old_epic", "synced_status": "active",
+            "stories": [{
+                "file": "story-01-scaffold.md", "jira_key": "EDM-201",
+                "content_hash": "old_s1", "synced_status": "active",
+            }],
+        }])
+
+    def _parse_child_close(self, child_hash: str) -> "argparse.Namespace":
+        """Parse the extracted+substituted child-close command."""
+        argv = _substitute_child_bash(
+            self._child_bash,
+            manifest_path=str(self.mf),
+            child_file="story-01-scaffold.md",
+            child_key="EDM-201",
+            child_hash=child_hash,
+            epic_file="epic-1-building.md",
+        )
+        return sync_helper.build_parser().parse_args(argv)
+
+    def test_child_close_via_extracted_command(self) -> None:
+        """Extracted child-close command produces correct manifest
+        update: story under parent epic, not epic default branch.
+
+        Also exercises a manifest path containing spaces (subTest) to
+        verify the shlex tokenisation preserves it as one token.
+        """
+        for label, artifacts_dir in [
+            ("normal", self.artifacts),
+            ("spaces", Path(self.tmpdir) / "path with spaces" / "art"),
+        ]:
+            with self.subTest(path=label):
+                sd = artifacts_dir / "06-stories"
+                sd.mkdir(parents=True, exist_ok=True)
+                ef = _make_epic(sd, 1, "building", removed=True)
+                sf = _make_dev_story(sd, 1, 1, "scaffold")
+                mf = _make_manifest(artifacts_dir, [{
+                    "file": "epic-1-building.md", "jira_key": "EDM-101",
+                    "content_hash": "old_epic", "synced_status": "active",
+                    "stories": [{
+                        "file": "story-01-scaffold.md",
+                        "jira_key": "EDM-201",
+                        "content_hash": "old_s1",
+                        "synced_status": "active",
+                    }],
+                }])
+                child_hash = sync_helper.compute_file_hash(sf)
+                argv = _substitute_child_bash(
+                    self._child_bash,
+                    manifest_path=str(mf),
+                    child_file="story-01-scaffold.md",
+                    child_key="EDM-201",
+                    child_hash=child_hash,
+                    epic_file="epic-1-building.md",
+                )
+                args = sync_helper.build_parser().parse_args(argv)
+                self.assertEqual(args.item_type, "story")
+                self.assertEqual(args.epic_file, "epic-1-building.md")
+                self.assertEqual(args.artifact_file, "story-01-scaffold.md")
+                self.assertEqual(args.manifest_path, str(mf))
+                sync_helper.update_manifest(
+                    args.manifest_path, args.operation, args.artifact_file,
+                    args.jira_key, args.content_hash,
+                    item_type=args.item_type, epic_file=args.epic_file)
+                manifest = sync_helper.load_manifest(mf)
+                s1 = manifest["epics"][0]["stories"][0]
+                self.assertEqual(s1["synced_status"], "closed")
+                self.assertEqual(s1["content_hash"], child_hash)
+
+    def test_orphan_child_close_empty_hash_via_extracted_command(self) -> None:
+        """Approved orphan (no file on disk): empty hash through the
+        extracted command and CLI parser."""
+        self.sf1.unlink()
+        args = self._parse_child_close("")
+        self.assertEqual(args.content_hash, "")
+        sync_helper.update_manifest(
+            args.manifest_path, args.operation, args.artifact_file,
+            args.jira_key, args.content_hash,
+            item_type=args.item_type, epic_file=args.epic_file)
+        manifest = sync_helper.load_manifest(self.mf)
+        s1 = manifest["epics"][0]["stories"][0]
+        self.assertEqual(s1["content_hash"], "")
+        self.assertEqual(s1["synced_status"], "closed")
+
+    def test_missing_epic_file_fails(self) -> None:
+        """Omitting --epic-file for a story close causes a hard error,
+        confirming why the documented command must include it."""
+        with self.assertRaises(SystemExit):
+            sync_helper.update_manifest(
+                self.mf, "close", "story-01-scaffold.md", "EDM-201",
+                "somehash", item_type="story", epic_file="")
+
+
+# ---------------------------------------------------------------------------
+# Test: checkpoint-only retry with retained hash after failure+edit
+# (finding 4383291734 — table-driven for child, epic, standalone story)
+# ---------------------------------------------------------------------------
+
+class TestCloseCheckpointRetryRetainsHash(_TmpDirMixin, unittest.TestCase):
+    """After a checkpoint save failure, the retry uses the ORIGINAL
+    captured hash even if the artifact file was edited in between.
+    Exercises child story, epic, and standalone story close paths.
+    """
+
+    _CASES = [
+        {
+            "label": "child_story",
+            "item_type": "story",
+            "file": "story-01-scaffold.md",
+            "jira_key": "EDM-201",
+            "epic_file": "epic-1-building.md",
+        },
+        {
+            "label": "epic",
+            "item_type": "epic",
+            "file": "epic-1-building.md",
+            "jira_key": "EDM-101",
+            "epic_file": "",
+        },
+    ]
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.artifacts = Path(self.tmpdir) / "art"
+        sd = self.artifacts / "06-stories"
+        sd.mkdir(parents=True)
+        self.ef = _make_epic(sd, 1, "building", removed=True)
+        self.sf1 = _make_dev_story(sd, 1, 1, "scaffold")
+        self.mf = _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "old_epic", "synced_status": "active",
+            "stories": [{
+                "file": "story-01-scaffold.md", "jira_key": "EDM-201",
+                "content_hash": "old_s1", "synced_status": "active",
+            }],
+        }])
+        self._file_paths = {
+            "story-01-scaffold.md": self.sf1,
+            "epic-1-building.md": self.ef,
+        }
+
+    def test_retry_uses_original_hash_after_edit(self) -> None:
+        for case in self._CASES:
+            with self.subTest(path=case["label"]):
+                # Reset manifest for each sub-case
+                self.mf.write_text(json.dumps({
+                    "schema_version": 2, "feature_key": "TEST-100",
+                    "synced_at": "", "epics": [{
+                        "file": "epic-1-building.md", "jira_key": "EDM-101",
+                        "content_hash": "old_epic", "synced_status": "active",
+                        "stories": [{
+                            "file": "story-01-scaffold.md",
+                            "jira_key": "EDM-201",
+                            "content_hash": "old_s1",
+                            "synced_status": "active",
+                        }],
+                    }],
+                }, indent=2))
+
+                fp = self._file_paths[case["file"]]
+                pre_hash = sync_helper.compute_file_hash(fp)
+
+                # Inject checkpoint save failure
+                _orig = Path.replace
+
+                def _fail(self_path, target):
+                    if str(target).endswith("sync-manifest.json"):
+                        raise OSError("disk error")
+                    return _orig(self_path, target)
+
+                with mock.patch.object(Path, "replace", _fail):
+                    with self.assertRaises(OSError):
+                        kw = {"item_type": case["item_type"]}
+                        if case["epic_file"]:
+                            kw["epic_file"] = case["epic_file"]
+                        sync_helper.update_manifest(
+                            self.mf, "close", case["file"],
+                            case["jira_key"], pre_hash, **kw)
+
+                # Edit artifact between failure and retry
+                fp.write_text(fp.read_text() + "\n## Edited\n")
+                new_hash = sync_helper.compute_file_hash(fp)
+                self.assertNotEqual(pre_hash, new_hash)
+
+                # Retry with ORIGINAL captured hash (not recomputed)
+                kw = {"item_type": case["item_type"]}
+                if case["epic_file"]:
+                    kw["epic_file"] = case["epic_file"]
+                sync_helper.update_manifest(
+                    self.mf, "close", case["file"],
+                    case["jira_key"], pre_hash, **kw)
+
+                manifest = sync_helper.load_manifest(self.mf)
+                if case["item_type"] == "epic":
+                    entry = manifest["epics"][0]
+                else:
+                    entry = manifest["epics"][0]["stories"][0]
+                self.assertEqual(entry["synced_status"], "closed")
+                self.assertEqual(entry["content_hash"], pre_hash,
+                                 f"{case['label']}: must use original hash")
 
 
 if __name__ == "__main__":
