@@ -380,12 +380,16 @@ progressing through stages) unless the intermediate state is itself a
 customer-facing feature such as a progress indicator the user actively
 monitors.
 
-**Redundancy rule:** If an API field's presence is already proven by
-an e2e test case that exercises the behavior consuming that field, do
+**Redundancy rule:** If an API field's value is already verified by
+an e2e test case whose assertions explicitly consume that field, do
 not add a separate field-existence test case. For example, if a test
-case verifies that a device applies a delta (proving `deltaImage`
-exists in the rendered spec), a separate test verifying that
-`deltaImage` is present in the API response is redundant.
+case reads the `owner` field from the API response and asserts it
+matches the expected value, a separate test verifying that `owner`
+is present in the response is redundant. Do not assume a behavioral
+outcome proves a specific API field exists when the behavior can be
+achieved through an alternative code path that does not depend on
+that field — retain standalone assertions for documented API
+contracts not actually established by another test.
 
 #### 9b: Write the Testplan
 

@@ -237,9 +237,13 @@ feedback), apply them in this order:
      table fields, or content (sub-sections or compact inline fields).
      The same Expected Results quality gate applies — no banned vague
      phrases. If the Interface Change assignment changes, update the
-     affected stories' `Validated by` in step 2 below. If any metadata
-     field changed (Priority, Automation, or Interface Change), update
-     the testplan's Overview counts, Summary table, and Test Case Index.
+     affected stories' `Validated by` in step 2 below. After any
+     modification, update the Test Case Index row to match the current
+     heading, IC, and priority. If counts changed (metadata edits,
+     parameterized-row additions or removals), also update the
+     testplan's Overview counts and Summary table. Apply the same
+     test case format, setup-inheritance, and self-review rules as
+     Step 9a and 9c of the draft skill.
    - **Removing a test case:** Delete the test case entry (heading and
      all content). Update the testplan's Overview counts, Summary table,
      and Test Case Index.
