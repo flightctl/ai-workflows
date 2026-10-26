@@ -385,7 +385,10 @@ class TestResolveRefs(unittest.TestCase):
         self.assertEqual(sync_helper.resolve_refs(text, self.manifest), text)
 
     def test_cli_resolve_refs(self) -> None:
-        mf = Path(tempfile.mktemp(suffix=".json"))
+        fd, tmp_name = tempfile.mkstemp(suffix=".json")
+        import os as _os
+        _os.close(fd)
+        mf = Path(tmp_name)
         _write(mf, json.dumps(self.manifest))
         try:
             out = StringIO()
@@ -709,10 +712,10 @@ class TestUpdateManifest(_TmpDirMixin, unittest.TestCase):
             sync_helper.main([
                 "update-manifest", str(self.manifest_path),
                 "--operation", "create", "--file", "story-01-scaffold.md",
-                "--jira_key", "EDM-201", "--content-hash", "def",
+                "--jira-key", "EDM-201", "--content-hash", "def",
                 "--item-type", "story",
             ])
-        # argparse error (unrecognized --jira_key) or our error — either way non-zero
+        self.assertEqual(ctx.exception.code, 1)
 
 
 # ---------------------------------------------------------------------------
@@ -1918,6 +1921,506 @@ class TestGap5_EssentialSections(_TmpDirMixin, unittest.TestCase):
         self.assertIn("Build.", result["description"])
         self.assertEqual(result["size"], "M")
         self.assertEqual(result["summary"], "Building")
+
+
+# ---------------------------------------------------------------------------
+# Test: atomic checkpoint — mode preservation & overwrite (review fix)
+# ---------------------------------------------------------------------------
+
+class TestSaveManifestAtomic(_TmpDirMixin, unittest.TestCase):
+    def test_existing_file_mode_preserved(self) -> None:
+        """Checkpoint preserves existing manifest file permissions."""
+        import os
+        mp = Path(self.tmpdir) / "manifest.json"
+        _write(mp, '{"schema_version": 2, "epics": []}')
+        os.chmod(mp, 0o644)
+        sync_helper.save_manifest(
+            {"schema_version": 2, "epics": [], "note": "updated"}, mp)
+        self.assertEqual(os.stat(mp).st_mode & 0o777, 0o644)
+        data = json.loads(mp.read_text())
+        self.assertEqual(data["note"], "updated")
+
+    def test_repeated_checkpoint(self) -> None:
+        """Successive checkpoints overwrite without error."""
+        mp = Path(self.tmpdir) / "manifest.json"
+        for i in range(3):
+            sync_helper.save_manifest(
+                {"schema_version": 2, "epics": [], "seq": i}, mp)
+        data = json.loads(mp.read_text())
+        self.assertEqual(data["seq"], 2)
+
+    def test_failure_no_corruption(self) -> None:
+        """Checkpoint failure leaves no partial file."""
+        mp = Path(self.tmpdir) / "manifest.json"
+        _write(mp, '{"schema_version": 2, "epics": []}')
+        original = mp.read_bytes()
+
+        class _Unserializable:
+            pass
+
+        with self.assertRaises(TypeError):
+            sync_helper.save_manifest(
+                {"bad": _Unserializable()}, mp)
+        self.assertEqual(mp.read_bytes(), original)
+
+
+# ---------------------------------------------------------------------------
+# Test: duplicate story indices (review fix)
+# ---------------------------------------------------------------------------
+
+class TestDuplicateStoryIndex(_TmpDirMixin, unittest.TestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.artifacts = Path(self.tmpdir) / "art"
+        self.stories_dir = self.artifacts / "06-stories"
+        self.stories_dir.mkdir(parents=True)
+
+    def test_duplicate_story_index_same_epic_fails(self) -> None:
+        """Two stories with the same index in one epic fail closed."""
+        _make_epic(self.stories_dir, 1, "building")
+        _make_dev_story(self.stories_dir, 1, 1, "scaffold-a")
+        _make_dev_story(self.stories_dir, 1, 1, "scaffold-b")
+        with self.assertRaises(SystemExit) as ctx:
+            sync_helper.detect_changes(self.artifacts)
+        self.assertEqual(ctx.exception.code, 1)
+
+    def test_same_story_index_different_epics_ok(self) -> None:
+        """Identical story indices under distinct epics are valid."""
+        _make_epic(self.stories_dir, 1, "building")
+        _make_epic(self.stories_dir, 2, "deploy")
+        _make_dev_story(self.stories_dir, 1, 1, "scaffold")
+        _make_dev_story(self.stories_dir, 2, 1, "rollout")
+        result = sync_helper.detect_changes(self.artifacts)
+        stories = [i for i in result["items"] if i["type"] == "story"]
+        self.assertEqual(len(stories), 2)
+
+
+# ---------------------------------------------------------------------------
+# Test: parent-index mismatch on epic rename / deletion (review fix)
+# ---------------------------------------------------------------------------
+
+class TestParentMismatch(_TmpDirMixin, unittest.TestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.artifacts = Path(self.tmpdir) / "art"
+        self.stories_dir = self.artifacts / "06-stories"
+        self.stories_dir.mkdir(parents=True)
+
+    def test_renamed_epic_fails_closed(self) -> None:
+        """Story recorded under old epic name, disk has renamed epic."""
+        _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "h", "synced_status": "active",
+            "stories": [
+                {"file": "story-01-scaffold.md", "jira_key": "EDM-201",
+                 "content_hash": "h2", "synced_status": "active"},
+            ],
+        }])
+        _make_epic(self.stories_dir, 1, "containers")
+        _make_dev_story(self.stories_dir, 1, 1, "scaffold")
+        with self.assertRaises(SystemExit) as ctx:
+            sync_helper.detect_changes(self.artifacts)
+        self.assertEqual(ctx.exception.code, 1)
+
+    def test_renamed_epic_and_child_slug_fails(self) -> None:
+        """Both epic and child story renamed (same indices) → fail."""
+        _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "h", "synced_status": "active",
+            "stories": [
+                {"file": "story-01-scaffold.md", "jira_key": "EDM-201",
+                 "content_hash": "h2", "synced_status": "active"},
+            ],
+        }])
+        _make_epic(self.stories_dir, 1, "containers")
+        _make_dev_story(self.stories_dir, 1, 1, "refactored")
+        with self.assertRaises(SystemExit) as ctx:
+            sync_helper.detect_changes(self.artifacts)
+        self.assertEqual(ctx.exception.code, 1)
+
+    def test_renamed_epic_zero_children_fails(self) -> None:
+        """Renamed epic with no child files on disk → fail closed."""
+        _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "h", "synced_status": "active",
+            "stories": [],
+        }])
+        # Disk has epic-1 with different slug, no stories
+        _make_epic(self.stories_dir, 1, "containers")
+        with self.assertRaises(SystemExit) as ctx:
+            sync_helper.detect_changes(self.artifacts)
+        self.assertEqual(ctx.exception.code, 1)
+
+    def test_renamed_epic_via_cli(self) -> None:
+        """CLI detect-changes fails closed on renamed epic, manifest unchanged."""
+        mf = _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "h", "synced_status": "active",
+            "stories": [],
+        }])
+        original_bytes = mf.read_bytes()
+        _make_epic(self.stories_dir, 1, "containers")
+        with self.assertRaises(SystemExit) as ctx:
+            sync_helper.main(["detect-changes", str(self.artifacts)])
+        self.assertEqual(ctx.exception.code, 1)
+        self.assertEqual(mf.read_bytes(), original_bytes)
+
+    def test_deleted_epic_with_remaining_children_fails(self) -> None:
+        """Epic file deleted but stories remain → fail closed."""
+        _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "h", "synced_status": "active",
+            "stories": [
+                {"file": "story-01-scaffold.md", "jira_key": "EDM-201",
+                 "content_hash": "h2", "synced_status": "active"},
+            ],
+        }])
+        epic_dir = self.stories_dir / "epic-1"
+        epic_dir.mkdir(parents=True)
+        _make_dev_story(self.stories_dir, 1, 1, "scaffold")
+        with self.assertRaises(SystemExit) as ctx:
+            sync_helper.detect_changes(self.artifacts)
+        self.assertEqual(ctx.exception.code, 1)
+
+    def test_truly_new_story_under_new_epic_ok(self) -> None:
+        """New story under a new epic (no manifest entry) succeeds."""
+        _make_epic(self.stories_dir, 1, "building")
+        _make_dev_story(self.stories_dir, 1, 1, "scaffold")
+        result = sync_helper.detect_changes(self.artifacts)
+        new_items = [i for i in result["items"] if i["category"] == "new"]
+        self.assertEqual(len(new_items), 2)  # 1 epic + 1 story
+
+    def test_orphaned_epic_no_children_on_disk(self) -> None:
+        """Orphan epic with no child files on disk produces orphan plan."""
+        _make_manifest(self.artifacts, [{
+            "file": "epic-1-gone.md", "jira_key": "EDM-101",
+            "content_hash": "h", "synced_status": "active",
+            "stories": [],
+        }])
+        result = sync_helper.detect_changes(self.artifacts)
+        orphaned = [i for i in result["items"] if i["category"] == "orphaned"]
+        self.assertEqual(len(orphaned), 1)
+
+    def test_genuinely_new_epic_with_unused_index(self) -> None:
+        """New epic with index not in manifest succeeds."""
+        _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "h", "synced_status": "active",
+            "stories": [],
+        }])
+        ef1 = _make_epic(self.stories_dir, 1, "building")
+        # Adjust hash so epic-1 is unchanged
+        _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": sync_helper.compute_file_hash(ef1),
+            "synced_status": "active", "stories": [],
+        }])
+        _make_epic(self.stories_dir, 2, "deploy")
+        result = sync_helper.detect_changes(self.artifacts)
+        new_epics = [i for i in result["items"]
+                     if i["type"] == "epic" and i["category"] == "new"]
+        self.assertEqual(len(new_epics), 1)
+        self.assertEqual(new_epics[0]["epic_index"], 2)
+
+
+# ---------------------------------------------------------------------------
+# Test: manifest story index validation (review fix gap 1)
+# ---------------------------------------------------------------------------
+
+class TestManifestStoryIndexValidation(_TmpDirMixin, unittest.TestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.manifest_path = Path(self.tmpdir) / "sync-manifest.json"
+
+    def test_duplicate_story_index_in_manifest_rejected(self) -> None:
+        """Two distinct story files with same numeric index fail."""
+        _write(self.manifest_path, json.dumps({
+            "schema_version": 2, "epics": [{
+                "file": "epic-1-building.md", "jira_key": "EDM-101",
+                "stories": [
+                    {"file": "story-01-scaffold.md", "jira_key": "EDM-201",
+                     "content_hash": "a", "synced_status": "active"},
+                    {"file": "story-01-refactor.md", "jira_key": "EDM-202",
+                     "content_hash": "b", "synced_status": "active"},
+                ],
+            }],
+        }))
+        with self.assertRaises(SystemExit) as ctx:
+            sync_helper.load_manifest(self.manifest_path)
+        self.assertEqual(ctx.exception.code, 1)
+
+    def test_duplicate_story_index_via_cli(self) -> None:
+        """CLI load rejects duplicate story index, manifest bytes unchanged."""
+        manifest = {
+            "schema_version": 2, "epics": [{
+                "file": "epic-1-building.md", "jira_key": "EDM-101",
+                "stories": [
+                    {"file": "story-01-a.md", "jira_key": "K1",
+                     "content_hash": "h1", "synced_status": "active"},
+                    {"file": "story-01-b.md", "jira_key": "K2",
+                     "content_hash": "h2", "synced_status": "active"},
+                ],
+            }],
+        }
+        _write(self.manifest_path, json.dumps(manifest))
+        original = self.manifest_path.read_bytes()
+        arts = Path(self.tmpdir) / "art"
+        sd = arts / "06-stories"
+        sd.mkdir(parents=True)
+        _make_epic(sd, 1, "building")
+        mf_in_arts = arts / "sync-manifest.json"
+        _write(mf_in_arts, json.dumps(manifest))
+        orig_arts = mf_in_arts.read_bytes()
+        with self.assertRaises(SystemExit) as ctx:
+            sync_helper.main(["detect-changes", str(arts)])
+        self.assertEqual(ctx.exception.code, 1)
+        self.assertEqual(mf_in_arts.read_bytes(), orig_arts)
+
+    def test_duplicate_story_index_blocks_ref_lookup(self) -> None:
+        """Duplicate story index is caught before _build_ref_lookup runs."""
+        _write(self.manifest_path, json.dumps({
+            "schema_version": 2, "epics": [{
+                "file": "epic-1-building.md", "jira_key": "EDM-101",
+                "stories": [
+                    {"file": "story-02-a.md", "jira_key": "K1",
+                     "content_hash": "h1", "synced_status": "active"},
+                    {"file": "story-02-b.md", "jira_key": "K2",
+                     "content_hash": "h2", "synced_status": "active"},
+                ],
+            }],
+        }))
+        with self.assertRaises(SystemExit) as ctx:
+            sync_helper.load_manifest(self.manifest_path)
+        self.assertEqual(ctx.exception.code, 1)
+
+    def test_same_story_index_cross_epic_allowed(self) -> None:
+        """Identical story indices under different epics are valid."""
+        _write(self.manifest_path, json.dumps({
+            "schema_version": 2, "epics": [
+                {"file": "epic-1-build.md", "jira_key": "K1",
+                 "stories": [
+                     {"file": "story-01-a.md", "jira_key": "S1",
+                      "content_hash": "h", "synced_status": "active"},
+                 ]},
+                {"file": "epic-2-deploy.md", "jira_key": "K2",
+                 "stories": [
+                     {"file": "story-01-b.md", "jira_key": "S2",
+                      "content_hash": "h", "synced_status": "active"},
+                 ]},
+            ],
+        }))
+        m = sync_helper.load_manifest(self.manifest_path)
+        self.assertIsNotNone(m)
+
+    def test_v1_manifest_with_optional_metadata(self) -> None:
+        """V1 manifest without story index fields loads OK."""
+        _write(self.manifest_path, json.dumps({
+            "schema_version": 1, "epics": [{
+                "file": "epic-1-build.md", "jira_key": "K1",
+                "stories": [
+                    {"file": "story-01-a.md", "jira_key": "S1"},
+                ],
+            }],
+        }))
+        m = sync_helper.load_manifest(self.manifest_path)
+        self.assertIsNotNone(m)
+
+
+# ---------------------------------------------------------------------------
+# Test: selected orphan closure stateful flow (review fix gap 5)
+# ---------------------------------------------------------------------------
+
+class TestOrphanClosureStateful(_TmpDirMixin, unittest.TestCase):
+    """Simulate the full orphan closure workflow locally.
+
+    The helper never contacts Jira; tests simulate the effect of
+    successful Jira operations by calling update-manifest with the
+    correct arguments.  This mirrors the workflow described in
+    Steps 4c/5c of sync.md.
+    """
+    def setUp(self) -> None:
+        super().setUp()
+        self.artifacts = Path(self.tmpdir) / "art"
+        sd = self.artifacts / "06-stories"
+        sd.mkdir(parents=True)
+        # Create a different epic on disk (epic-2), but manifest has
+        # orphaned epic-1 with two stories
+        self.ef2 = _make_epic(sd, 2, "deploy")
+        self.mf = _make_manifest(self.artifacts, [
+            {"file": "epic-1-building.md", "jira_key": "EDM-101",
+             "content_hash": "h", "synced_status": "active",
+             "stories": [
+                 {"file": "story-01-scaffold.md", "jira_key": "EDM-201",
+                  "content_hash": "h1", "synced_status": "active"},
+                 {"file": "story-02-pipe.md", "jira_key": "EDM-202",
+                  "content_hash": "h2", "synced_status": "active"},
+             ]},
+            {"file": "epic-2-deploy.md", "jira_key": "EDM-102",
+             "content_hash": sync_helper.compute_file_hash(self.ef2),
+             "synced_status": "active", "stories": []},
+        ])
+
+    def test_orphan_detected_then_closed_children_first(self) -> None:
+        """Selected orphan: close children before parent, no duplicate."""
+        plan = sync_helper.detect_changes(self.artifacts)
+        orphans = [i for i in plan["items"] if i["category"] == "orphaned"]
+        self.assertEqual(len(orphans), 3)  # 1 epic + 2 stories
+
+        # Simulate user selecting close: close children first
+        sync_helper.update_manifest(
+            self.mf, "close", "story-01-scaffold.md", "EDM-201", "",
+            item_type="story", epic_file="epic-1-building.md")
+        sync_helper.update_manifest(
+            self.mf, "close", "story-02-pipe.md", "EDM-202", "",
+            item_type="story", epic_file="epic-1-building.md")
+        sync_helper.update_manifest(
+            self.mf, "close", "epic-1-building.md", "EDM-101", "",
+            item_type="epic")
+
+        # Refresh: no more orphans, no duplicate close
+        plan2 = sync_helper.detect_changes(self.artifacts)
+        orphans2 = [i for i in plan2["items"]
+                    if i["category"] == "orphaned"]
+        self.assertEqual(len(orphans2), 0)
+
+    def test_ignored_orphan_remains_after_refresh(self) -> None:
+        """User chose to ignore orphan — still appears after refresh."""
+        plan = sync_helper.detect_changes(self.artifacts)
+        orphans = [i for i in plan["items"] if i["category"] == "orphaned"]
+        self.assertEqual(len(orphans), 3)
+
+        # Don't close anything (user chose ignore)
+        plan2 = sync_helper.detect_changes(self.artifacts)
+        orphans2 = [i for i in plan2["items"]
+                    if i["category"] == "orphaned"]
+        self.assertEqual(len(orphans2), 3)
+
+    def test_interrupted_cascade_leaves_unfinished(self) -> None:
+        """Interrupted cascade: only successful closes are recorded."""
+        # Close first child only (simulate interruption after 1 of 2)
+        sync_helper.update_manifest(
+            self.mf, "close", "story-01-scaffold.md", "EDM-201", "",
+            item_type="story", epic_file="epic-1-building.md")
+
+        plan = sync_helper.detect_changes(self.artifacts)
+        orphans = [i for i in plan["items"] if i["category"] == "orphaned"]
+        # Epic still active + 1 remaining story still active = 2 orphans
+        self.assertEqual(len(orphans), 2)
+        closed_story = next(
+            (s for e in sync_helper.load_manifest(self.mf)["epics"]
+             if e["file"] == "epic-1-building.md"
+             for s in e.get("stories", [])
+             if s["file"] == "story-01-scaffold.md"), None)
+        self.assertEqual(closed_story["synced_status"], "closed")
+
+
+# ---------------------------------------------------------------------------
+# Test: helper discovery (review fix gap 2)
+# ---------------------------------------------------------------------------
+
+def _resolve_helper(builtin_sync_path: str) -> str:
+    """Execute the documented SYNC_HELPER discovery command.
+
+    This is the exact snippet from design/skills/sync.md.
+    """
+    import subprocess
+    cmd = (
+        "python3 -c "
+        "'from pathlib import Path; import sys; "
+        "print(Path(sys.argv[1]).resolve().parents[1] "
+        "/ \"scripts\" / \"sync_helper.py\")' "
+        f'"{builtin_sync_path}"'
+    )
+    result = subprocess.run(
+        ["bash", "-c", cmd], capture_output=True, text=True,
+        cwd="/",  # unrelated cwd
+    )
+    return result.stdout.strip()
+
+
+class TestHelperDiscovery(unittest.TestCase):
+    """Verify the documented SYNC_HELPER discovery works across layouts.
+
+    Each test executes the actual documented Python snippet from
+    sync.md and verifies the resolved helper exists and is executable
+    (--help exits 0).
+    """
+
+    def _verify_helper(self, resolved: str) -> None:
+        """Assert resolved path is the real helper and runs."""
+        import subprocess
+        real_helper = str(
+            Path(__file__).resolve().parent / "sync_helper.py")
+        self.assertEqual(resolved, real_helper)
+        r = subprocess.run(
+            ["python3", resolved, "--help"],
+            capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0)
+
+    def test_default_global_install(self) -> None:
+        """Default install: ~/.ai-workflows -> clone, resolve from sync.md."""
+        repo_root = Path(__file__).resolve().parent.parent.parent
+        with tempfile.TemporaryDirectory() as td:
+            fake_home = Path(td) / "home"
+            fake_home.mkdir()
+            aiw = fake_home / ".ai-workflows"
+            aiw.symlink_to(repo_root)
+            builtin = str(aiw / "design" / "skills" / "sync.md")
+            resolved = _resolve_helper(builtin)
+            self._verify_helper(resolved)
+
+    def test_direct_clone_symlink_no_home_aiw(self) -> None:
+        """Direct symlink .claude/skills/design -> clone/design, no ~/.ai-workflows.
+
+        Clone path contains spaces.  HOME has NO .ai-workflows at all.
+        """
+        repo_root = Path(__file__).resolve().parent.parent.parent
+        with tempfile.TemporaryDirectory() as td:
+            # Clone at path with spaces
+            clone_dir = Path(td) / "my projects" / "ai workflows"
+            clone_dir.mkdir(parents=True)
+            clone_link = clone_dir / "repo"
+            clone_link.symlink_to(repo_root)
+            # Project-level: .claude/skills/design -> clone/design
+            project = Path(td) / "project"
+            claude_skills = project / ".claude" / "skills"
+            claude_skills.mkdir(parents=True)
+            (claude_skills / "design").symlink_to(
+                clone_link / "design")
+            # Confirm NO ~/.ai-workflows
+            fake_home = Path(td) / "home"
+            fake_home.mkdir()
+            self.assertFalse((fake_home / ".ai-workflows").exists())
+            # Agent reads built-in sync.md via the project symlink
+            builtin = str(
+                claude_skills / "design" / "skills" / "sync.md")
+            resolved = _resolve_helper(builtin)
+            self._verify_helper(resolved)
+
+    def test_override_uses_builtin_not_override_path(self) -> None:
+        """Override present: agent uses recorded BUILT-IN source path."""
+        repo_root = Path(__file__).resolve().parent.parent.parent
+        with tempfile.TemporaryDirectory() as td:
+            # Override directory (no helper here)
+            override = Path(td) / ".workflows" / "design" / "skills"
+            override.mkdir(parents=True)
+            (override / "sync.md").write_text("# Override\n")
+            # Override does NOT have the helper
+            override_candidate = (
+                override.parent / "scripts" / "sync_helper.py")
+            self.assertFalse(override_candidate.exists())
+            # Built-in path (actual package) — resolve from SKILL.md
+            builtin = str(
+                repo_root / "design" / "skills" / "sync.md")
+            resolved = _resolve_helper(builtin)
+            self._verify_helper(resolved)
+            # Verify override path would NOT resolve to a valid helper
+            override_resolved = _resolve_helper(
+                str(override / "sync.md"))
+            self.assertNotEqual(
+                override_resolved,
+                str(Path(__file__).resolve().parent / "sync_helper.py"))
+            self.assertFalse(Path(override_resolved).exists())
 
 
 if __name__ == "__main__":

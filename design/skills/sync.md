@@ -24,12 +24,26 @@ explicit user approval.
 ## Sync Helper
 
 This skill delegates deterministic file operations to a Python helper
-script at `scripts/sync_helper.py` within the design workflow directory.
-Locate the helper using the same pattern as other workflows:
+script at `scripts/sync_helper.py` under the design package root. From
+the built-in phase file `skills/sync.md`, the helper is at
+`../scripts/sync_helper.py` — i.e. two directories up from this file,
+then into `scripts/`.
 
+To resolve the helper, record the absolute path of the **built-in**
+`design/skills/sync.md` (or `design/SKILL.md`) that you are reading —
+not a project-level phase override — and derive the helper from it:
+
+```bash
+BUILTIN_SYNC='<absolute path of the loaded built-in design/skills/sync.md>'
+SYNC_HELPER="$(python3 -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).resolve().parents[1] / "scripts" / "sync_helper.py")' "$BUILTIN_SYNC")"
 ```
-SYNC_HELPER="${HOME}/.ai-workflows/design/scripts/sync_helper.py"
-```
+
+`Path.resolve()` follows symlinks, so this works for both the default
+`~/.ai-workflows` install and a direct symlink from
+`.claude/skills/design` to an arbitrary clone location (even without
+`~/.ai-workflows`). If a project-level phase override provides a
+replacement `skills/sync.md`, the helper still comes from the built-in
+package — always use the built-in source path, not the override path.
 
 The helper **never contacts Jira** and **never mutates external state**.
 It reads and writes only local artifact files and the sync manifest.
@@ -63,7 +77,7 @@ Jira write.
 - **Manifest gate.** Before proceeding past Step 1, you **must** state aloud to the user what the manifest contains (or that none exists). This is mandatory — do not silently skip this acknowledgment. If a manifest exists and you cannot read it, stop and report the error.
 - **Jira-side duplicate check.** Before creating each epic or story, query Jira for existing children under the parent with a matching summary. If a match is found, stop and present the match to the user — do not create a duplicate. This is a safety net independent of the manifest.
 - **Jira hierarchy is fixed.** Feature → Epic → Story. Every epic's parent is the Feature issue; every story's parent is its epic. No operation may violate this hierarchy — no re-parenting, no creating issues outside this structure, no closing a Feature.
-- **Sync-owned fields.** Sync owns: summary, description, T-shirt size (epics only), parent link (creation only), and issue links (dependencies). These are set from artifact content on creation and overwritten on updates (except parent link). Sync never touches: status, assignee, sprint, comments, labels, or any other Jira-managed field.
+- **Sync-owned fields.** Sync owns: summary, description, T-shirt size (epics only), parent link (creation only), and issue links (dependencies). These are set from artifact content on creation and overwritten on updates (except parent link). Sync never touches: assignee, sprint, comments, labels, or any other Jira-managed field. Status transitions are permitted **only** for gated lifecycle operations: reopening a previously closed item (Step 4b/5b) and closing a removed or user-selected orphaned item (Step 4c/5c). No other status changes are allowed.
 - **Logical deletion via marker.** Stories and epics are closed (not deleted) when their artifact file contains `status: removed` in the YAML frontmatter. The file stays on disk so the manifest can still track it.
 - **Link to source.** Every Jira issue description references the design document.
 - **Jira-native references.** Local identifiers (`Story 1.01`, `Epic 1`) have meaning only within the `.artifacts/` directory. When constructing Jira issue descriptions, resolve all local references (in Dependencies, Documentation Inputs, Design Reference, and any other cross-references) to Jira issue keys using the sync manifest. Jira is the source of truth — readers of a Jira issue should never need to decode a local artifact numbering scheme.
@@ -396,9 +410,12 @@ hash):
 - **Description:** `description` from PREP
 - **T-Shirt Size:** `size` from PREP
 
-Update only the sync-owned fields. Do not touch status, assignee, or
-other Jira-managed fields. For **Reopened** items, transition the Jira
-issue back to an open status before updating content.
+Update only the sync-owned fields. Do not touch assignee or other
+Jira-managed fields. Status transitions are permitted only for lifecycle
+operations: transition **Reopened** items to an open status before
+updating content, and transition **Removed** or user-selected
+**Orphaned** items to a closed status during the close passes (Steps 4c,
+5c). Do not change status for any other reason.
 
 After updating, record the new hash:
 
@@ -415,9 +432,10 @@ python3 "$SYNC_HELPER" update-manifest \
 **If update fails:** Report the error with the Jira key and offer to
 retry or skip.
 
-#### 4c: Close Removed Epics
+#### 4c: Close Removed and Selected Orphaned Epics
 
-For each epic categorized as **Removed** (file has `status: removed`):
+For each epic categorized as **Removed** (file has `status: removed`)
+or **Orphaned** where the user chose to close it in Step 1:
 
 1. First, close all stories under this epic that have `synced_status:
    "active"` in the manifest (stories before parent). For each closed
@@ -629,9 +647,10 @@ Update the Jira issue using fields from `PREP`:
   link type and direction mapping as Step 5a. Do not touch issue links
   of other types.
 
-Update only the sync-owned fields. Do not touch status, assignee, or
-other Jira-managed fields. For **Reopened** items, transition the Jira
-issue back to an open status before updating content.
+Update only the sync-owned fields. Do not touch assignee or other
+Jira-managed fields. For **Reopened** items, transition the Jira issue
+back to an open status before updating content (see the status rule in
+Step 4b). Do not change status for any other reason.
 
 After updating, record the new hash:
 
@@ -649,9 +668,10 @@ python3 "$SYNC_HELPER" update-manifest \
 **If update fails:** Report the error with the Jira key and offer to
 retry or skip.
 
-#### 5c: Close Removed Stories
+#### 5c: Close Removed and Selected Orphaned Stories
 
-For each story categorized as **Removed** (file has `status: removed`):
+For each story categorized as **Removed** (file has `status: removed`)
+or **Orphaned** where the user chose to close it in Step 1:
 
 1. Transition the story to Done/Closed in Jira.
 2. Record the close. Use `compute-hash` if the file exists on disk;

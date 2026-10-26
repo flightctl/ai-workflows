@@ -174,6 +174,18 @@ def _validate_manifest_shape(manifest: Any, source: str) -> dict[str, Any]:
                         fail(f"Manifest {source}: epic '{ef}' has "
                              f"duplicate story file '{sf}'")
                     seen_story_files.add(sf)
+                # Check for duplicate numeric story indices within epic
+                seen_story_indices: dict[int, str] = {}
+                for story in stories:
+                    sf = story.get("file", "")
+                    sidx = _parse_story_index(sf)
+                    if sidx is None:
+                        continue
+                    if sidx in seen_story_indices:
+                        fail(f"Manifest {source}: epic '{ef}' has "
+                             f"duplicate story index {sidx}: "
+                             f"'{seen_story_indices[sidx]}' and '{sf}'")
+                    seen_story_indices[sidx] = sf
     return manifest
 
 
@@ -205,8 +217,11 @@ def save_manifest(manifest: dict[str, Any], manifest_path: str | Path) -> None:
             fd = -1  # now owned by the file object
             json.dump(manifest, f, indent=2)
             f.write("\n")
-        tmp_path.rename(p)
-        tmp_path = None  # rename succeeded
+        if p.exists():
+            import shutil as _shutilmod
+            _shutilmod.copymode(str(p), str(tmp_path))
+        tmp_path.replace(p)
+        tmp_path = None  # replace succeeded
     except BaseException:
         if fd >= 0:
             import os
@@ -377,10 +392,22 @@ def _discover_artifact_files(artifacts_dir: Path) -> tuple[list[Path], list[Path
         key=lambda d: (_parse_epic_index(d.name) or 0, d.name),
     )
     for epic_dir in epic_dirs:
-        story_files.extend(sorted(
+        dir_stories = sorted(
             epic_dir.glob("story-*.md"),
             key=lambda p: (_parse_story_index(p.name) or 0, p.name),
-        ))
+        )
+        # Fail closed on duplicate numeric story indices within this epic
+        seen_story_idx: dict[int, str] = {}
+        for sp in dir_stories:
+            sidx = _parse_story_index(sp.name)
+            if sidx is None:
+                continue
+            if sidx in seen_story_idx:
+                fail(f"Duplicate story index {sidx} in {epic_dir.name}: "
+                     f"'{seen_story_idx[sidx]}' and '{sp.name}'. "
+                     f"Rename or remove one before syncing.")
+            seen_story_idx[sidx] = sp.name
+        story_files.extend(dir_stories)
     return epic_files, story_files
 
 
@@ -569,6 +596,22 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
         else:
             if removed:
                 continue  # Never synced, skip
+            # Fail closed if a manifest epic has the same numeric index
+            # under a different filename — epic was renamed on disk.
+            if epic_idx is not None:
+                manifest_epic_for_idx = next(
+                    (name for name in epic_lookup
+                     if _parse_epic_index(name) == epic_idx),
+                    None,
+                )
+                if manifest_epic_for_idx is not None:
+                    fail(
+                        f"Epic '{ef.name}' on disk has index {epic_idx} "
+                        f"but manifest records '{manifest_epic_for_idx}' "
+                        f"for that index. Restore the original filename "
+                        f"or update the manifest before syncing to avoid "
+                        f"duplicate Jira issues."
+                    )
             items.append({
                 "file": ef.name,
                 "type": "epic",
@@ -630,6 +673,27 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
                 if epic_file_name not in matched_story_files:
                     matched_story_files[epic_file_name] = set()
                 matched_story_files[epic_file_name].add(sf.name)
+
+        # Fail closed: if the story wasn't matched above but the manifest
+        # has an epic with the same numeric index under a different filename,
+        # the epic was renamed or deleted.  Producing both an orphan close
+        # and a new-create for the same child would duplicate Jira issues.
+        if manifest_entry is None and epic_idx is not None:
+            manifest_epic_for_idx = next(
+                (name for name in epic_lookup
+                 if _parse_epic_index(name) == epic_idx),
+                None,
+            )
+            if (manifest_epic_for_idx is not None
+                    and manifest_epic_for_idx != epic_file_name):
+                fail(
+                    f"Story '{epic_dir}/{sf.name}' belongs to epic "
+                    f"index {epic_idx}, but the manifest records "
+                    f"'{manifest_epic_for_idx}' for that index (disk "
+                    f"has '{epic_file_name or 'no epic file'}'). "
+                    f"Restore or rename the epic file before syncing "
+                    f"to avoid duplicate Jira issues."
+                )
 
         if manifest_entry is not None:
             m_status = manifest_entry.get("synced_status", "active")

@@ -9,7 +9,7 @@ explain: preconditions, side effects, atomicity, and failure modes.
 - [add](#add)
 - [push](#push)
 - [submit](#submit)
-- [link issues](#link)
+- [link branches](#link)
 - [sync](#sync)
 - [rebase](#rebase)
 - [view](#view)
