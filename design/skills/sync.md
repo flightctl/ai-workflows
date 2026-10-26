@@ -438,12 +438,40 @@ retry or skip.
 For each epic categorized as **Removed** (file has `status: removed`)
 or **Orphaned** where the user chose to close it in Step 1:
 
-1. First, close all stories under this epic that have `synced_status:
-   "active"` in the manifest (stories before parent). For each closed
-   story, checkpoint with `update-manifest --operation close`.
-2. Then transition the epic to Done/Closed in Jira.
-3. Record the close. Use `compute-hash` if the file exists on disk;
-   for orphaned entries (no file on disk), pass an empty hash:
+1. Close all stories under this epic that have `synced_status: "active"`
+   in the manifest (stories before parent). For each child story:
+   a. **Compute the hash first.** Use `compute-hash` if the file exists
+      on disk; for orphaned entries (no file on disk), use an empty
+      hash. Use a distinct variable per child to avoid overwriting
+      sibling hashes (e.g., `CHILD_HASH_01`, `CHILD_HASH_02`).
+   b. Transition the child story to Done/Closed in Jira.
+   c. On success, checkpoint with `update-manifest --operation close`,
+      passing the hash from step (a).
+   d. **If any child operation fails** (hash-prep error, transition
+      unavailable, Jira error, checkpoint save failure, or user
+      skip): **stop the cascade immediately.** Do not proceed to the
+      parent epic. Preserve all already-successful child checkpoints.
+      Report: the parent epic and its Jira key; which children are
+      closed and checkpointed (complete); which child failed and the
+      error (note whether it is Jira-closed but uncheckpointed, or
+      not yet attempted); and which children remain unattempted. Do
+      not imply that already-closed children will be rolled back or
+      reopened. Offer the user two choices: **retry after
+      remediation** (resolve the reported error — Jira or local —
+      then re-run) or **defer the entire parent cascade** (leave the
+      epic and remaining children in their current state). Never skip
+      a failing child and then close the parent.
+   e. **Reconciliation on resume:** If a child's Jira transition
+      succeeded but its checkpoint failed, retry the checkpoint using
+      the hash captured in step (a) rather than repeating the Jira
+      transition. Skip children whose checkpoints already recorded
+      `synced_status: "closed"`.
+2. After **all** child closures and their checkpoints have succeeded,
+   compute the epic hash: use `compute-hash` if the file exists on
+   disk; for orphaned entries (no file on disk), use an empty hash.
+3. Transition the epic to Done/Closed in Jira.
+4. On success, record the close with `update-manifest`, passing the
+   hash from step 2:
 
 ```bash
 python3 "$SYNC_HELPER" update-manifest \
@@ -451,7 +479,7 @@ python3 "$SYNC_HELPER" update-manifest \
   --operation close \
   --file "{epic-file}" \
   --jira-key "{jira-key}" \
-  --content-hash "{hash or empty for orphans}" \
+  --content-hash "{hash from step 2, or empty for orphans}" \
   --item-type epic
 ```
 
@@ -461,7 +489,8 @@ transition. If multiple terminal transitions are available, prefer
 "Done" over "Closed." If no terminal transition is available from the
 current status, report the error and let the user handle it in Jira.
 
-**If close fails:** Report the error and offer to retry or skip.
+**If epic close fails:** Report the error and offer to retry or defer.
+Already-closed children remain closed.
 
 Present all epic operations to the user:
 
@@ -501,6 +530,14 @@ If a parent epic's create or reopen operation failed/was skipped in
 Step 4, do not create, update, or reopen stories under that epic —
 skip them and report which stories were skipped due to the parent
 failure.
+
+If an epic's close cascade was deferred in Step 4c (the parent was
+left unclosed because a child closure or checkpoint failed — whether
+remaining children are open, Jira-closed but uncheckpointed, or
+unattempted), do not retry closing those remaining children here.
+They remain in their current manifest state. Report them as deferred
+and inform the user that the parent cascade must be retried from
+Step 4c after remediation.
 
 Process stories per epic, in the same three passes: create, update, close.
 
@@ -674,9 +711,11 @@ retry or skip.
 For each story categorized as **Removed** (file has `status: removed`)
 or **Orphaned** where the user chose to close it in Step 1:
 
-1. Transition the story to Done/Closed in Jira.
-2. Record the close. Use `compute-hash` if the file exists on disk;
-   for orphaned entries pass an empty hash:
+1. Compute the hash before the transition: use `compute-hash` if the
+   file exists on disk; for orphaned entries, use an empty hash.
+2. Transition the story to Done/Closed in Jira.
+3. On success, record the close with `update-manifest`, passing the
+   hash from step 1:
 
 ```bash
 python3 "$SYNC_HELPER" update-manifest \
@@ -684,7 +723,7 @@ python3 "$SYNC_HELPER" update-manifest \
   --operation close \
   --file "{story-file}" \
   --jira-key "{jira-key}" \
-  --content-hash "{hash or empty for orphans}" \
+  --content-hash "{hash from step 1, or empty for orphans}" \
   --item-type story \
   --epic-file "{epic-file}"
 ```

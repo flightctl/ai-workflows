@@ -2783,5 +2783,357 @@ class TestHelperDiscovery(unittest.TestCase):
                     self._verify_helper(resolved)
 
 
+# ---------------------------------------------------------------------------
+# Test: cascade failure gate and hash-before-transition contract
+# (review findings 4382917342, 5659593514)
+# ---------------------------------------------------------------------------
+
+class TestCascadeGateContract(unittest.TestCase):
+    """Assert sync.md Steps 4c/5c document hash-before-transition ordering
+    and that Step 4c gates the parent close on all child successes.
+
+    These are contract tests against the ACTUAL Markdown sections/order,
+    not a test-only invented executor.  They verify the documented
+    ordering and gating requirements that an agent must follow.
+    """
+
+    _sync_md: str
+    _step4c: str
+    _step5c: str
+    _step5_refresh: str
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import re
+        sync_md_path = Path(__file__).resolve().parent.parent / "skills" / "sync.md"
+        cls._sync_md = sync_md_path.read_text(encoding="utf-8")
+        m4c = re.search(r"#### 4c:.*?(?=####|### )", cls._sync_md, re.DOTALL)
+        assert m4c, "Step 4c section not found"
+        cls._step4c = m4c.group()
+        m5c = re.search(r"#### 5c:.*?(?=####|### )", cls._sync_md, re.DOTALL)
+        assert m5c, "Step 5c section not found"
+        cls._step5c = m5c.group()
+        m5 = re.search(r"### Step 5:.*?(?=#### 5a:)", cls._sync_md, re.DOTALL)
+        assert m5, "Step 5 plan refresh not found"
+        cls._step5_refresh = m5.group()
+
+    # -- Step 4c: child hash before child transition ---
+
+    def test_step4c_child_hash_before_transition(self) -> None:
+        """4c child closure: hash computed before Jira transition."""
+        h = self._step4c.find("Compute the hash first")
+        t = self._step4c.find("Transition the child story")
+        self.assertGreater(h, -1, "must mention computing child hash")
+        self.assertGreater(t, -1, "must mention child transition")
+        self.assertLess(h, t, "child hash must precede child transition")
+
+    def test_step4c_epic_hash_before_transition(self) -> None:
+        """4c epic closure: hash computed before Jira transition."""
+        h = self._step4c.find("compute the epic hash")
+        t = self._step4c.find("Transition the epic to Done")
+        self.assertGreater(h, -1, "must mention computing epic hash")
+        self.assertGreater(t, -1, "must mention epic transition")
+        self.assertLess(h, t, "epic hash must precede epic transition")
+
+    # -- Step 4c: parent gated on all children ---
+
+    def test_step4c_parent_gated_on_all_children(self) -> None:
+        """4c: parent close requires ALL child closures and checkpoints."""
+        self.assertIn("child closures and their checkpoints have succeeded",
+                      self._step4c)
+
+    def test_step4c_stop_cascade_on_failure(self) -> None:
+        """4c: cascade stops immediately on any child failure."""
+        import re
+        self.assertTrue(
+            re.search(r"stop the cascade\s+immediately", self._step4c),
+            "must stop cascade immediately on child failure")
+
+    def test_step4c_no_skip_child_then_close_parent(self) -> None:
+        """4c: explicitly forbids skipping a child then closing parent."""
+        import re
+        self.assertTrue(
+            re.search(r"Never\s+skip\s+a failing child", self._step4c),
+            "must forbid skip-child-close-parent")
+
+    def test_step4c_offers_retry_or_defer(self) -> None:
+        """4c: on failure offers retry-after-remediation or defer."""
+        import re
+        self.assertTrue(
+            re.search(r"retry after\s+remediation", self._step4c),
+            "must offer retry after remediation")
+        self.assertIn("defer the entire parent", self._step4c)
+
+    def test_step4c_preserves_successful_checkpoints(self) -> None:
+        """4c: already-successful child checkpoints preserved on failure."""
+        import re
+        self.assertTrue(
+            re.search(r"Preserve all\s+already-successful child checkpoints",
+                      self._step4c),
+            "must preserve completed child checkpoints")
+
+    def test_step4c_reconciliation_on_resume(self) -> None:
+        """4c: resume retries checkpoint, not Jira transition."""
+        import re
+        self.assertTrue(
+            re.search(r"retry the checkpoint using\s+the hash captured",
+                      self._step4c),
+            "must retry checkpoint with captured hash")
+        self.assertTrue(
+            re.search(r"rather than repeating the Jira\s+transition",
+                      self._step4c),
+            "must not repeat Jira transition on resume")
+
+    # -- Step 5c: hash before transition ---
+
+    def test_step5c_hash_before_transition(self) -> None:
+        """5c story close: hash computed before transition."""
+        h = self._step5c.find("Compute the hash before the transition")
+        t = self._step5c.find("Transition the story to Done")
+        self.assertGreater(h, -1, "must mention computing hash first")
+        self.assertGreater(t, -1, "must mention story transition")
+        self.assertLess(h, t, "hash must precede transition")
+
+    def test_step5c_checkpoint_uses_saved_hash(self) -> None:
+        """5c: checkpoint references saved hash from step 1."""
+        self.assertIn("hash from step 1", self._step5c)
+
+    # -- Step 4c: reporting distinguishes child states ---
+
+    def test_step4c_report_distinguishes_child_states(self) -> None:
+        """4c: failure report distinguishes complete, uncheckpointed,
+        and unattempted children."""
+        self.assertIn("closed and checkpointed (complete)", self._step4c)
+        self.assertIn("Jira-closed but uncheckpointed", self._step4c)
+        self.assertIn("unattempted", self._step4c)
+
+    def test_step4c_no_rollback_implication(self) -> None:
+        """4c: does not imply already-closed children are rolled back."""
+        import re
+        self.assertTrue(
+            re.search(r"not imply.*rolled back", self._step4c),
+            "must not imply rollback of closed children")
+
+    # -- Step 5 plan refresh: deferred cascades ---
+
+    def test_step5_deferred_cascade_not_retried(self) -> None:
+        """Step 5 refresh: deferred cascades are not silently retried."""
+        self.assertIn("deferred in Step 4c", self._step5_refresh)
+        self.assertIn("do not retry closing", self._step5_refresh)
+
+    def test_step5_deferral_covers_checkpoint_failure(self) -> None:
+        """Step 5 refresh: deferral clause covers Jira-closed-but-
+        uncheckpointed state, not just open children."""
+        self.assertIn("Jira-closed but uncheckpointed", self._step5_refresh)
+
+
+# ---------------------------------------------------------------------------
+# Test: cascade checkpoint behavior (local state, no Jira)
+# ---------------------------------------------------------------------------
+
+class TestCascadeCheckpointBehavior(_TmpDirMixin, unittest.TestCase):
+    """Test real local checkpoint behaviour for cascade closure.
+
+    These tests verify that the sync_helper checkpoint mechanism
+    (update-manifest) correctly handles partial cascade completion,
+    retained hashes, and orphan empty-hash patterns.  No Jira or LLM
+    involvement — these test the deterministic helper functions that
+    the agent calls between Jira operations.
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.artifacts = Path(self.tmpdir) / "art"
+        sd = self.artifacts / "06-stories"
+        sd.mkdir(parents=True)
+        self.ef = _make_epic(sd, 1, "building", removed=True)
+        self.sf1 = _make_dev_story(sd, 1, 1, "scaffold")
+        self.sf2 = _make_dev_story(sd, 1, 2, "pipe")
+        self.mf = _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "old_epic_hash",
+            "synced_status": "active",
+            "stories": [
+                {"file": "story-01-scaffold.md", "jira_key": "EDM-201",
+                 "content_hash": "old_s1", "synced_status": "active"},
+                {"file": "story-02-pipe.md", "jira_key": "EDM-202",
+                 "content_hash": "old_s2", "synced_status": "active"},
+            ],
+        }])
+
+    def test_partial_cascade_checkpoint_failure_preserves_progress(self) -> None:
+        """Child 1 checkpoint succeeds; child 2 checkpoint save fails
+        (injected OSError on atomic replace).  Parent stays active,
+        child 1's persisted checkpoint is preserved, child 2 remains
+        active with its original hash.
+
+        Uses the same atomic-failure pattern as
+        TestSaveManifestAtomic.test_failure_no_corruption.
+        """
+        child1_hash = sync_helper.compute_file_hash(self.sf1)
+        child2_hash = sync_helper.compute_file_hash(self.sf2)
+
+        # Child 1: Jira transition succeeded → checkpoint succeeds
+        sync_helper.update_manifest(
+            self.mf, "close", "story-01-scaffold.md", "EDM-201",
+            child1_hash, item_type="story",
+            epic_file="epic-1-building.md")
+
+        # Snapshot manifest bytes after child 1's successful checkpoint
+        manifest_after_child1 = self.mf.read_bytes()
+
+        # Child 2: Jira transition succeeded but checkpoint save fails
+        _original_replace = Path.replace
+
+        def _failing_replace(self_path, target):
+            # Fail only for the manifest tmp → target rename
+            if str(target).endswith("sync-manifest.json"):
+                raise OSError("injected disk write failure")
+            return _original_replace(self_path, target)
+
+        with mock.patch.object(Path, "replace", _failing_replace):
+            with self.assertRaises(OSError):
+                sync_helper.update_manifest(
+                    self.mf, "close", "story-02-pipe.md", "EDM-202",
+                    child2_hash, item_type="story",
+                    epic_file="epic-1-building.md")
+
+        # Manifest on disk is unmodified from child 1's checkpoint
+        self.assertEqual(self.mf.read_bytes(), manifest_after_child1,
+                         "Atomic save failure must not corrupt manifest")
+
+        manifest = sync_helper.load_manifest(self.mf)
+        epic = manifest["epics"][0]
+        self.assertEqual(epic["synced_status"], "active",
+                         "Parent must remain active when cascade is incomplete")
+        s1 = epic["stories"][0]
+        s2 = epic["stories"][1]
+        self.assertEqual(s1["synced_status"], "closed",
+                         "Child 1 checkpoint must be preserved after child 2 failure")
+        self.assertEqual(s1["content_hash"], child1_hash,
+                         "Child 1 hash must be the pre-transition value")
+        self.assertEqual(s2["synced_status"], "active",
+                         "Child 2 must remain active (checkpoint never persisted)")
+        self.assertEqual(s2["content_hash"], "old_s2",
+                         "Child 2 hash must be original (checkpoint failed)")
+
+    def test_retry_checkpoint_after_remediation(self) -> None:
+        """After a checkpoint failure is remediated, retrying with the
+        original captured hash succeeds without repeating Jira calls."""
+        child2_hash = sync_helper.compute_file_hash(self.sf2)
+
+        # First attempt: checkpoint save fails
+        _original_replace = Path.replace
+
+        def _failing_replace(self_path, target):
+            if str(target).endswith("sync-manifest.json"):
+                raise OSError("injected disk write failure")
+            return _original_replace(self_path, target)
+
+        with mock.patch.object(Path, "replace", _failing_replace):
+            with self.assertRaises(OSError):
+                sync_helper.update_manifest(
+                    self.mf, "close", "story-02-pipe.md", "EDM-202",
+                    child2_hash, item_type="story",
+                    epic_file="epic-1-building.md")
+
+        # Remediation: disk issue resolved, retry with SAME captured hash
+        sync_helper.update_manifest(
+            self.mf, "close", "story-02-pipe.md", "EDM-202",
+            child2_hash, item_type="story",
+            epic_file="epic-1-building.md")
+
+        manifest = sync_helper.load_manifest(self.mf)
+        s2 = manifest["epics"][0]["stories"][1]
+        self.assertEqual(s2["synced_status"], "closed",
+                         "Retry must succeed after remediation")
+        self.assertEqual(s2["content_hash"], child2_hash,
+                         "Retry must use the original captured hash")
+
+    def test_retained_hash_despite_artifact_edit(self) -> None:
+        """Hash captured before transition is retained even if the file
+        is edited after the Jira call but before checkpoint."""
+        pre_hash = sync_helper.compute_file_hash(self.sf1)
+
+        # File edited after Jira call (e.g. by user)
+        self.sf1.write_text(
+            self.sf1.read_text() + "\n## Extra section\n\nAdded later.\n")
+        post_hash = sync_helper.compute_file_hash(self.sf1)
+        self.assertNotEqual(pre_hash, post_hash, "sanity: edit changes hash")
+
+        # Checkpoint uses the PRE-transition hash (per line 85 rule)
+        sync_helper.update_manifest(
+            self.mf, "close", "story-01-scaffold.md", "EDM-201",
+            pre_hash, item_type="story",
+            epic_file="epic-1-building.md")
+
+        manifest = sync_helper.load_manifest(self.mf)
+        s1 = manifest["epics"][0]["stories"][0]
+        self.assertEqual(s1["content_hash"], pre_hash,
+                         "Must store pre-transition hash, not fresh recompute")
+
+    def test_orphan_empty_hash_not_fabricated(self) -> None:
+        """Orphaned entry (no file on disk) uses empty hash — reading
+        a nonexistent file must raise, not silently produce empty."""
+        self.sf2.unlink()
+
+        with self.assertRaises(FileNotFoundError):
+            sync_helper.compute_file_hash(self.sf2)
+
+        # Orphan close uses empty hash per Step 4c/5c
+        sync_helper.update_manifest(
+            self.mf, "close", "story-02-pipe.md", "EDM-202",
+            "", item_type="story",
+            epic_file="epic-1-building.md")
+
+        manifest = sync_helper.load_manifest(self.mf)
+        s2 = manifest["epics"][0]["stories"][1]
+        self.assertEqual(s2["content_hash"], "",
+                         "Orphan close must use empty hash")
+        self.assertEqual(s2["synced_status"], "closed")
+
+    def test_resume_skips_already_closed_children(self) -> None:
+        """On resume, detect-changes marks already-closed children as
+        unchanged so the cascade does not re-close them."""
+        child1_hash = sync_helper.compute_file_hash(self.sf1)
+        sync_helper.update_manifest(
+            self.mf, "close", "story-01-scaffold.md", "EDM-201",
+            child1_hash, item_type="story",
+            epic_file="epic-1-building.md")
+
+        plan = sync_helper.detect_changes(self.artifacts)
+        # Items use dir-qualified paths: "epic-1/story-01-scaffold.md"
+        child1_items = [i for i in plan["items"]
+                        if i["type"] == "story"
+                        and "story-01-scaffold.md" in i.get("file", "")]
+        self.assertEqual(len(child1_items), 1,
+                         "Exactly one plan item expected for closed child")
+        self.assertEqual(child1_items[0]["category"], "unchanged",
+                         "Already-closed child must be unchanged on resume")
+
+    def test_distinct_child_hashes_not_overwritten(self) -> None:
+        """Each child's hash is recorded independently; closing one
+        does not overwrite the other's stored hash."""
+        hash1 = sync_helper.compute_file_hash(self.sf1)
+        hash2 = sync_helper.compute_file_hash(self.sf2)
+        self.assertNotEqual(hash1, hash2, "sanity: different content")
+
+        sync_helper.update_manifest(
+            self.mf, "close", "story-01-scaffold.md", "EDM-201",
+            hash1, item_type="story",
+            epic_file="epic-1-building.md")
+        sync_helper.update_manifest(
+            self.mf, "close", "story-02-pipe.md", "EDM-202",
+            hash2, item_type="story",
+            epic_file="epic-1-building.md")
+
+        manifest = sync_helper.load_manifest(self.mf)
+        s1 = manifest["epics"][0]["stories"][0]
+        s2 = manifest["epics"][0]["stories"][1]
+        self.assertEqual(s1["content_hash"], hash1)
+        self.assertEqual(s2["content_hash"], hash2,
+                         "Second child hash must not be overwritten by first")
+
+
 if __name__ == "__main__":
     unittest.main()
