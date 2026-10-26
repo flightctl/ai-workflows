@@ -1598,6 +1598,26 @@ class TestGap1_SnapshotFields(_TmpDirMixin, unittest.TestCase):
         self.assertEqual(r["summary"], "Monitoring")
         self.assertEqual(r["size"], "S")
 
+    def test_epic_summary_strips_colon_numbering(self) -> None:
+        """'Epic 1: Image Building' → 'Image Building' (no leading colon)."""
+        ef = Path(self.tmpdir) / "epic.md"
+        _write(ef, _EPIC_TEMPLATE.format(
+            extra_fm="", title="Epic 1: Image Building", size="L",
+            summary="Build images.", ac="Pipeline runs",
+            feature_key="F", prd_reqs="FR-1", design_sections="§4.1"))
+        r = sync_helper.prepare(str(ef), str(self.mf), "epic")
+        self.assertEqual(r["summary"], "Image Building")
+
+    def test_epic_summary_no_numbering(self) -> None:
+        """'Image Building' (no Epic N prefix) → 'Image Building'."""
+        ef = Path(self.tmpdir) / "epic.md"
+        _write(ef, _EPIC_TEMPLATE.format(
+            extra_fm="", title="Image Building", size="M",
+            summary="Build.", ac="AC",
+            feature_key="F", prd_reqs="FR-1", design_sections="§4.1"))
+        r = sync_helper.prepare(str(ef), str(self.mf), "epic")
+        self.assertEqual(r["summary"], "Image Building")
+
     def test_story_summary_has_prefix_no_numbering(self) -> None:
         sf = Path(self.tmpdir) / "story.md"
         _write(sf, _DEV_STORY_TEMPLATE.format(
@@ -1770,35 +1790,82 @@ class TestGap4_NestedValidation(_TmpDirMixin, unittest.TestCase):
         with self.assertRaises(SystemExit):
             sync_helper.load_manifest(self.mf)
 
-    def test_ambiguous_epic_index_warns(self) -> None:
-        """Two epic files with same index on disk → warning when story exists."""
+    def test_duplicate_epic_index_on_disk_fails_fresh(self) -> None:
+        """Two epic files with same numeric index → fail closed, no plan."""
+        arts = Path(self.tmpdir) / "art"
+        sd = arts / "06-stories"
+        sd.mkdir(parents=True)
+        _make_epic(sd, 1, "alpha")
+        _write(sd / "epic-1-beta.md", _EPIC_TEMPLATE.format(
+            extra_fm="", title="Epic 1 Beta", size="S",
+            summary="Beta.", ac="AC", feature_key="F",
+            prd_reqs="FR-1", design_sections="§4.1"))
+
+        with self.assertRaises(SystemExit) as ctx:
+            sync_helper.detect_changes(arts)
+        self.assertEqual(ctx.exception.code, 1)
+
+    def test_duplicate_epic_index_on_disk_fails_with_manifest(self) -> None:
+        """Duplicate index with manifest → fail, manifest preserved."""
         arts = Path(self.tmpdir) / "art"
         sd = arts / "06-stories"
         sd.mkdir(parents=True)
         ef1 = _make_epic(sd, 1, "alpha")
-        # Create a second epic-1 file (same numeric index)
-        _write(sd / "epic-1-beta.md",
-               _EPIC_TEMPLATE.format(
-                   extra_fm="", title="Epic 1 Beta", size="S",
-                   summary="Beta.", ac="AC", feature_key="F",
-                   prd_reqs="FR-1", design_sections="§4.1"))
-        # Story + manifest so story loop fires candidate lookup
-        sf = _make_dev_story(sd, 1, 1, "scaffold")
-        _make_manifest(arts, [{
+        _write(sd / "epic-1-beta.md", _EPIC_TEMPLATE.format(
+            extra_fm="", title="Epic 1 Beta", size="S",
+            summary="Beta.", ac="AC", feature_key="F",
+            prd_reqs="FR-1", design_sections="§4.1"))
+        mf = _make_manifest(arts, [{
             "file": "epic-1-alpha.md", "jira_key": "K-1",
-            "content_hash": sync_helper.compute_file_hash(ef1),
-            "synced_status": "active",
-            "stories": [{
-                "file": "story-01-scaffold.md", "jira_key": "S-1",
-                "content_hash": sync_helper.compute_file_hash(sf),
-                "synced_status": "active",
-            }],
+            "content_hash": "h", "synced_status": "active", "stories": [],
         }])
+        original = mf.read_bytes()
 
+        with self.assertRaises(SystemExit) as ctx:
+            sync_helper.detect_changes(arts)
+        self.assertEqual(ctx.exception.code, 1)
+        self.assertEqual(mf.read_bytes(), original)
+
+    def test_duplicate_epic_index_on_disk_via_cli(self) -> None:
+        """CLI detect-changes with duplicate index → nonzero exit."""
+        arts = Path(self.tmpdir) / "art"
+        sd = arts / "06-stories"
+        sd.mkdir(parents=True)
+        _make_epic(sd, 1, "alpha")
+        _write(sd / "epic-1-beta.md", _EPIC_TEMPLATE.format(
+            extra_fm="", title="Epic 1 Beta", size="S",
+            summary="Beta.", ac="AC", feature_key="F",
+            prd_reqs="FR-1", design_sections="§4.1"))
+
+        with self.assertRaises(SystemExit) as ctx:
+            sync_helper.main(["detect-changes", str(arts)])
+        self.assertEqual(ctx.exception.code, 1)
+
+    def test_duplicate_epic_index_in_manifest_rejected(self) -> None:
+        """Manifest with two epics sharing numeric index → fail."""
+        _write(self.mf, json.dumps({
+            "schema_version": 2, "feature_key": "F",
+            "epics": [
+                {"file": "epic-1-alpha.md", "jira_key": "K-1",
+                 "content_hash": "h", "synced_status": "active", "stories": []},
+                {"file": "epic-1-beta.md", "jira_key": "K-2",
+                 "content_hash": "h2", "synced_status": "active", "stories": []},
+            ],
+        }))
+        original = self.mf.read_bytes()
+        with self.assertRaises(SystemExit):
+            sync_helper.load_manifest(self.mf)
+        self.assertEqual(self.mf.read_bytes(), original)
+
+    def test_distinct_epic_indices_allowed(self) -> None:
+        """Different numeric indices on disk and manifest are fine."""
+        arts = Path(self.tmpdir) / "art"
+        sd = arts / "06-stories"
+        sd.mkdir(parents=True)
+        _make_epic(sd, 1, "alpha")
+        _make_epic(sd, 2, "beta")
         plan = sync_helper.detect_changes(arts)
-        self.assertTrue(
-            any("Ambiguous epic index" in w for w in plan["warnings"]),
-            f"Expected ambiguity warning; got warnings: {plan['warnings']}")
+        self.assertEqual(plan["summary"]["new"], 2)
 
     def test_unknown_top_level_fields_preserved(self) -> None:
         """Unknown top-level keys don't cause rejection (forward compat)."""

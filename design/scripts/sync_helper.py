@@ -137,6 +137,7 @@ def _validate_manifest_shape(manifest: Any, source: str) -> dict[str, Any]:
     # Validate epic entries and check for duplicates
     if epics is not None:
         seen_files: set[str] = set()
+        seen_indices: dict[int, str] = {}
         for i, epic in enumerate(epics):
             if not isinstance(epic, dict):
                 fail(f"Manifest {source}: epic entry [{i}] must be a dict")
@@ -147,6 +148,13 @@ def _validate_manifest_shape(manifest: Any, source: str) -> dict[str, Any]:
             if ef in seen_files:
                 fail(f"Manifest {source}: duplicate epic file '{ef}'")
             seen_files.add(ef)
+            # Check for duplicate numeric indices across different filenames
+            idx = _parse_epic_index(ef)
+            if idx is not None:
+                if idx in seen_indices and seen_indices[idx] != ef:
+                    fail(f"Manifest {source}: duplicate epic index {idx} "
+                         f"('{seen_indices[idx]}' and '{ef}')")
+                seen_indices[idx] = ef
             # Validate stories list within each epic
             stories = epic.get("stories")
             if stories is not None:
@@ -337,6 +345,7 @@ def _discover_artifact_files(artifacts_dir: Path) -> tuple[list[Path], list[Path
     """Discover epic and story files under the artifacts directory.
 
     Returns (epic_files, story_files) sorted numerically by index.
+    Fails if multiple epic files share the same numeric index.
     Epic files:  ``06-stories/epic-{N}-{slug}.md``
     Story files: ``06-stories/epic-{N}/story-{NN}-{slug}.md``
     """
@@ -348,6 +357,19 @@ def _discover_artifact_files(artifacts_dir: Path) -> tuple[list[Path], list[Path
         stories_dir.glob("epic-*.md"),
         key=lambda p: (_parse_epic_index(p.name) or 0, p.name),
     )
+
+    # Fail closed on duplicate numeric epic indices
+    seen_indices: dict[int, str] = {}
+    for ef in epic_files:
+        idx = _parse_epic_index(ef.name)
+        if idx is None:
+            continue
+        if idx in seen_indices:
+            fail(f"Duplicate epic index {idx}: '{seen_indices[idx]}' and "
+                 f"'{ef.name}' in {stories_dir}. Rename or remove one "
+                 f"before syncing.")
+        seen_indices[idx] = ef.name
+
     story_files: list[Path] = []
     epic_dirs = sorted(
         (d for d in stories_dir.iterdir()
@@ -593,15 +615,11 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
         # If parent epic is removed/closed, treat child as following parent
         parent_removed = epic_idx is not None and epic_idx in closed_epic_indices
 
+        # Safe: _discover_artifact_files already rejected duplicate indices
         epic_file_candidates = [
             ef.name for ef in epic_files
             if _parse_epic_index(ef.name) == epic_idx
         ]
-        if len(epic_file_candidates) > 1:
-            warnings.append(
-                f"Ambiguous epic index {epic_idx}: multiple epic files "
-                f"({', '.join(epic_file_candidates)}). Using first match."
-            )
         epic_file_name = epic_file_candidates[0] if epic_file_candidates else None
 
         manifest_entry = None
@@ -1063,8 +1081,8 @@ def prepare(
             feature_key=feature_key,
             _content=content_text,
         )
-        # Jira summary: strip "Epic N " prefix from canonical title
-        jira_summary = re.sub(r"^Epic\s+\d+\s*", "", raw_title).strip()
+        # Jira summary: strip "Epic N " or "Epic N: " prefix
+        jira_summary = re.sub(r"^Epic\s+\d+[:\s]*", "", raw_title).strip()
         result["summary"] = jira_summary
 
         # Extract T-Shirt Size from preamble
