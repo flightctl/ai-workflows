@@ -331,8 +331,8 @@ Change field.
   hardware interaction, exploratory testing)
 
 **Coverage target:** Every behavioral FR and NFR should have at least
-one test case. Documentation-only requirements are exempt (see
-"Documentation-only requirements" above) and belong in the
+one test case. Documentation-only requirements are exempt (see the
+"Documentation-only requirements" rule) and belong in the
 Requirement Coverage Gaps section with rationale instead. Every IC
 should be exercised by at least one test case. An IC with no test
 case is either a testplan gap or an unnecessary interface change in
@@ -453,6 +453,11 @@ Write `.artifacts/design/{issue-key}/04-testplan.md`:
 | Interface Change | Priority | Automation |
 |-----------------|----------|------------|
 | — | high | manual |
+
+##### Preconditions
+
+- {system state or baseline required before the test — omit section
+  if no setup is needed and no Shared Preconditions block exists}
 
 ##### Steps
 
