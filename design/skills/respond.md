@@ -224,13 +224,17 @@ feedback), apply them in this order:
      group from the current testplan: scan all TC IDs under each
      `### FR-*` / `### NFR-*` heading (including any about to be
      removed) and record the highest sequence number per group. If
-     the testplan's history section, provenance log, or review thread
-     names previously retired IDs higher than any current ID, include
-     those in the high-water mark. If historical allocation cannot be
-     reliably determined and a gap might hide a retired ID, ask for
-     the missing history before mutating — never guess. Deletion
-     never releases a reserved sequence; new IDs are always allocated
-     above the high-water mark.
+     reliable context is available (e.g., prior document versions,
+     review comments, or provenance metadata that names previously
+     retired IDs), include any retired ID higher than the current
+     maximum. When the historical high-water cannot be reliably
+     established for an existing requirement group — even if the
+     live IDs are contiguous or the group is currently empty — ask
+     for the missing history before mutating; do not infer that no
+     retired IDs exist from the absence of visible gaps. A genuinely
+     new requirement group with confirmed no prior allocation may
+     start at 01. Deletion never releases a reserved sequence; new
+     IDs are always allocated above the high-water mark.
 
    Then add, modify, or remove test cases as directed by the approved
    response. For all mutations, apply the test case format,
@@ -248,7 +252,8 @@ feedback), apply them in this order:
      removed, the high-water mark is 03, so the new case is
      TC-FR2-04). Reserve the new ID immediately — subsequent adds in
      the same mutation round use the updated high-water mark. For a
-     genuinely new requirement with no prior IDs, start at 01. Never
+     genuinely new requirement group with confirmed no prior
+     allocation, start at 01. Never
      reuse gaps or retired IDs; ALM systems track by ID. Create the
      test case entry: H4 heading with
      ID and title, metadata table (Interface Change, Priority,
