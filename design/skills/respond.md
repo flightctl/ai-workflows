@@ -214,9 +214,10 @@ When approved changes include testplan modifications (category: Testplan
 feedback), apply them in this order:
 
 1. **Modify `04-testplan.md`.** Before making any changes, record the
-   IC and requirement mappings of any test cases that will be removed
-   or reassigned — both are needed for the cascade in step 2 (IC
-   mappings for IC-based matching, requirement mappings for
+   IC and requirement mappings of any test cases that will be removed,
+   reassigned, or have their IC or requirement mapping changed (even
+   if the TC ID is retained) — both are needed for the cascade in
+   step 2 (IC mappings for IC-based matching, requirement mappings for
    cross-cutting TCs with `Interface Change: —`). Then add, modify, or
    remove test cases as directed by the approved response.
    For each change:
@@ -236,8 +237,8 @@ feedback), apply them in this order:
    - **Modifying a test case:** Update the affected heading, metadata
      table fields, or content (sub-sections or compact inline fields).
      The same Expected Results quality gate applies — no banned vague
-     phrases. If the Interface Change assignment changes, update the
-     affected stories' `Validated by` in step 2 below. After any
+     phrases. If the Interface Change or requirement mapping changes,
+     update the affected stories' `Validated by` in step 2 below. After any
      modification, update the Test Case Index row to match the current
      heading, IC, and priority. If counts changed (metadata edits,
      parameterized-row additions or removals), also update the
@@ -245,15 +246,25 @@ feedback), apply them in this order:
      test case format, setup-inheritance, and self-review rules as
      Step 9a and 9c of the draft skill.
    - **Removing a test case:** Delete the test case entry (heading and
-     all content). Update the testplan's Overview counts, Summary table,
-     and Test Case Index.
+     all content). Remove the corresponding row from the Test Case
+     Index. Update the testplan's Overview counts and Summary table.
+
+   After all mutations, verify the Test Case Index is present and
+   complete. If the Index is missing, malformed, or incomplete, rebuild
+   it from the current test cases using the schema from the draft
+   skill's Step 9b template (`| ID | Scenario | IC | Priority |`):
+   one row per TC ID (not per parameterized variation), with the
+   scenario title from the H4 heading, IC and priority from the
+   metadata table. Every current TC ID must appear exactly once;
+   removed cases must be absent.
 
 2. **Cascade to story files (if decomposition exists).** Skip this step
    if no decomposition artifacts exist (`06-stories/` directory not
    found). For each affected story, skip `[DOCS]` stories. Identify
-   affected stories using two matching rules — for removed or
-   reassigned TCs, use the pre-mutation mappings recorded in step 1
-   (the TC's metadata is gone from the testplan after removal):
+   affected stories using two matching rules — for removed, reassigned,
+   or remapped TCs, use the pre-mutation mappings recorded in step 1
+   (the TC's old metadata may be gone or changed after mutation); for
+   added or retained TCs, use the current mappings:
    - **IC-based:** the test case's Interface Change (current or
      pre-mutation) overlaps with the story's `Interface Changes` line
      in its Design Reference.
@@ -264,10 +275,11 @@ feedback), apply them in this order:
    For each affected non-`[DOCS]` story:
    - Re-read the story file at
      `.artifacts/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md`.
-   - Rewrite the `Validated by` line in the Design Reference section:
-     collect all TC IDs from the updated testplan that match this story
+   - Rewrite the `Validated by` line from the **current** (post-
+     mutation) testplan state: collect all TC IDs that match this story
      (by IC overlap or requirement-based fallback for `—` TCs),
-     then write `Validated by: {comma-separated TC IDs}`.
+     then write `Validated by: {comma-separated TC IDs}`. This ensures
+     old stories lose stale references and new stories gain them.
    - If a story loses all its test cases, write:
      `Validated by: None — no behavioral test cases after testplan revision`.
 

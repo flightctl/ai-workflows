@@ -330,10 +330,13 @@ Change field.
 - `manual` — the scenario requires human verification (visual checks,
   hardware interaction, exploratory testing)
 
-**Coverage target:** Every FR and NFR should have at least one test
-case. Every IC should be exercised by at least one test case. An IC
-with no test case is either a testplan gap or an unnecessary interface
-change in the design.
+**Coverage target:** Every behavioral FR and NFR should have at least
+one test case. Documentation-only requirements are exempt (see
+"Documentation-only requirements" above) and belong in the
+Requirement Coverage Gaps section with rationale instead. Every IC
+should be exercised by at least one test case. An IC with no test
+case is either a testplan gap or an unnecessary interface change in
+the design.
 
 **Negative scenarios:** Include negative/error test cases where the PRD
 or design specifies error handling behavior. Do not invent error
