@@ -30,8 +30,9 @@ the built-in phase file `skills/sync.md`, the helper is at
 then into `scripts/`.
 
 To resolve the helper, record the absolute path of the **built-in**
-`design/skills/sync.md` (or `design/SKILL.md`) that you are reading —
-not a project-level phase override — and derive the helper from it:
+`design/skills/sync.md` that you are reading — not `design/SKILL.md`
+(which has a different directory depth) and not a project-level phase
+override — and derive the helper from it:
 
 ```bash
 BUILTIN_SYNC='<absolute path of the loaded built-in design/skills/sync.md>'
@@ -58,7 +59,7 @@ Available subcommands:
 | `prepare <file> <manifest> --type epic\|story [options]` | Read file once; return hash + rendered description (snapshot-consistent) |
 | `resolve-refs <manifest-path> <text>` | Replace local refs (Story 1.01, Epic 1) with Jira keys |
 | `render-description <file> <manifest> --type epic\|story [options]` | Render Jira-ready description with resolved refs |
-| `update-manifest <manifest> --operation create\|update\|close --file <f> --jira-key <K> --content-hash <H> --epic-file <E> [options]` | Record one successful Jira operation |
+| `update-manifest <manifest> --operation create\|update\|close --file <f> --jira-key <K> --content-hash <H> [--item-type epic\|story] [--epic-file <E>] [options]` | Record one successful Jira operation (`--epic-file` required for stories) |
 | `compute-hash <file>` | Print SHA-256 of file content |
 | `migrate-manifest <manifest>` | Upgrade v1 manifest to v2 in place |
 
@@ -77,7 +78,7 @@ Jira write.
 - **Manifest gate.** Before proceeding past Step 1, you **must** state aloud to the user what the manifest contains (or that none exists). This is mandatory — do not silently skip this acknowledgment. If a manifest exists and you cannot read it, stop and report the error.
 - **Jira-side duplicate check.** Before creating each epic or story, query Jira for existing children under the parent with a matching summary. If a match is found, stop and present the match to the user — do not create a duplicate. This is a safety net independent of the manifest.
 - **Jira hierarchy is fixed.** Feature → Epic → Story. Every epic's parent is the Feature issue; every story's parent is its epic. No operation may violate this hierarchy — no re-parenting, no creating issues outside this structure, no closing a Feature.
-- **Sync-owned fields.** Sync owns: summary, description, T-shirt size (epics only), parent link (creation only), and issue links (dependencies). These are set from artifact content on creation and overwritten on updates (except parent link). Sync never touches: assignee, sprint, comments, labels, or any other Jira-managed field. Status transitions are permitted **only** for gated lifecycle operations: reopening a previously closed item (Step 4b/5b) and closing a removed or user-selected orphaned item (Step 4c/5c). No other status changes are allowed.
+- **Sync-owned fields.** Sync owns: summary, description, T-shirt size (epics only), parent link (creation only), and issue links (dependencies). These are set from artifact content on creation and overwritten on updates (except parent link). Sync never touches: assignee, sprint, comments, labels, or any other Jira-managed field. Status transitions are permitted **only** for gated lifecycle operations: reopening a previously closed item (Step 4b/5b), closing a removed or user-selected orphaned item (Step 4c/5c), and closing active child stories as part of an approved parent epic closure cascade (Step 4c — the user's approval of the parent close covers its children). No other status changes are allowed.
 - **Logical deletion via marker.** Stories and epics are closed (not deleted) when their artifact file contains `status: removed` in the YAML frontmatter. The file stays on disk so the manifest can still track it.
 - **Link to source.** Every Jira issue description references the design document.
 - **Jira-native references.** Local identifiers (`Story 1.01`, `Epic 1`) have meaning only within the `.artifacts/` directory. When constructing Jira issue descriptions, resolve all local references (in Dependencies, Documentation Inputs, Design Reference, and any other cross-references) to Jira issue keys using the sync manifest. Jira is the source of truth — readers of a Jira issue should never need to decode a local artifact numbering scheme.

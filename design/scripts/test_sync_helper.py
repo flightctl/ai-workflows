@@ -2315,6 +2315,335 @@ class TestOrphanClosureStateful(_TmpDirMixin, unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Test: cross-directory duplicate story indices (review finding 4382368944)
+# ---------------------------------------------------------------------------
+
+class TestCrossDirectoryDuplicateStory(_TmpDirMixin, unittest.TestCase):
+    """Reject duplicate story indices across directory aliases for the same
+    numeric epic index (e.g. epic-1/ and epic-01/ both map to 1)."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.artifacts = Path(self.tmpdir) / "art"
+        self.stories_dir = self.artifacts / "06-stories"
+        self.stories_dir.mkdir(parents=True)
+
+    def test_same_numeric_epic_different_dirs_duplicate_story_fails(self) -> None:
+        """epic-1/ and epic-01/ both map to 1; story-01 in both must fail."""
+        _make_epic(self.stories_dir, 1, "building")
+        _make_dev_story(self.stories_dir, 1, 1, "scaffold")
+        # Create a second directory that maps to numeric index 1
+        alt_epic_dir = self.stories_dir / "epic-01"
+        alt_epic_dir.mkdir(parents=True, exist_ok=True)
+        alt_story = alt_epic_dir / "story-01-other.md"
+        _write(alt_story, "# Alt Story\n## Summary\nAlt.\n## User Story\n"
+               "As a dev I want x so that y.\n## Acceptance Criteria\nAC.\n"
+               "## Implementation Notes\nDo.\n## Testing & Validation\nTest.\n")
+        with self.assertRaises(SystemExit) as ctx:
+            sync_helper.detect_changes(self.artifacts)
+        self.assertEqual(ctx.exception.code, 1)
+
+    def test_same_numeric_epic_different_dirs_different_stories_ok(self) -> None:
+        """epic-1/story-01 and epic-01/story-02 (different indices) are ok."""
+        _make_epic(self.stories_dir, 1, "building")
+        _make_dev_story(self.stories_dir, 1, 1, "scaffold")
+        alt_epic_dir = self.stories_dir / "epic-01"
+        alt_epic_dir.mkdir(parents=True, exist_ok=True)
+        alt_story = alt_epic_dir / "story-02-other.md"
+        _write(alt_story, "# Alt Story\n## Summary\nAlt.\n## User Story\n"
+               "As a dev I want x so that y.\n## Acceptance Criteria\nAC.\n"
+               "## Implementation Notes\nDo.\n## Testing & Validation\nTest.\n")
+        # Should not fail — indices are different
+        result = sync_helper.detect_changes(self.artifacts)
+        stories = [i for i in result["items"] if i["type"] == "story"]
+        self.assertEqual(len(stories), 2)
+
+    def test_cross_dir_duplicate_error_reports_both_paths(self) -> None:
+        """Error message includes both conflicting relative paths."""
+        _make_epic(self.stories_dir, 1, "building")
+        _make_dev_story(self.stories_dir, 1, 1, "scaffold")
+        alt_epic_dir = self.stories_dir / "epic-01"
+        alt_epic_dir.mkdir(parents=True, exist_ok=True)
+        alt_story = alt_epic_dir / "story-01-other.md"
+        _write(alt_story, "# Alt Story\n## Summary\nAlt.\n## User Story\n"
+               "As a dev I want x so that y.\n## Acceptance Criteria\nAC.\n"
+               "## Implementation Notes\nDo.\n## Testing & Validation\nTest.\n")
+        with self.assertRaises(SystemExit):
+            old_stderr = sys.stderr
+            sys.stderr = capture = StringIO()
+            try:
+                sync_helper.detect_changes(self.artifacts)
+            finally:
+                sys.stderr = old_stderr
+        msg = capture.getvalue()
+        self.assertIn("epic-1/", msg)
+        self.assertIn("epic-01/", msg)
+
+    def test_cross_dir_duplicate_via_cli(self) -> None:
+        """CLI exits non-zero for cross-directory duplicate story index."""
+        import subprocess
+        _make_epic(self.stories_dir, 1, "building")
+        _make_dev_story(self.stories_dir, 1, 1, "scaffold")
+        alt_epic_dir = self.stories_dir / "epic-01"
+        alt_epic_dir.mkdir(parents=True, exist_ok=True)
+        alt_story = alt_epic_dir / "story-01-other.md"
+        _write(alt_story, "# Alt Story\n## Summary\nAlt.\n## User Story\n"
+               "As a dev I want x so that y.\n## Acceptance Criteria\nAC.\n"
+               "## Implementation Notes\nDo.\n## Testing & Validation\nTest.\n")
+        r = subprocess.run(
+            [sys.executable, str(_SCRIPT), "detect-changes",
+             str(self.artifacts)],
+            capture_output=True, text=True)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("Duplicate story index", r.stderr)
+
+
+# ---------------------------------------------------------------------------
+# Test: story filename rename detection (review finding 4382368955)
+# ---------------------------------------------------------------------------
+
+class TestStoryRenameDetection(_TmpDirMixin, unittest.TestCase):
+    """Fail closed when a story file is renamed but the manifest records
+    the old filename with the same numeric index under the same epic."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.artifacts = Path(self.tmpdir) / "art"
+        self.stories_dir = self.artifacts / "06-stories"
+        self.stories_dir.mkdir(parents=True)
+
+    def test_renamed_story_same_index_fails_closed(self) -> None:
+        """story-01-old.md in manifest, story-01-new.md on disk => fail."""
+        _make_epic(self.stories_dir, 1, "building")
+        # Disk has the renamed story
+        _make_dev_story(self.stories_dir, 1, 1, "new-name")
+        # Manifest records the old name under the same epic
+        _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "h", "synced_status": "active",
+            "stories": [{
+                "file": "story-01-old-name.md", "jira_key": "EDM-201",
+                "content_hash": "h", "synced_status": "active",
+            }],
+        }])
+        with self.assertRaises(SystemExit) as ctx:
+            sync_helper.detect_changes(self.artifacts)
+        self.assertEqual(ctx.exception.code, 1)
+
+    def test_renamed_story_error_reports_both_filenames(self) -> None:
+        """Error message includes both old and new story filenames."""
+        _make_epic(self.stories_dir, 1, "building")
+        _make_dev_story(self.stories_dir, 1, 1, "new-name")
+        _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "h", "synced_status": "active",
+            "stories": [{
+                "file": "story-01-old-name.md", "jira_key": "EDM-201",
+                "content_hash": "h", "synced_status": "active",
+            }],
+        }])
+        old_stderr = sys.stderr
+        sys.stderr = capture = StringIO()
+        try:
+            with self.assertRaises(SystemExit):
+                sync_helper.detect_changes(self.artifacts)
+        finally:
+            sys.stderr = old_stderr
+        msg = capture.getvalue()
+        self.assertIn("story-01-new-name.md", msg)
+        self.assertIn("story-01-old-name.md", msg)
+        self.assertIn("EDM-201", msg)
+
+    def test_renamed_story_via_cli(self) -> None:
+        """CLI exits non-zero on story rename detection."""
+        import subprocess
+        _make_epic(self.stories_dir, 1, "building")
+        _make_dev_story(self.stories_dir, 1, 1, "new-name")
+        _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "h", "synced_status": "active",
+            "stories": [{
+                "file": "story-01-old-name.md", "jira_key": "EDM-201",
+                "content_hash": "h", "synced_status": "active",
+            }],
+        }])
+        r = subprocess.run(
+            [sys.executable, str(_SCRIPT), "detect-changes",
+             str(self.artifacts)],
+            capture_output=True, text=True)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("rename", r.stderr)
+
+    def test_closed_story_same_index_different_filename_rejected(self) -> None:
+        """Closed manifest story with same index but different filename is
+        still rejected — _validate_manifest_shape forbids duplicate indices
+        regardless of status, so a checkpoint after create would corrupt
+        the manifest."""
+        _make_epic(self.stories_dir, 1, "building")
+        _make_dev_story(self.stories_dir, 1, 1, "new-name")
+        mf = _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "h", "synced_status": "active",
+            "stories": [{
+                "file": "story-01-old-name.md", "jira_key": "EDM-201",
+                "content_hash": "h", "synced_status": "closed",
+            }],
+        }])
+        original_bytes = mf.read_bytes()
+        with self.assertRaises(SystemExit) as ctx:
+            sync_helper.detect_changes(self.artifacts)
+        self.assertEqual(ctx.exception.code, 1)
+        # Manifest must be unchanged (no actionable plan produced)
+        self.assertEqual(mf.read_bytes(), original_bytes)
+
+    def test_closed_story_same_filename_reopened(self) -> None:
+        """Same filename, closed in manifest, no removed marker -> reopened.
+        This is normal reopen, not a rename."""
+        _make_epic(self.stories_dir, 1, "building")
+        _make_dev_story(self.stories_dir, 1, 1, "scaffold")
+        _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "h", "synced_status": "active",
+            "stories": [{
+                "file": "story-01-scaffold.md", "jira_key": "EDM-201",
+                "content_hash": "h", "synced_status": "closed",
+            }],
+        }])
+        result = sync_helper.detect_changes(self.artifacts)
+        stories = [i for i in result["items"] if i["type"] == "story"]
+        self.assertEqual(len(stories), 1)
+        self.assertEqual(stories[0]["category"], "reopened")
+        self.assertEqual(stories[0]["jira_key"], "EDM-201")
+
+    def test_legacy_missing_status_same_index_rejected(self) -> None:
+        """Manifest story with missing synced_status and same index but
+        different filename is still rejected (legacy/v1 compat)."""
+        _make_epic(self.stories_dir, 1, "building")
+        _make_dev_story(self.stories_dir, 1, 1, "new-name")
+        _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "h", "synced_status": "active",
+            "stories": [{
+                "file": "story-01-old-name.md", "jira_key": "EDM-201",
+                "content_hash": "h",
+                # No synced_status field — legacy manifest entry
+            }],
+        }])
+        with self.assertRaises(SystemExit) as ctx:
+            sync_helper.detect_changes(self.artifacts)
+        self.assertEqual(ctx.exception.code, 1)
+
+    def test_new_index_checkpoint_roundtrip(self) -> None:
+        """Genuinely new story index -> detect -> checkpoint -> reload works."""
+        _make_epic(self.stories_dir, 1, "building")
+        _make_dev_story(self.stories_dir, 1, 1, "existing")
+        new_story = _make_dev_story(self.stories_dir, 1, 2, "brand-new")
+        mf = _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "h", "synced_status": "active",
+            "stories": [{
+                "file": "story-01-existing.md", "jira_key": "EDM-201",
+                "content_hash": _sha256("old"), "synced_status": "active",
+            }],
+        }])
+        result = sync_helper.detect_changes(self.artifacts)
+        new_stories = [i for i in result["items"]
+                       if i["type"] == "story" and i["category"] == "new"]
+        self.assertEqual(len(new_stories), 1)
+        self.assertIn("story-02-brand-new.md", new_stories[0]["file"])
+        # Simulate checkpoint after Jira create
+        sync_helper.update_manifest(
+            str(mf), "create", "story-02-brand-new.md", "EDM-301",
+            new_stories[0]["content_hash"], item_type="story",
+            epic_file="epic-1-building.md", title="Brand New")
+        # Reload must succeed
+        m2 = sync_helper.load_manifest(str(mf))
+        self.assertIsNotNone(m2)
+        epic_stories = m2["epics"][0]["stories"]
+        self.assertEqual(len(epic_stories), 2)
+        # Re-detect should show unchanged for both
+        result2 = sync_helper.detect_changes(self.artifacts)
+        stories2 = [i for i in result2["items"] if i["type"] == "story"]
+        categories = {s["file"].split("/")[-1]: s["category"] for s in stories2}
+        self.assertEqual(categories.get("story-02-brand-new.md"), "unchanged")
+
+    def test_genuinely_new_story_different_index_ok(self) -> None:
+        """New story with a different index is not affected by rename check."""
+        _make_epic(self.stories_dir, 1, "building")
+        _make_dev_story(self.stories_dir, 1, 1, "existing")
+        _make_dev_story(self.stories_dir, 1, 2, "brand-new")
+        _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "h", "synced_status": "active",
+            "stories": [{
+                "file": "story-01-existing.md", "jira_key": "EDM-201",
+                "content_hash": _sha256("old"), "synced_status": "active",
+            }],
+        }])
+        result = sync_helper.detect_changes(self.artifacts)
+        stories = [i for i in result["items"] if i["type"] == "story"]
+        new_stories = [s for s in stories if s["category"] == "new"]
+        self.assertEqual(len(new_stories), 1)
+        self.assertIn("story-02-brand-new.md", new_stories[0]["file"])
+
+
+# ---------------------------------------------------------------------------
+# Test: cascade child closure permissions (review finding 4382368973)
+# ---------------------------------------------------------------------------
+
+class TestCascadeChildClosurePermissions(_TmpDirMixin, unittest.TestCase):
+    """Verify that detect-changes marks active children of a removed epic
+    as 'removed' (cascade), which is the prerequisite for the approved
+    parent-close cascade in Step 4c closing those children in Jira."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.artifacts = Path(self.tmpdir) / "art"
+        self.stories_dir = self.artifacts / "06-stories"
+        self.stories_dir.mkdir(parents=True)
+
+    def test_active_child_under_removed_epic_becomes_removed(self) -> None:
+        """When a parent epic has status:removed, its active children
+        are categorized as 'removed' — they can be closed as part of the
+        approved parent cascade without individual removal markers."""
+        _make_epic(self.stories_dir, 1, "building", removed=True)
+        _make_dev_story(self.stories_dir, 1, 1, "scaffold")
+        _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "h", "synced_status": "active",
+            "stories": [{
+                "file": "story-01-scaffold.md", "jira_key": "EDM-201",
+                "content_hash": "h", "synced_status": "active",
+            }],
+        }])
+        result = sync_helper.detect_changes(self.artifacts)
+        items = result["items"]
+        epic = next(i for i in items if i["type"] == "epic")
+        story = next(i for i in items if i["type"] == "story")
+        self.assertEqual(epic["category"], "removed")
+        self.assertEqual(story["category"], "removed",
+                         "Active child must be cascaded to 'removed' when "
+                         "parent epic has status:removed")
+
+    def test_cascade_child_already_closed_stays_unchanged(self) -> None:
+        """Already-closed child under a removed epic stays unchanged."""
+        _make_epic(self.stories_dir, 1, "building", removed=True)
+        _make_dev_story(self.stories_dir, 1, 1, "scaffold")
+        _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "h", "synced_status": "active",
+            "stories": [{
+                "file": "story-01-scaffold.md", "jira_key": "EDM-201",
+                "content_hash": "h", "synced_status": "closed",
+            }],
+        }])
+        result = sync_helper.detect_changes(self.artifacts)
+        story = next(i for i in result["items"] if i["type"] == "story")
+        self.assertEqual(story["category"], "unchanged",
+                         "Already-closed child should not be double-closed")
+
+
+# ---------------------------------------------------------------------------
 # Test: helper discovery (review fix gap 2)
 # ---------------------------------------------------------------------------
 
@@ -2322,6 +2651,9 @@ def _resolve_helper(builtin_sync_path: str) -> str:
     """Execute the documented SYNC_HELPER discovery command.
 
     This is the exact snippet from design/skills/sync.md.
+    The path is passed as a positional argument ($1) to bash, not
+    interpolated into the command text, to prevent shell interpretation
+    of paths containing metacharacters like $() or backticks.
     """
     import subprocess
     cmd = (
@@ -2329,12 +2661,14 @@ def _resolve_helper(builtin_sync_path: str) -> str:
         "'from pathlib import Path; import sys; "
         "print(Path(sys.argv[1]).resolve().parents[1] "
         "/ \"scripts\" / \"sync_helper.py\")' "
-        f'"{builtin_sync_path}"'
+        '"$1"'
     )
-    result = subprocess.run(
-        ["bash", "-c", cmd], capture_output=True, text=True,
-        cwd="/",  # unrelated cwd
-    )
+    with tempfile.TemporaryDirectory() as unrelated_cwd:
+        result = subprocess.run(
+            ["bash", "-c", cmd, "bash", builtin_sync_path],
+            capture_output=True, text=True,
+            cwd=unrelated_cwd,
+        )
     return result.stdout.strip()
 
 
@@ -2421,6 +2755,32 @@ class TestHelperDiscovery(unittest.TestCase):
                 override_resolved,
                 str(Path(__file__).resolve().parent / "sync_helper.py"))
             self.assertFalse(Path(override_resolved).exists())
+
+    def test_metacharacter_paths_no_execution(self) -> None:
+        """Paths containing shell metacharacters are passed safely as
+        data, not executed by bash.  _verify_helper compares the resolved
+        path against the canonical real helper path — any shell
+        interpretation would produce a different (wrong) path."""
+        repo_root = Path(__file__).resolve().parent.parent.parent
+        metachar_names = [
+            ("command_substitution", "$(echo INJECTED)"),
+            ("backtick_substitution", "`echo INJECTED`"),
+        ]
+        for label, dirname in metachar_names:
+            with self.subTest(metachar=label):
+                with tempfile.TemporaryDirectory() as td:
+                    meta_dir = Path(td) / dirname
+                    meta_dir.mkdir(parents=True)
+                    aiw = meta_dir / "repo"
+                    aiw.symlink_to(repo_root)
+                    builtin = str(
+                        aiw / "design" / "skills" / "sync.md")
+                    resolved = _resolve_helper(builtin)
+                    # _verify_helper asserts resolved == real helper
+                    # and runs --help successfully; if shell had
+                    # interpreted the metacharacters, the path would
+                    # differ and this assertion would fail.
+                    self._verify_helper(resolved)
 
 
 if __name__ == "__main__":
