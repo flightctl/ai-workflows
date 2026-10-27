@@ -3508,5 +3508,290 @@ class TestCloseCheckpointRetryRetainsHash(_TmpDirMixin, unittest.TestCase):
                                  f"{case['label']}: must use original hash")
 
 
+# ---------------------------------------------------------------------------
+# Test: [unresolved] annotation on no-manifest path
+# (review finding 5660738800 — outside-diff #1)
+# ---------------------------------------------------------------------------
+
+class TestResolveRefsNoManifest(_TmpDirMixin, unittest.TestCase):
+    """Local Epic/Story references must carry [unresolved] even when no
+    manifest exists (fresh sync).  Tests cover both the real CLI
+    subcommands (prepare, render-description) and direct renderer calls
+    with None and {} manifests.
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
+        import subprocess
+        self.subprocess = subprocess
+        self.artifacts = Path(self.tmpdir) / "art"
+        sd = self.artifacts / "06-stories"
+        sd.mkdir(parents=True)
+        self.ef = _make_epic(
+            sd, 1, "building",
+            summary="Depends on Epic 2 and Story 1.01")
+        self.sf = _make_dev_story(
+            sd, 1, 1, "scaffold", deps="Story 2.01")
+        self.mf = self.artifacts / "sync-manifest.json"
+
+    # -- CLI: prepare --
+
+    def test_epic_prepare_cli_no_manifest_annotates_refs(self) -> None:
+        """CLI prepare(epic) with nonexistent manifest: JSON output
+        contains concrete [unresolved] annotations for Epic 2 and
+        Story 1.01, and no manifest file is created."""
+        r = self.subprocess.run(
+            [sys.executable, str(_SCRIPT), "prepare",
+             str(self.ef), str(self.mf), "--type", "epic",
+             "--design-doc-link", "http://doc", "--feature-key", "F-1"],
+            capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0)
+        result = json.loads(r.stdout)
+        self.assertIn("2 [unresolved]", result["description"],
+                      "Epic 2 must be annotated [unresolved]")
+        self.assertIn("1.01 [unresolved]", result["description"],
+                      "Story 1.01 must be annotated [unresolved]")
+        self.assertIn("content_hash", result)
+        self.assertFalse(self.mf.exists(),
+                         "prepare must not create manifest")
+
+    def test_story_prepare_cli_no_manifest_annotates_deps(self) -> None:
+        """CLI prepare(story) with nonexistent manifest: dependencies
+        contain concrete [unresolved] for Story 2.01."""
+        r = self.subprocess.run(
+            [sys.executable, str(_SCRIPT), "prepare",
+             str(self.sf), str(self.mf), "--type", "story",
+             "--design-doc-link", "http://doc",
+             "--epic-jira-key", "EDM-101"],
+            capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0)
+        result = json.loads(r.stdout)
+        self.assertIn("2.01 [unresolved]", result["dependencies"])
+        self.assertFalse(self.mf.exists())
+
+    # -- CLI: render-description --
+
+    def test_epic_render_description_cli_no_manifest(self) -> None:
+        """CLI render-description(epic) with nonexistent manifest:
+        stdout contains [unresolved] annotations."""
+        r = self.subprocess.run(
+            [sys.executable, str(_SCRIPT), "render-description",
+             str(self.ef), str(self.mf), "--type", "epic",
+             "--design-doc-link", "http://doc"],
+            capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("[unresolved]", r.stdout)
+
+    def test_story_render_description_cli_no_manifest(self) -> None:
+        """CLI render-description(story) with nonexistent manifest."""
+        r = self.subprocess.run(
+            [sys.executable, str(_SCRIPT), "render-description",
+             str(self.sf), str(self.mf), "--type", "story",
+             "--design-doc-link", "http://doc",
+             "--epic-jira-key", "EDM-101"],
+            capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("[unresolved]", r.stdout)
+
+    # -- Direct renderer with None and {} manifest --
+
+    def test_render_epic_none_manifest(self) -> None:
+        """render_epic_description(manifest=None) annotates refs."""
+        desc = sync_helper.render_epic_description(
+            self.ef, None, design_doc_link="http://doc")
+        self.assertIn("2 [unresolved]", desc)
+
+    def test_render_epic_empty_dict_manifest(self) -> None:
+        """render_epic_description(manifest={}) annotates refs."""
+        desc = sync_helper.render_epic_description(
+            self.ef, {}, design_doc_link="http://doc")
+        self.assertIn("[unresolved]", desc)
+
+    def test_render_story_none_manifest(self) -> None:
+        """render_story_description(manifest=None) annotates refs."""
+        desc = sync_helper.render_story_description(
+            self.sf, None, design_doc_link="http://doc",
+            epic_jira_key="EDM-101")
+        self.assertIn("[unresolved]", desc)
+
+    # -- Populated manifest: mixed resolution --
+
+    def test_populated_manifest_resolves_known_refs(self) -> None:
+        """Known refs resolve; unknown get [unresolved] in description."""
+        _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "h", "synced_status": "active",
+            "stories": [{
+                "file": "story-01-scaffold.md", "jira_key": "EDM-201",
+                "content_hash": "h", "synced_status": "active",
+            }],
+        }])
+        r = self.subprocess.run(
+            [sys.executable, str(_SCRIPT), "prepare",
+             str(self.ef), str(self.mf), "--type", "epic",
+             "--design-doc-link", "http://doc", "--feature-key", "F-1"],
+            capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0)
+        result = json.loads(r.stdout)
+        self.assertIn("EDM-201", result["description"],
+                      "Story 1.01 known → resolves to EDM-201")
+        self.assertIn("2 [unresolved]", result["description"],
+                      "Epic 2 unknown → annotated [unresolved]")
+
+    def test_populated_manifest_story_deps_mixed(self) -> None:
+        """Story dependencies: known refs resolve, unknown annotated."""
+        _make_dev_story(self.artifacts / "06-stories", 1, 2, "other",
+                        deps="Story 1.01, Story 3.01")
+        sf2 = (self.artifacts / "06-stories" / "epic-1"
+               / "story-02-other.md")
+        _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "h", "synced_status": "active",
+            "stories": [
+                {"file": "story-01-scaffold.md", "jira_key": "EDM-201",
+                 "content_hash": "h", "synced_status": "active"},
+                {"file": "story-02-other.md", "jira_key": "EDM-202",
+                 "content_hash": "h", "synced_status": "active"},
+            ],
+        }])
+        r = self.subprocess.run(
+            [sys.executable, str(_SCRIPT), "prepare",
+             str(sf2), str(self.mf), "--type", "story",
+             "--design-doc-link", "http://doc",
+             "--epic-jira-key", "EDM-101"],
+            capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0)
+        result = json.loads(r.stdout)
+        self.assertIn("EDM-201", result["dependencies"],
+                      "Story 1.01 → EDM-201")
+        self.assertIn("3.01 [unresolved]", result["dependencies"])
+
+    def test_no_duplicate_unresolved_annotations(self) -> None:
+        """Each unresolvable ref gets exactly one [unresolved] tag."""
+        desc = sync_helper.render_epic_description(
+            self.ef, None, design_doc_link="http://doc")
+        import re
+        count = len(re.findall(r"\[unresolved\]", desc))
+        ref_count = len(re.findall(r"(?:Epic|Story)\s+\d", desc))
+        self.assertGreater(count, 0)
+        self.assertLessEqual(count, ref_count)
+
+
+# ---------------------------------------------------------------------------
+# Test: T-Shirt Size validation in epic prepare
+# (review finding 5660738800 — outside-diff #2)
+# ---------------------------------------------------------------------------
+
+class TestEpicSizeValidation(_TmpDirMixin, unittest.TestCase):
+    """Epic prepare must fail closed when T-Shirt Size is missing or
+    blank.  Tests exercise real CLI (subprocess) for failure cases and
+    verify exit code, stderr, no JSON stdout, and unchanged files.
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
+        import subprocess
+        self.subprocess = subprocess
+        self.artifacts = Path(self.tmpdir) / "art"
+        sd = self.artifacts / "06-stories"
+        sd.mkdir(parents=True)
+        self.ef = _make_epic(sd, 1, "building")
+        self.sf = _make_dev_story(sd, 1, 1, "scaffold")
+        self.mf = self.artifacts / "sync-manifest.json"
+        # Create a valid manifest to verify it stays unchanged on failure
+        self._valid_manifest = _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "h", "synced_status": "active",
+            "stories": [],
+        }])
+        self._manifest_bytes = self._valid_manifest.read_bytes()
+
+    def _run_prepare_epic(self, epic_path: Path) -> "subprocess.CompletedProcess":
+        return self.subprocess.run(
+            [sys.executable, str(_SCRIPT), "prepare",
+             str(epic_path), str(self.mf), "--type", "epic",
+             "--design-doc-link", "http://doc", "--feature-key", "F-1"],
+            capture_output=True, text=True)
+
+    def test_valid_sizes(self) -> None:
+        """Canonical sizes with various spacing are accepted."""
+        for label, size_line, expected in [
+            ("normal",   "- **T-Shirt Size:** M",  "M"),
+            ("no-space", "- **T-Shirt Size:**XL",  "XL"),
+            ("tab",      "- **T-Shirt Size:**\tS", "S"),
+            ("multi-sp", "- **T-Shirt Size:**   L", "L"),
+        ]:
+            with self.subTest(spacing=label):
+                content = self.ef.read_text()
+                self.ef.write_text(content.replace(
+                    "- **T-Shirt Size:** M", size_line))
+                r = self._run_prepare_epic(self.ef)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                result = json.loads(r.stdout)
+                self.assertEqual(result["size"], expected)
+                # Restore for next subTest
+                self.ef.write_text(content)
+
+    def test_missing_size_cli_fails(self) -> None:
+        """CLI: missing T-Shirt Size → exit 1, actionable stderr,
+        no JSON stdout, manifest+artifact unchanged."""
+        import re as _re
+        content = self.ef.read_text()
+        no_size = _re.sub(r"- \*\*T-Shirt Size:\*\*.*\n", "", content)
+        self.ef.write_text(no_size)
+        artifact_bytes = self.ef.read_bytes()
+        r = self._run_prepare_epic(self.ef)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("T-Shirt Size", r.stderr)
+        # No valid JSON on stdout
+        with self.assertRaises(json.JSONDecodeError):
+            json.loads(r.stdout)
+        self.assertEqual(self.ef.read_bytes(), artifact_bytes)
+        self.assertEqual(self._valid_manifest.read_bytes(),
+                         self._manifest_bytes)
+
+    def test_blank_size_cli_fails(self) -> None:
+        """CLI: blank value (space + newline + next bullet) → exit 1."""
+        content = self.ef.read_text()
+        self.ef.write_text(content.replace(
+            "- **T-Shirt Size:** M",
+            "- **T-Shirt Size:** \n- **Next Field:** value"))
+        r = self._run_prepare_epic(self.ef)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("T-Shirt Size", r.stderr)
+
+    def test_blank_then_next_bullet_not_captured(self) -> None:
+        """CLI: blank followed by bullet → dash NOT captured as size."""
+        content = self.ef.read_text()
+        self.ef.write_text(content.replace(
+            "- **T-Shirt Size:** M",
+            "- **T-Shirt Size:**\n- **Another:** thing"))
+        r = self._run_prepare_epic(self.ef)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("T-Shirt Size", r.stderr)
+
+    def test_whitespace_only_size_fails(self) -> None:
+        """CLI: whitespace-only value (no non-space match) fails."""
+        content = self.ef.read_text()
+        self.ef.write_text(content.replace(
+            "- **T-Shirt Size:** M",
+            "- **T-Shirt Size:**   "))
+        r = self._run_prepare_epic(self.ef)
+        self.assertEqual(r.returncode, 1)
+
+    def test_story_prepare_no_size_requirement(self) -> None:
+        """Story prepare must not require T-Shirt Size (CLI)."""
+        r = self.subprocess.run(
+            [sys.executable, str(_SCRIPT), "prepare",
+             str(self.sf), str(self.mf), "--type", "story",
+             "--design-doc-link", "http://doc",
+             "--epic-jira-key", "EDM-101"],
+            capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0)
+        result = json.loads(r.stdout)
+        self.assertNotIn("size", result)
+        self.assertIn("description", result)
+
+
 if __name__ == "__main__":
     unittest.main()

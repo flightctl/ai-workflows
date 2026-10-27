@@ -976,8 +976,7 @@ def render_epic_description(
     ])
 
     description = "\n".join(parts)
-    if manifest:
-        description = resolve_refs(description, manifest)
+    description = resolve_refs(description, manifest or {})
     return description
 
 
@@ -1104,8 +1103,7 @@ def render_story_description(
         parts.extend(ref_parts)
 
     description = "\n".join(parts)
-    if manifest:
-        description = resolve_refs(description, manifest)
+    description = resolve_refs(description, manifest or {})
     return description
 
 
@@ -1181,11 +1179,14 @@ def prepare(
         jira_summary = re.sub(r"^Epic\s+\d+[:\s]*", "", raw_title).strip()
         result["summary"] = jira_summary
 
-        # Extract T-Shirt Size from preamble
+        # Extract T-Shirt Size from preamble (same-line, non-empty)
         preamble = sections.get("_preamble", "")
-        size_match = re.search(r"\*\*T-Shirt Size:\*\*\s*(\S+)", preamble)
-        if size_match:
-            result["size"] = size_match.group(1)
+        size_match = re.search(
+            r"\*\*T-Shirt Size:\*\*[ \t]*(\S+)", preamble)
+        if not size_match:
+            fail(f"Epic artifact missing required T-Shirt Size field: "
+                 f"{artifact_path}")
+        result["size"] = size_match.group(1)
     else:
         # Detect story type from title
         detected_type = story_type
@@ -1223,8 +1224,8 @@ def prepare(
 
         # Dependencies text with refs resolved (for issue links)
         deps_text = sections.get("Dependencies", "")
-        if deps_text and manifest:
-            deps_text = resolve_refs(deps_text, manifest)
+        if deps_text:
+            deps_text = resolve_refs(deps_text, manifest or {})
         result["dependencies"] = deps_text
 
     result["description"] = description
