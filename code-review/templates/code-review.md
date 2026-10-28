@@ -12,8 +12,8 @@ Repeat the following block for each finding, incrementing
 - **File:** {file path}
 - **Location:** {line range or function name, as applicable}
 - **Severity:** {CRITICAL | HIGH | MEDIUM | LOW}
-- **Category:** {Correctness | Error Handling | Security | Design |
-  Performance | Naming/Clarity | Test Coverage | Conventions}
+- **Category:** {Correctness | Error handling | Security | Design |
+  Performance | Naming and clarity | Test coverage | Project conventions}
 - **Issue:** {what the problem is}
 - **Evidence:** {what in the code, tests, or requirements substantiates
   the claim — for blockers: the concrete problem scenario or violated

@@ -375,9 +375,10 @@ After presenting:
    escalate to the user — present the finding and explain the
    disagreement. Wait for the user to decide.
 2. Apply the commit-readiness check: if any applicable mandatory
-   quality gate is unmet, failing, or incomplete, the review is not
-   complete — report the gap and proceed to `/continue`. If the
-   commit-readiness check passes and there are only nonblocking
+   quality gate is unmet, failing, or incomplete, or the required
+   evaluation is not complete, the review is not done — report the
+   gap and proceed to `/continue`. If the commit-readiness check
+   passes and there are only nonblocking
    findings (all MEDIUM/LOW with `commit-readiness impact:
    nonblocking`), treat the review as complete — compile the
    aggregated summary and proceed to cleanup. Nonblocking suggestions

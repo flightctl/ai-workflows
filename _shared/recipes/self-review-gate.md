@@ -1,6 +1,6 @@
 ---
 name: self-review-gate
-version: 0.1.0
+version: 0.1.1
 ---
 # Recipe: Self-Review Gate
 
@@ -48,7 +48,12 @@ workflows with decision points), skip it and continue to Step 2.
 2. If the tool reports findings, assess each on value (using the criteria in
    `../review-protocol.md`) and fix issues that add real value
 3. Re-run the tool to confirm fixes pass
-4. Report results and return to the calling workflow
+4. Report results using the Step 5 format below and return to the calling
+   workflow. The tool path must evaluate the same review-protocol criteria
+   as the subagent path — a tool that only checks a subset (e.g., lint
+   without correctness or design review) satisfies its subset, but the
+   gate must still perform Steps 2-5 for uncovered criteria before
+   reporting PASS.
 
 **If no suitable review tool is found**, continue to Step 2.
 
@@ -170,6 +175,17 @@ Report a brief summary to the calling workflow:
 {If any CRITICAL or HIGH findings remain unfixed, set Gate to FLAG and list
 them. The calling workflow decides whether to proceed or stop.}
 ```
+
+**What PASS means.** PASS indicates that the gate's evaluation of the
+reviewed diff against all review-protocol criteria found no remaining
+substantiated blockers. It does not certify mandatory quality gate
+status (lint, tests, CI) or full branch readiness — those are the
+calling workflow's responsibility at the applicable commit or
+publication boundary. Early-phase callers (e.g., per-task code review)
+should not treat PASS as final branch approval; later-phase callers
+at the commit/publish boundary must ensure applicable mandatory checks
+pass and validation is current for the final diff including any
+self-review fixes before proceeding.
 
 The calling workflow is responsible for any git operations needed after the
 gate (staging, committing review fixes, etc.). The gate only makes code

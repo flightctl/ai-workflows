@@ -443,8 +443,9 @@ information to decide whether to do so. Do not skip the table because
 the mode is unattended; unattended means the user delegated decisions,
 not visibility. Then apply the commit-readiness check: if any
 applicable mandatory quality gate is unmet, failing, or incomplete,
-the review is not complete regardless of the reviewer's verdict — report
-the gap and continue the round. If any remaining suggestions are
+or the required evaluation is not complete, the review is not done
+regardless of the reviewer's verdict — report the gap and continue
+the round. If any remaining suggestions are
 substantiated blockers (CRITICAL/HIGH with `commit-readiness impact:
 blocking`), persist the decisions and loop back to Step 3. If the
 commit-readiness check passes and the remaining suggestions are all
@@ -511,8 +512,9 @@ unattended means the user delegated decisions, not visibility. Then:
    disagreement. Wait for the user to decide (same guardrail as
    `/start`).
 2. Apply the commit-readiness check: if any applicable mandatory
-   quality gate is unmet, failing, or incomplete, the review is not
-   complete — report the gap and loop back to Step 3. If the
+   quality gate is unmet, failing, or incomplete, or the required
+   evaluation is not complete, the review is not done — report the
+   gap and loop back to Step 3. If the
    commit-readiness check passes and the only remaining findings are
    nonblocking (MEDIUM/LOW), the review is complete — compile the
    aggregated summary and proceed to Step 10 (cleanup). Nonblocking

@@ -134,8 +134,8 @@ be discarded — they indicate hallucinated references.
 
 | Severity | Meaning | Action |
 |----------|---------|--------|
-| CRITICAL | Would cause bugs, security vulnerabilities, or data loss in production | Must fix before merge |
-| HIGH | Missing error handling, race conditions, incomplete coverage that could cause failures | Should fix before merge |
+| CRITICAL | Would cause bugs, security vulnerabilities, or data loss in production | Must fix before commit |
+| HIGH | Missing error handling, race conditions, incomplete coverage that could cause failures | Should fix before commit |
 | MEDIUM | Naming improvements, minor edge cases, convention violations | Fix if it adds value |
 | LOW | Readability suggestions, minor refactoring opportunities | Fix only if clearly valuable |
 

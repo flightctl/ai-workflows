@@ -404,8 +404,11 @@ If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
 present the findings to the user. Do not proceed to commit until the user
 decides how to handle them.
 
-If the gate reports PASS, proceed to Step 7. Any code fixes made by the
-gate are uncommitted changes that will be included in the commit below.
+If the gate reports PASS, proceed to Step 7. If the gate made code fixes,
+re-run **Step 5** (validation gate) to confirm the fixes did not break
+checks — do not commit until validation passes on the final diff. Any
+code fixes are uncommitted changes that will be included in the commit
+below.
 
 **Note:** The bugfix workflow also has an optional `/review` phase that
 provides a thorough, interactive review with findings and verdict. The
