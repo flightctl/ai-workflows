@@ -197,11 +197,18 @@ unrun or incomplete mandatory gate is not "passing."
 
 ## Criteria Coverage
 
-A review report must include a **Criteria Coverage** record listing every
-evaluation criterion from this protocol with its coverage status. This
-is review metadata — a record of what was evaluated — not mandatory
-findings or feedback. Zero findings with all criteria covered is a
-valid APPROVED outcome.
+Structured review reports that issue an APPROVED or CHANGES_REQUESTED
+verdict — such as the standalone `code-review` workflow's report
+template — must include a **Criteria Coverage** record listing every
+evaluation criterion from this protocol with its coverage status.
+This requirement applies to formal review reports with a verdict, not
+to the self-review gate's compact PASS/FLAG summary (which is
+criteria-scoped but uses a different output format without a coverage
+table).
+
+The coverage record is review metadata — a record of what was
+evaluated — not mandatory findings or feedback. Zero findings with
+all criteria covered is a valid APPROVED outcome.
 
 Each row states one of:
 

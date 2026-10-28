@@ -410,22 +410,53 @@ checks — do not commit until validation passes on the final diff.
 
 **Review-validation convergence.** The final candidate committed in
 Step 7 must be both reviewed (self-review PASS) and validated (Step 5
-PASS) with no intervening code changes. Track convergence as follows:
+PASS) with no intervening candidate-code changes.
 
-- After re-running Step 5, check whether validation remediation changed
-  candidate code (source files, configs, or relevant new files — not
-  artifact logs or `.artifacts/` churn). Use `git diff` on working-tree
-  files, not only HEAD SHA, since changes are uncommitted.
-- If validation passed without changing candidate code, the candidate
-  is both reviewed and validated. Proceed to Step 7.
-- If validation remediation changed candidate code, the new candidate
-  has not been self-reviewed. Re-enter the self-review gate, consuming
-  remaining rounds from the **original** MAX_ROUNDS budget (do not
-  reset to 3 on re-entry). If the gate makes further fixes, re-run
-  Step 5 again, continuing to consume the same budget.
-- If MAX_ROUNDS is exhausted before both gates pass on the same
-  unchanged candidate, stop and present the situation to the user as
-  a FLAG — do not commit an unreviewed or unvalidated candidate.
+Initialize a convergence budget of **3 rounds** (matching the gate's
+MAX_ROUNDS). Each self-review gate invocation passes the remaining
+budget as MAX_ROUNDS; the budget decreases by the number of rounds
+the gate actually consumed (from its reported `Rounds: {N}`).
+
+After the self-review gate reports PASS, record the reviewed candidate
+snapshot before re-running validation:
+
+```bash
+# Tracked changes (staged + unstaged, includes deletions/renames)
+git diff HEAD --name-only
+git diff --cached --name-only
+# Relevant untracked/new files (exclude artifacts and logs)
+git ls-files --others --exclude-standard | grep -v '^\.artifacts/'
+```
+
+Record this combined path list as the **reviewed file set**. Then
+re-run **Step 5** (validation gate).
+
+After Step 5 completes, capture the same three commands again as the
+**post-validation file set** and diff the two lists plus file content:
+
+```bash
+# Content comparison for tracked candidate files
+git diff HEAD -- {reviewed file set paths}
+# Check for new untracked candidate files not in the reviewed set
+git ls-files --others --exclude-standard | grep -v '^\.artifacts/'
+```
+
+- If the post-validation candidate is identical to the reviewed
+  snapshot (no content changes in tracked files, no new relevant
+  untracked files), the candidate is both reviewed and validated.
+  Proceed to Step 7.
+- If validation remediation changed candidate code (modified, added,
+  or deleted source files, configs, or relevant new files — not
+  `.artifacts/` output or log churn), the new candidate has not been
+  self-reviewed. Re-enter the self-review gate with the remaining
+  convergence budget as MAX_ROUNDS. If the gate makes further fixes,
+  record the new reviewed snapshot and re-run Step 5 again.
+- A reviewed-and-validated candidate that consumed the last available
+  round is still valid — FLAG is needed only when another re-review
+  is required but no budget remains. If convergence budget reaches
+  zero before both gates pass on the same unchanged candidate, stop
+  and present the situation to the user as a FLAG — do not commit an
+  unreviewed or unvalidated candidate.
 
 Any code fixes are uncommitted changes that will be included in the
 commit below.
