@@ -391,72 +391,71 @@ Do not proceed to **Self-Review Gate** or commit.
 Before committing, run a self-review of the changes to catch issues before
 they reach external reviewers.
 
-Read and follow `../../_shared/recipes/self-review-gate.md` with these
-parameters:
+**Candidate snapshot definition.** A candidate snapshot is a saved
+immutable mapping of every candidate file's path, status (present,
+deleted, renamed), and content digest. It covers:
 
-| Parameter | Value |
-|-----------|-------|
-| DIFF_COMMAND | `git diff HEAD` |
-| MAX_ROUNDS | `3` |
-| CONTEXT_FILES | `.artifacts/bugfix/{issue}/root-cause.md`, `.artifacts/bugfix/{issue}/implementation-notes.md` (if they exist) |
+- tracked staged edits (`git diff --cached`)
+- tracked unstaged edits (`git diff`)
+- all relevant untracked files (`git ls-files --others --exclude-standard`)
 
-If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
-present the findings to the user. Do not proceed to commit until the user
-decides how to handle them.
+Exclude only `.artifacts/` outputs and build logs — never exclude a
+candidate source file based on extension or unchanged path presence.
+Compute content digests with `git hash-object` for tracked files and
+`sha256sum` (or equivalent) for untracked files. Do not stage, commit,
+or destructively modify the working tree to build the snapshot.
 
-If the gate reports PASS, proceed to Step 7. If the gate made code fixes,
-re-run **Step 5** (validation gate) to confirm the fixes did not break
-checks — do not commit until validation passes on the final diff.
+Two snapshots are **equal** when they have the same set of paths with
+the same status and content digest for each. A change to any candidate
+file's content, a newly appearing relevant untracked file, or a
+deletion/rename invalidates equality — even if the path list is
+unchanged.
 
-**Review-validation convergence.** The final candidate committed in
-Step 7 must be both reviewed (self-review PASS) and validated (Step 5
-PASS) with no intervening candidate-code changes.
+**Convergence state.** Initialize once for this Step 6:
 
-Initialize a convergence budget of **3 rounds** (matching the gate's
-MAX_ROUNDS). Each self-review gate invocation passes the remaining
-budget as MAX_ROUNDS; the budget decreases by the number of rounds
-the gate actually consumed (from its reported `Rounds: {N}`).
-
-After the self-review gate reports PASS, record the reviewed candidate
-snapshot before re-running validation:
-
-```bash
-# Tracked changes (staged + unstaged, includes deletions/renames)
-git diff HEAD --name-only
-git diff --cached --name-only
-# Relevant untracked/new files (exclude artifacts and logs)
-git ls-files --others --exclude-standard | grep -v '^\.artifacts/'
+```text
+review_rounds_remaining = 3
+validated_candidate = snapshot_candidate()   # from Step 5's final state
+reviewed_candidate = null
 ```
 
-Record this combined path list as the **reviewed file set**. Then
-re-run **Step 5** (validation gate).
+**Review loop.**
 
-After Step 5 completes, capture the same three commands again as the
-**post-validation file set** and diff the two lists plus file content:
+1. Invoke the self-review gate:
 
-```bash
-# Content comparison for tracked candidate files
-git diff HEAD -- {reviewed file set paths}
-# Check for new untracked candidate files not in the reviewed set
-git ls-files --others --exclude-standard | grep -v '^\.artifacts/'
-```
+   Read and follow `../../_shared/recipes/self-review-gate.md` with:
 
-- If the post-validation candidate is identical to the reviewed
-  snapshot (no content changes in tracked files, no new relevant
-  untracked files), the candidate is both reviewed and validated.
-  Proceed to Step 7.
-- If validation remediation changed candidate code (modified, added,
-  or deleted source files, configs, or relevant new files — not
-  `.artifacts/` output or log churn), the new candidate has not been
-  self-reviewed. Re-enter the self-review gate with the remaining
-  convergence budget as MAX_ROUNDS. If the gate makes further fixes,
-  record the new reviewed snapshot and re-run Step 5 again.
-- A reviewed-and-validated candidate that consumed the last available
-  round is still valid — FLAG is needed only when another re-review
-  is required but no budget remains. If convergence budget reaches
-  zero before both gates pass on the same unchanged candidate, stop
-  and present the situation to the user as a FLAG — do not commit an
-  unreviewed or unvalidated candidate.
+   | Parameter | Value |
+   |-----------|-------|
+   | DIFF_COMMAND | `git diff HEAD` |
+   | MAX_ROUNDS | `{review_rounds_remaining}` |
+   | CONTEXT_FILES | `.artifacts/bugfix/{issue}/root-cause.md`, `.artifacts/bugfix/{issue}/implementation-notes.md` (if they exist) |
+
+   Deduct the gate's reported `Rounds: {N}` from
+   `review_rounds_remaining` immediately after return.
+
+2. If FLAG: stop and present findings to the user. Do not proceed to
+   commit until the user decides how to handle them.
+
+3. On PASS: `reviewed_candidate = snapshot_candidate()`.
+
+4. If `reviewed_candidate == validated_candidate`: the final candidate
+   is both reviewed and validated. Proceed to Step 7.
+
+5. The gate made code fixes, so the reviewed candidate differs from
+   the validated one. Re-run **Step 5** (validation gate) on the
+   current working tree. After Step 5 passes, update:
+   `validated_candidate = snapshot_candidate()`.
+
+6. If `validated_candidate == reviewed_candidate`: validation did not
+   change the candidate further — both checks cover the same content.
+   Proceed to Step 7.
+
+7. Validation remediation produced a different candidate. If
+   `review_rounds_remaining > 0`, go to step 1 (re-enter review with
+   remaining budget). If `review_rounds_remaining == 0`, stop and
+   present the situation to the user as a FLAG — do not commit an
+   unreviewed or unvalidated candidate.
 
 Any code fixes are uncommitted changes that will be included in the
 commit below.
