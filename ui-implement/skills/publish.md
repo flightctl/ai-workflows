@@ -129,7 +129,10 @@ If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
 present the findings to the user. Do not proceed until the user decides
 how to handle them.
 
-If the gate made code fixes, commit them before proceeding:
+If the gate reported PASS **without making any code fixes** (candidate
+unchanged), proceed directly to Step 3.
+
+If the gate made code fixes, commit them first:
 
 ```bash
 git add {fixed files}
@@ -137,18 +140,17 @@ git commit -m "{issue-key}: address cross-cutting review findings"
 ```
 
 The committed gate fixes changed the candidate since `/validate`
-recorded its `## Validated HEAD`. Before proceeding, re-run
-`/validate` to produce a fresh validation report. Parse it using the
-same contract as Step 1: the first non-empty, non-comment line after
-`## Result` must be exactly `PASS`, and the `## Validated HEAD` value
-must equal the current local HEAD (`git rev-parse HEAD`). Do not
-merely rewrite the SHA in the old report. If validation fails, the
-result is not `PASS`, or validation produces further code changes
-that cannot be validated, stop and present the gap to the user —
-hand back to the existing `/validate` and review workflow rather than
-entering an unbounded automatic cycle. Skip this revalidation when
-the gate reported PASS without making any code fixes (candidate
-unchanged).
+recorded its `## Validated HEAD`. Re-run `/validate` to produce a
+fresh validation report. Parse it using the same contract as Step 1:
+the first non-empty, non-comment line after `## Result` must be
+exactly `PASS`, and the `## Validated HEAD` value must equal the
+current local HEAD (`git rev-parse HEAD`). Do not merely rewrite the
+SHA in the old report. If validation fails, the result is not `PASS`,
+or validation produces further code changes that cannot be validated,
+stop and present the gap to the user — hand back to the existing
+`/validate` and review workflow rather than entering an unbounded
+automatic cycle. Once the fresh report shows PASS with matching HEAD,
+proceed to Step 3.
 
 Before pushing in Step 4, verify that the local HEAD still equals the
 `## Validated HEAD` from the fresh report. If any commits were added
