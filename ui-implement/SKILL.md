@@ -1,6 +1,6 @@
 ---
 name: ui-implement
-version: 0.2.0
+version: 0.2.1
 description: >-
   Story-to-code workflow for UI/front-end stories. Takes a Jira [UI] Story,
   plans the implementation using discovered design-system and testing

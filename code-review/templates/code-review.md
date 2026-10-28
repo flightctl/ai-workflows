@@ -12,10 +12,15 @@ Repeat the following block for each finding, incrementing
 - **File:** {file path}
 - **Location:** {line range or function name, as applicable}
 - **Severity:** {CRITICAL | HIGH | MEDIUM | LOW}
-- **Category:** {Correctness | Error Handling | Security | Performance |
-  Naming/Clarity | Test Coverage | Conventions}
+- **Category:** {Correctness | Error Handling | Security | Design |
+  Performance | Naming/Clarity | Test Coverage | Conventions}
 - **Issue:** {what the problem is}
+- **Evidence:** {what in the code, tests, or requirements substantiates
+  the claim — for blockers: the concrete problem scenario or violated
+  requirement, accounting for existing safeguards; for suggestions: why
+  the change is valuable but not required before commit}
 - **Suggestion:** {concrete, actionable fix}
+- **Commit-readiness impact:** {blocking | nonblocking}
 
 ## Questions
 

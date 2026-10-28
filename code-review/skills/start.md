@@ -350,8 +350,17 @@ that string, append `#{finding_number}`.
 }
 ```
 
-If the verdict is APPROVED with no findings, tell the user the review
-passed and clean up artifacts automatically.
+If the verdict is APPROVED with no findings, apply the
+**commit-readiness check** from the Verdict Rules in
+`../../_shared/review-protocol.md`: confirm all applicable mandatory
+quality gates are passing (not merely unrun or incomplete) and the
+required evaluation is complete. If any gate is unmet or incomplete,
+do not approve — report the gap and set the verdict to
+CHANGES_REQUESTED. Otherwise tell the user the review passed and
+clean up artifacts automatically. Zero findings with APPROVED is a
+valid, expected outcome when the commit-readiness check passes — do
+not treat it as a review failure or search for additional comments
+merely to fill the findings section.
 
 #### Unattended Mode Behavior
 
@@ -365,8 +374,17 @@ After presenting:
 1. If any CRITICAL finding has a "Disagree" assessment, stop and
    escalate to the user — present the finding and explain the
    disagreement. Wait for the user to decide.
-2. Otherwise treat Agree / Partially agree as Accept and Disagree as
-   Reject, persist `decisions-{NNN}.json`, and proceed to `/continue`.
+2. Apply the commit-readiness check: if any applicable mandatory
+   quality gate is unmet, failing, or incomplete, the review is not
+   complete — report the gap and proceed to `/continue`. If the
+   commit-readiness check passes and there are only nonblocking
+   findings (all MEDIUM/LOW with `commit-readiness impact:
+   nonblocking`), treat the review as complete — compile the
+   aggregated summary and proceed to cleanup. Nonblocking suggestions
+   alone do not trigger a `/continue` round.
+3. Otherwise treat Agree / Partially agree as Accept and Disagree as
+   Reject for blocking findings, persist `decisions-{NNN}.json`, and
+   proceed to `/continue`.
 
 ## Output
 

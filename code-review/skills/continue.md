@@ -315,7 +315,10 @@ The reviewer should evaluate all categories in
 - Re-check **rejected** findings only if that finding's file **hash
   changed this round**. Do not re-argue settled rejects on files that
   are still in `git diff HEAD` but were not modified this round
-- Issue a verdict: APPROVED or CHANGES_REQUESTED
+- Issue a verdict: APPROVED or CHANGES_REQUESTED, following the Verdict
+  Rules in `../../_shared/review-protocol.md` — CHANGES_REQUESTED
+  requires at least one substantiated blocker or unmet mandatory quality
+  gate; nonblocking suggestions alone do not justify CHANGES_REQUESTED
 
 Parent Reads `../templates/code-review.md` **once**. Instruct the
 subagent to write
@@ -377,6 +380,12 @@ other feedback content regardless of section headings.
 
 **If APPROVED with no findings anywhere in the review:**
 
+Before accepting, apply the commit-readiness check: confirm all
+applicable mandatory quality gates are passing (not merely unrun or
+incomplete) and the required evaluation is complete. If any gate is
+unmet or incomplete, do not approve — report the gap and set the
+verdict to CHANGES_REQUESTED.
+
 Present the approval to the user:
 
 Before cleanup, read all response files (`review-response-{NNN}.md`) and
@@ -432,15 +441,34 @@ In **unattended mode**, still present the approval and suggestions table
 — the user can interrupt at any time, and the table gives them the
 information to decide whether to do so. Do not skip the table because
 the mode is unattended; unattended means the user delegated decisions,
-not visibility. Then: if any remaining
-suggestions have an "Agree" assessment, persist the decisions to
-`decisions-{NNN}.json` and loop back to Step 3 to implement them. If all
-remaining suggestions are assessed as "Disagree", compile
-the aggregated change summary (same as the "APPROVED with no findings"
-path) before proceeding to Step 10 (the review is approved and all
-valuable feedback has been addressed).
+not visibility. Then apply the commit-readiness check: if any
+applicable mandatory quality gate is unmet, failing, or incomplete,
+the review is not complete regardless of the reviewer's verdict — report
+the gap and continue the round. If any remaining suggestions are
+substantiated blockers (CRITICAL/HIGH with `commit-readiness impact:
+blocking`), persist the decisions and loop back to Step 3. If the
+commit-readiness check passes and the remaining suggestions are all
+nonblocking (MEDIUM/LOW), the review is approved — nonblocking
+suggestions alone do not trigger another round. Compile the aggregated
+change summary (same as the "APPROVED with no findings" path) before
+proceeding to Step 10.
 
 **If CHANGES_REQUESTED:**
+
+Before routing, apply the **commit-readiness check** from the Verdict
+Rules in `../../_shared/review-protocol.md`: APPROVED is valid only when
+the required evaluation is complete, all applicable mandatory quality
+gates are passing (not merely unrun or incomplete), and no substantiated
+blockers remain. If any condition fails, the verdict is
+CHANGES_REQUESTED regardless of the reviewer's label or the absence of
+code-level findings.
+
+If the reviewer issued CHANGES_REQUESTED but every finding is
+nonblocking (MEDIUM/LOW) **and** the commit-readiness check passes,
+override the verdict to APPROVED and follow the "APPROVED with
+remaining suggestions" path above. If the commit-readiness check
+fails (a mandatory gate is unmet, incomplete, or unrun), do **not**
+override — CHANGES_REQUESTED stands even with no code-level blockers.
 
 Assess the new findings independently (same as start.md's "Assess on
 value" section, Step 7b) — every finding on its merits, honest
@@ -482,10 +510,17 @@ unattended means the user delegated decisions, not visibility. Then:
    escalate to the user — present the finding and explain the
    disagreement. Wait for the user to decide (same guardrail as
    `/start`).
-2. Otherwise, treat the implementor's recommendations as decisions,
-   except do not accept a finding whose `id` matches a prior reject.
-   Persist them to `decisions-{NNN}.json`, and loop back to Step 3 to
-   implement the next round.
+2. Apply the commit-readiness check: if any applicable mandatory
+   quality gate is unmet, failing, or incomplete, the review is not
+   complete — report the gap and loop back to Step 3. If the
+   commit-readiness check passes and the only remaining findings are
+   nonblocking (MEDIUM/LOW), the review is complete — compile the
+   aggregated summary and proceed to Step 10 (cleanup). Nonblocking
+   suggestions alone do not trigger another round.
+3. Otherwise, treat the implementor's recommendations as decisions
+   for blocking findings, except do not accept a finding whose `id`
+   matches a prior reject. Persist them to `decisions-{NNN}.json`,
+   and loop back to Step 3 to implement the next round.
 
 ### Step 10: Clean Up Artifacts
 
