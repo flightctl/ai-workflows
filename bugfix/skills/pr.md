@@ -452,8 +452,9 @@ reviewed_candidate = null
    Proceed to Step 7.
 
 7. Validation remediation produced a different candidate. If
-   `review_rounds_remaining > 0`, go to step 1 (re-enter review with
-   remaining budget). If `review_rounds_remaining == 0`, stop and
+   `review_rounds_remaining > 0`, return to **Review loop, item 1**
+   above (re-enter the self-review gate with remaining budget — do
+   not re-run Step 6 initialization or reset the budget). If `review_rounds_remaining == 0`, stop and
    present the situation to the user as a FLAG — do not commit an
    unreviewed or unvalidated candidate.
 

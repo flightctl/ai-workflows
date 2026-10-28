@@ -34,6 +34,8 @@ Repeat the following block for each finding, incrementing
   the change is valuable but not required before commit}
 - **Suggestion:** {concrete, actionable fix}
 - **Commit-readiness impact:** {blocking | nonblocking}
+  (CRITICAL/HIGH with substantiated evidence → blocking;
+  MEDIUM/LOW → nonblocking)
 
 ## Questions
 
