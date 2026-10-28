@@ -30,12 +30,16 @@ Repeat the following block for each finding, incrementing
 - **Issue:** {what the problem is}
 - **Evidence:** {what in the code, tests, or requirements substantiates
   the claim — for blockers: the concrete problem scenario or violated
-  requirement, accounting for existing safeguards; for suggestions: why
+  requirement, accounting for existing safeguards, and why it must be
+  fixed before commit rather than as a follow-up; for suggestions: why
   the change is valuable but not required before commit}
 - **Suggestion:** {concrete, actionable fix}
 - **Commit-readiness impact:** {blocking | nonblocking}
-  (CRITICAL/HIGH with substantiated evidence → blocking;
-  MEDIUM/LOW → nonblocking)
+  (CRITICAL/HIGH with substantiated evidence and demonstrated
+  before-commit necessity → blocking; MEDIUM/LOW → nonblocking.
+  A CRITICAL/HIGH lacking substantiation is discarded if unsupported
+  or already handled; downgraded to nonblocking only if a validated,
+  clearly useful concern remains.)
 
 ## Questions
 
