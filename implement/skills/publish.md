@@ -117,22 +117,20 @@ If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
 present the findings to the user. Do not proceed until the user decides
 how to handle them.
 
-If the gate made code fixes, commit them before proceeding:
+If the gate made code fixes, re-run the validation profile's required
+checks on the post-fix working-tree candidate **before** staging or
+committing. If checks fail or produce further unreviewed code changes,
+stop and present the gap to the user — hand back to the existing
+`/validate` and review workflow rather than entering an unbounded
+automatic cycle. Skip this revalidation when the gate reported PASS
+without making any code fixes (candidate unchanged).
+
+Once checks pass on the unchanged post-fix candidate, commit:
 
 ```bash
 git add {fixed files}
-```
-
-```bash
 git commit -m "{issue-key}: address cross-cutting review findings"
 ```
-
-The gate fixes changed the candidate after `/validate`. Re-run the
-validation profile's required checks on the post-fix candidate to
-confirm the fixes did not break anything. If checks fail or produce
-further code changes, stop and present the gap to the user rather
-than entering an unbounded review↔validate cycle. Skip this
-revalidation when the gate reported PASS without making code fixes.
 
 ### Step 3: Confirm Details
 

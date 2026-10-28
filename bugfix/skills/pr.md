@@ -409,18 +409,28 @@ The snapshot covers:
 Exclude only `.artifacts/` outputs and build logs — never exclude a
 candidate source file based on extension or unchanged path presence.
 
-**Payload hashing by kind:**
+**Mode detection:** For tracked files, `git diff` output shows the
+prospective Git mode (e.g., `old mode 100644 / new mode 100755`)
+which reflects unstaged chmod changes. `git ls-files -s` shows only
+the index mode, which does NOT reflect unstaged mode changes — use it
+only for staged entries. For untracked regular files, record whether
+the file has the executable bit set (this is the mode Git would assign
+on `git add`). Stage-only status transitions (untracked→staged,
+unstaged→staged) must not change the recorded mode or payload for the
+same working-tree file.
 
-- **Regular files (tracked):** use Git mode from `git ls-files -s`
-  or `git diff` output (captures executable-bit changes that
-  `git hash-object` alone misses). Content digest via
-  `git hash-object`.
-- **Regular files (untracked):** record POSIX file type and
-  executable bit. Content digest via `sha256sum`.
-- **Symlinks:** hash the **link target text** (`readlink`), not the
-  dereferenced file contents. This detects retargeting even when
-  both targets have identical bytes, and correctly handles dangling
-  links.
+**Payload hashing by kind (use consistently regardless of
+tracked/untracked origin):**
+
+- **Regular files:** content digest via `git hash-object -t blob`
+  (computes the Git blob OID without staging). This produces the
+  same identity whether the file is tracked, untracked, or staged,
+  so a stage-only transition does not create a false mismatch.
+- **Symlinks:** hash the **link target text** (`readlink -n`), not
+  the dereferenced file contents. Use `git hash-object -t blob` on
+  the target string (e.g., `readlink -n {path} | git hash-object
+  --stdin -t blob`). This detects retargeting even when both targets
+  have identical bytes, and correctly handles dangling links.
 - **Other kinds (gitlink, etc.):** record the kind and use the
   appropriate Git identity; if unsupported, report the entry as
   unhandled rather than silently hashing a directory as a regular
@@ -428,7 +438,10 @@ candidate source file based on extension or unchanged path presence.
 
 Do not stage, commit, or destructively modify the working tree to
 build the snapshot. Do not include mtime, owner, or non-Git
-permission bits — these create false churn.
+permission bits — these create false churn. Normalized logical path
+identity must not depend on M/A/R presentation labels — two entries
+with the same path, kind, mode, and payload are equal regardless of
+how Git labels the status transition.
 
 Two snapshots are **equal** when they have the same set of paths with
 the same status, kind, mode, and payload digest for each. A change to
@@ -501,29 +514,37 @@ This step consolidates them into a single commit. (For subsequent
 feedback rounds, `/feedback` handles its own commits.)
 
 **Stage only the converged candidate.** The staged set must match the
-paths and identities in the final reviewed-and-validated candidate
-snapshot from Step 6. Do not stage paths absent from that snapshot
-(including pre-existing staged changes from unrelated work) and do
-not omit paths present in it.
+paths and identities (path, kind, mode, payload) in the final
+reviewed-and-validated candidate snapshot from Step 6.
 
 ```bash
 # Stage exactly the candidate paths
 git add {paths from converged candidate snapshot}
-
-# Verify: staged delta should match the intended candidate
-git diff --cached --stat
-git status
 ```
 
-If verification reveals staged paths not in the candidate snapshot,
-unstage them (`git reset HEAD {path}`) and investigate — do not
-commit unreviewed content. If a needed file is absent from the
-snapshot because it is gitignored, do not silently force-add it.
-Instead, explicitly include the intended path in the candidate
-construction, provide its contents to the review and validation
-gates, and only then stage it (with `git add -f` if necessary).
-The project or user retains authority over any actual force-add
-decision.
+**Pre-commit identity verification.** Before committing, compare
+the actual staged index entries against the converged candidate
+snapshot — not merely `--stat` or `git status`, which show paths and
+coarse change labels but cannot prove kind, mode, or payload
+identity. For each candidate path, confirm the staged entry's mode,
+kind, and blob OID match the snapshot's recorded values. For each
+staged entry NOT in the candidate snapshot, the commit would include
+unreviewed content.
+
+If any mismatch is found (extra staged path, missing candidate path,
+or changed identity), **stop and report** — do not commit, and do not
+automatically unstage or reset unrelated work that may belong to the
+user. Return to the appropriate capture/review/validation step with
+remaining convergence budget, or stop for a user decision if the
+mismatch cannot be resolved within budget.
+
+If a needed file is absent from the snapshot because it is
+gitignored, do not silently force-add it. Instead, explicitly
+include the intended path as read-only candidate input (read its
+contents without staging), provide it to the review and validation
+gates, and only then stage it (with `git add -f` if the project or
+user authorizes). The original workflow instructions did not specify
+force-add; this is narrow hardening of the candidate invariant.
 
 **Commit with a structured message:**
 

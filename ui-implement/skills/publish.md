@@ -137,23 +137,27 @@ git commit -m "{issue-key}: address cross-cutting review findings"
 ```
 
 The committed gate fixes changed the candidate since `/validate`
-recorded its ValidatedHEAD. Before proceeding, re-run `/validate` to
-produce a fresh validation report with an exact standalone `Result:
-PASS` and a ValidatedHEAD matching the current local HEAD. Do not
-merely rewrite the SHA in the old report. If validation fails or
-produces further code changes that cannot be validated, stop and
-present the gap to the user rather than entering an unbounded
-review↔validate cycle. Skip this revalidation when the gate reported
-PASS without making any code fixes (candidate unchanged).
+recorded its `## Validated HEAD`. Before proceeding, re-run
+`/validate` to produce a fresh validation report. Parse it using the
+same contract as Step 1: the first non-empty, non-comment line after
+`## Result` must be exactly `PASS`, and the `## Validated HEAD` value
+must equal the current local HEAD (`git rev-parse HEAD`). Do not
+merely rewrite the SHA in the old report. If validation fails, the
+result is not `PASS`, or validation produces further code changes
+that cannot be validated, stop and present the gap to the user —
+hand back to the existing `/validate` and review workflow rather than
+entering an unbounded automatic cycle. Skip this revalidation when
+the gate reported PASS without making any code fixes (candidate
+unchanged).
 
 Before pushing in Step 4, verify that the local HEAD still equals the
-ValidatedHEAD from the fresh report. If any commits were added during
-confirmation (by the user or another process), the validation evidence
-is stale — stop and re-run `/validate`. Preserve the existing
-unexpected-remote-divergence check for detecting changes pushed by
-others, but do not require remote HEAD to equal the new local HEAD
-before push — remote is legitimately an ancestor of unpublished
-local commits until the normal push lands.
+`## Validated HEAD` from the fresh report. If any commits were added
+during confirmation (by the user or another process), the validation
+evidence is stale — stop and re-run `/validate`. Preserve the
+existing unexpected-remote-divergence check for detecting changes
+pushed by others, but do not require remote HEAD to equal the new
+local HEAD before push — remote is legitimately an ancestor of
+unpublished local commits until the normal push lands.
 
 ### Step 3: Confirm Details
 
