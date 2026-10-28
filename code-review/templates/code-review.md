@@ -3,6 +3,19 @@
 ## Summary
 {2-3 sentence overall assessment}
 
+## Criteria Coverage
+
+| Criterion | Status | Scope / Evidence |
+|-----------|--------|------------------|
+| Correctness | {evaluated &#124; not applicable &#124; incomplete} | {brief note} |
+| Error handling | {evaluated &#124; not applicable &#124; incomplete} | {brief note} |
+| Security | {evaluated &#124; not applicable &#124; incomplete} | {brief note} |
+| Design | {evaluated &#124; not applicable &#124; incomplete} | {brief note} |
+| Performance | {evaluated &#124; not applicable &#124; incomplete} | {brief note} |
+| Naming and clarity | {evaluated &#124; not applicable &#124; incomplete} | {brief note} |
+| Test coverage | {evaluated &#124; not applicable &#124; incomplete} | {brief note} |
+| Project conventions | {evaluated &#124; not applicable &#124; incomplete} | {brief note} |
+
 ## Findings
 
 Repeat the following block for each finding, incrementing

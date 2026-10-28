@@ -406,9 +406,29 @@ decides how to handle them.
 
 If the gate reports PASS, proceed to Step 7. If the gate made code fixes,
 re-run **Step 5** (validation gate) to confirm the fixes did not break
-checks — do not commit until validation passes on the final diff. Any
-code fixes are uncommitted changes that will be included in the commit
-below.
+checks — do not commit until validation passes on the final diff.
+
+**Review-validation convergence.** The final candidate committed in
+Step 7 must be both reviewed (self-review PASS) and validated (Step 5
+PASS) with no intervening code changes. Track convergence as follows:
+
+- After re-running Step 5, check whether validation remediation changed
+  candidate code (source files, configs, or relevant new files — not
+  artifact logs or `.artifacts/` churn). Use `git diff` on working-tree
+  files, not only HEAD SHA, since changes are uncommitted.
+- If validation passed without changing candidate code, the candidate
+  is both reviewed and validated. Proceed to Step 7.
+- If validation remediation changed candidate code, the new candidate
+  has not been self-reviewed. Re-enter the self-review gate, consuming
+  remaining rounds from the **original** MAX_ROUNDS budget (do not
+  reset to 3 on re-entry). If the gate makes further fixes, re-run
+  Step 5 again, continuing to consume the same budget.
+- If MAX_ROUNDS is exhausted before both gates pass on the same
+  unchanged candidate, stop and present the situation to the user as
+  a FLAG — do not commit an unreviewed or unvalidated candidate.
+
+Any code fixes are uncommitted changes that will be included in the
+commit below.
 
 **Note:** The bugfix workflow also has an optional `/review` phase that
 provides a thorough, interactive review with findings and verdict. The

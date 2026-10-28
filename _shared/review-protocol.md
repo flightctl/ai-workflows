@@ -135,7 +135,7 @@ be discarded — they indicate hallucinated references.
 | Severity | Meaning | Action |
 |----------|---------|--------|
 | CRITICAL | Would cause bugs, security vulnerabilities, or data loss in production | Must fix before commit |
-| HIGH | Missing error handling, race conditions, incomplete coverage that could cause failures | Should fix before commit |
+| HIGH | Missing error handling, race conditions, incomplete coverage that could cause failures | Must fix before commit |
 | MEDIUM | Naming improvements, minor edge cases, convention violations | Fix if it adds value |
 | LOW | Readability suggestions, minor refactoring opportunities | Fix only if clearly valuable |
 
@@ -194,6 +194,34 @@ unrun or incomplete mandatory gate is not "passing."
 - When issuing APPROVED with nonblocking suggestions, list them in the
   findings section. They inform the developer but do not prevent the
   approval and do not require another review round.
+
+## Criteria Coverage
+
+A review report must include a **Criteria Coverage** record listing every
+evaluation criterion from this protocol with its coverage status. This
+is review metadata — a record of what was evaluated — not mandatory
+findings or feedback. Zero findings with all criteria covered is a
+valid APPROVED outcome.
+
+Each row states one of:
+
+- **evaluated** — the criterion was assessed against the changes in
+  scope. Briefly note what was checked (e.g., "no new error paths
+  introduced", "naming consistent with existing module conventions").
+- **not applicable** — the criterion does not apply to this change,
+  with a brief justification (e.g., "no performance-sensitive paths
+  changed"). Applicability must itself be assessed; an unjustified
+  "N/A" is incomplete coverage.
+- **incomplete** — the criterion could not be fully evaluated (e.g.,
+  "test coverage not assessed — no test runner available"). State what
+  is missing.
+
+**Completeness** means every applicable criterion is `evaluated` and
+every non-applicable criterion has a justified `not applicable`.
+Any `incomplete` row or unjustified `not applicable` cannot support
+an APPROVED verdict, even with zero findings and passing quality
+gates. A coverage record is a report of review activity, not proof
+that all defects have been found.
 
 ## Validation Rules
 

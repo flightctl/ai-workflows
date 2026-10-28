@@ -308,7 +308,8 @@ Store any new agent ID in the metadata.
 Evaluate the code as if you did not write it.
 
 The reviewer should evaluate all categories in
-`../../_shared/review-protocol.md` and additionally:
+`../../_shared/review-protocol.md`, fill in the **Criteria Coverage**
+table in the report template for every criterion, and additionally:
 
 - Verify that accepted findings were addressed correctly
 - Check whether the changes introduced new issues
@@ -327,16 +328,24 @@ number) using that skeleton. The subagent writes that file. The parent
 writes it **only** when reviewing sequentially (no subagent). Exactly
 one writer. Do not overwrite the subagent file.
 
-#### 7a: Validate finding references
+#### 7a: Validate criteria coverage and finding references
 
-For each finding, confirm that the cited file and location actually exist
-in the change. AI reviewers hallucinate file paths and line numbers. If a
-finding references a file that was not changed (not on the name-status /
-untracked list), discard it — a context Read of a neighboring file is
-not enough. If the location does not exist, or does not overlap the
-changed lines (tracked) or the Read chunks (untracked), discard it. Do
-not present discarded findings to the user. Note discarded findings and
-why in your internal assessment (not in the user-facing table).
+First check the **Criteria Coverage** table in the review report:
+every criterion must be `evaluated` or `not applicable` with a
+justification. If any row is `incomplete` or missing, the review is
+not complete — do not proceed to a verdict. Ask the reviewer (or
+re-review inline) to cover the gap. Do not invent coverage the
+reviewer omitted.
+
+Then for each finding, confirm that the cited file and location actually
+exist in the change. AI reviewers hallucinate file paths and line
+numbers. If a finding references a file that was not changed (not on
+the name-status / untracked list), discard it — a context Read of a
+neighboring file is not enough. If the location does not exist, or
+does not overlap the changed lines (tracked) or the Read chunks
+(untracked), discard it. Do not present discarded findings to the
+user. Note discarded findings and why in your internal assessment
+(not in the user-facing table).
 
 ### Step 8: Update Metadata
 
@@ -443,7 +452,7 @@ information to decide whether to do so. Do not skip the table because
 the mode is unattended; unattended means the user delegated decisions,
 not visibility. Then apply the commit-readiness check: if any
 applicable mandatory quality gate is unmet, failing, or incomplete,
-or the required evaluation is not complete, the review is not done
+or the required evaluation is not complete, the review is not complete
 regardless of the reviewer's verdict — report the gap and continue
 the round. If any remaining suggestions are
 substantiated blockers (CRITICAL/HIGH with `commit-readiness impact:
@@ -513,7 +522,7 @@ unattended means the user delegated decisions, not visibility. Then:
    `/start`).
 2. Apply the commit-readiness check: if any applicable mandatory
    quality gate is unmet, failing, or incomplete, or the required
-   evaluation is not complete, the review is not done — report the
+   evaluation is not complete, the review is not complete — report the
    gap and loop back to Step 3. If the
    commit-readiness check passes and the only remaining findings are
    nonblocking (MEDIUM/LOW), the review is complete — compile the

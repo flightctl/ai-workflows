@@ -231,9 +231,12 @@ skeleton, then return.
 **If subagents are not available:** Read `../../_shared/review-protocol.md`
 (not `../guidelines.md`) and review sequentially. Same hunk-Read rules.
 
-Evaluate all categories in `../../_shared/review-protocol.md`. If the user
-provided focus guidance, prioritize those areas but still report CRITICAL
-and HIGH findings elsewhere.
+Evaluate all categories in `../../_shared/review-protocol.md` and fill in
+the **Criteria Coverage** table in the report template for every
+criterion — `evaluated`, `not applicable` (with justification), or
+`incomplete` (with what is missing). If the user provided focus guidance,
+prioritize those areas but still report CRITICAL and HIGH findings
+elsewhere and still cover every criterion in the table.
 
 The subagent writes `code-review-001.md`. The parent writes it **only**
 when reviewing sequentially (no subagent). Exactly one writer. Do not
@@ -241,7 +244,12 @@ overwrite the subagent file.
 
 ### Step 7: Validate and Assess Findings
 
-Read the review file and work through **every** finding.
+Read the review file. First check the **Criteria Coverage** table:
+every criterion must be `evaluated` or `not applicable` with a
+justification. If any row is `incomplete` or missing, the review is
+not complete — do not proceed to a verdict. Ask the reviewer (or
+re-review inline) to cover the gap. Do not invent coverage the
+reviewer omitted. Then work through **every** finding.
 
 #### 7a: Validate finding references
 
@@ -376,7 +384,7 @@ After presenting:
    disagreement. Wait for the user to decide.
 2. Apply the commit-readiness check: if any applicable mandatory
    quality gate is unmet, failing, or incomplete, or the required
-   evaluation is not complete, the review is not done — report the
+   evaluation is not complete, the review is not complete — report the
    gap and proceed to `/continue`. If the commit-readiness check
    passes and there are only nonblocking
    findings (all MEDIUM/LOW with `commit-readiness impact:
