@@ -392,8 +392,15 @@ Before committing, run a self-review of the changes to catch issues before
 they reach external reviewers.
 
 **Candidate snapshot definition.** A candidate snapshot is a saved
-immutable mapping of every candidate file's path, status (present,
-deleted, renamed), and content digest. It covers:
+immutable mapping. Each entry is a tuple of:
+
+- **path** — the file's working-tree path
+- **status** — present, deleted, or renamed (with old path)
+- **kind** — regular file, symlink, or other (gitlink, etc.)
+- **mode** — Git-relevant file mode (e.g., 100644, 100755, 120000)
+- **payload digest** — kind-correct content hash (see below)
+
+The snapshot covers:
 
 - tracked staged edits (`git diff --cached`)
 - tracked unstaged edits (`git diff`)
@@ -401,15 +408,33 @@ deleted, renamed), and content digest. It covers:
 
 Exclude only `.artifacts/` outputs and build logs — never exclude a
 candidate source file based on extension or unchanged path presence.
-Compute content digests with `git hash-object` for tracked files and
-`sha256sum` (or equivalent) for untracked files. Do not stage, commit,
-or destructively modify the working tree to build the snapshot.
+
+**Payload hashing by kind:**
+
+- **Regular files (tracked):** use Git mode from `git ls-files -s`
+  or `git diff` output (captures executable-bit changes that
+  `git hash-object` alone misses). Content digest via
+  `git hash-object`.
+- **Regular files (untracked):** record POSIX file type and
+  executable bit. Content digest via `sha256sum`.
+- **Symlinks:** hash the **link target text** (`readlink`), not the
+  dereferenced file contents. This detects retargeting even when
+  both targets have identical bytes, and correctly handles dangling
+  links.
+- **Other kinds (gitlink, etc.):** record the kind and use the
+  appropriate Git identity; if unsupported, report the entry as
+  unhandled rather than silently hashing a directory as a regular
+  file.
+
+Do not stage, commit, or destructively modify the working tree to
+build the snapshot. Do not include mtime, owner, or non-Git
+permission bits — these create false churn.
 
 Two snapshots are **equal** when they have the same set of paths with
-the same status and content digest for each. A change to any candidate
-file's content, a newly appearing relevant untracked file, or a
-deletion/rename invalidates equality — even if the path list is
-unchanged.
+the same status, kind, mode, and payload digest for each. A change to
+any of these — content, mode, kind, a newly appearing relevant
+untracked file, or a deletion/rename — invalidates equality even if
+the path list is unchanged.
 
 **Convergence state.** Initialize once for this Step 6:
 
@@ -475,18 +500,30 @@ self-review gate should be in the working tree as an uncommitted diff.
 This step consolidates them into a single commit. (For subsequent
 feedback rounds, `/feedback` handles its own commits.)
 
-**Stage changes selectively** — don't blindly `git add .`:
+**Stage only the converged candidate.** The staged set must match the
+paths and identities in the final reviewed-and-validated candidate
+snapshot from Step 6. Do not stage paths absent from that snapshot
+(including pre-existing staged changes from unrelated work) and do
+not omit paths present in it.
 
 ```bash
-# Review what would be staged
-git diff --stat
+# Stage exactly the candidate paths
+git add {paths from converged candidate snapshot}
 
-# Stage the relevant files (exclude .artifacts/ and other non-code files)
-git add path/to/changed/files
-
-# Verify staging
+# Verify: staged delta should match the intended candidate
+git diff --cached --stat
 git status
 ```
+
+If verification reveals staged paths not in the candidate snapshot,
+unstage them (`git reset HEAD {path}`) and investigate — do not
+commit unreviewed content. If a needed file is absent from the
+snapshot because it is gitignored, do not silently force-add it.
+Instead, explicitly include the intended path in the candidate
+construction, provide its contents to the review and validation
+gates, and only then stage it (with `git add -f` if necessary).
+The project or user retains authority over any actual force-add
+decision.
 
 **Commit with a structured message:**
 

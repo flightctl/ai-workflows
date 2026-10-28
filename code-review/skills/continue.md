@@ -387,13 +387,16 @@ sometimes write "APPROVED" while still including findings in the body.
 Scan the entire review for findings, suggestions, questions, or any
 other feedback content regardless of section headings.
 
-**If APPROVED with no findings anywhere in the review:**
+**Commit-readiness check (apply before routing on any verdict).** From
+the Verdict Rules in `../../_shared/review-protocol.md`, APPROVED is
+valid only when all three conditions hold: (1) required evaluation
+across all applicable criteria is complete, (2) all applicable
+mandatory quality gates are passing — not merely unrun or incomplete,
+(3) no substantiated blockers remain. If any condition fails, the
+effective verdict is CHANGES_REQUESTED regardless of the reviewer's
+label, the absence of code-level findings, or a user "done" decision.
 
-Before accepting, apply the commit-readiness check: confirm all
-applicable mandatory quality gates are passing (not merely unrun or
-incomplete) and the required evaluation is complete. If any gate is
-unmet or incomplete, do not approve — report the gap and set the
-verdict to CHANGES_REQUESTED.
+**If APPROVED with no findings anywhere in the review:**
 
 Present the approval to the user:
 
@@ -443,8 +446,12 @@ You can:
 - Run another /continue round to address the suggestions you agree with
 ```
 
-If the user says done, compile the aggregated change summary (same as
-the "APPROVED with no findings" path above) before proceeding to Step 10.
+If the user says done, re-apply the commit-readiness check before
+accepting. If any condition now fails (a gate broke, evaluation is
+incomplete, or a substantiated blocker surfaced since the table was
+presented), report the gap instead of proceeding. Otherwise compile
+the aggregated change summary (same as the "APPROVED with no findings"
+path above) before proceeding to Step 10.
 
 In **unattended mode**, still present the approval and suggestions table
 — the user can interrupt at any time, and the table gives them the
@@ -464,14 +471,6 @@ change summary (same as the "APPROVED with no findings" path) before
 proceeding to Step 10.
 
 **If CHANGES_REQUESTED:**
-
-Before routing, apply the **commit-readiness check** from the Verdict
-Rules in `../../_shared/review-protocol.md`: APPROVED is valid only when
-the required evaluation is complete, all applicable mandatory quality
-gates are passing (not merely unrun or incomplete), and no substantiated
-blockers remain. If any condition fails, the verdict is
-CHANGES_REQUESTED regardless of the reviewer's label or the absence of
-code-level findings.
 
 If the reviewer issued CHANGES_REQUESTED but every finding is
 nonblocking (MEDIUM/LOW) **and** the commit-readiness check passes,

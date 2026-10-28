@@ -127,6 +127,13 @@ git add {fixed files}
 git commit -m "{issue-key}: address cross-cutting review findings"
 ```
 
+The gate fixes changed the candidate after `/validate`. Re-run the
+validation profile's required checks on the post-fix candidate to
+confirm the fixes did not break anything. If checks fail or produce
+further code changes, stop and present the gap to the user rather
+than entering an unbounded review↔validate cycle. Skip this
+revalidation when the gate reported PASS without making code fixes.
+
 ### Step 3: Confirm Details
 
 Present the PR details to the user for confirmation:
