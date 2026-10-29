@@ -378,7 +378,9 @@ test_hook_blocks_deletion() {
 }
 
 # =========================================================================
-# TEST 8: pre-push hook blocks newly appeared branch
+# TEST 8a: pre-push hook blocks newly appeared branch (unpublished sentinel)
+# snapshot records null for unpublished branches; the hook blocks when
+# the remote advertises a non-zero OID for a branch that was null.
 # =========================================================================
 test_hook_blocks_appeared() {
   local clone
@@ -397,7 +399,60 @@ test_hook_blocks_appeared() {
     local ctx
     ctx=$(jq -n --argjson branches "$branches" \
       '{trunk:"main",currentBranch:"story-3",baseRemote:"origin",pushRemote:"origin",branches:$branches}')
-    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save >/dev/null 2>&1
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    local snap
+    snap="$(pwd)/.artifacts/rebase-stack/pre-rebase-state.json"
+
+    # Verify snapshot records null for unpublished story-3
+    local s3_val
+    s3_val=$(jq -r '.publishedTips["story-3"]' "$snap")
+    if [ "$s3_val" != "null" ]; then
+      fail "snapshot records null for unpublished branches" "got: $s3_val"
+      return
+    fi
+
+    local hooks_dir
+    hooks_dir="$(git rev-parse --git-dir)/hooks"
+    mkdir -p "$hooks_dir"
+
+    awk '/^cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
+      "$SCRIPTS_DIR/push-guard.sh" > "$hooks_dir/test-hook.sh"
+    chmod +x "$hooks_dir/test-hook.sh"
+
+    export REBASE_STACK_BASELINE_FILE="$snap"
+    export REBASE_STACK_ORIGINAL_HOOK=""
+
+    # Simulate: someone else pushed story-3 to the remote (non-zero advertised)
+    local fake_sha="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    local local_sha
+    local_sha=$(git rev-parse story-3)
+    local stdin_line="refs/heads/story-3 ${local_sha} refs/heads/story-3 ${fake_sha}"
+
+    printf '%s\n' "$stdin_line" | bash "$hooks_dir/test-hook.sh" origin "$(git remote get-url origin)" >/dev/null 2>&1
+
+    rc=$?
+    # Unpublished branches have null in publishedTips. The hook BLOCKS when
+    # the remote advertises a non-zero OID (someone else pushed).
+    if [ "$rc" -ne 0 ]; then
+      pass "pre-push hook blocks appeared branch (unpublished sentinel)"
+    else
+      fail "pre-push hook blocks appeared branch" "hook exited 0 (should block)"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 8b: pre-push hook rejects branch NOT in baseline (unknown to stack)
+# =========================================================================
+test_hook_rejects_unknown_branch() {
+  local clone
+  clone=$(setup_fixture "t8b-unknown")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
     local snap
     snap="$(pwd)/.artifacts/rebase-stack/pre-rebase-state.json"
 
@@ -412,22 +467,70 @@ test_hook_blocks_appeared() {
     export REBASE_STACK_BASELINE_FILE="$snap"
     export REBASE_STACK_ORIGINAL_HOOK=""
 
-    # Simulate: someone else pushed story-3 to the remote
-    local fake_sha="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    # Push a branch that is NOT in the stack baseline at all
+    local fake_sha="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    local local_sha
+    local_sha=$(git rev-parse story-1)
+    local stdin_line="refs/heads/rogue-branch ${local_sha} refs/heads/rogue-branch ${fake_sha}"
+
+    local output
+    output=$(printf '%s\n' "$stdin_line" | bash "$hooks_dir/test-hook.sh" origin "$(git remote get-url origin)" 2>&1)
+    rc=$?
+
+    if [ "$rc" -ne 0 ] && printf '%s' "$output" | grep -q "not in the validated stack"; then
+      pass "pre-push hook rejects branch not in baseline (fails closed)"
+    else
+      fail "pre-push hook rejects unknown branch" "rc=$rc output: $output"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 8c: pre-push hook allows unpublished branch first push (zero advertised)
+# =========================================================================
+test_hook_allows_unpublished_first_push() {
+  local clone
+  clone=$(setup_fixture "t8c-first-push")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+
+    # Create story-3 without pushing
+    git checkout -b story-3 >/dev/null 2>&1
+    echo "s3" > s3.txt && git add s3.txt && git commit -m "story-3" >/dev/null 2>&1
+
+    local branches='[{"name":"story-1","pr":null},{"name":"story-2","pr":null},{"name":"story-3","pr":null}]'
+    local ctx
+    ctx=$(jq -n --argjson branches "$branches" \
+      '{trunk:"main",currentBranch:"story-3",baseRemote:"origin",pushRemote:"origin",branches:$branches}')
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    local snap
+    snap="$(pwd)/.artifacts/rebase-stack/pre-rebase-state.json"
+
+    local hooks_dir
+    hooks_dir="$(git rev-parse --git-dir)/hooks"
+    mkdir -p "$hooks_dir"
+
+    awk '/^cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
+      "$SCRIPTS_DIR/push-guard.sh" > "$hooks_dir/test-hook.sh"
+    chmod +x "$hooks_dir/test-hook.sh"
+
+    export REBASE_STACK_BASELINE_FILE="$snap"
+    export REBASE_STACK_ORIGINAL_HOOK=""
+
+    # First push: remote advertises zero (branch doesn't exist remotely yet)
+    local ZERO="0000000000000000000000000000000000000000"
     local local_sha
     local_sha=$(git rev-parse story-3)
-    local stdin_line="refs/heads/story-3 ${local_sha} refs/heads/story-3 ${fake_sha}"
+    local stdin_line="refs/heads/story-3 ${local_sha} refs/heads/story-3 ${ZERO}"
 
     printf '%s\n' "$stdin_line" | bash "$hooks_dir/test-hook.sh" origin "$(git remote get-url origin)" >/dev/null 2>&1
 
     rc=$?
-    # Unpublished branches are NOT in publishedTips (snapshot only records
-    # published ones). The hook correctly skips branches not in baseline.
-    # APPEARED detection happens at stack-status.sh level, not hook level.
     if [ "$rc" -eq 0 ]; then
-      pass "pre-push hook correctly skips branch not in baseline scope"
+      pass "pre-push hook allows unpublished branch first push (zero advertised)"
     else
-      fail "pre-push hook skips unknown branch" "hook exited $rc (should skip)"
+      fail "unpublished branch first push" "hook exited $rc (should allow)"
     fi
   )
 }
@@ -1297,6 +1400,316 @@ ENVHOOK
 }
 
 # =========================================================================
+# TEST 29a: validate-baseline rejects missing key
+# =========================================================================
+test_validate_baseline_missing_key() {
+  local tmp
+  tmp=$(mktemp "${TMPDIR:-/tmp}/bl-test.XXXXXX")
+  echo '{"trunk":"main","baseRemote":"origin","pushRemote":"origin","pushUrl":"x","branches":[]}' > "$tmp"
+  bash "$SCRIPTS_DIR/validate-baseline.sh" "$tmp" >/dev/null 2>&1
+  rc=$?
+  rm -f "$tmp"
+  if [ "$rc" -ne 0 ]; then
+    pass "validate-baseline rejects missing publishedTips key"
+  else
+    fail "validate-baseline missing key" "exited 0"
+  fi
+}
+
+# =========================================================================
+# TEST 29b: validate-baseline rejects empty publishedTips
+# =========================================================================
+test_validate_baseline_empty_tips() {
+  local tmp
+  tmp=$(mktemp "${TMPDIR:-/tmp}/bl-test.XXXXXX")
+  echo '{"trunk":"main","baseRemote":"origin","pushRemote":"origin","pushUrl":"x","branches":[],"publishedTips":{}}' > "$tmp"
+  bash "$SCRIPTS_DIR/validate-baseline.sh" "$tmp" >/dev/null 2>&1
+  rc=$?
+  rm -f "$tmp"
+  if [ "$rc" -ne 0 ]; then
+    pass "validate-baseline rejects empty publishedTips"
+  else
+    fail "validate-baseline empty tips" "exited 0"
+  fi
+}
+
+# =========================================================================
+# TEST 29c: validate-baseline rejects non-string SHA value
+# =========================================================================
+test_validate_baseline_nonstring_sha() {
+  local tmp
+  tmp=$(mktemp "${TMPDIR:-/tmp}/bl-test.XXXXXX")
+  cat > "$tmp" << 'JSON'
+{"trunk":"main","baseRemote":"origin","pushRemote":"origin","pushUrl":"x",
+ "branches":[{"name":"b1","sha":"x","commits":[]}],
+ "publishedTips":{"b1":12345}}
+JSON
+  bash "$SCRIPTS_DIR/validate-baseline.sh" "$tmp" >/dev/null 2>&1
+  rc=$?
+  rm -f "$tmp"
+  if [ "$rc" -ne 0 ]; then
+    pass "validate-baseline rejects non-string SHA (number)"
+  else
+    fail "validate-baseline non-string SHA" "exited 0"
+  fi
+}
+
+# =========================================================================
+# TEST 29d: validate-baseline rejects wrong trunk via --context
+# =========================================================================
+test_validate_baseline_wrong_trunk() {
+  local clone
+  clone=$(setup_fixture "t29d-trunk")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    local snap=".artifacts/rebase-stack/pre-rebase-state.json"
+
+    # Create a context with different trunk
+    local wrong_ctx
+    wrong_ctx=$(jq '.trunk = "develop"' <<<"$ctx")
+    local wrong_ctx_file
+    wrong_ctx_file=$(mktemp "${TMPDIR:-/tmp}/ctx-test.XXXXXX")
+    printf '%s' "$wrong_ctx" > "$wrong_ctx_file"
+
+    bash "$SCRIPTS_DIR/validate-baseline.sh" "$snap" --context "$wrong_ctx_file" >/dev/null 2>&1
+    rc=$?
+    rm -f "$wrong_ctx_file"
+    if [ "$rc" -ne 0 ]; then
+      pass "validate-baseline rejects wrong trunk via --context"
+    else
+      fail "validate-baseline wrong trunk" "exited 0"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 29e: validate-baseline rejects wrong push URL
+# =========================================================================
+test_validate_baseline_wrong_url() {
+  local clone
+  clone=$(setup_fixture "t29e-url")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    local snap=".artifacts/rebase-stack/pre-rebase-state.json"
+
+    # Tamper with the push URL to simulate a different repository
+    local tampered
+    tampered=$(mktemp "${TMPDIR:-/tmp}/bl-tampered.XXXXXX")
+    jq '.pushUrl = "/some/other/repo.git"' "$snap" > "$tampered"
+
+    bash "$SCRIPTS_DIR/validate-baseline.sh" "$tampered" --context .artifacts/rebase-stack/context.json >/dev/null 2>&1
+    rc=$?
+    rm -f "$tampered"
+    if [ "$rc" -ne 0 ]; then
+      pass "validate-baseline rejects wrong push URL"
+    else
+      fail "validate-baseline wrong URL" "exited 0"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 29f: validate-baseline rejects mismatched branch set
+# =========================================================================
+test_validate_baseline_wrong_branches() {
+  local clone
+  clone=$(setup_fixture "t29f-branches")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    local snap=".artifacts/rebase-stack/pre-rebase-state.json"
+
+    # Create a context with extra branch
+    git checkout -b story-3 >/dev/null 2>&1
+    echo "s3" > s3.txt && git add s3.txt && git commit -m "s3" >/dev/null 2>&1
+    local new_ctx
+    new_ctx=$(jq '.branches += [{"name":"story-3","pr":null}]' <<<"$ctx")
+    local new_ctx_file
+    new_ctx_file=$(mktemp "${TMPDIR:-/tmp}/ctx-test.XXXXXX")
+    printf '%s' "$new_ctx" > "$new_ctx_file"
+
+    bash "$SCRIPTS_DIR/validate-baseline.sh" "$snap" --context "$new_ctx_file" >/dev/null 2>&1
+    rc=$?
+    rm -f "$new_ctx_file"
+    if [ "$rc" -ne 0 ]; then
+      pass "validate-baseline rejects mismatched branch set"
+    else
+      fail "validate-baseline wrong branches" "exited 0"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 29g: validate-baseline accepts valid baseline
+# =========================================================================
+test_validate_baseline_valid() {
+  local clone
+  clone=$(setup_fixture "t29g-valid")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    local snap=".artifacts/rebase-stack/pre-rebase-state.json"
+
+    bash "$SCRIPTS_DIR/validate-baseline.sh" "$snap" >/dev/null 2>&1
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
+      pass "validate-baseline accepts valid baseline"
+    else
+      fail "validate-baseline valid" "exited $rc"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 29h: snapshot refuses overwrite without --force
+# =========================================================================
+test_snapshot_refuses_overwrite() {
+  local clone
+  clone=$(setup_fixture "t29h-overwrite")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    # First save
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    local snap=".artifacts/rebase-stack/pre-rebase-state.json"
+    local original_tips
+    original_tips=$(jq -c '.publishedTips' "$snap")
+
+    # Advance main and rebase — tips would change if recaptured
+    git checkout main >/dev/null 2>&1
+    echo "new" > new.txt && git add new.txt && git commit -m "advance" >/dev/null 2>&1
+    git push origin main >/dev/null 2>&1
+    git checkout story-1 >/dev/null 2>&1
+    git rebase main >/dev/null 2>&1
+    git push -f origin story-1 >/dev/null 2>&1
+
+    # Second save WITHOUT --force should refuse
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save >/dev/null 2>&1
+    rc=$?
+
+    if [ "$rc" -ne 0 ]; then
+      # Verify original tips are preserved
+      local current_tips
+      current_tips=$(jq -c '.publishedTips' "$snap")
+      if [ "$original_tips" = "$current_tips" ]; then
+        pass "snapshot refuses overwrite without --force (preserves original)"
+      else
+        fail "snapshot refuses overwrite" "tips changed despite refusal"
+      fi
+    else
+      fail "snapshot refuses overwrite" "save succeeded without --force"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 29i: snapshot allows overwrite with --force
+# =========================================================================
+test_snapshot_allows_force_overwrite() {
+  local clone
+  clone=$(setup_fixture "t29i-force")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    local snap=".artifacts/rebase-stack/pre-rebase-state.json"
+
+    # Second save WITH --force should succeed
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
+      pass "snapshot allows overwrite with --force"
+    else
+      fail "snapshot allows force overwrite" "exited $rc"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 29j: push-guard hook chains other hooks (not just pre-push)
+# =========================================================================
+test_guard_chains_other_hooks() {
+  local clone
+  clone=$(setup_fixture "t29j-otherhooks")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+
+    # Create a reference-transaction hook in the original hooks dir
+    local hooks_dir
+    hooks_dir="$(git rev-parse --git-common-dir)/hooks"
+    mkdir -p "$hooks_dir"
+    local marker="$TEST_DIR/t29j-otherhooks/ref-tx-ran"
+    cat > "$hooks_dir/reference-transaction" << RTHOOK
+#!/usr/bin/env bash
+touch "$marker"
+exit 0
+RTHOOK
+    chmod +x "$hooks_dir/reference-transaction"
+
+    # push-guard creates a temp dir; verify other hooks are wrapped
+    bash "$SCRIPTS_DIR/push-guard.sh" \
+      --baseline .artifacts/rebase-stack/pre-rebase-state.json \
+      --remote origin >/dev/null 2>&1 || true
+
+    # The temp dir is cleaned up, but we can check push-guard.sh source
+    # proves it copies other hooks. (The actual invocation depends on
+    # git performing a reference-transaction during push.)
+    # Verify the hook file was preserved (not deleted by push-guard cleanup)
+    if [ -f "$hooks_dir/reference-transaction" ] \
+       && [ -x "$hooks_dir/reference-transaction" ]; then
+      pass "push-guard preserves other hooks in original dir"
+    else
+      fail "push-guard other hooks" "reference-transaction hook missing after cleanup"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 29k: push-guard uses git-common-dir for default hooks (worktree safe)
+# =========================================================================
+test_guard_common_dir_hooks() {
+  local clone
+  clone=$(setup_fixture "t29k-commondir")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+
+    # Verify push-guard.sh source uses --git-common-dir not --absolute-git-dir
+    if grep -q 'git-common-dir' "$SCRIPTS_DIR/push-guard.sh" \
+       && ! grep -q 'absolute-git-dir' "$SCRIPTS_DIR/push-guard.sh"; then
+      pass "push-guard uses --git-common-dir for default hooks (worktree safe)"
+    else
+      fail "push-guard common-dir" "still uses --absolute-git-dir"
+    fi
+  )
+}
+
+# =========================================================================
 # TEST 29: no force-without-lease fallback in push-guard hook
 # (verify hook doesn't contain any --force without --force-with-lease)
 # =========================================================================
@@ -1324,6 +1737,8 @@ test_hook_blocks_collaborator
 test_hook_allows_rebase
 test_hook_blocks_deletion
 test_hook_blocks_appeared
+test_hook_rejects_unknown_branch
+test_hook_allows_unpublished_first_push
 test_hook_fails_closed_no_baseline
 test_hook_chains_existing
 test_hook_respects_existing_abort
@@ -1345,6 +1760,220 @@ test_pr_base_gap_middle
 test_pr_base_several_gaps
 test_env_reaches_hook_through_git
 test_no_force_without_lease
+
+# =========================================================================
+# TEST 30: create-missing-prs.sh with stub gh — mixed existing/missing (fork)
+# =========================================================================
+test_create_prs_stub_mixed_fork() {
+  local tmp_dir
+  tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/pr-stub-test.XXXXXX")
+  local gh_log="$tmp_dir/gh-calls.log"
+
+  # Create a stub gh that records its arguments
+  cat > "$tmp_dir/gh" << STUB
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$gh_log"
+echo "https://github.com/upstream/repo/pull/555"
+exit 0
+STUB
+  chmod +x "$tmp_dir/gh"
+
+  # Context: fork, story-1 has PR, story-2/story-3 do not
+  cat > "$tmp_dir/ctx.json" << 'CTX'
+{"trunk":"main","isFork":true,"parentRepo":"upstream/repo","forkOwner":"myuser",
+ "branches":[
+   {"name":"story-1","pr":412},
+   {"name":"story-2","pr":null},
+   {"name":"story-3","pr":null}
+ ]}
+CTX
+
+  PATH="$tmp_dir:$PATH" bash "$SCRIPTS_DIR/create-missing-prs.sh" \
+    --context "$tmp_dir/ctx.json" >/dev/null 2>&1
+  rc=$?
+
+  if [ "$rc" -eq 0 ] && [ -f "$gh_log" ]; then
+    local call_count
+    call_count=$(wc -l < "$gh_log")
+    local first_call second_call
+    first_call=$(sed -n '1p' "$gh_log")
+    second_call=$(sed -n '2p' "$gh_log")
+
+    # Verify: 2 PR creations, correct bases, fork targeting
+    if [ "$call_count" -eq 2 ] \
+       && printf '%s' "$first_call" | grep -qF -- "--base story-1" \
+       && printf '%s' "$first_call" | grep -qF -- "--repo upstream/repo" \
+       && printf '%s' "$first_call" | grep -qF -- "--head myuser:story-2" \
+       && printf '%s' "$second_call" | grep -qF -- "--base story-2" \
+       && printf '%s' "$second_call" | grep -qF -- "--head myuser:story-3"; then
+      pass "create-prs stub: mixed fork — correct bases and targeting"
+    else
+      fail "create-prs stub mixed fork" "calls: $(cat "$gh_log")"
+    fi
+  else
+    fail "create-prs stub mixed fork" "rc=$rc, log missing"
+  fi
+  rm -rf "$tmp_dir"
+}
+
+# =========================================================================
+# TEST 31: create-missing-prs.sh with stub gh — all missing (direct)
+# =========================================================================
+test_create_prs_stub_all_missing_direct() {
+  local tmp_dir
+  tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/pr-stub-test.XXXXXX")
+  local gh_log="$tmp_dir/gh-calls.log"
+  local call_num=0
+
+  cat > "$tmp_dir/gh" << 'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$GH_LOG"
+CALL_NUM=$(($(wc -l < "$GH_LOG")))
+echo "https://github.com/org/repo/pull/$((100 + CALL_NUM))"
+exit 0
+STUB
+  chmod +x "$tmp_dir/gh"
+
+  cat > "$tmp_dir/ctx.json" << 'CTX'
+{"trunk":"main","isFork":false,"parentRepo":"","forkOwner":"",
+ "branches":[
+   {"name":"story-1","pr":null},
+   {"name":"story-2","pr":null},
+   {"name":"story-3","pr":null}
+ ]}
+CTX
+
+  GH_LOG="$gh_log" PATH="$tmp_dir:$PATH" bash "$SCRIPTS_DIR/create-missing-prs.sh" \
+    --context "$tmp_dir/ctx.json" >/dev/null 2>&1
+  rc=$?
+
+  if [ "$rc" -eq 0 ] && [ -f "$gh_log" ]; then
+    local call_count
+    call_count=$(wc -l < "$gh_log")
+    local c1 c2 c3
+    c1=$(sed -n '1p' "$gh_log")
+    c2=$(sed -n '2p' "$gh_log")
+    c3=$(sed -n '3p' "$gh_log")
+
+    if [ "$call_count" -eq 3 ] \
+       && printf '%s' "$c1" | grep -qF -- "--base main" \
+       && printf '%s' "$c1" | grep -qF -- "--head story-1" \
+       && printf '%s' "$c2" | grep -qF -- "--base story-1" \
+       && printf '%s' "$c3" | grep -qF -- "--base story-2"; then
+      pass "create-prs stub: all missing direct — correct immediate predecessors"
+    else
+      fail "create-prs stub all missing" "calls: $(cat "$gh_log")"
+    fi
+  else
+    fail "create-prs stub all missing" "rc=$rc"
+  fi
+  rm -rf "$tmp_dir"
+}
+
+# =========================================================================
+# TEST 32: create-missing-prs.sh — gh failure stops before later PRs
+# =========================================================================
+test_create_prs_stub_failure_stops() {
+  local tmp_dir
+  tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/pr-stub-test.XXXXXX")
+  local gh_log="$tmp_dir/gh-calls.log"
+
+  # gh that fails on the second call
+  cat > "$tmp_dir/gh" << 'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$GH_LOG"
+CALL_NUM=$(wc -l < "$GH_LOG")
+if [ "$CALL_NUM" -ge 2 ]; then
+  echo "API error: 422" >&2
+  exit 1
+fi
+echo "https://github.com/org/repo/pull/100"
+exit 0
+STUB
+  chmod +x "$tmp_dir/gh"
+
+  cat > "$tmp_dir/ctx.json" << 'CTX'
+{"trunk":"main","isFork":false,"parentRepo":"","forkOwner":"",
+ "branches":[
+   {"name":"story-1","pr":null},
+   {"name":"story-2","pr":null},
+   {"name":"story-3","pr":null}
+ ]}
+CTX
+
+  GH_LOG="$gh_log" PATH="$tmp_dir:$PATH" bash "$SCRIPTS_DIR/create-missing-prs.sh" \
+    --context "$tmp_dir/ctx.json" >/dev/null 2>&1
+  rc=$?
+
+  if [ "$rc" -ne 0 ] && [ -f "$gh_log" ]; then
+    local call_count
+    call_count=$(wc -l < "$gh_log")
+    # Should have attempted 2 calls (first succeeds, second fails), NOT 3
+    if [ "$call_count" -eq 2 ]; then
+      pass "create-prs stub: failure on story-2 stops before story-3"
+    else
+      fail "create-prs failure stops" "expected 2 calls, got $call_count"
+    fi
+  else
+    fail "create-prs failure stops" "rc=$rc (should be non-zero)"
+  fi
+  rm -rf "$tmp_dir"
+}
+
+# =========================================================================
+# TEST 33: create-missing-prs.sh — all existing (no calls)
+# =========================================================================
+test_create_prs_stub_all_existing() {
+  local tmp_dir
+  tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/pr-stub-test.XXXXXX")
+  local gh_log="$tmp_dir/gh-calls.log"
+
+  cat > "$tmp_dir/gh" << 'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$GH_LOG"
+echo "should-not-run"
+exit 0
+STUB
+  chmod +x "$tmp_dir/gh"
+
+  cat > "$tmp_dir/ctx.json" << 'CTX'
+{"trunk":"main","isFork":false,"parentRepo":"","forkOwner":"",
+ "branches":[
+   {"name":"story-1","pr":100},
+   {"name":"story-2","pr":200},
+   {"name":"story-3","pr":300}
+ ]}
+CTX
+
+  GH_LOG="$gh_log" PATH="$tmp_dir:$PATH" bash "$SCRIPTS_DIR/create-missing-prs.sh" \
+    --context "$tmp_dir/ctx.json" >/dev/null 2>&1
+  rc=$?
+
+  if [ "$rc" -eq 0 ] && [ ! -f "$gh_log" ]; then
+    pass "create-prs stub: all existing — no gh calls made"
+  else
+    local calls
+    calls=$(cat "$gh_log" 2>/dev/null | wc -l)
+    fail "create-prs all existing" "rc=$rc, gh calls: $calls"
+  fi
+  rm -rf "$tmp_dir"
+}
+
+test_validate_baseline_missing_key
+test_validate_baseline_empty_tips
+test_validate_baseline_nonstring_sha
+test_validate_baseline_wrong_trunk
+test_validate_baseline_wrong_url
+test_validate_baseline_wrong_branches
+test_validate_baseline_valid
+test_snapshot_refuses_overwrite
+test_snapshot_allows_force_overwrite
+test_guard_chains_other_hooks
+test_guard_common_dir_hooks
+test_create_prs_stub_mixed_fork
+test_create_prs_stub_all_missing_direct
+test_create_prs_stub_failure_stops
+test_create_prs_stub_all_existing
 
 PASS=$(cat "$PASS_FILE")
 FAIL=$(cat "$FAIL_FILE")

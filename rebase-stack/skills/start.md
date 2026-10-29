@@ -23,7 +23,7 @@ collaborator updates:
 ```bash
 baseline_args=""
 if [ -f .artifacts/rebase-stack/pre-rebase-state.json ] \
-   && jq -e 'if .publishedTips | type == "object" then true else false end' \
+   && bash "{scripts}/validate-baseline.sh" \
         .artifacts/rebase-stack/pre-rebase-state.json >/dev/null 2>&1; then
   baseline_args="--baseline .artifacts/rebase-stack/pre-rebase-state.json"
 fi
@@ -58,8 +58,7 @@ jq -r '.branches[].name' .artifacts/rebase-stack/context.json | while read -r br
     # the divergence rather than treating all behind>0 as collaborator.
     divergence_class=""
     if [ "$behind" -gt 0 ] && [ -f "$snapshot" ] \
-       && jq -e 'if .publishedTips | type == "object" then true else false end' \
-              "$snapshot" >/dev/null 2>&1; then
+       && bash "{scripts}/validate-baseline.sh" "$snapshot" >/dev/null 2>&1; then
       saved_tip=$(jq -r --arg b "$branch" '.publishedTips[$b] // "ABSENT"' "$snapshot")
       current_tip=$(git rev-parse --verify --quiet "refs/remotes/${push_remote}/${branch}")
       if [ "$saved_tip" != "ABSENT" ] && [ "$saved_tip" = "$current_tip" ]; then
@@ -123,6 +122,18 @@ Otherwise show the table and continue. Call out, from the `NOTES` column:
 
 ## Step 3: Snapshot Before Rewriting History
 
+The snapshot records the pre-rebase state and must not be silently overwritten
+by a rerun. If `/start` is rerun after a completed rebase but before `/push`,
+the existing snapshot still contains the correct pre-rebase tips; overwriting
+it would silently accept whatever the remote shows now.
+
+- **First run** (no existing snapshot): `save` writes the snapshot normally.
+- **Rerun after completed rebase** (valid snapshot exists): `save` refuses and
+  exits 2. This is correct — the existing baseline is still needed for `/push`.
+- **Explicit new operation**: Pass `--force` to deliberately discard the
+  existing baseline and start fresh (e.g. after a successful `/push` cleared
+  the snapshot, or when the user explicitly wants to start over).
+
 ```bash
 bash "{scripts}/snapshot.sh" save \
   < .artifacts/rebase-stack/context.json
@@ -133,11 +144,19 @@ This writes `.artifacts/rebase-stack/pre-rebase-state.json` with every branch
 tip and commit identity. It is the recovery path if the rebase goes wrong and
 `gh stack rebase --abort` is no longer available.
 
-**On any non-zero exit, stop. Do not rebase.** The snapshot is the only record
-of the pre-rebase tips, so a rebase started without it has no recovery path
-and Step 5 cannot tell a dropped commit from a rebased one. Relay the script's
-stderr verbatim, say that nothing was rewritten, and let the user fix the
-cause — most often an unwritable `.artifacts/` directory or a branch in
+**On exit 2 because a valid snapshot already exists:** The rebase was already
+started or completed. Do not pass `--force` automatically — tell the user:
+
+> A pre-rebase baseline already exists. This means a previous `/start` already
+> captured the branch tips. If the rebase is complete, run `/validate` then
+> `/push` to publish. To discard the existing baseline and start over, confirm
+> and rerun `/start` with `--force`.
+
+**On any other non-zero exit, stop. Do not rebase.** The snapshot is the only
+record of the pre-rebase tips, so a rebase started without it has no recovery
+path and Step 5 cannot tell a dropped commit from a rebased one. Relay the
+script's stderr verbatim, say that nothing was rewritten, and let the user fix
+the cause — most often an unwritable `.artifacts/` directory or a branch in
 `context.json` that no longer resolves — then re-run `/start`. Never work
 around it by rebasing anyway or by hand-writing `pre-rebase-state.json`.
 

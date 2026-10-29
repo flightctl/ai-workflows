@@ -21,9 +21,31 @@ STATE_DIR=".artifacts/rebase-stack"
 SNAPSHOT="${STATE_DIR}/pre-rebase-state.json"
 
 cmd="${1:-}"
+force=false
+shift || true
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --force) force=true; shift ;;
+    *) echo "snapshot: unknown flag: $1" >&2; exit 2 ;;
+  esac
+done
 
 case "$cmd" in
   save)
+    # Refuse to overwrite an existing valid baseline unless --force is passed.
+    # This prevents a rerun of /start after a completed rebase from silently
+    # recapturing authority (the snapshot tips would reflect the post-rebase
+    # state, not the pre-rebase published state). /start must explicitly
+    # pass --force when it intends a new operation from scratch.
+    if [ "$force" != true ] && [ -f "$SNAPSHOT" ]; then
+      scripts_dir="$(cd "$(dirname "$0")" && pwd)"
+      if bash "$scripts_dir/validate-baseline.sh" "$SNAPSHOT" >/dev/null 2>&1; then
+        echo "snapshot: refusing to overwrite existing valid baseline" >&2
+        echo "  Use 'snapshot.sh save --force' to start a new operation" >&2
+        echo "  Existing baseline: $SNAPSHOT" >&2
+        exit 2
+      fi
+    fi
     ctx=$(cat)
     jq -e . >/dev/null 2>&1 <<<"$ctx" || { echo "snapshot: stdin is not valid JSON" >&2; exit 2; }
     mkdir -p "$STATE_DIR"
@@ -60,10 +82,18 @@ case "$cmd" in
       # baseline. /validate and /push compare this against the post-fetch
       # remote tip to distinguish expected rebase divergence from genuine
       # collaborator updates.
+      #
+      # Every intended branch gets an entry: the 40-hex OID if published,
+      # or JSON null if not yet pushed. An explicit null lets the guard
+      # distinguish "unpublished at snapshot time" from "not in the stack
+      # at all" — the former is guarded, the latter is rejected.
       pub_ref="refs/remotes/${push_remote}/${b}"
       if pub_sha=$(git rev-parse --verify --quiet "$pub_ref"); then
         published_tips=$(jq --arg b "$b" --arg sha "$pub_sha" \
           '. + {($b): $sha}' <<<"$published_tips")
+      else
+        published_tips=$(jq --arg b "$b" \
+          '. + {($b): null}' <<<"$published_tips")
       fi
     done < <(jq -r '.branches[].name' <<<"$ctx")
 

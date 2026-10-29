@@ -70,8 +70,7 @@ remote refs. Then check every branch against the saved pre-rebase baseline:
 
 ```bash
 if [ ! -f "$snapshot" ] \
-   || ! jq -e 'if .publishedTips | type == "object" then true else false end' \
-          "$snapshot" >/dev/null 2>&1; then
+   || ! bash "{scripts}/validate-baseline.sh" "$snapshot" >/dev/null 2>&1; then
   echo "NO BASELINE — cannot classify divergence; run /start first"
 fi
 jq -r '.branches[].name' "$ctx" | while read -r branch; do

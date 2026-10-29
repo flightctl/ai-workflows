@@ -38,28 +38,9 @@ done
 [ -f "$baseline" ] || { echo "push-guard: baseline file not found: ${baseline}" >&2; exit 2; }
 
 # --- Validate baseline schema and identity --------------------------------
-if ! jq -e 'if .publishedTips | type == "object" then true else false end' \
-     "$baseline" >/dev/null 2>&1; then
-  echo "push-guard: baseline publishedTips is missing or not an object" >&2
-  exit 2
-fi
-bad_shas=$(jq -r '.publishedTips | to_entries[]
-  | select(.value != null)
-  | select(.value | test("^[0-9a-f]{40}$") | not)
-  | "\(.key): \(.value)"' "$baseline" 2>/dev/null)
-if [ -n "$bad_shas" ]; then
-  echo "push-guard: baseline contains malformed SHA(s):" >&2
-  printf '  %s\n' "$bad_shas" >&2
-  exit 2
-fi
-bl_trunk=$(jq -r '.trunk // empty' "$baseline")
-bl_push_remote=$(jq -r '.pushRemote // empty' "$baseline")
-if [ -z "$bl_trunk" ] || [ -z "$bl_push_remote" ]; then
-  echo "push-guard: baseline missing trunk or pushRemote identity" >&2
-  exit 2
-fi
-if [ "$bl_push_remote" != "$remote" ]; then
-  echo "push-guard: baseline pushRemote '${bl_push_remote}' does not match --remote '${remote}'" >&2
+scripts_dir="$(cd "$(dirname "$0")" && pwd)"
+if ! bash "$scripts_dir/validate-baseline.sh" "$baseline" --remote "$remote"; then
+  echo "push-guard: baseline validation failed" >&2
   exit 2
 fi
 
@@ -67,6 +48,9 @@ fi
 baseline=$(cd "$(dirname "$baseline")" && printf '%s/%s' "$(pwd)" "$(basename "$baseline")")
 
 # --- Resolve the ORIGINAL hooks directory ---------------------------------
+# For linked worktrees, hooks live in the common dir (the main .git directory),
+# not in the per-worktree .git/worktrees/<name>/ directory. git-common-dir
+# gives the right location in all cases (root worktree and linked worktrees).
 original_hooks_dir=""
 if chp=$(git config core.hooksPath 2>/dev/null) && [ -n "$chp" ]; then
   case "$chp" in
@@ -74,13 +58,15 @@ if chp=$(git config core.hooksPath 2>/dev/null) && [ -n "$chp" ]; then
     *)  original_hooks_dir="$(git rev-parse --show-toplevel 2>/dev/null || pwd)/$chp" ;;
   esac
 else
-  original_hooks_dir="$(git rev-parse --absolute-git-dir)/hooks"
+  original_hooks_dir="$(git rev-parse --git-common-dir)/hooks"
 fi
 
+# Invoke original hook at its ORIGINAL path to preserve $0/symlink behavior.
+# Do NOT use readlink -f: it resolves symlinks and changes the invocation path,
+# which breaks hooks that use $0 or dirname to locate sibling scripts.
 original_pre_push=""
 if [ -x "$original_hooks_dir/pre-push" ]; then
-  original_pre_push=$(readlink -f "$original_hooks_dir/pre-push" 2>/dev/null \
-    || printf '%s/pre-push' "$original_hooks_dir")
+  original_pre_push="$original_hooks_dir/pre-push"
 fi
 
 # --- Create per-invocation temporary hooks directory ----------------------
@@ -88,7 +74,28 @@ guard_dir=$(mktemp -d "${TMPDIR:-/tmp}/rebase-stack-guard.XXXXXX") \
   || { echo "push-guard: could not create temporary directory" >&2; exit 2; }
 
 cleanup() { rm -rf "$guard_dir"; }
-trap cleanup EXIT
+trap cleanup EXIT INT TERM HUP
+
+# --- Chain other applicable hooks from the original hooks directory --------
+# core.hooksPath overrides the ENTIRE hooks directory, not just one hook.
+# To avoid silently bypassing other hooks (e.g. reference-transaction), copy
+# all executable hooks EXCEPT pre-push (which we replace) into the temp dir
+# as thin wrappers that invoke the original at its original path.
+if [ -d "$original_hooks_dir" ]; then
+  for hook_file in "$original_hooks_dir"/*; do
+    [ -x "$hook_file" ] || continue
+    hook_name=$(basename "$hook_file")
+    [ "$hook_name" != "pre-push" ] || continue
+    # Write a wrapper that invokes the original hook at its original path,
+    # preserving $0 and symlink semantics of the original invocation.
+    cat > "$guard_dir/$hook_name" << WRAPEOF
+#!/usr/bin/env bash
+exec "$hook_file" "\$@"
+WRAPEOF
+    chmod +x "$guard_dir/$hook_name" \
+      || { echo "push-guard: could not chmod hook wrapper: $hook_name" >&2; exit 2; }
+  done
+fi
 
 # --- Write the ephemeral pre-push hook ------------------------------------
 cat > "$guard_dir/pre-push" << 'HOOKEOF'
@@ -106,7 +113,7 @@ original_hook="${REBASE_STACK_ORIGINAL_HOOK:-}"
 stdin_file=$(mktemp "${TMPDIR:-/tmp}/rebase-stack-stdin.XXXXXX") \
   || { echo "rebase-stack pre-push: cannot create stdin temp file" >&2; exit 1; }
 stdin_cleanup() { rm -f "$stdin_file"; }
-trap stdin_cleanup EXIT
+trap stdin_cleanup EXIT INT TERM HUP
 cat > "$stdin_file"
 
 # ------ Chain: run original hook with unchanged args and exact stdin ------
@@ -129,9 +136,11 @@ if ! jq -e 'if .publishedTips | type == "object" then true else false end' \
   exit 1
 fi
 
-# Guard only refs whose branch name appears in publishedTips (known branches).
-# An unknown branch (not in publishedTips at all) is not guarded — it may be
-# a new branch created after the snapshot and is outside the baseline's scope.
+# Guard ALL refs being pushed. A branch in publishedTips is checked against
+# its saved OID; a branch NOT in publishedTips is unknown to the active stack
+# and is rejected outright — fail closed, never skip. The snapshot records
+# every intended branch (published OID or null for unpublished), so absence
+# from publishedTips means the branch was not part of the validated stack.
 failed=0
 while IFS=' ' read -r _local_ref _local_sha remote_ref remote_sha; do
   [ -n "$remote_ref" ] || continue
@@ -139,7 +148,12 @@ while IFS=' ' read -r _local_ref _local_sha remote_ref remote_sha; do
   [ "$branch" != "$remote_ref" ] || continue
 
   has_key=$(jq -r --arg b "$branch" '.publishedTips | has($b)' "$baseline_file")
-  [ "$has_key" = "true" ] || continue
+  if [ "$has_key" != "true" ]; then
+    printf 'rebase-stack pre-push: %s is not in the validated stack baseline; refusing\n' \
+      "$branch" >&2
+    failed=1
+    continue
+  fi
 
   saved_tip=$(jq -r --arg b "$branch" '.publishedTips[$b] // "null"' "$baseline_file")
 
@@ -164,7 +178,8 @@ done < "$stdin_file"
 
 exit "$failed"
 HOOKEOF
-chmod +x "$guard_dir/pre-push"
+chmod +x "$guard_dir/pre-push" \
+  || { echo "push-guard: could not chmod ephemeral pre-push hook" >&2; exit 2; }
 
 # --- Export state for the hook --------------------------------------------
 export REBASE_STACK_BASELINE_FILE="$baseline"
