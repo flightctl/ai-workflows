@@ -241,10 +241,11 @@ feedback), apply them in this order:
      group with confirmed no prior allocation may start at 01.
      Groups that receive no new IDs in this round (title edits,
      content changes, metadata updates, parameter-row edits, or
-     deletion-only changes that preserve existing IDs) do not
-     require high-water validation and must not be blocked by
-     missing historical allocation data in unrelated groups. New IDs
-     are always allocated above the high-water mark.
+     deletion-only changes that preserve existing IDs) require no
+     history or high-water validation. Missing history for a
+     non-allocating group is not a prerequisite and must not block
+     the batch. New IDs are always allocated above the high-water
+     mark.
 
    Then add, modify, or remove test cases as directed by the approved
    response. For all mutations, apply the test case format,
