@@ -213,53 +213,114 @@ discussion into a proposed resolution:
 When approved changes include testplan modifications (category: Testplan
 feedback), apply them in this order:
 
-1. **Modify `04-testplan.md`.** Before making any changes, record the
-   IC and requirement mappings of any test cases that will be removed
-   or reassigned — both are needed for the cascade in step 2 (IC
-   mappings for IC-based matching, requirement mappings for
-   cross-cutting TCs with `Interface Change: —`). Then add, modify, or
-   remove test cases as directed by the approved response.
+1. **Modify `04-testplan.md`.** Before making any changes:
+   - Record the IC and requirement mappings of any test cases that
+     will be removed, reassigned, or have their IC or requirement
+     mapping changed (even if the TC ID is retained) — both are needed
+     for the cascade in step 2 (IC mappings for IC-based matching,
+     requirement mappings for cross-cutting TCs with `Interface
+     Change: —`).
+   - Identify which requirement groups will receive **new TC IDs** in
+     this mutation round (additions or ID-reassignments). For each
+     such group, build a **reserved-ID high-water mark** before
+     applying any edits in the batch: scan all current TC IDs under
+     that group's `### FR-*` / `### NFR-*` heading (including any
+     about to be removed — deletion never releases a reserved
+     sequence) and record the highest sequence number. If reliable
+     context is available (e.g., prior document versions, review
+     comments, or provenance metadata that names previously retired
+     IDs), include any retired ID higher than the current maximum.
+     When the historical high-water cannot be reliably established
+     for an existing group receiving new IDs — even if the live IDs
+     are contiguous or the group is currently empty — stop and ask
+     for the missing history; do not infer that no retired IDs exist
+     from the absence of visible gaps. All allocating-group
+     high-water checks must pass before any mutations begin in the
+     batch — do not partially apply edits to other groups while an
+     allocation-blocker is unresolved. A genuinely new requirement
+     group with confirmed no prior allocation may start at 01.
+     Groups that receive no new IDs in this round (title edits,
+     content changes, metadata updates, parameter-row edits, or
+     deletion-only changes that preserve existing IDs) require no
+     history or high-water validation. Missing history for a
+     non-allocating group is not a prerequisite and must not block
+     the batch. New IDs are always allocated above the high-water
+     mark.
+
+   Then add, modify, or remove test cases as directed by the approved
+   response. For all mutations, apply the test case format,
+   setup-inheritance, and self-review rules from the draft skill's
+   Step 9a and 9c — those are the canonical source for compact vs.
+   full format eligibility, Shared and Additional Preconditions,
+   parameterized cases, and the Expected Results quality gate. Older
+   testplans using full-format Preconditions sections remain valid;
+   match the testplan's existing conventions.
+
    For each change:
-   - **Adding a test case:** Assign a sequence number using
-     `max(existing sequences) + 1` within the requirement group (e.g.,
-     if TC-FR2-01 and TC-FR2-03 exist and TC-FR2-02 was previously
-     removed, the new case is TC-FR2-04 — do not reuse gaps, as ALM
-     systems track by ID). Create the full test case entry:
-     H4 heading with ID and title, metadata table (Interface Change,
-     Priority, Automation), and H5 sub-sections (Preconditions, Steps,
-     Expected Results). Update the testplan's Overview counts and Summary
-     table.
+   - **Adding a test case:** Allocate the next sequence number above
+     the requirement group's reserved high-water mark (e.g., if
+     TC-FR2-01 and TC-FR2-03 exist and TC-FR2-02 was previously
+     removed, the high-water mark is 03, so the new case is
+     TC-FR2-04). Reserve the new ID immediately — subsequent adds in
+     the same mutation round use the updated high-water mark. For a
+     genuinely new requirement group with confirmed no prior
+     allocation, start at 01. Never
+     reuse gaps or retired IDs; ALM systems track by ID. Create the
+     test case entry: H4 heading with
+     ID and title, metadata table (Interface Change, Priority,
+     Automation), and Steps / Expected Results in the format matching
+     the testplan's existing cases. If the requirement has a Shared
+     Preconditions block, add case-specific setup under Additional
+     Preconditions (or omit if none); otherwise include a standalone
+     Preconditions section when the case needs setup.
    - **Modifying a test case:** Update the affected heading, metadata
-     table fields, or sub-section content. The same Expected Results
-     quality gate applies — no banned vague phrases. If the Interface
-     Change assignment changes, update the affected stories' `Validated
-     by` in step 2 below. If any metadata field changed (Priority,
-     Automation, or Interface Change), update the testplan's Overview
-     counts and Summary table.
+     table fields, or content (sub-sections or compact inline fields).
+     If the Interface Change or requirement mapping changes, update
+     the affected stories' `Validated by` in step 2 below.
    - **Removing a test case:** Delete the test case entry (heading and
-     all sub-sections). Update the testplan's Overview counts and
-     Summary table.
+     all content).
+
+   After all mutations, update the testplan's Overview counts and
+   Summary table per the counting rules in the draft skill's Step 9a:
+   parameterized rows count individually toward totals, priority, and
+   automation counts; requirement and IC coverage ratios count distinct
+   mapped values once each.
+
+   After all mutations, rebuild the Test Case Index from the current
+   test cases using the canonical schema from the draft skill's Step 9b
+   template (`| ID | Scenario | IC | Priority |`): one row per TC ID
+   (not per parameterized variation), with the scenario title from the
+   H4 heading, IC and priority from the metadata table. Every current
+   TC ID must appear exactly once; no missing, duplicate, extra, or
+   deleted-case rows.
 
 2. **Cascade to story files (if decomposition exists).** Skip this step
    if no decomposition artifacts exist (`06-stories/` directory not
-   found). For each affected story, skip `[DOCS]` stories. Identify
-   affected stories using two matching rules — for removed or
-   reassigned TCs, use the pre-mutation mappings recorded in step 1
-   (the TC's metadata is gone from the testplan after removal):
-   - **IC-based:** the test case's Interface Change (current or
-     pre-mutation) overlaps with the story's `Interface Changes` line
-     in its Design Reference.
+   found). For each affected story, skip `[DOCS]` stories. For each
+   changed TC, identify affected stories as the **union** of matches
+   from pre-mutation mappings (recorded in step 1) and current
+   mappings — apply each (IC, requirement) pair separately:
+   - **Removed TCs:** match stories using pre-mutation mappings only
+     (the TC no longer exists).
+   - **Added TCs:** match stories using current mappings only.
+   - **Remapped TCs** (IC or requirement changed): match stories using
+     **both** pre-mutation and current mappings — pre-mutation finds
+     stories that may lose the TC, current finds stories that may gain
+     it.
+   Each matching rule:
+   - **IC-based:** the test case's Interface Change overlaps with the
+     story's `Interface Changes` line in its Design Reference.
    - **Requirement-based (fallback for cross-cutting TCs):** the test
-     case has `Interface Change: —` and its requirement (current or
-     pre-mutation) overlaps with the story's PRD Requirements in its
-     Design Reference.
+     case has `Interface Change: —` and its requirement overlaps with
+     the story's PRD Requirements in its Design Reference.
    For each affected non-`[DOCS]` story:
    - Re-read the story file at
      `.artifacts/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md`.
-   - Rewrite the `Validated by` line in the Design Reference section:
-     collect all TC IDs from the updated testplan that match this story
+   - Rewrite the `Validated by` line from the **current** (post-
+     mutation) testplan state: collect all TC IDs that match this story
      (by IC overlap or requirement-based fallback for `—` TCs),
-     then write `Validated by: {comma-separated TC IDs}`.
+     then write `Validated by: {comma-separated TC IDs}`. This ensures
+     old stories lose stale references and new stories gain them.
    - If a story loses all its test cases, write:
      `Validated by: None — no behavioral test cases after testplan revision`.
 
