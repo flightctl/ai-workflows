@@ -67,9 +67,15 @@ case "$cmd" in
       fi
     done < <(jq -r '.branches[].name' <<<"$ctx")
 
+    # Record the push remote's URL for identity validation: a baseline taken
+    # against one repository must not be accepted for a different one.
+    push_url=$(git remote get-url "$push_remote" 2>/dev/null || echo "")
+
     jq -n --argjson ctx "$ctx" --argjson branches "$entries" \
           --argjson publishedTips "$published_tips" \
+          --arg pushUrl "$push_url" \
       '{trunk: $ctx.trunk, baseRemote: $ctx.baseRemote, pushRemote: $ctx.pushRemote,
+        pushUrl: $pushUrl,
         branches: $branches, publishedTips: $publishedTips}' \
       > "$SNAPSHOT"
 

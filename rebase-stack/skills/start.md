@@ -23,7 +23,8 @@ collaborator updates:
 ```bash
 baseline_args=""
 if [ -f .artifacts/rebase-stack/pre-rebase-state.json ] \
-   && jq -e '.publishedTips' .artifacts/rebase-stack/pre-rebase-state.json >/dev/null 2>&1; then
+   && jq -e 'if .publishedTips | type == "object" then true else false end' \
+        .artifacts/rebase-stack/pre-rebase-state.json >/dev/null 2>&1; then
   baseline_args="--baseline .artifacts/rebase-stack/pre-rebase-state.json"
 fi
 bash "{scripts}/stack-status.sh" $baseline_args \
@@ -57,7 +58,8 @@ jq -r '.branches[].name' .artifacts/rebase-stack/context.json | while read -r br
     # the divergence rather than treating all behind>0 as collaborator.
     divergence_class=""
     if [ "$behind" -gt 0 ] && [ -f "$snapshot" ] \
-       && jq -e '.publishedTips' "$snapshot" >/dev/null 2>&1; then
+       && jq -e 'if .publishedTips | type == "object" then true else false end' \
+              "$snapshot" >/dev/null 2>&1; then
       saved_tip=$(jq -r --arg b "$branch" '.publishedTips[$b] // "ABSENT"' "$snapshot")
       current_tip=$(git rev-parse --verify --quiet "refs/remotes/${push_remote}/${branch}")
       if [ "$saved_tip" != "ABSENT" ] && [ "$saved_tip" = "$current_tip" ]; then

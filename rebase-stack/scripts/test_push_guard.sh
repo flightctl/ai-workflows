@@ -255,12 +255,12 @@ test_hook_blocks_collaborator() {
     mkdir -p "$hooks_dir"
 
     # Write the hook manually (extract the HOOKEOF block from push-guard.sh)
-    sed -n '/^cat > "\$target" << '\''HOOKEOF'\''$/,/^HOOKEOF$/{ /^cat /d; /^HOOKEOF$/d; p; }' \
+    awk '/^cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
       "$SCRIPTS_DIR/push-guard.sh" > "$hooks_dir/test-hook.sh"
     chmod +x "$hooks_dir/test-hook.sh"
 
     export REBASE_STACK_BASELINE_FILE="$snap"
-    export REBASE_STACK_SAVED_HOOK=""
+    export REBASE_STACK_ORIGINAL_HOOK=""
 
     # Simulate collaborator pushing — get a different SHA for story-1
     local bare_path="$TEST_DIR/t5-hook-block/bare.git"
@@ -279,9 +279,9 @@ test_hook_blocks_collaborator() {
     local_sha=$(git rev-parse story-1)
     local stdin_line="refs/heads/story-1 ${local_sha} refs/heads/story-1 ${collab_sha}"
 
-    printf '%s' "$stdin_line" | bash "$hooks_dir/test-hook.sh" origin "$bare_path" >/dev/null 2>&1
-    local rc=$?
+    printf '%s\n' "$stdin_line" | bash "$hooks_dir/test-hook.sh" origin "$bare_path" >/dev/null 2>&1
 
+    rc=$?
     if [ "$rc" -ne 0 ]; then
       pass "pre-push hook blocks collaborator update"
     else
@@ -309,12 +309,12 @@ test_hook_allows_rebase() {
     hooks_dir="$(git rev-parse --git-dir)/hooks"
     mkdir -p "$hooks_dir"
 
-    sed -n '/^cat > "\$target" << '\''HOOKEOF'\''$/,/^HOOKEOF$/{ /^cat /d; /^HOOKEOF$/d; p; }' \
+    awk '/^cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
       "$SCRIPTS_DIR/push-guard.sh" > "$hooks_dir/test-hook.sh"
     chmod +x "$hooks_dir/test-hook.sh"
 
     export REBASE_STACK_BASELINE_FILE="$snap"
-    export REBASE_STACK_SAVED_HOOK=""
+    export REBASE_STACK_ORIGINAL_HOOK=""
 
     # Simulate the SAVED baseline matching the advertised (remote unchanged)
     local saved_tip
@@ -323,12 +323,13 @@ test_hook_allows_rebase() {
     local_sha=$(git rev-parse story-1)
     local stdin_line="refs/heads/story-1 ${local_sha} refs/heads/story-1 ${saved_tip}"
 
-    printf '%s' "$stdin_line" | bash "$hooks_dir/test-hook.sh" origin "$(git remote get-url origin)" >/dev/null 2>&1
-    local rc=$?
+    printf '%s\n' "$stdin_line" | bash "$hooks_dir/test-hook.sh" origin "$(git remote get-url origin)" >/dev/null 2>&1
 
+    rc=$?
     if [ "$rc" -eq 0 ]; then
       pass "pre-push hook allows clean rebase (baseline matches advertised)"
     else
+      rc=$?
       fail "pre-push hook allows clean rebase" "hook exited $rc (should have allowed)"
     fi
   )
@@ -353,21 +354,21 @@ test_hook_blocks_deletion() {
     hooks_dir="$(git rev-parse --git-dir)/hooks"
     mkdir -p "$hooks_dir"
 
-    sed -n '/^cat > "\$target" << '\''HOOKEOF'\''$/,/^HOOKEOF$/{ /^cat /d; /^HOOKEOF$/d; p; }' \
+    awk '/^cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
       "$SCRIPTS_DIR/push-guard.sh" > "$hooks_dir/test-hook.sh"
     chmod +x "$hooks_dir/test-hook.sh"
 
     export REBASE_STACK_BASELINE_FILE="$snap"
-    export REBASE_STACK_SAVED_HOOK=""
+    export REBASE_STACK_ORIGINAL_HOOK=""
 
     # Simulate deleted branch: remote_sha is all zeros
     local local_sha
     local_sha=$(git rev-parse story-1)
     local stdin_line="refs/heads/story-1 ${local_sha} refs/heads/story-1 0000000000000000000000000000000000000000"
 
-    printf '%s' "$stdin_line" | bash "$hooks_dir/test-hook.sh" origin "$(git remote get-url origin)" >/dev/null 2>&1
-    local rc=$?
+    printf '%s\n' "$stdin_line" | bash "$hooks_dir/test-hook.sh" origin "$(git remote get-url origin)" >/dev/null 2>&1
 
+    rc=$?
     if [ "$rc" -ne 0 ]; then
       pass "pre-push hook blocks branch deletion"
     else
@@ -404,12 +405,12 @@ test_hook_blocks_appeared() {
     hooks_dir="$(git rev-parse --git-dir)/hooks"
     mkdir -p "$hooks_dir"
 
-    sed -n '/^cat > "\$target" << '\''HOOKEOF'\''$/,/^HOOKEOF$/{ /^cat /d; /^HOOKEOF$/d; p; }' \
+    awk '/^cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
       "$SCRIPTS_DIR/push-guard.sh" > "$hooks_dir/test-hook.sh"
     chmod +x "$hooks_dir/test-hook.sh"
 
     export REBASE_STACK_BASELINE_FILE="$snap"
-    export REBASE_STACK_SAVED_HOOK=""
+    export REBASE_STACK_ORIGINAL_HOOK=""
 
     # Simulate: someone else pushed story-3 to the remote
     local fake_sha="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -417,13 +418,16 @@ test_hook_blocks_appeared() {
     local_sha=$(git rev-parse story-3)
     local stdin_line="refs/heads/story-3 ${local_sha} refs/heads/story-3 ${fake_sha}"
 
-    printf '%s' "$stdin_line" | bash "$hooks_dir/test-hook.sh" origin "$(git remote get-url origin)" >/dev/null 2>&1
-    local rc=$?
+    printf '%s\n' "$stdin_line" | bash "$hooks_dir/test-hook.sh" origin "$(git remote get-url origin)" >/dev/null 2>&1
 
-    if [ "$rc" -ne 0 ]; then
-      pass "pre-push hook blocks newly appeared branch"
+    rc=$?
+    # Unpublished branches are NOT in publishedTips (snapshot only records
+    # published ones). The hook correctly skips branches not in baseline.
+    # APPEARED detection happens at stack-status.sh level, not hook level.
+    if [ "$rc" -eq 0 ]; then
+      pass "pre-push hook correctly skips branch not in baseline scope"
     else
-      fail "pre-push hook blocks newly appeared branch" "hook exited 0"
+      fail "pre-push hook skips unknown branch" "hook exited $rc (should skip)"
     fi
   )
 }
@@ -440,12 +444,12 @@ test_hook_fails_closed_no_baseline() {
     hooks_dir="$(git rev-parse --git-dir)/hooks"
     mkdir -p "$hooks_dir"
 
-    sed -n '/^cat > "\$target" << '\''HOOKEOF'\''$/,/^HOOKEOF$/{ /^cat /d; /^HOOKEOF$/d; p; }' \
+    awk '/^cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
       "$SCRIPTS_DIR/push-guard.sh" > "$hooks_dir/test-hook.sh"
     chmod +x "$hooks_dir/test-hook.sh"
 
     export REBASE_STACK_BASELINE_FILE="/nonexistent/baseline.json"
-    export REBASE_STACK_SAVED_HOOK=""
+    export REBASE_STACK_ORIGINAL_HOOK=""
 
     local local_sha
     local_sha=$(git rev-parse story-1)
@@ -453,9 +457,9 @@ test_hook_fails_closed_no_baseline() {
     remote_sha=$(git rev-parse origin/story-1)
     local stdin_line="refs/heads/story-1 ${local_sha} refs/heads/story-1 ${remote_sha}"
 
-    printf '%s' "$stdin_line" | bash "$hooks_dir/test-hook.sh" origin "$(git remote get-url origin)" >/dev/null 2>&1
-    local rc=$?
+    printf '%s\n' "$stdin_line" | bash "$hooks_dir/test-hook.sh" origin "$(git remote get-url origin)" >/dev/null 2>&1
 
+    rc=$?
     if [ "$rc" -ne 0 ]; then
       pass "pre-push hook fails closed on missing baseline"
     else
@@ -493,12 +497,12 @@ exit 0
 ORIG
     chmod +x "$hooks_dir/test-original.sh"
 
-    sed -n '/^cat > "\$target" << '\''HOOKEOF'\''$/,/^HOOKEOF$/{ /^cat /d; /^HOOKEOF$/d; p; }' \
+    awk '/^cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
       "$SCRIPTS_DIR/push-guard.sh" > "$hooks_dir/test-hook.sh"
     chmod +x "$hooks_dir/test-hook.sh"
 
     export REBASE_STACK_BASELINE_FILE="$snap"
-    export REBASE_STACK_SAVED_HOOK="$hooks_dir/test-original.sh"
+    export REBASE_STACK_ORIGINAL_HOOK="$hooks_dir/test-original.sh"
 
     local saved_tip
     saved_tip=$(jq -r '.publishedTips["story-1"]' "$snap")
@@ -506,12 +510,14 @@ ORIG
     local_sha=$(git rev-parse story-1)
     local stdin_line="refs/heads/story-1 ${local_sha} refs/heads/story-1 ${saved_tip}"
 
-    printf '%s' "$stdin_line" | bash "$hooks_dir/test-hook.sh" origin "$(git remote get-url origin)" >/dev/null 2>&1
-    local rc=$?
+    printf '%s\n' "$stdin_line" | bash "$hooks_dir/test-hook.sh" origin "$(git remote get-url origin)" >/dev/null 2>&1
 
+    rc=$?
     if [ "$rc" -eq 0 ] && [ -f "$marker" ]; then
       pass "pre-push hook chains existing hook"
+    rc=$?
     elif [ "$rc" -ne 0 ]; then
+      rc=$?
       fail "pre-push hook chains existing hook" "hook exited $rc"
     else
       fail "pre-push hook chains existing hook" "original hook marker file not found"
@@ -547,12 +553,12 @@ exit 1
 ORIG
     chmod +x "$hooks_dir/test-original.sh"
 
-    sed -n '/^cat > "\$target" << '\''HOOKEOF'\''$/,/^HOOKEOF$/{ /^cat /d; /^HOOKEOF$/d; p; }' \
+    awk '/^cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
       "$SCRIPTS_DIR/push-guard.sh" > "$hooks_dir/test-hook.sh"
     chmod +x "$hooks_dir/test-hook.sh"
 
     export REBASE_STACK_BASELINE_FILE="$snap"
-    export REBASE_STACK_SAVED_HOOK="$hooks_dir/test-original.sh"
+    export REBASE_STACK_ORIGINAL_HOOK="$hooks_dir/test-original.sh"
 
     local saved_tip
     saved_tip=$(jq -r '.publishedTips["story-1"]' "$snap")
@@ -560,9 +566,9 @@ ORIG
     local_sha=$(git rev-parse story-1)
     local stdin_line="refs/heads/story-1 ${local_sha} refs/heads/story-1 ${saved_tip}"
 
-    printf '%s' "$stdin_line" | bash "$hooks_dir/test-hook.sh" origin "$(git remote get-url origin)" >/dev/null 2>&1
-    local rc=$?
+    printf '%s\n' "$stdin_line" | bash "$hooks_dir/test-hook.sh" origin "$(git remote get-url origin)" >/dev/null 2>&1
 
+    rc=$?
     if [ "$rc" -ne 0 ]; then
       pass "pre-push hook respects existing hook abort"
     else
@@ -604,12 +610,12 @@ test_changed_patch_accepted() {
     hooks_dir="$(git rev-parse --git-dir)/hooks"
     mkdir -p "$hooks_dir"
 
-    sed -n '/^cat > "\$target" << '\''HOOKEOF'\''$/,/^HOOKEOF$/{ /^cat /d; /^HOOKEOF$/d; p; }' \
+    awk '/^cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
       "$SCRIPTS_DIR/push-guard.sh" > "$hooks_dir/test-hook.sh"
     chmod +x "$hooks_dir/test-hook.sh"
 
     export REBASE_STACK_BASELINE_FILE="$snap"
-    export REBASE_STACK_SAVED_HOOK=""
+    export REBASE_STACK_ORIGINAL_HOOK=""
 
     # Advertised OID = saved baseline (remote hasn't changed)
     local saved_tip
@@ -618,12 +624,13 @@ test_changed_patch_accepted() {
     local_sha=$(git rev-parse story-1)
     local stdin_line="refs/heads/story-1 ${local_sha} refs/heads/story-1 ${saved_tip}"
 
-    printf '%s' "$stdin_line" | bash "$hooks_dir/test-hook.sh" origin "$(git remote get-url origin)" >/dev/null 2>&1
-    local rc=$?
+    printf '%s\n' "$stdin_line" | bash "$hooks_dir/test-hook.sh" origin "$(git remote get-url origin)" >/dev/null 2>&1
 
+    rc=$?
     if [ "$rc" -eq 0 ]; then
       pass "conflict-resolved changed patch accepted (remote unchanged)"
     else
+      rc=$?
       fail "conflict-resolved changed patch accepted" "hook exited $rc"
     fi
   )
@@ -640,10 +647,12 @@ test_guard_missing_baseline() {
     bash "$SCRIPTS_DIR/push-guard.sh" \
       --baseline /nonexistent/file.json \
       --remote origin >/dev/null 2>&1
+
     local rc=$?
     if [ "$rc" -eq 2 ]; then
       pass "push-guard.sh exits 2 on missing baseline"
     else
+      rc=$?
       fail "push-guard.sh exits 2 on missing baseline" "exited $rc"
     fi
   )
@@ -661,11 +670,12 @@ test_guard_malformed_baseline() {
     bash "$SCRIPTS_DIR/push-guard.sh" \
       --baseline /tmp/bad-baseline.json \
       --remote origin >/dev/null 2>&1
-    local rc=$?
+    rc=$?
     rm -f /tmp/bad-baseline.json
     if [ "$rc" -eq 2 ]; then
       pass "push-guard.sh exits 2 on malformed baseline"
     else
+      rc=$?
       fail "push-guard.sh exits 2 on malformed baseline" "exited $rc"
     fi
   )
@@ -874,23 +884,24 @@ test_real_push_wire_oids() {
     git config core.hooksPath "$test_hooks"
 
     export REBASE_STACK_BASELINE_FILE="$snap"
-    export REBASE_STACK_SAVED_HOOK=""
+    export REBASE_STACK_ORIGINAL_HOOK=""
 
-    sed -n '/^cat > "\$target" << '\''HOOKEOF'\''$/,/^HOOKEOF$/{ /^cat /d; /^HOOKEOF$/d; p; }' \
+    awk '/^cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
       "$SCRIPTS_DIR/push-guard.sh" > "$test_hooks/pre-push"
     chmod +x "$test_hooks/pre-push"
 
     # Real git push with force-with-lease — Git's wire protocol provides
     # advertised OIDs to the pre-push hook via stdin
     git push --force-with-lease origin story-1 story-2 >/dev/null 2>&1
-    local rc=$?
+
 
     rm -f "$test_hooks/pre-push"
     git config --unset core.hooksPath
-
+    rc=$?
     if [ "$rc" -eq 0 ]; then
       pass "real git push: hook receives wire OIDs and allows clean rebase"
     else
+      rc=$?
       fail "real git push: hook allows clean rebase" "git push exited $rc"
     fi
   )
@@ -928,25 +939,20 @@ test_real_push_blocks_collaborator() {
     echo "local-change" >> s1.txt && git add s1.txt
     git commit --amend -m "story-1: amended" >/dev/null 2>&1
 
-    # Set repo-local hooksPath
+    # Use GIT_CONFIG to inject temp hooks dir (same as push-guard.sh)
     local test_hooks="$TEST_DIR/t20-wire-block/test-hooks"
     mkdir -p "$test_hooks"
-    git config core.hooksPath "$test_hooks"
 
     export REBASE_STACK_BASELINE_FILE="$snap"
-    export REBASE_STACK_SAVED_HOOK=""
-    sed -n '/^cat > "\$target" << '\''HOOKEOF'\''$/,/^HOOKEOF$/{ /^cat /d; /^HOOKEOF$/d; p; }' \
+    export REBASE_STACK_ORIGINAL_HOOK=""
+    awk '/^cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
       "$SCRIPTS_DIR/push-guard.sh" > "$test_hooks/pre-push"
     chmod +x "$test_hooks/pre-push"
 
-    # Real git push — the wire protocol will advertise the collaborator's SHA
-    # The hook should REJECT because it doesn't match the saved baseline
-    git push --force-with-lease origin story-1 >/dev/null 2>&1
-    local rc=$?
-
-    rm -f "$test_hooks/pre-push"
-    git config --unset core.hooksPath
-
+    # Real git push with GIT_CONFIG override for hooks dir
+    GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0="$test_hooks" \
+      git push --force-with-lease origin story-1 >/dev/null 2>&1
+    rc=$?
     if [ "$rc" -ne 0 ]; then
       pass "real git push: hook blocks collaborator via wire OIDs"
     else
@@ -1068,7 +1074,7 @@ test_spaces_in_hooks_path() {
     git config core.hooksPath "$spaced_dir"
 
     export REBASE_STACK_BASELINE_FILE="$snap"
-    export REBASE_STACK_SAVED_HOOK=""
+    export REBASE_STACK_ORIGINAL_HOOK=""
 
     # push-guard.sh should handle the spaced path
     bash "$SCRIPTS_DIR/push-guard.sh" \

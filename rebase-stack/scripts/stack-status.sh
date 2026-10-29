@@ -117,7 +117,8 @@ for b in "${branches[@]}"; do
     if [ "$ahead" = "0" ] && [ "$behind" = "0" ]; then
       published="in sync"
     elif [ "$behind" != "0" ] && [ -n "$baseline_file" ] \
-         && jq -e '.publishedTips' "$baseline_file" >/dev/null 2>&1; then
+         && jq -e 'if .publishedTips | type == "object" then true else false end' \
+              "$baseline_file" >/dev/null 2>&1; then
       # Classify: is the remote still at the pre-rebase baseline, or did
       # someone else push?
       saved_tip=$(jq -r --arg b "$b" '.publishedTips[$b] // "ABSENT"' "$baseline_file")

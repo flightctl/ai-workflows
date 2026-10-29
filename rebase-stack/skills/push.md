@@ -69,7 +69,9 @@ Stop if the fetch fails — divergence cannot be classified without current
 remote refs. Then check every branch against the saved pre-rebase baseline:
 
 ```bash
-if [ ! -f "$snapshot" ] || ! jq -e '.publishedTips' "$snapshot" >/dev/null 2>&1; then
+if [ ! -f "$snapshot" ] \
+   || ! jq -e 'if .publishedTips | type == "object" then true else false end' \
+          "$snapshot" >/dev/null 2>&1; then
   echo "NO BASELINE — cannot classify divergence; run /start first"
 fi
 jq -r '.branches[].name' "$ctx" | while read -r branch; do
@@ -210,47 +212,25 @@ fork_owner=$(jq -r '.forkOwner' "$ctx")
 base=$(jq -r '.trunk' "$ctx")
 ```
 
-Then create PRs bottom to top. Iterate **all** branches — not only those
-without PRs — so that `previous_branch` always advances to the correct
-immediate predecessor. Create a PR only for branches that lack one. This
-ensures that when story-1 already has a PR and story-2 does not, story-2
-targets story-1 (not the trunk):
+Then create PRs bottom to top using the helper script. It iterates **all**
+branches to advance `previous_branch` to the correct immediate predecessor,
+but creates a PR only for branches that lack one. This ensures that when
+story-1 already has a PR and story-2 does not, story-2 targets story-1
+(not the trunk). Resolve `{scripts}` as described in `preflight.md` Step 1:
 
 ```bash
-mapfile -t all_branches < <(jq -r '.branches[].name' "$ctx")
-previous_branch="$base"
-previous_pr_number=""
-for branch in "${all_branches[@]}"; do
-  existing_pr=$(jq -r --arg b "$branch" \
-    '.branches[] | select(.name == $b) | .pr // empty' "$ctx")
-  if [ -z "$existing_pr" ]; then
-    if [ -n "$previous_pr_number" ]; then
-      pr_url=$(gh pr create \
-        --repo "$parent_repo" \
-        --head "${fork_owner}:${branch}" \
-        --base "$previous_branch" \
-        --title "$branch" \
-        --draft \
-        --body "Depends on: #${previous_pr_number}")
-    else
-      pr_url=$(gh pr create \
-        --repo "$parent_repo" \
-        --head "${fork_owner}:${branch}" \
-        --base "$previous_branch" \
-        --title "$branch" \
-        --draft)
-    fi
-    previous_pr_number=$(printf '%s' "$pr_url" | grep -o '[0-9]*$')
-  else
-    previous_pr_number="$existing_pr"
-  fi
-  previous_branch="$branch"
-done
+scripts="{scripts}"
+bash "$scripts/create-missing-prs.sh" --context "$ctx"
+echo "create-prs exit: $?"
 ```
 
-For a direct clone drop `--repo` and use `--head "$branch"`. The bottom
-branch in the stack — whether it needs a PR or already has one — provides
-the base for the next layer up.
+For a direct clone the script uses `--head "$branch"` automatically.
+The bottom branch in the stack — whether it needs a PR or already has one —
+provides the base for the next layer up.
+
+If PR creation fails, the script exits 1 immediately and names the branch.
+Do not continue to Step 5; the user needs to fix the failure and re-run
+`/push`.
 
 ## Step 5: Report
 
