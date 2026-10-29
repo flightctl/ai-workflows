@@ -28,9 +28,15 @@ remote=""
 ctx_file=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    --baseline) baseline="${2:-}"; shift 2 ;;
-    --remote)   remote="${2:-}"; shift 2 ;;
-    --context)  ctx_file="${2:-}"; shift 2 ;;
+    --baseline)
+      [ $# -ge 2 ] || { echo "push-guard: --baseline requires a value" >&2; exit 2; }
+      baseline="$2"; shift 2 ;;
+    --remote)
+      [ $# -ge 2 ] || { echo "push-guard: --remote requires a value" >&2; exit 2; }
+      remote="$2"; shift 2 ;;
+    --context)
+      [ $# -ge 2 ] || { echo "push-guard: --context requires a value" >&2; exit 2; }
+      ctx_file="$2"; shift 2 ;;
     *) echo "push-guard: unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -93,36 +99,18 @@ trap 'cleanup; exit 129' HUP
 # core.hooksPath overrides the ENTIRE hooks directory, not just one hook.
 # To avoid silently bypassing other hooks (e.g. reference-transaction), create
 # thin wrappers for all executable hooks EXCEPT pre-push (which we replace).
-# The wrapper uses a single-quoted heredoc so the hook path is passed via an
-# environment variable, NOT interpolated into shell source — this prevents
-# paths containing quotes, dollars, or backticks from becoming executable code.
+# printf %q safely quotes the hook path so shell metacharacters in paths
+# (quotes, dollars, backticks) cannot become executable code.
 if [ -d "$original_hooks_dir" ]; then
   for hook_file in "$original_hooks_dir"/*; do
     [ -x "$hook_file" ] || continue
     hook_name=$(basename "$hook_file")
     [ "$hook_name" != "pre-push" ] || continue
-    # Write a wrapper using a single-quoted heredoc. The hook path is passed
-    # via environment variable __ORIG_HOOK, never interpolated into source.
-    # This is safe for paths containing shell metacharacters.
-    cat > "$guard_dir/$hook_name" << 'WRAPEOF'
-#!/usr/bin/env bash
-exec "$__ORIG_HOOK" "$@"
-WRAPEOF
-    if ! chmod +x "$guard_dir/$hook_name"; then
-      echo "push-guard: could not chmod hook wrapper: $hook_name" >&2
+    if ! printf '#!/usr/bin/env bash\nexec %q "$@"\n' "$hook_file" \
+         > "$guard_dir/$hook_name"; then
+      echo "push-guard: could not write hook wrapper: $hook_name" >&2
       exit 2
     fi
-    # Store the original path in a per-hook env var file for the wrapper.
-    # The wrapper reads __ORIG_HOOK from the environment, set here.
-    # We need to export it so subprocesses see it. Use a unique env var
-    # name per hook to avoid collision, but since each wrapper is a
-    # separate exec, we can use a single variable name.
-    # Actually, we need a per-hook approach. Use a launcher script instead.
-    # Rewrite: each wrapper gets its own absolute path baked in safely.
-    # Use printf to write the path as a quoted string.
-    printf '#!/usr/bin/env bash\nexec ' > "$guard_dir/$hook_name"
-    printf '%q ' "$hook_file" >> "$guard_dir/$hook_name"
-    printf '"$@"\n' >> "$guard_dir/$hook_name"
     if ! chmod +x "$guard_dir/$hook_name"; then
       echo "push-guard: could not chmod hook wrapper: $hook_name" >&2
       exit 2
@@ -177,23 +165,19 @@ if [ -z "$baseline_file" ] || [ ! -f "$baseline_file" ]; then
   exit 1
 fi
 
-# Full validation using the shared validator with context
-if [ -n "$validator" ] && [ -x "$validator" ] && [ -n "$context_file" ] && [ -f "$context_file" ]; then
-  if ! bash "$validator" "$baseline_file" --context "$context_file" >/dev/null 2>&1; then
-    echo "rebase-stack pre-push: baseline failed validation at push time; refusing" >&2
-    exit 1
-  fi
-else
-  # Fallback: at minimum check publishedTips structure if validator unavailable
-  if ! jq -e 'if .publishedTips | type == "object" then true else false end' \
-       "$baseline_file" >/dev/null 2>&1; then
-    echo "rebase-stack pre-push: baseline invalid; refusing push" >&2
-    exit 1
-  fi
-  if jq -e '.publishedTips | length == 0' "$baseline_file" >/dev/null 2>&1; then
-    echo "rebase-stack pre-push: baseline publishedTips empty; refusing push" >&2
-    exit 1
-  fi
+# Full validation using the shared validator with context — no fallback.
+# Both must be readable; the validator is invoked via bash (no +x needed).
+if [ -z "$validator" ] || [ ! -r "$validator" ]; then
+  echo "rebase-stack pre-push: validator missing or unreadable; refusing push" >&2
+  exit 1
+fi
+if [ -z "$context_file" ] || [ ! -f "$context_file" ]; then
+  echo "rebase-stack pre-push: context file missing; refusing push" >&2
+  exit 1
+fi
+if ! bash "$validator" "$baseline_file" --context "$context_file" --remote "$1" >/dev/null 2>&1; then
+  echo "rebase-stack pre-push: baseline failed validation at push time; refusing" >&2
+  exit 1
 fi
 
 # Guard ALL refs being pushed. A branch in publishedTips is checked against

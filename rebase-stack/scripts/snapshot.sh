@@ -32,19 +32,15 @@ done
 
 case "$cmd" in
   save)
-    # Refuse to overwrite an existing valid baseline unless --force is passed.
+    # Refuse to overwrite ANY existing baseline file unless --force is passed.
     # This prevents a rerun of /start after a completed rebase from silently
-    # recapturing authority (the snapshot tips would reflect the post-rebase
-    # state, not the pre-rebase published state). /start must explicitly
-    # pass --force when it intends a new operation from scratch.
-    if [ "$force" != true ] && [ -f "$SNAPSHOT" ]; then
-      scripts_dir="$(cd "$(dirname "$0")" && pwd)"
-      if bash "$scripts_dir/validate-baseline.sh" "$SNAPSHOT" --schema-only >/dev/null 2>&1; then
-        echo "snapshot: refusing to overwrite existing valid baseline" >&2
-        echo "  Use 'snapshot.sh save --force' to start a new operation" >&2
-        echo "  Existing baseline: $SNAPSHOT" >&2
-        exit 2
-      fi
+    # recapturing authority. Malformed/legacy files are ALSO preserved —
+    # overwriting them would silently replace unknown state with new authority.
+    # --force is the explicit new-operation command.
+    if [ "$force" != true ] && [ -e "$SNAPSHOT" ]; then
+      echo "snapshot: refusing to overwrite existing baseline at $SNAPSHOT" >&2
+      echo "  Use 'snapshot.sh save --force' to discard it and start a new operation" >&2
+      exit 2
     fi
     ctx=$(cat)
     jq -e . >/dev/null 2>&1 <<<"$ctx" || { echo "snapshot: stdin is not valid JSON" >&2; exit 2; }
@@ -108,21 +104,34 @@ case "$cmd" in
       echo "snapshot: push remote '${push_remote}' has multiple push URLs; cannot safely identify target" >&2
       exit 2
     fi
-    push_url=$(git remote get-url --push "$push_remote" 2>/dev/null || echo "")
+    push_url=$(git remote get-url --push "$push_remote") \
+      || { echo "snapshot: could not resolve push URL for remote '${push_remote}'" >&2; exit 2; }
+    [ -n "$push_url" ] \
+      || { echo "snapshot: push URL resolved to empty for remote '${push_remote}'" >&2; exit 2; }
 
     # Record the canonical git common directory for repository identity.
-    # This is the main .git directory (shared across worktrees) and uniquely
-    # identifies the repository on the filesystem.
-    git_common_dir=$(cd "$(git rev-parse --git-common-dir)" && pwd)
+    git_common_dir=$(cd "$(git rev-parse --git-common-dir)" && pwd) \
+      || { echo "snapshot: could not resolve git common dir" >&2; exit 2; }
 
-    jq -n --argjson ctx "$ctx" --argjson branches "$entries" \
+    # Write via temp file and atomic mv — no partial baseline on error.
+    snap_tmp=$(mktemp "${STATE_DIR}/snap.XXXXXX") \
+      || { echo "snapshot: could not create temp file" >&2; exit 2; }
+
+    if ! jq -n --argjson ctx "$ctx" --argjson branches "$entries" \
           --argjson publishedTips "$published_tips" \
           --arg pushUrl "$push_url" \
           --arg gitCommonDir "$git_common_dir" \
       '{trunk: $ctx.trunk, baseRemote: $ctx.baseRemote, pushRemote: $ctx.pushRemote,
         pushUrl: $pushUrl, gitCommonDir: $gitCommonDir,
         branches: $branches, publishedTips: $publishedTips}' \
-      > "$SNAPSHOT"
+      > "$snap_tmp"; then
+      rm -f "$snap_tmp"
+      echo "snapshot: failed to generate baseline JSON" >&2
+      exit 2
+    fi
+
+    mv -f "$snap_tmp" "$SNAPSHOT" \
+      || { rm -f "$snap_tmp"; echo "snapshot: could not finalize baseline" >&2; exit 2; }
 
     printf 'snapshot: saved %s branch tip(s) to %s\n' \
       "$(jq '.branches | length' "$SNAPSHOT")" "$SNAPSHOT"

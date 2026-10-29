@@ -146,13 +146,32 @@ This writes `.artifacts/rebase-stack/pre-rebase-state.json` with every branch
 tip and commit identity. It is the recovery path if the rebase goes wrong and
 `gh stack rebase --abort` is no longer available.
 
-**On exit 2 because a valid snapshot already exists:** The rebase was already
-started or completed. Do not pass `--force` automatically — tell the user:
+**On exit 2 when `.artifacts/rebase-stack/pre-rebase-state.json` exists:**
+The snapshot refused to overwrite the existing file. Check whether it is from
+a previous `/start` that completed successfully, or a malformed/legacy file:
 
-> A pre-rebase baseline already exists. This means a previous `/start` already
-> captured the branch tips. If the rebase is complete, run `/validate` then
-> `/push` to publish. To discard the existing baseline and start over, confirm
-> then run:
+```bash
+ls -la .artifacts/rebase-stack/pre-rebase-state.json
+bash "{scripts}/validate-baseline.sh" \
+  .artifacts/rebase-stack/pre-rebase-state.json --schema-only
+echo "schema exit: $?"
+```
+
+If the schema check passes (exit 0), the baseline is from a previous `/start`.
+Tell the user:
+
+> A pre-rebase baseline already exists from a previous `/start`.
+> If the rebase is complete, run `/validate` then `/push` to publish.
+> To discard it and start over, confirm then run:
+>
+> ```bash
+> bash "{scripts}/snapshot.sh" save --force \
+>   < .artifacts/rebase-stack/context.json
+> ```
+
+If the schema check fails, the file is malformed or legacy. Tell the user:
+
+> An existing baseline file is present but malformed. To replace it:
 >
 > ```bash
 > bash "{scripts}/snapshot.sh" save --force \

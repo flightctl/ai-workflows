@@ -70,20 +70,16 @@ setup_fixture() {
 }
 
 # Extract the inner hook from push-guard.sh and set up env vars for testing.
-# Args: $1=hooks_dir $2=snap_path $3=ctx_path_or_empty
+# Args: $1=hooks_dir $2=snap_path $3=ctx_path (REQUIRED — inner hook has no fallback)
 setup_hook_env() {
-  local hooks_dir="$1" snap="$2" ctx="${3:-}"
+  local hooks_dir="$1" snap="$2" ctx="$3"
   awk '/^if ! cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
     "$SCRIPTS_DIR/push-guard.sh" > "$hooks_dir/test-hook.sh"
   chmod +x "$hooks_dir/test-hook.sh"
   export REBASE_STACK_BASELINE_FILE="$snap"
   export REBASE_STACK_ORIGINAL_HOOK=""
   export REBASE_STACK_VALIDATOR="$SCRIPTS_DIR/validate-baseline.sh"
-  if [ -n "$ctx" ]; then
-    export REBASE_STACK_CONTEXT_FILE="$ctx"
-  else
-    export REBASE_STACK_CONTEXT_FILE=""
-  fi
+  export REBASE_STACK_CONTEXT_FILE="$ctx"
 }
 
 # Build a minimal context.json for snapshot/stack-status consumption
@@ -111,6 +107,8 @@ write_context() {
       --argjson branches "$branches" \
       '{trunk: $trunk, currentBranch: $currentBranch,
         baseRemote: $baseRemote, pushRemote: $pushRemote,
+        baseRemoteSource: "config", pushRemoteSource: "config",
+        validationBranch: ($branches[0].name // ""),
         branches: $branches}'
   )
 }
@@ -277,7 +275,7 @@ test_hook_blocks_collaborator() {
     mkdir -p "$hooks_dir"
 
     # Write the hook manually (extract the HOOKEOF block from push-guard.sh)
-    setup_hook_env "$hooks_dir" "$snap" ""
+    setup_hook_env "$hooks_dir" "$snap" "$(pwd)/.artifacts/rebase-stack/context.json"
 
     # Simulate collaborator pushing — get a different SHA for story-1
     local bare_path="$TEST_DIR/t5-hook-block/bare.git"
@@ -327,7 +325,7 @@ test_hook_allows_rebase() {
     hooks_dir="$(git rev-parse --git-dir)/hooks"
     mkdir -p "$hooks_dir"
 
-    setup_hook_env "$hooks_dir" "$snap" ""
+    setup_hook_env "$hooks_dir" "$snap" "$(pwd)/.artifacts/rebase-stack/context.json"
 
     # Simulate the SAVED baseline matching the advertised (remote unchanged)
     local saved_tip
@@ -368,7 +366,7 @@ test_hook_blocks_deletion() {
     hooks_dir="$(git rev-parse --git-dir)/hooks"
     mkdir -p "$hooks_dir"
 
-    setup_hook_env "$hooks_dir" "$snap" ""
+    setup_hook_env "$hooks_dir" "$snap" "$(pwd)/.artifacts/rebase-stack/context.json"
 
     # Simulate deleted branch: remote_sha is all zeros
     local local_sha
@@ -425,7 +423,7 @@ test_hook_blocks_appeared() {
     hooks_dir="$(git rev-parse --git-dir)/hooks"
     mkdir -p "$hooks_dir"
 
-    setup_hook_env "$hooks_dir" "$snap" ""
+    setup_hook_env "$hooks_dir" "$snap" "$(pwd)/.artifacts/rebase-stack/context.json"
 
     # Simulate: someone else pushed story-3 to the remote (non-zero advertised)
     local fake_sha="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -466,7 +464,7 @@ test_hook_rejects_unknown_branch() {
     hooks_dir="$(git rev-parse --git-dir)/hooks"
     mkdir -p "$hooks_dir"
 
-    setup_hook_env "$hooks_dir" "$snap" ""
+    setup_hook_env "$hooks_dir" "$snap" "$(pwd)/.artifacts/rebase-stack/context.json"
 
     # Push a branch that is NOT in the stack baseline at all
     local fake_sha="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
@@ -513,7 +511,7 @@ test_hook_allows_unpublished_first_push() {
     hooks_dir="$(git rev-parse --git-dir)/hooks"
     mkdir -p "$hooks_dir"
 
-    setup_hook_env "$hooks_dir" "$snap" ""
+    setup_hook_env "$hooks_dir" "$snap" "$(pwd)/.artifacts/rebase-stack/context.json"
 
     # First push: remote advertises zero (branch doesn't exist remotely yet)
     local ZERO="0000000000000000000000000000000000000000"
@@ -606,6 +604,8 @@ ORIG
 
     export REBASE_STACK_BASELINE_FILE="$snap"
     export REBASE_STACK_ORIGINAL_HOOK="$hooks_dir/test-original.sh"
+    export REBASE_STACK_VALIDATOR="$SCRIPTS_DIR/validate-baseline.sh"
+    export REBASE_STACK_CONTEXT_FILE="$(pwd)/.artifacts/rebase-stack/context.json"
 
     local saved_tip
     saved_tip=$(jq -r '.publishedTips["story-1"]' "$snap")
@@ -618,9 +618,7 @@ ORIG
     rc=$?
     if [ "$rc" -eq 0 ] && [ -f "$marker" ]; then
       pass "pre-push hook chains existing hook"
-    rc=$?
     elif [ "$rc" -ne 0 ]; then
-      rc=$?
       fail "pre-push hook chains existing hook" "hook exited $rc"
     else
       fail "pre-push hook chains existing hook" "original hook marker file not found"
@@ -663,6 +661,8 @@ ORIG
 
     export REBASE_STACK_BASELINE_FILE="$snap"
     export REBASE_STACK_ORIGINAL_HOOK="$hooks_dir/test-original.sh"
+    export REBASE_STACK_VALIDATOR="$SCRIPTS_DIR/validate-baseline.sh"
+    export REBASE_STACK_CONTEXT_FILE="$(pwd)/.artifacts/rebase-stack/context.json"
 
     local saved_tip
     saved_tip=$(jq -r '.publishedTips["story-1"]' "$snap")
@@ -715,7 +715,7 @@ test_changed_patch_accepted() {
     hooks_dir="$(git rev-parse --git-dir)/hooks"
     mkdir -p "$hooks_dir"
 
-    setup_hook_env "$hooks_dir" "$snap" ""
+    setup_hook_env "$hooks_dir" "$snap" "$(pwd)/.artifacts/rebase-stack/context.json"
 
     # Advertised OID = saved baseline (remote hasn't changed)
     local saved_tip
@@ -2024,6 +2024,229 @@ test_inner_hook_full_validation() {
 }
 
 # =========================================================================
+# TEST 60: push-guard rejects empty context (not delegated to gh)
+# =========================================================================
+test_guard_rejects_empty_context() {
+  local clone
+  clone=$(setup_fixture "t60-emptyctx")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
+
+    # Create an empty context: {}
+    echo '{}' > .artifacts/rebase-stack/bad-context.json
+
+    bash "$SCRIPTS_DIR/push-guard.sh" \
+      --baseline .artifacts/rebase-stack/pre-rebase-state.json \
+      --remote origin \
+      --context .artifacts/rebase-stack/bad-context.json >/dev/null 2>&1
+    rc=$?
+    if [ "$rc" -eq 2 ]; then
+      pass "push-guard rejects empty context {} (not delegated)"
+    else
+      fail "push-guard empty context" "exited $rc (expected 2)"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 61: push-guard rejects context with empty branches
+# =========================================================================
+test_guard_rejects_empty_branches_ctx() {
+  local clone
+  clone=$(setup_fixture "t61-emptybr")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
+
+    # Context with empty branches array
+    jq '.branches = []' .artifacts/rebase-stack/context.json \
+      > .artifacts/rebase-stack/bad-context.json
+
+    bash "$SCRIPTS_DIR/push-guard.sh" \
+      --baseline .artifacts/rebase-stack/pre-rebase-state.json \
+      --remote origin \
+      --context .artifacts/rebase-stack/bad-context.json >/dev/null 2>&1
+    rc=$?
+    if [ "$rc" -eq 2 ]; then
+      pass "push-guard rejects context with empty branches"
+    else
+      fail "push-guard empty branches ctx" "exited $rc (expected 2)"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 62: push-guard rejects baseline missing gitCommonDir
+# =========================================================================
+test_guard_rejects_missing_commondir() {
+  local clone
+  clone=$(setup_fixture "t62-nocommon")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
+
+    # Remove gitCommonDir from baseline (legacy format)
+    jq 'del(.gitCommonDir)' .artifacts/rebase-stack/pre-rebase-state.json \
+      > .artifacts/rebase-stack/legacy-baseline.json
+
+    bash "$SCRIPTS_DIR/push-guard.sh" \
+      --baseline .artifacts/rebase-stack/legacy-baseline.json \
+      --remote origin \
+      --context .artifacts/rebase-stack/context.json >/dev/null 2>&1
+    rc=$?
+    if [ "$rc" -eq 2 ]; then
+      pass "push-guard rejects baseline missing gitCommonDir (legacy)"
+    else
+      fail "push-guard missing commonDir" "exited $rc (expected 2)"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 63: inner hook rejects missing validator (no fallback)
+# =========================================================================
+test_inner_hook_rejects_missing_validator() {
+  local clone
+  clone=$(setup_fixture "t63-noval")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
+    local snap
+    snap="$(pwd)/.artifacts/rebase-stack/pre-rebase-state.json"
+
+    local hooks_dir
+    hooks_dir="$(git rev-parse --git-dir)/hooks"
+    mkdir -p "$hooks_dir"
+
+    awk '/^if ! cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
+      "$SCRIPTS_DIR/push-guard.sh" > "$hooks_dir/test-hook.sh"
+    chmod +x "$hooks_dir/test-hook.sh"
+
+    export REBASE_STACK_BASELINE_FILE="$snap"
+    export REBASE_STACK_ORIGINAL_HOOK=""
+    export REBASE_STACK_VALIDATOR=""
+    export REBASE_STACK_CONTEXT_FILE="$(pwd)/.artifacts/rebase-stack/context.json"
+
+    local saved_tip
+    saved_tip=$(jq -r '.publishedTips["story-1"]' "$snap")
+    local local_sha
+    local_sha=$(git rev-parse story-1)
+    local stdin_line="refs/heads/story-1 ${local_sha} refs/heads/story-1 ${saved_tip}"
+
+    local output
+    output=$(printf '%s\n' "$stdin_line" | bash "$hooks_dir/test-hook.sh" origin xxx 2>&1)
+    rc=$?
+    if [ "$rc" -ne 0 ] && printf '%s' "$output" | grep -q "validator missing"; then
+      pass "inner hook rejects missing validator (no fallback)"
+    else
+      fail "inner hook no fallback" "rc=$rc output: $output"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 64: snapshot refuses ANY existing file (not just valid)
+# =========================================================================
+test_snapshot_refuses_malformed_existing() {
+  local clone
+  clone=$(setup_fixture "t64-malformed")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    # Write a malformed/legacy baseline
+    echo 'this is not json' > .artifacts/rebase-stack/pre-rebase-state.json
+    local original_bytes
+    original_bytes=$(cat .artifacts/rebase-stack/pre-rebase-state.json)
+
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save 2>/dev/null
+    rc=$?
+
+    local current_bytes
+    current_bytes=$(cat .artifacts/rebase-stack/pre-rebase-state.json)
+    if [ "$rc" -ne 0 ] && [ "$original_bytes" = "$current_bytes" ]; then
+      pass "snapshot refuses malformed existing file (bytes preserved)"
+    else
+      fail "snapshot malformed existing" "rc=$rc bytes_match=$([ "$original_bytes" = "$current_bytes" ] && echo yes || echo no)"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 65: status rejects baseRemote mismatch
+# =========================================================================
+test_status_rejects_baseremote_mismatch() {
+  local clone
+  clone=$(setup_fixture "t65-baseremote")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
+
+    # Tamper baseline baseRemote
+    jq '.baseRemote = "upstream"' .artifacts/rebase-stack/pre-rebase-state.json \
+      > .artifacts/rebase-stack/bad-baseline.json
+
+    local output
+    output=$(printf '%s' "$ctx" | bash "$SCRIPTS_DIR/stack-status.sh" --no-fetch \
+      --baseline .artifacts/rebase-stack/bad-baseline.json 2>&1)
+    rc=$?
+    if [ "$rc" -eq 2 ]; then
+      pass "status rejects baseRemote mismatch"
+    else
+      fail "status baseRemote mismatch" "exited $rc"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 66: validator rejects --context without value
+# =========================================================================
+test_validator_missing_arg() {
+  bash "$SCRIPTS_DIR/validate-baseline.sh" /dev/null --context 2>/dev/null
+  rc=$?
+  if [ "$rc" -eq 2 ]; then
+    pass "validator exits 2 on --context without value"
+  else
+    fail "validator missing arg" "exited $rc (expected 2)"
+  fi
+}
+
+# =========================================================================
+# TEST 67: push-guard rejects --baseline without value
+# =========================================================================
+test_guard_missing_arg() {
+  bash "$SCRIPTS_DIR/push-guard.sh" --baseline 2>/dev/null
+  rc=$?
+  if [ "$rc" -eq 2 ]; then
+    pass "push-guard exits 2 on --baseline without value"
+  else
+    fail "push-guard missing arg" "exited $rc (expected 2)"
+  fi
+}
+
+# =========================================================================
 # Run all tests
 # =========================================================================
 printf '\n=== rebase-stack regression tests ===\n\n'
@@ -2280,6 +2503,14 @@ test_guard_rejects_wrong_trunk
 test_snapshot_saves_identity
 test_hook_wrapper_special_chars
 test_inner_hook_full_validation
+test_guard_rejects_empty_context
+test_guard_rejects_empty_branches_ctx
+test_guard_rejects_missing_commondir
+test_inner_hook_rejects_missing_validator
+test_snapshot_refuses_malformed_existing
+test_status_rejects_baseremote_mismatch
+test_validator_missing_arg
+test_guard_missing_arg
 
 PASS=$(cat "$PASS_FILE")
 FAIL=$(cat "$FAIL_FILE")
