@@ -53,34 +53,49 @@ Report the recorded mode in Step 5 so the user knows what was covered:
 CI will be the first check on every layer above it; `mode=all` means every
 layer was validated locally.
 
-Before presenting the push confirmation, refresh the published state. This
-catches divergence that appeared between `/validate` and `/push` — someone else
-may have pushed to a stack branch in the gap:
+Before presenting the push confirmation, refresh the published state and
+compare against the pre-rebase baseline. This catches collaborator pushes
+that appeared between `/validate` and `/push`:
 
 ```bash
 ctx=.artifacts/rebase-stack/context.json
+snapshot=.artifacts/rebase-stack/pre-rebase-state.json
 push_remote=$(jq -r '.pushRemote' "$ctx")
 git fetch --quiet "$push_remote"
 echo "fetch exit: $?"
 ```
 
-Stop if the fetch fails — the lease cannot be verified without current remote
-refs. Then check every branch for remote-only commits:
+Stop if the fetch fails — divergence cannot be classified without current
+remote refs. Then check every branch against the saved pre-rebase baseline:
 
 ```bash
+if [ ! -f "$snapshot" ] || ! jq -e '.publishedTips' "$snapshot" >/dev/null 2>&1; then
+  echo "NO BASELINE — cannot classify divergence; run /start first"
+fi
 jq -r '.branches[].name' "$ctx" | while read -r branch; do
+  saved_tip=$(jq -r --arg b "$branch" '.publishedTips[$b] // "ABSENT"' "$snapshot")
   if git show-ref --quiet --verify "refs/remotes/${push_remote}/${branch}"; then
-    behind=$(git rev-list --count "${branch}..${push_remote}/${branch}")
-    if [ "$behind" -gt 0 ]; then
-      printf 'DIVERGED  %-28s behind=%s\n' "$branch" "$behind"
+    current_tip=$(git rev-parse --verify --quiet "refs/remotes/${push_remote}/${branch}")
+    if [ "$saved_tip" = "ABSENT" ]; then
+      printf 'APPEARED  %-28s current=%s\n' "$branch" "${current_tip:0:12}"
+    elif [ "$saved_tip" != "$current_tip" ]; then
+      printf 'UPDATED   %-28s baseline=%s current=%s\n' \
+        "$branch" "${saved_tip:0:12}" "${current_tip:0:12}"
+    fi
+  else
+    if [ "$saved_tip" != "ABSENT" ]; then
+      printf 'DELETED   %-28s baseline=%s\n' "$branch" "${saved_tip:0:12}"
     fi
   fi
 done
 ```
 
-If any branch prints `DIVERGED`, stop. The remote has commits that a
-force-push would discard. Do not confirm or push while any layer is behind
-its published copy. Send the user back to `/start` to reconcile.
+If any branch prints `UPDATED`, `APPEARED`, or `DELETED`, stop. The remote
+changed since the pre-rebase snapshot — a force-push would discard
+collaborator work. Send the user back to `/start` to reconcile.
+
+If the baseline is missing or malformed, stop: divergence cannot be
+classified without it, and defaulting to "allow" would be unsafe.
 
 ## Step 2: Confirm the Push
 
@@ -102,26 +117,42 @@ jq -r '"push remote : \(.pushRemote)  (\(.pushRemoteSource))",
 
 ## Step 3: Push
 
+Resolve `{scripts}` as described in `preflight.md` Step 1. `push-guard.sh`
+installs an ephemeral pre-push hook that validates Git's advertised remote
+OIDs against the saved pre-rebase baseline, chains any existing pre-push hook
+with unchanged args/stdin/abort semantics, delegates to `gh stack push`, and
+unconditionally restores the original hook state on exit. This closes the gap
+between the workflow's divergence check and `gh stack push`'s internal fetch:
+the hook runs after Git's ref advertisement, so it sees the actual remote
+state at wire time.
+
 ```bash
-push_remote=$(jq -r '.pushRemote' .artifacts/rebase-stack/context.json)
-gh stack push --remote "$push_remote"
+scripts="{scripts}"
+ctx=.artifacts/rebase-stack/context.json
+push_remote=$(jq -r '.pushRemote' "$ctx")
+bash "$scripts/push-guard.sh" \
+  --baseline .artifacts/rebase-stack/pre-rebase-state.json \
+  --remote "$push_remote"
 echo "push exit: $?"
 ```
 
 | Exit | Meaning | Action |
 |------|---------|--------|
 | 0 | Every branch pushed. | Go to Step 4. |
-| 1 | Lease rejected — someone pushed since the fetch. | Re-run `/validate`: it re-fetches and re-reads stack health, so it shows what actually moved and re-establishes the lease. Never add `--force`. |
+| 1 | Lease rejected or pre-push baseline guard blocked the push — someone pushed since the pre-rebase snapshot. | Re-run `/validate`: it re-fetches and re-reads stack health, so it shows what actually moved and re-establishes the lease. Never add `--force`. |
+| 2 | Bad arguments, missing baseline, or hook setup failed. | Stop and report. Confirm the pre-rebase snapshot exists. |
 | 4 | GitHub API failure. | Stop. Report `gh auth status`; run preflight and `/validate` again before asking for a new push confirmation. |
 | 8 | Stack file locked. | Stop. Another `gh stack` process may be writing; run preflight and `/validate` again before asking for a new push confirmation. |
 | other | Unknown. | Stop and report the exit code and full stderr. |
 
 **Never retry a rejected push in this phase.** `gh stack push` requests
-`--force-with-lease`, and the lease is only safe against the remote state the
-last fetch recorded. A failed push may still have updated some branches
-(see atomicity below), and the lock or API failure may have been another
-client pushing. Stop, report the exit code, and start over with preflight and
-`/validate` before a new push confirmation:
+`--force-with-lease`, and the pre-push guard validates against the saved
+pre-rebase baseline. Together, these cover two windows: the guard catches
+collaborator pushes up to Git's ref advertisement; the lease catches changes
+between advertisement and data transfer. A failed push may still have updated
+some branches (see atomicity below), and the lock or API failure may have been
+another client pushing. Stop, report the exit code, and start over with
+preflight and `/validate` before a new push confirmation:
 
 ```bash
 view=$(gh stack view --json); echo "view exit: $?"
@@ -179,36 +210,47 @@ fork_owner=$(jq -r '.forkOwner' "$ctx")
 base=$(jq -r '.trunk' "$ctx")
 ```
 
-Then create PRs bottom to top. Use the trunk only for the bottom PR and the
-preceding stack branch for every PR above it:
+Then create PRs bottom to top. Iterate **all** branches — not only those
+without PRs — so that `previous_branch` always advances to the correct
+immediate predecessor. Create a PR only for branches that lack one. This
+ensures that when story-1 already has a PR and story-2 does not, story-2
+targets story-1 (not the trunk):
 
 ```bash
-mapfile -t branches < <(jq -r '.branches[] | select(.pr == null) | .name' "$ctx")
+mapfile -t all_branches < <(jq -r '.branches[].name' "$ctx")
 previous_branch="$base"
-for branch in "${branches[@]}"; do
-  if [ -n "${previous_pr_number:-}" ]; then
-    gh pr create \
-      --repo "$parent_repo" \
-      --head "${fork_owner}:${branch}" \
-      --base "$previous_branch" \
-      --title "$branch" \
-      --draft \
-      --body "Depends on: #${previous_pr_number}"
+previous_pr_number=""
+for branch in "${all_branches[@]}"; do
+  existing_pr=$(jq -r --arg b "$branch" \
+    '.branches[] | select(.name == $b) | .pr // empty' "$ctx")
+  if [ -z "$existing_pr" ]; then
+    if [ -n "$previous_pr_number" ]; then
+      pr_url=$(gh pr create \
+        --repo "$parent_repo" \
+        --head "${fork_owner}:${branch}" \
+        --base "$previous_branch" \
+        --title "$branch" \
+        --draft \
+        --body "Depends on: #${previous_pr_number}")
+    else
+      pr_url=$(gh pr create \
+        --repo "$parent_repo" \
+        --head "${fork_owner}:${branch}" \
+        --base "$previous_branch" \
+        --title "$branch" \
+        --draft)
+    fi
+    previous_pr_number=$(printf '%s' "$pr_url" | grep -o '[0-9]*$')
   else
-    gh pr create \
-      --repo "$parent_repo" \
-      --head "${fork_owner}:${branch}" \
-      --base "$previous_branch" \
-      --title "$branch" \
-      --draft
+    previous_pr_number="$existing_pr"
   fi
   previous_branch="$branch"
 done
 ```
 
-For a direct clone drop `--repo` and use `--head "$branch"`. Omit the
-`Depends on:` line for the bottom branch. Feed the number returned by each
-call into the next one.
+For a direct clone drop `--repo` and use `--head "$branch"`. The bottom
+branch in the stack — whether it needs a PR or already has one — provides
+the base for the next layer up.
 
 ## Step 5: Report
 

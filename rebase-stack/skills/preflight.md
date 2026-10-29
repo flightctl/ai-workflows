@@ -22,7 +22,7 @@ Confirm it before first use:
 
 ```bash
 ls "{scripts}"
-# expect: preflight.sh  snapshot.sh  stack-status.sh  validate-branches.sh
+# expect: preflight.sh  push-guard.sh  snapshot.sh  stack-status.sh  validate-branches.sh
 ```
 
 If that listing fails, stop and report an incomplete package. Run every command

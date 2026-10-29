@@ -15,8 +15,18 @@ not initialize one, and do not fall back to `git rebase`.
 
 ## Step 2: Show the Starting State
 
+If a pre-rebase snapshot exists from a previous `/start` (the user is
+re-running `/start` after a completed rebase but before `/push`), pass it
+so the health report can distinguish expected rebase divergence from genuine
+collaborator updates:
+
 ```bash
-bash "{scripts}/stack-status.sh" \
+baseline_args=""
+if [ -f .artifacts/rebase-stack/pre-rebase-state.json ] \
+   && jq -e '.publishedTips' .artifacts/rebase-stack/pre-rebase-state.json >/dev/null 2>&1; then
+  baseline_args="--baseline .artifacts/rebase-stack/pre-rebase-state.json"
+fi
+bash "{scripts}/stack-status.sh" $baseline_args \
   < .artifacts/rebase-stack/context.json
 echo "status exit: $?"
 ```
@@ -37,12 +47,26 @@ the names to shell variables rather than splicing them into the command text:
 a branch name is user-controlled and must never be parsed as shell syntax.
 
 ```bash
+snapshot=.artifacts/rebase-stack/pre-rebase-state.json
 push_remote=$(jq -r '.pushRemote' .artifacts/rebase-stack/context.json)
 jq -r '.branches[].name' .artifacts/rebase-stack/context.json | while read -r branch; do
   if git show-ref --quiet --verify "refs/remotes/${push_remote}/${branch}"; then
     ahead=$(git rev-list --count "${push_remote}/${branch}..${branch}")
     behind=$(git rev-list --count "${branch}..${push_remote}/${branch}")
-    printf '%-28s ahead=%s behind=%s\n' "$branch" "$ahead" "$behind"
+    # When a pre-rebase snapshot with published tips exists, classify
+    # the divergence rather than treating all behind>0 as collaborator.
+    divergence_class=""
+    if [ "$behind" -gt 0 ] && [ -f "$snapshot" ] \
+       && jq -e '.publishedTips' "$snapshot" >/dev/null 2>&1; then
+      saved_tip=$(jq -r --arg b "$branch" '.publishedTips[$b] // "ABSENT"' "$snapshot")
+      current_tip=$(git rev-parse --verify --quiet "refs/remotes/${push_remote}/${branch}")
+      if [ "$saved_tip" != "ABSENT" ] && [ "$saved_tip" = "$current_tip" ]; then
+        divergence_class=" (rebase)"
+      elif [ "$saved_tip" != "ABSENT" ]; then
+        divergence_class=" (UPDATED)"
+      fi
+    fi
+    printf '%-28s ahead=%s behind=%s%s\n' "$branch" "$ahead" "$behind" "$divergence_class"
   else
     printf '%-28s unpublished\n' "$branch"
   fi
@@ -58,18 +82,22 @@ done
   Suggest `/push` only after `/validate`: the record `/push` reads is pinned to
   branch SHAs, and a stale or missing one sends the user straight back.
 
-- **Any branch `behind>0`** — that branch has unexpected divergence: the remote
-  was updated by someone else since the last rebase. **Do not offer `/push`.**
-  Report which branches diverged and by how much, show the remote-only commits
-  as below, and stop.
+- **Any branch shows `(UPDATED)` or has `behind>0` without a baseline** —
+  that branch has unexpected divergence: the remote was updated by someone
+  else since the last rebase. **Do not offer `/push`.** Report which branches
+  diverged and by how much, show the remote-only commits as below, and stop.
 
-**If any layer is behind its published copy** (`-N` in `VS-PUBLISHED`, or
-`behind>0` above), stop before touching history. The remote has commits you do
-not, and rebasing then force-pushing would destroy them. Do **not** reach for
-`gh stack sync`: it rebases and pushes in one step, skipping this workflow's
-snapshot, validation, and push confirmation. Show the remote-only commits
-without publishing anything — again through variables, never by splicing the
-name into the command:
+- **All `behind>0` branches show `(rebase)`** — the remote tips match the
+  pre-rebase snapshot. The divergence is the expected result of rebasing
+  locally. The remote has not changed. Proceed as if `behind=0`.
+
+**If any layer has genuine remote changes** (`UPDATED` classification, or
+`behind>0` without a baseline to classify), stop before touching history. The
+remote has commits you do not, and rebasing then force-pushing would destroy
+them. Do **not** reach for `gh stack sync`: it rebases and pushes in one step,
+skipping this workflow's snapshot, validation, and push confirmation. Show the
+remote-only commits without publishing anything — again through variables,
+never by splicing the name into the command:
 
 ```bash
 ctx=.artifacts/rebase-stack/context.json

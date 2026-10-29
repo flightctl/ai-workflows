@@ -32,7 +32,10 @@ case "$cmd" in
     git rev-parse --verify --quiet "$base_ref" >/dev/null \
       || { echo "snapshot: base ref ${base_ref} does not exist; cannot snapshot" >&2; exit 2; }
 
+    push_remote=$(jq -r '.pushRemote' <<<"$ctx")
+
     entries="[]"
+    published_tips="{}"
     while IFS= read -r b; do
       [ -n "$b" ] || continue
       # An unresolvable branch means the snapshot would be incomplete, and an
@@ -52,10 +55,22 @@ case "$cmd" in
           done | jq -s .)
       entries=$(jq --arg name "$b" --arg sha "$sha" --argjson commits "${commits:-[]}" \
                    '. + [{name: $name, sha: $sha, commits: $commits}]' <<<"$entries")
+
+      # Record the remote tracking-ref OID as the pre-rebase published
+      # baseline. /validate and /push compare this against the post-fetch
+      # remote tip to distinguish expected rebase divergence from genuine
+      # collaborator updates.
+      pub_ref="refs/remotes/${push_remote}/${b}"
+      if pub_sha=$(git rev-parse --verify --quiet "$pub_ref"); then
+        published_tips=$(jq --arg b "$b" --arg sha "$pub_sha" \
+          '. + {($b): $sha}' <<<"$published_tips")
+      fi
     done < <(jq -r '.branches[].name' <<<"$ctx")
 
     jq -n --argjson ctx "$ctx" --argjson branches "$entries" \
-      '{trunk: $ctx.trunk, baseRemote: $ctx.baseRemote, pushRemote: $ctx.pushRemote, branches: $branches}' \
+          --argjson publishedTips "$published_tips" \
+      '{trunk: $ctx.trunk, baseRemote: $ctx.baseRemote, pushRemote: $ctx.pushRemote,
+        branches: $branches, publishedTips: $publishedTips}' \
       > "$SNAPSHOT"
 
     printf 'snapshot: saved %s branch tip(s) to %s\n' \

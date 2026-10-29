@@ -42,6 +42,7 @@ not skip it, and do not let `/push` run without it.
 
 ```bash
 bash "{scripts}/stack-status.sh" \
+  --baseline .artifacts/rebase-stack/pre-rebase-state.json \
   < .artifacts/rebase-stack/context.json
 echo "status exit: $?"
 ```
@@ -57,8 +58,13 @@ On exit 0 or 1, stop and report if either is true:
 
 - Any layer still shows `STALE  YES` — the rebase did not finish. Send the user
   back to `/start`.
-- Any layer shows `-N` in `VS-PUBLISHED` — the remote has commits you do not.
-  Pushing would discard them.
+- Any layer shows `UPDATED`, `APPEARED`, or `DELETED` in `VS-PUBLISHED` — the
+  remote genuinely changed since the pre-rebase snapshot. Pushing would discard
+  collaborator commits. Send the user back to `/start` to reconcile.
+
+Rebase divergence — where VS-PUBLISHED shows `(rebase)` — is expected and safe:
+the remote tip matches the pre-rebase snapshot, so no one else pushed since the
+snapshot was taken.
 
 ## Step 4: Discover the Validation Commands
 

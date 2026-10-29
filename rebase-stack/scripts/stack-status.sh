@@ -23,7 +23,14 @@
 set -uo pipefail
 
 do_fetch=1
-[ "${1:-}" = "--no-fetch" ] && do_fetch=0
+baseline_file=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --no-fetch) do_fetch=0; shift ;;
+    --baseline) baseline_file="${2:-}"; shift 2 ;;
+    *) echo "stack-status: unknown flag: $1" >&2; exit 2 ;;
+  esac
+done
 
 ctx=$(cat)
 jq -e . >/dev/null 2>&1 <<<"$ctx" || { echo "stack-status: stdin is not valid JSON" >&2; exit 2; }
@@ -109,12 +116,41 @@ for b in "${branches[@]}"; do
     behind=$(git rev-list --count "${b}..${pub_ref}" 2>/dev/null || echo "?")
     if [ "$ahead" = "0" ] && [ "$behind" = "0" ]; then
       published="in sync"
+    elif [ "$behind" != "0" ] && [ -n "$baseline_file" ] \
+         && jq -e '.publishedTips' "$baseline_file" >/dev/null 2>&1; then
+      # Classify: is the remote still at the pre-rebase baseline, or did
+      # someone else push?
+      saved_tip=$(jq -r --arg b "$b" '.publishedTips[$b] // "ABSENT"' "$baseline_file")
+      current_tip=$(git rev-parse --verify --quiet "$pub_ref")
+      if [ "$saved_tip" = "ABSENT" ]; then
+        # Branch was not published when we snapshotted — but it exists now.
+        published="+${ahead}/-${behind} (APPEARED)"
+        row_notes="${row_notes}branch appeared on remote since pre-rebase snapshot; "
+      elif [ "$saved_tip" = "$current_tip" ]; then
+        # Remote has not moved — divergence is expected rebase artifact.
+        published="+${ahead}/-${behind} (rebase)"
+      else
+        # Remote tip differs from the saved baseline — genuine update.
+        published="+${ahead}/-${behind} (UPDATED)"
+        row_notes="${row_notes}remote updated since pre-rebase snapshot; "
+      fi
     else
       published="+${ahead}/-${behind}"
       [ "$behind" != "0" ] && row_notes="${row_notes}remote has ${behind} commit(s) you do not; "
     fi
   else
-    published="unpublished"
+    if [ -n "$baseline_file" ] \
+       && jq -e '.publishedTips' "$baseline_file" >/dev/null 2>&1; then
+      saved_tip=$(jq -r --arg b "$b" '.publishedTips[$b] // "ABSENT"' "$baseline_file")
+      if [ "$saved_tip" != "ABSENT" ]; then
+        published="DELETED"
+        row_notes="${row_notes}branch deleted from remote since pre-rebase snapshot; "
+      else
+        published="unpublished"
+      fi
+    else
+      published="unpublished"
+    fi
   fi
 
   pr=$(jq -r --arg b "$b" '.branches[] | select(.name == $b) | (.pr // "none") | tostring' <<<"$ctx")
