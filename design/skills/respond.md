@@ -232,16 +232,19 @@ feedback), apply them in this order:
      IDs), include any retired ID higher than the current maximum.
      When the historical high-water cannot be reliably established
      for an existing group receiving new IDs — even if the live IDs
-     are contiguous or the group is currently empty — ask for the
-     missing history before mutating that group; do not infer that
-     no retired IDs exist from the absence of visible gaps. A
-     genuinely new requirement group with confirmed no prior
-     allocation may start at 01. Groups that receive no new IDs in
-     this round (title edits, content changes, metadata updates,
-     parameter-row edits, or deletion-only changes that preserve
-     existing IDs) do not require high-water validation and must not
-     be blocked by missing historical allocation data in unrelated
-     groups. New IDs are always allocated above the high-water mark.
+     are contiguous or the group is currently empty — stop and ask
+     for the missing history; do not infer that no retired IDs exist
+     from the absence of visible gaps. All allocating-group
+     high-water checks must pass before any mutations begin in the
+     batch — do not partially apply edits to other groups while an
+     allocation-blocker is unresolved. A genuinely new requirement
+     group with confirmed no prior allocation may start at 01.
+     Groups that receive no new IDs in this round (title edits,
+     content changes, metadata updates, parameter-row edits, or
+     deletion-only changes that preserve existing IDs) do not
+     require high-water validation and must not be blocked by
+     missing historical allocation data in unrelated groups. New IDs
+     are always allocated above the high-water mark.
 
    Then add, modify, or remove test cases as directed by the approved
    response. For all mutations, apply the test case format,
