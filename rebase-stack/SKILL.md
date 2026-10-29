@@ -1,25 +1,26 @@
 ---
 name: rebase-stack
-version: 0.2.0
+version: 1.0.0
 description: >-
-  Rebases a stacked-branch chain onto an updated base branch using gh-stack,
-  guides through conflict resolution if needed, validates each branch, and
-  pushes all updated branches. Creates PRs for any branch that lacks one,
-  with fork-aware targeting. Works on repos with or without Stacked PRs enabled.
-  Use when rebasing stacked stories or PRs onto main or another updated branch.
+  Rebases a gh-stack-tracked chain of stacked branches onto its updated base,
+  guides conflict resolution, validates the stack, and pushes every branch
+  with fork-aware PR creation. Requires the gh-stack extension and an existing
+  tracked multi-branch stack; refuses to run otherwise. Do NOT use it to rebase
+  a single branch onto main — plain git rebase does that.
   Activated by commands: /start, /continue, /validate, /push.
 ---
 # Rebase Stack Workflow
 
-## Quick Start
+Read `skills/controller.md` and follow it. It gates every phase, then routes:
 
-1. If the user invoked `/start`, read `commands/start.md` and follow it.
-2. If the user invoked `/continue`, read `commands/continue.md` and follow it.
-3. If the user invoked `/validate`, read `commands/validate.md` and follow it.
-4. If the user invoked `/push`, read `commands/push.md` and follow it.
-5. Otherwise, read `skills/controller.md` and present the available phases to the user.
+| Command | Phase |
+|---------|-------|
+| `/start` | `commands/start.md` — rebase the whole stack |
+| `/continue` | `commands/continue.md` — resume after a conflict |
+| `/validate` | `commands/validate.md` — test the trunk-adjacent branch, or every branch with `--all` |
+| `/push` | `commands/push.md` — push, then open missing PRs |
 
-If a step fails or produces unexpected output, stop and report to the user.
-Always wait for the user before advancing to the next phase.
+With no command, present the phases above and wait.
 
-For safety rules, see `guidelines.md`.
+Refuses to run unless `gh stack` is installed and `gh stack view --json` exits
+0. Neither has a fallback. See `guidelines.md` for scope and safety rules.

@@ -1,0 +1,233 @@
+#!/usr/bin/env bash
+# Pre-rebase safety net for the rebase-stack workflow.
+#
+# A stack rebase rewrites every layer at once. If it goes wrong there is no
+# single reflog entry to undo it, so this records every branch tip before the
+# rebase and verifies afterwards that no commit silently disappeared.
+#
+# Usage:
+#   ./scripts/preflight.sh | ./scripts/snapshot.sh save
+#   ./scripts/preflight.sh | ./scripts/snapshot.sh verify
+#   ./scripts/snapshot.sh restore-plan      # prints the exact recovery commands
+#
+# Exit codes:
+#   0  success (verify: no commits lost)
+#   1  verify: one or more commits present before the rebase are gone
+#   2  bad usage, or no snapshot found
+
+set -uo pipefail
+
+STATE_DIR=".artifacts/rebase-stack"
+SNAPSHOT="${STATE_DIR}/pre-rebase-state.json"
+
+cmd="${1:-}"
+force=false
+shift || true
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --force) force=true; shift ;;
+    *) echo "snapshot: unknown flag: $1" >&2; exit 2 ;;
+  esac
+done
+
+scripts_dir="$(cd "$(dirname "$0")" && pwd)"
+
+case "$cmd" in
+  save)
+    # Refuse to overwrite ANY existing baseline (file, symlink — even dangling).
+    # -e misses dangling symlinks; -L catches them. Malformed/legacy files are
+    # ALSO preserved — overwriting them would silently replace unknown state.
+    # --force is the explicit new-operation command.
+    if [ "$force" != true ] && { [ -e "$SNAPSHOT" ] || [ -L "$SNAPSHOT" ]; }; then
+      echo "snapshot: refusing to overwrite existing baseline at $SNAPSHOT" >&2
+      echo "  Use 'snapshot.sh save --force' to discard it and start a new operation" >&2
+      exit 2
+    fi
+
+    # Refuse to write into a directory destination — even with --force.
+    if [ -d "$SNAPSHOT" ]; then
+      echo "snapshot: $SNAPSHOT is a directory; cannot write baseline" >&2
+      exit 2
+    fi
+
+    ctx=$(cat)
+    jq -e . >/dev/null 2>&1 <<<"$ctx" || { echo "snapshot: stdin is not valid JSON" >&2; exit 2; }
+    mkdir -p "$STATE_DIR"
+
+    base_ref="$(jq -r '.baseRemote' <<<"$ctx")/$(jq -r '.trunk' <<<"$ctx")"
+    git rev-parse --verify --quiet "$base_ref" >/dev/null \
+      || { echo "snapshot: base ref ${base_ref} does not exist; cannot snapshot" >&2; exit 2; }
+
+    push_remote=$(jq -r '.pushRemote' <<<"$ctx")
+
+    # Early sanity: context must have at least one branch.
+    branch_count=$(jq '[.branches[]?.name // empty] | length' <<<"$ctx")
+    if [ "${branch_count:-0}" -eq 0 ]; then
+      echo "snapshot: context contains no branches; nothing to snapshot" >&2
+      exit 2
+    fi
+
+    entries="[]"
+    published_tips="{}"
+    while IFS= read -r b; do
+      [ -n "$b" ] || continue
+      if ! sha=$(git rev-parse --verify --quiet "$b"); then
+        echo "snapshot: branch '${b}' does not resolve; refusing to write a partial snapshot" >&2
+        exit 2
+      fi
+      commits=$(git log --reverse --format='%H' "${base_ref}..${b}" \
+        | while IFS= read -r sha1; do
+            pid=$(git show "$sha1" | git patch-id --stable | cut -d' ' -f1)
+            jq -n --arg sha "$sha1" --arg patchId "${pid:-}" \
+                  --arg subject "$(git log -1 --format=%s "$sha1")" \
+                  '{sha: $sha, patchId: $patchId, subject: $subject}'
+          done | jq -s .)
+      entries=$(jq --arg name "$b" --arg sha "$sha" --argjson commits "${commits:-[]}" \
+                   '. + [{name: $name, sha: $sha, commits: $commits}]' <<<"$entries")
+
+      pub_ref="refs/remotes/${push_remote}/${b}"
+      if pub_sha=$(git rev-parse --verify --quiet "$pub_ref"); then
+        published_tips=$(jq --arg b "$b" --arg sha "$pub_sha" \
+          '. + {($b): $sha}' <<<"$published_tips")
+      else
+        published_tips=$(jq --arg b "$b" \
+          '. + {($b): null}' <<<"$published_tips")
+      fi
+    done < <(jq -r '.branches[].name' <<<"$ctx")
+
+    # Effective push URL — must resolve to exactly one.
+    push_url_count=$(git remote get-url --push --all "$push_remote" 2>/dev/null | wc -l)
+    if [ "$push_url_count" -gt 1 ]; then
+      echo "snapshot: push remote '${push_remote}' has multiple push URLs; cannot safely identify target" >&2
+      exit 2
+    fi
+    push_url=$(git remote get-url --push "$push_remote") \
+      || { echo "snapshot: could not resolve push URL for remote '${push_remote}'" >&2; exit 2; }
+    [ -n "$push_url" ] \
+      || { echo "snapshot: push URL resolved to empty for remote '${push_remote}'" >&2; exit 2; }
+
+    # Canonical git common directory for repository identity.
+    git_common_dir=$(cd "$(git rev-parse --git-common-dir)" && pwd) \
+      || { echo "snapshot: could not resolve git common dir" >&2; exit 2; }
+
+    # Write candidate to temp file; validate with shared validator before
+    # finalizing. This ensures snapshot.sh NEVER writes an invalid baseline.
+    snap_tmp=$(mktemp "${STATE_DIR}/snap.XXXXXX") \
+      || { echo "snapshot: could not create temp file" >&2; exit 2; }
+    # Also write context to a temp file for the validator's --context.
+    ctx_tmp=$(mktemp "${STATE_DIR}/ctx.XXXXXX") \
+      || { rm -f "$snap_tmp"; echo "snapshot: could not create context temp file" >&2; exit 2; }
+    snap_cleanup() { rm -f "$snap_tmp" "$ctx_tmp"; }
+    trap snap_cleanup EXIT
+    trap 'snap_cleanup; exit 130' INT
+    trap 'snap_cleanup; exit 143' TERM
+    trap 'snap_cleanup; exit 129' HUP
+
+    if ! jq -n --argjson ctx "$ctx" --argjson branches "$entries" \
+          --argjson publishedTips "$published_tips" \
+          --arg pushUrl "$push_url" \
+          --arg gitCommonDir "$git_common_dir" \
+      '{trunk: $ctx.trunk, baseRemote: $ctx.baseRemote, pushRemote: $ctx.pushRemote,
+        pushUrl: $pushUrl, gitCommonDir: $gitCommonDir,
+        branches: $branches, publishedTips: $publishedTips}' \
+      > "$snap_tmp"; then
+      echo "snapshot: failed to generate baseline JSON" >&2
+      exit 2
+    fi
+
+    printf '%s' "$ctx" > "$ctx_tmp" \
+      || { echo "snapshot: could not write context temp file" >&2; exit 2; }
+
+    # Validate the candidate with the SAME shared validator used by consumers.
+    if ! bash "$scripts_dir/validate-baseline.sh" "$snap_tmp" \
+         --context "$ctx_tmp" --remote "$push_remote"; then
+      echo "snapshot: generated candidate failed validation; NOT writing baseline" >&2
+      exit 2
+    fi
+
+    # Atomic finalize — mv -f replaces regular files and symlinks in one
+    # rename(2) call on the same filesystem. No pre-delete needed; removing
+    # first would lose the old baseline if interrupted before mv completes.
+    # Directory destination is already refused above (L45-48).
+    mv -f "$snap_tmp" "$SNAPSHOT" \
+      || { echo "snapshot: could not finalize baseline" >&2; exit 2; }
+    # Clear ctx_tmp from cleanup (snap_tmp already moved)
+    rm -f "$ctx_tmp"
+    trap - EXIT INT TERM HUP
+
+    printf 'snapshot: saved %s branch tip(s) to %s\n' \
+      "$(jq '.branches | length' "$SNAPSHOT")" "$SNAPSHOT"
+    ;;
+
+  verify)
+    [ -f "$SNAPSHOT" ] || { echo "snapshot: no snapshot at ${SNAPSHOT}; nothing to verify" >&2; exit 2; }
+    ctx=$(cat)
+    base_ref="$(jq -r '.baseRemote' <<<"$ctx")/$(jq -r '.trunk' <<<"$ctx")"
+    lost=0
+
+    while IFS= read -r b; do
+      [ -n "$b" ] || continue
+
+      if ! git rev-parse --verify --quiet "$b" >/dev/null; then
+        lost=1
+        printf '\nsnapshot: branch %s no longer exists.\n' "$b"
+        continue
+      fi
+
+      after_pids=$(git log --format='%H' "${base_ref}..${b}" \
+        | while IFS= read -r sha1; do
+            git show "$sha1" | git patch-id --stable | cut -d' ' -f1
+          done)
+      after_shas=$(git log --format='%H' "${base_ref}..${b}")
+
+      n=$(jq --arg b "$b" '[.branches[] | select(.name == $b) | .commits[]?] | length' "$SNAPSHOT")
+      i=0
+      while [ "$i" -lt "$n" ]; do
+        entry=$(jq -c --arg b "$b" --argjson i "$i" \
+                  '[.branches[] | select(.name == $b) | .commits[]?][$i]' "$SNAPSHOT")
+        o_sha=$(jq -r '.sha' <<<"$entry")
+        o_pid=$(jq -r '.patchId // ""' <<<"$entry")
+        o_sub=$(jq -r '.subject' <<<"$entry")
+        i=$((i + 1))
+
+        if [ -n "$o_pid" ] && printf '%s\n' "$after_pids" | grep -qxF "$o_pid"; then
+          continue
+        fi
+        if printf '%s\n' "$after_shas" | grep -qxF "$o_sha"; then
+          continue
+        fi
+        if [ -z "$o_pid" ] \
+           && git log --format=%s "${base_ref}..${b}" | grep -qxF "$o_sub"; then
+          continue
+        fi
+
+        [ "$lost" -eq 1 ] || printf '\nsnapshot: commits no longer reachable from %s:\n' "$b"
+        lost=1
+        printf '  - %s  (%s)\n' "$o_sub" "${o_sha:0:12}"
+      done
+    done < <(jq -r '.branches[].name' "$SNAPSHOT")
+
+    if [ "$lost" -eq 1 ]; then
+      printf '\nsnapshot: some commits are gone. This is EXPECTED only when those\n'
+      printf 'changes already landed in %s. Confirm each one before pushing, or run:\n' "$base_ref"
+      printf '    ./scripts/snapshot.sh restore-plan\n\n'
+      exit 1
+    fi
+
+    printf 'snapshot: verified — every pre-rebase commit is still present.\n'
+    ;;
+
+  restore-plan)
+    [ -f "$SNAPSHOT" ] || { echo "snapshot: no snapshot at ${SNAPSHOT}" >&2; exit 2; }
+    printf '# Recovery plan — restores every branch to its pre-rebase tip.\n'
+    printf '# Review before running. These are local resets; nothing is pushed.\n'
+    jq -r '.branches[] | "git branch -f \(.name) \(.sha)"' "$SNAPSHOT"
+    printf '# Then re-sync the stack metadata:\n'
+    printf '#   gh stack view --json\n'
+    ;;
+
+  *)
+    echo "usage: snapshot.sh save|verify|restore-plan" >&2
+    exit 2
+    ;;
+esac
