@@ -2500,6 +2500,109 @@ test_inner_hook_allows_matching_url() {
 }
 
 # =========================================================================
+# TEST 80: create-missing-prs.sh exits 2 on --context without value
+# =========================================================================
+test_create_prs_missing_context_arg() {
+  bash "$SCRIPTS_DIR/create-missing-prs.sh" --context 2>/dev/null
+  rc=$?
+  if [ "$rc" -eq 2 ]; then
+    pass "create-missing-prs exits 2 on --context without value"
+  else
+    fail "create-missing-prs missing arg" "exited $rc (expected 2)"
+  fi
+}
+
+# =========================================================================
+# TEST 81: inner hook URL mismatch does not leak credentialed URL
+# =========================================================================
+test_inner_hook_url_no_credential_leak() {
+  local clone
+  clone=$(setup_fixture "t81-cred")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
+    local snap
+    snap="$(pwd)/.artifacts/rebase-stack/pre-rebase-state.json"
+    local abs_ctx
+    abs_ctx="$(pwd)/.artifacts/rebase-stack/context.json"
+
+    local hooks_dir
+    hooks_dir="$(git rev-parse --git-dir)/hooks"
+    mkdir -p "$hooks_dir"
+
+    setup_hook_env "$hooks_dir" "$snap" "$abs_ctx"
+
+    local saved_tip
+    saved_tip=$(jq -r '.publishedTips["story-1"]' "$snap")
+    local local_sha
+    local_sha=$(git rev-parse story-1)
+    local stdin_line="refs/heads/story-1 ${local_sha} refs/heads/story-1 ${saved_tip}"
+
+    # Pass a credentialed URL as $2
+    local cred_url="https://secretuser:s3cretP4ss@github.com/org/repo.git"
+    local output
+    output=$(printf '%s\n' "$stdin_line" | bash "$hooks_dir/test-hook.sh" origin "$cred_url" 2>&1)
+    rc=$?
+
+    if [ "$rc" -ne 0 ] && ! printf '%s' "$output" | grep -q "s3cretP4ss"; then
+      pass "inner hook URL mismatch does not leak credentialed URL"
+    else
+      fail "inner hook credential leak" "rc=$rc leak=$(printf '%s' "$output" | grep -c 's3cretP4ss')"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 82: snapshot --force with mv failure preserves old baseline
+# Uses a stub mv that fails, proving candidate cleanup works.
+# =========================================================================
+test_snapshot_force_mv_failure_preserves() {
+  local clone
+  clone=$(setup_fixture "t82-mvfail")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    # Create valid baseline first
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    local original_bytes
+    original_bytes=$(cat .artifacts/rebase-stack/pre-rebase-state.json)
+
+    # Create a wrapper that makes mv fail for our specific target
+    local bin_dir="$TEST_DIR/t82-mvfail/bin"
+    mkdir -p "$bin_dir"
+    cat > "$bin_dir/mv" << 'MVSTUB'
+#!/usr/bin/env bash
+# Fail if the LAST argument (destination) is the snapshot path
+dest="${!#}"
+case "$dest" in
+  */pre-rebase-state.json) exit 1 ;;
+esac
+exec /usr/bin/mv "$@"
+MVSTUB
+    chmod +x "$bin_dir/mv"
+
+    export PATH="$bin_dir:$PATH"
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    rc=$?
+
+    local current_bytes
+    current_bytes=$(cat .artifacts/rebase-stack/pre-rebase-state.json 2>/dev/null || echo "")
+
+    if [ "$rc" -ne 0 ] && [ "$original_bytes" = "$current_bytes" ]; then
+      pass "snapshot --force mv failure preserves old baseline bytes"
+    else
+      fail "snapshot force mv failure" "rc=$rc bytes_match=$([ "$original_bytes" = "$current_bytes" ] && echo yes || echo no)"
+    fi
+  )
+}
+
+# =========================================================================
 # Run all tests
 # =========================================================================
 printf '\n=== rebase-stack regression tests ===\n\n'
@@ -2771,6 +2874,9 @@ test_guard_detects_parameters_override
 test_guard_allows_unrelated_parameters
 test_inner_hook_rejects_url_mismatch
 test_inner_hook_allows_matching_url
+test_create_prs_missing_context_arg
+test_inner_hook_url_no_credential_leak
+test_snapshot_force_mv_failure_preserves
 
 PASS=$(cat "$PASS_FILE")
 FAIL=$(cat "$FAIL_FILE")

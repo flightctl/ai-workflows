@@ -195,8 +195,8 @@ actual_push_url="${2:-}"
 saved_push_url=$(jq -r '.pushUrl // empty' "$baseline_file")
 if [ -n "$actual_push_url" ] && [ -n "$saved_push_url" ] \
    && [ "$actual_push_url" != "$saved_push_url" ]; then
-  printf 'rebase-stack pre-push: actual push destination does not match baseline\n' >&2
-  printf '  baseline: %s\n  actual:   %s\n' "$saved_push_url" "$actual_push_url" >&2
+  printf 'rebase-stack pre-push: actual push destination does not match baseline for remote %s; refusing\n' \
+    "${1:-unknown}" >&2
   failed=1
 fi
 while IFS=' ' read -r _local_ref _local_sha remote_ref remote_sha; do

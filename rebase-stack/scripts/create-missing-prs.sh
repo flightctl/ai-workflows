@@ -20,7 +20,9 @@ ctx_file=""
 dry_run=false
 while [ $# -gt 0 ]; do
   case "$1" in
-    --context)  ctx_file="${2:-}"; shift 2 ;;
+    --context)
+      [ $# -ge 2 ] || { echo "create-missing-prs: --context requires a value" >&2; exit 2; }
+      ctx_file="$2"; shift 2 ;;
     --dry-run)  dry_run=true; shift ;;
     *) echo "create-missing-prs: unknown arg: $1" >&2; exit 2 ;;
   esac

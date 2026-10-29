@@ -118,7 +118,10 @@ case "$cmd" in
     ctx_tmp=$(mktemp "${STATE_DIR}/ctx.XXXXXX") \
       || { rm -f "$snap_tmp"; echo "snapshot: could not create context temp file" >&2; exit 2; }
     snap_cleanup() { rm -f "$snap_tmp" "$ctx_tmp"; }
-    trap snap_cleanup EXIT INT TERM HUP
+    trap snap_cleanup EXIT
+    trap 'snap_cleanup; exit 130' INT
+    trap 'snap_cleanup; exit 143' TERM
+    trap 'snap_cleanup; exit 129' HUP
 
     if ! jq -n --argjson ctx "$ctx" --argjson branches "$entries" \
           --argjson publishedTips "$published_tips" \
@@ -142,12 +145,10 @@ case "$cmd" in
       exit 2
     fi
 
-    # Atomic finalize — on --force, remove existing (file/symlink) first.
-    if [ "$force" = true ] && { [ -e "$SNAPSHOT" ] || [ -L "$SNAPSHOT" ]; }; then
-      rm -f "$SNAPSHOT" \
-        || { echo "snapshot: could not remove existing baseline for --force" >&2; exit 2; }
-    fi
-
+    # Atomic finalize — mv -f replaces regular files and symlinks in one
+    # rename(2) call on the same filesystem. No pre-delete needed; removing
+    # first would lose the old baseline if interrupted before mv completes.
+    # Directory destination is already refused above (L45-48).
     mv -f "$snap_tmp" "$SNAPSHOT" \
       || { echo "snapshot: could not finalize baseline" >&2; exit 2; }
     # Clear ctx_tmp from cleanup (snap_tmp already moved)
