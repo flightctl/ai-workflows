@@ -23,51 +23,14 @@ explicit user approval.
 
 ## Sync Helper
 
-This skill delegates deterministic file operations to a Python helper
-script at `scripts/sync_helper.py` under the design package root. From
-the built-in phase file `skills/sync.md`, the helper is at
-`../scripts/sync_helper.py` — i.e. two directories up from this file,
-then into `scripts/`.
-
-To resolve the helper, record the absolute path of the **built-in**
-`design/skills/sync.md` that you are reading — not `design/SKILL.md`
-(which has a different directory depth) and not a project-level phase
-override — and derive the helper from it:
-
-```bash
-BUILTIN_SYNC='<absolute path of the loaded built-in design/skills/sync.md>'
-SYNC_HELPER="$(python3 -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).resolve().parents[1] / "scripts" / "sync_helper.py")' "$BUILTIN_SYNC")"
-```
-
-`Path.resolve()` follows symlinks, so this works for both the default
-`~/.ai-workflows` install and a direct symlink from
-`.claude/skills/design` to an arbitrary clone location (even without
-`~/.ai-workflows`). If a project-level phase override provides a
-replacement `skills/sync.md`, the helper still comes from the built-in
-package — always use the built-in source path, not the override path.
+**Before the first helper operation**, read the full reference at
+`../references/sync-helper-usage.md` (relative to this file).  It
+documents helper discovery, all subcommand signatures, reference
+resolution, prepare/checkpoint recipes, and close-transition selection.
 
 The helper **never contacts Jira** and **never mutates external state**.
-It reads and writes only local artifact files and the sync manifest.
 All Jira API calls, user approvals, and error-handling decisions remain
 your responsibility.
-
-Available subcommands:
-
-| Subcommand | Purpose |
-|------------|---------|
-| `detect-changes <artifacts-dir>` | Compare files against manifest; output JSON change plan |
-| `prepare <file> <manifest> --type epic\|story [options]` | Read file once; return hash + rendered description (snapshot-consistent) |
-| `resolve-refs <manifest-path> <text>` | Replace local refs (Story 1.01, Epic 1) with Jira keys |
-| `render-description <file> <manifest> --type epic\|story [options]` | Render Jira-ready description with resolved refs |
-| `update-manifest <manifest> --operation create\|update\|close --file <f> --jira-key <K> --content-hash <H> [--item-type epic\|story] [--epic-file <E>] [options]` | Record one successful Jira operation (`--epic-file` required for stories) |
-| `compute-hash <file>` | Print SHA-256 of file content |
-| `migrate-manifest <manifest>` | Upgrade v1 manifest to v2 in place |
-
-The `prepare` subcommand is preferred over separate `compute-hash` +
-`render-description` calls. It reads the file once and guarantees the
-hash corresponds to exactly the content used in the description.  Pass
-the returned `content_hash` to `update-manifest` after a successful
-Jira write.
 
 ## Critical Rules
 
@@ -84,24 +47,6 @@ Jira write.
 - **Jira-native references.** Local identifiers (`Story 1.01`, `Epic 1`) have meaning only within the `.artifacts/` directory. When constructing Jira issue descriptions, resolve all local references (in Dependencies, Documentation Inputs, Design Reference, and any other cross-references) to Jira issue keys using the sync manifest. Jira is the source of truth — readers of a Jira issue should never need to decode a local artifact numbering scheme.
 - **Checkpoint only on success.** Call `update-manifest` only after a Jira operation succeeds. Pass the `content_hash` that was computed *before* the Jira call (the hash of the content actually submitted), not a freshly recomputed hash. Never record failed or unattempted operations.
 - **Close-checkpoint recovery.** For every close path (child, epic, standalone story): retain the exact operation identity (file, Jira key, item type, parent, captured hash) until its checkpoint succeeds. If the Jira close succeeded but `update-manifest` failed, **pause in this run**, remediate the actual local error, and retry **only the exact saved checkpoint invocation** with the original hash. Never repeat a terminal Jira transition, recompute a newer hash, clear the captured state, start other Jira writes, or offer fresh-sync/defer/end while a completed close is uncheckpointed. Pre-transition failures (hash-prep error, transition unavailable, known-rejected Jira call) have no pending Jira success — normal retry/skip/defer choices remain valid. If the Jira outcome is uncertain (network timeout, server error), verify the issue's current status before retrying — do not assume the call was non-mutating. If the captured state is lost (forced abort, new run, lost context) and the manifest entry is still active but Jira is already terminal, **stop for manual reconciliation** rather than blindly repeating the terminal transition or fabricating a hash. Respect a user stop: report incomplete status and hand off rather than ignoring the stop or claiming success.
-
-## Reference Resolution
-
-The helper's `resolve-refs` subcommand replaces local identifiers with
-Jira keys from the manifest:
-
-- `Story 1.01` → look up `story-01-*.md` under `epic-1/` in the manifest → `EDM-XXXX`
-- `Epic 1` → look up `epic-1-*.md` in the manifest → `EDM-YYYY`
-- `Stories 1.01, 2.01, 3.01` → resolve each → `EDM-XXXX, EDM-AAAA, EDM-BBBB`
-
-The manifest is built incrementally: each issue's key is recorded immediately
-after creation. Since epics are created first and stories are created in epic
-order (Epic 1 stories before Epic 2 stories), dependencies — which reference
-earlier stories — are always resolvable by the time they're needed.
-
-If a reference cannot be resolved (the referenced item hasn't been created
-yet or failed to create), the helper leaves the local identifier, annotates
-it with `[unresolved]`, and you must flag it to the user.
 
 ## Process
 
@@ -335,21 +280,11 @@ Options:
 
 Wait for the user's choice before continuing.
 
-For each new epic, prepare the hash and description in one call
-**before** the Jira call (so the hash reflects exactly the submitted
-content):
-
-```bash
-PREP=$(python3 "$SYNC_HELPER" prepare \
-  .artifacts/design/{issue-key}/06-stories/{epic-file} \
-  .artifacts/design/{issue-key}/sync-manifest.json \
-  --type epic \
-  --design-doc-link "{link}" \
-  --feature-key "{feature-key}")
-```
-
-`PREP` is JSON with `content_hash`, `description`, `summary` (Jira-ready
-title without numbering), `size` (T-Shirt size), and `title` (raw).
+For each new epic, prepare the hash and description using the epic
+`prepare` recipe from the helper reference — **before** the Jira call
+(so the hash reflects exactly the submitted content).  `PREP` is JSON
+with `content_hash`, `description`, `summary` (Jira-ready title
+without numbering), `size` (T-Shirt size), and `title` (raw).
 
 Then create the Jira issue using fields from `PREP`:
 
@@ -368,21 +303,9 @@ linking to a "Next Steps" section.** The Feature→Epic hierarchy is a
 required outcome of this step, not an optional follow-up.
 
 Record the Jira key and content hash in the sync manifest immediately
-(before creating the next epic). Pass `--feature-key` on the first call
-to populate the manifest's `feature_key` field:
-
-```bash
-python3 "$SYNC_HELPER" update-manifest \
-  .artifacts/design/{issue-key}/sync-manifest.json \
-  --operation create \
-  --file "{epic-file}" \
-  --jira-key "{created-key}" \
-  --content-hash "{content_hash from PREP}" \
-  --item-type epic \
-  --title "{epic title}" \
-  --size "{size}" \
-  --feature-key "{feature-key}"
-```
+(before creating the next epic) using the `update-manifest --operation
+create` recipe from the helper reference. Pass `--feature-key` on the
+first call to populate the manifest's `feature_key` field.
 
 **If creation fails:** Stop immediately. Report which epics were created
 successfully (they are already recorded in the manifest) and which one
@@ -393,16 +316,8 @@ continue past a failure.
 #### 4b: Update Changed Epics
 
 For each epic categorized as **Changed** or **Reopened**, prepare the
-updated description and hash in one call:
-
-```bash
-PREP=$(python3 "$SYNC_HELPER" prepare \
-  .artifacts/design/{issue-key}/06-stories/{epic-file} \
-  .artifacts/design/{issue-key}/sync-manifest.json \
-  --type epic \
-  --design-doc-link "{link}" \
-  --feature-key "{feature-key}")
-```
+updated description and hash using the epic `prepare` recipe from the
+helper reference.
 
 Update the Jira issue using the Jira key from the change plan item.
 All field values come from `PREP` (the same snapshot that produced the
@@ -419,17 +334,8 @@ updating content, and transition **Removed** or user-selected
 **Orphaned** items to a closed status during the close passes (Steps 4c,
 5c). Do not change status for any other reason.
 
-After updating, record the new hash:
-
-```bash
-python3 "$SYNC_HELPER" update-manifest \
-  .artifacts/design/{issue-key}/sync-manifest.json \
-  --operation update \
-  --file "{epic-file}" \
-  --jira-key "{jira-key}" \
-  --content-hash "{content_hash from PREP}" \
-  --item-type epic
-```
+After updating, record the new hash using `update-manifest --operation
+update` from the helper reference.
 
 **If update fails:** Report the error with the Jira key and offer to
 retry or skip.
@@ -446,20 +352,12 @@ or **Orphaned** where the user chose to close it in Step 1:
       hash. Use a distinct variable per child to avoid overwriting
       sibling hashes (e.g., `CHILD_HASH_01`, `CHILD_HASH_02`).
    b. Transition the child story to Done/Closed in Jira.
-   c. On success, checkpoint the child close:
-      ```bash
-      python3 "$SYNC_HELPER" update-manifest \
-        .artifacts/design/{issue-key}/sync-manifest.json \
-        --operation close \
-        --file "{child-story-file}" \
-        --jira-key "{child-story-jira-key}" \
-        --content-hash "{child hash from step (a)}" \
-        --item-type story \
-        --epic-file "{parent-epic-file}"
-      ```
-      Retain this exact parameter bundle (file, key, hash, type,
-      parent) for checkpoint-only retry per the close-checkpoint
-      recovery rule.
+   c. On success, checkpoint the child close using the child story
+      close recipe from the helper reference (`update-manifest
+      --operation close` with `--item-type story`, `--epic-file`,
+      child file, key, and the hash from step (a)). Retain this
+      exact parameter bundle for checkpoint-only retry per the
+      close-checkpoint recovery rule.
    d. **If any child operation fails** — distinguish:
       - **Pre-transition failure** (hash-prep error, transition
         unavailable, known-rejected Jira call, user skip): no pending
@@ -495,21 +393,9 @@ or **Orphaned** where the user chose to close it in Step 1:
 4. On success, record the close with `update-manifest`, passing the
    hash from step 2:
 
-```bash
-python3 "$SYNC_HELPER" update-manifest \
-  .artifacts/design/{issue-key}/sync-manifest.json \
-  --operation close \
-  --file "{epic-file}" \
-  --jira-key "{jira-key}" \
-  --content-hash "{hash from step 2, or empty for orphans}" \
-  --item-type epic
-```
-
-**Selecting the close transition:** Use the Jira API to query available
-transitions for the issue and select the terminal/done-category
-transition. If multiple terminal transitions are available, prefer
-"Done" over "Closed." If no terminal transition is available from the
-current status, report the error and let the user handle it in Jira.
+   Use the epic close recipe from the helper reference
+   (`update-manifest --operation close` with `--item-type epic`).
+   Select the close transition per the helper reference.
 
 **If epic close fails:** For pre-transition failures, offer retry or
 defer. For post-success checkpoint failure, follow the close-checkpoint
@@ -579,21 +465,10 @@ story.** Instead, stop and present the match to the user with the same
 options as in Step 4a (skip and record, create anyway, or stop entirely).
 Wait for the user's choice before continuing.
 
-For each new story, prepare the hash and description in one call:
-
-```bash
-PREP=$(python3 "$SYNC_HELPER" prepare \
-  .artifacts/design/{issue-key}/06-stories/{epic-dir}/{story-file} \
-  .artifacts/design/{issue-key}/sync-manifest.json \
-  --type story \
-  --design-doc-link "{link}" \
-  --epic-jira-key "{epic-jira-key}" \
-  --story-type "{prefix}")
-```
-
-`PREP` is JSON with `content_hash`, `description`, `summary` (Jira-ready
-`[PREFIX] title` without numbering), `story_type`, `dependencies`
-(resolved text), and `title` (raw).
+For each new story, prepare the hash and description using the story
+`prepare` recipe from the helper reference. `PREP` is JSON with
+`content_hash`, `description`, `summary` (`[PREFIX] title` without
+numbering), `story_type`, `dependencies` (resolved text), and `title`.
 
 Create the Jira issue using fields from `PREP`:
 
@@ -608,20 +483,9 @@ equal to the epic's Jira key by reading the issue back. If the parent
 is missing, stop and report the error — **do not silently defer parent
 linking.** The Epic→Story hierarchy is a required outcome of this step.
 
-Record the Jira key and content hash immediately. The `--epic-file`
-flag is required to ensure the story is placed under the correct epic:
-
-```bash
-python3 "$SYNC_HELPER" update-manifest \
-  .artifacts/design/{issue-key}/sync-manifest.json \
-  --operation create \
-  --file "{story-file}" \
-  --jira-key "{created-key}" \
-  --content-hash "{content_hash from PREP}" \
-  --item-type story \
-  --title "{summary from PREP}" \
-  --epic-file "{epic-file}"
-```
+Record the Jira key and content hash immediately using the story
+create recipe from the helper reference (`update-manifest --operation
+create` with `--item-type story` and `--epic-file`).
 
 **Issue links:** After creating the story, create Jira issue links for
 each dependency. The `dependencies` field in `PREP` contains the
@@ -683,17 +547,8 @@ so re-running `/sync` later will only attempt uncreated items.
 #### 5b: Update Changed Stories
 
 For each story categorized as **Changed** or **Reopened**, prepare the
-updated description and hash in one call:
-
-```bash
-PREP=$(python3 "$SYNC_HELPER" prepare \
-  .artifacts/design/{issue-key}/06-stories/{epic-dir}/{story-file} \
-  .artifacts/design/{issue-key}/sync-manifest.json \
-  --type story \
-  --design-doc-link "{link}" \
-  --epic-jira-key "{epic-jira-key}" \
-  --story-type "{prefix}")
-```
+updated description and hash using the story `prepare` recipe from the
+helper reference.
 
 Update the Jira issue using fields from `PREP`:
 
@@ -713,18 +568,9 @@ Jira-managed fields. For **Reopened** items, transition the Jira issue
 back to an open status before updating content (see the status rule in
 Step 4b). Do not change status for any other reason.
 
-After updating, record the new hash:
-
-```bash
-python3 "$SYNC_HELPER" update-manifest \
-  .artifacts/design/{issue-key}/sync-manifest.json \
-  --operation update \
-  --file "{story-file}" \
-  --jira-key "{jira-key}" \
-  --content-hash "{content_hash from PREP}" \
-  --item-type story \
-  --epic-file "{epic-file}"
-```
+After updating, record the new hash using `update-manifest --operation
+update` with `--item-type story` and `--epic-file` from the helper
+reference.
 
 **If update fails:** Report the error with the Jira key and offer to
 retry or skip.
@@ -737,19 +583,9 @@ or **Orphaned** where the user chose to close it in Step 1:
 1. Compute the hash before the transition: use `compute-hash` if the
    file exists on disk; for orphaned entries, use an empty hash.
 2. Transition the story to Done/Closed in Jira.
-3. On success, record the close with `update-manifest`, passing the
-   hash from step 1:
-
-```bash
-python3 "$SYNC_HELPER" update-manifest \
-  .artifacts/design/{issue-key}/sync-manifest.json \
-  --operation close \
-  --file "{story-file}" \
-  --jira-key "{jira-key}" \
-  --content-hash "{hash from step 1, or empty for orphans}" \
-  --item-type story \
-  --epic-file "{epic-file}"
-```
+3. On success, record the close using the standalone story close recipe
+   from the helper reference (`update-manifest --operation close` with
+   `--item-type story`, `--epic-file`, and the hash from step 1).
 
 **If close fails:** For pre-transition failures, offer retry or skip.
 For post-success checkpoint failure, follow the close-checkpoint

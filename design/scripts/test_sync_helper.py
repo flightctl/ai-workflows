@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import re as _re
 import importlib.util
 import json
 import shutil
@@ -2757,6 +2758,40 @@ class TestHelperDiscovery(unittest.TestCase):
                 str(Path(__file__).resolve().parent / "sync_helper.py"))
             self.assertFalse(Path(override_resolved).exists())
 
+    def test_reference_readable_in_installed_layout(self) -> None:
+        """The helper reference is readable via the same installed
+        package path used by sync.md (global install layout)."""
+        repo_root = Path(__file__).resolve().parent.parent.parent
+        with tempfile.TemporaryDirectory() as td:
+            fake_home = Path(td) / "home"
+            fake_home.mkdir()
+            aiw = fake_home / ".ai-workflows"
+            aiw.symlink_to(repo_root)
+            # Resolve reference from installed sync.md
+            builtin = aiw / "design" / "skills" / "sync.md"
+            ref = (builtin.parent / ".." / "references"
+                   / "sync-helper-usage.md").resolve()
+            self.assertTrue(ref.exists(),
+                            f"Reference not found in installed layout: {ref}")
+            content = ref.read_text(encoding="utf-8")
+            self.assertIn("SYNC_HELPER", content)
+
+    def test_reference_readable_in_direct_symlink_layout(self) -> None:
+        """Reference readable via direct .claude/skills/design symlink
+        (no ~/.ai-workflows)."""
+        repo_root = Path(__file__).resolve().parent.parent.parent
+        with tempfile.TemporaryDirectory() as td:
+            project = Path(td) / "project"
+            claude_skills = project / ".claude" / "skills"
+            claude_skills.mkdir(parents=True)
+            (claude_skills / "design").symlink_to(
+                repo_root / "design")
+            builtin = claude_skills / "design" / "skills" / "sync.md"
+            ref = (builtin.parent / ".." / "references"
+                   / "sync-helper-usage.md").resolve()
+            self.assertTrue(ref.exists(),
+                            f"Reference not found in symlink layout: {ref}")
+
     def test_metacharacter_paths_no_execution(self) -> None:
         """Paths containing shell metacharacters are passed safely as
         data, not executed by bash.  _verify_helper compares the resolved
@@ -2928,20 +2963,110 @@ class TestCascadeGateContract(unittest.TestCase):
                       self._step4c),
             "must not imply rollback of closed children")
 
-    # -- Step 4c: child checkpoint has complete CLI args ---
+    # -- Step 4c: child checkpoint references helper reference ---
 
-    def test_step4c_child_checkpoint_has_item_type_story(self) -> None:
-        """4c child checkpoint command specifies --item-type story."""
+    def test_step4c_child_checkpoint_references_helper(self) -> None:
+        """4c child checkpoint step references the helper reference."""
+        self.assertIn("helper reference", self._step4c)
+        # The step must mention the required story-specific args
         self.assertIn("--item-type story", self._step4c)
-
-    def test_step4c_child_checkpoint_has_epic_file(self) -> None:
-        """4c child checkpoint command specifies --epic-file."""
         self.assertIn("--epic-file", self._step4c)
 
-    def test_step4c_child_checkpoint_has_file_and_key(self) -> None:
-        """4c child checkpoint command specifies --file and --jira-key."""
-        self.assertIn("--file", self._step4c)
-        self.assertIn("--jira-key", self._step4c)
+    def test_helper_reference_child_close_has_all_args(self) -> None:
+        """Helper reference child-close recipe has all required args."""
+        ref_path = _resolve_ref_from_directive()
+        ref = ref_path.read_text(encoding="utf-8")
+        import re
+        m = re.search(
+            r"Child story close.*?```bash\n(.*?)```", ref, re.DOTALL)
+        self.assertIsNotNone(m, "Child close recipe not found in ref")
+        block = m.group(1)
+        for flag in ["--file", "--jira-key", "--content-hash",
+                      "--item-type story", "--epic-file"]:
+            self.assertIn(flag, block)
+
+    # -- Reference loading instruction ---
+
+    # The specific directive pattern: backtick-delimited relative path
+    # in a "Before the first helper operation" sentence.
+    _DIRECTIVE_RE = _re.compile(
+        r"\*\*Before the first helper operation\*\*.*?`([^`]+\.md)`",
+        _re.DOTALL)
+
+    @classmethod
+    def _extract_ref_path(cls, phase_text: str) -> str | None:
+        """Extract the relative reference path from the loading
+        directive in the given phase text.  Returns None if missing."""
+        m = cls._DIRECTIVE_RE.search(phase_text)
+        return m.group(1) if m else None
+
+    def test_directive_extracts_correct_path(self) -> None:
+        """Loading directive yields the documented relative path."""
+        path = self._extract_ref_path(self._sync_md)
+        self.assertEqual(path, "../references/sync-helper-usage.md")
+
+    def test_directive_before_first_helper_use(self) -> None:
+        """Loading directive appears BEFORE the first helper operation
+        (detect-changes)."""
+        m = self._DIRECTIVE_RE.search(self._sync_md)
+        self.assertIsNotNone(m, "directive not found")
+        first_helper = self._sync_md.find("detect-changes")
+        self.assertGreater(first_helper, -1)
+        self.assertLess(m.start(), first_helper,
+                        "Directive must appear before detect-changes")
+
+    def test_bad_path_does_not_resolve(self) -> None:
+        """Mutated phase text with wrong filename → extracted path does
+        not resolve to a real file from the built-in sync.md location."""
+        bad = self._sync_md.replace(
+            "sync-helper-usage.md", "wrong-file.md")
+        bad_path = self._extract_ref_path(bad)
+        self.assertIsNotNone(bad_path, "directive still matches structure")
+        sync_md_dir = (Path(__file__).resolve().parent.parent
+                       / "skills")
+        resolved = (sync_md_dir / bad_path).resolve()
+        self.assertFalse(resolved.exists(),
+                         "Wrong filename must not resolve to a real file")
+
+    def test_late_directive_detected(self) -> None:
+        """Mutated phase text with directive after detect-changes →
+        ordering check would fail."""
+        # Move the Sync Helper block after first detect-changes
+        idx = self._sync_md.find("## Sync Helper")
+        end = self._sync_md.find("## Critical Rules")
+        block = self._sync_md[idx:end]
+        without = self._sync_md[:idx] + self._sync_md[end:]
+        dc = without.find("detect-changes")
+        late = without[:dc + 20] + "\n" + block + without[dc + 20:]
+        m = self._DIRECTIVE_RE.search(late)
+        self.assertIsNotNone(m)
+        self.assertGreater(m.start(), late.find("detect-changes"),
+                           "Late directive must be after detect-changes")
+
+    def test_unrelated_early_read_not_matched(self) -> None:
+        """An unrelated 'Read' before the directive must not produce a
+        false early match."""
+        prefixed = "Read the AGENTS.md file.\n\n" + self._sync_md
+        m = self._DIRECTIVE_RE.search(prefixed)
+        self.assertIsNotNone(m)
+        # Must match the actual directive, not the unrelated 'Read'
+        self.assertIn("Before the first helper operation",
+                      prefixed[m.start():m.end()])
+
+    def test_reference_resolved_from_builtin_sync_md(self) -> None:
+        """The path extracted from the loading directive resolves to a
+        real file from the built-in sync.md location, and that file
+        contains the helper discovery snippet."""
+        sync_md_path = (Path(__file__).resolve().parent.parent
+                        / "skills" / "sync.md")
+        rel_path = self._extract_ref_path(
+            sync_md_path.read_text(encoding="utf-8"))
+        self.assertIsNotNone(rel_path)
+        ref = (sync_md_path.parent / rel_path).resolve()
+        self.assertTrue(ref.exists(), f"Reference not found at {ref}")
+        content = ref.read_text(encoding="utf-8")
+        self.assertIn("SYNC_HELPER", content)
+        self.assertIn("BUILTIN_SYNC", content)
 
     # -- Shared close-checkpoint recovery rule ---
 
@@ -3222,20 +3347,30 @@ class TestCascadeCheckpointBehavior(_TmpDirMixin, unittest.TestCase):
 # (finding 4383291745)
 # ---------------------------------------------------------------------------
 
-def _extract_step4c_child_bash(sync_md_text: str) -> str:
-    """Extract the child-close bash block from sync.md Step 4c (c).
+def _resolve_ref_from_directive() -> Path:
+    """Resolve the helper reference path from the actual loading
+    directive in the built-in sync.md.  Returns the resolved Path."""
+    import re
+    sync_md_path = Path(__file__).resolve().parent.parent / "skills" / "sync.md"
+    text = sync_md_path.read_text(encoding="utf-8")
+    m = re.search(
+        r"\*\*Before the first helper operation\*\*.*?`([^`]+\.md)`",
+        text, re.DOTALL)
+    assert m, "Loading directive not found in sync.md"
+    return (sync_md_path.parent / m.group(1)).resolve()
 
-    Returns the raw bash text between the first ````` ```bash ````` and
-    ````` ``` ````` inside the #### 4c section, which is the child-close
-    checkpoint command.  Raises if not found.
+
+def _extract_child_close_bash(ref_text: str) -> str:
+    """Extract the child story close bash block from the helper reference.
+
+    Returns the raw bash text from the "Child story close" recipe in
+    ``references/sync-helper-usage.md``.  Raises if not found.
     """
     import re
-    m4c = re.search(r"#### 4c:.*?(?=####|### )", sync_md_text, re.DOTALL)
-    assert m4c, "Step 4c not found in sync.md"
-    # First fenced bash block inside 4c is the child checkpoint
-    m_bash = re.search(r"```bash\n(.*?)```", m4c.group(), re.DOTALL)
-    assert m_bash, "No bash block found in Step 4c"
-    return m_bash.group(1)
+    m = re.search(
+        r"Child story close.*?```bash\n(.*?)```", ref_text, re.DOTALL)
+    assert m, "Child story close bash block not found in helper reference"
+    return m.group(1)
 
 
 def _substitute_child_bash(
@@ -3276,23 +3411,26 @@ def _substitute_child_bash(
 
 
 class TestChildCheckpointCLI(_TmpDirMixin, unittest.TestCase):
-    """Exercise the ACTUAL child-close bash block extracted from sync.md
-    Step 4c through the real CLI parser and checkpoint path.
+    """Exercise the ACTUAL child-close bash block extracted from the
+    helper reference (``references/sync-helper-usage.md``) through the
+    real CLI parser and checkpoint path.
 
-    The tests extract the documented command from the live Markdown,
+    The tests extract the documented command from the live reference,
     substitute fixture values, and parse the resulting flags through
     ``build_parser()`` — so they fail if the documented command drifts
     from the parser contract.
     """
 
     _child_bash: str
+    _ref_path: Path
 
     @classmethod
     def setUpClass(cls) -> None:
-        sync_md_path = Path(__file__).resolve().parent.parent / "skills" / "sync.md"
-        cls._child_bash = _extract_step4c_child_bash(
-            sync_md_path.read_text(encoding="utf-8"))
-        # Sanity: the extracted block must contain story-specific flags
+        cls._ref_path = _resolve_ref_from_directive()
+        assert cls._ref_path.exists(), (
+            f"Helper reference not found: {cls._ref_path}")
+        cls._child_bash = _extract_child_close_bash(
+            cls._ref_path.read_text(encoding="utf-8"))
         assert "--item-type story" in cls._child_bash, (
             "Extracted bash block missing --item-type story")
         assert "--epic-file" in cls._child_bash, (
@@ -3397,6 +3535,103 @@ class TestChildCheckpointCLI(_TmpDirMixin, unittest.TestCase):
             sync_helper.update_manifest(
                 self.mf, "close", "story-01-scaffold.md", "EDM-201",
                 "somehash", item_type="story", epic_file="")
+
+
+# ---------------------------------------------------------------------------
+# Test: create/update checkpoint recipes from helper reference
+# (Gap A — verify documented command produces correct manifest entries)
+# ---------------------------------------------------------------------------
+
+def _extract_ref_recipe(ref_text: str, heading: str) -> str:
+    """Extract a bash block following a heading in the helper reference."""
+    import re
+    m = re.search(
+        re.escape(heading) + r".*?```bash\n(.*?)```",
+        ref_text, re.DOTALL)
+    assert m, f"Recipe '{heading}' not found in helper reference"
+    return m.group(1)
+
+
+class TestCreateUpdateRecipes(_TmpDirMixin, unittest.TestCase):
+    """Verify documented create and update checkpoint recipes through
+    the real CLI parser, checking operation, parent placement, stored
+    title/hash, and that create vs update are unambiguous.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        ref_path = _resolve_ref_from_directive()
+        cls._ref = ref_path.read_text(encoding="utf-8")
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.artifacts = Path(self.tmpdir) / "art"
+        sd = self.artifacts / "06-stories"
+        sd.mkdir(parents=True)
+        self.ef = _make_epic(sd, 1, "building")
+        self.sf = _make_dev_story(sd, 1, 1, "scaffold")
+        self.mf = _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "old_epic", "synced_status": "active",
+            "stories": [{
+                "file": "story-01-scaffold.md", "jira_key": "EDM-201",
+                "content_hash": "old_s1", "synced_status": "active",
+            }],
+        }])
+
+    def test_story_create_recipe_stores_title(self) -> None:
+        """Documented story create recipe includes --title and stores it."""
+        block = _extract_ref_recipe(self._ref, "Story create:")
+        self.assertIn("--title", block)
+        self.assertIn("--operation create", block)
+        # Parse through real CLI
+        import shlex
+        text = block.replace('python3 "$SYNC_HELPER" ', "")
+        text = text.replace(
+            ".artifacts/design/{issue-key}/sync-manifest.json",
+            shlex.quote(str(self.mf)))
+        text = text.replace('"{story-file}"', "story-01-scaffold.md")
+        text = text.replace('"{jira-key}"', "EDM-301")
+        text = text.replace('"{content_hash from PREP}"', "abc123")
+        text = text.replace('"{summary from PREP}"',
+                            shlex.quote("Test Title"))
+        text = text.replace('"{epic-file}"', "epic-1-building.md")
+        text = text.replace("\\\n", " ")
+        args = sync_helper.build_parser().parse_args(shlex.split(text))
+        self.assertEqual(args.operation, "create")
+        self.assertEqual(args.item_type, "story")
+        self.assertEqual(args.title, "Test Title")
+        sync_helper.update_manifest(
+            args.manifest_path, args.operation, args.artifact_file,
+            args.jira_key, args.content_hash,
+            item_type=args.item_type, title=args.title,
+            epic_file=args.epic_file)
+        manifest = sync_helper.load_manifest(self.mf)
+        s = next(s for e in manifest["epics"]
+                 for s in e.get("stories", [])
+                 if s["jira_key"] == "EDM-301")
+        self.assertEqual(s["title"], "Test Title")
+        self.assertEqual(s["content_hash"], "abc123")
+
+    def test_story_update_recipe_has_operation_update(self) -> None:
+        """Documented story update recipe uses --operation update."""
+        block = _extract_ref_recipe(self._ref, "Story update")
+        self.assertIn("--operation update", block)
+        self.assertNotIn("--operation create", block)
+
+    def test_epic_create_recipe_has_title_size_feature(self) -> None:
+        """Documented epic create recipe includes --title --size --feature-key."""
+        block = _extract_ref_recipe(self._ref, "Epic create:")
+        self.assertIn("--operation create", block)
+        self.assertIn("--title", block)
+        self.assertIn("--size", block)
+        self.assertIn("--feature-key", block)
+
+    def test_epic_update_recipe_has_operation_update(self) -> None:
+        """Documented epic update recipe uses --operation update."""
+        block = _extract_ref_recipe(self._ref, "Epic update")
+        self.assertIn("--operation update", block)
+        self.assertNotIn("--operation create", block)
 
 
 # ---------------------------------------------------------------------------
