@@ -30,18 +30,26 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+scripts_dir="$(cd "$(dirname "$0")" && pwd)"
+
 case "$cmd" in
   save)
-    # Refuse to overwrite ANY existing baseline file unless --force is passed.
-    # This prevents a rerun of /start after a completed rebase from silently
-    # recapturing authority. Malformed/legacy files are ALSO preserved —
-    # overwriting them would silently replace unknown state with new authority.
+    # Refuse to overwrite ANY existing baseline (file, symlink — even dangling).
+    # -e misses dangling symlinks; -L catches them. Malformed/legacy files are
+    # ALSO preserved — overwriting them would silently replace unknown state.
     # --force is the explicit new-operation command.
-    if [ "$force" != true ] && [ -e "$SNAPSHOT" ]; then
+    if [ "$force" != true ] && { [ -e "$SNAPSHOT" ] || [ -L "$SNAPSHOT" ]; }; then
       echo "snapshot: refusing to overwrite existing baseline at $SNAPSHOT" >&2
       echo "  Use 'snapshot.sh save --force' to discard it and start a new operation" >&2
       exit 2
     fi
+
+    # Refuse to write into a directory destination — even with --force.
+    if [ -d "$SNAPSHOT" ]; then
+      echo "snapshot: $SNAPSHOT is a directory; cannot write baseline" >&2
+      exit 2
+    fi
+
     ctx=$(cat)
     jq -e . >/dev/null 2>&1 <<<"$ctx" || { echo "snapshot: stdin is not valid JSON" >&2; exit 2; }
     mkdir -p "$STATE_DIR"
@@ -52,18 +60,21 @@ case "$cmd" in
 
     push_remote=$(jq -r '.pushRemote' <<<"$ctx")
 
+    # Early sanity: context must have at least one branch.
+    branch_count=$(jq '[.branches[]?.name // empty] | length' <<<"$ctx")
+    if [ "${branch_count:-0}" -eq 0 ]; then
+      echo "snapshot: context contains no branches; nothing to snapshot" >&2
+      exit 2
+    fi
+
     entries="[]"
     published_tips="{}"
     while IFS= read -r b; do
       [ -n "$b" ] || continue
-      # An unresolvable branch means the snapshot would be incomplete, and an
-      # incomplete snapshot is worse than none: verify would report no loss.
       if ! sha=$(git rev-parse --verify --quiet "$b"); then
         echo "snapshot: branch '${b}' does not resolve; refusing to write a partial snapshot" >&2
         exit 2
       fi
-      # Identify commits by patch-id so a rebase that rewrites SHAs still
-      # matches, and two commits sharing a subject stay distinguishable.
       commits=$(git log --reverse --format='%H' "${base_ref}..${b}" \
         | while IFS= read -r sha1; do
             pid=$(git show "$sha1" | git patch-id --stable | cut -d' ' -f1)
@@ -74,15 +85,6 @@ case "$cmd" in
       entries=$(jq --arg name "$b" --arg sha "$sha" --argjson commits "${commits:-[]}" \
                    '. + [{name: $name, sha: $sha, commits: $commits}]' <<<"$entries")
 
-      # Record the remote tracking-ref OID as the pre-rebase published
-      # baseline. /validate and /push compare this against the post-fetch
-      # remote tip to distinguish expected rebase divergence from genuine
-      # collaborator updates.
-      #
-      # Every intended branch gets an entry: the 40-hex OID if published,
-      # or JSON null if not yet pushed. An explicit null lets the guard
-      # distinguish "unpublished at snapshot time" from "not in the stack
-      # at all" — the former is guarded, the latter is rejected.
       pub_ref="refs/remotes/${push_remote}/${b}"
       if pub_sha=$(git rev-parse --verify --quiet "$pub_ref"); then
         published_tips=$(jq --arg b "$b" --arg sha "$pub_sha" \
@@ -93,12 +95,7 @@ case "$cmd" in
       fi
     done < <(jq -r '.branches[].name' <<<"$ctx")
 
-    # Record the push remote's EFFECTIVE push URL for identity validation: a
-    # baseline taken against one repository must not be accepted for a different
-    # one. Use --push to get the push URL specifically, which may differ from
-    # the fetch URL. If the remote has multiple push URLs, reject: we cannot
-    # reliably identify which URL was used, and silently choosing one could
-    # allow a baseline taken against a different target to pass validation.
+    # Effective push URL — must resolve to exactly one.
     push_url_count=$(git remote get-url --push --all "$push_remote" 2>/dev/null | wc -l)
     if [ "$push_url_count" -gt 1 ]; then
       echo "snapshot: push remote '${push_remote}' has multiple push URLs; cannot safely identify target" >&2
@@ -109,13 +106,19 @@ case "$cmd" in
     [ -n "$push_url" ] \
       || { echo "snapshot: push URL resolved to empty for remote '${push_remote}'" >&2; exit 2; }
 
-    # Record the canonical git common directory for repository identity.
+    # Canonical git common directory for repository identity.
     git_common_dir=$(cd "$(git rev-parse --git-common-dir)" && pwd) \
       || { echo "snapshot: could not resolve git common dir" >&2; exit 2; }
 
-    # Write via temp file and atomic mv — no partial baseline on error.
+    # Write candidate to temp file; validate with shared validator before
+    # finalizing. This ensures snapshot.sh NEVER writes an invalid baseline.
     snap_tmp=$(mktemp "${STATE_DIR}/snap.XXXXXX") \
       || { echo "snapshot: could not create temp file" >&2; exit 2; }
+    # Also write context to a temp file for the validator's --context.
+    ctx_tmp=$(mktemp "${STATE_DIR}/ctx.XXXXXX") \
+      || { rm -f "$snap_tmp"; echo "snapshot: could not create context temp file" >&2; exit 2; }
+    snap_cleanup() { rm -f "$snap_tmp" "$ctx_tmp"; }
+    trap snap_cleanup EXIT INT TERM HUP
 
     if ! jq -n --argjson ctx "$ctx" --argjson branches "$entries" \
           --argjson publishedTips "$published_tips" \
@@ -125,13 +128,31 @@ case "$cmd" in
         pushUrl: $pushUrl, gitCommonDir: $gitCommonDir,
         branches: $branches, publishedTips: $publishedTips}' \
       > "$snap_tmp"; then
-      rm -f "$snap_tmp"
       echo "snapshot: failed to generate baseline JSON" >&2
       exit 2
     fi
 
+    printf '%s' "$ctx" > "$ctx_tmp" \
+      || { echo "snapshot: could not write context temp file" >&2; exit 2; }
+
+    # Validate the candidate with the SAME shared validator used by consumers.
+    if ! bash "$scripts_dir/validate-baseline.sh" "$snap_tmp" \
+         --context "$ctx_tmp" --remote "$push_remote"; then
+      echo "snapshot: generated candidate failed validation; NOT writing baseline" >&2
+      exit 2
+    fi
+
+    # Atomic finalize — on --force, remove existing (file/symlink) first.
+    if [ "$force" = true ] && { [ -e "$SNAPSHOT" ] || [ -L "$SNAPSHOT" ]; }; then
+      rm -f "$SNAPSHOT" \
+        || { echo "snapshot: could not remove existing baseline for --force" >&2; exit 2; }
+    fi
+
     mv -f "$snap_tmp" "$SNAPSHOT" \
-      || { rm -f "$snap_tmp"; echo "snapshot: could not finalize baseline" >&2; exit 2; }
+      || { echo "snapshot: could not finalize baseline" >&2; exit 2; }
+    # Clear ctx_tmp from cleanup (snap_tmp already moved)
+    rm -f "$ctx_tmp"
+    trap - EXIT INT TERM HUP
 
     printf 'snapshot: saved %s branch tip(s) to %s\n' \
       "$(jq '.branches | length' "$SNAPSHOT")" "$SNAPSHOT"
@@ -152,7 +173,6 @@ case "$cmd" in
         continue
       fi
 
-      # Current identities of this branch, by patch-id and by SHA.
       after_pids=$(git log --format='%H' "${base_ref}..${b}" \
         | while IFS= read -r sha1; do
             git show "$sha1" | git patch-id --stable | cut -d' ' -f1
@@ -169,9 +189,6 @@ case "$cmd" in
         o_sub=$(jq -r '.subject' <<<"$entry")
         i=$((i + 1))
 
-        # Matched if the rewritten commit carries the same patch, or the very
-        # same SHA survived. An empty patch-id means an empty commit: fall back
-        # to the subject rather than reporting a false loss.
         if [ -n "$o_pid" ] && printf '%s\n' "$after_pids" | grep -qxF "$o_pid"; then
           continue
         fi

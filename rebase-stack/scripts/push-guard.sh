@@ -186,6 +186,19 @@ fi
 # every intended branch (published OID or null for unpublished), so absence
 # from publishedTips means the branch was not part of the validated stack.
 failed=0
+
+# Compare the actual push destination URL ($2, from Git's wire protocol)
+# against the baseline's saved pushUrl. This closes the window where the
+# push URL config could change between the outer/inner validator checks
+# (which read from config) and the actual push destination.
+actual_push_url="${2:-}"
+saved_push_url=$(jq -r '.pushUrl // empty' "$baseline_file")
+if [ -n "$actual_push_url" ] && [ -n "$saved_push_url" ] \
+   && [ "$actual_push_url" != "$saved_push_url" ]; then
+  printf 'rebase-stack pre-push: actual push destination does not match baseline\n' >&2
+  printf '  baseline: %s\n  actual:   %s\n' "$saved_push_url" "$actual_push_url" >&2
+  failed=1
+fi
 while IFS=' ' read -r _local_ref _local_sha remote_ref remote_sha; do
   [ -n "$remote_ref" ] || continue
   branch="${remote_ref#refs/heads/}"
@@ -242,6 +255,19 @@ new_index="$existing_count"
 export GIT_CONFIG_COUNT=$((existing_count + 1))
 export "GIT_CONFIG_KEY_${new_index}=core.hooksPath"
 export "GIT_CONFIG_VALUE_${new_index}=${guard_dir}"
+
+# --- Verify effective hooksPath actually points to the guard dir ----------
+# GIT_CONFIG_PARAMETERS takes precedence over GIT_CONFIG_COUNT for the same
+# key. If a parent process already set core.hooksPath via PARAMETERS, our
+# COUNT-based override is silently ignored and the guard hook never runs.
+# Fail closed rather than delegating unguarded.
+effective_hooks=$(git config core.hooksPath 2>/dev/null || echo "")
+if [ "$effective_hooks" != "$guard_dir" ]; then
+  echo "push-guard: effective core.hooksPath is '${effective_hooks}', not the guard dir" >&2
+  echo "  A parent process may have set core.hooksPath via GIT_CONFIG_PARAMETERS." >&2
+  echo "  The guard hook would be bypassed. Refusing to push." >&2
+  exit 2
+fi
 
 # --- Delegate to gh stack push --------------------------------------------
 gh stack push --remote "$remote"

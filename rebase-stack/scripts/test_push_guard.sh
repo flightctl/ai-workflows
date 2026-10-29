@@ -2247,6 +2247,259 @@ test_guard_missing_arg() {
 }
 
 # =========================================================================
+# TEST 70: snapshot rejects empty-branches context (creates NO baseline)
+# =========================================================================
+test_snapshot_rejects_empty_branches() {
+  local clone
+  clone=$(setup_fixture "t70-emptybr")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx='{"trunk":"main","currentBranch":"main","baseRemote":"origin","pushRemote":"origin","baseRemoteSource":"config","pushRemoteSource":"config","validationBranch":"","branches":[]}'
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    rc=$?
+    if [ "$rc" -ne 0 ] && [ ! -f .artifacts/rebase-stack/pre-rebase-state.json ]; then
+      pass "snapshot rejects empty-branches context (no baseline written)"
+    else
+      fail "snapshot empty branches" "rc=$rc file=$([ -f .artifacts/rebase-stack/pre-rebase-state.json ] && echo exists || echo absent)"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 71: snapshot preserves dangling symlink without --force
+# =========================================================================
+test_snapshot_preserves_dangling_link() {
+  local clone
+  clone=$(setup_fixture "t71-dangling")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    ln -s /nonexistent/target .artifacts/rebase-stack/pre-rebase-state.json
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save >/dev/null 2>&1
+    rc=$?
+    if [ "$rc" -ne 0 ] && [ -L .artifacts/rebase-stack/pre-rebase-state.json ]; then
+      pass "snapshot preserves dangling symlink without --force"
+    else
+      fail "snapshot dangling symlink" "rc=$rc islink=$([ -L .artifacts/rebase-stack/pre-rebase-state.json ] && echo yes || echo no)"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 72: snapshot --force with failed candidate preserves old baseline bytes
+# =========================================================================
+test_snapshot_force_failed_candidate_preserves() {
+  local clone
+  clone=$(setup_fixture "t72-failforce")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    # Create a valid baseline first
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    local original_bytes
+    original_bytes=$(cat .artifacts/rebase-stack/pre-rebase-state.json)
+
+    # Now try --force with a malformed context (null branches)
+    local bad_ctx='{"trunk":"main","currentBranch":"main","baseRemote":"origin","pushRemote":"origin","branches":null}'
+    printf '%s' "$bad_ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    rc=$?
+
+    local current_bytes
+    current_bytes=$(cat .artifacts/rebase-stack/pre-rebase-state.json 2>/dev/null || echo "")
+
+    # The old baseline must survive because the new candidate fails validation
+    if [ "$rc" -ne 0 ] && [ "$original_bytes" = "$current_bytes" ]; then
+      pass "snapshot --force with failed candidate preserves old baseline bytes"
+    else
+      fail "snapshot force failed candidate" "rc=$rc bytes_match=$([ "$original_bytes" = "$current_bytes" ] && echo yes || echo no)"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 73: push-guard detects GIT_CONFIG_PARAMETERS hooksPath override
+# =========================================================================
+test_guard_detects_parameters_override() {
+  local clone
+  clone=$(setup_fixture "t73-params")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
+
+    # Create a decoy hooks dir via GIT_CONFIG_PARAMETERS
+    local decoy="$TEST_DIR/t73-params/decoy-hooks"
+    mkdir -p "$decoy"
+    cat > "$decoy/pre-push" << 'H'
+#!/usr/bin/env bash
+cat > /dev/null; exit 0
+H
+    chmod +x "$decoy/pre-push"
+
+    # Create a gh stub that records whether it was called
+    local gh_marker="$TEST_DIR/t73-params/gh-called"
+    mkdir -p "$TEST_DIR/t73-params/bin"
+    cat > "$TEST_DIR/t73-params/bin/gh" << GHSTUB
+#!/usr/bin/env bash
+touch "$gh_marker"
+exit 0
+GHSTUB
+    chmod +x "$TEST_DIR/t73-params/bin/gh"
+
+    # Run push-guard with GIT_CONFIG_PARAMETERS overriding core.hooksPath
+    GIT_CONFIG_PARAMETERS="'core.hooksPath=$decoy'" \
+    PATH="$TEST_DIR/t73-params/bin:$PATH" \
+    bash "$SCRIPTS_DIR/push-guard.sh" \
+      --baseline .artifacts/rebase-stack/pre-rebase-state.json \
+      --remote origin \
+      --context .artifacts/rebase-stack/context.json >/dev/null 2>&1
+    rc=$?
+
+    if [ "$rc" -eq 2 ] && [ ! -f "$gh_marker" ]; then
+      pass "push-guard detects GIT_CONFIG_PARAMETERS override (gh NOT called)"
+    else
+      fail "push-guard PARAMETERS override" "rc=$rc gh_called=$([ -f "$gh_marker" ] && echo YES || echo no)"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 74: push-guard allows unrelated GIT_CONFIG_PARAMETERS (guard effective)
+# =========================================================================
+test_guard_allows_unrelated_parameters() {
+  local clone
+  clone=$(setup_fixture "t74-unrelated")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
+
+    # Create a gh stub
+    local gh_marker="$TEST_DIR/t74-unrelated/gh-called"
+    mkdir -p "$TEST_DIR/t74-unrelated/bin"
+    cat > "$TEST_DIR/t74-unrelated/bin/gh" << GHSTUB
+#!/usr/bin/env bash
+touch "$gh_marker"
+exit 0
+GHSTUB
+    chmod +x "$TEST_DIR/t74-unrelated/bin/gh"
+
+    # GIT_CONFIG_PARAMETERS with an unrelated key (not core.hooksPath)
+    GIT_CONFIG_PARAMETERS="'user.name=testbot'" \
+    PATH="$TEST_DIR/t74-unrelated/bin:$PATH" \
+    bash "$SCRIPTS_DIR/push-guard.sh" \
+      --baseline .artifacts/rebase-stack/pre-rebase-state.json \
+      --remote origin \
+      --context .artifacts/rebase-stack/context.json >/dev/null 2>&1
+    rc=$?
+
+    if [ "$rc" -eq 0 ] && [ -f "$gh_marker" ]; then
+      pass "push-guard allows unrelated GIT_CONFIG_PARAMETERS (guard effective, gh called)"
+    else
+      fail "push-guard unrelated PARAMETERS" "rc=$rc gh_called=$([ -f "$gh_marker" ] && echo YES || echo no)"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 75: inner hook rejects mismatched $2 push URL
+# =========================================================================
+test_inner_hook_rejects_url_mismatch() {
+  local clone
+  clone=$(setup_fixture "t75-url-arg2")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
+    local snap
+    snap="$(pwd)/.artifacts/rebase-stack/pre-rebase-state.json"
+    local abs_ctx
+    abs_ctx="$(pwd)/.artifacts/rebase-stack/context.json"
+
+    local hooks_dir
+    hooks_dir="$(git rev-parse --git-dir)/hooks"
+    mkdir -p "$hooks_dir"
+
+    setup_hook_env "$hooks_dir" "$snap" "$abs_ctx"
+
+    local saved_tip
+    saved_tip=$(jq -r '.publishedTips["story-1"]' "$snap")
+    local local_sha
+    local_sha=$(git rev-parse story-1)
+    local stdin_line="refs/heads/story-1 ${local_sha} refs/heads/story-1 ${saved_tip}"
+
+    # Pass correct remote name but WRONG push URL as $2
+    local output
+    output=$(printf '%s\n' "$stdin_line" | bash "$hooks_dir/test-hook.sh" origin "/wrong/url.git" 2>&1)
+    rc=$?
+
+    if [ "$rc" -ne 0 ] && printf '%s' "$output" | grep -q "actual push destination"; then
+      pass "inner hook rejects mismatched \$2 push URL"
+    else
+      fail "inner hook URL mismatch" "rc=$rc output: $output"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 76: inner hook allows matching $2 push URL
+# =========================================================================
+test_inner_hook_allows_matching_url() {
+  local clone
+  clone=$(setup_fixture "t76-url-match")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
+    local snap
+    snap="$(pwd)/.artifacts/rebase-stack/pre-rebase-state.json"
+    local abs_ctx
+    abs_ctx="$(pwd)/.artifacts/rebase-stack/context.json"
+
+    local hooks_dir
+    hooks_dir="$(git rev-parse --git-dir)/hooks"
+    mkdir -p "$hooks_dir"
+
+    setup_hook_env "$hooks_dir" "$snap" "$abs_ctx"
+
+    local saved_tip
+    saved_tip=$(jq -r '.publishedTips["story-1"]' "$snap")
+    local local_sha
+    local_sha=$(git rev-parse story-1)
+    local stdin_line="refs/heads/story-1 ${local_sha} refs/heads/story-1 ${saved_tip}"
+
+    # Pass CORRECT push URL as $2 (matches baseline)
+    local real_url
+    real_url=$(git remote get-url --push origin)
+    printf '%s\n' "$stdin_line" | bash "$hooks_dir/test-hook.sh" origin "$real_url" >/dev/null 2>&1
+    rc=$?
+
+    if [ "$rc" -eq 0 ]; then
+      pass "inner hook allows matching \$2 push URL"
+    else
+      fail "inner hook URL match" "rc=$rc"
+    fi
+  )
+}
+
+# =========================================================================
 # Run all tests
 # =========================================================================
 printf '\n=== rebase-stack regression tests ===\n\n'
@@ -2511,6 +2764,13 @@ test_snapshot_refuses_malformed_existing
 test_status_rejects_baseremote_mismatch
 test_validator_missing_arg
 test_guard_missing_arg
+test_snapshot_rejects_empty_branches
+test_snapshot_preserves_dangling_link
+test_snapshot_force_failed_candidate_preserves
+test_guard_detects_parameters_override
+test_guard_allows_unrelated_parameters
+test_inner_hook_rejects_url_mismatch
+test_inner_hook_allows_matching_url
 
 PASS=$(cat "$PASS_FILE")
 FAIL=$(cat "$FAIL_FILE")
