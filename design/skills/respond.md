@@ -220,21 +220,28 @@ feedback), apply them in this order:
      for the cascade in step 2 (IC mappings for IC-based matching,
      requirement mappings for cross-cutting TCs with `Interface
      Change: —`).
-   - Build a **reserved-ID high-water mark** for each requirement
-     group from the current testplan: scan all TC IDs under each
-     `### FR-*` / `### NFR-*` heading (including any about to be
-     removed) and record the highest sequence number per group. If
-     reliable context is available (e.g., prior document versions,
-     review comments, or provenance metadata that names previously
-     retired IDs), include any retired ID higher than the current
-     maximum. When the historical high-water cannot be reliably
-     established for an existing requirement group — even if the
-     live IDs are contiguous or the group is currently empty — ask
-     for the missing history before mutating; do not infer that no
-     retired IDs exist from the absence of visible gaps. A genuinely
-     new requirement group with confirmed no prior allocation may
-     start at 01. Deletion never releases a reserved sequence; new
-     IDs are always allocated above the high-water mark.
+   - Identify which requirement groups will receive **new TC IDs** in
+     this mutation round (additions or ID-reassignments). For each
+     such group, build a **reserved-ID high-water mark** before
+     applying any edits in the batch: scan all current TC IDs under
+     that group's `### FR-*` / `### NFR-*` heading (including any
+     about to be removed — deletion never releases a reserved
+     sequence) and record the highest sequence number. If reliable
+     context is available (e.g., prior document versions, review
+     comments, or provenance metadata that names previously retired
+     IDs), include any retired ID higher than the current maximum.
+     When the historical high-water cannot be reliably established
+     for an existing group receiving new IDs — even if the live IDs
+     are contiguous or the group is currently empty — ask for the
+     missing history before mutating that group; do not infer that
+     no retired IDs exist from the absence of visible gaps. A
+     genuinely new requirement group with confirmed no prior
+     allocation may start at 01. Groups that receive no new IDs in
+     this round (title edits, content changes, metadata updates,
+     parameter-row edits, or deletion-only changes that preserve
+     existing IDs) do not require high-water validation and must not
+     be blocked by missing historical allocation data in unrelated
+     groups. New IDs are always allocated above the high-water mark.
 
    Then add, modify, or remove test cases as directed by the approved
    response. For all mutations, apply the test case format,

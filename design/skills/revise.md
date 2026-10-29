@@ -146,11 +146,19 @@ After applying changes, verify:
   requirement IDs changed.
 - If test cases were added, removed, or modified, **or** if design
   Interface Changes (§5) were added, removed, or renamed: recompute the
-  testplan's Overview counts, Summary table, and Test Case Index. Rebuild the Gaps
-  section from the current requirement-to-TC and IC-to-TC mappings.
-  Adding, removing, or renaming an IC changes the "Interface changes
-  covered" totals or the identifiers in the Interface Change Coverage
-  Gaps even when no test case is edited.
+  testplan's Overview counts, Summary table, and Test Case Index per
+  the counting rules in the draft skill's Step 9a: each parameterized
+  row counts individually toward the total, priority, and automation
+  counts; requirement and IC coverage ratios count distinct mapped
+  values once each; the Index has one row per TC ID. Example: a
+  three-row parameterized TC-FR1-01 (IC-2, high, automated) plus an
+  ordinary TC-FR1-02 (IC-2, medium, automated) = 4 total test cases,
+  2 TC IDs, 2 Index rows, FR-1 counted once for requirement coverage,
+  IC-2 counted once for IC coverage. Rebuild the Gaps section from the
+  current requirement-to-TC and IC-to-TC mappings. Adding, removing,
+  or renaming an IC changes the "Interface changes covered" totals or
+  the identifiers in the Interface Change Coverage Gaps even when no
+  test case is edited.
 
 The remaining story cascades apply only when decomposition artifacts
 exist. If `.artifacts/design/{issue-key}/06-stories/` is absent (for
