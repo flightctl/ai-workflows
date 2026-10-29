@@ -16,7 +16,7 @@
 # covers the remaining window between advertisement and data transfer.
 #
 # Usage:
-#   push-guard.sh --baseline <file> --remote <remote>
+#   push-guard.sh --baseline <file> --remote <remote> --context <ctx.json>
 #
 # Exit codes: passes through gh stack push's exit code.
 #   2  bad usage, baseline missing/invalid, or hook setup failed
@@ -25,21 +25,25 @@ set -uo pipefail
 
 baseline=""
 remote=""
+ctx_file=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --baseline) baseline="${2:-}"; shift 2 ;;
     --remote)   remote="${2:-}"; shift 2 ;;
+    --context)  ctx_file="${2:-}"; shift 2 ;;
     *) echo "push-guard: unknown argument: $1" >&2; exit 2 ;;
   esac
 done
 
 [ -n "$baseline" ] || { echo "push-guard: --baseline is required" >&2; exit 2; }
 [ -n "$remote" ]   || { echo "push-guard: --remote is required" >&2; exit 2; }
+[ -n "$ctx_file" ] || { echo "push-guard: --context is required" >&2; exit 2; }
 [ -f "$baseline" ] || { echo "push-guard: baseline file not found: ${baseline}" >&2; exit 2; }
+[ -f "$ctx_file" ] || { echo "push-guard: context file not found: ${ctx_file}" >&2; exit 2; }
 
 # --- Validate baseline schema and identity --------------------------------
 scripts_dir="$(cd "$(dirname "$0")" && pwd)"
-if ! bash "$scripts_dir/validate-baseline.sh" "$baseline" --remote "$remote"; then
+if ! bash "$scripts_dir/validate-baseline.sh" "$baseline" --remote "$remote" --context "$ctx_file"; then
   echo "push-guard: baseline validation failed" >&2
   exit 2
 fi
@@ -51,6 +55,8 @@ baseline=$(cd "$(dirname "$baseline")" && printf '%s/%s' "$(pwd)" "$(basename "$
 # For linked worktrees, hooks live in the common dir (the main .git directory),
 # not in the per-worktree .git/worktrees/<name>/ directory. git-common-dir
 # gives the right location in all cases (root worktree and linked worktrees).
+# Canonicalize to absolute path: git-common-dir may return a relative path
+# when invoked from a subdirectory.
 original_hooks_dir=""
 if chp=$(git config core.hooksPath 2>/dev/null) && [ -n "$chp" ]; then
   case "$chp" in
@@ -58,7 +64,7 @@ if chp=$(git config core.hooksPath 2>/dev/null) && [ -n "$chp" ]; then
     *)  original_hooks_dir="$(git rev-parse --show-toplevel 2>/dev/null || pwd)/$chp" ;;
   esac
 else
-  original_hooks_dir="$(git rev-parse --git-common-dir)/hooks"
+  original_hooks_dir="$(cd "$(git rev-parse --git-common-dir)" && pwd)/hooks"
 fi
 
 # Invoke original hook at its ORIGINAL path to preserve $0/symlink behavior.
@@ -73,32 +79,62 @@ fi
 guard_dir=$(mktemp -d "${TMPDIR:-/tmp}/rebase-stack-guard.XXXXXX") \
   || { echo "push-guard: could not create temporary directory" >&2; exit 2; }
 
-cleanup() { rm -rf "$guard_dir"; }
-trap cleanup EXIT INT TERM HUP
+cleanup() {
+  rm -rf "$guard_dir"
+}
+# On signals, clean up AND exit with the signal's conventional code.
+# Without the explicit exit, bash continues after the trap handler.
+trap cleanup EXIT
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM
+trap 'cleanup; exit 129' HUP
 
 # --- Chain other applicable hooks from the original hooks directory --------
 # core.hooksPath overrides the ENTIRE hooks directory, not just one hook.
-# To avoid silently bypassing other hooks (e.g. reference-transaction), copy
-# all executable hooks EXCEPT pre-push (which we replace) into the temp dir
-# as thin wrappers that invoke the original at its original path.
+# To avoid silently bypassing other hooks (e.g. reference-transaction), create
+# thin wrappers for all executable hooks EXCEPT pre-push (which we replace).
+# The wrapper uses a single-quoted heredoc so the hook path is passed via an
+# environment variable, NOT interpolated into shell source — this prevents
+# paths containing quotes, dollars, or backticks from becoming executable code.
 if [ -d "$original_hooks_dir" ]; then
   for hook_file in "$original_hooks_dir"/*; do
     [ -x "$hook_file" ] || continue
     hook_name=$(basename "$hook_file")
     [ "$hook_name" != "pre-push" ] || continue
-    # Write a wrapper that invokes the original hook at its original path,
-    # preserving $0 and symlink semantics of the original invocation.
-    cat > "$guard_dir/$hook_name" << WRAPEOF
+    # Write a wrapper using a single-quoted heredoc. The hook path is passed
+    # via environment variable __ORIG_HOOK, never interpolated into source.
+    # This is safe for paths containing shell metacharacters.
+    cat > "$guard_dir/$hook_name" << 'WRAPEOF'
 #!/usr/bin/env bash
-exec "$hook_file" "\$@"
+exec "$__ORIG_HOOK" "$@"
 WRAPEOF
-    chmod +x "$guard_dir/$hook_name" \
-      || { echo "push-guard: could not chmod hook wrapper: $hook_name" >&2; exit 2; }
+    if ! chmod +x "$guard_dir/$hook_name"; then
+      echo "push-guard: could not chmod hook wrapper: $hook_name" >&2
+      exit 2
+    fi
+    # Store the original path in a per-hook env var file for the wrapper.
+    # The wrapper reads __ORIG_HOOK from the environment, set here.
+    # We need to export it so subprocesses see it. Use a unique env var
+    # name per hook to avoid collision, but since each wrapper is a
+    # separate exec, we can use a single variable name.
+    # Actually, we need a per-hook approach. Use a launcher script instead.
+    # Rewrite: each wrapper gets its own absolute path baked in safely.
+    # Use printf to write the path as a quoted string.
+    printf '#!/usr/bin/env bash\nexec ' > "$guard_dir/$hook_name"
+    printf '%q ' "$hook_file" >> "$guard_dir/$hook_name"
+    printf '"$@"\n' >> "$guard_dir/$hook_name"
+    if ! chmod +x "$guard_dir/$hook_name"; then
+      echo "push-guard: could not chmod hook wrapper: $hook_name" >&2
+      exit 2
+    fi
   done
 fi
 
 # --- Write the ephemeral pre-push hook ------------------------------------
-cat > "$guard_dir/pre-push" << 'HOOKEOF'
+# The inner hook must also validate the baseline fully (not just publishedTips
+# type check) because the baseline file could be modified between the outer
+# check and the actual push. Use the same shared validator via env var path.
+if ! cat > "$guard_dir/pre-push" << 'HOOKEOF'
 #!/usr/bin/env bash
 # Ephemeral pre-push hook — validates advertised remote OIDs against baseline.
 # Chains to the original pre-push hook with byte-identical stdin and argv.
@@ -107,14 +143,24 @@ set -uo pipefail
 ZERO="0000000000000000000000000000000000000000"
 baseline_file="${REBASE_STACK_BASELINE_FILE:-}"
 original_hook="${REBASE_STACK_ORIGINAL_HOOK:-}"
+validator="${REBASE_STACK_VALIDATOR:-}"
+context_file="${REBASE_STACK_CONTEXT_FILE:-}"
 
 # Preserve stdin byte-for-byte in a temp file so both the original hook and
 # our check see the exact same bytes, including any trailing newline.
-stdin_file=$(mktemp "${TMPDIR:-/tmp}/rebase-stack-stdin.XXXXXX") \
-  || { echo "rebase-stack pre-push: cannot create stdin temp file" >&2; exit 1; }
+stdin_file=$(mktemp "${TMPDIR:-/tmp}/rebase-stack-stdin.XXXXXX")
+if [ $? -ne 0 ]; then
+  echo "rebase-stack pre-push: cannot create stdin temp file" >&2
+  exit 1
+fi
 stdin_cleanup() { rm -f "$stdin_file"; }
-trap stdin_cleanup EXIT INT TERM HUP
-cat > "$stdin_file"
+trap 'stdin_cleanup; exit 130' INT
+trap 'stdin_cleanup; exit 143' TERM
+trap stdin_cleanup EXIT
+if ! cat > "$stdin_file"; then
+  echo "rebase-stack pre-push: cannot capture stdin" >&2
+  exit 1
+fi
 
 # ------ Chain: run original hook with unchanged args and exact stdin ------
 if [ -n "$original_hook" ] && [ -x "$original_hook" ]; then
@@ -130,10 +176,24 @@ if [ -z "$baseline_file" ] || [ ! -f "$baseline_file" ]; then
   echo "rebase-stack pre-push: baseline file missing; refusing push" >&2
   exit 1
 fi
-if ! jq -e 'if .publishedTips | type == "object" then true else false end' \
-     "$baseline_file" >/dev/null 2>&1; then
-  echo "rebase-stack pre-push: baseline invalid; refusing push" >&2
-  exit 1
+
+# Full validation using the shared validator with context
+if [ -n "$validator" ] && [ -x "$validator" ] && [ -n "$context_file" ] && [ -f "$context_file" ]; then
+  if ! bash "$validator" "$baseline_file" --context "$context_file" >/dev/null 2>&1; then
+    echo "rebase-stack pre-push: baseline failed validation at push time; refusing" >&2
+    exit 1
+  fi
+else
+  # Fallback: at minimum check publishedTips structure if validator unavailable
+  if ! jq -e 'if .publishedTips | type == "object" then true else false end' \
+       "$baseline_file" >/dev/null 2>&1; then
+    echo "rebase-stack pre-push: baseline invalid; refusing push" >&2
+    exit 1
+  fi
+  if jq -e '.publishedTips | length == 0' "$baseline_file" >/dev/null 2>&1; then
+    echo "rebase-stack pre-push: baseline publishedTips empty; refusing push" >&2
+    exit 1
+  fi
 fi
 
 # Guard ALL refs being pushed. A branch in publishedTips is checked against
@@ -178,12 +238,19 @@ done < "$stdin_file"
 
 exit "$failed"
 HOOKEOF
+then
+  echo "push-guard: could not write ephemeral pre-push hook" >&2
+  exit 2
+fi
 chmod +x "$guard_dir/pre-push" \
   || { echo "push-guard: could not chmod ephemeral pre-push hook" >&2; exit 2; }
 
 # --- Export state for the hook --------------------------------------------
 export REBASE_STACK_BASELINE_FILE="$baseline"
 export REBASE_STACK_ORIGINAL_HOOK="$original_pre_push"
+export REBASE_STACK_VALIDATOR="$scripts_dir/validate-baseline.sh"
+REBASE_STACK_CONTEXT_FILE=$(cd "$(dirname "$ctx_file")" && printf '%s/%s' "$(pwd)" "$(basename "$ctx_file")")
+export REBASE_STACK_CONTEXT_FILE
 
 # --- Inject the temporary hooks directory via GIT_CONFIG_* ----------------
 existing_count="${GIT_CONFIG_COUNT:-0}"

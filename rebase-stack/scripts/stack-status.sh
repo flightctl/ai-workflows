@@ -32,8 +32,26 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-ctx=$(cat)
+# Write stdin to a temp file so it can be used as --context for the validator
+ctx_tmp=$(mktemp "${TMPDIR:-/tmp}/rebase-stack-ctx.XXXXXX") \
+  || { echo "stack-status: could not create temp file" >&2; exit 2; }
+ctx_cleanup() { rm -f "$ctx_tmp"; }
+trap ctx_cleanup EXIT INT TERM HUP
+cat > "$ctx_tmp"
+ctx=$(cat "$ctx_tmp")
+
 jq -e . >/dev/null 2>&1 <<<"$ctx" || { echo "stack-status: stdin is not valid JSON" >&2; exit 2; }
+
+# If a baseline was supplied, validate it fully with context.
+# Fail rather than falling back to unclassified rows — an invalid baseline
+# means divergence classification cannot be trusted.
+if [ -n "$baseline_file" ]; then
+  scripts_dir="$(cd "$(dirname "$0")" && pwd)"
+  if ! bash "$scripts_dir/validate-baseline.sh" "$baseline_file" --context "$ctx_tmp"; then
+    echo "stack-status: baseline validation failed; cannot classify divergence" >&2
+    exit 2
+  fi
+fi
 
 trunk=$(jq -r '.trunk' <<<"$ctx")
 base_remote=$(jq -r '.baseRemote' <<<"$ctx")
@@ -116,9 +134,7 @@ for b in "${branches[@]}"; do
     behind=$(git rev-list --count "${b}..${pub_ref}" 2>/dev/null || echo "?")
     if [ "$ahead" = "0" ] && [ "$behind" = "0" ]; then
       published="in sync"
-    elif [ "$behind" != "0" ] && [ -n "$baseline_file" ] \
-         && bash "$(cd "$(dirname "$0")" && pwd)/validate-baseline.sh" \
-              "$baseline_file" >/dev/null 2>&1; then
+    elif [ "$behind" != "0" ] && [ -n "$baseline_file" ]; then
       # Classify: is the remote still at the pre-rebase baseline, or did
       # someone else push?
       saved_tip=$(jq -r --arg b "$b" '.publishedTips[$b] // "ABSENT"' "$baseline_file")
@@ -140,9 +156,7 @@ for b in "${branches[@]}"; do
       [ "$behind" != "0" ] && row_notes="${row_notes}remote has ${behind} commit(s) you do not; "
     fi
   else
-    if [ -n "$baseline_file" ] \
-       && bash "$(cd "$(dirname "$0")" && pwd)/validate-baseline.sh" \
-            "$baseline_file" >/dev/null 2>&1; then
+    if [ -n "$baseline_file" ]; then
       saved_tip=$(jq -r --arg b "$b" '.publishedTips[$b] // "ABSENT"' "$baseline_file")
       if [ "$saved_tip" != "ABSENT" ]; then
         published="DELETED"

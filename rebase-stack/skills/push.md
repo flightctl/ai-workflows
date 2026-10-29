@@ -70,7 +70,8 @@ remote refs. Then check every branch against the saved pre-rebase baseline:
 
 ```bash
 if [ ! -f "$snapshot" ] \
-   || ! bash "{scripts}/validate-baseline.sh" "$snapshot" >/dev/null 2>&1; then
+   || ! bash "{scripts}/validate-baseline.sh" "$snapshot" \
+          --context .artifacts/rebase-stack/context.json >/dev/null 2>&1; then
   echo "NO BASELINE — cannot classify divergence; run /start first"
 fi
 jq -r '.branches[].name' "$ctx" | while read -r branch; do
@@ -133,7 +134,8 @@ ctx=.artifacts/rebase-stack/context.json
 push_remote=$(jq -r '.pushRemote' "$ctx")
 bash "$scripts/push-guard.sh" \
   --baseline .artifacts/rebase-stack/pre-rebase-state.json \
-  --remote "$push_remote"
+  --remote "$push_remote" \
+  --context .artifacts/rebase-stack/context.json
 echo "push exit: $?"
 ```
 

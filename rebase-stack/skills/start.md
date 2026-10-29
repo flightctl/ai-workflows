@@ -24,7 +24,8 @@ collaborator updates:
 baseline_args=""
 if [ -f .artifacts/rebase-stack/pre-rebase-state.json ] \
    && bash "{scripts}/validate-baseline.sh" \
-        .artifacts/rebase-stack/pre-rebase-state.json >/dev/null 2>&1; then
+        .artifacts/rebase-stack/pre-rebase-state.json \
+        --context .artifacts/rebase-stack/context.json >/dev/null 2>&1; then
   baseline_args="--baseline .artifacts/rebase-stack/pre-rebase-state.json"
 fi
 bash "{scripts}/stack-status.sh" $baseline_args \
@@ -58,7 +59,8 @@ jq -r '.branches[].name' .artifacts/rebase-stack/context.json | while read -r br
     # the divergence rather than treating all behind>0 as collaborator.
     divergence_class=""
     if [ "$behind" -gt 0 ] && [ -f "$snapshot" ] \
-       && bash "{scripts}/validate-baseline.sh" "$snapshot" >/dev/null 2>&1; then
+       && bash "{scripts}/validate-baseline.sh" "$snapshot" \
+              --context .artifacts/rebase-stack/context.json >/dev/null 2>&1; then
       saved_tip=$(jq -r --arg b "$branch" '.publishedTips[$b] // "ABSENT"' "$snapshot")
       current_tip=$(git rev-parse --verify --quiet "refs/remotes/${push_remote}/${branch}")
       if [ "$saved_tip" != "ABSENT" ] && [ "$saved_tip" = "$current_tip" ]; then
@@ -150,7 +152,12 @@ started or completed. Do not pass `--force` automatically — tell the user:
 > A pre-rebase baseline already exists. This means a previous `/start` already
 > captured the branch tips. If the rebase is complete, run `/validate` then
 > `/push` to publish. To discard the existing baseline and start over, confirm
-> and rerun `/start` with `--force`.
+> then run:
+>
+> ```bash
+> bash "{scripts}/snapshot.sh" save --force \
+>   < .artifacts/rebase-stack/context.json
+> ```
 
 **On any other non-zero exit, stop. Do not rebase.** The snapshot is the only
 record of the pre-rebase tips, so a rebase started without it has no recovery

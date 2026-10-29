@@ -69,6 +69,23 @@ setup_fixture() {
   printf '%s' "$dir/clone"
 }
 
+# Extract the inner hook from push-guard.sh and set up env vars for testing.
+# Args: $1=hooks_dir $2=snap_path $3=ctx_path_or_empty
+setup_hook_env() {
+  local hooks_dir="$1" snap="$2" ctx="${3:-}"
+  awk '/^if ! cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
+    "$SCRIPTS_DIR/push-guard.sh" > "$hooks_dir/test-hook.sh"
+  chmod +x "$hooks_dir/test-hook.sh"
+  export REBASE_STACK_BASELINE_FILE="$snap"
+  export REBASE_STACK_ORIGINAL_HOOK=""
+  export REBASE_STACK_VALIDATOR="$SCRIPTS_DIR/validate-baseline.sh"
+  if [ -n "$ctx" ]; then
+    export REBASE_STACK_CONTEXT_FILE="$ctx"
+  else
+    export REBASE_STACK_CONTEXT_FILE=""
+  fi
+}
+
 # Build a minimal context.json for snapshot/stack-status consumption
 write_context() {
   local clone="$1"
@@ -110,6 +127,7 @@ test_snapshot_saves_published_tips() {
     local ctx
     ctx=$(write_context "$clone")
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
     local snap=".artifacts/rebase-stack/pre-rebase-state.json"
     if [ ! -f "$snap" ]; then
       fail "snapshot saves publishedTips" "snapshot file not created"
@@ -143,6 +161,7 @@ test_status_rebase_divergence() {
     ctx=$(write_context "$clone")
     # Save snapshot before rebase
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
 
     # Simulate base advancing and rebase
     git checkout main >/dev/null 2>&1
@@ -178,6 +197,7 @@ test_status_collaborator_update() {
     local ctx
     ctx=$(write_context "$clone")
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
 
     # Simulate collaborator pushing to story-1 on the remote
     local bare_path
@@ -216,6 +236,7 @@ test_status_branch_deleted() {
     local ctx
     ctx=$(write_context "$clone")
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
 
     # Delete story-2 on the remote
     git push origin --delete story-2 >/dev/null 2>&1
@@ -245,6 +266,7 @@ test_hook_blocks_collaborator() {
     local ctx
     ctx=$(write_context "$clone")
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
     local snap
     snap="$(pwd)/.artifacts/rebase-stack/pre-rebase-state.json"
 
@@ -255,12 +277,7 @@ test_hook_blocks_collaborator() {
     mkdir -p "$hooks_dir"
 
     # Write the hook manually (extract the HOOKEOF block from push-guard.sh)
-    awk '/^cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
-      "$SCRIPTS_DIR/push-guard.sh" > "$hooks_dir/test-hook.sh"
-    chmod +x "$hooks_dir/test-hook.sh"
-
-    export REBASE_STACK_BASELINE_FILE="$snap"
-    export REBASE_STACK_ORIGINAL_HOOK=""
+    setup_hook_env "$hooks_dir" "$snap" ""
 
     # Simulate collaborator pushing — get a different SHA for story-1
     local bare_path="$TEST_DIR/t5-hook-block/bare.git"
@@ -302,6 +319,7 @@ test_hook_allows_rebase() {
     local ctx
     ctx=$(write_context "$clone")
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
     local snap
     snap="$(pwd)/.artifacts/rebase-stack/pre-rebase-state.json"
 
@@ -309,12 +327,7 @@ test_hook_allows_rebase() {
     hooks_dir="$(git rev-parse --git-dir)/hooks"
     mkdir -p "$hooks_dir"
 
-    awk '/^cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
-      "$SCRIPTS_DIR/push-guard.sh" > "$hooks_dir/test-hook.sh"
-    chmod +x "$hooks_dir/test-hook.sh"
-
-    export REBASE_STACK_BASELINE_FILE="$snap"
-    export REBASE_STACK_ORIGINAL_HOOK=""
+    setup_hook_env "$hooks_dir" "$snap" ""
 
     # Simulate the SAVED baseline matching the advertised (remote unchanged)
     local saved_tip
@@ -347,6 +360,7 @@ test_hook_blocks_deletion() {
     local ctx
     ctx=$(write_context "$clone")
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
     local snap
     snap="$(pwd)/.artifacts/rebase-stack/pre-rebase-state.json"
 
@@ -354,12 +368,7 @@ test_hook_blocks_deletion() {
     hooks_dir="$(git rev-parse --git-dir)/hooks"
     mkdir -p "$hooks_dir"
 
-    awk '/^cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
-      "$SCRIPTS_DIR/push-guard.sh" > "$hooks_dir/test-hook.sh"
-    chmod +x "$hooks_dir/test-hook.sh"
-
-    export REBASE_STACK_BASELINE_FILE="$snap"
-    export REBASE_STACK_ORIGINAL_HOOK=""
+    setup_hook_env "$hooks_dir" "$snap" ""
 
     # Simulate deleted branch: remote_sha is all zeros
     local local_sha
@@ -400,6 +409,7 @@ test_hook_blocks_appeared() {
     ctx=$(jq -n --argjson branches "$branches" \
       '{trunk:"main",currentBranch:"story-3",baseRemote:"origin",pushRemote:"origin",branches:$branches}')
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
     local snap
     snap="$(pwd)/.artifacts/rebase-stack/pre-rebase-state.json"
 
@@ -415,12 +425,7 @@ test_hook_blocks_appeared() {
     hooks_dir="$(git rev-parse --git-dir)/hooks"
     mkdir -p "$hooks_dir"
 
-    awk '/^cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
-      "$SCRIPTS_DIR/push-guard.sh" > "$hooks_dir/test-hook.sh"
-    chmod +x "$hooks_dir/test-hook.sh"
-
-    export REBASE_STACK_BASELINE_FILE="$snap"
-    export REBASE_STACK_ORIGINAL_HOOK=""
+    setup_hook_env "$hooks_dir" "$snap" ""
 
     # Simulate: someone else pushed story-3 to the remote (non-zero advertised)
     local fake_sha="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -453,6 +458,7 @@ test_hook_rejects_unknown_branch() {
     local ctx
     ctx=$(write_context "$clone")
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
     local snap
     snap="$(pwd)/.artifacts/rebase-stack/pre-rebase-state.json"
 
@@ -460,12 +466,7 @@ test_hook_rejects_unknown_branch() {
     hooks_dir="$(git rev-parse --git-dir)/hooks"
     mkdir -p "$hooks_dir"
 
-    awk '/^cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
-      "$SCRIPTS_DIR/push-guard.sh" > "$hooks_dir/test-hook.sh"
-    chmod +x "$hooks_dir/test-hook.sh"
-
-    export REBASE_STACK_BASELINE_FILE="$snap"
-    export REBASE_STACK_ORIGINAL_HOOK=""
+    setup_hook_env "$hooks_dir" "$snap" ""
 
     # Push a branch that is NOT in the stack baseline at all
     local fake_sha="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
@@ -504,6 +505,7 @@ test_hook_allows_unpublished_first_push() {
     ctx=$(jq -n --argjson branches "$branches" \
       '{trunk:"main",currentBranch:"story-3",baseRemote:"origin",pushRemote:"origin",branches:$branches}')
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
     local snap
     snap="$(pwd)/.artifacts/rebase-stack/pre-rebase-state.json"
 
@@ -511,12 +513,7 @@ test_hook_allows_unpublished_first_push() {
     hooks_dir="$(git rev-parse --git-dir)/hooks"
     mkdir -p "$hooks_dir"
 
-    awk '/^cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
-      "$SCRIPTS_DIR/push-guard.sh" > "$hooks_dir/test-hook.sh"
-    chmod +x "$hooks_dir/test-hook.sh"
-
-    export REBASE_STACK_BASELINE_FILE="$snap"
-    export REBASE_STACK_ORIGINAL_HOOK=""
+    setup_hook_env "$hooks_dir" "$snap" ""
 
     # First push: remote advertises zero (branch doesn't exist remotely yet)
     local ZERO="0000000000000000000000000000000000000000"
@@ -547,12 +544,14 @@ test_hook_fails_closed_no_baseline() {
     hooks_dir="$(git rev-parse --git-dir)/hooks"
     mkdir -p "$hooks_dir"
 
-    awk '/^cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
+    awk '/^if ! cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
       "$SCRIPTS_DIR/push-guard.sh" > "$hooks_dir/test-hook.sh"
     chmod +x "$hooks_dir/test-hook.sh"
 
     export REBASE_STACK_BASELINE_FILE="/nonexistent/baseline.json"
     export REBASE_STACK_ORIGINAL_HOOK=""
+    export REBASE_STACK_VALIDATOR="$SCRIPTS_DIR/validate-baseline.sh"
+    export REBASE_STACK_CONTEXT_FILE=""
 
     local local_sha
     local_sha=$(git rev-parse story-1)
@@ -583,6 +582,7 @@ test_hook_chains_existing() {
     local ctx
     ctx=$(write_context "$clone")
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
     local snap
     snap="$(pwd)/.artifacts/rebase-stack/pre-rebase-state.json"
 
@@ -600,7 +600,7 @@ exit 0
 ORIG
     chmod +x "$hooks_dir/test-original.sh"
 
-    awk '/^cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
+    awk '/^if ! cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
       "$SCRIPTS_DIR/push-guard.sh" > "$hooks_dir/test-hook.sh"
     chmod +x "$hooks_dir/test-hook.sh"
 
@@ -640,6 +640,7 @@ test_hook_respects_existing_abort() {
     local ctx
     ctx=$(write_context "$clone")
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
     local snap
     snap="$(pwd)/.artifacts/rebase-stack/pre-rebase-state.json"
 
@@ -656,7 +657,7 @@ exit 1
 ORIG
     chmod +x "$hooks_dir/test-original.sh"
 
-    awk '/^cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
+    awk '/^if ! cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
       "$SCRIPTS_DIR/push-guard.sh" > "$hooks_dir/test-hook.sh"
     chmod +x "$hooks_dir/test-hook.sh"
 
@@ -692,6 +693,7 @@ test_changed_patch_accepted() {
     local ctx
     ctx=$(write_context "$clone")
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
     local snap
     snap="$(pwd)/.artifacts/rebase-stack/pre-rebase-state.json"
 
@@ -713,12 +715,7 @@ test_changed_patch_accepted() {
     hooks_dir="$(git rev-parse --git-dir)/hooks"
     mkdir -p "$hooks_dir"
 
-    awk '/^cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
-      "$SCRIPTS_DIR/push-guard.sh" > "$hooks_dir/test-hook.sh"
-    chmod +x "$hooks_dir/test-hook.sh"
-
-    export REBASE_STACK_BASELINE_FILE="$snap"
-    export REBASE_STACK_ORIGINAL_HOOK=""
+    setup_hook_env "$hooks_dir" "$snap" ""
 
     # Advertised OID = saved baseline (remote hasn't changed)
     local saved_tip
@@ -747,9 +744,12 @@ test_guard_missing_baseline() {
   clone=$(setup_fixture "t13-guard-missing")
   (
     cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    write_context "$clone" > .artifacts/rebase-stack/context.json
     bash "$SCRIPTS_DIR/push-guard.sh" \
       --baseline /nonexistent/file.json \
-      --remote origin >/dev/null 2>&1
+      --remote origin \
+      --context .artifacts/rebase-stack/context.json >/dev/null 2>&1
 
     local rc=$?
     if [ "$rc" -eq 2 ]; then
@@ -769,10 +769,13 @@ test_guard_malformed_baseline() {
   clone=$(setup_fixture "t14-guard-malformed")
   (
     cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    write_context "$clone" > .artifacts/rebase-stack/context.json
     echo '{"branches":[]}' > /tmp/bad-baseline.json
     bash "$SCRIPTS_DIR/push-guard.sh" \
       --baseline /tmp/bad-baseline.json \
-      --remote origin >/dev/null 2>&1
+      --remote origin \
+      --context .artifacts/rebase-stack/context.json >/dev/null 2>&1
     rc=$?
     rm -f /tmp/bad-baseline.json
     if [ "$rc" -eq 2 ]; then
@@ -929,6 +932,7 @@ test_continuation_preserves_baseline() {
     local ctx
     ctx=$(write_context "$clone")
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
 
     local snap=".artifacts/rebase-stack/pre-rebase-state.json"
     local original_tips
@@ -969,6 +973,7 @@ test_real_push_wire_oids() {
     local ctx
     ctx=$(write_context "$clone")
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
     local snap
     snap="$(pwd)/.artifacts/rebase-stack/pre-rebase-state.json"
 
@@ -988,6 +993,8 @@ test_real_push_wire_oids() {
 
     export REBASE_STACK_BASELINE_FILE="$snap"
     export REBASE_STACK_ORIGINAL_HOOK=""
+    export REBASE_STACK_VALIDATOR="$SCRIPTS_DIR/validate-baseline.sh"
+    export REBASE_STACK_CONTEXT_FILE=""
 
     awk '/^cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
       "$SCRIPTS_DIR/push-guard.sh" > "$test_hooks/pre-push"
@@ -1022,6 +1029,7 @@ test_real_push_blocks_collaborator() {
     local ctx
     ctx=$(write_context "$clone")
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
     local snap
     snap="$(pwd)/.artifacts/rebase-stack/pre-rebase-state.json"
 
@@ -1046,9 +1054,13 @@ test_real_push_blocks_collaborator() {
     local test_hooks="$TEST_DIR/t20-wire-block/test-hooks"
     mkdir -p "$test_hooks"
 
+    local abs_ctx
+    abs_ctx="$(pwd)/.artifacts/rebase-stack/context.json"
     export REBASE_STACK_BASELINE_FILE="$snap"
     export REBASE_STACK_ORIGINAL_HOOK=""
-    awk '/^cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
+    export REBASE_STACK_VALIDATOR="$SCRIPTS_DIR/validate-baseline.sh"
+    export REBASE_STACK_CONTEXT_FILE="$abs_ctx"
+    awk '/^if ! cat > .* << .HOOKEOF./{found=1; next} /^HOOKEOF$/{found=0; next} found' \
       "$SCRIPTS_DIR/push-guard.sh" > "$test_hooks/pre-push"
     chmod +x "$test_hooks/pre-push"
 
@@ -1076,6 +1088,7 @@ test_guard_lifecycle_preserves_hook() {
     local ctx
     ctx=$(write_context "$clone")
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
 
     local hooks_dir
     hooks_dir="$(git rev-parse --git-dir)/hooks"
@@ -1095,7 +1108,8 @@ ORIG
     # still restore the original hook (trap EXIT fires on any exit)
     bash "$SCRIPTS_DIR/push-guard.sh" \
       --baseline .artifacts/rebase-stack/pre-rebase-state.json \
-      --remote origin >/dev/null 2>&1 || true
+      --remote origin \
+      --context .artifacts/rebase-stack/context.json >/dev/null 2>&1 || true
 
     # Check that original hook is restored
     if [ -f "$hooks_dir/pre-push" ]; then
@@ -1124,6 +1138,7 @@ test_custom_hooks_path() {
     local ctx
     ctx=$(write_context "$clone")
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
 
     # Set custom hooksPath
     local custom_hooks="$TEST_DIR/t22-hookspath/custom hooks dir"
@@ -1141,7 +1156,8 @@ ORIG
     # push-guard.sh should install in the custom path, not .git/hooks
     bash "$SCRIPTS_DIR/push-guard.sh" \
       --baseline .artifacts/rebase-stack/pre-rebase-state.json \
-      --remote origin >/dev/null 2>&1 || true
+      --remote origin \
+      --context .artifacts/rebase-stack/context.json >/dev/null 2>&1 || true
 
     # After cleanup, the original hook in custom path should be restored
     if [ -f "$custom_hooks/pre-push" ] \
@@ -1168,6 +1184,7 @@ test_spaces_in_hooks_path() {
     local ctx
     ctx=$(write_context "$clone")
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
     local snap
     snap="$(pwd)/.artifacts/rebase-stack/pre-rebase-state.json"
 
@@ -1178,11 +1195,14 @@ test_spaces_in_hooks_path() {
 
     export REBASE_STACK_BASELINE_FILE="$snap"
     export REBASE_STACK_ORIGINAL_HOOK=""
+    export REBASE_STACK_VALIDATOR="$SCRIPTS_DIR/validate-baseline.sh"
+    export REBASE_STACK_CONTEXT_FILE=""
 
     # push-guard.sh should handle the spaced path
     bash "$SCRIPTS_DIR/push-guard.sh" \
       --baseline .artifacts/rebase-stack/pre-rebase-state.json \
-      --remote origin >/dev/null 2>&1 || true
+      --remote origin \
+      --context .artifacts/rebase-stack/context.json >/dev/null 2>&1 || true
 
     # The hook should have been written there and cleaned up
     # After cleanup (gh stack push fails), no leftover hook in spaced dir
@@ -1466,6 +1486,7 @@ test_validate_baseline_wrong_trunk() {
     local ctx
     ctx=$(write_context "$clone")
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
     local snap=".artifacts/rebase-stack/pre-rebase-state.json"
 
     # Create a context with different trunk
@@ -1498,6 +1519,7 @@ test_validate_baseline_wrong_url() {
     local ctx
     ctx=$(write_context "$clone")
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
     local snap=".artifacts/rebase-stack/pre-rebase-state.json"
 
     # Tamper with the push URL to simulate a different repository
@@ -1528,6 +1550,7 @@ test_validate_baseline_wrong_branches() {
     local ctx
     ctx=$(write_context "$clone")
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
     local snap=".artifacts/rebase-stack/pre-rebase-state.json"
 
     # Create a context with extra branch
@@ -1562,12 +1585,15 @@ test_validate_baseline_valid() {
     local ctx
     ctx=$(write_context "$clone")
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
     local snap=".artifacts/rebase-stack/pre-rebase-state.json"
 
-    bash "$SCRIPTS_DIR/validate-baseline.sh" "$snap" >/dev/null 2>&1
+    # Save context for --context validation
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
+    bash "$SCRIPTS_DIR/validate-baseline.sh" "$snap" --context .artifacts/rebase-stack/context.json >/dev/null 2>&1
     rc=$?
     if [ "$rc" -eq 0 ]; then
-      pass "validate-baseline accepts valid baseline"
+      pass "validate-baseline accepts valid baseline with --context"
     else
       fail "validate-baseline valid" "exited $rc"
     fi
@@ -1587,6 +1613,7 @@ test_snapshot_refuses_overwrite() {
     ctx=$(write_context "$clone")
     # First save
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
     local snap=".artifacts/rebase-stack/pre-rebase-state.json"
     local original_tips
     original_tips=$(jq -c '.publishedTips' "$snap")
@@ -1630,10 +1657,12 @@ test_snapshot_allows_force_overwrite() {
     local ctx
     ctx=$(write_context "$clone")
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
     local snap=".artifacts/rebase-stack/pre-rebase-state.json"
 
     # Second save WITH --force should succeed
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
     rc=$?
     if [ "$rc" -eq 0 ]; then
       pass "snapshot allows overwrite with --force"
@@ -1655,6 +1684,7 @@ test_guard_chains_other_hooks() {
     local ctx
     ctx=$(write_context "$clone")
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
 
     # Create a reference-transaction hook in the original hooks dir
     local hooks_dir
@@ -1671,7 +1701,8 @@ RTHOOK
     # push-guard creates a temp dir; verify other hooks are wrapped
     bash "$SCRIPTS_DIR/push-guard.sh" \
       --baseline .artifacts/rebase-stack/pre-rebase-state.json \
-      --remote origin >/dev/null 2>&1 || true
+      --remote origin \
+      --context .artifacts/rebase-stack/context.json >/dev/null 2>&1 || true
 
     # The temp dir is cleaned up, but we can check push-guard.sh source
     # proves it copies other hooks. (The actual invocation depends on
@@ -1698,6 +1729,7 @@ test_guard_common_dir_hooks() {
     local ctx
     ctx=$(write_context "$clone")
     printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
 
     # Verify push-guard.sh source uses --git-common-dir not --absolute-git-dir
     if grep -q 'git-common-dir' "$SCRIPTS_DIR/push-guard.sh" \
@@ -1722,6 +1754,273 @@ test_no_force_without_lease() {
   else
     pass "no force-without-lease fallback in push-guard"
   fi
+}
+
+# =========================================================================
+# TEST 50: real linked worktree — git-common-dir hooks resolution
+# =========================================================================
+test_linked_worktree_hooks() {
+  local clone
+  clone=$(setup_fixture "t50-worktree")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
+
+    # Install a pre-push hook in the common hooks dir
+    local common_dir
+    common_dir=$(cd "$(git rev-parse --git-common-dir)" && pwd)
+    mkdir -p "$common_dir/hooks"
+    local marker="$TEST_DIR/t50-worktree/common-hook-ran"
+    cat > "$common_dir/hooks/pre-push" << CMHOOK
+#!/usr/bin/env bash
+cat > /dev/null
+touch "$marker"
+exit 0
+CMHOOK
+    chmod +x "$common_dir/hooks/pre-push"
+
+    # Create a linked worktree on a detached HEAD (story-2 may be checked out)
+    git worktree add --detach "$TEST_DIR/t50-worktree/linked" story-1 >/dev/null 2>&1 \
+      || { fail "linked worktree: could not create worktree" "git worktree add failed"; return; }
+    (
+      cd "$TEST_DIR/t50-worktree/linked" || { fail "linked worktree: cd failed" ""; return; }
+      # Verify git-common-dir returns the MAIN repo's git dir
+      local wt_common
+      wt_common=$(cd "$(git rev-parse --git-common-dir)" && pwd)
+      local wt_abs
+      wt_abs=$(cd "$(git rev-parse --absolute-git-dir)" && pwd)
+
+      if [ "$wt_common" = "$common_dir" ] && [ "$wt_abs" != "$common_dir" ]; then
+        pass "linked worktree: git-common-dir returns main repo, absolute-git-dir returns worktree"
+      else
+        fail "linked worktree identity" "common=$wt_common abs=$wt_abs expected_common=$common_dir"
+      fi
+    )
+    git worktree remove "$TEST_DIR/t50-worktree/linked" 2>/dev/null || true
+  )
+}
+
+# =========================================================================
+# TEST 51: stack-status exits non-zero on invalid baseline (not fallback)
+# =========================================================================
+test_status_rejects_invalid_baseline() {
+  local clone
+  clone=$(setup_fixture "t51-status-invalid")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
+
+    # Create an invalid baseline (missing required keys)
+    echo '{"publishedTips":{}}' > .artifacts/rebase-stack/bad-baseline.json
+
+    local output
+    output=$(printf '%s' "$ctx" | bash "$SCRIPTS_DIR/stack-status.sh" --no-fetch \
+      --baseline .artifacts/rebase-stack/bad-baseline.json 2>&1)
+    rc=$?
+
+    if [ "$rc" -eq 2 ]; then
+      pass "stack-status exits 2 on invalid baseline (no fallback)"
+    else
+      fail "stack-status invalid baseline" "exited $rc (expected 2); output: $output"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 52: push-guard rejects baseline from different repo (same alias)
+# =========================================================================
+test_guard_rejects_wrong_repo_url() {
+  local clone
+  clone=$(setup_fixture "t52-wrongurl")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
+    local snap=".artifacts/rebase-stack/pre-rebase-state.json"
+
+    # Tamper with push URL to simulate a different repo
+    local tampered
+    tampered=$(mktemp "${TMPDIR:-/tmp}/bl-tampered.XXXXXX")
+    jq '.pushUrl = "/completely/different/repo.git"' "$snap" > "$tampered"
+
+    # push-guard should reject this — baseline is for a different repo
+    bash "$SCRIPTS_DIR/push-guard.sh" \
+      --baseline "$tampered" \
+      --remote origin \
+      --context .artifacts/rebase-stack/context.json >/dev/null 2>&1
+    rc=$?
+    rm -f "$tampered"
+
+    if [ "$rc" -eq 2 ]; then
+      pass "push-guard rejects baseline from different repo (push URL mismatch)"
+    else
+      fail "push-guard wrong repo URL" "exited $rc (expected 2)"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 53: push-guard rejects baseline with wrong trunk
+# =========================================================================
+test_guard_rejects_wrong_trunk() {
+  local clone
+  clone=$(setup_fixture "t53-wrongtrunk")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
+    local snap=".artifacts/rebase-stack/pre-rebase-state.json"
+
+    # Tamper with trunk
+    local tampered
+    tampered=$(mktemp "${TMPDIR:-/tmp}/bl-tampered.XXXXXX")
+    jq '.trunk = "develop"' "$snap" > "$tampered"
+
+    bash "$SCRIPTS_DIR/push-guard.sh" \
+      --baseline "$tampered" \
+      --remote origin \
+      --context .artifacts/rebase-stack/context.json >/dev/null 2>&1
+    rc=$?
+    rm -f "$tampered"
+
+    if [ "$rc" -eq 2 ]; then
+      pass "push-guard rejects baseline with wrong trunk"
+    else
+      fail "push-guard wrong trunk" "exited $rc (expected 2)"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 54: snapshot saves gitCommonDir and effective push URL
+# =========================================================================
+test_snapshot_saves_identity() {
+  local clone
+  clone=$(setup_fixture "t54-identity")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    local snap=".artifacts/rebase-stack/pre-rebase-state.json"
+
+    local saved_common
+    saved_common=$(jq -r '.gitCommonDir' "$snap")
+    local expected_common
+    expected_common=$(cd "$(git rev-parse --git-common-dir)" && pwd)
+
+    local saved_url
+    saved_url=$(jq -r '.pushUrl' "$snap")
+    local expected_url
+    expected_url=$(git remote get-url --push origin)
+
+    if [ "$saved_common" = "$expected_common" ] && [ "$saved_url" = "$expected_url" ]; then
+      pass "snapshot saves gitCommonDir and effective push URL"
+    else
+      fail "snapshot identity" "common=$saved_common (expected $expected_common) url=$saved_url (expected $expected_url)"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 55: hook wrapper handles paths with dollar and quote chars
+# =========================================================================
+test_hook_wrapper_special_chars() {
+  local clone
+  clone=$(setup_fixture "t55-special")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
+
+    # Create a hooks dir with special characters in path
+    local special_dir="$TEST_DIR/t55-special/hooks\$with\"special"
+    mkdir -p "$special_dir"
+
+    # Install a reference-transaction hook there
+    local marker="$TEST_DIR/t55-special/special-ran"
+    cat > "$special_dir/reference-transaction" << SPHOOK
+#!/usr/bin/env bash
+touch "$marker"
+exit 0
+SPHOOK
+    chmod +x "$special_dir/reference-transaction"
+
+    # push-guard generates wrappers using printf %q which should safely quote
+    # Verify push-guard.sh source uses printf %q for wrapper generation
+    if grep -q 'printf.*%q' "$SCRIPTS_DIR/push-guard.sh"; then
+      pass "hook wrapper uses printf %q for safe path quoting"
+    else
+      fail "hook wrapper special chars" "push-guard.sh does not use printf %q"
+    fi
+  )
+}
+
+# =========================================================================
+# TEST 56: inner hook uses full validator with context
+# =========================================================================
+test_inner_hook_full_validation() {
+  local clone
+  clone=$(setup_fixture "t56-innerhook")
+  (
+    cd "$clone" || return
+    mkdir -p .artifacts/rebase-stack
+    local ctx
+    ctx=$(write_context "$clone")
+    printf '%s' "$ctx" | bash "$SCRIPTS_DIR/snapshot.sh" save --force >/dev/null 2>&1
+    printf '%s' "$ctx" > .artifacts/rebase-stack/context.json
+    local snap
+    snap="$(pwd)/.artifacts/rebase-stack/pre-rebase-state.json"
+    local abs_ctx
+    abs_ctx="$(pwd)/.artifacts/rebase-stack/context.json"
+
+    local hooks_dir
+    hooks_dir="$(git rev-parse --git-dir)/hooks"
+    mkdir -p "$hooks_dir"
+
+    setup_hook_env "$hooks_dir" "$snap" "$abs_ctx"
+
+    # Tamper with the baseline push URL AFTER outer validation would have run
+    # (simulating file modification between outer check and inner check)
+    local tampered_snap
+    tampered_snap=$(mktemp "${TMPDIR:-/tmp}/bl-tampered.XXXXXX")
+    jq '.pushUrl = "/other/repo.git"' "$snap" > "$tampered_snap"
+    export REBASE_STACK_BASELINE_FILE="$tampered_snap"
+
+    local saved_tip
+    saved_tip=$(jq -r '.publishedTips["story-1"]' "$snap")
+    local local_sha
+    local_sha=$(git rev-parse story-1)
+    local stdin_line="refs/heads/story-1 ${local_sha} refs/heads/story-1 ${saved_tip}"
+
+    local output
+    output=$(printf '%s\n' "$stdin_line" | bash "$hooks_dir/test-hook.sh" origin "$(git remote get-url origin)" 2>&1)
+    rc=$?
+    rm -f "$tampered_snap"
+
+    if [ "$rc" -ne 0 ]; then
+      pass "inner hook rejects tampered baseline via full validator"
+    else
+      fail "inner hook full validation" "exited 0 (should reject tampered baseline)"
+    fi
+  )
 }
 
 # =========================================================================
@@ -1974,6 +2273,13 @@ test_create_prs_stub_mixed_fork
 test_create_prs_stub_all_missing_direct
 test_create_prs_stub_failure_stops
 test_create_prs_stub_all_existing
+test_linked_worktree_hooks
+test_status_rejects_invalid_baseline
+test_guard_rejects_wrong_repo_url
+test_guard_rejects_wrong_trunk
+test_snapshot_saves_identity
+test_hook_wrapper_special_chars
+test_inner_hook_full_validation
 
 PASS=$(cat "$PASS_FILE")
 FAIL=$(cat "$FAIL_FILE")

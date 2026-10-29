@@ -39,7 +39,7 @@ case "$cmd" in
     # pass --force when it intends a new operation from scratch.
     if [ "$force" != true ] && [ -f "$SNAPSHOT" ]; then
       scripts_dir="$(cd "$(dirname "$0")" && pwd)"
-      if bash "$scripts_dir/validate-baseline.sh" "$SNAPSHOT" >/dev/null 2>&1; then
+      if bash "$scripts_dir/validate-baseline.sh" "$SNAPSHOT" --schema-only >/dev/null 2>&1; then
         echo "snapshot: refusing to overwrite existing valid baseline" >&2
         echo "  Use 'snapshot.sh save --force' to start a new operation" >&2
         echo "  Existing baseline: $SNAPSHOT" >&2
@@ -97,15 +97,30 @@ case "$cmd" in
       fi
     done < <(jq -r '.branches[].name' <<<"$ctx")
 
-    # Record the push remote's URL for identity validation: a baseline taken
-    # against one repository must not be accepted for a different one.
-    push_url=$(git remote get-url "$push_remote" 2>/dev/null || echo "")
+    # Record the push remote's EFFECTIVE push URL for identity validation: a
+    # baseline taken against one repository must not be accepted for a different
+    # one. Use --push to get the push URL specifically, which may differ from
+    # the fetch URL. If the remote has multiple push URLs, reject: we cannot
+    # reliably identify which URL was used, and silently choosing one could
+    # allow a baseline taken against a different target to pass validation.
+    push_url_count=$(git remote get-url --push --all "$push_remote" 2>/dev/null | wc -l)
+    if [ "$push_url_count" -gt 1 ]; then
+      echo "snapshot: push remote '${push_remote}' has multiple push URLs; cannot safely identify target" >&2
+      exit 2
+    fi
+    push_url=$(git remote get-url --push "$push_remote" 2>/dev/null || echo "")
+
+    # Record the canonical git common directory for repository identity.
+    # This is the main .git directory (shared across worktrees) and uniquely
+    # identifies the repository on the filesystem.
+    git_common_dir=$(cd "$(git rev-parse --git-common-dir)" && pwd)
 
     jq -n --argjson ctx "$ctx" --argjson branches "$entries" \
           --argjson publishedTips "$published_tips" \
           --arg pushUrl "$push_url" \
+          --arg gitCommonDir "$git_common_dir" \
       '{trunk: $ctx.trunk, baseRemote: $ctx.baseRemote, pushRemote: $ctx.pushRemote,
-        pushUrl: $pushUrl,
+        pushUrl: $pushUrl, gitCommonDir: $gitCommonDir,
         branches: $branches, publishedTips: $publishedTips}' \
       > "$SNAPSHOT"
 
