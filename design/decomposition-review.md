@@ -144,21 +144,26 @@ impact:
    as gaps. Do not reject a legitimate prerequisite for adding no new
    feature behavior — that is its nature.
 
-8. **Documentation** — Do `[DOCS]` stories satisfy all seven `[DOCS]`
-   story quality criteria from the decompose skill? Specifically: does
-   the title include searchable product/feature/command terms (not just
-   `[DOCS] Feature documentation`)? Does the persona/goal/benefit name
-   the actual reader and a concrete task? Are acceptance criteria
-   reader-verifiable documentation outcomes (not implementation
-   artifacts)? Does the Documentation Scope describe what the reader
-   needs to understand without prescribing how to write or organize the
-   documentation? Does the Documentation Inputs section inventory all
-   user-facing artifacts from the contributing `[DEV]`/`[UI]` stories,
-   with fact/assumption/open-question distinction? Does the Design
+8. **Documentation** — Do `[DOCS]` stories satisfy the `[DOCS]` story
+   quality criteria from the decompose skill that the reviewer can
+   evaluate from its available inputs (PRD and decomposition artifacts)?
+   Specifically: does the title include searchable product/feature/
+   command terms (not just `[DOCS] Feature documentation`)? Does the
+   persona/goal/benefit name the actual reader and a concrete task? Are
+   acceptance criteria reader-verifiable documentation outcomes (not
+   implementation artifacts)? Does the Documentation Scope describe what
+   the reader needs to understand without prescribing how to write or
+   organize the documentation? Does the Documentation Inputs section
+   inventory user-facing artifacts from the contributing `[DEV]`/`[UI]`
+   stories? Are `[Assumption]` and `[Open: §9.N]` markers present on
+   items that appear speculative or unresolved? Does the Design
    Reference include a `Contributing stories` line consistent with the
    Documentation Inputs headers? Are the contributing story references
-   complete — every `[DEV]`/`[UI]` story that introduces user-facing
-   artifacts covered by this `[DOCS]` story is listed?
+   complete? Note: the reviewer cannot verify whether unmarked
+   Documentation Inputs items are truly derived from the design document
+   or PRD — that provenance check belongs to the decomposer (see
+   `/decompose` Step 13). Flag only items that appear speculative from
+   the PRD and artifact context alone.
 
 ## Finding Format
 

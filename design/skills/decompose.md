@@ -361,7 +361,13 @@ validation gate.
    references so that all references are resolvable during `/sync`. For
    per-epic `[DOCS]` stories, place them as the last story within their
    own epic. For a cross-cutting `[DOCS]` story that spans multiple
-   epics, place it as the last story in the last epic.
+   epics, place it as the last story in the last epic. **Post-sync
+   exemption:** once a `[DOCS]` story has been synced (its filename is
+   in the manifest), it retains its immutable filename and number even
+   when a later contributor is appended with a higher story number.
+   This is safe because `/sync` creates new stories before updating
+   existing ones, so the contributor's Jira key is in the manifest
+   when the `[DOCS]` story's description is rendered.
 
 **Story quality checks:**
 - For `[DEV]` stories: does this story add a capability AND testing for that capability? For a justified behavior-preserving prerequisite, does it restructure existing code AND include tests demonstrating preserved behavior?
@@ -616,7 +622,25 @@ If Step 11 produced changes to the decomposition artifacts:
 
 If no fixes were needed in Step 11, the review passes immediately.
 
-### Step 13: Report Review Summary
+### Step 13: Verify `[DOCS]` Input Provenance
+
+The independent reviewer cannot verify whether unmarked Documentation
+Inputs items are truly derived from the design document or PRD — it
+intentionally lacks the design document. After the review rounds
+complete, verify this as the decomposer:
+
+For each `[DOCS]` story, check every unmarked item in Documentation
+Inputs against the design document (`03-design.md`) and the PRD. An
+item that traces to a specific design section or PRD requirement is
+correctly unmarked (planned). An item that fills a gap not specified
+by either document must be marked `[Assumption]`. An item that
+depends on an unresolved open question must be marked
+`[Open: §9.N]` — use the existing open-question identifier from the
+design document; do not invent new identifiers for this purpose.
+
+Fix any incorrect markers before proceeding to Step 14.
+
+### Step 14: Report Review Summary
 
 ```markdown
 ## Decomposition Review Summary
@@ -631,7 +655,7 @@ If no fixes were needed in Step 11, the review passes immediately.
 list them with their file, section, and issue description.}
 ```
 
-### Step 14: Present to User
+### Step 15: Present to User
 
 Present the decomposition and highlight:
 - Number of epics and stories
@@ -639,7 +663,7 @@ Present the decomposition and highlight:
 - Any coverage gaps
 - Stories that might need size adjustment (too large or too small)
 - Any assumptions or judgment calls in the decomposition
-- Decomposition review summary (from Step 13)
+- Decomposition review summary (from Step 14)
 
 If the decomposition review gate reported FLAG, present the unfixed
 CRITICAL/HIGH findings and ask the user to decide how to handle them.
