@@ -16,10 +16,21 @@ up-to-date breakdown of the Feature.** The decomposition artifacts are the
 source of truth — Jira is the downstream projection. When artifacts change,
 Jira should follow.
 
-Read the approved decomposition artifacts, compare them against the sync
-manifest and Jira state, and execute the minimal set of Jira operations
-needed to bring Jira in line with the artifacts. Always preview before
-acting, and always get explicit user approval.
+Run the sync helper to detect changes and produce a compact change plan,
+then execute the minimal set of Jira operations needed to bring Jira in
+line with the artifacts. Always preview before acting, and always get
+explicit user approval.
+
+## Sync Helper
+
+**Before the first helper operation**, read the full reference at
+`../references/sync-helper-usage.md` (relative to this file).  It
+documents helper discovery, all subcommand signatures, reference
+resolution, prepare/checkpoint recipes, and close-transition selection.
+
+The helper **never contacts Jira** and **never mutates external state**.
+All Jira API calls, user approvals, and error-handling decisions remain
+your responsibility.
 
 ## Critical Rules
 
@@ -30,59 +41,57 @@ acting, and always get explicit user approval.
 - **Manifest gate.** Before proceeding past Step 1, you **must** state aloud to the user what the manifest contains (or that none exists). This is mandatory — do not silently skip this acknowledgment. If a manifest exists and you cannot read it, stop and report the error.
 - **Jira-side duplicate check.** Before creating each epic or story, query Jira for existing children under the parent with a matching summary. If a match is found, stop and present the match to the user — do not create a duplicate. This is a safety net independent of the manifest.
 - **Jira hierarchy is fixed.** Feature → Epic → Story. Every epic's parent is the Feature issue; every story's parent is its epic. No operation may violate this hierarchy — no re-parenting, no creating issues outside this structure, no closing a Feature.
-- **Sync-owned fields.** Sync owns: summary, description, T-shirt size (epics only), parent link (creation only), and issue links (dependencies). These are set from artifact content on creation and overwritten on updates (except parent link). Sync never touches: status, assignee, sprint, comments, labels, or any other Jira-managed field.
+- **Sync-owned fields.** Sync owns: summary, description, T-shirt size (epics only), parent link (creation only), and issue links (dependencies). These are set from artifact content on creation and overwritten on updates (except parent link). Sync never touches: assignee, sprint, comments, labels, or any other Jira-managed field. Status transitions are permitted **only** for gated lifecycle operations: reopening a previously closed item (Step 4b/5b), closing a removed or user-selected orphaned item (Step 4c/5c), and closing active child stories as part of an approved parent epic closure cascade (Step 4c — the user's approval of the parent close covers its children). No other status changes are allowed.
 - **Logical deletion via marker.** Stories and epics are closed (not deleted) when their artifact file contains `status: removed` in the YAML frontmatter. The file stays on disk so the manifest can still track it.
 - **Link to source.** Every Jira issue description references the design document.
 - **Jira-native references.** Local identifiers (`Story 1.01`, `Epic 1`) have meaning only within the `.artifacts/` directory. When constructing Jira issue descriptions, resolve all local references (in Dependencies, Documentation Inputs, Design Reference, and any other cross-references) to Jira issue keys using the sync manifest. Jira is the source of truth — readers of a Jira issue should never need to decode a local artifact numbering scheme.
-
-## Reference Resolution
-
-When Jira descriptions reference other issues (Dependencies, Documentation
-Inputs, Design Reference), replace local identifiers with Jira issue keys:
-
-- `Story 1.01` → look up `story-01-*.md` under `epic-1/` in the manifest → `EDM-XXXX`
-- `Epic 1` → look up `epic-1-*.md` in the manifest → `EDM-YYYY`
-- `Stories 1.01, 2.01, 3.01` → resolve each → `EDM-XXXX, EDM-AAAA, EDM-BBBB`
-
-The manifest is built incrementally: each issue's key is recorded immediately
-after creation. Since epics are created first and stories are created in epic
-order (Epic 1 stories before Epic 2 stories), dependencies — which reference
-earlier stories — are always resolvable by the time they're needed.
-
-If a reference cannot be resolved (the referenced item hasn't been created
-yet or failed to create), leave the local identifier, annotate it with
-`[unresolved]`, and flag it to the user.
+- **Checkpoint only on success.** Call `update-manifest` only after a Jira operation succeeds. Pass the `content_hash` that was computed *before* the Jira call (the hash of the content actually submitted), not a freshly recomputed hash. Never record failed or unattempted operations.
+- **Close-checkpoint recovery.** For every close path (child, epic, standalone story): retain the exact operation identity (file, Jira key, item type, parent, captured hash) until its checkpoint succeeds. If the Jira close succeeded but `update-manifest` failed, **pause in this run**, remediate the actual local error, and retry **only the exact saved checkpoint invocation** with the original hash. Never repeat a terminal Jira transition, recompute a newer hash, clear the captured state, start other Jira writes, or offer fresh-sync/defer/end while a completed close is uncheckpointed. Pre-transition failures (hash-prep error, transition unavailable, known-rejected Jira call) have no pending Jira success — normal retry/skip/defer choices remain valid. If the Jira outcome is uncertain (network timeout, server error), verify the issue's current status before retrying — do not assume the call was non-mutating. If the captured state is lost (forced abort, new run, lost context) and the manifest entry is still active but Jira is already terminal, **stop for manual reconciliation** rather than blindly repeating the terminal transition or fabricating a hash. Respect a user stop: report incomplete status and hand off rather than ignoring the stop or claiming success.
 
 ## Process
 
 ### Step 1: Read Decomposition Artifacts and Detect Changes
 
-Read these files:
-1. `.artifacts/design/{issue-key}/05-epics.md` (epic metadata and ordering)
-2. `.artifacts/design/{issue-key}/06-stories/epic-*.md` (individual epic files)
-3. `.artifacts/design/{issue-key}/06-stories/epic-*/story-*.md` (all story files)
-4. `.artifacts/design/{issue-key}/03-design.md` (for the Jira link and title)
+Read `.artifacts/design/{issue-key}/03-design.md` (for the Jira link and
+title). If the decomposition artifacts directory does not exist or has no
+`06-stories/` subdirectory, tell the user that `/decompose` should be run
+first.
 
-If these don't exist, tell the user that `/decompose` should be run first.
+Run the sync helper to detect changes:
 
-Check for an existing sync manifest at
-`.artifacts/design/{issue-key}/sync-manifest.json`.
+```bash
+python3 "$SYNC_HELPER" detect-changes .artifacts/design/{issue-key}/
+```
 
-#### If no manifest exists
+The helper reads all epic and story files under `06-stories/`, compares
+them against `sync-manifest.json`, and outputs a JSON change plan:
 
-This is a fresh sync. Create all items except those already marked
-`status: removed` — those have never been synced and should be skipped
-(not created, not closed). Present:
+```json
+{
+  "manifest_exists": true,
+  "schema_version": 2,
+  "v1_migration": false,
+  "feature_key": "EDM-2324",
+  "synced_at": "2026-01-15T10:00:00Z",
+  "summary": {"new": 3, "changed": 1, "removed": 1, "unchanged": 5, "orphaned": 0, "reopened": 0},
+  "items": [
+    {
+      "file": "epic-1-building.md",
+      "type": "epic",
+      "category": "new",
+      "title": "...",
+      "epic_index": 1,
+      "jira_key": null,
+      "content_hash": "abc123...",
+      "old_hash": null,
+      "synced_status": null
+    }
+  ],
+  "warnings": []
+}
+```
 
-*"No sync manifest found — this is a fresh sync. {N} epics and {M}
-stories will be created; {R} removed-marked items will be skipped."*
-
-Proceed to Step 2.
-
-#### If a manifest exists
-
-Read it and categorize every item into one of four buckets by comparing
-the manifest against the files on disk:
+The categorization rules the helper applies:
 
 1. **New** — file exists on disk, no matching filename in the manifest,
    and no `status: removed` marker in its frontmatter.
@@ -104,21 +113,34 @@ the manifest against the files on disk:
    content hash matches, and no `status: removed` marker.
    Action: skip.
 
-**Edge case — reopened:** If a file has no `status: removed` marker but
-its manifest entry has `synced_status: "closed"`, the item was previously
-closed and has been brought back. Treat it as **Changed** — transition the
-Jira issue back to an open status and update its content.
+5. **Reopened** — file has no `status: removed` marker but its manifest
+   entry has `synced_status: "closed"`. The item was previously closed
+   and has been brought back. Treat as **Changed** — transition the
+   Jira issue back to an open status and update its content.
 
-**Edge case — already closed:** If a file has `status: removed` and its
-manifest entry has `synced_status: "closed"`, the item was already closed
-in a previous sync run. Skip it — no Jira operation needed.
+6. **Orphaned** — manifest entry with `synced_status: "active"` whose
+   file no longer exists on disk. Closed entries whose files were
+   deleted are silently ignored.
 
-**Edge case — orphaned manifest entries:** After categorizing all files
-on disk, scan the manifest for entries with `synced_status: "active"`
-whose files no longer exist on disk (the file was deleted rather than
-marked with `status: removed`). Only flag active entries — closed
-entries whose files were deleted are expected cleanup and can be silently
-ignored. Present orphaned active entries to the user:
+#### Handle the change plan
+
+**If `manifest_exists` is false:** This is a fresh sync. Present:
+
+*"No sync manifest found — this is a fresh sync. {N} epics and {M}
+stories will be created; {R} removed-marked items will be skipped."*
+
+(Counts come from the `summary` field.)
+
+**If `v1_migration` is true:** Inform the user: *"Migrating manifest from
+v1 to v2 — all existing items will be updated once to populate content
+hashes."* Then run:
+
+```bash
+python3 "$SYNC_HELPER" migrate-manifest .artifacts/design/{issue-key}/sync-manifest.json
+```
+
+**If the plan has orphaned items** (`summary.orphaned > 0`): Present
+orphaned entries (from items with `category: "orphaned"`) to the user:
 
 ```text
 Warning: {N} manifest entries have no corresponding file on disk.
@@ -126,7 +148,7 @@ Their Jira tickets are still open but no artifact tracks them:
 
 | Jira Key | Missing File | Title |
 |----------|--------------|-------|
-| {EDM-XXXX} | epic-2/story-03-foo.md | [{prefix}] {title} |
+| {jira_key} | {file} | {title} |
 
 Options:
   (a) Close these tickets (treat as removed)
@@ -136,28 +158,10 @@ Options:
 
 Wait for the user's choice before continuing.
 
-**Edge case — removed story under active epic:** If a story is marked
-`status: removed` but its parent epic is still active, check whether the
-epic file's Stories section still references the removed story. If it
-does, warn the user:
-
-```text
-Note: Story {X}.{NN} is marked for closure but is still listed in
-Epic {X}'s description. Consider running /revise to update the epic
-file before syncing, so the epic's Jira description stays accurate.
-```
-
-This is a warning, not a blocker — proceed with the sync if the user
-confirms.
-
-**Manifest v1 migration:** If the manifest has `schema_version: 1`
-(no `content_hash` or `synced_status` fields), treat all existing items as
-`synced_status: "active"` with no stored hash. This means every existing
-item will be categorized as **Changed** on the first CRUD sync, which
-populates the hashes. Inform the user: *"Migrating manifest from v1 to
-v2 — all existing items will be updated once to populate content hashes."*
-If any v1 entries have no corresponding file on disk, the
-orphaned-entries check (above) will flag them separately.
+**If the plan has warnings** (`warnings` is non-empty): Present each
+warning to the user. These are informational (e.g., a removed story
+still referenced in its active epic). They are not blockers — proceed
+with the sync if the user confirms.
 
 **Manifest acknowledgment (mandatory).** Before moving to Step 2, present
 a summary to the user:
@@ -165,12 +169,14 @@ a summary to the user:
 *"Manifest found (last synced {synced_at}): {N} items total — {A} new,
 {B} changed, {C} to close, {D} unchanged."*
 
-**If nothing to do** (no new, changed, or removed items), stop and tell
-the user:
+(Use `summary` counts. Include reopened in the changed count for display.)
+
+**If nothing to do** (no new, changed, removed, reopened, or orphaned
+items), stop and tell the user:
 
 ```text
 All items are in sync — nothing to do.
-Last synced: {synced_at from manifest}
+Last synced: {synced_at from change plan}
 ```
 
 Present the translation table from the manifest and do not proceed to
@@ -189,7 +195,7 @@ Confirm with the user:
 
 ### Step 3: Dry Run
 
-Present a preview of all planned operations:
+Present a preview of all planned operations, using the change plan items:
 
 ```markdown
 ## Jira Sync Preview — {issue-key}
@@ -211,22 +217,18 @@ Present a preview of all planned operations:
 
 | Jira Key | Local File | What Changed |
 |----------|------------|--------------|
-| {EDM-XXXX} | `epic-1-{slug}.md` | Summary, Description |
-| {EDM-XXXY} | `story-01-{slug}.md` | Description, Dependencies |
-| {EDM-XXZZ} | `story-02-{slug}.md` | Reopened (closed → open), Content changed |
+| {jira_key} | `{file}` | Content changed |
+| {jira_key} | `{file}` | Reopened (closed → open), Content changed |
 
-To populate "What Changed", compare the current file's title and
-sections against the Jira issue's current fields. If this comparison
-is impractical, use "Content changed" as the value. For reopened items
-(previously closed, now brought back), prefix with "Reopened (closed →
+For items with `category: "reopened"`, prefix with "Reopened (closed →
 open)" so the status transition is visible.
 
 ### To Close ({N} items)
 
 | Jira Key | Local File | Title |
 |----------|------------|-------|
-| {EDM-XXXX} | `story-03-{slug}.md` | [{prefix}] {title} |
-| {EDM-YYYY} | *(orphaned — no artifact file)* | [{prefix}] {title} |
+| {jira_key} | `{file}` | {title} |
+| {jira_key} | *(orphaned — no artifact file)* | {title} |
 
 Include orphaned entries the user chose to close in Step 1 with the
 note "*(orphaned — no artifact file)*" in the Local File column.
@@ -248,7 +250,7 @@ first — do not modify the decomposition during sync.
 ### Step 4: Sync Epics
 
 Process epics in three passes: create new epics, update changed epics,
-close removed epics.
+close removed epics. Use the change plan items filtered by `type: "epic"`.
 
 #### 4a: Create New Epics
 
@@ -278,31 +280,21 @@ Options:
 
 Wait for the user's choice before continuing.
 
-For each new epic, create a Jira issue:
+For each new epic, prepare the hash and description using the epic
+`prepare` recipe from the helper reference — **before** the Jira call
+(so the hash reflects exactly the submitted content).  `PREP` is JSON
+with `content_hash`, `description`, `summary` (Jira-ready title
+without numbering), `size` (T-Shirt size), and `title` (raw).
+
+Then create the Jira issue using fields from `PREP`:
 
 - **Type:** Epic
 - **Project:** {project key}
 - **Parent:** {feature-key} — **mandatory; set via the `fields` parameter: `{"parent": {"key": "{feature-key}"}}`**
-- **Summary:** {epic title}
-- **Description:**
-
-```markdown
-## Summary
-
-{summary from the epic file (06-stories/epic-{N}-{slug}.md)}
-
-## Acceptance Criteria
-
-{acceptance criteria from the epic file}
-
-## Design Reference
-
-Design document: {link to design doc PR or file}
-Feature: {feature-key}
-```
-
-- **T-Shirt Size:** {size} — set via `additional_fields`:
-  `{"customfield_10795": {"value": "{size}"}}`
+- **Summary:** `summary` from PREP (e.g. "Image Building" — without "Epic 1" prefix)
+- **Description:** `description` from PREP
+- **T-Shirt Size:** `size` from PREP — set via `additional_fields`:
+  `{"customfield_10795": {"value": "{size from PREP}"}}`
 
 After creating each epic, verify the created issue has `parent.key`
 equal to `{feature-key}` by reading the issue back. If the parent is
@@ -311,7 +303,9 @@ linking to a "Next Steps" section.** The Feature→Epic hierarchy is a
 required outcome of this step, not an optional follow-up.
 
 Record the Jira key and content hash in the sync manifest immediately
-(before creating the next epic). Set `synced_status: "active"`.
+(before creating the next epic) using the `update-manifest --operation
+create` recipe from the helper reference. Pass `--feature-key` on the
+first call to populate the manifest's `feature_key` field.
 
 **If creation fails:** Stop immediately. Report which epics were created
 successfully (they are already recorded in the manifest) and which one
@@ -321,41 +315,91 @@ continue past a failure.
 
 #### 4b: Update Changed Epics
 
-For each epic categorized as **Changed**, update the Jira issue using
-the Jira key from the manifest:
+For each epic categorized as **Changed** or **Reopened**, prepare the
+updated description and hash using the epic `prepare` recipe from the
+helper reference.
 
-- **Summary:** re-read the epic title from the current file
-- **Description:** re-render the full description from the current file
-  content (same template as creation above), resolving all references
-- **T-Shirt Size:** re-read from the current file
+Update the Jira issue using the Jira key from the change plan item.
+All field values come from `PREP` (the same snapshot that produced the
+hash):
 
-Update only the sync-owned fields. Do not touch status, assignee, or
-other Jira-managed fields.
+- **Summary:** `summary` from PREP
+- **Description:** `description` from PREP
+- **T-Shirt Size:** `size` from PREP
 
-After updating, record the new `content_hash` in the manifest.
+Update only the sync-owned fields. Do not touch assignee or other
+Jira-managed fields. Status transitions are permitted only for lifecycle
+operations: transition **Reopened** items to an open status before
+updating content, and transition **Removed** or user-selected
+**Orphaned** items to a closed status during the close passes (Steps 4c,
+5c). Do not change status for any other reason.
+
+After updating, record the new hash using `update-manifest --operation
+update` from the helper reference.
 
 **If update fails:** Report the error with the Jira key and offer to
 retry or skip.
 
-#### 4c: Close Removed Epics
+#### 4c: Close Removed and Selected Orphaned Epics
 
-For each epic categorized as **Removed** (file has `status: removed`):
+For each epic categorized as **Removed** (file has `status: removed`)
+or **Orphaned** where the user chose to close it in Step 1:
 
-1. First, close all stories under this epic that have `synced_status:
-   "active"` in the manifest (stories before parent). For each closed
-   story, set its `synced_status: "closed"` and update its
-   `content_hash` to the current file hash.
-2. Then transition the epic to Done/Closed in Jira.
-3. Update the manifest entry: set `synced_status: "closed"` and update
-   `content_hash` to the current file hash.
+1. Close all stories under this epic that have `synced_status: "active"`
+   in the manifest (stories before parent). For each child story:
+   a. **Compute the hash first.** Use `compute-hash` if the file exists
+      on disk; for orphaned entries (no file on disk), use an empty
+      hash. Use a distinct variable per child to avoid overwriting
+      sibling hashes (e.g., `CHILD_HASH_01`, `CHILD_HASH_02`).
+   b. Transition the child story to Done/Closed in Jira.
+   c. On success, checkpoint the child close using the child story
+      close recipe from the helper reference (`update-manifest
+      --operation close` with `--item-type story`, `--epic-file`,
+      child file, key, and the hash from step (a)). Retain this
+      exact parameter bundle for checkpoint-only retry per the
+      close-checkpoint recovery rule.
+   d. **If any child operation fails** — distinguish:
+      - **Pre-transition failure** (hash-prep error, transition
+        unavailable, known-rejected Jira call, user skip): no pending
+        Jira success exists. Normal retry/skip/defer choices apply.
+        If the Jira outcome is uncertain (network timeout, server
+        error), verify the issue's current status before retrying.
+      - **Post-success checkpoint failure** (`update-manifest` failed
+        after Jira close succeeded): follow the close-checkpoint
+        recovery rule — pause, remediate the local error, retry only
+        the saved checkpoint invocation with the original hash.
+      In either case: **stop the cascade immediately.** Do not
+      proceed to the parent epic. Preserve all already-successful
+      child checkpoints. Report: the parent epic and its Jira key;
+      which children are closed and checkpointed (complete); which
+      child failed and the error (note whether it is Jira-closed but
+      uncheckpointed, or not yet attempted); and which children
+      remain unattempted. Do not imply that already-closed children
+      will be rolled back or reopened. For pre-transition failures,
+      offer: **retry after remediation** or **defer the entire parent
+      cascade** (leave the epic and remaining children in their
+      current state). Never skip a failing child and then close the
+      parent.
+   e. **Resume:** Skip children whose checkpoints already recorded
+      `synced_status: "closed"`. For a child whose Jira close
+      succeeded but whose checkpoint is missing, apply the
+      close-checkpoint recovery rule (retry checkpoint with the
+      captured hash). If the captured state was lost (forced abort or
+      new run), stop for manual reconciliation.
+2. After **all** child closures and their checkpoints have succeeded,
+   compute the epic hash: use `compute-hash` if the file exists on
+   disk; for orphaned entries (no file on disk), use an empty hash.
+3. Transition the epic to Done/Closed in Jira.
+4. On success, record the close with `update-manifest`, passing the
+   hash from step 2:
 
-**Selecting the close transition:** Use the Jira API to query available
-transitions for the issue and select the terminal/done-category
-transition. If multiple terminal transitions are available, prefer
-"Done" over "Closed." If no terminal transition is available from the
-current status, report the error and let the user handle it in Jira.
+   Use the epic close recipe from the helper reference
+   (`update-manifest --operation close` with `--item-type epic`).
+   Select the close transition per the helper reference.
 
-**If close fails:** Report the error and offer to retry or skip.
+**If epic close fails:** For pre-transition failures, offer retry or
+defer. For post-success checkpoint failure, follow the close-checkpoint
+recovery rule. Already-closed children remain closed.
 
 Present all epic operations to the user:
 
@@ -371,6 +415,38 @@ Present all epic operations to the user:
 **Wait for user confirmation before syncing stories.**
 
 ### Step 5: Sync Stories
+
+**Refresh the change plan** before processing stories. Epic operations
+in Step 4 may have changed the manifest (e.g., closing an epic closes
+its children, reopening an epic enables its children). Re-run
+`detect-changes` to get an updated plan that reflects the current
+manifest state:
+
+```bash
+STORY_PLAN=$(python3 "$SYNC_HELPER" detect-changes .artifacts/design/{issue-key}/)
+```
+
+Use the refreshed plan's `type: "story"` items for story operations.
+This ensures:
+- Children already closed by cascaded epic closure (Step 4c) are not
+  re-closed
+- Stories under a reopened epic are correctly categorized
+- User orphan choices from Step 1 that were not acted on in Step 4 are
+  preserved (orphan entries the user chose to ignore remain in the
+  manifest and will still appear as orphaned in the refreshed plan)
+
+If a parent epic's create or reopen operation failed/was skipped in
+Step 4, do not create, update, or reopen stories under that epic —
+skip them and report which stories were skipped due to the parent
+failure.
+
+If an epic's close cascade was deferred in Step 4c (the parent was
+left unclosed because a child closure or checkpoint failed — whether
+remaining children are open, Jira-closed but uncheckpointed, or
+unattempted), do not retry closing those remaining children here.
+They remain in their current manifest state. Report them as deferred
+and inform the user that the parent cascade must be retried from
+Step 4c after remediation.
 
 Process stories per epic, in the same three passes: create, update, close.
 
@@ -389,105 +465,35 @@ story.** Instead, stop and present the match to the user with the same
 options as in Step 4a (skip and record, create anyway, or stop entirely).
 Wait for the user's choice before continuing.
 
-For each new story under each epic, create a Jira issue:
+For each new story, prepare the hash and description using the story
+`prepare` recipe from the helper reference. `PREP` is JSON with
+`content_hash`, `description`, `summary` (`[PREFIX] title` without
+numbering), `story_type`, `dependencies` (resolved text), and `title`.
+
+Create the Jira issue using fields from `PREP`:
 
 - **Type:** Story
 - **Project:** {project key}
 - **Parent:** {epic jira key} (from Step 4) — **set via the `fields` parameter: `{"parent": {"key": "{epic jira key}"}}`**
-- **Summary:** `[{prefix}] {story title}`
-- **Description:**
-
-**For `[DEV]`, `[UI]`, `[UX]`, `[QE]`, and `[CI]` stories:**
-
-```markdown
-## User Story
-
-**As a** {role},
-**I want to** {capability},
-**So that** {benefit}.
-
-## Acceptance Criteria
-
-{acceptance criteria from story file}
-
-## Implementation Guidance
-
-{implementation guidance from story file}
-
-## Testing Approach
-
-{testing approach from story file}
-
-## Dependencies
-
-{dependencies from story file, with local references resolved to Jira keys
- per the Reference Resolution section}
-
-## Design Reference
-
-Design document: {link to design doc PR or file}
-Epic: {epic jira key}
-PRD Requirements: {requirement IDs}
-Design section: {§reference}
-Interface Changes: {IC-1, IC-2 — from story file, preserved as-is}
-Validated by: {TC-FR1-01, TC-FR3-02 — from story file, preserved as-is}
-```
-
-**For `[DOCS]` stories:**
-
-```markdown
-## User Story
-
-**As a** {role},
-**I want to** {capability},
-**So that** {benefit}.
-
-## Acceptance Criteria
-
-{acceptance criteria from story file}
-
-## Documentation Scope
-
-{documentation scope from story file}
-
-## Documentation Inputs
-
-{documentation inputs from story file, with story references resolved to
- Jira keys: "**Story 1.01 — {title}:**" → "**EDM-XXXX — {title}:**"}
-
-## Dependencies
-
-{dependencies from story file, with local references resolved to Jira keys
- per the Reference Resolution section}
-
-## Design Reference
-
-Design document: {link to design doc PR or file}
-Epic: {epic jira key}
-PRD Requirements: {requirement IDs}
-Design section: {§reference}
-```
-
-**Reference resolution:** Before submitting the description, resolve all
-local identifiers to Jira keys (see Reference Resolution). This applies to
-Dependencies (`Story 1.01` → `EDM-XXXX`), Documentation Inputs
-(`Story 1.01` → `EDM-XXXX`), and Design Reference
-(`Epic 1` → `EDM-YYYY`).
+- **Summary:** `summary` from PREP (e.g. "[DEV] Scaffold Build Pipeline" — without "Story 1.01:" prefix)
+- **Description:** `description` from PREP
 
 After creating each story, verify the created issue has `parent.key`
 equal to the epic's Jira key by reading the issue back. If the parent
 is missing, stop and report the error — **do not silently defer parent
 linking.** The Epic→Story hierarchy is a required outcome of this step.
 
-Record the Jira key and content hash in the sync manifest immediately
-(before creating the next story). Set `synced_status: "active"`.
+Record the Jira key and content hash immediately using the story
+create recipe from the helper reference (`update-manifest --operation
+create` with `--item-type story` and `--epic-file`).
 
-**Issue links:** After creating the story, create Jira issue links for each
-dependency listed in the story. Resolve dependency references to Jira keys
-using the manifest. If a dependency's Jira key isn't in the manifest (it
-wasn't created or failed), skip the link and note it for the user. These
-links enable downstream workflows (e.g., docs-writer) to traverse the
-dependency chain via the Jira API.
+**Issue links:** After creating the story, create Jira issue links for
+each dependency. The `dependencies` field in `PREP` contains the
+resolved dependency text (local refs already replaced with Jira keys).
+Parse each Jira key from this text. If a dependency shows
+`[unresolved]`, skip the link and note it for the user. These links enable downstream
+workflows (e.g., docs-writer) to traverse the dependency chain via the
+Jira API.
 
 For each dependency, the semantic relationship is:
 
@@ -540,12 +546,14 @@ so re-running `/sync` later will only attempt uncreated items.
 
 #### 5b: Update Changed Stories
 
-For each story categorized as **Changed**, update the Jira issue using
-the Jira key from the manifest:
+For each story categorized as **Changed** or **Reopened**, prepare the
+updated description and hash using the story `prepare` recipe from the
+helper reference.
 
-- **Summary:** re-read the `[{prefix}] {story title}` from the current file
-- **Description:** re-render the full description from the current file
-  content (same template as creation above), resolving all references
+Update the Jira issue using fields from `PREP`:
+
+- **Summary:** `summary` from PREP
+- **Description:** `description` from PREP
 - **Issue links:** read the Jira issue's current issue links and filter
   to only those matching the link type selected in Step 5a (either
   "Dependency" or "Blocks", whichever was used during creation).
@@ -555,23 +563,33 @@ the Jira key from the manifest:
   link type and direction mapping as Step 5a. Do not touch issue links
   of other types.
 
-Update only the sync-owned fields. Do not touch status, assignee, or
-other Jira-managed fields.
+Update only the sync-owned fields. Do not touch assignee or other
+Jira-managed fields. For **Reopened** items, transition the Jira issue
+back to an open status before updating content (see the status rule in
+Step 4b). Do not change status for any other reason.
 
-After updating, record the new `content_hash` in the manifest.
+After updating, record the new hash using `update-manifest --operation
+update` with `--item-type story` and `--epic-file` from the helper
+reference.
 
 **If update fails:** Report the error with the Jira key and offer to
 retry or skip.
 
-#### 5c: Close Removed Stories
+#### 5c: Close Removed and Selected Orphaned Stories
 
-For each story categorized as **Removed** (file has `status: removed`):
+For each story categorized as **Removed** (file has `status: removed`)
+or **Orphaned** where the user chose to close it in Step 1:
 
-1. Transition the story to Done/Closed in Jira.
-2. Update the manifest entry: set `synced_status: "closed"` and update
-   `content_hash` to the current file hash.
+1. Compute the hash before the transition: use `compute-hash` if the
+   file exists on disk; for orphaned entries, use an empty hash.
+2. Transition the story to Done/Closed in Jira.
+3. On success, record the close using the standalone story close recipe
+   from the helper reference (`update-manifest --operation close` with
+   `--item-type story`, `--epic-file`, and the hash from step 1).
 
-**If close fails:** Report the error and offer to retry or skip.
+**If close fails:** For pre-transition failures, offer retry or skip.
+For post-success checkpoint failure, follow the close-checkpoint
+recovery rule.
 
 Present the stories synced for each epic:
 
@@ -587,8 +605,9 @@ Present the stories synced for each epic:
 ### Step 6: Verify Sync Manifest
 
 The manifest has been built/updated incrementally during Steps 4-5 (each
-operation was recorded immediately after success). Verify the manifest is
-complete and consistent. The final structure should be:
+operation was recorded via `update-manifest` immediately after success).
+Verify the manifest is complete and consistent. The final structure should
+be:
 
 ```json
 {

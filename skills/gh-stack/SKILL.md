@@ -1,6 +1,6 @@
 ---
 name: gh-stack
-version: 0.1.0
+version: 0.1.1
 description: >-
   Manages stacked PRs with gh-stack — creation, viewing, editing, push, submit,
   sync, rebase, merge, and checkout. Use when splitting work into reviewable

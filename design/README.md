@@ -172,6 +172,14 @@ The `/sync` phase keeps Jira in sync with the approved decomposition:
 - **Idempotent** — tracks synced items with content hashes in `sync-manifest.json`; re-running only acts on changes
 - **Full CRUD** — creates new items, updates changed items (sync-owned fields only), closes items marked `status: removed`
 - **Duplicate detection** — queries Jira before each creation to prevent duplicates, independent of the manifest
+- **Deterministic helpers** — a Python helper script handles file comparison, hash computation, reference resolution, description rendering, and manifest checkpointing; the AI retains ownership of Jira API calls, user approvals, and error handling
+
+### Sync Helper
+
+The `/sync` phase uses `scripts/sync_helper.py` for deterministic
+operations.  The helper requires Python 3.10+ with no external
+dependencies (standard library only).  It never contacts Jira or modifies
+external state.
 
 ## Directory Structure
 
@@ -183,6 +191,11 @@ design/
 ├── templates/
 │   ├── design.md               # Design document template
 │   └── section-guidance.md     # AI instructions per section
+├── references/
+│   └── sync-helper-usage.md    # Sync helper CLI usage reference
+├── scripts/
+│   ├── sync_helper.py          # Deterministic sync operations (hash, diff, render, manifest)
+│   └── test_sync_helper.py     # Unit tests for sync_helper
 ├── skills/
 │   ├── controller.md           # Phase dispatcher and transitions
 │   ├── ingest.md               # Read PRD, explore codebase
