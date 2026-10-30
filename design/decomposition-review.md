@@ -159,12 +159,13 @@ impact:
    items that appear speculative or unresolved? Does the Design
    Reference include a `Contributing stories` line consistent with the
    Documentation Inputs headers? Are the contributing story references
-   complete? Is each `[DOCS]` story's file number higher than all
-   its contributing stories' file numbers within the same epic (per
-   criterion 7 placement)? If a `[DOCS]` story appears to precede a
-   contributor, flag it as a conditional LOW finding — the decomposer
-   will verify whether it is a manifest-tracked post-sync story with
-   an immutable filename before acting on the finding. Note: the
+   complete? Per criterion 7 placement: for per-epic `[DOCS]` stories,
+   is the file number higher than all its contributing stories within
+   the same epic? For cross-cutting `[DOCS]` stories, is it placed as
+   the last story in the last epic? If a `[DOCS]` story appears to
+   violate either rule, flag it as a conditional LOW finding — the
+   decomposer will verify whether it is a manifest-tracked post-sync
+   story with an immutable filename before acting. Note: the
    reviewer cannot verify whether unmarked Documentation Inputs items
    are truly derived from the design document or PRD — that provenance
    check belongs to the decomposer (see the provenance verification

@@ -4320,6 +4320,33 @@ class TestDecomposePhaseContract(unittest.TestCase):
         not decompose step numbers."""
         self.assertIn("[Open: §9.N]", self._decompose_md)
 
+    def test_placement_identity_check_in_step8(self) -> None:
+        """Step 8 instructs decomposer to check sync-manifest identity
+        before acting on conditional placement findings."""
+        step8 = self._decompose_md.split("### Step 8:")[1].split("### Step 9:")[0]
+        manifest_idx = step8.find("sync-manifest.json")
+        self.assertGreaterEqual(manifest_idx, 0,
+                                "Step 8 must reference sync-manifest.json")
+        self.assertIn("manifest-tracked", step8)
+        self.assertIn("request verification", step8,
+                      "Must request verification when identity uncertain")
+
+    # -- Placement scenarios (contract: review rubric text) --
+
+    def test_review_rubric_covers_cross_cutting_placement(self) -> None:
+        """Criterion 8 covers cross-cutting DOCS placement (last epic)
+        using canonical criterion 7 wording."""
+        review_path = Path(__file__).resolve().parent.parent / "decomposition-review.md"
+        review_md = review_path.read_text(encoding="utf-8")
+        crit8_start = review_md.find("8. **Documentation**")
+        self.assertGreaterEqual(crit8_start, 0)
+        crit8 = review_md[crit8_start:review_md.find("## Finding Format")]
+        self.assertIn("last story in the last epic", crit8,
+                      "Must cover cross-cutting placement per criterion 7")
+        self.assertIn("conditional LOW", crit8)
+        self.assertIn("manifest-tracked", crit8,
+                      "Must note post-sync exception")
+
 
 # ---------------------------------------------------------------------------
 # Sync: reference-availability guard for DOCS creation and update
@@ -4496,31 +4523,45 @@ class TestSyncDocsReferenceGuard(_TmpDirMixin, unittest.TestCase):
         self.assertIn("reopening (Step 6b)", guard_flat)
         self.assertIn("do not record a manifest checkpoint", guard_flat)
 
-    def test_6a_callsite_references_guard(self) -> None:
-        """Step 6a explicitly applies the reference-availability guard
-        before prepare for [DOCS] stories."""
+    def test_6a_guard_precedes_prepare(self) -> None:
+        """Step 6a: reference-availability guard appears before the
+        story prepare recipe instruction."""
         sync_md = self._read_sync_md()
         start = sync_md.find("#### 6a:")
         end = sync_md.find("#### 6b:")
         self.assertGreaterEqual(start, 0, "Step 6a must exist")
         self.assertGreater(end, start, "Step 6b must follow 6a")
-        section = " ".join(sync_md[start:end].split())
-        self.assertIn("reference-availability guard", section,
-                      "6a must reference the guard before prepare")
+        section = sync_md[start:end]
+        guard_pos = section.find("reference-availability guard")
+        prepare_pos = section.find("`prepare` recipe")
+        self.assertGreaterEqual(guard_pos, 0,
+                                "6a must contain reference-availability guard")
+        self.assertGreaterEqual(prepare_pos, 0,
+                                "6a must contain prepare recipe instruction")
+        self.assertLess(guard_pos, prepare_pos,
+                        "Guard must precede prepare recipe in 6a")
         self.assertIn("defer", section,
                       "6a must defer DOCS with missing keys")
+        self.assertIn("skip `prepare`", " ".join(section.split()),
+                      "6a deferral must skip prepare")
 
-    def test_6b_callsite_references_guard(self) -> None:
-        """Step 6b explicitly applies the reference-availability guard
-        before prepare for changed/reopened [DOCS] stories."""
+    def test_6b_guard_precedes_prepare(self) -> None:
+        """Step 6b: reference-availability guard appears before the
+        story prepare recipe instruction."""
         sync_md = self._read_sync_md()
         start = sync_md.find("#### 6b:")
         end = sync_md.find("#### 6c:")
         self.assertGreaterEqual(start, 0, "Step 6b must exist")
         self.assertGreater(end, start, "Step 6c must follow 6b")
-        section = " ".join(sync_md[start:end].split())
-        self.assertIn("reference-availability guard", section,
-                      "6b must reference the guard before prepare")
+        section = sync_md[start:end]
+        guard_pos = section.find("reference-availability guard")
+        prepare_pos = section.find("`prepare`")
+        self.assertGreaterEqual(guard_pos, 0,
+                                "6b must contain reference-availability guard")
+        self.assertGreaterEqual(prepare_pos, 0,
+                                "6b must contain prepare instruction")
+        self.assertLess(guard_pos, prepare_pos,
+                        "Guard must precede prepare in 6b")
         self.assertIn("defer", section)
 
     def test_deferral_no_current_run_retry(self) -> None:

@@ -710,7 +710,7 @@ Fields:
 Summarize:
 - How many epics and stories were created, updated, closed, unchanged, and **deferred**
 - For each deferred `[DOCS]` story: the story file, which contributor keys were missing, and the reason. Note that these stories will appear as `new` or `changed` on the next `/sync` run because no checkpoint was recorded. Do not claim complete synchronization while deferred stories remain
-- Confirm the hierarchy was verified: every epic has parent = Feature (verified in Step 5), every story has parent = its epic (verified in Step 6)
+- Confirm the hierarchy was verified for every issue actually created or updated: every epic has parent = Feature (verified in Step 5), every story has parent = its epic (verified in Step 6). Deferred stories were not created and have no Jira parent to verify
 - Link to the Feature issue in Jira (which now shows the full hierarchy)
 
 **Do not suggest manual parent linking as a next step.** If any parent
