@@ -249,27 +249,29 @@ first — do not modify the decomposition during sync.
 
 ### Step 3b: Validate `[DOCS]` Stories Before Sync
 
-Before proceeding to Jira operations, validate every `[DOCS]` story that
-is categorized as **new** or **changed** in the change plan. For each
-such `[DOCS]` story, verify it against the `[DOCS]` story quality
-criteria defined in `decompose.md`:
+Before proceeding to Jira operations, validate every `[DOCS]` story
+that is categorized as **new** or **changed** in the change plan
+against the full `[DOCS]` story quality criteria (all seven) defined
+in `decompose.md`.
 
-1. Title includes searchable product/feature/command terms beyond the
-   `[DOCS]` prefix.
-2. Persona/goal/benefit names an actual reader and concrete task.
-3. Acceptance criteria are reader-verifiable documentation outcomes.
-4. Documentation Inputs inventories user-facing artifacts from all
-   contributing stories with fact/assumption/open-question markers.
-5. `Contributing stories` in Design Reference is consistent with
-   Documentation Inputs headers.
+A `[DOCS]` story whose change-plan category is **changed** because a
+contributing `[DEV]`/`[UI]` story was modified (and the `[DOCS]` file
+was updated by `/revise` or `/respond` to reflect the change) is
+already covered. If a contributing story was modified but the `[DOCS]`
+file was not yet updated, the `[DOCS]` story's content hash will not
+show a change. In that case, identify affected `[DOCS]` stories by
+scanning Documentation Inputs and Contributing stories references for
+any story whose file hash changed since the last sync, and include
+those `[DOCS]` stories in validation even though their own hash is
+unchanged.
 
 If any `[DOCS]` story fails validation, present the findings to the
-user and recommend `/revise` to fix the story before syncing. Do not
-create or update a `[DOCS]` story in Jira that fails these criteria —
-the story would produce a low-quality Jira ticket that misleads the
-documentation author.
+user and recommend `/revise` to fix the story before syncing — sync
+must not modify story source files. Do not create or update a `[DOCS]`
+story in Jira that fails these criteria.
 
-Non-`[DOCS]` stories and unchanged `[DOCS]` stories skip this check.
+Non-`[DOCS]` stories skip this check. Unchanged `[DOCS]` stories
+whose contributing stories are also unchanged skip this check.
 
 ### Step 4: Sync Epics
 

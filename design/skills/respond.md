@@ -523,17 +523,23 @@ If the decomposition is affected, flag it and recommend `/revise` or
 re-running `/decompose`.
 
 **`[DOCS]` story re-evaluation:** If decomposition artifacts exist
-(`06-stories/` directory) and any design changes affected user-facing
-surfaces (Interface Changes, API shapes, CLI commands, configuration
-options), identify `[DOCS]` stories whose contributing `[DEV]`/`[UI]`
-stories cover the changed surfaces. Re-evaluate each affected `[DOCS]`
-story against the `[DOCS]` story quality criteria defined in
-`decompose.md` — specifically verify that Documentation Inputs still
-accurately inventory the user-facing artifacts, fact/assumption/open-
-question markers are still correct (e.g., an open question resolved
-during review should update the marker), and Contributing stories in
-Design Reference are still complete. Apply fixes to affected `[DOCS]`
-story files before proceeding.
+(`06-stories/` directory), identify every `[DOCS]` story affected by
+this respond round and re-evaluate it against the full `[DOCS]` story
+quality criteria defined in `decompose.md`. A `[DOCS]` story is
+affected when any of the following occurred:
+- The `[DOCS]` story file itself was modified in this round.
+- A `[DEV]` or `[UI]` story listed in its `Contributing stories` or
+  `Documentation Inputs` had its user-facing artifacts, acceptance
+  criteria, or Implementation Guidance changed.
+- The design's Interface Changes (§5) changed in ways that alter the
+  user-facing surface covered by the `[DOCS]` story.
+- An open question referenced in the `[DOCS]` story's Documentation
+  Inputs (via `[Open: §9.N]`) was resolved during this round — the
+  marker should be removed or updated even when the resolution does
+  not change API/CLI shapes.
+
+For each affected `[DOCS]` story, re-read the file and verify all
+seven criteria. Apply fixes to affected story files before proceeding.
 
 ### Step 7: Report to User
 
