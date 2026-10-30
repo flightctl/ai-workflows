@@ -589,6 +589,16 @@ For each finding from Step 7:
 Only fix findings that add real value. Do not make changes for
 structural preferences not grounded in the evaluation criteria.
 
+**Placement findings (conditional LOW).** If the review flagged a
+`[DOCS]` story placement issue, check whether
+`.artifacts/design/{issue-key}/sync-manifest.json` exists and contains
+the story's filename. If the story is manifest-tracked (post-sync),
+it retains its immutable filename and number — dismiss the placement
+finding. If no manifest exists or the story is not tracked, apply the
+placement fix. If the manifest's existence is uncertain (e.g., the
+file was not loaded in Step 1), request verification from the user
+rather than assuming the story is unsynced.
+
 #### Re-review (if fixes were made)
 
 If the validation above produced changes to the decomposition artifacts:
