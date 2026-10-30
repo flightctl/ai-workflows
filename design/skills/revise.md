@@ -129,6 +129,33 @@ After applying changes, verify:
   added, removed, or reassigned.
 - Do story dependencies still make sense?
 
+**`[DOCS]` story re-evaluation (if any `[DOCS]` story is affected):**
+
+Re-evaluate every affected `[DOCS]` story against the `[DOCS]` story
+quality criteria defined in `decompose.md`. A `[DOCS]` story is
+affected when any of the following occurred during this revision:
+- The `[DOCS]` story file itself was modified.
+- A `[DEV]` or `[UI]` story listed in its `Contributing stories` or
+  `Documentation Inputs` was added, removed, renamed, or had its
+  user-facing artifacts (acceptance criteria, Implementation Guidance)
+  changed.
+- The design's Interface Changes (§5) changed in ways that alter the
+  user-facing surface covered by the `[DOCS]` story.
+
+For each affected `[DOCS]` story, re-read the story file and verify:
+1. The title still includes searchable product/feature/command terms.
+2. The reader and task in the persona statement are still accurate.
+3. Acceptance criteria are still reader-verifiable documentation outcomes.
+4. Documentation Inputs still inventory every user-facing artifact from
+   all contributing stories, with correct fact/assumption/open-question
+   markers. If a contributing story's user-facing artifacts changed,
+   update the corresponding Documentation Inputs group.
+5. The `Contributing stories` line in Design Reference is consistent
+   with the Documentation Inputs headers and includes every `[DEV]`/
+   `[UI]` story whose user-facing artifacts this `[DOCS]` story covers.
+6. If contributing stories were added or removed, update Dependencies
+   to match.
+
 **If the testplan exists (`04-testplan.md`):**
 - Before modifying any test cases, record the IC and requirement
   mappings of any TCs that will be removed, reassigned, or have their

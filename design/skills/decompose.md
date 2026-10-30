@@ -225,20 +225,19 @@ implements. `Validated by` lists the TCs from the testplan that validate
 the behavior this story delivers. These references are populated in
 Step 7 after stories are written.
 
-**For `[DOCS]` stories** (see `[DOCS]` story requirements below for the
-Documentation Inputs section):
+**For `[DOCS]` stories** (see `[DOCS]` story quality criteria below):
 
 ```markdown
-# Story {N}.{NN}: [DOCS] {title}
+# Story {N}.{NN}: [DOCS] {product/feature/command — document title}
 
-**As a** {role},
-**I want to** {capability},
-**So that** {benefit}.
+**As a** {specific reader — e.g., fleet administrator, application developer},
+**I want to** {concrete task — what the reader will learn or accomplish},
+**So that** {benefit — why this documentation matters to the reader}.
 
 ## Acceptance Criteria
 
-- [ ] {documentation outcome — what the reader can learn or do, verifiable by reading the documentation}
-- [ ] {documentation outcome}
+- [ ] {reader-verifiable documentation outcome — what the reader can learn or do, verifiable by reading the documentation}
+- [ ] {reader-verifiable documentation outcome}
 
 ## Documentation Scope
 
@@ -247,9 +246,10 @@ Documentation Inputs section):
  Those decisions belong to the documentation workflow or author who picks
  up the ticket.
 
- Example: "This feature introduces a new CLI command for managing device
- rollbacks. Users need to understand when to use rollback vs. revert,
- the required preconditions, and how to verify success."}
+ Example: "This feature introduces a new CLI command (`flightctl rollback`)
+ for managing device rollbacks. Fleet administrators need to understand
+ when to use rollback vs. revert, the required preconditions, and how to
+ verify success."}
 
 ## Documentation Inputs
 
@@ -268,6 +268,7 @@ Documentation Inputs section):
 Epic: Epic {N} — {epic title}
 PRD Requirements: {FR-1, NFR-1}
 Design section: {§4.3 API Changes, or specific subsection}
+Contributing stories: {Story 1.01, Story 1.02 — DEV/UI stories whose user-facing artifacts this DOCS story covers}
 ```
 
 **Naming conventions:**
@@ -288,36 +289,80 @@ the work:
 If unsure of the correct prefix, use `[DEV]` as the default and note it for
 user review.
 
-**`[DOCS]` story requirements:** `[DOCS]` stories use a different template
-than other story types (see above). They replace `Implementation Guidance`
-and `Testing Approach` with `Documentation Scope` and `Documentation Inputs`.
+**`[DOCS]` story quality criteria:** `[DOCS]` stories use a different
+template than other story types (see above). They replace `Implementation
+Guidance` and `Testing Approach` with `Documentation Scope` and
+`Documentation Inputs`. The criteria below define what a well-formed
+`[DOCS]` story contains at design time. These same criteria are used by
+the decomposition review (criterion #8), by `/revise` and `/respond`
+when changes affect `[DOCS]` stories, and by `/sync` as a pre-sync
+validation gate.
 
-The **Documentation Scope** section describes what the reader needs to
-understand about the feature — not how to write the docs or where to put
-them. Those decisions belong to the documentation author or workflow that
-picks up the ticket. See the template example above for illustration.
+1. **Searchable title.** The title must keep the `[DOCS]` prefix and
+   include recognizable product, feature, or command terms that make the
+   story findable in Jira search and backlog views — e.g.,
+   `[DOCS] Device rollback command reference` rather than
+   `[DOCS] Feature documentation`. Use terms already established by the
+   PRD or design; do not invent identifiers or version strings that are
+   not yet known.
 
-The **Documentation Inputs** section inventories every user-facing artifact
-introduced or changed by the feature, grouped by the implementation story
-that delivers it. At design time you have the complete picture of what's
-new and what changed. Capture it so the documentation author (human or AI)
-gets a concrete starting point — rather than reverse-engineering the
-user-visible surface from code diffs after implementation. Note that
-implementation may diverge from the design, so these inputs are guidance,
-not authority. The documentation author should verify against the actual
-implementation.
+2. **Explicit reader and task.** The persona/goal/benefit statement must
+   name the actual documentation reader (e.g., "fleet administrator,"
+   "application developer") and a concrete task — not a generic role
+   like "user" or a process-oriented goal like "have documentation."
 
-Group items under bold story headers (e.g., **Story 1.01 — {title}:**)
-followed by bullet points listing each user-facing artifact: new or changed
-API fields/resources, CLI output or behavior, configuration options, status
-values and their meanings, error messages, and UI elements. Give enough
-detail that the writer knows what to look for in the implementation.
+3. **Reader-verifiable acceptance criteria.** Each AC must describe a
+   documentation outcome verifiable by reading the published
+   documentation — what the reader can learn, look up, or accomplish by
+   following the documented procedure. Do not require implementation
+   artifacts (merged PRs, CI status) that do not exist at design time.
 
-Place each `[DOCS]` story after all stories it references so that all
-references are resolvable during `/sync`. For per-epic `[DOCS]` stories,
-place them as the last story within their own epic. For a cross-cutting
-`[DOCS]` story that spans multiple epics, place it as the last story in
-the last epic.
+4. **Documentation Scope.** Describes what the reader needs to understand
+   about the feature — not how to write the docs or where to put them.
+   Those decisions belong to the documentation author or workflow that
+   picks up the ticket. See the template example above for illustration.
+
+5. **Complete Documentation Inputs.** Inventories every user-facing
+   artifact introduced or changed by the feature, grouped by the
+   `[DEV]` or `[UI]` implementation story that delivers it. Include only
+   contributing story types that are relevant — a feature with no `[UI]`
+   stories should not reference UI stories, and vice versa. At design
+   time you have the complete picture of what's new and what changed.
+   Capture it so the documentation author (human or AI) gets a concrete
+   starting point — rather than reverse-engineering the user-visible
+   surface from code diffs after implementation.
+
+   Group items under bold story headers (e.g., **Story 1.01 — {title}:**)
+   followed by bullet points listing each user-facing artifact: new or
+   changed API fields/resources, CLI output or behavior, configuration
+   options, status values and their meanings, error messages, and UI
+   elements. Give enough detail that the writer knows what to look for in
+   the implementation.
+
+   **Fact/assumption distinction.** Mark each input's confidence level
+   using the design document's source markers:
+   - Items derived from the design document or PRD are **planned** (no
+     marker needed — they are the default).
+   - Items that fill gaps not specified by the PRD or design must be
+     marked `[Assumption]`.
+   - Items awaiting resolution of an open question must be marked
+     `[Open: §9.N]` referencing the design document's open question.
+
+   Implementation may diverge from the design, so these inputs are
+   guidance, not authority. The documentation author should verify
+   against the actual implementation.
+
+6. **Contributing stories reference.** The Design Reference section must
+   include a `Contributing stories` line listing every `[DEV]` and/or
+   `[UI]` story whose user-facing artifacts this `[DOCS]` story covers.
+   This must be consistent with the stories referenced in Documentation
+   Inputs. Use the canonical `Story N.NN` format.
+
+7. **Placement.** Place each `[DOCS]` story after all stories it
+   references so that all references are resolvable during `/sync`. For
+   per-epic `[DOCS]` stories, place them as the last story within their
+   own epic. For a cross-cutting `[DOCS]` story that spans multiple
+   epics, place it as the last story in the last epic.
 
 **Story quality checks:**
 - For `[DEV]` stories: does this story add a capability AND testing for that capability? For a justified behavior-preserving prerequisite, does it restructure existing code AND include tests demonstrating preserved behavior?
@@ -341,12 +386,11 @@ the last epic.
   time and implementation time. Identifiers are robust.
 - If a story has more than ~8 acceptance criteria, examine whether it can
   be split along a natural boundary.
-- For `[DOCS]` stories: does the Documentation Scope describe what the
-  reader needs to understand without prescribing how to write or organize
-  the documentation?
-- For `[DOCS]` stories: does the Documentation Inputs section list every
-  user-facing artifact from the implementation stories, with enough detail
-  for a documentation author to know what to look for in the implementation?
+- For `[DOCS]` stories: does the story satisfy all seven `[DOCS]` story
+  quality criteria above (searchable title, explicit reader/task,
+  reader-verifiable AC, documentation scope, complete documentation
+  inputs with fact/assumption distinction, contributing stories
+  reference, correct placement)?
 
 **Filename stability:** Story filenames (e.g., `story-01-scaffold-build-pipeline.md`)
 serve as idempotency keys in the sync manifest. Once stories have been synced
