@@ -159,7 +159,7 @@ Design sections: {§4.1 Architecture, §4.3 API Changes, or relevant subsections
 - Gaps in epic numbering are acceptable (e.g., if epic-2 is removed during
   revision, epic-1 and epic-3 remain — do not renumber to close the gap)
 
-### Step 4: Write Stories, Verify Sizing, and Add References
+### Step 4: Write Stories
 
 For each epic, create a story directory and write one file per story. Each
 story file has a 1:1 correspondence with a Jira Story issue — its content
@@ -221,7 +221,7 @@ Validated by: {TC-FR1-01, TC-FR3-02}
 `Interface Changes` lists the ICs from the design's §5 that this story
 implements. `Validated by` lists the TCs from the testplan that validate
 the behavior this story delivers. These references are populated in
-the implementation-references sub-step of Step 4 after stories are written.
+Step 6 after stories are written.
 
 **For `[DOCS]` stories** (see `[DOCS]` story quality criteria below):
 
@@ -402,7 +402,7 @@ to Jira, their filenames must not change. When revising a decomposition,
 append new stories with the next available number rather than inserting or
 renumbering existing ones.
 
-#### Sizing Consistency Check
+### Step 5: Sizing Consistency Check
 
 After sizing all epics, verify plausibility:
 
@@ -419,11 +419,11 @@ After sizing all epics, verify plausibility:
    epics. Flag any mismatch to the user.
 
 3. Verify no epic is sized XXL. If any is, stop and require a split
-   before proceeding to the implementation references sub-step.
+   before proceeding to Step 6.
 
-#### Add Implementation References to Stories
+### Step 6: Add Implementation References to Stories
 
-For each non-`[DOCS]` story written above, populate the `Interface
+For each non-`[DOCS]` story written in Step 4, populate the `Interface
 Changes` and `Validated by` fields in the Design Reference section.
 
 **Map stories to Interface Changes.**
@@ -481,7 +481,7 @@ Interface Changes: None — behavior-preserving prerequisite
 Validated by: None — behavior-preserving prerequisite; existing tests verify preserved behavior
 ```
 
-### Step 5: Write Coverage Matrix
+### Step 7: Complete and Validate Artifacts
 
 Write `.artifacts/design/{issue-key}/07-coverage.md`:
 
@@ -510,9 +510,8 @@ Write `.artifacts/design/{issue-key}/07-coverage.md`:
  If none: "All stories trace to PRD requirements."}
 ```
 
-### Step 6: Verify Artifact Structure
-
-Quick sanity check before invoking the decomposition review. Verify:
+**Verify artifact structure.** Quick sanity check before invoking the
+decomposition review. Verify:
 
 1. `05-epics.md` exists and references all epic files
 2. Each epic file referenced in `05-epics.md` exists (e.g.,
@@ -525,7 +524,7 @@ Quick sanity check before invoking the decomposition review. Verify:
 If structural issues are found, fix them before proceeding. Do not
 invoke a review on incomplete artifacts.
 
-### Step 7: Review Decomposition
+### Step 8: Review Decomposition
 
 Review the decomposition for structural quality and requirement
 coverage. This review operates independently from the design document —
@@ -564,9 +563,9 @@ severity definitions from the protocol. The subagent path provides
 stronger independence; the inline path still catches issues by forcing
 a perspective shift.
 
-### Step 8: Validate Findings, Re-Review, and Verify Provenance
+### Step 9: Validate Findings, Re-Review, and Verify Provenance
 
-For each finding from Step 7:
+For each finding from Step 8:
 
 1. **Validate the reference.** Confirm the cited artifact file and
    section exist. Discard any finding that references a file or section
@@ -590,8 +589,14 @@ For each finding from Step 7:
      not be read (e.g., not loaded in Step 1 or I/O error), request
      verification from the user rather than assuming unsynced. If no
      manifest exists or the story is not tracked, apply the initial
-     placement fix: re-read the affected artifact file, correct the
-     placement, and verify the fix.
+     placement fix: record the old story identity (epic number +
+     story number), re-read and rename/move the file to the correct
+     position, then propagate the old→new identity throughout the
+     feature's decomposition artifacts — update references in the
+     coverage matrix (`07-coverage.md`), other stories' Dependencies,
+     Contributing stories, and Documentation Inputs that cited the
+     old identity. Verify no stale old-identity references remain in
+     any artifact before proceeding to re-review.
 
      **For all other findings:** re-read the affected artifact file,
      fix the issue, and verify the fix.
@@ -607,7 +612,7 @@ If the validation above produced changes to the decomposition artifacts:
 
 1. Obtain a re-review of the updated artifacts:
 
-   **If a subagent was used in Step 7 and the runtime supports agent
+   **If a subagent was used in Step 8 and the runtime supports agent
    resumption:** Resume the same reviewer agent. Send it the updated
    artifacts and a summary of fixes applied. This gives the reviewer
    memory of its original findings and lets it verify they were
@@ -649,9 +654,9 @@ depends on an unresolved open question must be marked
 `[Open: §9.N]` — use the existing open-question identifier from the
 design document; do not invent new identifiers for this purpose.
 
-Fix any incorrect markers before proceeding to Step 9.
+Fix any incorrect markers before proceeding to Step 10.
 
-### Step 9: Report Review Summary
+### Step 10: Summarize and Present
 
 ```markdown
 ## Decomposition Review Summary
@@ -666,15 +671,13 @@ Fix any incorrect markers before proceeding to Step 9.
 list them with their file, section, and issue description.}
 ```
 
-### Step 10: Present to User
-
-Present the decomposition and highlight:
+**Present to the user.** Present the decomposition and highlight:
 - Number of epics and stories
 - Epic dependency order
 - Any coverage gaps
 - Stories that might need size adjustment (too large or too small)
 - Any assumptions or judgment calls in the decomposition
-- Decomposition review summary (from Step 9)
+- Decomposition review summary (from above)
 
 If the decomposition review gate reported FLAG, present the unfixed
 CRITICAL/HIGH findings and ask the user to decide how to handle them.

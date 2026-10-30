@@ -4253,28 +4253,28 @@ class TestDecomposePhaseContract(unittest.TestCase):
 
     def test_structure_gate_exists(self) -> None:
         idx = self._assert_marker_exists(
-            "### Step 6: Verify Artifact Structure",
-            "Structure gate must exist")
+            "Verify artifact structure",
+            "Structure gate must exist in Step 7")
         self.assertIn("05-epics.md", self._decompose_md[idx:idx+500])
 
     def test_review_after_structure_gate(self) -> None:
         structure_idx = self._assert_marker_exists(
-            "### Step 6: Verify Artifact",
+            "Verify artifact structure",
             "Structure gate must exist for ordering check")
         review_idx = self._assert_marker_exists(
-            "### Step 7: Review",
+            "### Step 8: Review",
             "Review step must exist for ordering check")
         self.assertGreater(review_idx, structure_idx)
 
     def test_review_independence(self) -> None:
-        review_section = self._decompose_md.split("### Step 7:")[1].split("### Step 8:")[0]
+        review_section = self._decompose_md.split("### Step 8:")[1].split("### Step 9:")[0]
         self.assertIn("NOT the design document", review_section,
                       "Review must not receive the design document")
 
     def test_finding_validation_and_value_filtering(self) -> None:
-        step8 = self._decompose_md.split("### Step 8:")[1].split("### Step 9:")[0]
-        self.assertIn("Validate the reference", step8)
-        self.assertIn("Assess on value", step8)
+        step9 = self._decompose_md.split("### Step 9:")[1].split("### Step 10:")[0]
+        self.assertIn("Validate the reference", step9)
+        self.assertIn("Assess on value", step9)
 
     def test_max_two_review_rounds(self) -> None:
         self._assert_marker_exists(
@@ -4283,7 +4283,7 @@ class TestDecomposePhaseContract(unittest.TestCase):
 
     def test_provenance_after_review(self) -> None:
         review_idx = self._assert_marker_exists(
-            "### Step 7: Review",
+            "### Step 8: Review",
             "Review step must exist")
         provenance_idx = self._assert_marker_exists(
             "Verify `[DOCS]` input provenance",
@@ -4292,11 +4292,11 @@ class TestDecomposePhaseContract(unittest.TestCase):
 
     def test_provenance_runs_even_without_fixes(self) -> None:
         """Provenance check runs after review passes, even if no fixes were needed."""
-        step8 = self._decompose_md.split("### Step 8:")[1].split("### Step 9:")[0]
+        step9 = self._decompose_md.split("### Step 9:")[1].split("### Step 10:")[0]
         # The re-review sub-step says "the review passes immediately" when no fixes
         # but provenance verification follows unconditionally after it
-        pass_idx = step8.find("review passes immediately")
-        prov_idx = step8.find("Verify `[DOCS]` input provenance")
+        pass_idx = step9.find("review passes immediately")
+        prov_idx = step9.find("Verify `[DOCS]` input provenance")
         self.assertGreaterEqual(pass_idx, 0, "No-fix pass text must exist")
         self.assertGreaterEqual(prov_idx, 0, "Provenance text must exist")
         self.assertGreater(prov_idx, pass_idx,
@@ -4312,23 +4312,23 @@ class TestDecomposePhaseContract(unittest.TestCase):
 
     def test_present_is_last_step(self) -> None:
         self.assertEqual(self._steps[-1], "10")
-        last = self._decompose_md.split("### Step 10:")[1][:80]
-        self.assertIn("Present to User", last)
+        last = self._decompose_md.split("### Step 10:")[1][:100]
+        self.assertIn("Summarize and Present", last)
 
     def test_open_question_design_references_preserved(self) -> None:
         """[Open: §9.N] marker format references design document sections,
         not decompose step numbers."""
         self.assertIn("[Open: §9.N]", self._decompose_md)
 
-    def test_placement_identity_check_in_step8(self) -> None:
-        """Step 8 instructs decomposer to check sync-manifest identity
+    def test_placement_identity_check_in_step9(self) -> None:
+        """Step 9 instructs decomposer to check sync-manifest identity
         before acting on conditional placement findings."""
-        step8_raw = self._decompose_md.split("### Step 8:")[1].split("### Step 9:")[0]
-        step8 = " ".join(step8_raw.split())
-        self.assertIn("sync-manifest.json", step8,
-                      "Step 8 must reference sync-manifest.json")
-        self.assertIn("manifest-tracked", step8)
-        self.assertIn("request verification", step8,
+        step9_raw = self._decompose_md.split("### Step 9:")[1].split("### Step 10:")[0]
+        step9 = " ".join(step9_raw.split())
+        self.assertIn("sync-manifest.json", step9,
+                      "Step 9 must reference sync-manifest.json")
+        self.assertIn("manifest-tracked", step9)
+        self.assertIn("request verification", step9,
                       "Must request verification when identity uncertain")
 
     # -- Placement scenarios (contract: review rubric text) --
@@ -4364,13 +4364,13 @@ class TestDecomposePhaseContract(unittest.TestCase):
                       "Must mention non-contributing QE stories")
 
     def test_identity_gate_before_any_placement_fix(self) -> None:
-        """Step 8: placement identity check precedes both the unsynced
+        """Step 9: placement identity check precedes both the unsynced
         placement fix and the generic fix instruction."""
-        step8_raw = self._decompose_md.split("### Step 8:")[1].split("### Step 9:")[0]
-        step8 = " ".join(step8_raw.split())  # normalize whitespace
-        identity_pos = step8.find("manifest-tracked")
-        placement_fix = step8.find("apply the initial placement fix")
-        generic_fix = step8.find("For all other findings:")
+        step9_raw = self._decompose_md.split("### Step 9:")[1].split("### Step 10:")[0]
+        step9 = " ".join(step9_raw.split())
+        identity_pos = step9.find("manifest-tracked")
+        placement_fix = step9.find("apply the initial placement fix")
+        generic_fix = step9.find("For all other findings:")
         self.assertGreaterEqual(identity_pos, 0,
                                 "Identity gate must exist")
         self.assertGreaterEqual(placement_fix, 0,
@@ -4392,6 +4392,22 @@ class TestDecomposePhaseContract(unittest.TestCase):
         self.assertIn(
             "Contributing stories AND Dependencies",
             flat, "Key check must cover both Contributing stories and Dependencies")
+
+    def test_placement_fix_propagates_references(self) -> None:
+        """Step 9 placement fix requires propagating old→new identity
+        through coverage matrix and other stories before re-review."""
+        step9 = " ".join(self._decompose_md.split("### Step 9:")[1]
+                         .split("### Step 10:")[0].split())
+        prop_pos = step9.find("propagate")
+        rereview_pos = step9.find("re-review")
+        self.assertGreaterEqual(prop_pos, 0,
+                                "Must require reference propagation")
+        self.assertGreaterEqual(rereview_pos, 0,
+                                "Re-review must exist")
+        self.assertLess(prop_pos, rereview_pos,
+                        "Propagation must precede re-review")
+        self.assertIn("coverage matrix", step9)
+        self.assertIn("no stale old-identity references", step9)
 
 
 # ---------------------------------------------------------------------------
