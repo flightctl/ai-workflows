@@ -280,9 +280,13 @@ Dependencies has a Jira key in the manifest. If any required key is
 missing (contributor creation was skipped, failed, or is in a
 not-yet-processed epic), **defer** that `[DOCS]` write: do not
 render, create, or update the Jira issue, and do not record a
-manifest checkpoint. The deferred `[DOCS]` story remains eligible
-for retry after the missing contributor's epic completes or on a
-subsequent `/sync` run. Report deferred stories to the user.
+manifest checkpoint. Do not retry a deferred `[DOCS]` story later
+in the current `/sync` invocation, even if a subsequent epic's
+creation pass supplies the missing key. Continue processing
+eligible items in the existing per-epic passes. Record each
+deferred story's file, missing keys, and reason for the Step 8
+report. Because no checkpoint was saved, deferred stories remain
+`new` or `changed` on the next explicit `/sync` invocation.
 
 If any `[DOCS]` story fails validation, present the findings and
 recommend `/revise` — sync must not modify story source files. Do
@@ -506,10 +510,20 @@ story.** Instead, stop and present the match to the user with the same
 options as in Step 5a (skip and record, create anyway, or stop entirely).
 Wait for the user's choice before continuing.
 
-For each new story, prepare the hash and description using the story
-`prepare` recipe from the helper reference. `PREP` is JSON with
-`content_hash`, `description`, `summary` (`[PREFIX] title` without
-numbering), `story_type`, `dependencies` (resolved text), and `title`.
+**`[DOCS]` reference-availability guard.** Before preparing a `[DOCS]`
+story, apply the reference-availability guard from Step 4: verify that
+every story in its Contributing stories and Dependencies has a Jira key
+in the manifest. If any key is missing, **defer** this story — skip
+`prepare`, Jira creation, and manifest checkpoint. Record the story
+file, missing keys, and reason for the Step 8 deferral report. Continue
+with the next story in this epic. The deferred story remains eligible
+for the next `/sync` invocation; do not retry it in the current run.
+
+For each new story (non-deferred), prepare the hash and description
+using the story `prepare` recipe from the helper reference. `PREP` is
+JSON with `content_hash`, `description`, `summary` (`[PREFIX] title`
+without numbering), `story_type`, `dependencies` (resolved text), and
+`title`.
 
 Create the Jira issue using fields from `PREP`:
 
@@ -587,9 +601,15 @@ so re-running `/sync` later will only attempt uncreated items.
 
 #### 6b: Update Changed Stories
 
-For each story categorized as **Changed** or **Reopened**, prepare the
-updated description and hash using the story `prepare` recipe from the
-helper reference.
+**`[DOCS]` reference-availability guard.** Before preparing a changed
+or reopened `[DOCS]` story, apply the same reference-availability guard
+as in Step 6a. If any required contributor key is missing, defer this
+story and record it for the Step 8 deferral report. Do not retry it in
+the current run.
+
+For each story categorized as **Changed** or **Reopened** (non-deferred),
+prepare the updated description and hash using the story `prepare`
+recipe from the helper reference.
 
 Update the Jira issue using fields from `PREP`:
 
@@ -688,7 +708,8 @@ Fields:
 ### Step 8: Report to User
 
 Summarize:
-- How many epics and stories were created, updated, closed, and unchanged
+- How many epics and stories were created, updated, closed, unchanged, and **deferred**
+- For each deferred `[DOCS]` story: the story file, which contributor keys were missing, and the reason. Note that these stories will appear as `new` or `changed` on the next `/sync` run because no checkpoint was recorded. Do not claim complete synchronization while deferred stories remain
 - Confirm the hierarchy was verified: every epic has parent = Feature (verified in Step 5), every story has parent = its epic (verified in Step 6)
 - Link to the Feature issue in Jira (which now shows the full hierarchy)
 

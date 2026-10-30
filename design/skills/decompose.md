@@ -90,7 +90,7 @@ This step produces two things: a metadata index (`05-epics.md`) and one file
 per epic. Each epic file has a 1:1 correspondence with a Jira Epic issue —
 its content is what `/sync` will push to Jira.
 
-#### 4a: Write Epic Metadata
+#### 3a: Write Epic Metadata
 
 Write `.artifacts/design/{issue-key}/05-epics.md`:
 
@@ -127,7 +127,7 @@ Write `.artifacts/design/{issue-key}/05-epics.md`:
  that can proceed in parallel.}
 ```
 
-#### 4b: Write Epic Files
+#### 3b: Write Epic Files
 
 For each epic, write
 `.artifacts/design/{issue-key}/06-stories/epic-{N}-{slug}.md`:

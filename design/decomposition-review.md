@@ -159,12 +159,17 @@ impact:
    items that appear speculative or unresolved? Does the Design
    Reference include a `Contributing stories` line consistent with the
    Documentation Inputs headers? Are the contributing story references
-   complete? Note: the reviewer cannot verify whether unmarked
-   Documentation Inputs items are truly derived from the design document
-   or PRD — that provenance check belongs to the decomposer (see
-   the provenance verification in `/decompose`). Flag items that
-   appear speculative or unresolved from the PRD and artifact context
-   alone.
+   complete? Is each `[DOCS]` story's file number higher than all
+   its contributing stories' file numbers within the same epic (per
+   criterion 7 placement)? If a `[DOCS]` story appears to precede a
+   contributor, flag it as a conditional LOW finding — the decomposer
+   will verify whether it is a manifest-tracked post-sync story with
+   an immutable filename before acting on the finding. Note: the
+   reviewer cannot verify whether unmarked Documentation Inputs items
+   are truly derived from the design document or PRD — that provenance
+   check belongs to the decomposer (see the provenance verification
+   in `/decompose`). Flag items that appear speculative or unresolved
+   from the PRD and artifact context alone.
 
 ## Finding Format
 
@@ -193,8 +198,8 @@ Reference section.
 |----------|---------|--------|
 | CRITICAL | Would cause incorrect implementation — missing requirements, contradictory acceptance criteria, broken dependency chain, scope reduction, stories referencing non-existent ICs or TCs, ICs with no implementing story, prerequisite story without justification or dependency declaration, `[DOCS]` story missing contributing stories or with Documentation Inputs that omit user-facing artifacts from referenced implementation stories | Must fix before presenting |
 | HIGH | Would cause rework — story too large to review in a single PR, missing testing commitment, integration gap between stories, `[QE]` story duplicating `[DEV]` test scope, stories missing Interface Changes or Validated by references, prerequisite story missing preserved-behavior tests, `[DOCS]` story with generic title or unidentified reader/task | Should fix before presenting |
-| MEDIUM | Would reduce clarity — vague acceptance criteria, imprecise implementation guidance or documentation scope, sizing concerns, minor coverage matrix inconsistencies, minor IC or TC reference inconsistencies, `[DOCS]` story with Documentation Inputs items that appear speculative or unresolved from PRD context but lack `[Assumption]` or `[Open: §9.N]` markers (items verifiable against the PRD need no marker; the decomposer verifies design-derived provenance separately in the provenance sub-step of Step 8) | Fix if it adds value |
-| LOW | Structural improvements — naming consistency, ordering suggestions, documentation clarity | Fix only if clearly valuable |
+| MEDIUM | Would reduce clarity — vague acceptance criteria, imprecise implementation guidance or documentation scope, sizing concerns, minor coverage matrix inconsistencies, minor IC or TC reference inconsistencies, `[DOCS]` story with Documentation Inputs items that appear speculative or unresolved from PRD and artifact context but lack `[Assumption]` or `[Open: §9.N]` markers (items verifiable against the PRD need no marker; the decomposer verifies design-derived provenance separately in the provenance sub-step of Step 8) | Fix if it adds value |
+| LOW | Structural improvements — naming consistency, ordering suggestions, documentation clarity, `[DOCS]` story placement that appears to precede a contributor (conditional — decomposer verifies sync identity before acting) | Fix only if clearly valuable |
 
 ## Validation Rules
 
