@@ -522,6 +522,19 @@ references a TC ID that was removed), fix it before proceeding.
 If the decomposition is affected, flag it and recommend `/revise` or
 re-running `/decompose`.
 
+**`[DOCS]` story re-evaluation:** If decomposition artifacts exist
+(`06-stories/` directory) and any design changes affected user-facing
+surfaces (Interface Changes, API shapes, CLI commands, configuration
+options), identify `[DOCS]` stories whose contributing `[DEV]`/`[UI]`
+stories cover the changed surfaces. Re-evaluate each affected `[DOCS]`
+story against the `[DOCS]` story quality criteria defined in
+`decompose.md` — specifically verify that Documentation Inputs still
+accurately inventory the user-facing artifacts, fact/assumption/open-
+question markers are still correct (e.g., an open question resolved
+during review should update the marker), and Contributing stories in
+Design Reference are still complete. Apply fixes to affected `[DOCS]`
+story files before proceeding.
+
 ### Step 7: Report to User
 
 Summarize:

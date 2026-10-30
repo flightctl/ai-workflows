@@ -138,6 +138,7 @@ _DOCS_STORY_TEMPLATE = textwrap.dedent("""\
     Epic: Epic {epic_idx} — {epic_title}
     PRD Requirements: {prd_reqs}
     Design section: {design_section}
+    Contributing stories: {contributing_stories}
 """)
 
 # Story with code fences containing headings (issue #4)
@@ -240,6 +241,7 @@ def _make_docs_story(
     doc_inputs: str = "**Story 1.01 — Scaffold:** output.",
     epic_title: str = "Building", prd_reqs: str = "FR-1",
     design_section: str = "§4.1",
+    contributing_stories: str = "Story 1.01",
 ) -> Path:
     extra_fm = "status: removed" if removed else ""
     content = _DOCS_STORY_TEMPLATE.format(
@@ -248,6 +250,7 @@ def _make_docs_story(
         ac=ac, doc_scope=doc_scope, doc_inputs=doc_inputs, deps=deps,
         epic_title=epic_title, prd_reqs=prd_reqs,
         design_section=design_section,
+        contributing_stories=contributing_stories,
     )
     epic_dir = stories_dir / f"epic-{epic_idx}"
     fp = epic_dir / f"story-{story_idx:02d}-{slug}.md"
@@ -846,6 +849,7 @@ class TestRenderDescription(_TmpDirMixin, unittest.TestCase):
             doc_scope="API ref.", doc_inputs="Story 1.01 output.",
             deps="Story 1.01", epic_title="Building",
             prd_reqs="FR-1", design_section="§4.1",
+            contributing_stories="Story 1.01",
         ))
         desc = sync_helper.render_story_description(
             sf, self.manifest, story_type="DOCS")
@@ -854,6 +858,27 @@ class TestRenderDescription(_TmpDirMixin, unittest.TestCase):
         self.assertNotIn("## Implementation Guidance", desc)
         # Ref resolved
         self.assertIn("EDM-201", desc)
+
+    def test_docs_story_contributing_stories_resolved(self) -> None:
+        """Contributing stories line in Design Reference is resolved to Jira keys."""
+        sf = Path(self.tmpdir) / "story-02-docs.md"
+        _write(sf, _DOCS_STORY_TEMPLATE.format(
+            extra_fm="", epic_idx=1, story_idx=2,
+            title="Device rollback command reference",
+            role="fleet administrator",
+            want="find rollback command documentation",
+            so_that="I can safely revert device firmware",
+            ac="Reader can follow rollback procedure",
+            doc_scope="CLI rollback command reference.",
+            doc_inputs="**Story 1.01 — Scaffold:** rollback subcommand.",
+            deps="Story 1.01", epic_title="Building",
+            prd_reqs="FR-1", design_section="§4.1",
+            contributing_stories="Story 1.01",
+        ))
+        desc = sync_helper.render_story_description(
+            sf, self.manifest, story_type="DOCS")
+        # Contributing stories line should have resolved ref
+        self.assertIn("Contributing stories: Story EDM-201", desc)
 
     def test_code_fences_do_not_break_sections(self) -> None:
         """Issue #4: headings inside code fences are not treated as sections."""
@@ -1258,6 +1283,7 @@ class TestDefectA_DesignDocLink(_TmpDirMixin, unittest.TestCase):
             doc_scope="API reference.", doc_inputs="From Story 1.01.",
             deps="Story 1.01", epic_title="Building",
             prd_reqs="FR-1", design_section="§4.1",
+            contributing_stories="Story 1.01",
         ))
         # No --story-type — must infer from title
         out = StringIO()
