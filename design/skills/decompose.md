@@ -591,13 +591,17 @@ structural preferences not grounded in the evaluation criteria.
 
 **Placement findings (conditional LOW).** If the review flagged a
 `[DOCS]` story placement issue, check whether
-`.artifacts/design/{issue-key}/sync-manifest.json` exists and contains
-the story's filename. If the story is manifest-tracked (post-sync),
-it retains its immutable filename and number — dismiss the placement
-finding. If no manifest exists or the story is not tracked, apply the
-placement fix. If the manifest's existence is uncertain (e.g., the
-file was not loaded in Step 1), request verification from the user
-rather than assuming the story is unsynced.
+`.artifacts/design/{issue-key}/sync-manifest.json` exists. If it
+does, look up the story by matching its filename within its parent
+epic's story list in the manifest (the manifest nests stories under
+their epic entry, so the same filename in different epics is
+unambiguous). If the story is manifest-tracked (post-sync), it
+retains its immutable filename and number — dismiss the placement
+finding. If no manifest exists or the story is not in the manifest,
+apply the placement fix (initial placement rules apply). If the
+manifest could not be read (e.g., file not loaded in Step 1 or
+I/O error), request verification from the user rather than assuming
+the story is unsynced.
 
 #### Re-review (if fixes were made)
 

@@ -4572,7 +4572,8 @@ class TestSyncDocsReferenceGuard(_TmpDirMixin, unittest.TestCase):
         self.assertIn("current `/sync` invocation", guard_flat)
 
     def test_step8_reports_deferred(self) -> None:
-        """Step 8 report includes deferred DOCS stories."""
+        """Step 8 report: deferred stories, missing keys, no-complete-sync,
+        and distinguishes deferred new from deferred changed/reopened."""
         sync_md = self._read_sync_md()
         start = sync_md.find("### Step 8:")
         self.assertGreaterEqual(start, 0, "Step 8 must exist")
@@ -4580,6 +4581,14 @@ class TestSyncDocsReferenceGuard(_TmpDirMixin, unittest.TestCase):
         self.assertIn("deferred", section)
         self.assertIn("contributor keys were missing", section)
         self.assertIn("Do not claim complete synchronization", section)
+        self.assertIn("Deferred new stories were not created", section)
+        self.assertIn("deferred changed or reopened", section)
+
+    def test_deferral_next_run_includes_reopened(self) -> None:
+        """Deferral wording includes reopened alongside new/changed."""
+        sync_md = self._read_sync_md()
+        flat = " ".join(sync_md.split())
+        self.assertIn("`new`, `changed`, or `reopened`", flat)
 
     # -- Manifest identity: synced DOCS stable through detect_changes --
 
