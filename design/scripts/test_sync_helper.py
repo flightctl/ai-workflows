@@ -4347,6 +4347,43 @@ class TestDecomposePhaseContract(unittest.TestCase):
         self.assertIn("manifest-tracked", crit8,
                       "Must note post-sync exception")
 
+    def test_review_rubric_full_last_story_rule(self) -> None:
+        """Criterion 8 uses the full last-story rule including non-
+        contributing QE/CI stories, not just higher-than-contributors."""
+        review_path = Path(__file__).resolve().parent.parent / "decomposition-review.md"
+        review_md = review_path.read_text(encoding="utf-8")
+        crit8_start = review_md.find("8. **Documentation**")
+        crit8 = review_md[crit8_start:review_md.find("## Finding Format")]
+        self.assertGreaterEqual(crit8_start, 0)
+        self.assertIn("last story in its epic", crit8,
+                      "Must use full last-story-in-epic rule")
+        self.assertIn("[QE]", crit8,
+                      "Must mention non-contributing QE stories")
+
+    def test_identity_gate_inside_per_finding_before_fix(self) -> None:
+        """Step 8 placement identity check occurs inside per-finding
+        value assessment, BEFORE the generic fix instruction."""
+        step8 = self._decompose_md.split("### Step 8:")[1].split("### Step 9:")[0]
+        identity_pos = step8.find("manifest-tracked")
+        fix_pos = step8.find("For all other findings:")
+        self.assertGreaterEqual(identity_pos, 0,
+                                "Identity gate must exist in Step 8")
+        self.assertGreaterEqual(fix_pos, 0,
+                                "Generic fix instruction must exist")
+        self.assertLess(identity_pos, fix_pos,
+                        "Identity gate must precede generic fix")
+
+    def test_criterion7_exception_covers_dependencies(self) -> None:
+        """Post-sync exemption in criterion 7 covers later-numbered
+        prerequisite dependencies, not only contributors."""
+        flat = " ".join(self._decompose_md.split())
+        self.assertIn(
+            "whether a contributor or a legitimate prerequisite dependency",
+            flat, "Exception must cover dependencies")
+        self.assertIn(
+            "Contributing stories AND Dependencies",
+            flat, "Key check must cover both Contributing stories and Dependencies")
+
 
 # ---------------------------------------------------------------------------
 # Sync: reference-availability guard for DOCS creation and update
@@ -4666,6 +4703,72 @@ class TestSyncDocsReferenceGuard(_TmpDirMixin, unittest.TestCase):
         self.assertEqual(docs_items[0]["category"], "changed",
                          "Modified DOCS must be classified as changed")
         self.assertEqual(docs_items[0]["jira_key"], "T-103")
+
+    def test_noncontributing_dependency_resolves_when_key_available(self) -> None:
+        """A later-numbered prerequisite dependency (not in Contributing
+        stories but in Dependencies) resolves when its key exists."""
+        # story-03 DOCS depends on story-04 (prereq, not a contributor)
+        stories_dir = Path(self.tmpdir) / "06-stories"
+        _make_dev_story(stories_dir, 1, 4, "infra", title="Infra prereq")
+        # Rewrite DOCS to add story-04 as dependency only (not contributor)
+        docs_path = stories_dir / "epic-1" / "story-03-docs.md"
+        content = docs_path.read_text()
+        content = content.replace(
+            "Story 1.01, Story 1.02",  # Dependencies line
+            "Story 1.01, Story 1.02, Story 1.04")
+        docs_path.write_text(content)
+
+        manifest = self._manifest_with_keys([
+            {"file": "story-01-api.md", "jira_key": "T-101"},
+            {"file": "story-02-webhook.md", "jira_key": "T-102"},
+            {"file": "story-04-infra.md", "jira_key": "T-104"},
+        ])
+        desc = sync_helper.render_story_description(
+            docs_path, manifest, story_type="DOCS")
+        self.assertNotIn("[unresolved]", desc,
+                         "Non-contributing dependency with key must resolve")
+        self.assertIn("T-104", desc)
+
+    def test_noncontributing_dependency_missing_key_defers(self) -> None:
+        """A later-numbered prerequisite dependency without a key
+        produces [unresolved], triggering the deferral guard."""
+        stories_dir = Path(self.tmpdir) / "06-stories"
+        _make_dev_story(stories_dir, 1, 4, "infra", title="Infra prereq")
+        docs_path = stories_dir / "epic-1" / "story-03-docs.md"
+        content = docs_path.read_text()
+        content = content.replace(
+            "Story 1.01, Story 1.02",
+            "Story 1.01, Story 1.02, Story 1.04")
+        docs_path.write_text(content)
+
+        manifest = self._manifest_with_keys([
+            {"file": "story-01-api.md", "jira_key": "T-101"},
+            {"file": "story-02-webhook.md", "jira_key": "T-102"},
+            # story-04 NOT in manifest — creation pending
+        ])
+        desc = sync_helper.render_story_description(
+            docs_path, manifest, story_type="DOCS")
+        self.assertIn("[unresolved]", desc,
+                      "Missing dependency key must produce [unresolved]")
+
+    # -- Instruction contract: sync exception covers dependencies --
+
+    def test_sync_exception_covers_dependencies(self) -> None:
+        """Sync placement exception and guard name both contributors
+        and prerequisite dependencies."""
+        sync_md = self._read_sync_md()
+        start = sync_md.find("criterion 7 (placement)")
+        end = sync_md.find("**Reference-availability guard")
+        self.assertGreaterEqual(start, 0, "Placement exception must exist")
+        self.assertGreater(end, start, "Guard must follow exception")
+        section = " ".join(sync_md[start:end].split())
+        self.assertIn("prerequisite dependency", section)
+        # Guard covers both Contributing stories and Dependencies
+        guard_start = sync_md.find("**Reference-availability guard")
+        guard_end = sync_md.find("### Step 5:")
+        self.assertGreater(guard_end, guard_start)
+        guard = " ".join(sync_md[guard_start:guard_end].split())
+        self.assertIn("Contributing stories and Dependencies", guard)
 
 
 if __name__ == "__main__":

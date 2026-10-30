@@ -260,10 +260,11 @@ this from the change plan's full item list (new, changed, removed,
 reopened), not only from existing references.
 
 When evaluating criterion 7 (placement), synced `[DOCS]` stories
-retain their immutable filename and number. If a contributor is
-appended with a higher story number after the `[DOCS]` story was
-synced, the `[DOCS]` story may numerically precede it — do not fail
-this gate solely for that ordering.
+retain their immutable filename and number. If a later-numbered story
+— whether a contributor or a legitimate prerequisite dependency — is
+appended after the `[DOCS]` story was synced, the `[DOCS]` story may
+numerically precede it — do not fail this gate solely for that
+ordering.
 
 **Reference-availability guard for `[DOCS]` stories.** Step 6
 processes stories per epic in three passes (create, update, close).
@@ -604,9 +605,9 @@ so re-running `/sync` later will only attempt uncreated items.
 
 **`[DOCS]` reference-availability guard.** Before preparing a changed
 or reopened `[DOCS]` story, apply the same reference-availability guard
-as in Step 6a. If any required contributor key is missing, defer this
-story and record it for the Step 8 deferral report. Do not retry it in
-the current run.
+as in Step 6a. If any required key is missing, defer this story and
+record it for the Step 8 deferral report. Do not retry it in the
+current run.
 
 For each story categorized as **Changed** or **Reopened** (non-deferred),
 prepare the updated description and hash using the story `prepare`
