@@ -131,28 +131,21 @@ After applying changes, verify:
 
 **`[DOCS]` story re-evaluation (if any `[DOCS]` story is affected):**
 
-Re-evaluate every affected `[DOCS]` story against the full `[DOCS]`
-story quality criteria (all seven) defined in `decompose.md`. A
-`[DOCS]` story is affected when any of the following occurred during
-this revision:
-- The `[DOCS]` story file itself was modified.
-- A `[DEV]` or `[UI]` story listed in its `Contributing stories` or
-  `Documentation Inputs` was added, removed, renamed, or had its
-  user-facing artifacts (acceptance criteria, Implementation Guidance)
-  changed.
-- The design's Interface Changes (§5) changed in ways that alter the
-  user-facing surface covered by the `[DOCS]` story.
-- An open question referenced in the `[DOCS]` story's Documentation
-  Inputs (via `[Open: §9.N]`) was resolved during this revision.
+Re-evaluate every affected `[DOCS]` story against all seven criteria
+in `decompose.md`. A `[DOCS]` story is affected when this revision
+changed: (a) the `[DOCS]` file itself, (b) a listed or newly relevant
+`[DEV]`/`[UI]` contributor's artifacts — including new, removed, or
+renamed stories whose user-facing surface falls within the `[DOCS]`
+story's scope, (c) design content that alters the story's reader,
+scope, AC, assumptions, or open-question markers — including resolved
+`[Open: §9.N]` items even without API/CLI shape changes, or (d) ICs
+covered by the story.
 
-For each affected `[DOCS]` story, re-read the story file and verify
-all seven criteria. If a contributing story's user-facing artifacts
-changed, update the corresponding Documentation Inputs group. If
-contributing stories were added or removed, update both the
-`Contributing stories` line in Design Reference and the Dependencies
-section — but preserve any existing prerequisite dependencies (e.g.,
-infrastructure stories) that are not part of the contributing-story
-inventory.
+For each affected `[DOCS]` story, re-read the file and update
+Documentation Inputs, Contributing stories, and Dependencies to
+reflect the current contributor set — but preserve any existing
+prerequisite dependencies (e.g., infrastructure stories) that are
+not part of the contributing-story inventory.
 
 **If the testplan exists (`04-testplan.md`):**
 - Before modifying any test cases, record the IC and requirement
