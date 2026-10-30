@@ -4323,10 +4323,10 @@ class TestDecomposePhaseContract(unittest.TestCase):
     def test_placement_identity_check_in_step8(self) -> None:
         """Step 8 instructs decomposer to check sync-manifest identity
         before acting on conditional placement findings."""
-        step8 = self._decompose_md.split("### Step 8:")[1].split("### Step 9:")[0]
-        manifest_idx = step8.find("sync-manifest.json")
-        self.assertGreaterEqual(manifest_idx, 0,
-                                "Step 8 must reference sync-manifest.json")
+        step8_raw = self._decompose_md.split("### Step 8:")[1].split("### Step 9:")[0]
+        step8 = " ".join(step8_raw.split())
+        self.assertIn("sync-manifest.json", step8,
+                      "Step 8 must reference sync-manifest.json")
         self.assertIn("manifest-tracked", step8)
         self.assertIn("request verification", step8,
                       "Must request verification when identity uncertain")
@@ -4353,24 +4353,33 @@ class TestDecomposePhaseContract(unittest.TestCase):
         review_path = Path(__file__).resolve().parent.parent / "decomposition-review.md"
         review_md = review_path.read_text(encoding="utf-8")
         crit8_start = review_md.find("8. **Documentation**")
-        crit8 = review_md[crit8_start:review_md.find("## Finding Format")]
-        self.assertGreaterEqual(crit8_start, 0)
+        crit8_end = review_md.find("## Finding Format")
+        self.assertGreaterEqual(crit8_start, 0, "Criterion 8 must exist")
+        self.assertGreater(crit8_end, crit8_start,
+                           "Finding Format must follow criterion 8")
+        crit8 = review_md[crit8_start:crit8_end]
         self.assertIn("last story in its epic", crit8,
                       "Must use full last-story-in-epic rule")
         self.assertIn("[QE]", crit8,
                       "Must mention non-contributing QE stories")
 
-    def test_identity_gate_inside_per_finding_before_fix(self) -> None:
-        """Step 8 placement identity check occurs inside per-finding
-        value assessment, BEFORE the generic fix instruction."""
-        step8 = self._decompose_md.split("### Step 8:")[1].split("### Step 9:")[0]
+    def test_identity_gate_before_any_placement_fix(self) -> None:
+        """Step 8: placement identity check precedes both the unsynced
+        placement fix and the generic fix instruction."""
+        step8_raw = self._decompose_md.split("### Step 8:")[1].split("### Step 9:")[0]
+        step8 = " ".join(step8_raw.split())  # normalize whitespace
         identity_pos = step8.find("manifest-tracked")
-        fix_pos = step8.find("For all other findings:")
+        placement_fix = step8.find("apply the initial placement fix")
+        generic_fix = step8.find("For all other findings:")
         self.assertGreaterEqual(identity_pos, 0,
-                                "Identity gate must exist in Step 8")
-        self.assertGreaterEqual(fix_pos, 0,
+                                "Identity gate must exist")
+        self.assertGreaterEqual(placement_fix, 0,
+                                "Unsynced placement fix instruction must exist")
+        self.assertGreaterEqual(generic_fix, 0,
                                 "Generic fix instruction must exist")
-        self.assertLess(identity_pos, fix_pos,
+        self.assertLess(identity_pos, placement_fix,
+                        "Identity gate must precede placement fix")
+        self.assertLess(identity_pos, generic_fix,
                         "Identity gate must precede generic fix")
 
     def test_criterion7_exception_covers_dependencies(self) -> None:
@@ -4705,18 +4714,31 @@ class TestSyncDocsReferenceGuard(_TmpDirMixin, unittest.TestCase):
         self.assertEqual(docs_items[0]["jira_key"], "T-103")
 
     def test_noncontributing_dependency_resolves_when_key_available(self) -> None:
-        """A later-numbered prerequisite dependency (not in Contributing
-        stories but in Dependencies) resolves when its key exists."""
-        # story-03 DOCS depends on story-04 (prereq, not a contributor)
+        """A later-numbered prerequisite dependency (in Dependencies but
+        NOT in Contributing stories/Documentation Inputs) resolves when
+        its manifest key exists. Renderer test only — does not test
+        live deferral/checkpoint behavior."""
         stories_dir = Path(self.tmpdir) / "06-stories"
         _make_dev_story(stories_dir, 1, 4, "infra", title="Infra prereq")
-        # Rewrite DOCS to add story-04 as dependency only (not contributor)
+        # Add story-04 to Dependencies ONLY, not Contributing stories
         docs_path = stories_dir / "epic-1" / "story-03-docs.md"
         content = docs_path.read_text()
-        content = content.replace(
-            "Story 1.01, Story 1.02",  # Dependencies line
-            "Story 1.01, Story 1.02, Story 1.04")
+        # Replace only in the Dependencies section (after "## Dependencies")
+        dep_marker = "## Dependencies\n\n"
+        dep_start = content.find(dep_marker)
+        self.assertGreater(dep_start, 0, "Dependencies section must exist")
+        dep_val_start = dep_start + len(dep_marker)
+        dep_line_end = content.find("\n", dep_val_start)
+        old_deps = content[dep_val_start:dep_line_end]
+        content = (content[:dep_val_start] +
+                   old_deps + ", Story 1.04" +
+                   content[dep_line_end:])
         docs_path.write_text(content)
+        # Verify Contributing stories was NOT changed
+        self.assertNotIn("Story 1.04",
+                         content.split("Contributing stories:")[1].split("\n")[0]
+                         if "Contributing stories:" in content else "",
+                         "Story 1.04 must not be in Contributing stories")
 
         manifest = self._manifest_with_keys([
             {"file": "story-01-api.md", "jira_key": "T-101"},
@@ -4730,15 +4752,23 @@ class TestSyncDocsReferenceGuard(_TmpDirMixin, unittest.TestCase):
         self.assertIn("T-104", desc)
 
     def test_noncontributing_dependency_missing_key_defers(self) -> None:
-        """A later-numbered prerequisite dependency without a key
-        produces [unresolved], triggering the deferral guard."""
+        """A later-numbered prerequisite dependency without a manifest
+        key produces [unresolved] in the rendered description. The sync
+        agent uses this signal to defer the DOCS write (no Jira call or
+        manifest checkpoint). Renderer-only test — deferral/checkpoint
+        behavior is tested by state/contract tests."""
         stories_dir = Path(self.tmpdir) / "06-stories"
         _make_dev_story(stories_dir, 1, 4, "infra", title="Infra prereq")
         docs_path = stories_dir / "epic-1" / "story-03-docs.md"
         content = docs_path.read_text()
-        content = content.replace(
-            "Story 1.01, Story 1.02",
-            "Story 1.01, Story 1.02, Story 1.04")
+        dep_marker = "## Dependencies\n\n"
+        dep_start = content.find(dep_marker)
+        dep_val_start = dep_start + len(dep_marker)
+        dep_line_end = content.find("\n", dep_val_start)
+        old_deps = content[dep_val_start:dep_line_end]
+        content = (content[:dep_val_start] +
+                   old_deps + ", Story 1.04" +
+                   content[dep_line_end:])
         docs_path.write_text(content)
 
         manifest = self._manifest_with_keys([
