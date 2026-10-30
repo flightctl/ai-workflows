@@ -250,28 +250,17 @@ first — do not modify the decomposition during sync.
 ### Step 3b: Validate `[DOCS]` Stories Before Sync
 
 Before proceeding to Jira operations, validate every `[DOCS]` story
-that is categorized as **new** or **changed** in the change plan
-against the full `[DOCS]` story quality criteria (all seven) defined
-in `decompose.md`.
+that is **new** or **changed** in the change plan against all seven
+criteria in `decompose.md`. Also include any `[DOCS]` story whose
+own hash is unchanged but whose contributor set changed: a listed
+contributor was modified, removed, or renamed, or a new/changed
+`[DEV]`/`[UI]` story's user-facing surface falls within the `[DOCS]`
+story's documented scope. Determine this from the change plan's
+new/changed/removed items, not only from existing references.
 
-A `[DOCS]` story whose change-plan category is **changed** because a
-contributing `[DEV]`/`[UI]` story was modified (and the `[DOCS]` file
-was updated by `/revise` or `/respond` to reflect the change) is
-already covered. If a contributing story was modified but the `[DOCS]`
-file was not yet updated, the `[DOCS]` story's content hash will not
-show a change. In that case, identify affected `[DOCS]` stories by
-scanning Documentation Inputs and Contributing stories references for
-any story whose file hash changed since the last sync, and include
-those `[DOCS]` stories in validation even though their own hash is
-unchanged.
-
-If any `[DOCS]` story fails validation, present the findings to the
-user and recommend `/revise` to fix the story before syncing — sync
-must not modify story source files. Do not create or update a `[DOCS]`
-story in Jira that fails these criteria.
-
-Non-`[DOCS]` stories skip this check. Unchanged `[DOCS]` stories
-whose contributing stories are also unchanged skip this check.
+If any `[DOCS]` story fails validation, present the findings and
+recommend `/revise` — sync must not modify story source files. Do
+not create or update a failing `[DOCS]` story in Jira.
 
 ### Step 4: Sync Epics
 
