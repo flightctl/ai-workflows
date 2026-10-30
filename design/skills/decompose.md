@@ -246,10 +246,9 @@ Step 7 after stories are written.
  Those decisions belong to the documentation workflow or author who picks
  up the ticket.
 
- Example: "This feature introduces a new CLI command (`flightctl rollback`)
- for managing device rollbacks. Fleet administrators need to understand
- when to use rollback vs. revert, the required preconditions, and how to
- verify success."}
+ Example: "This feature introduces a new CLI command for managing device
+ rollbacks. Operators need to understand when to use rollback vs. revert,
+ the required preconditions, and how to verify success."}
 
 ## Documentation Inputs
 
