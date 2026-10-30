@@ -525,8 +525,8 @@ re-running `/decompose`.
 **`[DOCS]` story re-evaluation:** If decomposition artifacts exist
 (`06-stories/`), re-evaluate every affected `[DOCS]` story against
 all seven criteria in `decompose.md`. A `[DOCS]` story is affected
-when this round changed: (a) the `[DOCS]` file itself, (b) a listed
-or newly relevant `[DEV]`/`[UI]` contributor's artifacts, (c) design
+when this round changed: (a) the `[DOCS]` file itself, (b) a listed,
+newly relevant, or reopened `[DEV]`/`[UI]` contributor's artifacts, (c) design
 content that alters the story's reader, scope, AC, assumptions, or
 open-question markers — including resolved `[Open: §9.N]` items even
 without API/CLI shape changes, or (d) ICs covered by the story.

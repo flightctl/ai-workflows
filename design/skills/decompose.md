@@ -365,9 +365,10 @@ validation gate.
    exemption:** once a `[DOCS]` story has been synced (its filename is
    in the manifest), it retains its immutable filename and number even
    when a later contributor is appended with a higher story number.
-   This is safe because `/sync` creates new stories before updating
-   existing ones, so the contributor's Jira key is in the manifest
-   when the `[DOCS]` story's description is rendered.
+   `/sync` verifies that every referenced contributor's Jira key is
+   available in the manifest before rendering the `[DOCS]` story's
+   description; if a key is missing, the update is deferred until the
+   contributor is created.
 
 **Story quality checks:**
 - For `[DEV]` stories: does this story add a capability AND testing for that capability? For a justified behavior-preserving prerequisite, does it restructure existing code AND include tests demonstrating preserved behavior?

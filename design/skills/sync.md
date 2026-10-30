@@ -262,13 +262,23 @@ reopened), not only from existing references.
 When evaluating criterion 7 (placement), synced `[DOCS]` stories
 retain their immutable filename and number. If a contributor is
 appended with a higher story number after the `[DOCS]` story was
-synced, the `[DOCS]` story may numerically precede it. This does not
-fail the gate because sync processes stories in numeric order within
-each epic: new contributors are created in Step 6a before existing
-`[DOCS]` stories are updated in Step 6b, so the contributor's Jira
-key is available in the manifest at `[DOCS]` rendering time. The
-same applies to cross-cutting `[DOCS]` stories whose last-epic
-contributors are appended after the `[DOCS]` story number.
+synced, the `[DOCS]` story may numerically precede it — do not fail
+this gate solely for that ordering.
+
+**Reference-availability guard for `[DOCS]` updates.** Step 6
+processes stories per epic in three passes (create, update, close).
+Within the same epic, a new contributor created in Step 6a will have
+its Jira key in the manifest before an existing `[DOCS]` story is
+updated in Step 6b. For cross-cutting `[DOCS]` stories or
+contributors in a later epic, the contributor's Jira key may not yet
+be available when the `[DOCS]` story's epic is processed. Before
+rendering a `[DOCS]` story's description in Step 6b, verify that
+every story referenced in its Contributing stories and Dependencies
+has a Jira key in the manifest. If any required key is missing
+(contributor creation was skipped, failed, or is in a not-yet-
+processed epic), defer that `[DOCS]` update — do not render with
+`[unresolved]` references. Process it after the missing contributor's
+epic completes, or report the gap and recommend retry.
 
 If any `[DOCS]` story fails validation, present the findings and
 recommend `/revise` — sync must not modify story source files. Do
