@@ -191,6 +191,8 @@ design/
 ├── templates/
 │   ├── design.md               # Design document template
 │   └── section-guidance.md     # AI instructions per section
+├── references/
+│   └── sync-helper-usage.md    # Sync helper CLI usage reference
 ├── scripts/
 │   ├── sync_helper.py          # Deterministic sync operations (hash, diff, render, manifest)
 │   └── test_sync_helper.py     # Unit tests for sync_helper
