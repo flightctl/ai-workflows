@@ -207,7 +207,7 @@ updates above are complete on their own.
   - **Renamed IC:** Replace the old IC identifier with the new one in
     every story that lists it.
   - **Added IC:** Determine which stories implement the new IC using
-    the same criteria as `/decompose` Step 7a (the story delivers part
+    the same criteria as `/decompose`'s IC-mapping sub-step (the story delivers part
     or all of the behavior the IC describes). If ownership is unclear,
     ask the user which story should claim it.
 - If test cases were added, removed, or had their IC or requirement

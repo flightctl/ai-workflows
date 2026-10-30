@@ -4172,5 +4172,121 @@ class TestSyncedDocsPlacement(_TmpDirMixin, unittest.TestCase):
         self.assertEqual(docs_path.name, "story-03-rollback-docs.md")
 
 
+# ---------------------------------------------------------------------------
+# Phase-count and ordering contract for decompose.md
+# ---------------------------------------------------------------------------
+
+class TestDecomposePhaseContract(unittest.TestCase):
+    """Verify decompose.md has <=10 sequential main steps and preserves
+    key ordering dependencies."""
+
+    _decompose_md: str
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import re
+        path = Path(__file__).resolve().parent.parent / "skills" / "decompose.md"
+        cls._decompose_md = path.read_text(encoding="utf-8")
+        cls._steps = re.findall(r"^### Step (\d+):", cls._decompose_md, re.MULTILINE)
+
+    def test_at_most_10_main_steps(self) -> None:
+        """decompose.md must have <= 10 main steps."""
+        self.assertLessEqual(len(self._steps), 10,
+                             f"Expected <= 10 main steps, found {len(self._steps)}")
+
+    def test_steps_sequential(self) -> None:
+        """Main steps are numbered 1..N sequentially."""
+        nums = [int(s) for s in self._steps]
+        self.assertEqual(nums, list(range(1, len(nums) + 1)),
+                         f"Steps not sequential: {nums}")
+
+    def test_review_after_structure_gate(self) -> None:
+        """Independent review (Step 7) comes after artifact structure check."""
+        review_idx = self._decompose_md.find("### Step 7: Review")
+        structure_idx = self._decompose_md.find("### Step 6: Verify Artifact")
+        self.assertGreater(review_idx, structure_idx,
+                           "Review must follow structure verification")
+
+    def test_provenance_after_review(self) -> None:
+        """Provenance verification is inside Step 8, after independent review."""
+        provenance_idx = self._decompose_md.find("Verify `[DOCS]` input provenance")
+        review_idx = self._decompose_md.find("### Step 7: Review")
+        self.assertGreater(provenance_idx, review_idx,
+                           "Provenance must come after independent review")
+
+    def test_present_is_last_step(self) -> None:
+        """User presentation is the final step."""
+        self.assertEqual(self._steps[-1], "10")
+        self.assertIn("Present to User", self._decompose_md.split("### Step 10:")[1][:50])
+
+
+# ---------------------------------------------------------------------------
+# Sync: deferred DOCS creation with missing contributor key
+# ---------------------------------------------------------------------------
+
+class TestSyncDocsCreationDefer(_TmpDirMixin, unittest.TestCase):
+    """A new DOCS story whose contributor has no manifest key should
+    produce [unresolved] markers in render output, signaling that
+    the sync agent must defer creation and not checkpoint."""
+
+    def test_new_docs_missing_contributor_no_checkpoint(self) -> None:
+        """New DOCS story with missing contributor key renders [unresolved]."""
+        stories_dir = Path(self.tmpdir) / "06-stories"
+        stories_dir.mkdir()
+        _make_epic(stories_dir, 1, "feature")
+        _make_dev_story(stories_dir, 1, 1, "api", title="API endpoint")
+        _make_docs_story(stories_dir, 1, 2, "docs",
+                         title="API reference",
+                         deps="Story 1.01, Story 1.03",
+                         contributing_stories="Story 1.01, Story 1.03",
+                         doc_inputs="**Story 1.01:** endpoint.\n**Story 1.03:** webhook.")
+        # story-03 exists on disk but NOT in manifest
+        _make_dev_story(stories_dir, 1, 3, "webhook", title="Webhook")
+
+        manifest = {"epics": [{
+            "file": "epic-1-feature.md",
+            "jira_key": "T-100",
+            "stories": [
+                {"file": "story-01-api.md", "jira_key": "T-101"},
+                # story-02 (DOCS) and story-03 (DEV) not yet created
+            ]
+        }]}
+
+        docs_path = stories_dir / "epic-1" / "story-02-docs.md"
+        desc = sync_helper.render_story_description(
+            docs_path, manifest, story_type="DOCS")
+        # Story 1.03 has no key → must show [unresolved]
+        self.assertIn("[unresolved]", desc,
+                      "Missing contributor key must produce [unresolved]")
+        # Story 1.01 should still resolve
+        self.assertIn("T-101", desc)
+
+    def test_new_docs_all_keys_available_resolves(self) -> None:
+        """New DOCS story with all contributor keys resolves cleanly."""
+        stories_dir = Path(self.tmpdir) / "06-stories"
+        stories_dir.mkdir()
+        _make_epic(stories_dir, 1, "feature")
+        _make_dev_story(stories_dir, 1, 1, "api", title="API endpoint")
+        _make_docs_story(stories_dir, 1, 2, "docs",
+                         title="API reference",
+                         deps="Story 1.01",
+                         contributing_stories="Story 1.01",
+                         doc_inputs="**Story 1.01:** endpoint.")
+
+        manifest = {"epics": [{
+            "file": "epic-1-feature.md",
+            "jira_key": "T-100",
+            "stories": [
+                {"file": "story-01-api.md", "jira_key": "T-101"},
+            ]
+        }]}
+
+        docs_path = stories_dir / "epic-1" / "story-02-docs.md"
+        desc = sync_helper.render_story_description(
+            docs_path, manifest, story_type="DOCS")
+        self.assertNotIn("[unresolved]", desc)
+        self.assertIn("T-101", desc)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -265,20 +265,24 @@ appended with a higher story number after the `[DOCS]` story was
 synced, the `[DOCS]` story may numerically precede it — do not fail
 this gate solely for that ordering.
 
-**Reference-availability guard for `[DOCS]` updates.** Step 6
+**Reference-availability guard for `[DOCS]` stories.** Step 6
 processes stories per epic in three passes (create, update, close).
-Within the same epic, a new contributor created in Step 6a will have
-its Jira key in the manifest before an existing `[DOCS]` story is
-updated in Step 6b. For cross-cutting `[DOCS]` stories or
-contributors in a later epic, the contributor's Jira key may not yet
-be available when the `[DOCS]` story's epic is processed. Before
-rendering a `[DOCS]` story's description in Step 6b, verify that
-every story referenced in its Contributing stories and Dependencies
-has a Jira key in the manifest. If any required key is missing
-(contributor creation was skipped, failed, or is in a not-yet-
-processed epic), defer that `[DOCS]` update — do not render with
-`[unresolved]` references. Process it after the missing contributor's
-epic completes, or report the gap and recommend retry.
+Within the same epic, a new non-`[DOCS]` contributor created earlier
+in Step 6a will have its Jira key in the manifest before a `[DOCS]`
+story in the same pass or in Step 6b. For contributors in a later
+epic, the key may not yet be available when the `[DOCS]` story's
+epic is processed.
+
+Before rendering any `[DOCS]` story's description — whether for
+creation (Step 6a), update (Step 6b), or reopening (Step 6b) —
+verify that every story referenced in its Contributing stories and
+Dependencies has a Jira key in the manifest. If any required key is
+missing (contributor creation was skipped, failed, or is in a
+not-yet-processed epic), **defer** that `[DOCS]` write: do not
+render, create, or update the Jira issue, and do not record a
+manifest checkpoint. The deferred `[DOCS]` story remains eligible
+for retry after the missing contributor's epic completes or on a
+subsequent `/sync` run. Report deferred stories to the user.
 
 If any `[DOCS]` story fails validation, present the findings and
 recommend `/revise` — sync must not modify story source files. Do

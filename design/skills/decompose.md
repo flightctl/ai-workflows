@@ -29,7 +29,7 @@ must leave the system in a stable state.
 
 ## Process
 
-### Step 1: Read Source Material
+### Step 1: Load Source Material and Identify Feature
 
 Read these files:
 1. `.artifacts/design/{issue-key}/03-design.md` (design document)
@@ -44,12 +44,10 @@ run first.
 If the testplan doesn't exist, tell the user that `/draft` should be
 run first.
 
-### Step 2: Identify the Feature
-
 Read the Jira Feature issue key from the PRD or context. This Feature is the
 parent for all epics created by this workflow.
 
-### Step 3: Plan the Decomposition
+### Step 2: Plan the Decomposition
 
 Before writing, plan:
 
@@ -86,7 +84,7 @@ Before writing, plan:
    split into smaller epics before proceeding. Split by user-value
    slice, not technical layer.
 
-### Step 4: Write Epics
+### Step 3: Write Epics
 
 This step produces two things: a metadata index (`05-epics.md`) and one file
 per epic. Each epic file has a 1:1 correspondence with a Jira Epic issue —
@@ -161,7 +159,7 @@ Design sections: {§4.1 Architecture, §4.3 API Changes, or relevant subsections
 - Gaps in epic numbering are acceptable (e.g., if epic-2 is removed during
   revision, epic-1 and epic-3 remain — do not renumber to close the gap)
 
-### Step 5: Write Stories
+### Step 4: Write Stories, Verify Sizing, and Add References
 
 For each epic, create a story directory and write one file per story. Each
 story file has a 1:1 correspondence with a Jira Story issue — its content
@@ -223,7 +221,7 @@ Validated by: {TC-FR1-01, TC-FR3-02}
 `Interface Changes` lists the ICs from the design's §5 that this story
 implements. `Validated by` lists the TCs from the testplan that validate
 the behavior this story delivers. These references are populated in
-Step 7 after stories are written.
+the implementation-references sub-step of Step 4 after stories are written.
 
 **For `[DOCS]` stories** (see `[DOCS]` story quality criteria below):
 
@@ -404,7 +402,7 @@ to Jira, their filenames must not change. When revising a decomposition,
 append new stories with the next available number rather than inserting or
 renumbering existing ones.
 
-### Step 6: Sizing Consistency Check
+#### Sizing Consistency Check
 
 After sizing all epics, verify plausibility:
 
@@ -421,14 +419,14 @@ After sizing all epics, verify plausibility:
    epics. Flag any mismatch to the user.
 
 3. Verify no epic is sized XXL. If any is, stop and require a split
-   before proceeding to Step 7.
+   before proceeding to the implementation references sub-step.
 
-### Step 7: Add Implementation References to Stories
+#### Add Implementation References to Stories
 
-For each non-`[DOCS]` story written in Step 5, populate the `Interface
+For each non-`[DOCS]` story written above, populate the `Interface
 Changes` and `Validated by` fields in the Design Reference section.
 
-#### 7a: Map Stories to Interface Changes
+**Map stories to Interface Changes.**
 
 For each non-`[DOCS]` story, determine which Interface Changes (IC-N)
 from the design's §5 the story implements. Use the story's Design
@@ -439,7 +437,7 @@ A story implements an IC when it delivers part or all of the behavior
 that IC describes. One story may implement multiple ICs, and one IC
 may be implemented across multiple stories.
 
-#### 7b: Map Stories to Test Cases
+**Map stories to test cases.**
 
 For each non-`[DOCS]` story, determine which test cases from the
 testplan (read in Step 1) validate the behavior the story delivers.
@@ -458,7 +456,7 @@ For stories that implement ICs with no corresponding test cases
 story's `Validated by` line should read:
 `Validated by: None — {reason from testplan gaps}`
 
-#### 7c: Write References
+**Write references.**
 
 Re-read each non-`[DOCS]` story file. Update the `Interface Changes`
 and `Validated by` lines in the Design Reference section:
@@ -483,7 +481,7 @@ Interface Changes: None — behavior-preserving prerequisite
 Validated by: None — behavior-preserving prerequisite; existing tests verify preserved behavior
 ```
 
-### Step 8: Write Coverage Matrix
+### Step 5: Write Coverage Matrix
 
 Write `.artifacts/design/{issue-key}/07-coverage.md`:
 
@@ -512,7 +510,7 @@ Write `.artifacts/design/{issue-key}/07-coverage.md`:
  If none: "All stories trace to PRD requirements."}
 ```
 
-### Step 9: Verify Artifact Structure
+### Step 6: Verify Artifact Structure
 
 Quick sanity check before invoking the decomposition review. Verify:
 
@@ -521,13 +519,13 @@ Quick sanity check before invoking the decomposition review. Verify:
    `06-stories/epic-1-{slug}.md`)
 3. Each epic has a corresponding story directory with story files
 4. `07-coverage.md` exists and contains at least one mapping row
-5. Testplan was loaded in Step 1 (confirmed — Step 1 blocks if missing)
+5. Testplan was loaded in Step 1 (confirmed — source loading blocks if missing)
 6. Every non-`[DOCS]` story file has `Interface Changes` and `Validated by` lines in its Design Reference section
 
 If structural issues are found, fix them before proceeding. Do not
 invoke a review on incomplete artifacts.
 
-### Step 10: Review Decomposition
+### Step 7: Review Decomposition
 
 Review the decomposition for structural quality and requirement
 coverage. This review operates independently from the design document —
@@ -551,7 +549,7 @@ subagent for independence. Load it with:
 - NOT the design document (`03-design.md`) — the reviewer evaluates
   the artifacts on their own merits
 
-Retain the subagent's ID for use in Step 12 — resuming the same
+Retain the subagent's ID for use in the re-review sub-step — resuming the same
 reviewer gives it memory of its previous findings and concerns,
 producing more coherent follow-up reviews.
 
@@ -566,9 +564,9 @@ severity definitions from the protocol. The subagent path provides
 stronger independence; the inline path still catches issues by forcing
 a perspective shift.
 
-### Step 11: Validate and Assess Findings
+### Step 8: Validate Findings, Re-Review, and Verify Provenance
 
-For each finding from Step 10:
+For each finding from Step 7:
 
 1. **Validate the reference.** Confirm the cited artifact file and
    section exist. Discard any finding that references a file or section
@@ -591,13 +589,13 @@ For each finding from Step 10:
 Only fix findings that add real value. Do not make changes for
 structural preferences not grounded in the evaluation criteria.
 
-### Step 12: Re-Review (if fixes were made)
+#### Re-review (if fixes were made)
 
-If Step 11 produced changes to the decomposition artifacts:
+If the validation above produced changes to the decomposition artifacts:
 
 1. Obtain a re-review of the updated artifacts:
 
-   **If a subagent was used in Step 10 and the runtime supports agent
+   **If a subagent was used in Step 7 and the runtime supports agent
    resumption:** Resume the same reviewer agent. Send it the updated
    artifacts and a summary of fixes applied. This gives the reviewer
    memory of its original findings and lets it verify they were
@@ -617,13 +615,13 @@ If Step 11 produced changes to the decomposition artifacts:
    - Whether fixes were applied correctly
    - Whether fixes introduced new issues
 2. If new issues are found, fix them following the same validate-and-
-   assess procedure from Step 11
+   assess procedure above
 3. Cap at 2 review-fix rounds total. Decomposition fixes are structural
    and less likely than code fixes to need multiple iterations.
 
-If no fixes were needed in Step 11, the review passes immediately.
+If no fixes were needed in the validation above, the review passes immediately.
 
-### Step 13: Verify `[DOCS]` Input Provenance
+#### Verify `[DOCS]` input provenance
 
 The independent reviewer cannot verify whether unmarked Documentation
 Inputs items are truly derived from the design document or PRD — it
@@ -639,9 +637,9 @@ depends on an unresolved open question must be marked
 `[Open: §9.N]` — use the existing open-question identifier from the
 design document; do not invent new identifiers for this purpose.
 
-Fix any incorrect markers before proceeding to Step 14.
+Fix any incorrect markers before proceeding to Step 9.
 
-### Step 14: Report Review Summary
+### Step 9: Report Review Summary
 
 ```markdown
 ## Decomposition Review Summary
@@ -656,7 +654,7 @@ Fix any incorrect markers before proceeding to Step 14.
 list them with their file, section, and issue description.}
 ```
 
-### Step 15: Present to User
+### Step 10: Present to User
 
 Present the decomposition and highlight:
 - Number of epics and stories
@@ -664,7 +662,7 @@ Present the decomposition and highlight:
 - Any coverage gaps
 - Stories that might need size adjustment (too large or too small)
 - Any assumptions or judgment calls in the decomposition
-- Decomposition review summary (from Step 14)
+- Decomposition review summary (from Step 9)
 
 If the decomposition review gate reported FLAG, present the unfixed
 CRITICAL/HIGH findings and ask the user to decide how to handle them.
