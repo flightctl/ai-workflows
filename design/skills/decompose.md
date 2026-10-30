@@ -589,14 +589,17 @@ For each finding from Step 8:
      not be read (e.g., not loaded in Step 1 or I/O error), request
      verification from the user rather than assuming unsynced. If no
      manifest exists or the story is not tracked, apply the initial
-     placement fix: record the old story identity (epic number +
-     story number), re-read and rename/move the file to the correct
-     position, then propagate the old→new identity throughout the
-     feature's decomposition artifacts — update references in the
-     coverage matrix (`07-coverage.md`), other stories' Dependencies,
-     Contributing stories, and Documentation Inputs that cited the
-     old identity. Verify no stale old-identity references remain in
-     any artifact before proceeding to re-review.
+     placement fix: record the old and new qualified identity (epic
+     number + story number) and file path. Re-read and rename/move
+     the file to the correct position. Then update references to
+     this story — including the coverage matrix (`07-coverage.md`),
+     other stories' Dependencies, Contributing stories, Documentation
+     Inputs, epic file cross-references, and file links that cited
+     the old identity or path. Scope updates to this specific story;
+     do not rewrite unrelated stories with the same basename or
+     number. Verify that updated references and file links resolve
+     correctly and no stale old-identity references remain before
+     proceeding to re-review.
 
      **For all other findings:** re-read the affected artifact file,
      fix the issue, and verify the fix.

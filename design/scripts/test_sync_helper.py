@@ -4394,20 +4394,83 @@ class TestDecomposePhaseContract(unittest.TestCase):
             flat, "Key check must cover both Contributing stories and Dependencies")
 
     def test_placement_fix_propagates_references(self) -> None:
-        """Step 9 placement fix requires propagating old→new identity
-        through coverage matrix and other stories before re-review."""
+        """Step 9 placement fix: identity gate → capture → propagate →
+        verify no stale refs → actual re-review action."""
         step9 = " ".join(self._decompose_md.split("### Step 9:")[1]
                          .split("### Step 10:")[0].split())
-        prop_pos = step9.find("propagate")
-        rereview_pos = step9.find("re-review")
-        self.assertGreaterEqual(prop_pos, 0,
-                                "Must require reference propagation")
+        # Use the actual re-review consumer boundary, not self-reference
+        actual_rereview = "Obtain a re-review of the updated artifacts"
+        identity_pos = step9.find("manifest-tracked")
+        update_pos = step9.find("update references to this story")
+        verify_pos = step9.find("no stale old-identity references")
+        rereview_pos = step9.find(actual_rereview)
+        self.assertGreaterEqual(identity_pos, 0, "Identity gate must exist")
+        self.assertGreaterEqual(update_pos, 0,
+                                "Must require reference update")
+        self.assertGreaterEqual(verify_pos, 0, "Must verify no stale refs")
         self.assertGreaterEqual(rereview_pos, 0,
-                                "Re-review must exist")
-        self.assertLess(prop_pos, rereview_pos,
-                        "Propagation must precede re-review")
+                                "Actual re-review action must exist")
+        self.assertLess(identity_pos, update_pos,
+                        "Identity gate must precede reference update")
+        self.assertLess(update_pos, verify_pos,
+                        "Reference update must precede verification")
+        self.assertLess(verify_pos, rereview_pos,
+                        "Stale-ref verification must precede actual re-review")
         self.assertIn("coverage matrix", step9)
-        self.assertIn("no stale old-identity references", step9)
+
+    # -- Producer-order contracts for consolidated steps --
+
+    def test_sizing_is_main_step_5(self) -> None:
+        """Sizing Consistency Check is a main step, not a sub-heading."""
+        self._assert_marker_exists(
+            "### Step 5: Sizing Consistency Check",
+            "Sizing must be main Step 5")
+
+    def test_impl_refs_is_main_step_6(self) -> None:
+        """Add Implementation References is a main step, not a sub-heading."""
+        self._assert_marker_exists(
+            "### Step 6: Add Implementation References",
+            "Impl refs must be main Step 6")
+
+    def test_coverage_before_structure_in_step7(self) -> None:
+        """Step 7: coverage matrix is written before structure validation."""
+        step7_start = self._decompose_md.find("### Step 7:")
+        step8_start = self._decompose_md.find("### Step 8:")
+        self.assertGreaterEqual(step7_start, 0, "Step 7 must exist")
+        self.assertGreater(step8_start, step7_start, "Step 8 must follow 7")
+        step7 = self._decompose_md[step7_start:step8_start]
+        coverage_pos = step7.find("07-coverage.md")
+        structure_pos = step7.find("Verify artifact structure")
+        self.assertGreaterEqual(coverage_pos, 0, "Coverage producer must exist")
+        self.assertGreaterEqual(structure_pos, 0, "Structure gate must exist")
+        self.assertLess(coverage_pos, structure_pos,
+                        "Coverage must precede structure validation")
+
+    def test_summary_before_presentation_in_step10(self) -> None:
+        """Step 10: review summary is produced before user presentation."""
+        step10 = self._decompose_md.split("### Step 10:")[1]
+        summary_pos = step10.find("## Decomposition Review Summary")
+        present_pos = step10.find("Present to the user")
+        self.assertGreaterEqual(summary_pos, 0, "Summary template must exist")
+        self.assertGreaterEqual(present_pos, 0, "Presentation must exist")
+        self.assertLess(summary_pos, present_pos,
+                        "Summary must precede presentation")
+
+    def test_all_steps_before_review(self) -> None:
+        """Steps 4-7 (stories/sizing/refs/artifacts) all precede Step 8 review."""
+        flat = self._decompose_md
+        step4 = flat.find("### Step 4:")
+        step5 = flat.find("### Step 5:")
+        step6 = flat.find("### Step 6:")
+        step7 = flat.find("### Step 7:")
+        step8 = flat.find("### Step 8:")
+        for pos, name in [(step4, "4"), (step5, "5"), (step6, "6"),
+                          (step7, "7"), (step8, "8")]:
+            self.assertGreaterEqual(pos, 0, f"Step {name} must exist")
+        self.assertLess(step4, step5)
+        self.assertLess(step5, step6)
+        self.assertLess(step6, step7)
+        self.assertLess(step7, step8, "All artifact steps must precede review")
 
 
 # ---------------------------------------------------------------------------
