@@ -4164,12 +4164,37 @@ class TestSyncedDocsPlacement(_TmpDirMixin, unittest.TestCase):
         self.assertIn("EDM-201", desc)
         self.assertNotIn("[unresolved]", desc)
 
-    def test_docs_filename_identity_stable(self) -> None:
-        """DOCS story filename/number is immutable in the manifest."""
+    def test_synced_docs_identity_stable_with_late_contributor(self) -> None:
+        """Synced DOCS story-03 retains its manifest identity when
+        story-04 is a later contributor — detect_changes classifies
+        it as unchanged, not new or removed."""
         docs_path = self.stories_dir / "epic-1" / "story-03-rollback-docs.md"
-        self.assertTrue(docs_path.exists())
-        # The file is story-03, not story-05 — it was not renumbered
-        self.assertEqual(docs_path.name, "story-03-rollback-docs.md")
+        content_hash = sync_helper.compute_file_hash(str(docs_path))
+        artifacts_dir = Path(self.tmpdir)
+        _make_manifest(artifacts_dir, [{
+            "file": "epic-1-rollback.md",
+            "jira_key": "EDM-100",
+            "title": "Rollback", "size": "M",
+            "content_hash": "x", "synced_status": "active",
+            "stories": [
+                {"file": "story-01-rollback-cmd.md", "jira_key": "EDM-101",
+                 "title": "[DEV] Rollback cmd", "content_hash": "y",
+                 "synced_status": "active"},
+                {"file": "story-03-rollback-docs.md", "jira_key": "EDM-103",
+                 "title": "[DOCS] Rollback CLI reference",
+                 "content_hash": content_hash,
+                 "synced_status": "active"},
+                {"file": "story-04-dry-run-flag.md", "jira_key": "EDM-104",
+                 "title": "[DEV] Dry-run flag", "content_hash": "z",
+                 "synced_status": "active"},
+            ],
+        }])
+        plan = sync_helper.detect_changes(str(artifacts_dir))
+        docs_items = [i for i in plan["items"]
+                      if i["file"].endswith("story-03-rollback-docs.md")]
+        self.assertEqual(len(docs_items), 1)
+        self.assertEqual(docs_items[0]["category"], "unchanged")
+        self.assertEqual(docs_items[0]["jira_key"], "EDM-103")
 
 
 # ---------------------------------------------------------------------------
@@ -4323,7 +4348,7 @@ class TestSyncDocsReferenceGuard(_TmpDirMixin, unittest.TestCase):
                          doc_inputs="**Story 1.01:** endpoint.\n"
                                     "**Story 1.02:** webhook.")
 
-    def _manifest_with_keys(self, story_keys):
+    def _manifest_with_keys(self, story_keys: list[dict]) -> dict:
         """Build a manifest with the given story entries."""
         return {"epics": [{
             "file": "epic-1-feature.md",
@@ -4451,27 +4476,146 @@ class TestSyncDocsReferenceGuard(_TmpDirMixin, unittest.TestCase):
         self.assertEqual(docs_items[0]["category"], "unchanged",
                          "Checkpointed DOCS with matching hash must be unchanged")
 
-    # -- Instruction contract: sync.md guard text --
+    # -- Instruction contracts: sync.md guard and callsite text --
+
+    @classmethod
+    def _read_sync_md(cls) -> str:
+        sync_path = Path(__file__).resolve().parent.parent / "skills" / "sync.md"
+        return sync_path.read_text(encoding="utf-8")
 
     def test_sync_guard_covers_creation_and_update(self) -> None:
-        """sync.md guard applies to creation (6a), update (6b), and reopening."""
-        sync_path = Path(__file__).resolve().parent.parent / "skills" / "sync.md"
-        sync_md = sync_path.read_text(encoding="utf-8")
-        guard = sync_md[sync_md.find("Reference-availability guard"):
-                        sync_md.find("### Step 5:")]
-        self.assertIn("creation (Step 6a)", guard)
-        self.assertIn("update (Step 6b)", guard)
-        self.assertIn("reopening (Step 6b)", guard)
-        # Guard text wraps across lines; normalize whitespace for match
-        guard_flat = " ".join(guard.split())
-        self.assertIn("do not record a manifest checkpoint", guard_flat,
-                      "Guard must prohibit checkpoint for deferred DOCS")
+        """Step 4 guard covers creation (6a), update (6b), and reopening."""
+        sync_md = self._read_sync_md()
+        start = sync_md.find("Reference-availability guard")
+        end = sync_md.find("### Step 5:")
+        self.assertGreaterEqual(start, 0, "Guard section must exist")
+        self.assertGreater(end, start, "Step 5 must follow guard")
+        guard_flat = " ".join(sync_md[start:end].split())
+        self.assertIn("creation (Step 6a)", guard_flat)
+        self.assertIn("update (Step 6b)", guard_flat)
+        self.assertIn("reopening (Step 6b)", guard_flat)
+        self.assertIn("do not record a manifest checkpoint", guard_flat)
 
-    def test_docs_filename_identity_stable(self) -> None:
-        """DOCS story filename is immutable — not renumbered."""
+    def test_6a_callsite_references_guard(self) -> None:
+        """Step 6a explicitly applies the reference-availability guard
+        before prepare for [DOCS] stories."""
+        sync_md = self._read_sync_md()
+        start = sync_md.find("#### 6a:")
+        end = sync_md.find("#### 6b:")
+        self.assertGreaterEqual(start, 0, "Step 6a must exist")
+        self.assertGreater(end, start, "Step 6b must follow 6a")
+        section = " ".join(sync_md[start:end].split())
+        self.assertIn("reference-availability guard", section,
+                      "6a must reference the guard before prepare")
+        self.assertIn("defer", section,
+                      "6a must defer DOCS with missing keys")
+
+    def test_6b_callsite_references_guard(self) -> None:
+        """Step 6b explicitly applies the reference-availability guard
+        before prepare for changed/reopened [DOCS] stories."""
+        sync_md = self._read_sync_md()
+        start = sync_md.find("#### 6b:")
+        end = sync_md.find("#### 6c:")
+        self.assertGreaterEqual(start, 0, "Step 6b must exist")
+        self.assertGreater(end, start, "Step 6c must follow 6b")
+        section = " ".join(sync_md[start:end].split())
+        self.assertIn("reference-availability guard", section,
+                      "6b must reference the guard before prepare")
+        self.assertIn("defer", section)
+
+    def test_deferral_no_current_run_retry(self) -> None:
+        """Guard deferral policy: no retry in current /sync invocation."""
+        sync_md = self._read_sync_md()
+        guard_flat = " ".join(sync_md.split())
+        self.assertIn("Do not retry a deferred", guard_flat)
+        self.assertIn("current `/sync` invocation", guard_flat)
+
+    def test_step8_reports_deferred(self) -> None:
+        """Step 8 report includes deferred DOCS stories."""
+        sync_md = self._read_sync_md()
+        start = sync_md.find("### Step 8:")
+        self.assertGreaterEqual(start, 0, "Step 8 must exist")
+        section = sync_md[start:]
+        self.assertIn("deferred", section)
+        self.assertIn("contributor keys were missing", section)
+        self.assertIn("Do not claim complete synchronization", section)
+
+    # -- Manifest identity: synced DOCS stable through detect_changes --
+
+    def test_synced_docs_with_late_contributor_stays_unchanged(self) -> None:
+        """A synced DOCS story retains its manifest identity when a
+        higher-numbered contributor is added. detect_changes does not
+        classify it as new, removed, or renamed."""
+        # story-04 is a late contributor added after DOCS story-03 was synced
+        _make_dev_story(self.stories_dir, 1, 4, "metrics", title="Add metrics")
         docs_path = self.stories_dir / "epic-1" / "story-03-docs.md"
-        self.assertTrue(docs_path.exists())
-        self.assertEqual(docs_path.name, "story-03-docs.md")
+        content_hash = sync_helper.compute_file_hash(str(docs_path))
+        _make_manifest(self.artifacts_dir, [{
+            "file": "epic-1-feature.md",
+            "jira_key": "T-100",
+            "title": "Feature", "size": "M",
+            "content_hash": "abc", "synced_status": "active",
+            "stories": [
+                {"file": "story-01-api.md", "jira_key": "T-101",
+                 "title": "[DEV] API", "content_hash": "d1",
+                 "synced_status": "active"},
+                {"file": "story-02-webhook.md", "jira_key": "T-102",
+                 "title": "[DEV] Webhook", "content_hash": "d2",
+                 "synced_status": "active"},
+                {"file": "story-03-docs.md", "jira_key": "T-103",
+                 "title": "[DOCS] API reference",
+                 "content_hash": content_hash,
+                 "synced_status": "active"},
+                # story-04 is new (not yet in manifest)
+            ],
+        }])
+        plan = sync_helper.detect_changes(str(self.artifacts_dir))
+        docs_items = [i for i in plan["items"]
+                      if i["file"].endswith("story-03-docs.md")]
+        self.assertEqual(len(docs_items), 1)
+        self.assertEqual(docs_items[0]["category"], "unchanged",
+                         "Synced DOCS must stay unchanged when late contributor added")
+        self.assertEqual(docs_items[0]["jira_key"], "T-103",
+                         "Synced DOCS must retain its Jira key")
+        # story-04 should be new
+        new_items = [i for i in plan["items"]
+                     if i["file"].endswith("story-04-metrics.md")]
+        self.assertEqual(len(new_items), 1)
+        self.assertEqual(new_items[0]["category"], "new")
+
+    def test_synced_docs_changed_when_inputs_updated(self) -> None:
+        """A synced DOCS story whose content changed (e.g., updated
+        Documentation Inputs) is correctly classified as changed."""
+        docs_path = self.stories_dir / "epic-1" / "story-03-docs.md"
+        old_hash = sync_helper.compute_file_hash(str(docs_path))
+        _make_manifest(self.artifacts_dir, [{
+            "file": "epic-1-feature.md",
+            "jira_key": "T-100",
+            "title": "Feature", "size": "M",
+            "content_hash": "abc", "synced_status": "active",
+            "stories": [
+                {"file": "story-01-api.md", "jira_key": "T-101",
+                 "title": "[DEV] API", "content_hash": "d1",
+                 "synced_status": "active"},
+                {"file": "story-02-webhook.md", "jira_key": "T-102",
+                 "title": "[DEV] Webhook", "content_hash": "d2",
+                 "synced_status": "active"},
+                {"file": "story-03-docs.md", "jira_key": "T-103",
+                 "title": "[DOCS] API reference",
+                 "content_hash": old_hash,
+                 "synced_status": "active"},
+            ],
+        }])
+        # Modify the DOCS story content
+        content = docs_path.read_text()
+        docs_path.write_text(content + "\nUpdated Documentation Inputs.\n")
+        plan = sync_helper.detect_changes(str(self.artifacts_dir))
+        docs_items = [i for i in plan["items"]
+                      if i["file"].endswith("story-03-docs.md")]
+        self.assertEqual(len(docs_items), 1)
+        self.assertEqual(docs_items[0]["category"], "changed",
+                         "Modified DOCS must be classified as changed")
+        self.assertEqual(docs_items[0]["jira_key"], "T-103")
 
 
 if __name__ == "__main__":
