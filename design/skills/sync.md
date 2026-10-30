@@ -286,7 +286,8 @@ creation pass supplies the missing key. Continue processing
 eligible items in the existing per-epic passes. Record each
 deferred story's file, missing keys, and reason for the Step 8
 report. Because no checkpoint was saved, deferred stories remain
-`new` or `changed` on the next explicit `/sync` invocation.
+`new`, `changed`, or `reopened` (as appropriate) on the next
+explicit `/sync` invocation.
 
 If any `[DOCS]` story fails validation, present the findings and
 recommend `/revise` — sync must not modify story source files. Do
@@ -709,8 +710,8 @@ Fields:
 
 Summarize:
 - How many epics and stories were created, updated, closed, unchanged, and **deferred**
-- For each deferred `[DOCS]` story: the story file, which contributor keys were missing, and the reason. Note that these stories will appear as `new` or `changed` on the next `/sync` run because no checkpoint was recorded. Do not claim complete synchronization while deferred stories remain
-- Confirm the hierarchy was verified for every issue actually created or updated: every epic has parent = Feature (verified in Step 5), every story has parent = its epic (verified in Step 6). Deferred stories were not created and have no Jira parent to verify
+- For each deferred `[DOCS]` story: the story file, which contributor keys were missing, and the reason. Note that these stories will appear as `new`, `changed`, or `reopened` (as appropriate) on the next `/sync` run because no checkpoint was recorded. Do not claim complete synchronization while deferred stories remain
+- Confirm the hierarchy was verified for every issue actually created or updated: every epic has parent = Feature (verified in Step 5), every story has parent = its epic (verified in Step 6). Deferred new stories were not created in Jira; deferred changed or reopened stories exist in Jira but were not updated in this run. List deferred stories separately as work not applied
 - Link to the Feature issue in Jira (which now shows the full hierarchy)
 
 **Do not suggest manual parent linking as a next step.** If any parent
