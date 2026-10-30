@@ -2264,7 +2264,7 @@ class TestOrphanClosureStateful(_TmpDirMixin, unittest.TestCase):
     The helper never contacts Jira; tests simulate the effect of
     successful Jira operations by calling update-manifest with the
     correct arguments.  This mirrors the workflow described in
-    Steps 4c/5c of sync.md.
+    Steps 5c/6c of sync.md.
     """
     def setUp(self) -> None:
         super().setUp()
@@ -2851,7 +2851,7 @@ class TestHelperDiscovery(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class TestCascadeGateContract(unittest.TestCase):
-    """Assert sync.md Steps 4c/5c document hash-before-transition ordering
+    """Assert sync.md Steps 5c/6c document hash-before-transition ordering
     and that Step 5c gates the parent close on all child successes.
 
     These are contract tests against the ACTUAL Markdown sections/order,
@@ -2869,28 +2869,28 @@ class TestCascadeGateContract(unittest.TestCase):
         import re
         sync_md_path = Path(__file__).resolve().parent.parent / "skills" / "sync.md"
         cls._sync_md = sync_md_path.read_text(encoding="utf-8")
-        m4c = re.search(r"#### 5c:.*?(?=####|### )", cls._sync_md, re.DOTALL)
-        assert m4c, "Step 6c section not found"
-        cls._step5c = m4c.group()
-        m5c = re.search(r"#### 6c:.*?(?=####|### )", cls._sync_md, re.DOTALL)
-        assert m5c, "Step 6c section not found"
-        cls._step6c = m5c.group()
-        m5 = re.search(r"### Step 6:.*?(?=#### 6a:)", cls._sync_md, re.DOTALL)
-        assert m5, "Step 6 plan refresh not found"
-        cls._step6_refresh = m5.group()
+        m5c = re.search(r"#### 5c:.*?(?=####|### )", cls._sync_md, re.DOTALL)
+        assert m5c, "Step 5c section not found"
+        cls._step5c = m5c.group()
+        m6c = re.search(r"#### 6c:.*?(?=####|### )", cls._sync_md, re.DOTALL)
+        assert m6c, "Step 6c section not found"
+        cls._step6c = m6c.group()
+        m6 = re.search(r"### Step 6:.*?(?=#### 6a:)", cls._sync_md, re.DOTALL)
+        assert m6, "Step 6 plan refresh not found"
+        cls._step6_refresh = m6.group()
 
     # -- Step 5c: child hash before child transition ---
 
-    def test_step6c_child_hash_before_transition(self) -> None:
-        """6c child closure: hash computed before Jira transition."""
+    def test_step5c_child_hash_before_transition(self) -> None:
+        """5c child closure: hash computed before Jira transition."""
         h = self._step5c.find("Compute the hash first")
         t = self._step5c.find("Transition the child story")
         self.assertGreater(h, -1, "must mention computing child hash")
         self.assertGreater(t, -1, "must mention child transition")
         self.assertLess(h, t, "child hash must precede child transition")
 
-    def test_step6c_epic_hash_before_transition(self) -> None:
-        """6c epic closure: hash computed before Jira transition."""
+    def test_step5c_epic_hash_before_transition(self) -> None:
+        """5c epic closure: hash computed before Jira transition."""
         h = self._step5c.find("compute the epic hash")
         t = self._step5c.find("Transition the epic to Done")
         self.assertGreater(h, -1, "must mention computing epic hash")
@@ -2899,50 +2899,50 @@ class TestCascadeGateContract(unittest.TestCase):
 
     # -- Step 5c: parent gated on all children ---
 
-    def test_step6c_parent_gated_on_all_children(self) -> None:
-        """4c: parent close requires ALL child closures and checkpoints."""
+    def test_step5c_parent_gated_on_all_children(self) -> None:
+        """5c: parent close requires ALL child closures and checkpoints."""
         self.assertIn("child closures and their checkpoints have succeeded",
                       self._step5c)
 
-    def test_step6c_stop_cascade_on_failure(self) -> None:
-        """4c: cascade stops immediately on any child failure."""
+    def test_step5c_stop_cascade_on_failure(self) -> None:
+        """5c: cascade stops immediately on any child failure."""
         import re
         self.assertTrue(
             re.search(r"stop the cascade\s+immediately", self._step5c),
             "must stop cascade immediately on child failure")
 
-    def test_step6c_no_skip_child_then_close_parent(self) -> None:
-        """4c: explicitly forbids skipping a child then closing parent."""
+    def test_step5c_no_skip_child_then_close_parent(self) -> None:
+        """5c: explicitly forbids skipping a child then closing parent."""
         import re
         self.assertTrue(
             re.search(r"Never\s+skip\s+a failing child", self._step5c),
             "must forbid skip-child-close-parent")
 
-    def test_step6c_offers_retry_or_defer(self) -> None:
-        """4c: pre-transition failure offers retry or defer."""
+    def test_step5c_offers_retry_or_defer(self) -> None:
+        """5c: pre-transition failure offers retry or defer."""
         import re
         self.assertTrue(
             re.search(r"retry after\s+remediation", self._step5c),
             "must offer retry after remediation")
         self.assertIn("defer the entire parent", self._step5c)
 
-    def test_step6c_preserves_successful_checkpoints(self) -> None:
-        """4c: already-successful child checkpoints preserved on failure."""
+    def test_step5c_preserves_successful_checkpoints(self) -> None:
+        """5c: already-successful child checkpoints preserved on failure."""
         import re
         self.assertTrue(
             re.search(r"Preserve all\s+already-successful\s+child checkpoints",
                       self._step5c),
             "must preserve completed child checkpoints")
 
-    def test_step6c_distinguishes_pre_and_post_failure(self) -> None:
-        """4c: distinguishes pre-transition from post-success checkpoint
+    def test_step5c_distinguishes_pre_and_post_failure(self) -> None:
+        """5c: distinguishes pre-transition from post-success checkpoint
         failure, referencing the shared close-checkpoint recovery rule."""
         self.assertIn("Pre-transition failure", self._step5c)
         self.assertIn("Post-success checkpoint failure", self._step5c)
         self.assertIn("close-checkpoint", self._step5c)
 
-    def test_step6c_uncertain_outcome_requires_verification(self) -> None:
-        """4c: uncertain Jira outcome (timeout/5xx) must be verified
+    def test_step5c_uncertain_outcome_requires_verification(self) -> None:
+        """5c: uncertain Jira outcome (timeout/5xx) must be verified
         before retrying, not assumed non-mutating."""
         import re
         self.assertTrue(
@@ -2950,8 +2950,8 @@ class TestCascadeGateContract(unittest.TestCase):
                       self._step5c, re.DOTALL),
             "must require verification for uncertain Jira outcomes")
 
-    def test_step6c_resume_manual_reconciliation(self) -> None:
-        """4c: resume stops for manual reconciliation when captured
+    def test_step5c_resume_manual_reconciliation(self) -> None:
+        """5c: resume stops for manual reconciliation when captured
         state is lost (forced abort/new run)."""
         self.assertIn("stop for manual reconciliation", self._step5c)
 
@@ -2966,13 +2966,13 @@ class TestCascadeGateContract(unittest.TestCase):
         self.assertLess(h, t, "hash must precede transition")
 
     def test_step6c_checkpoint_uses_saved_hash(self) -> None:
-        """5c: checkpoint references saved hash from step 1."""
+        """6c: checkpoint references saved hash from step 1."""
         self.assertIn("hash from step 1", self._step6c)
 
     # -- Step 5c: reporting distinguishes child states ---
 
-    def test_step6c_report_distinguishes_child_states(self) -> None:
-        """4c: failure report distinguishes complete, uncheckpointed,
+    def test_step5c_report_distinguishes_child_states(self) -> None:
+        """5c: failure report distinguishes complete, uncheckpointed,
         and unattempted children."""
         import re
         self.assertIn("closed and checkpointed (complete)", self._step5c)
@@ -2981,8 +2981,8 @@ class TestCascadeGateContract(unittest.TestCase):
             "must mention Jira-closed but uncheckpointed")
         self.assertIn("unattempted", self._step5c)
 
-    def test_step6c_no_rollback_implication(self) -> None:
-        """4c: does not imply already-closed children are rolled back."""
+    def test_step5c_no_rollback_implication(self) -> None:
+        """5c: does not imply already-closed children are rolled back."""
         import re
         self.assertTrue(
             re.search(r"not imply that already-closed children\s+will be rolled back",
@@ -2991,8 +2991,8 @@ class TestCascadeGateContract(unittest.TestCase):
 
     # -- Step 5c: child checkpoint references helper reference ---
 
-    def test_step6c_child_checkpoint_references_helper(self) -> None:
-        """6c child checkpoint step references the helper reference."""
+    def test_step5c_child_checkpoint_references_helper(self) -> None:
+        """5c child checkpoint step references the helper reference."""
         self.assertIn("helper reference", self._step5c)
         # The step must mention the required story-specific args
         self.assertIn("--item-type story", self._step5c)
@@ -4052,6 +4052,124 @@ class TestEpicSizeValidation(_TmpDirMixin, unittest.TestCase):
         result = json.loads(r.stdout)
         self.assertNotIn("size", result)
         self.assertIn("description", result)
+
+
+# ---------------------------------------------------------------------------
+# Post-sync DOCS placement: synced DOCS preceding later contributor
+# ---------------------------------------------------------------------------
+
+class TestSyncedDocsPlacement(_TmpDirMixin, unittest.TestCase):
+    """Verify that a synced DOCS story (immutable filename) can reference
+    a later same-epic contributor after that contributor is created and
+    recorded in the manifest. Also verify cross-cutting last-epic case
+    and the missing-key guard."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.stories_dir = Path(self.tmpdir) / "06-stories"
+        self.stories_dir.mkdir()
+        # Epic 1: DOCS story-03 precedes contributor story-04
+        _make_epic(self.stories_dir, 1, "rollback")
+        _make_dev_story(self.stories_dir, 1, 1, "rollback-cmd", title="Rollback cmd")
+        _make_docs_story(self.stories_dir, 1, 3, "rollback-docs",
+                         title="Rollback CLI reference",
+                         deps="Story 1.01, Story 1.04",
+                         doc_inputs="**Story 1.01 — Rollback cmd:** subcommand.\n"
+                                    "**Story 1.04 — Dry-run flag:** --dry-run flag.",
+                         contributing_stories="Story 1.01, Story 1.04")
+        _make_dev_story(self.stories_dir, 1, 4, "dry-run-flag", title="Dry-run flag")
+
+    def test_same_epic_contributor_after_docs_resolves(self) -> None:
+        """After story-04 is created and recorded, story-03 DOCS refs resolve."""
+        manifest = {
+            "epics": [{
+                "file": "epic-1-rollback.md",
+                "jira_key": "EDM-100",
+                "stories": [
+                    {"file": "story-01-rollback-cmd.md", "jira_key": "EDM-101"},
+                    {"file": "story-03-rollback-docs.md", "jira_key": "EDM-103"},
+                    {"file": "story-04-dry-run-flag.md", "jira_key": "EDM-104"},
+                ]
+            }]
+        }
+        docs_path = self.stories_dir / "epic-1" / "story-03-rollback-docs.md"
+        desc = sync_helper.render_story_description(
+            docs_path, manifest, story_type="DOCS")
+        # Contributing stories resolved — no [unresolved]
+        self.assertIn("Contributing stories: Story EDM-101, Story EDM-104", desc)
+        self.assertNotIn("[unresolved]", desc)
+        # Dependencies also resolved
+        self.assertIn("EDM-101", desc)
+        self.assertIn("EDM-104", desc)
+
+    def test_missing_contributor_key_leaves_unresolved(self) -> None:
+        """If contributor story-04 is not yet in manifest, ref stays unresolved."""
+        manifest = {
+            "epics": [{
+                "file": "epic-1-rollback.md",
+                "jira_key": "EDM-100",
+                "stories": [
+                    {"file": "story-01-rollback-cmd.md", "jira_key": "EDM-101"},
+                    {"file": "story-03-rollback-docs.md", "jira_key": "EDM-103"},
+                    # story-04 NOT in manifest — creation pending/failed
+                ]
+            }]
+        }
+        docs_path = self.stories_dir / "epic-1" / "story-03-rollback-docs.md"
+        desc = sync_helper.render_story_description(
+            docs_path, manifest, story_type="DOCS")
+        # Story 1.04 should be unresolved
+        self.assertIn("[unresolved]", desc)
+        # Story 1.01 still resolved
+        self.assertIn("EDM-101", desc)
+
+    def test_cross_epic_contributor_resolves_after_creation(self) -> None:
+        """Cross-cutting DOCS in epic 1 referencing a contributor in epic 2."""
+        # Add epic 2 with a contributor
+        _make_epic(self.stories_dir, 2, "monitoring")
+        _make_dev_story(self.stories_dir, 2, 1, "metrics", title="Add metrics")
+        # Update DOCS story to reference cross-epic contributor
+        docs_path = self.stories_dir / "epic-1" / "story-03-rollback-docs.md"
+        content = docs_path.read_text()
+        content = content.replace(
+            "Contributing stories: Story 1.01, Story 1.04",
+            "Contributing stories: Story 1.01, Story 1.04, Story 2.01")
+        docs_path.write_text(content)
+
+        manifest = {
+            "epics": [
+                {
+                    "file": "epic-1-rollback.md",
+                    "jira_key": "EDM-100",
+                    "stories": [
+                        {"file": "story-01-rollback-cmd.md", "jira_key": "EDM-101"},
+                        {"file": "story-03-rollback-docs.md", "jira_key": "EDM-103"},
+                        {"file": "story-04-dry-run-flag.md", "jira_key": "EDM-104"},
+                    ]
+                },
+                {
+                    "file": "epic-2-monitoring.md",
+                    "jira_key": "EDM-200",
+                    "stories": [
+                        {"file": "story-01-metrics.md", "jira_key": "EDM-201"},
+                    ]
+                }
+            ]
+        }
+        desc = sync_helper.render_story_description(
+            docs_path, manifest, story_type="DOCS")
+        # All three contributor refs resolved
+        self.assertIn("EDM-101", desc)
+        self.assertIn("EDM-104", desc)
+        self.assertIn("EDM-201", desc)
+        self.assertNotIn("[unresolved]", desc)
+
+    def test_docs_filename_identity_stable(self) -> None:
+        """DOCS story filename/number is immutable in the manifest."""
+        docs_path = self.stories_dir / "epic-1" / "story-03-rollback-docs.md"
+        self.assertTrue(docs_path.exists())
+        # The file is story-03, not story-05 — it was not renumbered
+        self.assertEqual(docs_path.name, "story-03-rollback-docs.md")
 
 
 if __name__ == "__main__":
