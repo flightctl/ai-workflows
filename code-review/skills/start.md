@@ -231,9 +231,12 @@ skeleton, then return.
 **If subagents are not available:** Read `../../_shared/review-protocol.md`
 (not `../guidelines.md`) and review sequentially. Same hunk-Read rules.
 
-Evaluate all categories in `../../_shared/review-protocol.md`. If the user
-provided focus guidance, prioritize those areas but still report CRITICAL
-and HIGH findings elsewhere.
+Evaluate all categories in `../../_shared/review-protocol.md` and fill in
+the **Criteria Coverage** table in the report template for every
+criterion — `evaluated`, `not applicable` (with justification), or
+`incomplete` (with what is missing). If the user provided focus guidance,
+prioritize those areas but still report CRITICAL and HIGH findings
+elsewhere and still cover every criterion in the table.
 
 The subagent writes `code-review-001.md`. The parent writes it **only**
 when reviewing sequentially (no subagent). Exactly one writer. Do not
@@ -241,7 +244,12 @@ overwrite the subagent file.
 
 ### Step 7: Validate and Assess Findings
 
-Read the review file and work through **every** finding.
+Read the review file. First check the **Criteria Coverage** table:
+every criterion must be `evaluated` or `not applicable` with a
+justification. If any row is `incomplete` or missing, the review is
+not complete — do not proceed to a verdict. Ask the reviewer (or
+re-review inline) to cover the gap. Do not invent coverage the
+reviewer omitted. Then work through **every** finding.
 
 #### 7a: Validate finding references
 
@@ -350,8 +358,17 @@ that string, append `#{finding_number}`.
 }
 ```
 
-If the verdict is APPROVED with no findings, tell the user the review
-passed and clean up artifacts automatically.
+If the verdict is APPROVED with no findings, apply the
+**commit-readiness check** from the Verdict Rules in
+`../../_shared/review-protocol.md`: confirm all applicable mandatory
+quality gates are passing (not merely unrun or incomplete) and the
+required evaluation is complete. If any gate is unmet or incomplete,
+do not approve — report the gap and set the verdict to
+CHANGES_REQUESTED. Otherwise tell the user the review passed and
+clean up artifacts automatically. Zero findings with APPROVED is a
+valid, expected outcome when the commit-readiness check passes — do
+not treat it as a review failure or search for additional comments
+merely to fill the findings section.
 
 #### Unattended Mode Behavior
 
@@ -365,8 +382,18 @@ After presenting:
 1. If any CRITICAL finding has a "Disagree" assessment, stop and
    escalate to the user — present the finding and explain the
    disagreement. Wait for the user to decide.
-2. Otherwise treat Agree / Partially agree as Accept and Disagree as
-   Reject, persist `decisions-{NNN}.json`, and proceed to `/continue`.
+2. Apply the commit-readiness check: if any applicable mandatory
+   quality gate is unmet, failing, or incomplete, or the required
+   evaluation is not complete, the review is not complete — report the
+   gap and proceed to `/continue`. If the commit-readiness check
+   passes and there are only nonblocking
+   findings (all MEDIUM/LOW with `commit-readiness impact:
+   nonblocking`), treat the review as complete — compile the
+   aggregated summary and proceed to cleanup. Nonblocking suggestions
+   alone do not trigger a `/continue` round.
+3. Otherwise treat Agree / Partially agree as Accept and Disagree as
+   Reject for blocking findings, persist `decisions-{NNN}.json`, and
+   proceed to `/continue`.
 
 ## Output
 

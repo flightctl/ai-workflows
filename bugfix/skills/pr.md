@@ -391,21 +391,113 @@ Do not proceed to **Self-Review Gate** or commit.
 Before committing, run a self-review of the changes to catch issues before
 they reach external reviewers.
 
-Read and follow `../../_shared/recipes/self-review-gate.md` with these
-parameters:
+**Candidate snapshot definition.** A candidate snapshot is a saved
+immutable mapping. Each entry is a tuple of:
 
-| Parameter | Value |
-|-----------|-------|
-| DIFF_COMMAND | `git diff HEAD` |
-| MAX_ROUNDS | `3` |
-| CONTEXT_FILES | `.artifacts/bugfix/{issue}/root-cause.md`, `.artifacts/bugfix/{issue}/implementation-notes.md` (if they exist) |
+- **path** — the file's working-tree path
+- **status** — present, deleted, or renamed (with old path)
+- **kind** — regular file, symlink, or other (gitlink, etc.)
+- **mode** — Git-relevant file mode (e.g., 100644, 100755, 120000)
+- **payload digest** — kind-correct content hash (see below)
 
-If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
-present the findings to the user. Do not proceed to commit until the user
-decides how to handle them.
+The snapshot covers:
 
-If the gate reports PASS, proceed to Step 7. Any code fixes made by the
-gate are uncommitted changes that will be included in the commit below.
+- tracked staged edits (`git diff --cached`)
+- tracked unstaged edits (`git diff`)
+- all relevant untracked files (`git ls-files --others --exclude-standard`)
+
+Exclude only `.artifacts/` outputs and build logs — never exclude a
+candidate source file based on extension or unchanged path presence.
+
+**Mode detection:** For tracked files, `git diff` output shows the
+prospective Git mode (e.g., `old mode 100644 / new mode 100755`)
+which reflects unstaged chmod changes. `git ls-files -s` shows only
+the index mode, which does NOT reflect unstaged mode changes — use it
+only for staged entries. For untracked regular files, record whether
+the file has the executable bit set (this is the mode Git would assign
+on `git add`). Stage-only status transitions (untracked→staged,
+unstaged→staged) must not change the recorded mode or payload for the
+same working-tree file.
+
+**Payload hashing by kind (use consistently regardless of
+tracked/untracked origin):**
+
+- **Regular files:** content digest via `git hash-object -t blob`
+  (computes the Git blob OID without staging). This produces the
+  same identity whether the file is tracked, untracked, or staged,
+  so a stage-only transition does not create a false mismatch.
+- **Symlinks:** hash the **link target text** (`readlink -n`), not
+  the dereferenced file contents. Use `git hash-object -t blob` on
+  the target string (e.g., `readlink -n {path} | git hash-object
+  --stdin -t blob`). This detects retargeting even when both targets
+  have identical bytes, and correctly handles dangling links.
+- **Other kinds (gitlink, etc.):** record the kind and use the
+  appropriate Git identity; if unsupported, report the entry as
+  unhandled rather than silently hashing a directory as a regular
+  file.
+
+Do not stage, commit, or destructively modify the working tree to
+build the snapshot. Do not include mtime, owner, or non-Git
+permission bits — these create false churn. Normalized logical path
+identity must not depend on M/A/R presentation labels — two entries
+with the same path, kind, mode, and payload are equal regardless of
+how Git labels the status transition.
+
+Two snapshots are **equal** when they have the same set of paths with
+the same status, kind, mode, and payload digest for each. A change to
+any of these — content, mode, kind, a newly appearing relevant
+untracked file, or a deletion/rename — invalidates equality even if
+the path list is unchanged.
+
+**Convergence state.** Initialize once for this Step 6:
+
+```text
+review_rounds_remaining = 3
+validated_candidate = snapshot_candidate()   # from Step 5's final state
+reviewed_candidate = null
+```
+
+**Review loop.**
+
+1. Invoke the self-review gate:
+
+   Read and follow `../../_shared/recipes/self-review-gate.md` with:
+
+   | Parameter | Value |
+   |-----------|-------|
+   | DIFF_COMMAND | `git diff HEAD` |
+   | MAX_ROUNDS | `{review_rounds_remaining}` |
+   | CONTEXT_FILES | `.artifacts/bugfix/{issue}/root-cause.md`, `.artifacts/bugfix/{issue}/implementation-notes.md` (if they exist) |
+
+   Deduct the gate's reported `Rounds: {N}` from
+   `review_rounds_remaining` immediately after return.
+
+2. If FLAG: stop and present findings to the user. Do not proceed to
+   commit until the user decides how to handle them.
+
+3. On PASS: `reviewed_candidate = snapshot_candidate()`.
+
+4. If `reviewed_candidate == validated_candidate`: the final candidate
+   is both reviewed and validated. Proceed to Step 7.
+
+5. The gate made code fixes, so the reviewed candidate differs from
+   the validated one. Re-run **Step 5** (validation gate) on the
+   current working tree. After Step 5 passes, update:
+   `validated_candidate = snapshot_candidate()`.
+
+6. If `validated_candidate == reviewed_candidate`: validation did not
+   change the candidate further — both checks cover the same content.
+   Proceed to Step 7.
+
+7. Validation remediation produced a different candidate. If
+   `review_rounds_remaining > 0`, return to **Review loop, item 1**
+   above (re-enter the self-review gate with remaining budget — do
+   not re-run Step 6 initialization or reset the budget). If `review_rounds_remaining == 0`, stop and
+   present the situation to the user as a FLAG — do not commit an
+   unreviewed or unvalidated candidate.
+
+Any code fixes are uncommitted changes that will be included in the
+commit below.
 
 **Note:** The bugfix workflow also has an optional `/review` phase that
 provides a thorough, interactive review with findings and verdict. The
@@ -421,18 +513,38 @@ self-review gate should be in the working tree as an uncommitted diff.
 This step consolidates them into a single commit. (For subsequent
 feedback rounds, `/feedback` handles its own commits.)
 
-**Stage changes selectively** — don't blindly `git add .`:
+**Stage only the converged candidate.** The staged set must match the
+paths and identities (path, kind, mode, payload) in the final
+reviewed-and-validated candidate snapshot from Step 6.
 
 ```bash
-# Review what would be staged
-git diff --stat
-
-# Stage the relevant files (exclude .artifacts/ and other non-code files)
-git add path/to/changed/files
-
-# Verify staging
-git status
+# Stage exactly the candidate paths
+git add {paths from converged candidate snapshot}
 ```
+
+**Pre-commit identity verification.** Before committing, compare
+the actual staged index entries against the converged candidate
+snapshot — not merely `--stat` or `git status`, which show paths and
+coarse change labels but cannot prove kind, mode, or payload
+identity. For each candidate path, confirm the staged entry's mode,
+kind, and blob OID match the snapshot's recorded values. For each
+staged entry NOT in the candidate snapshot, the commit would include
+unreviewed content.
+
+If any mismatch is found (extra staged path, missing candidate path,
+or changed identity), **stop and report** — do not commit, and do not
+automatically unstage or reset unrelated work that may belong to the
+user. Return to the appropriate capture/review/validation step with
+remaining convergence budget, or stop for a user decision if the
+mismatch cannot be resolved within budget.
+
+If a needed file is absent from the snapshot because it is
+gitignored, do not silently force-add it. Instead, explicitly
+include the intended path as read-only candidate input (read its
+contents without staging), provide it to the review and validation
+gates, and only then stage it (with `git add -f` if the project or
+user authorizes). The original workflow instructions did not specify
+force-add; this is narrow hardening of the candidate invariant.
 
 **Commit with a structured message:**
 

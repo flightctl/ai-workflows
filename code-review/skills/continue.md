@@ -308,14 +308,18 @@ Store any new agent ID in the metadata.
 Evaluate the code as if you did not write it.
 
 The reviewer should evaluate all categories in
-`../../_shared/review-protocol.md` and additionally:
+`../../_shared/review-protocol.md`, fill in the **Criteria Coverage**
+table in the report template for every criterion, and additionally:
 
 - Verify that accepted findings were addressed correctly
 - Check whether the changes introduced new issues
 - Re-check **rejected** findings only if that finding's file **hash
   changed this round**. Do not re-argue settled rejects on files that
   are still in `git diff HEAD` but were not modified this round
-- Issue a verdict: APPROVED or CHANGES_REQUESTED
+- Issue a verdict: APPROVED or CHANGES_REQUESTED, following the Verdict
+  Rules in `../../_shared/review-protocol.md` — CHANGES_REQUESTED
+  requires at least one substantiated blocker or unmet mandatory quality
+  gate; nonblocking suggestions alone do not justify CHANGES_REQUESTED
 
 Parent Reads `../templates/code-review.md` **once**. Instruct the
 subagent to write
@@ -324,16 +328,24 @@ number) using that skeleton. The subagent writes that file. The parent
 writes it **only** when reviewing sequentially (no subagent). Exactly
 one writer. Do not overwrite the subagent file.
 
-#### 7a: Validate finding references
+#### 7a: Validate criteria coverage and finding references
 
-For each finding, confirm that the cited file and location actually exist
-in the change. AI reviewers hallucinate file paths and line numbers. If a
-finding references a file that was not changed (not on the name-status /
-untracked list), discard it — a context Read of a neighboring file is
-not enough. If the location does not exist, or does not overlap the
-changed lines (tracked) or the Read chunks (untracked), discard it. Do
-not present discarded findings to the user. Note discarded findings and
-why in your internal assessment (not in the user-facing table).
+First check the **Criteria Coverage** table in the review report:
+every criterion must be `evaluated` or `not applicable` with a
+justification. If any row is `incomplete` or missing, the review is
+not complete — do not proceed to a verdict. Ask the reviewer (or
+re-review inline) to cover the gap. Do not invent coverage the
+reviewer omitted.
+
+Then for each finding, confirm that the cited file and location actually
+exist in the change. AI reviewers hallucinate file paths and line
+numbers. If a finding references a file that was not changed (not on
+the name-status / untracked list), discard it — a context Read of a
+neighboring file is not enough. If the location does not exist, or
+does not overlap the changed lines (tracked) or the Read chunks
+(untracked), discard it. Do not present discarded findings to the
+user. Note discarded findings and why in your internal assessment
+(not in the user-facing table).
 
 ### Step 8: Update Metadata
 
@@ -374,6 +386,15 @@ review body. Do not rely solely on the Verdict label — reviewers
 sometimes write "APPROVED" while still including findings in the body.
 Scan the entire review for findings, suggestions, questions, or any
 other feedback content regardless of section headings.
+
+**Commit-readiness check (apply before routing on any verdict).** From
+the Verdict Rules in `../../_shared/review-protocol.md`, APPROVED is
+valid only when all three conditions hold: (1) required evaluation
+across all applicable criteria is complete, (2) all applicable
+mandatory quality gates are passing — not merely unrun or incomplete,
+(3) no substantiated blockers remain. If any condition fails, the
+effective verdict is CHANGES_REQUESTED regardless of the reviewer's
+label, the absence of code-level findings, or a user "done" decision.
 
 **If APPROVED with no findings anywhere in the review:**
 
@@ -425,22 +446,38 @@ You can:
 - Run another /continue round to address the suggestions you agree with
 ```
 
-If the user says done, compile the aggregated change summary (same as
-the "APPROVED with no findings" path above) before proceeding to Step 10.
+If the user says done, re-apply the commit-readiness check before
+accepting. If any condition now fails (a gate broke, evaluation is
+incomplete, or a substantiated blocker surfaced since the table was
+presented), report the gap instead of proceeding. Otherwise compile
+the aggregated change summary (same as the "APPROVED with no findings"
+path above) before proceeding to Step 10.
 
 In **unattended mode**, still present the approval and suggestions table
 — the user can interrupt at any time, and the table gives them the
 information to decide whether to do so. Do not skip the table because
 the mode is unattended; unattended means the user delegated decisions,
-not visibility. Then: if any remaining
-suggestions have an "Agree" assessment, persist the decisions to
-`decisions-{NNN}.json` and loop back to Step 3 to implement them. If all
-remaining suggestions are assessed as "Disagree", compile
-the aggregated change summary (same as the "APPROVED with no findings"
-path) before proceeding to Step 10 (the review is approved and all
-valuable feedback has been addressed).
+not visibility. Then apply the commit-readiness check: if any
+applicable mandatory quality gate is unmet, failing, or incomplete,
+or the required evaluation is not complete, the review is not complete
+regardless of the reviewer's verdict — report the gap and continue
+the round. If any remaining suggestions are
+substantiated blockers (CRITICAL/HIGH with `commit-readiness impact:
+blocking`), persist the decisions and loop back to Step 3. If the
+commit-readiness check passes and the remaining suggestions are all
+nonblocking (MEDIUM/LOW), the review is approved — nonblocking
+suggestions alone do not trigger another round. Compile the aggregated
+change summary (same as the "APPROVED with no findings" path) before
+proceeding to Step 10.
 
 **If CHANGES_REQUESTED:**
+
+If the reviewer issued CHANGES_REQUESTED but every finding is
+nonblocking (MEDIUM/LOW) **and** the commit-readiness check passes,
+override the verdict to APPROVED and follow the "APPROVED with
+remaining suggestions" path above. If the commit-readiness check
+fails (a mandatory gate is unmet, incomplete, or unrun), do **not**
+override — CHANGES_REQUESTED stands even with no code-level blockers.
 
 Assess the new findings independently (same as start.md's "Assess on
 value" section, Step 7b) — every finding on its merits, honest
@@ -482,10 +519,18 @@ unattended means the user delegated decisions, not visibility. Then:
    escalate to the user — present the finding and explain the
    disagreement. Wait for the user to decide (same guardrail as
    `/start`).
-2. Otherwise, treat the implementor's recommendations as decisions,
-   except do not accept a finding whose `id` matches a prior reject.
-   Persist them to `decisions-{NNN}.json`, and loop back to Step 3 to
-   implement the next round.
+2. Apply the commit-readiness check: if any applicable mandatory
+   quality gate is unmet, failing, or incomplete, or the required
+   evaluation is not complete, the review is not complete — report the
+   gap and loop back to Step 3. If the
+   commit-readiness check passes and the only remaining findings are
+   nonblocking (MEDIUM/LOW), the review is complete — compile the
+   aggregated summary and proceed to Step 10 (cleanup). Nonblocking
+   suggestions alone do not trigger another round.
+3. Otherwise, treat the implementor's recommendations as decisions
+   for blocking findings, except do not accept a finding whose `id`
+   matches a prior reject. Persist them to `decisions-{NNN}.json`,
+   and loop back to Step 3 to implement the next round.
 
 ### Step 10: Clean Up Artifacts
 

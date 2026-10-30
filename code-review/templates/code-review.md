@@ -3,6 +3,19 @@
 ## Summary
 {2-3 sentence overall assessment}
 
+## Criteria Coverage
+
+| Criterion | Status | Scope / Evidence |
+|-----------|--------|------------------|
+| Correctness | {evaluated &#124; not applicable &#124; incomplete} | {brief note} |
+| Error handling | {evaluated &#124; not applicable &#124; incomplete} | {brief note} |
+| Security | {evaluated &#124; not applicable &#124; incomplete} | {brief note} |
+| Design | {evaluated &#124; not applicable &#124; incomplete} | {brief note} |
+| Performance | {evaluated &#124; not applicable &#124; incomplete} | {brief note} |
+| Naming and clarity | {evaluated &#124; not applicable &#124; incomplete} | {brief note} |
+| Test coverage | {evaluated &#124; not applicable &#124; incomplete} | {brief note} |
+| Project conventions | {evaluated &#124; not applicable &#124; incomplete} | {brief note} |
+
 ## Findings
 
 Repeat the following block for each finding, incrementing
@@ -12,10 +25,21 @@ Repeat the following block for each finding, incrementing
 - **File:** {file path}
 - **Location:** {line range or function name, as applicable}
 - **Severity:** {CRITICAL | HIGH | MEDIUM | LOW}
-- **Category:** {Correctness | Error Handling | Security | Performance |
-  Naming/Clarity | Test Coverage | Conventions}
+- **Category:** {Correctness | Error handling | Security | Design |
+  Performance | Naming and clarity | Test coverage | Project conventions}
 - **Issue:** {what the problem is}
+- **Evidence:** {what in the code, tests, or requirements substantiates
+  the claim — for blockers: the concrete problem scenario or violated
+  requirement, accounting for existing safeguards, and why it must be
+  fixed before commit rather than as a follow-up; for suggestions: why
+  the change is valuable but not required before commit}
 - **Suggestion:** {concrete, actionable fix}
+- **Commit-readiness impact:** {blocking | nonblocking}
+  (CRITICAL/HIGH with substantiated evidence and demonstrated
+  before-commit necessity → blocking; MEDIUM/LOW → nonblocking.
+  A CRITICAL/HIGH lacking substantiation is discarded if unsupported
+  or already handled; downgraded to nonblocking only if a validated,
+  clearly useful concern remains.)
 
 ## Questions
 
