@@ -581,20 +581,20 @@ For each finding from Step 7:
    acceptance criteria, more complete coverage, better dependency
    ordering, more appropriate sizing) if the change were made?
 
-   - If yes — **for placement findings (conditional LOW):** before
-     correcting, check whether the story is manifest-tracked by
-     looking up its filename within its parent epic's story list in
-     `.artifacts/design/{issue-key}/sync-manifest.json`. If manifest-
-     tracked (post-sync), dismiss the finding — the story retains its
-     immutable filename and number. If no manifest exists or the story
-     is not tracked, the initial placement rules apply and the fix is
-     valid. If the manifest could not be read (e.g., not loaded in
-     Step 1 or I/O error), request verification from the user rather
-     than assuming unsynced.
+   - If yes — **for `[DOCS]` placement findings (conditional LOW):**
+     before correcting, check whether the story is manifest-tracked
+     by looking up its filename within its parent epic's story list
+     in `.artifacts/design/{issue-key}/sync-manifest.json`. If
+     manifest-tracked (post-sync), dismiss the finding — the story
+     retains its immutable filename and number. If the manifest could
+     not be read (e.g., not loaded in Step 1 or I/O error), request
+     verification from the user rather than assuming unsynced. If no
+     manifest exists or the story is not tracked, apply the initial
+     placement fix: re-read the affected artifact file, correct the
+     placement, and verify the fix.
 
-     **For all other findings:** fix the issue immediately. Re-read
-     the affected artifact file before modifying it. Verify the fix
-     after applying it.
+     **For all other findings:** re-read the affected artifact file,
+     fix the issue, and verify the fix.
    - If no: note why the finding was dismissed (structural preference,
      no real improvement, would add churn without value).
 
