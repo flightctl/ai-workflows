@@ -129,6 +129,24 @@ After applying changes, verify:
   added, removed, or reassigned.
 - Do story dependencies still make sense?
 
+**`[DOCS]` story re-evaluation (if any `[DOCS]` story is affected):**
+
+Re-evaluate every affected `[DOCS]` story against all seven criteria
+in `decompose.md`. A `[DOCS]` story is affected when this revision
+changed: (a) the `[DOCS]` file itself, (b) a listed or newly relevant
+`[DEV]`/`[UI]` contributor's artifacts — including new, removed,
+renamed, or reopened stories whose user-facing surface falls within the `[DOCS]`
+story's scope, (c) design content that alters the story's reader,
+scope, AC, assumptions, or open-question markers — including resolved
+`[Open: §9.N]` items even without API/CLI shape changes, or (d) ICs
+covered by the story.
+
+For each affected `[DOCS]` story, re-read the file and update
+Documentation Inputs, Contributing stories, and Dependencies to
+reflect the current contributor set — but preserve any existing
+prerequisite dependencies (e.g., infrastructure stories) that are
+not part of the contributing-story inventory.
+
 **If the testplan exists (`04-testplan.md`):**
 - Before modifying any test cases, record the IC and requirement
   mappings of any TCs that will be removed, reassigned, or have their
@@ -189,7 +207,7 @@ updates above are complete on their own.
   - **Renamed IC:** Replace the old IC identifier with the new one in
     every story that lists it.
   - **Added IC:** Determine which stories implement the new IC using
-    the same criteria as `/decompose` Step 7a (the story delivers part
+    the same criteria as `/decompose`'s IC-mapping sub-step (the story delivers part
     or all of the behavior the IC describes). If ownership is unclear,
     ask the user which story should claim it.
 - If test cases were added, removed, or had their IC or requirement
