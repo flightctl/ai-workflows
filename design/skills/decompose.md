@@ -362,11 +362,11 @@ validation gate.
    epics, place it as the last story in the last epic. **Post-sync
    exemption:** once a `[DOCS]` story has been synced (its filename is
    in the manifest), it retains its immutable filename and number even
-   when a later contributor is appended with a higher story number.
-   `/sync` verifies that every referenced contributor's Jira key is
-   available in the manifest before rendering the `[DOCS]` story's
-   description; if a key is missing, the update is deferred until the
-   contributor is created.
+   when a later-numbered story — whether a contributor or a legitimate
+   prerequisite dependency — is appended after it. `/sync` verifies
+   that every story referenced in Contributing stories AND Dependencies
+   has a Jira key in the manifest before rendering the `[DOCS]` story's
+   description; if any key is missing, the update is deferred.
 
 **Story quality checks:**
 - For `[DEV]` stories: does this story add a capability AND testing for that capability? For a justified behavior-preserving prerequisite, does it restructure existing code AND include tests demonstrating preserved behavior?
@@ -581,27 +581,25 @@ For each finding from Step 7:
    acceptance criteria, more complete coverage, better dependency
    ordering, more appropriate sizing) if the change were made?
 
-   - If yes: fix the issue immediately. Re-read the affected artifact
-     file before modifying it. Verify the fix after applying it.
+   - If yes — **for placement findings (conditional LOW):** before
+     correcting, check whether the story is manifest-tracked by
+     looking up its filename within its parent epic's story list in
+     `.artifacts/design/{issue-key}/sync-manifest.json`. If manifest-
+     tracked (post-sync), dismiss the finding — the story retains its
+     immutable filename and number. If no manifest exists or the story
+     is not tracked, the initial placement rules apply and the fix is
+     valid. If the manifest could not be read (e.g., not loaded in
+     Step 1 or I/O error), request verification from the user rather
+     than assuming unsynced.
+
+     **For all other findings:** fix the issue immediately. Re-read
+     the affected artifact file before modifying it. Verify the fix
+     after applying it.
    - If no: note why the finding was dismissed (structural preference,
      no real improvement, would add churn without value).
 
 Only fix findings that add real value. Do not make changes for
 structural preferences not grounded in the evaluation criteria.
-
-**Placement findings (conditional LOW).** If the review flagged a
-`[DOCS]` story placement issue, check whether
-`.artifacts/design/{issue-key}/sync-manifest.json` exists. If it
-does, look up the story by matching its filename within its parent
-epic's story list in the manifest (the manifest nests stories under
-their epic entry, so the same filename in different epics is
-unambiguous). If the story is manifest-tracked (post-sync), it
-retains its immutable filename and number — dismiss the placement
-finding. If no manifest exists or the story is not in the manifest,
-apply the placement fix (initial placement rules apply). If the
-manifest could not be read (e.g., file not loaded in Step 1 or
-I/O error), request verification from the user rather than assuming
-the story is unsynced.
 
 #### Re-review (if fixes were made)
 
