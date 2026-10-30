@@ -134,8 +134,8 @@ After applying changes, verify:
 Re-evaluate every affected `[DOCS]` story against all seven criteria
 in `decompose.md`. A `[DOCS]` story is affected when this revision
 changed: (a) the `[DOCS]` file itself, (b) a listed or newly relevant
-`[DEV]`/`[UI]` contributor's artifacts — including new, removed, or
-renamed stories whose user-facing surface falls within the `[DOCS]`
+`[DEV]`/`[UI]` contributor's artifacts — including new, removed,
+renamed, or reopened stories whose user-facing surface falls within the `[DOCS]`
 story's scope, (c) design content that alters the story's reader,
 scope, AC, assumptions, or open-question markers — including resolved
 `[Open: §9.N]` items even without API/CLI shape changes, or (d) ICs

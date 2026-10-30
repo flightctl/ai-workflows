@@ -2622,7 +2622,7 @@ class TestStoryRenameDetection(_TmpDirMixin, unittest.TestCase):
 class TestCascadeChildClosurePermissions(_TmpDirMixin, unittest.TestCase):
     """Verify that detect-changes marks active children of a removed epic
     as 'removed' (cascade), which is the prerequisite for the approved
-    parent-close cascade in Step 4c closing those children in Jira."""
+    parent-close cascade in Step 5c closing those children in Jira."""
 
     def setUp(self) -> None:
         super().setUp()
@@ -2852,7 +2852,7 @@ class TestHelperDiscovery(unittest.TestCase):
 
 class TestCascadeGateContract(unittest.TestCase):
     """Assert sync.md Steps 4c/5c document hash-before-transition ordering
-    and that Step 4c gates the parent close on all child successes.
+    and that Step 5c gates the parent close on all child successes.
 
     These are contract tests against the ACTUAL Markdown sections/order,
     not a test-only invented executor.  They verify the documented
@@ -2860,143 +2860,143 @@ class TestCascadeGateContract(unittest.TestCase):
     """
 
     _sync_md: str
-    _step4c: str
     _step5c: str
-    _step5_refresh: str
+    _step6c: str
+    _step6_refresh: str
 
     @classmethod
     def setUpClass(cls) -> None:
         import re
         sync_md_path = Path(__file__).resolve().parent.parent / "skills" / "sync.md"
         cls._sync_md = sync_md_path.read_text(encoding="utf-8")
-        m4c = re.search(r"#### 4c:.*?(?=####|### )", cls._sync_md, re.DOTALL)
-        assert m4c, "Step 4c section not found"
-        cls._step4c = m4c.group()
-        m5c = re.search(r"#### 5c:.*?(?=####|### )", cls._sync_md, re.DOTALL)
-        assert m5c, "Step 5c section not found"
-        cls._step5c = m5c.group()
-        m5 = re.search(r"### Step 5:.*?(?=#### 5a:)", cls._sync_md, re.DOTALL)
-        assert m5, "Step 5 plan refresh not found"
-        cls._step5_refresh = m5.group()
+        m4c = re.search(r"#### 5c:.*?(?=####|### )", cls._sync_md, re.DOTALL)
+        assert m4c, "Step 6c section not found"
+        cls._step5c = m4c.group()
+        m5c = re.search(r"#### 6c:.*?(?=####|### )", cls._sync_md, re.DOTALL)
+        assert m5c, "Step 6c section not found"
+        cls._step6c = m5c.group()
+        m5 = re.search(r"### Step 6:.*?(?=#### 6a:)", cls._sync_md, re.DOTALL)
+        assert m5, "Step 6 plan refresh not found"
+        cls._step6_refresh = m5.group()
 
-    # -- Step 4c: child hash before child transition ---
+    # -- Step 5c: child hash before child transition ---
 
-    def test_step4c_child_hash_before_transition(self) -> None:
-        """4c child closure: hash computed before Jira transition."""
-        h = self._step4c.find("Compute the hash first")
-        t = self._step4c.find("Transition the child story")
+    def test_step6c_child_hash_before_transition(self) -> None:
+        """6c child closure: hash computed before Jira transition."""
+        h = self._step5c.find("Compute the hash first")
+        t = self._step5c.find("Transition the child story")
         self.assertGreater(h, -1, "must mention computing child hash")
         self.assertGreater(t, -1, "must mention child transition")
         self.assertLess(h, t, "child hash must precede child transition")
 
-    def test_step4c_epic_hash_before_transition(self) -> None:
-        """4c epic closure: hash computed before Jira transition."""
-        h = self._step4c.find("compute the epic hash")
-        t = self._step4c.find("Transition the epic to Done")
+    def test_step6c_epic_hash_before_transition(self) -> None:
+        """6c epic closure: hash computed before Jira transition."""
+        h = self._step5c.find("compute the epic hash")
+        t = self._step5c.find("Transition the epic to Done")
         self.assertGreater(h, -1, "must mention computing epic hash")
         self.assertGreater(t, -1, "must mention epic transition")
         self.assertLess(h, t, "epic hash must precede epic transition")
 
-    # -- Step 4c: parent gated on all children ---
+    # -- Step 5c: parent gated on all children ---
 
-    def test_step4c_parent_gated_on_all_children(self) -> None:
+    def test_step6c_parent_gated_on_all_children(self) -> None:
         """4c: parent close requires ALL child closures and checkpoints."""
         self.assertIn("child closures and their checkpoints have succeeded",
-                      self._step4c)
+                      self._step5c)
 
-    def test_step4c_stop_cascade_on_failure(self) -> None:
+    def test_step6c_stop_cascade_on_failure(self) -> None:
         """4c: cascade stops immediately on any child failure."""
         import re
         self.assertTrue(
-            re.search(r"stop the cascade\s+immediately", self._step4c),
+            re.search(r"stop the cascade\s+immediately", self._step5c),
             "must stop cascade immediately on child failure")
 
-    def test_step4c_no_skip_child_then_close_parent(self) -> None:
+    def test_step6c_no_skip_child_then_close_parent(self) -> None:
         """4c: explicitly forbids skipping a child then closing parent."""
         import re
         self.assertTrue(
-            re.search(r"Never\s+skip\s+a failing child", self._step4c),
+            re.search(r"Never\s+skip\s+a failing child", self._step5c),
             "must forbid skip-child-close-parent")
 
-    def test_step4c_offers_retry_or_defer(self) -> None:
+    def test_step6c_offers_retry_or_defer(self) -> None:
         """4c: pre-transition failure offers retry or defer."""
         import re
         self.assertTrue(
-            re.search(r"retry after\s+remediation", self._step4c),
+            re.search(r"retry after\s+remediation", self._step5c),
             "must offer retry after remediation")
-        self.assertIn("defer the entire parent", self._step4c)
+        self.assertIn("defer the entire parent", self._step5c)
 
-    def test_step4c_preserves_successful_checkpoints(self) -> None:
+    def test_step6c_preserves_successful_checkpoints(self) -> None:
         """4c: already-successful child checkpoints preserved on failure."""
         import re
         self.assertTrue(
             re.search(r"Preserve all\s+already-successful\s+child checkpoints",
-                      self._step4c),
+                      self._step5c),
             "must preserve completed child checkpoints")
 
-    def test_step4c_distinguishes_pre_and_post_failure(self) -> None:
+    def test_step6c_distinguishes_pre_and_post_failure(self) -> None:
         """4c: distinguishes pre-transition from post-success checkpoint
         failure, referencing the shared close-checkpoint recovery rule."""
-        self.assertIn("Pre-transition failure", self._step4c)
-        self.assertIn("Post-success checkpoint failure", self._step4c)
-        self.assertIn("close-checkpoint", self._step4c)
+        self.assertIn("Pre-transition failure", self._step5c)
+        self.assertIn("Post-success checkpoint failure", self._step5c)
+        self.assertIn("close-checkpoint", self._step5c)
 
-    def test_step4c_uncertain_outcome_requires_verification(self) -> None:
+    def test_step6c_uncertain_outcome_requires_verification(self) -> None:
         """4c: uncertain Jira outcome (timeout/5xx) must be verified
         before retrying, not assumed non-mutating."""
         import re
         self.assertTrue(
             re.search(r"uncertain.*verify.*current status",
-                      self._step4c, re.DOTALL),
+                      self._step5c, re.DOTALL),
             "must require verification for uncertain Jira outcomes")
 
-    def test_step4c_resume_manual_reconciliation(self) -> None:
+    def test_step6c_resume_manual_reconciliation(self) -> None:
         """4c: resume stops for manual reconciliation when captured
         state is lost (forced abort/new run)."""
-        self.assertIn("stop for manual reconciliation", self._step4c)
+        self.assertIn("stop for manual reconciliation", self._step5c)
 
-    # -- Step 5c: hash before transition ---
+    # -- Step 6c: hash before transition ---
 
-    def test_step5c_hash_before_transition(self) -> None:
-        """5c story close: hash computed before transition."""
-        h = self._step5c.find("Compute the hash before the transition")
-        t = self._step5c.find("Transition the story to Done")
+    def test_step6c_hash_before_transition(self) -> None:
+        """6c story close: hash computed before transition."""
+        h = self._step6c.find("Compute the hash before the transition")
+        t = self._step6c.find("Transition the story to Done")
         self.assertGreater(h, -1, "must mention computing hash first")
         self.assertGreater(t, -1, "must mention story transition")
         self.assertLess(h, t, "hash must precede transition")
 
-    def test_step5c_checkpoint_uses_saved_hash(self) -> None:
+    def test_step6c_checkpoint_uses_saved_hash(self) -> None:
         """5c: checkpoint references saved hash from step 1."""
-        self.assertIn("hash from step 1", self._step5c)
+        self.assertIn("hash from step 1", self._step6c)
 
-    # -- Step 4c: reporting distinguishes child states ---
+    # -- Step 5c: reporting distinguishes child states ---
 
-    def test_step4c_report_distinguishes_child_states(self) -> None:
+    def test_step6c_report_distinguishes_child_states(self) -> None:
         """4c: failure report distinguishes complete, uncheckpointed,
         and unattempted children."""
         import re
-        self.assertIn("closed and checkpointed (complete)", self._step4c)
+        self.assertIn("closed and checkpointed (complete)", self._step5c)
         self.assertTrue(
-            re.search(r"Jira-closed but\s+uncheckpointed", self._step4c),
+            re.search(r"Jira-closed but\s+uncheckpointed", self._step5c),
             "must mention Jira-closed but uncheckpointed")
-        self.assertIn("unattempted", self._step4c)
+        self.assertIn("unattempted", self._step5c)
 
-    def test_step4c_no_rollback_implication(self) -> None:
+    def test_step6c_no_rollback_implication(self) -> None:
         """4c: does not imply already-closed children are rolled back."""
         import re
         self.assertTrue(
             re.search(r"not imply that already-closed children\s+will be rolled back",
-                      self._step4c),
+                      self._step5c),
             "must not imply rollback of closed children")
 
-    # -- Step 4c: child checkpoint references helper reference ---
+    # -- Step 5c: child checkpoint references helper reference ---
 
-    def test_step4c_child_checkpoint_references_helper(self) -> None:
-        """4c child checkpoint step references the helper reference."""
-        self.assertIn("helper reference", self._step4c)
+    def test_step6c_child_checkpoint_references_helper(self) -> None:
+        """6c child checkpoint step references the helper reference."""
+        self.assertIn("helper reference", self._step5c)
         # The step must mention the required story-specific args
-        self.assertIn("--item-type story", self._step4c)
-        self.assertIn("--epic-file", self._step4c)
+        self.assertIn("--item-type story", self._step5c)
+        self.assertIn("--epic-file", self._step5c)
 
     def test_helper_reference_child_close_has_all_args(self) -> None:
         """Helper reference child-close recipe has all required args."""
@@ -3138,26 +3138,26 @@ class TestCascadeGateContract(unittest.TestCase):
     def test_all_close_paths_reference_recovery_rule(self) -> None:
         """All three close paths (child, epic, 5c) reference the shared
         close-checkpoint recovery rule."""
-        self.assertIn("close-checkpoint", self._step4c)
+        self.assertIn("close-checkpoint", self._step5c)
         # Epic close failure handler
-        epic_fail_pos = self._step4c.find("If epic close fails")
+        epic_fail_pos = self._step5c.find("If epic close fails")
         self.assertGreater(epic_fail_pos, -1)
-        epic_fail_text = self._step4c[epic_fail_pos:]
+        epic_fail_text = self._step5c[epic_fail_pos:]
         self.assertIn("close-checkpoint", epic_fail_text)
         # Step 5c
-        self.assertIn("close-checkpoint", self._step5c)
+        self.assertIn("close-checkpoint", self._step6c)
 
-    # -- Step 5 plan refresh: deferred cascades ---
+    # -- Step 6 plan refresh: deferred cascades ---
 
     def test_step5_deferred_cascade_not_retried(self) -> None:
-        """Step 5 refresh: deferred cascades are not silently retried."""
-        self.assertIn("deferred in Step 4c", self._step5_refresh)
-        self.assertIn("do not retry closing", self._step5_refresh)
+        """Step 6 refresh: deferred cascades are not silently retried."""
+        self.assertIn("deferred in Step 5c", self._step6_refresh)
+        self.assertIn("do not retry closing", self._step6_refresh)
 
     def test_step5_deferral_covers_checkpoint_failure(self) -> None:
-        """Step 5 refresh: deferral clause covers Jira-closed-but-
+        """Step 6 refresh: deferral clause covers Jira-closed-but-
         uncheckpointed state, not just open children."""
-        self.assertIn("Jira-closed but uncheckpointed", self._step5_refresh)
+        self.assertIn("Jira-closed but uncheckpointed", self._step6_refresh)
 
 
 # ---------------------------------------------------------------------------
@@ -3313,7 +3313,7 @@ class TestCascadeCheckpointBehavior(_TmpDirMixin, unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             sync_helper.compute_file_hash(self.sf2)
 
-        # Orphan close uses empty hash per Step 4c/5c
+        # Orphan close uses empty hash per Step 5c/6c
         sync_helper.update_manifest(
             self.mf, "close", "story-02-pipe.md", "EDM-202",
             "", item_type="story",

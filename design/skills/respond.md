@@ -529,8 +529,13 @@ when this round changed: (a) the `[DOCS]` file itself, (b) a listed
 or newly relevant `[DEV]`/`[UI]` contributor's artifacts, (c) design
 content that alters the story's reader, scope, AC, assumptions, or
 open-question markers — including resolved `[Open: §9.N]` items even
-without API/CLI shape changes, or (d) ICs covered by the story. Apply
-fixes to affected files before proceeding.
+without API/CLI shape changes, or (d) ICs covered by the story.
+
+When contributors change, update Documentation Inputs, Contributing
+stories, and Dependencies to reflect the current contributor set —
+add dependencies for newly required contributors, remove obsolete
+contribution-only entries, but preserve legitimate unrelated
+prerequisite dependencies. Apply all fixes before proceeding.
 
 ### Step 7: Report to User
 
