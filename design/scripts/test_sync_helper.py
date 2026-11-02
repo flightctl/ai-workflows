@@ -4825,23 +4825,22 @@ class TestSyncDocsReferenceGuard(_TmpDirMixin, unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class TestIdentityStability(_TmpDirMixin, unittest.TestCase):
-    """Story identity is fixed from creation: numbers are never reused,
-    removed files reserve their numbers, and content edits don't change
-    identity in the manifest."""
+    """Helper-level and instruction-contract tests for story identity
+    stability. These verify detect_changes classification and
+    render_story_description reference resolution behavior — not live
+    Jira operations or an authoring allocator."""
 
-    def test_allocation_above_highest_including_removed(self) -> None:
-        """New story number must be above any existing or removed file's
-        number. detect_changes correctly sees a new file above a gap."""
+    def test_append_and_retirement_classification(self) -> None:
+        """Helper: story-03 (above retired story-02) is classified as
+        new; retired story-02 (status:removed with manifest entry) is
+        classified as removed. Verifies gap/retirement handling."""
         stories_dir = Path(self.tmpdir) / "06-stories"
         stories_dir.mkdir()
         _make_epic(stories_dir, 1, "feature")
         _make_dev_story(stories_dir, 1, 1, "api", title="API")
-        # story-02 was removed (retired number)
         _make_dev_story(stories_dir, 1, 2, "old", title="Old", removed=True)
-        # story-03 is new (allocated above highest=2)
         _make_dev_story(stories_dir, 1, 3, "webhook", title="Webhook")
-
-        manifest_path = _make_manifest(Path(self.tmpdir), [{
+        _make_manifest(Path(self.tmpdir), [{
             "file": "epic-1-feature.md",
             "jira_key": "T-100", "title": "Feature", "size": "M",
             "content_hash": "x", "synced_status": "active",
@@ -4851,7 +4850,6 @@ class TestIdentityStability(_TmpDirMixin, unittest.TestCase):
                  "content_hash": sync_helper.compute_file_hash(
                      str(stories_dir / "epic-1" / "story-01-api.md")),
                  "synced_status": "active"},
-                # story-02 removed but still in manifest
                 {"file": "story-02-old.md", "jira_key": "T-102",
                  "title": "[DEV] Old", "content_hash": "y",
                  "synced_status": "active"},
@@ -4861,17 +4859,30 @@ class TestIdentityStability(_TmpDirMixin, unittest.TestCase):
         story3 = [i for i in plan["items"]
                   if i["file"].endswith("story-03-webhook.md")]
         self.assertEqual(len(story3), 1)
-        self.assertEqual(story3[0]["category"], "new",
-                         "story-03 must be new (above removed story-02)")
-        # story-02 should be removed (has status:removed marker)
+        self.assertEqual(story3[0]["category"], "new")
         story2 = [i for i in plan["items"]
                   if i["file"].endswith("story-02-old.md")]
         self.assertEqual(len(story2), 1)
         self.assertEqual(story2[0]["category"], "removed")
 
+    def test_identity_stability_instruction_contract(self) -> None:
+        """Instruction: identity stability rule requires append above
+        highest including retired, no gap reuse, no rename/renumber."""
+        flat = " ".join(
+            open(str(Path(__file__).resolve().parent.parent
+                     / "skills" / "decompose.md")).read().split())
+        self.assertIn("retired numbers must not be reused", flat)
+        self.assertIn("must not be renamed, renumbered, or moved", flat)
+        # Guidelines canonical rule
+        guidelines = " ".join(
+            open(str(Path(__file__).resolve().parent.parent
+                     / "guidelines.md")).read().split())
+        self.assertIn("Identity stability", guidelines)
+        self.assertIn("above the highest existing", guidelines)
+
     def test_content_edit_retains_identity_and_key(self) -> None:
-        """Editing story content changes its hash but preserves its
-        manifest identity and Jira key."""
+        """Helper: editing content changes hash but preserves manifest
+        identity (filename → Jira key mapping)."""
         stories_dir = Path(self.tmpdir) / "06-stories"
         stories_dir.mkdir()
         _make_epic(stories_dir, 1, "feature")
@@ -4887,7 +4898,6 @@ class TestIdentityStability(_TmpDirMixin, unittest.TestCase):
                  "synced_status": "active"},
             ],
         }])
-        # Edit content
         story_path.write_text(story_path.read_text() + "\nUpdated.\n")
         plan = sync_helper.detect_changes(str(Path(self.tmpdir)))
         items = [i for i in plan["items"]
@@ -4897,27 +4907,30 @@ class TestIdentityStability(_TmpDirMixin, unittest.TestCase):
         self.assertEqual(items[0]["jira_key"], "T-101",
                          "Jira key must be preserved on content edit")
 
-    def test_never_synced_removed_not_created(self) -> None:
-        """A never-synced file with status:removed is skipped entirely
-        — not created in Jira."""
+    def test_never_synced_removed_skipped_and_file_retained(self) -> None:
+        """Helper: a never-synced removed file is absent from the change
+        plan (not created in Jira), and the file remains on disk
+        reserving its number."""
         stories_dir = Path(self.tmpdir) / "06-stories"
         stories_dir.mkdir()
         _make_epic(stories_dir, 1, "feature")
         _make_dev_story(stories_dir, 1, 1, "api", title="API")
-        _make_dev_story(stories_dir, 1, 2, "old", title="Old", removed=True)
+        removed_path = _make_dev_story(
+            stories_dir, 1, 2, "old", title="Old", removed=True)
         # No manifest — fresh sync
         plan = sync_helper.detect_changes(str(Path(self.tmpdir)))
         story2 = [i for i in plan["items"]
                   if i["file"].endswith("story-02-old.md")]
-        # Never-synced removed files should not appear as "new"
-        for item in story2:
-            self.assertNotEqual(item["category"], "new",
-                                "Never-synced removed story must not be created")
+        self.assertEqual(len(story2), 0,
+                         "Never-synced removed story must be absent from plan")
+        self.assertTrue(removed_path.exists(),
+                        "Removed file must remain on disk")
 
-    def test_docs_lower_id_deferred_then_resolves(self) -> None:
-        """DOCS story-02 references contributor story-03 (higher number).
-        With story-03 not in manifest: [unresolved]. After story-03
-        gets a key: resolves cleanly. Identity stays stable."""
+    def test_lower_id_docs_unresolved_then_resolves(self) -> None:
+        """Renderer: DOCS story-02 references contributor story-03.
+        Without story-03 key: [unresolved] in rendered description
+        (sync agent uses this signal to defer). With key: resolves.
+        This tests render_story_description, not live deferral."""
         stories_dir = Path(self.tmpdir) / "06-stories"
         stories_dir.mkdir()
         _make_epic(stories_dir, 1, "feature")
@@ -4929,33 +4942,26 @@ class TestIdentityStability(_TmpDirMixin, unittest.TestCase):
                          doc_inputs="**Story 1.01:** endpoint.\n"
                                     "**Story 1.03:** webhook.")
         _make_dev_story(stories_dir, 1, 3, "webhook", title="Webhook")
-
-        # First sync: story-03 not yet in manifest
-        manifest_no_key = {"epics": [{"file": "epic-1-feature.md",
-            "jira_key": "T-100",
-            "stories": [
-                {"file": "story-01-api.md", "jira_key": "T-101"},
-            ]}]}
         docs_path = stories_dir / "epic-1" / "story-02-docs.md"
+
+        # Without story-03 key
+        manifest_no_key = {"epics": [{"file": "epic-1-feature.md",
+            "jira_key": "T-100", "stories": [
+                {"file": "story-01-api.md", "jira_key": "T-101"}]}]}
         desc1 = sync_helper.render_story_description(
             docs_path, manifest_no_key, story_type="DOCS")
         self.assertIn("[unresolved]", desc1,
-                      "Must defer: story-03 key unavailable")
+                      "Missing key must produce [unresolved]")
 
-        # Next sync: story-03 now has a key
+        # With story-03 key
         manifest_with_key = {"epics": [{"file": "epic-1-feature.md",
-            "jira_key": "T-100",
-            "stories": [
+            "jira_key": "T-100", "stories": [
                 {"file": "story-01-api.md", "jira_key": "T-101"},
-                {"file": "story-03-webhook.md", "jira_key": "T-103"},
-            ]}]}
+                {"file": "story-03-webhook.md", "jira_key": "T-103"}]}]}
         desc2 = sync_helper.render_story_description(
             docs_path, manifest_with_key, story_type="DOCS")
-        self.assertNotIn("[unresolved]", desc2,
-                         "Must resolve on next sync")
+        self.assertNotIn("[unresolved]", desc2)
         self.assertIn("T-103", desc2)
-        # Identity is stable — filename unchanged
-        self.assertEqual(docs_path.name, "story-02-docs.md")
 
 
 if __name__ == "__main__":

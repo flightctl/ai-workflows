@@ -22,8 +22,8 @@ multiple rounds of revision.
 - **Preserve traceability.** If new content is added, note its source.
 - **Show your changes.** After revising, summarize what changed so the user can verify.
 - **No scope reduction.** Do not silently simplify, even when revising.
-- **Identity stability.** Epic and story filenames, numbers, and containing paths are fixed from creation — do not rename, renumber, or move files. New stories must use the next available number (above any existing or removed file's number in that epic; gaps are fine).
-- **Logical deletion via marker.** When the user wants to remove a story or epic, do not delete the file. Instead, add `status: removed` to the file's YAML frontmatter. The file stays on disk so `/sync` can detect the removal and close the corresponding Jira issue.
+- **Identity stability.** Epic and story filenames, numbers, and containing paths are fixed from creation — do not rename, renumber, or move files. New stories must use the next available number (above any existing or removed file's number in that epic; gaps are fine). New epics must likewise use the next available number. Do not rename or reparent an epic in a way that changes its existing stories' qualified identity or containing path.
+- **Logical deletion via marker.** When the user wants to remove a story or epic, do not delete the file. Instead, add `status: removed` to the file's YAML frontmatter. The file stays on disk and its number is reserved. For already-synced items, `/sync` detects the marker and closes the corresponding Jira issue. For never-synced items, `/sync` skips them — no Jira issue exists to close, but the file is retained and its number remains reserved.
 
 ## Process
 
@@ -76,11 +76,13 @@ based idempotency is always safe.
 - **Combining epics:** Do not delete epic files or move stories to
   different directories. Update the surviving epic's content to
   reflect the combined scope and add `status: removed` to the
-  absorbed epic's YAML frontmatter so `/sync` will close it in Jira.
-  Add any net-new work as new story files using the next available
-  number in the target epic. Stories under the absorbed epic remain
-  at their original paths. If the user wants to reorganize epics and
-  stories in Jira, that is a manual Jira operation.
+  absorbed epic's YAML frontmatter. For already-synced epics, `/sync`
+  will close the Jira issue; for never-synced epics, `/sync` skips
+  them. Add any net-new work as new story files using the next
+  available number in the target epic. Stories under the absorbed
+  epic remain at their original paths. If the user wants to
+  reorganize epics and stories in Jira, that is a manual Jira
+  operation.
 - **Splitting stories:** Keep the original story file. Add new stories
   with the next available number (above any existing or removed
   file's number in that epic).
