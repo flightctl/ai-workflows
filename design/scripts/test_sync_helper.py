@@ -4130,11 +4130,11 @@ class TestSyncedDocsPlacement(_TmpDirMixin, unittest.TestCase):
         _make_dev_story(self.stories_dir, 2, 1, "metrics", title="Add metrics")
         # Update DOCS story to reference cross-epic contributor
         docs_path = self.stories_dir / "epic-1" / "story-03-rollback-docs.md"
-        content = docs_path.read_text()
+        content = docs_path.read_text(encoding="utf-8")
         content = content.replace(
             "Contributing stories: Story 1.01, Story 1.04",
             "Contributing stories: Story 1.01, Story 1.04, Story 2.01")
-        docs_path.write_text(content)
+        docs_path.write_text(content, encoding="utf-8")
 
         manifest = {
             "epics": [
@@ -4716,8 +4716,8 @@ class TestSyncDocsReferenceGuard(_TmpDirMixin, unittest.TestCase):
             ],
         }])
         # Modify the DOCS story content
-        content = docs_path.read_text()
-        docs_path.write_text(content + "\nUpdated Documentation Inputs.\n")
+        content = docs_path.read_text(encoding="utf-8")
+        docs_path.write_text(content + "\nUpdated Documentation Inputs.\n", encoding="utf-8")
         plan = sync_helper.detect_changes(str(self.artifacts_dir))
         docs_items = [i for i in plan["items"]
                       if i["file"].endswith("story-03-docs.md")]
@@ -4735,7 +4735,7 @@ class TestSyncDocsReferenceGuard(_TmpDirMixin, unittest.TestCase):
         _make_dev_story(stories_dir, 1, 4, "infra", title="Infra prereq")
         # Add story-04 to Dependencies ONLY, not Contributing stories
         docs_path = stories_dir / "epic-1" / "story-03-docs.md"
-        content = docs_path.read_text()
+        content = docs_path.read_text(encoding="utf-8")
         # Replace only in the Dependencies section (after "## Dependencies")
         dep_marker = "## Dependencies\n\n"
         dep_start = content.find(dep_marker)
@@ -4746,7 +4746,7 @@ class TestSyncDocsReferenceGuard(_TmpDirMixin, unittest.TestCase):
         content = (content[:dep_val_start] +
                    old_deps + ", Story 1.04" +
                    content[dep_line_end:])
-        docs_path.write_text(content)
+        docs_path.write_text(content, encoding="utf-8")
         # Verify Contributing stories was NOT changed
         self.assertNotIn("Story 1.04",
                          content.split("Contributing stories:")[1].split("\n")[0]
@@ -4773,7 +4773,7 @@ class TestSyncDocsReferenceGuard(_TmpDirMixin, unittest.TestCase):
         stories_dir = Path(self.tmpdir) / "06-stories"
         _make_dev_story(stories_dir, 1, 4, "infra", title="Infra prereq")
         docs_path = stories_dir / "epic-1" / "story-03-docs.md"
-        content = docs_path.read_text()
+        content = docs_path.read_text(encoding="utf-8")
         dep_marker = "## Dependencies\n\n"
         dep_start = content.find(dep_marker)
         dep_val_start = dep_start + len(dep_marker)
@@ -4782,7 +4782,7 @@ class TestSyncDocsReferenceGuard(_TmpDirMixin, unittest.TestCase):
         content = (content[:dep_val_start] +
                    old_deps + ", Story 1.04" +
                    content[dep_line_end:])
-        docs_path.write_text(content)
+        docs_path.write_text(content, encoding="utf-8")
 
         manifest = self._manifest_with_keys([
             {"file": "story-01-api.md", "jira_key": "T-101"},
@@ -4868,15 +4868,13 @@ class TestIdentityStability(_TmpDirMixin, unittest.TestCase):
     def test_identity_stability_instruction_contract(self) -> None:
         """Instruction: identity stability rule requires append above
         highest including retired, no gap reuse, no rename/renumber."""
-        flat = " ".join(
-            open(str(Path(__file__).resolve().parent.parent
-                     / "skills" / "decompose.md")).read().split())
+        decompose_path = Path(__file__).resolve().parent.parent / "skills" / "decompose.md"
+        flat = " ".join(decompose_path.read_text(encoding="utf-8").split())
         self.assertIn("retired numbers must not be reused", flat)
         self.assertIn("must not be renamed, renumbered, or moved", flat)
         # Guidelines canonical rule
-        guidelines = " ".join(
-            open(str(Path(__file__).resolve().parent.parent
-                     / "guidelines.md")).read().split())
+        guidelines_path = Path(__file__).resolve().parent.parent / "guidelines.md"
+        guidelines = " ".join(guidelines_path.read_text(encoding="utf-8").split())
         self.assertIn("Identity stability", guidelines)
         self.assertIn("above the highest existing", guidelines)
 
@@ -4898,7 +4896,7 @@ class TestIdentityStability(_TmpDirMixin, unittest.TestCase):
                  "synced_status": "active"},
             ],
         }])
-        story_path.write_text(story_path.read_text() + "\nUpdated.\n")
+        story_path.write_text(story_path.read_text(encoding="utf-8") + "\nUpdated.\n", encoding="utf-8")
         plan = sync_helper.detect_changes(str(Path(self.tmpdir)))
         items = [i for i in plan["items"]
                  if i["file"].endswith("story-01-api.md")]
@@ -4962,6 +4960,117 @@ class TestIdentityStability(_TmpDirMixin, unittest.TestCase):
             docs_path, manifest_with_key, story_type="DOCS")
         self.assertNotIn("[unresolved]", desc2)
         self.assertIn("T-103", desc2)
+
+
+# ---------------------------------------------------------------------------
+# Epic combine: parent removal cascades children
+# ---------------------------------------------------------------------------
+
+class TestEpicCombineCascade(_TmpDirMixin, unittest.TestCase):
+    """Verify that marking a parent epic status:removed causes
+    detect_changes to reclassify its active synced children as removed,
+    and that keeping the parent active preserves child classification."""
+
+    def _setup_epic_with_child(self, parent_removed: bool) -> dict:
+        """Create epic-1 with one synced story. Return change plan."""
+        stories_dir = Path(self.tmpdir) / "06-stories"
+        stories_dir.mkdir()
+        ep_content = "---\nstatus: removed\n---\n" if parent_removed else "---\n---\n"
+        ep_content += "# Epic 1: Feature\n\n## Summary\n\nBuild.\n\n## Acceptance Criteria\n\n- AC\n"
+        (stories_dir / "epic-1-feature.md").write_text(ep_content, encoding="utf-8")
+        ep1 = stories_dir / "epic-1"
+        ep1.mkdir()
+        story = ep1 / "story-01-api.md"
+        story.write_text(
+            "---\n---\n# Story 1.01: [DEV] API\n\n**As a** dev,\n"
+            "**I want to** build,\n**So that** done.\n\n"
+            "## Acceptance Criteria\n\n- AC\n\n"
+            "## Implementation Guidance\n\nDo.\n\n"
+            "## Testing Approach\n\nTest.\n\n"
+            "## Dependencies\n\nNone\n\n"
+            "## Design Reference\n\nEpic: Epic 1 — Feature\n",
+            encoding="utf-8")
+        # Manifest: both synced, child content changed (different hash)
+        _make_manifest(Path(self.tmpdir), [{
+            "file": "epic-1-feature.md", "jira_key": "T-100",
+            "title": "Feature", "size": "M",
+            "content_hash": "old_epic_hash", "synced_status": "active",
+            "stories": [{
+                "file": "story-01-api.md", "jira_key": "T-101",
+                "title": "[DEV] API", "content_hash": "DIFFERENT",
+                "synced_status": "active"
+            }]
+        }])
+        return sync_helper.detect_changes(str(Path(self.tmpdir)))
+
+    def test_removed_parent_cascades_changed_child_to_removed(self) -> None:
+        """When parent epic is status:removed and synced child's content
+        changed, detect_changes reclassifies the child as removed."""
+        plan = self._setup_epic_with_child(parent_removed=True)
+        child = [i for i in plan["items"]
+                 if i["file"].endswith("story-01-api.md")]
+        self.assertEqual(len(child), 1)
+        self.assertEqual(child[0]["category"], "removed",
+                         "Changed child under removed parent must be 'removed'")
+
+    def test_active_parent_preserves_changed_child(self) -> None:
+        """When parent epic is active (not removed), changed child
+        stays classified as 'changed' with its original Jira key."""
+        plan = self._setup_epic_with_child(parent_removed=False)
+        child = [i for i in plan["items"]
+                 if i["file"].endswith("story-01-api.md")]
+        self.assertEqual(len(child), 1)
+        self.assertEqual(child[0]["category"], "changed",
+                         "Changed child under active parent must stay 'changed'")
+        self.assertEqual(child[0]["jira_key"], "T-101",
+                         "Jira key preserved when parent stays active")
+
+    def test_revise_retain_work_guard(self) -> None:
+        """Revise combining-epics instruction guards against marking
+        parent removed while children should remain active."""
+        revise_path = Path(__file__).resolve().parent.parent / "skills" / "revise.md"
+        flat = " ".join(revise_path.read_text(encoding="utf-8").split())
+        guard_pos = flat.find("do **not** mark the absorbed epic")
+        retire_pos = flat.find("Only mark the epic removed when all")
+        unsupported_pos = flat.find("not supported by the current file-authoritative model")
+        self.assertGreaterEqual(guard_pos, 0,
+                                "Must guard against marking active-child parent removed")
+        self.assertGreaterEqual(retire_pos, 0,
+                                "Must explain when removal is safe")
+        self.assertGreater(retire_pos, guard_pos,
+                           "Retirement instruction must follow guard")
+        self.assertGreaterEqual(unsupported_pos, 0,
+                                "Must flag physical reparent as unsupported")
+
+
+# ---------------------------------------------------------------------------
+# Instruction contracts: review identity criterion + coverage pointer
+# ---------------------------------------------------------------------------
+
+class TestInstructionContracts(unittest.TestCase):
+    """Instruction-level contracts for review rubric and template refs."""
+
+    def test_review_rubric_identity_criterion(self) -> None:
+        """Decomposition review criterion 9 checks identity consistency."""
+        review_path = Path(__file__).resolve().parent.parent / "decomposition-review.md"
+        review_md = review_path.read_text(encoding="utf-8")
+        crit9_start = review_md.find("9. **Identity consistency**")
+        finding_format = review_md.find("## Finding Format")
+        self.assertGreaterEqual(crit9_start, 0, "Criterion 9 must exist")
+        self.assertGreater(finding_format, crit9_start)
+        crit9 = review_md[crit9_start:finding_format]
+        self.assertIn("renaming, renumbering, moving, or reusing", crit9)
+        self.assertIn("do not invent allocation history", crit9)
+
+    def test_coverage_pointer_is_step7(self) -> None:
+        """05-epics template coverage pointer references Step 7."""
+        decompose_path = Path(__file__).resolve().parent.parent / "skills" / "decompose.md"
+        content = decompose_path.read_text(encoding="utf-8")
+        idx = content.find("is the authoritative source for requirement-to-story")
+        self.assertGreaterEqual(idx, 0, "Coverage pointer must exist")
+        line = content[max(0, idx - 20):idx + 80]
+        self.assertIn("(Step 7)", line,
+                      "Coverage pointer must reference Step 7")
 
 
 if __name__ == "__main__":

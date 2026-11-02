@@ -112,7 +112,7 @@ Write `.artifacts/design/{issue-key}/05-epics.md`:
 {PRD Requirements column: list the primary requirements for quick reference.
  If an epic maps to more than ~8 requirements, list the most significant
  and add "See coverage matrix for full mapping." The coverage matrix
- (Step 8) is the authoritative source for requirement-to-story traceability.}
+ (Step 7) is the authoritative source for requirement-to-story traceability.}
 
 ## Dependency Order
 

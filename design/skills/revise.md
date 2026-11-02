@@ -74,15 +74,20 @@ matches criterion 7 in `/decompose` and ensures `/sync`'s filename-
 based idempotency is always safe.
 
 - **Combining epics:** Do not delete epic files or move stories to
-  different directories. Update the surviving epic's content to
-  reflect the combined scope and add `status: removed` to the
-  absorbed epic's YAML frontmatter. For already-synced epics, `/sync`
-  will close the Jira issue; for never-synced epics, `/sync` skips
-  them. Add any net-new work as new story files using the next
-  available number in the target epic. Stories under the absorbed
-  epic remain at their original paths. If the user wants to
-  reorganize epics and stories in Jira, that is a manual Jira
-  operation.
+  different directories. If any child work under the absorbed epic is
+  intended to remain active, do **not** mark the absorbed epic
+  `status: removed` — keep it as an active container and update its
+  content, scope, and implementation notes to reflect the
+  consolidation. Marking an epic `status: removed` retires it and
+  all its children: `/sync` will cascade-close already-synced active
+  children and skip never-synced ones. Only mark the epic removed
+  when all its child work is intentionally retired too. Add any
+  net-new work as new story files using the next available number in
+  the target epic. Physical merge or reparenting of retained stories
+  to a different epic directory is not supported by the current
+  file-authoritative model — if the user requests a physical merge
+  rather than logical consolidation, flag the constraint and request
+  clarification.
 - **Splitting stories:** Keep the original story file. Add new stories
   with the next available number (above any existing or removed
   file's number in that epic).
