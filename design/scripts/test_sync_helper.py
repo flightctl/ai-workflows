@@ -4281,26 +4281,56 @@ class TestDecomposePhaseContract(unittest.TestCase):
             "Cap at 2 review-fix rounds",
             "Must cap at 2 review-fix rounds")
 
-    def test_provenance_after_review(self) -> None:
-        review_idx = self._assert_marker_exists(
-            "### Step 8: Review",
-            "Review step must exist")
-        provenance_idx = self._assert_marker_exists(
-            "Verify `[DOCS]` input provenance",
-            "Provenance verification must exist")
-        self.assertGreater(provenance_idx, review_idx)
-
-    def test_provenance_runs_even_without_fixes(self) -> None:
-        """Provenance check runs after review passes, even if no fixes were needed."""
+    def test_provenance_inside_step9_before_conditional_rereview(self) -> None:
+        """Provenance verification is inside Step 9, after per-finding
+        assessment but before conditional re-review."""
         step9 = self._decompose_md.split("### Step 9:")[1].split("### Step 10:")[0]
-        # The re-review sub-step says "the review passes immediately" when no fixes
-        # but provenance verification follows unconditionally after it
-        pass_idx = step9.find("review passes immediately")
-        prov_idx = step9.find("Verify `[DOCS]` input provenance")
-        self.assertGreaterEqual(pass_idx, 0, "No-fix pass text must exist")
-        self.assertGreaterEqual(prov_idx, 0, "Provenance text must exist")
-        self.assertGreater(prov_idx, pass_idx,
-                           "Provenance must follow even the no-fix pass path")
+        assess_pos = step9.find("Assess on value")
+        prov_pos = step9.find("Verify `[DOCS]` input provenance")
+        rereview_pos = step9.find("Re-review")
+        self.assertGreaterEqual(assess_pos, 0, "Assessment must exist")
+        self.assertGreaterEqual(prov_pos, 0, "Provenance must exist")
+        self.assertGreaterEqual(rereview_pos, 0, "Re-review must exist")
+        self.assertLess(assess_pos, prov_pos,
+                        "Provenance must follow assessment")
+        self.assertLess(prov_pos, rereview_pos,
+                        "Provenance must precede conditional re-review")
+
+    def test_provenance_runs_unconditionally(self) -> None:
+        """Provenance runs even when review produced zero findings."""
+        step9 = self._decompose_md.split("### Step 9:")[1].split("### Step 10:")[0]
+        self.assertIn("runs unconditionally", step9,
+                      "Provenance must run even with zero findings")
+        self.assertIn("zero findings", step9)
+
+    def test_provenance_corrections_trigger_rereview(self) -> None:
+        """Provenance-only corrections trigger conditional re-review."""
+        step9 = self._decompose_md.split("### Step 9:")[1].split("### Step 10:")[0]
+        rereview_trigger = step9.find("provenance corrections changed")
+        self.assertGreaterEqual(rereview_trigger, 0,
+                                "Re-review must trigger on provenance corrections")
+
+    def test_no_early_pass_before_provenance(self) -> None:
+        """Step 9 does not declare PASS before provenance check."""
+        step9 = self._decompose_md.split("### Step 9:")[1].split("### Step 10:")[0]
+        pass_text = step9.find("validation passes")
+        prov_text = step9.find("Verify `[DOCS]` input provenance")
+        self.assertGreaterEqual(pass_text, 0, "Pass text must exist")
+        self.assertGreaterEqual(prov_text, 0, "Provenance text must exist")
+        self.assertGreater(pass_text, prov_text,
+                           "Pass declaration must come AFTER provenance check")
+
+    def test_no_extra_mandatory_phase(self) -> None:
+        """Provenance is inside Step 9, not a separate main step."""
+        # Must not have a Step 9a or Step 11
+        self.assertNotIn("### Step 9a:", self._decompose_md)
+        self.assertNotIn("### Step 11:", self._decompose_md)
+
+    def test_reviewer_still_lacks_design_document(self) -> None:
+        """Independent reviewer in Step 8 still does not receive the
+        design document; provenance is author-only in Step 9."""
+        review_section = self._decompose_md.split("### Step 8:")[1].split("### Step 9:")[0]
+        self.assertIn("NOT the design document", review_section)
 
     def test_flag_gate_for_critical_high(self) -> None:
         self._assert_marker_exists(

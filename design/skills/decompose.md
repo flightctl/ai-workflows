@@ -567,9 +567,14 @@ severity definitions from the protocol. The subagent path provides
 stronger independence; the inline path still catches issues by forcing
 a perspective shift.
 
-### Step 9: Validate Findings, Re-Review, and Verify Provenance
+### Step 9: Validate Findings, Verify Provenance, and Re-Review
 
-For each finding from Step 8:
+This step runs as a validation cycle: assess review findings, verify
+`[DOCS]` provenance, then conditionally re-review if any artifacts
+changed. Both the finding assessment and provenance check run on every
+iteration, including when the review produced zero findings.
+
+**For each finding from Step 8** (or from a re-review iteration):
 
 1. **Validate the reference.** Confirm the cited artifact file and
    section exist. Discard any finding that references a file or section
@@ -594,44 +599,12 @@ For each finding from Step 8:
 Only fix findings that add real value. Do not make changes for
 structural preferences not grounded in the evaluation criteria.
 
-#### Re-review (if fixes were made)
-
-If the validation above produced changes to the decomposition artifacts:
-
-1. Obtain a re-review of the updated artifacts:
-
-   **If a subagent was used in Step 8 and the runtime supports agent
-   resumption:** Resume the same reviewer agent. Send it the updated
-   artifacts and a summary of fixes applied. This gives the reviewer
-   memory of its original findings and lets it verify they were
-   addressed correctly.
-
-   **If resumption is not available:** Spawn a new subagent loaded with
-   the decomposition review protocol, the updated artifacts, the PRD
-   (but NOT the design document), and a summary of the previous round's
-   findings and fixes so it has full context.
-
-   **If subagents are not available:** Re-read all decomposition artifact
-   files before re-reviewing — do not rely on your cached understanding
-   from the previous round. Evaluate the full artifact set (not just the
-   delta from the last round).
-
-   The re-review should focus on:
-   - Whether fixes were applied correctly
-   - Whether fixes introduced new issues
-2. If new issues are found, fix them following the same validate-and-
-   assess procedure above
-3. Cap at 2 review-fix rounds total. Decomposition fixes are structural
-   and less likely than code fixes to need multiple iterations.
-
-If no fixes were needed in the validation above, the review passes immediately.
-
-#### Verify `[DOCS]` input provenance
+**Verify `[DOCS]` input provenance** (runs unconditionally — even when
+the review produced zero findings or all findings were dismissed):
 
 The independent reviewer cannot verify whether unmarked Documentation
 Inputs items are truly derived from the design document or PRD — it
-intentionally lacks the design document. After the review rounds
-complete, verify this as the decomposer:
+intentionally lacks the design document. Verify this as the decomposer:
 
 For each `[DOCS]` story, check every unmarked item in Documentation
 Inputs against the design document (`03-design.md`) and the PRD. An
@@ -641,8 +614,40 @@ by either document must be marked `[Assumption]`. An item that
 depends on an unresolved open question must be marked
 `[Open: §9.N]` — use the existing open-question identifier from the
 design document; do not invent new identifiers for this purpose.
+Fix any incorrect markers.
 
-Fix any incorrect markers before proceeding to Step 10.
+**Re-review** (if finding fixes or provenance corrections changed any
+decomposition artifacts):
+
+1. Obtain a re-review of the updated artifacts:
+
+   **If a subagent was used in Step 8 and the runtime supports agent
+   resumption:** Resume the same reviewer agent. Send it the updated
+   artifacts and a summary of changes applied. This gives the reviewer
+   memory of its previous findings and lets it verify that changes were
+   applied correctly.
+
+   **If resumption is not available:** Spawn a new subagent loaded with
+   the decomposition review protocol, the updated artifacts, the PRD
+   (but NOT the design document), and a summary of the previous round's
+   changes so it has full context.
+
+   **If subagents are not available:** Re-read all decomposition artifact
+   files before re-reviewing — do not rely on your cached understanding
+   from the previous round. Evaluate the full artifact set (not just the
+   delta from the last round).
+
+   The re-review should focus on:
+   - Whether changes were applied correctly
+   - Whether changes introduced new issues
+2. If new issues are found, run the full assessment-and-provenance
+   procedure above again (finding validation, provenance verification,
+   then conditional re-review if more artifacts changed).
+3. Cap at 2 review-fix rounds total. Decomposition fixes are structural
+   and less likely than code fixes to need multiple iterations.
+
+If no artifacts were changed by either finding fixes or provenance
+corrections, the validation passes and Step 9 is complete.
 
 ### Step 10: Summarize and Present
 
