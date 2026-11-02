@@ -5015,7 +5015,7 @@ class TestEpicCombineCascade(_TmpDirMixin, unittest.TestCase):
 
     def test_active_parent_preserves_changed_child(self) -> None:
         """When parent epic is active (not removed), changed child
-        stays classified as 'changed' with its original Jira key."""
+        stays classified as 'changed' with qualified identity intact."""
         plan = self._setup_epic_with_child(parent_removed=False)
         child = [i for i in plan["items"]
                  if i["file"].endswith("story-01-api.md")]
@@ -5024,6 +5024,11 @@ class TestEpicCombineCascade(_TmpDirMixin, unittest.TestCase):
                          "Changed child under active parent must stay 'changed'")
         self.assertEqual(child[0]["jira_key"], "T-101",
                          "Jira key preserved when parent stays active")
+        # Verify qualified identity from actual helper output
+        self.assertEqual(child[0]["file"], "epic-1/story-01-api.md",
+                         "Qualified file path must include parent epic dir")
+        self.assertEqual(child[0]["epic_index"], 1)
+        self.assertEqual(child[0]["story_index"], 1)
 
     def test_revise_retain_work_guard(self) -> None:
         """Revise combining-epics instruction guards against marking

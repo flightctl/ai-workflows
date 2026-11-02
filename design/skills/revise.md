@@ -85,9 +85,11 @@ based idempotency is always safe.
   net-new work as new story files using the next available number in
   the target epic. Physical merge or reparenting of retained stories
   to a different epic directory is not supported by the current
-  file-authoritative model — if the user requests a physical merge
-  rather than logical consolidation, flag the constraint and request
-  clarification.
+  file-authoritative model — manual Jira reparenting does not update
+  local file/manifest ownership used by `/sync` and is not a
+  workaround for retaining children under a removed source epic. If
+  the user requests a physical merge rather than logical
+  consolidation, flag the constraint and request clarification.
 - **Splitting stories:** Keep the original story file. Add new stories
   with the next available number (above any existing or removed
   file's number in that epic).
