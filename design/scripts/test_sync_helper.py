@@ -4271,60 +4271,86 @@ class TestDecomposePhaseContract(unittest.TestCase):
         self.assertIn("NOT the design document", review_section,
                       "Review must not receive the design document")
 
-    def test_finding_validation_and_value_filtering(self) -> None:
-        step9 = self._decompose_md.split("### Step 9:")[1].split("### Step 10:")[0]
-        self.assertIn("Validate the reference", step9)
-        self.assertIn("Assess on value", step9)
+    def test_step9_two_numbered_main_actions(self) -> None:
+        """Step 9 has two explicit numbered main actions: 1. Assess
+        findings, 2. Verify provenance."""
+        step9_start = self._decompose_md.find("### Step 9:")
+        step10_start = self._decompose_md.find("### Step 10:")
+        self.assertGreaterEqual(step9_start, 0, "Step 9 must exist")
+        self.assertGreater(step10_start, step9_start, "Step 10 must follow")
+        step9 = self._decompose_md[step9_start:step10_start]
+        action1 = step9.find("1. **Assess review findings.**")
+        action2 = step9.find("2. **Verify `[DOCS]` input provenance.**")
+        self.assertGreaterEqual(action1, 0, "Action 1 must exist")
+        self.assertGreaterEqual(action2, 0, "Action 2 must exist")
+        self.assertLess(action1, action2,
+                        "Assessment must precede provenance")
 
-    def test_max_two_review_rounds(self) -> None:
-        self._assert_marker_exists(
-            "Cap at 2 review-fix rounds",
-            "Must cap at 2 review-fix rounds")
-
-    def test_provenance_inside_step9_before_conditional_rereview(self) -> None:
-        """Provenance verification is inside Step 9, after per-finding
-        assessment but before conditional re-review."""
-        step9 = self._decompose_md.split("### Step 9:")[1].split("### Step 10:")[0]
-        assess_pos = step9.find("Assess on value")
+    def test_step9_provenance_before_conditional_rereview(self) -> None:
+        """Provenance (action 2) precedes the conditional #### Re-review."""
+        step9_start = self._decompose_md.find("### Step 9:")
+        step10_start = self._decompose_md.find("### Step 10:")
+        self.assertGreaterEqual(step9_start, 0, "Step 9 must exist")
+        self.assertGreater(step10_start, step9_start)
+        step9 = self._decompose_md[step9_start:step10_start]
         prov_pos = step9.find("Verify `[DOCS]` input provenance")
-        rereview_pos = step9.find("Re-review")
-        self.assertGreaterEqual(assess_pos, 0, "Assessment must exist")
+        rereview_heading = step9.find("#### Re-review")
+        # Actual consumer: "Resume the same reviewer agent"
+        rereview_consumer = step9.find("Resume the same reviewer agent")
         self.assertGreaterEqual(prov_pos, 0, "Provenance must exist")
-        self.assertGreaterEqual(rereview_pos, 0, "Re-review must exist")
-        self.assertLess(assess_pos, prov_pos,
-                        "Provenance must follow assessment")
-        self.assertLess(prov_pos, rereview_pos,
-                        "Provenance must precede conditional re-review")
+        self.assertGreaterEqual(rereview_heading, 0, "Re-review heading must exist")
+        self.assertGreaterEqual(rereview_consumer, 0, "Re-review consumer must exist")
+        self.assertLess(prov_pos, rereview_heading,
+                        "Provenance must precede #### Re-review")
+        self.assertLess(prov_pos, rereview_consumer,
+                        "Provenance must precede re-review consumer")
 
-    def test_provenance_runs_unconditionally(self) -> None:
-        """Provenance runs even when review produced zero findings."""
-        step9 = self._decompose_md.split("### Step 9:")[1].split("### Step 10:")[0]
-        self.assertIn("runs unconditionally", step9,
-                      "Provenance must run even with zero findings")
+    def test_step9_provenance_unconditional(self) -> None:
+        """Provenance runs unconditionally, even with zero findings."""
+        step9_start = self._decompose_md.find("### Step 9:")
+        step10_start = self._decompose_md.find("### Step 10:")
+        step9 = self._decompose_md[step9_start:step10_start]
+        self.assertIn("runs unconditionally", step9)
         self.assertIn("zero findings", step9)
 
-    def test_provenance_corrections_trigger_rereview(self) -> None:
+    def test_step9_provenance_corrections_trigger_rereview(self) -> None:
         """Provenance-only corrections trigger conditional re-review."""
-        step9 = self._decompose_md.split("### Step 9:")[1].split("### Step 10:")[0]
-        rereview_trigger = step9.find("provenance corrections changed")
-        self.assertGreaterEqual(rereview_trigger, 0,
-                                "Re-review must trigger on provenance corrections")
+        step9_start = self._decompose_md.find("### Step 9:")
+        step10_start = self._decompose_md.find("### Step 10:")
+        step9 = self._decompose_md[step9_start:step10_start]
+        rereview_section = step9[step9.find("#### Re-review"):]
+        self.assertIn("provenance corrections", rereview_section)
 
-    def test_no_early_pass_before_provenance(self) -> None:
-        """Step 9 does not declare PASS before provenance check."""
-        step9 = self._decompose_md.split("### Step 9:")[1].split("### Step 10:")[0]
-        pass_text = step9.find("validation passes")
-        prov_text = step9.find("Verify `[DOCS]` input provenance")
-        self.assertGreaterEqual(pass_text, 0, "Pass text must exist")
-        self.assertGreaterEqual(prov_text, 0, "Provenance text must exist")
-        self.assertGreater(pass_text, prov_text,
-                           "Pass declaration must come AFTER provenance check")
+    def test_step9_no_early_pass(self) -> None:
+        """Pass declaration only after both mandatory actions complete."""
+        step9_start = self._decompose_md.find("### Step 9:")
+        step10_start = self._decompose_md.find("### Step 10:")
+        step9 = self._decompose_md[step9_start:step10_start]
+        pass_pos = step9.find("validation passes")
+        prov_pos = step9.find("Verify `[DOCS]` input provenance")
+        self.assertGreaterEqual(pass_pos, 0, "Pass text must exist")
+        self.assertGreater(pass_pos, prov_pos,
+                           "Pass must come AFTER provenance")
 
-    def test_no_extra_mandatory_phase(self) -> None:
-        """Provenance is inside Step 9, not a separate main step."""
-        # Must not have a Step 9a or Step 11
+    def test_step9_cap_is_2_rounds(self) -> None:
+        """Cap at 2 review-fix rounds applies across entire Step 9."""
+        step9_start = self._decompose_md.find("### Step 9:")
+        step10_start = self._decompose_md.find("### Step 10:")
+        step9 = " ".join(self._decompose_md[step9_start:step10_start].split())
+        self.assertIn("Cap at 2 review-fix rounds total", step9)
+        self.assertIn("the 2-round cap has not been reached", step9,
+                      "Cap must gate re-review dispatch")
+
+    def test_step9_no_extra_phase(self) -> None:
+        """No Step 9a, Step 11, or unconditional #### Verify heading."""
         self.assertNotIn("### Step 9a:", self._decompose_md)
         self.assertNotIn("### Step 11:", self._decompose_md)
+        # Old unconditional #### Verify heading must be gone
+        step9_start = self._decompose_md.find("### Step 9:")
+        step10_start = self._decompose_md.find("### Step 10:")
+        step9 = self._decompose_md[step9_start:step10_start]
+        self.assertNotIn("#### Verify `[DOCS]` input provenance", step9,
+                         "Provenance must be a numbered action, not a #### heading")
 
     def test_reviewer_still_lacks_design_document(self) -> None:
         """Independent reviewer in Step 8 still does not receive the
@@ -4357,7 +4383,7 @@ class TestDecomposePhaseContract(unittest.TestCase):
         flat = " ".join(self._decompose_md.split())
         self.assertIn("Stable identity", flat,
                       "Criterion 7 must be titled 'Stable identity'")
-        self.assertIn("fixed from creation", flat)
+        self.assertIn("is fixed", flat)
         self.assertIn("must not be renamed, renumbered, or moved", flat)
         self.assertIn("retired numbers must not be reused", flat)
 
@@ -4374,7 +4400,7 @@ class TestDecomposePhaseContract(unittest.TestCase):
         """Step 9 finding fixes must not rename/renumber story files."""
         step9 = " ".join(self._decompose_md.split("### Step 9:")[1]
                          .split("### Step 10:")[0].split())
-        self.assertIn("Do not rename, renumber, or move story files", step9)
+        self.assertIn("do not rename, renumber, or move story files", step9)
 
     def test_identity_stability_block_exists(self) -> None:
         """Identity stability block exists in decompose.md."""

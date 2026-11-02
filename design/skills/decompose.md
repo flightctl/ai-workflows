@@ -569,85 +569,72 @@ a perspective shift.
 
 ### Step 9: Validate Findings, Verify Provenance, and Re-Review
 
-This step runs as a validation cycle: assess review findings, verify
-`[DOCS]` provenance, then conditionally re-review if any artifacts
-changed. Both the finding assessment and provenance check run on every
-iteration, including when the review produced zero findings.
+This step runs a validation procedure with two mandatory actions
+followed by a conditional re-review. Every validation cycle — including
+the first, and including cycles where the review produced zero
+findings — executes both actions before deciding whether re-review
+is needed. Cap at 2 review-fix rounds total across the entire step.
 
-**For each finding from Step 8** (or from a re-review iteration):
+1. **Assess review findings.** For each finding from Step 8 (or from
+   a re-review iteration), apply these checks:
+   - **Validate the reference.** Confirm the cited artifact file and
+     section exist. Discard any finding that references a file or
+     section that does not exist.
+   - **Cross-check PRD claims.** For findings that assert a missing
+     requirement or inadequate coverage, verify the claim against the
+     actual PRD. Discard findings based on misidentified requirements.
+   - **Assess on value.** Does this finding genuinely improve the
+     decomposition? If yes: fix the issue immediately — re-read the
+     affected artifact file before modifying it, verify the fix, and
+     do not rename, renumber, or move story files (criterion 7). If
+     no: note why the finding was dismissed.
 
-1. **Validate the reference.** Confirm the cited artifact file and
-   section exist. Discard any finding that references a file or section
-   that does not exist.
+   Only fix findings that add real value. Do not make changes for
+   structural preferences not grounded in the evaluation criteria.
 
-2. **Cross-check PRD claims.** For findings that assert a missing
-   requirement or inadequate coverage, verify the claim against the
-   actual PRD. Discard findings based on misidentified requirements.
+2. **Verify `[DOCS]` input provenance.** This runs unconditionally —
+   even when the review produced zero findings or all findings were
+   dismissed. The independent reviewer intentionally lacks the design
+   document and cannot verify this; it is author-only verification.
 
-3. **Assess on value.** Does this finding genuinely improve the
-   decomposition? Would the artifacts be meaningfully better (clearer
-   acceptance criteria, more complete coverage, better dependency
-   ordering, more appropriate sizing) if the change were made?
+   For each `[DOCS]` story, check every unmarked item in Documentation
+   Inputs against the design document (`03-design.md`) and the PRD.
+   An item that traces to a specific design section or PRD requirement
+   is correctly unmarked (planned). An item that fills a gap not
+   specified by either document must be marked `[Assumption]`. An item
+   that depends on an unresolved open question must be marked
+   `[Open: §9.N]` — use the existing open-question identifier from
+   the design document; do not invent new identifiers for this purpose.
+   Fix any incorrect markers.
 
-   - If yes: fix the issue immediately. Re-read the affected artifact
-     file before modifying it. Verify the fix after applying it. Do
-     not rename, renumber, or move story files — story identities are
-     fixed from creation (criterion 7).
-   - If no: note why the finding was dismissed (structural preference,
-     no real improvement, would add churn without value).
+#### Re-review (if artifacts changed)
 
-Only fix findings that add real value. Do not make changes for
-structural preferences not grounded in the evaluation criteria.
+If either finding fixes (action 1) or provenance corrections (action 2)
+changed any decomposition artifacts, and the 2-round cap has not been
+reached, obtain a re-review:
 
-**Verify `[DOCS]` input provenance** (runs unconditionally — even when
-the review produced zero findings or all findings were dismissed):
+**If a subagent was used in Step 8 and the runtime supports agent
+resumption:** Resume the same reviewer agent. Send it the updated
+artifacts and a summary of changes applied.
 
-The independent reviewer cannot verify whether unmarked Documentation
-Inputs items are truly derived from the design document or PRD — it
-intentionally lacks the design document. Verify this as the decomposer:
+**If resumption is not available:** Spawn a new subagent loaded with
+the decomposition review protocol, the updated artifacts, the PRD
+(but NOT the design document), and a summary of the previous round's
+changes so it has full context.
 
-For each `[DOCS]` story, check every unmarked item in Documentation
-Inputs against the design document (`03-design.md`) and the PRD. An
-item that traces to a specific design section or PRD requirement is
-correctly unmarked (planned). An item that fills a gap not specified
-by either document must be marked `[Assumption]`. An item that
-depends on an unresolved open question must be marked
-`[Open: §9.N]` — use the existing open-question identifier from the
-design document; do not invent new identifiers for this purpose.
-Fix any incorrect markers.
+**If subagents are not available:** Re-read all decomposition artifact
+files before re-reviewing — do not rely on your cached understanding
+from the previous round. Evaluate the full artifact set (not just the
+delta from the last round).
 
-**Re-review** (if finding fixes or provenance corrections changed any
-decomposition artifacts):
+The re-review should focus on whether changes were applied correctly
+and whether they introduced new issues. If new issues are found, run
+the full validation procedure (actions 1 and 2) again on the new
+findings, then re-review again if more artifacts changed — subject to
+the same 2-round cap.
 
-1. Obtain a re-review of the updated artifacts:
-
-   **If a subagent was used in Step 8 and the runtime supports agent
-   resumption:** Resume the same reviewer agent. Send it the updated
-   artifacts and a summary of changes applied. This gives the reviewer
-   memory of its previous findings and lets it verify that changes were
-   applied correctly.
-
-   **If resumption is not available:** Spawn a new subagent loaded with
-   the decomposition review protocol, the updated artifacts, the PRD
-   (but NOT the design document), and a summary of the previous round's
-   changes so it has full context.
-
-   **If subagents are not available:** Re-read all decomposition artifact
-   files before re-reviewing — do not rely on your cached understanding
-   from the previous round. Evaluate the full artifact set (not just the
-   delta from the last round).
-
-   The re-review should focus on:
-   - Whether changes were applied correctly
-   - Whether changes introduced new issues
-2. If new issues are found, run the full assessment-and-provenance
-   procedure above again (finding validation, provenance verification,
-   then conditional re-review if more artifacts changed).
-3. Cap at 2 review-fix rounds total. Decomposition fixes are structural
-   and less likely than code fixes to need multiple iterations.
-
-If no artifacts were changed by either finding fixes or provenance
-corrections, the validation passes and Step 9 is complete.
+If no artifacts were changed by either action in a cycle, the
+validation passes and Step 9 is complete.
 
 ### Step 10: Summarize and Present
 
