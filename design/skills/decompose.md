@@ -355,18 +355,21 @@ validation gate.
    This must be consistent with the stories referenced in Documentation
    Inputs. Use the canonical `Story N.NN` format.
 
-7. **Placement.** Place each `[DOCS]` story after all stories it
-   references so that all references are resolvable during `/sync`. For
-   per-epic `[DOCS]` stories, place them as the last story within their
-   own epic. For a cross-cutting `[DOCS]` story that spans multiple
-   epics, place it as the last story in the last epic. **Post-sync
-   exemption:** once a `[DOCS]` story has been synced (its filename is
-   in the manifest), it retains its immutable filename and number even
-   when a later-numbered story — whether a contributor or a legitimate
-   prerequisite dependency — is appended after it. `/sync` verifies
-   that every story referenced in Contributing stories AND Dependencies
-   has a Jira key in the manifest before rendering the `[DOCS]` story's
-   description; if any key is missing, the update is deferred.
+7. **Stable identity.** Once a story file is created, its qualified
+   identity — epic number, story number, filename, and containing
+   path — is fixed. Story content (title, AC, scope) may change; the
+   file must not be renamed, renumbered, or moved to a different epic.
+   New stories append strictly above the highest existing number in
+   their epic, including retained removed files; gaps are allowed and
+   retired numbers must not be reused. When planning the initial
+   decomposition, prefer placing `[DOCS]` stories after their
+   referenced contributors as a best-effort optimization for first-
+   sync resolution, but this ordering is never a later gate or
+   permission to renumber. `/sync` verifies that every story
+   referenced in Contributing stories AND Dependencies has a Jira key
+   in the manifest before rendering a `[DOCS]` story's description;
+   if any key is missing, the write is deferred to the next explicit
+   `/sync` invocation.
 
 **Story quality checks:**
 - For `[DEV]` stories: does this story add a capability AND testing for that capability? For a justified behavior-preserving prerequisite, does it restructure existing code AND include tests demonstrating preserved behavior?
@@ -394,13 +397,14 @@ validation gate.
   quality criteria above (searchable title, explicit reader/task,
   reader-verifiable AC, documentation scope, complete documentation
   inputs with fact/assumption distinction, contributing stories
-  reference, correct placement)?
+  reference, stable identity)?
 
-**Filename stability:** Story filenames (e.g., `story-01-scaffold-build-pipeline.md`)
-serve as idempotency keys in the sync manifest. Once stories have been synced
-to Jira, their filenames must not change. When revising a decomposition,
-append new stories with the next available number rather than inserting or
-renumbering existing ones.
+**Identity stability:** Story filenames (e.g., `story-01-scaffold-build-pipeline.md`)
+serve as idempotency keys in the sync manifest. Once created, filenames
+and story numbers are fixed — they must not be renamed, renumbered, or
+moved regardless of whether `/sync` has been run. Append new stories with
+the next available number (above any existing or removed file's number);
+do not insert, reuse retired numbers, or renumber existing stories.
 
 ### Step 5: Sizing Consistency Check
 
@@ -580,29 +584,10 @@ For each finding from Step 8:
    acceptance criteria, more complete coverage, better dependency
    ordering, more appropriate sizing) if the change were made?
 
-   - If yes — **for `[DOCS]` placement findings (conditional LOW):**
-     before correcting, check whether the story is manifest-tracked
-     by looking up its filename within its parent epic's story list
-     in `.artifacts/design/{issue-key}/sync-manifest.json`. If
-     manifest-tracked (post-sync), dismiss the finding — the story
-     retains its immutable filename and number. If the manifest could
-     not be read (e.g., not loaded in Step 1 or I/O error), request
-     verification from the user rather than assuming unsynced. If no
-     manifest exists or the story is not tracked, apply the initial
-     placement fix: record the old and new qualified identity (epic
-     number + story number) and file path. Re-read and rename/move
-     the file to the correct position. Then update references to
-     this story — including the coverage matrix (`07-coverage.md`),
-     other stories' Dependencies, Contributing stories, Documentation
-     Inputs, epic file cross-references, and file links that cited
-     the old identity or path. Scope updates to this specific story;
-     do not rewrite unrelated stories with the same basename or
-     number. Verify that updated references and file links resolve
-     correctly and no stale old-identity references remain before
-     proceeding to re-review.
-
-     **For all other findings:** re-read the affected artifact file,
-     fix the issue, and verify the fix.
+   - If yes: fix the issue immediately. Re-read the affected artifact
+     file before modifying it. Verify the fix after applying it. Do
+     not rename, renumber, or move story files — story identities are
+     fixed from creation (criterion 7).
    - If no: note why the finding was dismissed (structural preference,
      no real improvement, would add churn without value).
 

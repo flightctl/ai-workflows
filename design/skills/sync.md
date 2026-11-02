@@ -259,13 +259,6 @@ surface falls within the `[DOCS]` story's documented scope. Determine
 this from the change plan's full item list (new, changed, removed,
 reopened), not only from existing references.
 
-When evaluating criterion 7 (placement), synced `[DOCS]` stories
-retain their immutable filename and number. If a later-numbered story
-— whether a contributor or a legitimate prerequisite dependency — is
-appended after the `[DOCS]` story was synced, the `[DOCS]` story may
-numerically precede it — do not fail this gate solely for that
-ordering.
-
 **Reference-availability guard for `[DOCS]` stories.** Step 6
 processes stories per epic in three passes (create, update, close).
 Within the same epic, a new non-`[DOCS]` contributor created earlier

@@ -22,8 +22,8 @@ multiple rounds of revision.
 - **Preserve traceability.** If new content is added, note its source.
 - **Show your changes.** After revising, summarize what changed so the user can verify.
 - **No scope reduction.** Do not silently simplify, even when revising.
-- **Filename stability after sync.** If `sync-manifest.json` exists, epic and story filenames are locked — they serve as idempotency keys in Jira. Do not rename, renumber, or delete synced files. New stories must use the next available number. New epics must use the next available number (gaps are fine).
-- **Logical deletion via marker.** When the user wants to remove a synced story or epic, do not delete the file. Instead, add `status: removed` to the file's YAML frontmatter. The file stays on disk so `/sync` can detect the removal and close the corresponding Jira issue.
+- **Identity stability.** Epic and story filenames, numbers, and containing paths are fixed from creation — do not rename, renumber, or move files. New stories must use the next available number (above any existing or removed file's number in that epic; gaps are fine).
+- **Logical deletion via marker.** When the user wants to remove a story or epic, do not delete the file. Instead, add `status: removed` to the file's YAML frontmatter. The file stays on disk so `/sync` can detect the removal and close the corresponding Jira issue.
 
 ## Process
 
@@ -67,31 +67,25 @@ The user's feedback may target:
 - Sizing corrections ("Epic 2 should be L, not M")
 - Ordering changes ("Story 2.1 should come before 1.3")
 
-**Pre-sync vs post-sync behavior:**
+**Identity stability:** Story and epic filenames, numbers, and
+containing paths are fixed from creation — do not rename, renumber,
+or move files regardless of whether `/sync` has been run. This
+matches criterion 7 in `/decompose` and ensures `/sync`'s filename-
+based idempotency is always safe.
 
-If `sync-manifest.json` does **not** exist (pre-sync), all restructuring
-operations are allowed — rename files, renumber, combine, split freely.
-
-If `sync-manifest.json` **exists** (post-sync), filenames are locked:
-- **Combining epics:** Do not delete synced epic files or move stories
-  to different directories. Keep synced story files at their original
-  paths — `/sync` uses filenames as idempotency keys and path changes
-  cause duplicate Jira creation. Instead, update the surviving epic's
-  content to reflect the combined scope and add `status: removed` to
-  the absorbed epic's YAML frontmatter so `/sync` will close it in
-  Jira. Add any net-new work as new story files using the next
-  available number in the target epic. If the user wants to reorganize
-  epics and stories in Jira, that is a manual Jira operation (move
-  stories between epics in Jira's UI). Note: stories under the absorbed
-  epic remain tracked in the manifest under their original epic.
-  `/sync` will continue to update them if their content changes, but
-  their Jira parent link still points to the now-closed epic. Move
-  them to the surviving epic in Jira's UI.
+- **Combining epics:** Do not delete epic files or move stories to
+  different directories. Update the surviving epic's content to
+  reflect the combined scope and add `status: removed` to the
+  absorbed epic's YAML frontmatter so `/sync` will close it in Jira.
+  Add any net-new work as new story files using the next available
+  number in the target epic. Stories under the absorbed epic remain
+  at their original paths. If the user wants to reorganize epics and
+  stories in Jira, that is a manual Jira operation.
 - **Splitting stories:** Keep the original story file. Add new stories
-  with the next available number (e.g., if story-03 is the last, add
-  story-04 and story-05).
+  with the next available number (above any existing or removed
+  file's number in that epic).
 - **Reordering:** Update `05-epics.md` implementation notes to reflect
-  the new order. Do not rename files — the numbering no longer implies order.
+  the new order. Do not rename files — numbering does not imply order.
 
 Clarify with the user if the feedback is ambiguous before making changes.
 

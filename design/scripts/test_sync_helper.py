@@ -4320,103 +4320,37 @@ class TestDecomposePhaseContract(unittest.TestCase):
         not decompose step numbers."""
         self.assertIn("[Open: §9.N]", self._decompose_md)
 
-    def test_placement_identity_check_in_step9(self) -> None:
-        """Step 9 instructs decomposer to check sync-manifest identity
-        before acting on conditional placement findings."""
-        step9_raw = self._decompose_md.split("### Step 9:")[1].split("### Step 10:")[0]
-        step9 = " ".join(step9_raw.split())
-        self.assertIn("sync-manifest.json", step9,
-                      "Step 9 must reference sync-manifest.json")
-        self.assertIn("manifest-tracked", step9)
-        self.assertIn("request verification", step9,
-                      "Must request verification when identity uncertain")
+    # -- Identity stability contracts --
 
-    # -- Placement scenarios (contract: review rubric text) --
-
-    def test_review_rubric_covers_cross_cutting_placement(self) -> None:
-        """Criterion 8 covers cross-cutting DOCS placement (last epic)
-        using canonical criterion 7 wording."""
-        review_path = Path(__file__).resolve().parent.parent / "decomposition-review.md"
-        review_md = review_path.read_text(encoding="utf-8")
-        crit8_start = review_md.find("8. **Documentation**")
-        self.assertGreaterEqual(crit8_start, 0)
-        crit8 = review_md[crit8_start:review_md.find("## Finding Format")]
-        self.assertIn("last story in the last epic", crit8,
-                      "Must cover cross-cutting placement per criterion 7")
-        self.assertIn("conditional LOW", crit8)
-        self.assertIn("manifest-tracked", crit8,
-                      "Must note post-sync exception")
-
-    def test_review_rubric_full_last_story_rule(self) -> None:
-        """Criterion 8 uses the full last-story rule including non-
-        contributing QE/CI stories, not just higher-than-contributors."""
-        review_path = Path(__file__).resolve().parent.parent / "decomposition-review.md"
-        review_md = review_path.read_text(encoding="utf-8")
-        crit8_start = review_md.find("8. **Documentation**")
-        crit8_end = review_md.find("## Finding Format")
-        self.assertGreaterEqual(crit8_start, 0, "Criterion 8 must exist")
-        self.assertGreater(crit8_end, crit8_start,
-                           "Finding Format must follow criterion 8")
-        crit8 = review_md[crit8_start:crit8_end]
-        self.assertIn("last story in its epic", crit8,
-                      "Must use full last-story-in-epic rule")
-        self.assertIn("[QE]", crit8,
-                      "Must mention non-contributing QE stories")
-
-    def test_identity_gate_before_any_placement_fix(self) -> None:
-        """Step 9: placement identity check precedes both the unsynced
-        placement fix and the generic fix instruction."""
-        step9_raw = self._decompose_md.split("### Step 9:")[1].split("### Step 10:")[0]
-        step9 = " ".join(step9_raw.split())
-        identity_pos = step9.find("manifest-tracked")
-        placement_fix = step9.find("apply the initial placement fix")
-        generic_fix = step9.find("For all other findings:")
-        self.assertGreaterEqual(identity_pos, 0,
-                                "Identity gate must exist")
-        self.assertGreaterEqual(placement_fix, 0,
-                                "Unsynced placement fix instruction must exist")
-        self.assertGreaterEqual(generic_fix, 0,
-                                "Generic fix instruction must exist")
-        self.assertLess(identity_pos, placement_fix,
-                        "Identity gate must precede placement fix")
-        self.assertLess(identity_pos, generic_fix,
-                        "Identity gate must precede generic fix")
-
-    def test_criterion7_exception_covers_dependencies(self) -> None:
-        """Post-sync exemption in criterion 7 covers later-numbered
-        prerequisite dependencies, not only contributors."""
+    def test_criterion7_is_stable_identity(self) -> None:
+        """Criterion 7 requires stable identity, not numeric placement."""
         flat = " ".join(self._decompose_md.split())
-        self.assertIn(
-            "whether a contributor or a legitimate prerequisite dependency",
-            flat, "Exception must cover dependencies")
-        self.assertIn(
-            "Contributing stories AND Dependencies",
-            flat, "Key check must cover both Contributing stories and Dependencies")
+        self.assertIn("Stable identity", flat,
+                      "Criterion 7 must be titled 'Stable identity'")
+        self.assertIn("fixed from creation", flat)
+        self.assertIn("must not be renamed, renumbered, or moved", flat)
+        self.assertIn("retired numbers must not be reused", flat)
 
-    def test_placement_fix_propagates_references(self) -> None:
-        """Step 9 placement fix: identity gate → capture → propagate →
-        verify no stale refs → actual re-review action."""
+    def test_criterion7_key_availability_not_position(self) -> None:
+        """Criterion 7 defers on missing keys, never rejects based on
+        numeric position."""
+        flat = " ".join(self._decompose_md.split())
+        self.assertIn("Contributing stories AND Dependencies", flat)
+        self.assertIn("deferred to the next explicit", flat)
+        self.assertNotIn("numerically last", flat,
+                         "Must not require numeric-last positioning")
+
+    def test_step9_no_renumber_instruction(self) -> None:
+        """Step 9 finding fixes must not rename/renumber story files."""
         step9 = " ".join(self._decompose_md.split("### Step 9:")[1]
                          .split("### Step 10:")[0].split())
-        # Use the actual re-review consumer boundary, not self-reference
-        actual_rereview = "Obtain a re-review of the updated artifacts"
-        identity_pos = step9.find("manifest-tracked")
-        update_pos = step9.find("update references to this story")
-        verify_pos = step9.find("no stale old-identity references")
-        rereview_pos = step9.find(actual_rereview)
-        self.assertGreaterEqual(identity_pos, 0, "Identity gate must exist")
-        self.assertGreaterEqual(update_pos, 0,
-                                "Must require reference update")
-        self.assertGreaterEqual(verify_pos, 0, "Must verify no stale refs")
-        self.assertGreaterEqual(rereview_pos, 0,
-                                "Actual re-review action must exist")
-        self.assertLess(identity_pos, update_pos,
-                        "Identity gate must precede reference update")
-        self.assertLess(update_pos, verify_pos,
-                        "Reference update must precede verification")
-        self.assertLess(verify_pos, rereview_pos,
-                        "Stale-ref verification must precede actual re-review")
-        self.assertIn("coverage matrix", step9)
+        self.assertIn("Do not rename, renumber, or move story files", step9)
+
+    def test_identity_stability_block_exists(self) -> None:
+        """Identity stability block exists in decompose.md."""
+        self._assert_marker_exists(
+            "**Identity stability:**",
+            "Identity stability block must exist")
 
     # -- Producer-order contracts for consolidated steps --
 
@@ -4862,22 +4796,166 @@ class TestSyncDocsReferenceGuard(_TmpDirMixin, unittest.TestCase):
 
     # -- Instruction contract: sync exception covers dependencies --
 
-    def test_sync_exception_covers_dependencies(self) -> None:
-        """Sync placement exception and guard name both contributors
-        and prerequisite dependencies."""
+    def test_sync_guard_covers_contributors_and_dependencies(self) -> None:
+        """Reference-availability guard checks both Contributing stories
+        and Dependencies for Jira key availability."""
         sync_md = self._read_sync_md()
-        start = sync_md.find("criterion 7 (placement)")
-        end = sync_md.find("**Reference-availability guard")
-        self.assertGreaterEqual(start, 0, "Placement exception must exist")
-        self.assertGreater(end, start, "Guard must follow exception")
-        section = " ".join(sync_md[start:end].split())
-        self.assertIn("prerequisite dependency", section)
-        # Guard covers both Contributing stories and Dependencies
         guard_start = sync_md.find("**Reference-availability guard")
         guard_end = sync_md.find("### Step 5:")
+        self.assertGreaterEqual(guard_start, 0, "Guard must exist")
         self.assertGreater(guard_end, guard_start)
         guard = " ".join(sync_md[guard_start:guard_end].split())
         self.assertIn("Contributing stories and Dependencies", guard)
+        self.assertIn("defer", guard)
+
+    def test_sync_no_numeric_position_gate(self) -> None:
+        """Sync Step 4 must not reject DOCS based on numeric position."""
+        sync_md = self._read_sync_md()
+        step4_start = sync_md.find("### Step 4:")
+        step5_start = sync_md.find("### Step 5:")
+        self.assertGreaterEqual(step4_start, 0)
+        self.assertGreater(step5_start, step4_start)
+        step4 = sync_md[step4_start:step5_start]
+        self.assertNotIn("numerically last", step4)
+        self.assertNotIn("numerically precede", step4)
+
+
+# ---------------------------------------------------------------------------
+# Identity stability: allocation and retirement
+# ---------------------------------------------------------------------------
+
+class TestIdentityStability(_TmpDirMixin, unittest.TestCase):
+    """Story identity is fixed from creation: numbers are never reused,
+    removed files reserve their numbers, and content edits don't change
+    identity in the manifest."""
+
+    def test_allocation_above_highest_including_removed(self) -> None:
+        """New story number must be above any existing or removed file's
+        number. detect_changes correctly sees a new file above a gap."""
+        stories_dir = Path(self.tmpdir) / "06-stories"
+        stories_dir.mkdir()
+        _make_epic(stories_dir, 1, "feature")
+        _make_dev_story(stories_dir, 1, 1, "api", title="API")
+        # story-02 was removed (retired number)
+        _make_dev_story(stories_dir, 1, 2, "old", title="Old", removed=True)
+        # story-03 is new (allocated above highest=2)
+        _make_dev_story(stories_dir, 1, 3, "webhook", title="Webhook")
+
+        manifest_path = _make_manifest(Path(self.tmpdir), [{
+            "file": "epic-1-feature.md",
+            "jira_key": "T-100", "title": "Feature", "size": "M",
+            "content_hash": "x", "synced_status": "active",
+            "stories": [
+                {"file": "story-01-api.md", "jira_key": "T-101",
+                 "title": "[DEV] API",
+                 "content_hash": sync_helper.compute_file_hash(
+                     str(stories_dir / "epic-1" / "story-01-api.md")),
+                 "synced_status": "active"},
+                # story-02 removed but still in manifest
+                {"file": "story-02-old.md", "jira_key": "T-102",
+                 "title": "[DEV] Old", "content_hash": "y",
+                 "synced_status": "active"},
+            ],
+        }])
+        plan = sync_helper.detect_changes(str(Path(self.tmpdir)))
+        story3 = [i for i in plan["items"]
+                  if i["file"].endswith("story-03-webhook.md")]
+        self.assertEqual(len(story3), 1)
+        self.assertEqual(story3[0]["category"], "new",
+                         "story-03 must be new (above removed story-02)")
+        # story-02 should be removed (has status:removed marker)
+        story2 = [i for i in plan["items"]
+                  if i["file"].endswith("story-02-old.md")]
+        self.assertEqual(len(story2), 1)
+        self.assertEqual(story2[0]["category"], "removed")
+
+    def test_content_edit_retains_identity_and_key(self) -> None:
+        """Editing story content changes its hash but preserves its
+        manifest identity and Jira key."""
+        stories_dir = Path(self.tmpdir) / "06-stories"
+        stories_dir.mkdir()
+        _make_epic(stories_dir, 1, "feature")
+        story_path = _make_dev_story(stories_dir, 1, 1, "api", title="API")
+        old_hash = sync_helper.compute_file_hash(str(story_path))
+        _make_manifest(Path(self.tmpdir), [{
+            "file": "epic-1-feature.md",
+            "jira_key": "T-100", "title": "Feature", "size": "M",
+            "content_hash": "x", "synced_status": "active",
+            "stories": [
+                {"file": "story-01-api.md", "jira_key": "T-101",
+                 "title": "[DEV] API", "content_hash": old_hash,
+                 "synced_status": "active"},
+            ],
+        }])
+        # Edit content
+        story_path.write_text(story_path.read_text() + "\nUpdated.\n")
+        plan = sync_helper.detect_changes(str(Path(self.tmpdir)))
+        items = [i for i in plan["items"]
+                 if i["file"].endswith("story-01-api.md")]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["category"], "changed")
+        self.assertEqual(items[0]["jira_key"], "T-101",
+                         "Jira key must be preserved on content edit")
+
+    def test_never_synced_removed_not_created(self) -> None:
+        """A never-synced file with status:removed is skipped entirely
+        — not created in Jira."""
+        stories_dir = Path(self.tmpdir) / "06-stories"
+        stories_dir.mkdir()
+        _make_epic(stories_dir, 1, "feature")
+        _make_dev_story(stories_dir, 1, 1, "api", title="API")
+        _make_dev_story(stories_dir, 1, 2, "old", title="Old", removed=True)
+        # No manifest — fresh sync
+        plan = sync_helper.detect_changes(str(Path(self.tmpdir)))
+        story2 = [i for i in plan["items"]
+                  if i["file"].endswith("story-02-old.md")]
+        # Never-synced removed files should not appear as "new"
+        for item in story2:
+            self.assertNotEqual(item["category"], "new",
+                                "Never-synced removed story must not be created")
+
+    def test_docs_lower_id_deferred_then_resolves(self) -> None:
+        """DOCS story-02 references contributor story-03 (higher number).
+        With story-03 not in manifest: [unresolved]. After story-03
+        gets a key: resolves cleanly. Identity stays stable."""
+        stories_dir = Path(self.tmpdir) / "06-stories"
+        stories_dir.mkdir()
+        _make_epic(stories_dir, 1, "feature")
+        _make_dev_story(stories_dir, 1, 1, "api", title="API")
+        _make_docs_story(stories_dir, 1, 2, "docs",
+                         title="API reference",
+                         deps="Story 1.01, Story 1.03",
+                         contributing_stories="Story 1.01, Story 1.03",
+                         doc_inputs="**Story 1.01:** endpoint.\n"
+                                    "**Story 1.03:** webhook.")
+        _make_dev_story(stories_dir, 1, 3, "webhook", title="Webhook")
+
+        # First sync: story-03 not yet in manifest
+        manifest_no_key = {"epics": [{"file": "epic-1-feature.md",
+            "jira_key": "T-100",
+            "stories": [
+                {"file": "story-01-api.md", "jira_key": "T-101"},
+            ]}]}
+        docs_path = stories_dir / "epic-1" / "story-02-docs.md"
+        desc1 = sync_helper.render_story_description(
+            docs_path, manifest_no_key, story_type="DOCS")
+        self.assertIn("[unresolved]", desc1,
+                      "Must defer: story-03 key unavailable")
+
+        # Next sync: story-03 now has a key
+        manifest_with_key = {"epics": [{"file": "epic-1-feature.md",
+            "jira_key": "T-100",
+            "stories": [
+                {"file": "story-01-api.md", "jira_key": "T-101"},
+                {"file": "story-03-webhook.md", "jira_key": "T-103"},
+            ]}]}
+        desc2 = sync_helper.render_story_description(
+            docs_path, manifest_with_key, story_type="DOCS")
+        self.assertNotIn("[unresolved]", desc2,
+                         "Must resolve on next sync")
+        self.assertIn("T-103", desc2)
+        # Identity is stable — filename unchanged
+        self.assertEqual(docs_path.name, "story-02-docs.md")
 
 
 if __name__ == "__main__":
