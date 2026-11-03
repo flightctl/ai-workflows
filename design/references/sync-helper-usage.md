@@ -42,6 +42,7 @@ your responsibility.
 | `render-description <file> <manifest> --type epic\|story [options]` | Render Jira-ready description with resolved refs |
 | `update-manifest <manifest> --operation create\|update\|close --file <f> --jira-key <K> --content-hash <H> [--item-type epic\|story] [--epic-file <E>] [options]` | Record one successful Jira operation (`--epic-file` required for stories) |
 | `compute-hash <file>` | Print SHA-256 of file content |
+| `plan-creation-order <artifacts-dir>` | Plan dependency-first creation order for new stories; output JSON with `ordered`, `blocked`, `errors`, `satisfied_keys` |
 | `migrate-manifest <manifest>` | Upgrade v1 manifest to v2 in place |
 
 The `prepare` subcommand is preferred over separate `compute-hash` +

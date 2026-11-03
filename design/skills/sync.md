@@ -193,25 +193,63 @@ Confirm with the user:
 - **Board / sprint:** Does the user want stories assigned to a specific
   board or sprint? (optional — can be done later in Jira)
 
-### Step 3: Dry Run
+### Step 3: Plan Creation Order and Dry Run
 
-Present a preview of all planned operations, using the change plan items:
+**Plan creation order.** Run the sync helper to plan dependency-first
+creation order across the entire feature:
+
+```bash
+python3 "$SYNC_HELPER" plan-creation-order .artifacts/design/{issue-key}/
+```
+
+The helper reads Dependencies and Contributing stories from every new
+story's artifact file, builds a dependency graph using existing
+manifest keys to satisfy already-synced references, and produces a
+topologically sorted creation plan. The output contains:
+
+- `ordered`: new stories in prerequisite-first creation order (stories
+  with no unsatisfied dependencies first, then their dependents).
+- `blocked`: stories whose required references cannot be satisfied
+  (missing local targets, removed/retired sources with no usable key,
+  or cycle participants). Each entry lists the missing reference IDs.
+- `errors`: human-readable diagnostics (cycles with qualified IDs,
+  references to nonexistent artifacts).
+- `satisfied_keys`: references already satisfied by manifest keys.
+
+**Preflight check.** If `errors` is non-empty or `blocked` is
+non-empty, present the diagnostics to the user. Do not proceed to
+any Jira writes (including epic creation in Step 5) until the user
+acknowledges. If the blocked items include stories whose references
+cannot be satisfied by the approved plan, recommend `/revise` to fix
+the decomposition. Do not silently create extra issues to satisfy
+references or proceed with `[unresolved]` placeholders for blocked
+stories.
+
+**Dry-run preview.** Present all planned operations:
 
 ```markdown
 ## Jira Sync Preview — {issue-key}
 
 ### Feature: {feature-key} — {title}
 
-### To Create ({N} items)
+### Story Creation Order ({N} stories)
+
+Stories will be created in this dependency-first order so each
+story's references resolve before it is written to Jira:
+
+| # | Story | Epic | Dependencies |
+|---|-------|------|-------------|
+| 1 | Story {N}.{NN}: [{prefix}] {title} | Epic {X} | None |
+| 2 | Story {M}.{MM}: [{prefix}] {title} | Epic {Y} | Story {N}.{NN} |
+
+{If any stories are blocked, list them separately with reasons.}
+
+### Epics to Create ({N} items)
 
 #### Epic {X}: {title} (`epic-{X}-{slug}.md`)
 - **Type:** Epic
 - **Parent:** {feature-key}
 - **T-Shirt Size:** {size}
-- **Summary:** {1-2 sentences}
-- **Stories:**
-  - Story {X}.01: [{prefix}] {title} (`story-01-{slug}.md`)
-  - Story {X}.02: [{prefix}] {title} (`story-02-{slug}.md`)
 
 ### To Update ({N} items)
 
@@ -220,9 +258,6 @@ Present a preview of all planned operations, using the change plan items:
 | {jira_key} | `{file}` | Content changed |
 | {jira_key} | `{file}` | Reopened (closed → open), Content changed |
 
-For items with `category: "reopened"`, prefix with "Reopened (closed →
-open)" so the status transition is visible.
-
 ### To Close ({N} items)
 
 | Jira Key | Local File | Title |
@@ -230,13 +265,11 @@ open)" so the status transition is visible.
 | {jira_key} | `{file}` | {title} |
 | {jira_key} | *(orphaned — no artifact file)* | {title} |
 
-Include orphaned entries the user chose to close in Step 1 with the
-note "*(orphaned — no artifact file)*" in the Local File column.
-
 ### Unchanged ({N} items — skipped)
 
 ### Totals
-- To create: {N}
+- To create (stories): {N} ({B} blocked)
+- To create (epics): {N}
 - To update: {N}
 - To close: {N}
 - Unchanged: {N}
@@ -259,33 +292,14 @@ surface falls within the `[DOCS]` story's documented scope. Determine
 this from the change plan's full item list (new, changed, removed,
 reopened), not only from existing references.
 
-**Reference-availability guard for `[DOCS]` stories.** Step 6
-processes stories per epic in three passes (create, update, close).
-Within the same epic, a new non-`[DOCS]` contributor created earlier
-in Step 6a will have its Jira key in the manifest before a `[DOCS]`
-story in the same pass or in Step 6b. For contributors in a later
-epic, the key may not yet be available when the `[DOCS]` story's
-epic is processed.
-
-Before rendering any `[DOCS]` story's description — whether for
-creation (Step 6a), update (Step 6b), or reopening (Step 6b) —
-verify that every story referenced in its Contributing stories and
-Dependencies has a Jira key in the manifest. If any required key is
-missing (contributor creation was skipped, failed, or is in a
-not-yet-processed epic), **defer** that `[DOCS]` write: do not
-render, create, or update the Jira issue, and do not record a
-manifest checkpoint. Do not retry a deferred `[DOCS]` story later
-in the current `/sync` invocation, even if a subsequent epic's
-creation pass supplies the missing key. Continue processing
-eligible items in the existing per-epic passes. Record each
-deferred story's file, missing keys, and reason for the Step 8
-report. Because no checkpoint was saved, deferred stories remain
-`new`, `changed`, or `reopened` (as appropriate) on the next
-explicit `/sync` invocation.
-
 If any `[DOCS]` story fails validation, present the findings and
 recommend `/revise` — sync must not modify story source files. Do
 not create or update a failing `[DOCS]` story in Jira.
+
+Note: reference-availability checks for Dependencies and Contributing
+stories are handled by the Step 3 creation-order plan (preflight) and
+the Step 6a/6b reference-availability guards (runtime). Step 4
+validates `[DOCS]` quality criteria only.
 
 ### Step 5: Sync Epics
 
@@ -488,37 +502,48 @@ They remain in their current manifest state. Report them as deferred
 and inform the user that the parent cascade must be retried from
 Step 5c after remediation.
 
-Process stories per epic, in the same three passes: create, update, close.
+Process stories in two phases: first create all new stories across
+all epics in the planned dependency-first order from Step 3, then
+run per-epic update and close passes.
 
-#### 6a: Create New Stories
+#### 6a: Create New Stories (Dependency-First Order)
 
-**Pre-creation duplicate check (per story).** Before creating each story,
-search Jira for existing children of the epic whose summary matches the
-story title. Use a JQL query like:
+Process the `ordered` list from the Step 3 creation plan. This list
+spans all epics and is sorted so prerequisites are created before
+their dependents.
+
+**For each story in the ordered list:**
+
+**Pre-creation duplicate check.** Before creating each story, search
+Jira for existing children of its parent epic whose summary matches
+the story title. Use a JQL query like:
 
 ```
 parent = {epic-jira-key} AND issuetype = Story AND summary ~ "{story title}"
 ```
 
-If the query returns one or more matching issues, **do not create the
-story.** Instead, stop and present the match to the user with the same
-options as in Step 5a (skip and record, create anyway, or stop entirely).
+If a match is found, stop and present it to the user with the same
+options as in Step 5a (skip and record, create anyway, or stop).
 Wait for the user's choice before continuing.
 
-**`[DOCS]` reference-availability guard.** Before preparing a `[DOCS]`
-story, apply the reference-availability guard from Step 4: verify that
-every story in its Contributing stories and Dependencies has a Jira key
-in the manifest. If any key is missing, **defer** this story — skip
-`prepare`, Jira creation, and manifest checkpoint. Record the story
-file, missing keys, and reason for the Step 8 deferral report. Continue
-with the next story in this epic. The deferred story remains eligible
-for the next `/sync` invocation; do not retry it in the current run.
+**Reference-availability guard.** Before preparing any story that has
+Dependencies or (for `[DOCS]` stories) Contributing stories, verify
+that every referenced story has a Jira key in the manifest. Required
+keys may come from the manifest (already synced), from a story
+created earlier in this invocation's ordered list, or from a matched
+existing issue recorded via the duplicate check. If any required key
+is still missing (prerequisite creation failed or was skipped),
+**skip** this story — do not call `prepare`, do not create the Jira
+issue, do not record a manifest checkpoint. Record the story file,
+missing keys, and reason for the Step 8 report. Continue with the
+next story in the ordered list. Blocked stories remain eligible for
+the next explicit `/sync` invocation.
 
-For each new story (non-deferred), prepare the hash and description
-using the story `prepare` recipe from the helper reference. `PREP` is
-JSON with `content_hash`, `description`, `summary` (`[PREFIX] title`
-without numbering), `story_type`, `dependencies` (resolved text), and
-`title`.
+For each new story (non-blocked), prepare the hash and description
+using the story `prepare` recipe from the helper reference. `PREP`
+is JSON with `content_hash`, `description`, `summary` (`[PREFIX]
+title` without numbering), `story_type`, `dependencies` (resolved
+text), and `title`.
 
 Create the Jira issue using fields from `PREP`:
 
@@ -596,13 +621,16 @@ so re-running `/sync` later will only attempt uncreated items.
 
 #### 6b: Update Changed Stories
 
-**`[DOCS]` reference-availability guard.** Before preparing a changed
-or reopened `[DOCS]` story, apply the same reference-availability guard
-as in Step 6a. If any required key is missing, defer this story and
-record it for the Step 8 deferral report. Do not retry it in the
-current run.
+Process changed and reopened stories per epic.
 
-For each story categorized as **Changed** or **Reopened** (non-deferred),
+**Reference-availability guard.** Before preparing a changed or
+reopened story that has Dependencies or (for `[DOCS]` stories)
+Contributing stories, apply the same reference-availability guard as
+in Step 6a. If any required key is missing (including a key that
+should have been created in Step 6a but failed), skip this story and
+record it for the Step 8 report. Do not retry it in the current run.
+
+For each story categorized as **Changed** or **Reopened** (non-blocked),
 prepare the updated description and hash using the story `prepare`
 recipe from the helper reference.
 
@@ -703,9 +731,9 @@ Fields:
 ### Step 8: Report to User
 
 Summarize:
-- How many epics and stories were created, updated, closed, unchanged, and **deferred**
-- For each deferred `[DOCS]` story: the story file, which contributor keys were missing, and the reason. Note that these stories will appear as `new`, `changed`, or `reopened` (as appropriate) on the next `/sync` run because no checkpoint was recorded. Do not claim complete synchronization while deferred stories remain
-- Confirm the hierarchy was verified for every issue actually created or updated: every epic has parent = Feature (verified in Step 5), every story has parent = its epic (verified in Step 6). Deferred new stories were not created in Jira; deferred changed or reopened stories exist in Jira but were not updated in this run. List deferred stories separately as work not applied
+- How many epics and stories were created, updated, closed, unchanged, and **blocked**
+- For each blocked story: the story file, which required keys were missing, and the reason. Blocked new stories were not created; blocked changed/reopened stories were not updated. Because no checkpoint was recorded for blocked stories, they remain eligible on the next `/sync` run. Do not claim complete synchronization while blocked stories remain
+- Confirm the hierarchy was verified for every issue actually created or updated: every epic has parent = Feature (verified in Step 5), every story has parent = its epic (verified in Step 6). Blocked stories were not written to Jira; list them separately as work not applied
 - Link to the Feature issue in Jira (which now shows the full hierarchy)
 
 **Do not suggest manual parent linking as a next step.** If any parent
