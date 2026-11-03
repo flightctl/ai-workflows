@@ -217,8 +217,11 @@ topologically sorted creation plan. The output contains:
 - `satisfied_keys`: references already satisfied by manifest keys.
 
 **Preflight check.** If `errors` is non-empty, the plan is invalid
-— **stop**. Present the diagnostics and recommend `/revise` to fix
-the decomposition before re-running `/sync`. Do not proceed to any
+— **stop**. Errors cover new stories with missing targets, cycles,
+unreadable source files, AND changed/reopened stories whose edited
+Dependencies or Contributing stories reference nonexistent or
+unavailable items. Present the diagnostics and recommend `/revise` to
+fix the decomposition before re-running `/sync`. Do not proceed to any
 Jira writes (including epic creation in Step 5) with an invalid
 plan. If `blocked` is non-empty but `errors` is empty, present the
 blocked items and their missing references. Eligible (non-blocked)
@@ -531,19 +534,34 @@ If a match is found, stop and present it to the user with the same
 options as in Step 5a (skip and record, create anyway, or stop).
 Wait for the user's choice before continuing.
 
-**Reference-availability guard.** Before preparing any story that has
-Dependencies or (for `[DOCS]` stories) Contributing stories, reload
-the current manifest and verify that every referenced story has a Jira
-key. Keys may come from already-synced entries, from a story
-created earlier in this invocation's ordered list (recorded
-immediately after creation), or from a matched existing issue
-recorded via the duplicate check. If any required key is still
-missing (prerequisite creation failed or was skipped), **skip** this
-story — do not call `prepare`, do not create the Jira issue, do not
-record a manifest checkpoint. Record the story file, missing keys,
-and reason for the Step 8 report. Continue with the next story in
-the ordered list. Blocked stories remain eligible for the next
-explicit `/sync` invocation.
+**Reference-availability guard.** Before calling `prepare` for any
+story, run the `check-ref-availability` subcommand against the current
+on-disk manifest to verify that every required reference has a Jira
+key:
+
+```bash
+REF_CHECK=$(python3 "$SYNC_HELPER" check-ref-availability \
+  .artifacts/design/{issue-key}/ \
+  "story-{N}.{NN}")
+```
+
+The helper reloads the manifest fresh, reads the story's artifact file,
+extracts Dependencies (Story and Epic refs) and Contributing stories
+(for `[DOCS]` stories), verifies the owning epic has a key, and returns
+JSON with `ready` and `blocked` lists.  Native Jira keys in
+Dependencies are always treated as available.  Exit code 0 means ready;
+nonzero means blocked.
+
+If the exit code is nonzero (story is blocked), **skip** this story —
+do not call `prepare`, do not create the Jira issue, do not record a
+manifest checkpoint.  Record the story's qualified ID, the `missing`
+refs from the result, and the `reason` for the Step 8 report.  Continue
+with the next story in the ordered list — do not abort independent
+eligible work.  Keys recorded by earlier stories in this run
+(via `update-manifest`) are immediately visible to subsequent
+`check-ref-availability` calls because the manifest is reloaded fresh.
+Blocked stories remain eligible for the next explicit `/sync`
+invocation.
 
 For each new story (non-blocked), prepare the hash and description
 using the story `prepare` recipe from the helper reference. `PREP`
@@ -629,12 +647,10 @@ so re-running `/sync` later will only attempt uncreated items.
 
 Process changed and reopened stories per epic.
 
-**Reference-availability guard.** Before preparing a changed or
-reopened story that has Dependencies or (for `[DOCS]` stories)
-Contributing stories, apply the same reference-availability guard as
-in Step 6a. If any required key is missing (including a key that
-should have been created in Step 6a but failed), skip this story and
-record it for the Step 8 report. Do not retry it in the current run.
+**Reference-availability guard.** Before calling `prepare` for a
+changed or reopened story, run the same `check-ref-availability` guard
+as in Step 6a.  If the exit code is nonzero, skip this story and
+record it for the Step 8 report.  Do not retry it in the current run.
 
 For each story categorized as **Changed** or **Reopened** (non-blocked),
 prepare the updated description and hash using the story `prepare`

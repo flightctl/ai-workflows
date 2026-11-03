@@ -902,6 +902,70 @@ def _extract_epic_refs(text: str) -> list[str]:
 _JIRA_KEY_RE = re.compile(r"\b([A-Z][A-Z0-9]+-\d+)\b")
 
 
+def extract_required_refs(
+    filepath: Path,
+    story_title: str = "",
+) -> dict[str, Any]:
+    """Extract required refs from a story artifact file.
+
+    Reads the file at *filepath*, extracts Dependencies (Story and Epic
+    refs) and Contributing stories (DOCS only), and identifies native
+    Jira keys.
+
+    Returns a dict with:
+    - ``refs``: list of qualified ref IDs (``story-N.NN``, ``epic-N``)
+    - ``native_keys``: list of native Jira keys found (e.g. ``PROJ-123``)
+    - ``error``: str or None — set on file-not-found or read failure
+
+    The *story_title* is used to detect ``[DOCS]`` type for Contributing
+    stories extraction.  If empty, the title is read from the file's
+    ``# ...`` heading.
+    """
+    result: dict[str, Any] = {"refs": [], "native_keys": [], "error": None}
+    try:
+        content = filepath.read_text(encoding="utf-8")
+    except OSError as exc:
+        result["error"] = f"cannot read artifact {filepath}: {exc}"
+        return result
+
+    sections = _extract_sections_from_text(content)
+    refs: list[str] = []
+    native_keys: list[str] = []
+
+    deps_text = sections.get("Dependencies", "")
+    if deps_text:
+        for sref in _extract_story_refs(deps_text):
+            refs.append(f"story-{sref}")
+        for eref in _extract_epic_refs(deps_text):
+            refs.append(f"epic-{eref}")
+        for jm in _JIRA_KEY_RE.finditer(deps_text):
+            native_keys.append(jm.group(1))
+
+    # Detect story type for Contributing-stories extraction
+    if not story_title:
+        for cline in content.splitlines():
+            cs = cline.strip()
+            if cs.startswith("# "):
+                story_title = cs[2:].strip()
+                break
+    m = re.search(r"\[(\w+)\]", story_title)
+    story_type = (m.group(1) if m else "").upper()
+    if story_type == "DOCS":
+        design_ref = sections.get("Design Reference", "")
+        for line in design_ref.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("Contributing stories:"):
+                contrib_text = stripped.split(":", 1)[1]
+                for sref in _extract_story_refs(contrib_text):
+                    refs.append(f"story-{sref}")
+                for eref in _extract_epic_refs(contrib_text):
+                    refs.append(f"epic-{eref}")
+
+    result["refs"] = refs
+    result["native_keys"] = native_keys
+    return result
+
+
 def plan_creation_order(
     items: list[dict[str, Any]],
     artifacts_dir: str | Path,
@@ -968,18 +1032,7 @@ def plan_creation_order(
     def _get_required_refs(
         item: dict[str, Any], qid: str,
     ) -> list[str]:
-        """Return qualified ref strings from Dependencies and
-        (for DOCS stories only) Contributing stories.
-
-        Returned IDs are qualified: ``story-N.NN`` for story refs,
-        ``epic-N`` for epic refs.  Native Jira keys (e.g. ``PROJ-123``)
-        found in the text are recorded in ``available`` as
-        self-satisfied external references and are NOT returned (they
-        need no local creation or manifest lookup).
-
-        On file-not-found or read errors, records the qid in
-        ``unreadable_sources`` so the caller can fail closed.
-        """
+        """Return qualified ref strings using the shared extractor."""
         path = _find_story_path(item)
         if path is None:
             errors.append(
@@ -987,43 +1040,16 @@ def plan_creation_order(
                 f"{stories_dir / item.get('file', '?')}")
             unreadable_sources.add(qid)
             return []
-        try:
-            content = path.read_text(encoding="utf-8")
-        except OSError as exc:
-            errors.append(f"{qid}: cannot read artifact: {exc}")
+        extraction = extract_required_refs(
+            path, story_title=item.get("title", ""))
+        if extraction["error"]:
+            errors.append(f"{qid}: {extraction['error']}")
             unreadable_sources.add(qid)
             return []
-        sections = _extract_sections_from_text(content)
-        refs: list[str] = []
-
-        deps_text = sections.get("Dependencies", "")
-        if deps_text:
-            # Story refs: "Story 1.01" → "story-1.01"
-            for sref in _extract_story_refs(deps_text):
-                refs.append(f"story-{sref}")
-            # Epic refs: "Epic 1" → "epic-1"
-            for eref in _extract_epic_refs(deps_text):
-                refs.append(f"epic-{eref}")
-            # Native Jira keys: "PROJ-123" → mark as available
-            for jm in _JIRA_KEY_RE.finditer(deps_text):
-                jkey = jm.group(1)
-                available.setdefault(jkey, jkey)
-
-        # Detect story type for Contributing-stories extraction
-        title = item.get("title", "")
-        m = re.search(r"\[(\w+)\]", title)
-        story_type = (m.group(1) if m else "").upper()
-        if story_type == "DOCS":
-            design_ref = sections.get("Design Reference", "")
-            for line in design_ref.splitlines():
-                stripped = line.strip()
-                if stripped.startswith("Contributing stories:"):
-                    contrib_text = stripped.split(":", 1)[1]
-                    for sref in _extract_story_refs(contrib_text):
-                        refs.append(f"story-{sref}")
-                    for eref in _extract_epic_refs(contrib_text):
-                        refs.append(f"epic-{eref}")
-        return refs
+        # Record native Jira keys as available
+        for jkey in extraction["native_keys"]:
+            available.setdefault(jkey, jkey)
+        return extraction["refs"]
 
     # ── Classify stories ────────────────────────────────────────
     needs_creation: dict[str, dict[str, Any]] = {}
@@ -1130,6 +1156,11 @@ def plan_creation_order(
                 "item": item, "missing": missing,
                 "reason": "required reference has no usable key "
                           "and is not in the approved creation plan"})
+            for mref in missing:
+                errors.append(
+                    f"{qid} (category: {item.get('category', '?')}) "
+                    f"requires {mref} which has no usable key and "
+                    f"is not in the approved creation plan")
 
     # ── Exclude stories with unavailable refs and their dependents ─
     # Stories with hard-unavailable refs or unreadable sources cannot
@@ -1306,59 +1337,39 @@ def check_ref_availability(
         epic_idx = int(m.group(1))
         story_idx = int(m.group(2))
 
-        # Find the story artifact file
-        epic_dir_pattern = f"epic-{epic_idx}"
+        # Find the story artifact file using item file identity
+        epic_dir = stories_dir / f"epic-{epic_idx}"
+        if not epic_dir.is_dir():
+            blocked.append({
+                "qid": qid, "missing": [],
+                "reason": f"epic directory not found: epic-{epic_idx}"})
+            continue
         story_pattern = f"story-{story_idx:02d}-*.md"
-        candidates = list((stories_dir / epic_dir_pattern).glob(
-            story_pattern)) if (stories_dir / epic_dir_pattern).is_dir() else []
+        candidates = sorted(epic_dir.glob(story_pattern))
         if not candidates:
             blocked.append({
                 "qid": qid, "missing": [],
                 "reason": f"artifact file not found for {qid}"})
             continue
-        path = candidates[0]
-
-        # Read and parse sections
-        try:
-            content = path.read_text(encoding="utf-8")
-        except OSError as exc:
+        if len(candidates) > 1:
             blocked.append({
                 "qid": qid, "missing": [],
-                "reason": f"cannot read artifact: {exc}"})
+                "reason": f"ambiguous: multiple files match {qid}: "
+                          f"{', '.join(c.name for c in candidates)}"})
             continue
-        sections = _extract_sections_from_text(content)
+        path = candidates[0]
 
-        # Extract all required refs
-        refs: list[str] = []
-        deps_text = sections.get("Dependencies", "")
-        if deps_text:
-            for sref in _extract_story_refs(deps_text):
-                refs.append(f"story-{sref}")
-            for eref in _extract_epic_refs(deps_text):
-                refs.append(f"epic-{eref}")
-            # Native Jira keys are always available
-            for jm in _JIRA_KEY_RE.finditer(deps_text):
-                available.setdefault(jm.group(1), jm.group(1))
-
-        # DOCS Contributing stories
-        raw_title = ""
-        for cline in content.splitlines():
-            cs = cline.strip()
-            if cs.startswith("# "):
-                raw_title = cs[2:].strip()
-                break
-        tm = re.search(r"\[(\w+)\]", raw_title)
-        story_type = (tm.group(1) if tm else "").upper()
-        if story_type == "DOCS":
-            design_ref = sections.get("Design Reference", "")
-            for line in design_ref.splitlines():
-                stripped = line.strip()
-                if stripped.startswith("Contributing stories:"):
-                    contrib_text = stripped.split(":", 1)[1]
-                    for sref in _extract_story_refs(contrib_text):
-                        refs.append(f"story-{sref}")
-                    for eref in _extract_epic_refs(contrib_text):
-                        refs.append(f"epic-{eref}")
+        # Use shared extractor
+        extraction = extract_required_refs(path, story_title="")
+        if extraction["error"]:
+            blocked.append({
+                "qid": qid, "missing": [],
+                "reason": extraction["error"]})
+            continue
+        refs = extraction["refs"]
+        # Native Jira keys are always available
+        for jkey in extraction["native_keys"]:
+            available.setdefault(jkey, jkey)
 
         # Check owning epic has a key (for creation)
         epic_key_ref = f"epic-{epic_idx}"

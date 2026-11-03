@@ -43,6 +43,7 @@ your responsibility.
 | `update-manifest <manifest> --operation create\|update\|close --file <f> --jira-key <K> --content-hash <H> [--item-type epic\|story] [--epic-file <E>] [options]` | Record one successful Jira operation (`--epic-file` required for stories) |
 | `compute-hash <file>` | Print SHA-256 of file content |
 | `plan-creation-order <artifacts-dir>` | Plan dependency-first creation order for new stories; output JSON with `ordered`, `blocked`, `errors`, `satisfied_keys` |
+| `check-ref-availability <artifacts-dir> <story-qid>...` | Check whether a story's referenced stories/epics have Jira keys; exit 0 if ready, 1 if blocked |
 | `migrate-manifest <manifest>` | Upgrade v1 manifest to v2 in place |
 
 The `prepare` subcommand is preferred over separate `compute-hash` +
@@ -214,3 +215,49 @@ select the terminal/done-category transition.  If multiple terminal
 transitions are available, prefer "Done" over "Closed."  If no terminal
 transition is available from the current status, report the error and
 let the user handle it in Jira.
+
+## Reference-Availability Guard
+
+Before calling `prepare` for a story in Steps 6a or 6b, verify that
+every required reference has a Jira key.  Run `check-ref-availability`
+with the story's qualified ID:
+
+```bash
+REF_CHECK=$(python3 "$SYNC_HELPER" check-ref-availability \
+  .artifacts/design/{issue-key}/ \
+  "story-{N}.{NN}")
+echo $?  # 0 = ready, 1 = blocked
+```
+
+The subcommand accepts one or more qualified IDs.  For each story it:
+
+1. Reloads the manifest fresh from `sync-manifest.json`
+2. Reads the story's artifact file and extracts Dependencies (Story and
+   Epic refs) and Contributing stories (for `[DOCS]` stories only)
+3. Checks that native Jira keys are treated as available (external)
+4. Verifies the owning epic (`epic-{N}`) has a Jira key in the manifest
+5. Returns JSON with `ready` and `blocked` lists
+
+**Exit code:** 0 when all stories are ready; 1 when any story is
+blocked.
+
+**JSON output:**
+
+```json
+{
+  "ready": [
+    {"qid": "story-1.01", "refs": {"story-2.01": "EDM-201"}}
+  ],
+  "blocked": [
+    {"qid": "story-1.02", "missing": ["epic-3"], "reason": "..."}
+  ]
+}
+```
+
+**Invariants:**
+
+- Never mutates the manifest or source files
+- Contributing stories affect creation ORDER but do NOT add native Jira
+  blocking relationships
+- Keys recorded by `update-manifest` earlier in this run are immediately
+  visible (manifest is reloaded from disk on each call)

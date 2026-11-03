@@ -5359,7 +5359,7 @@ class TestPlanCreationOrder(_TmpDirMixin, unittest.TestCase):
         section = " ".join(content[s6a:s6b].split())
         self.assertIn("Step 3 creation plan", section)
         self.assertIn("Reference-availability guard", section)
-        self.assertIn("reload the current manifest", section)
+        self.assertIn("reloads the manifest fresh", section)
 
 
 # ---------------------------------------------------------------------------
@@ -5892,23 +5892,318 @@ class TestUnreadableSourceInPlanner(_TmpDirMixin, unittest.TestCase):
         self.assertTrue(any("not found" in e for e in r["errors"]))
         self.assertEqual(len(r["ordered"]), 0)
 
-    def test_unreadable_artifact_error(self) -> None:
-        """Story artifact that can't be read → error."""
-        import os
+    def test_unreadable_source_mocked(self) -> None:
+        """Unreadable artifact → error with useful message (portable)."""
         sd = Path(self.tmpdir) / "06-stories"
-        sd.mkdir()
+        sd.mkdir(exist_ok=True)
         _make_epic(sd, 1, "epic1")
-        sf = _make_dev_story(sd, 1, 1, "unreadable", deps="None")
-        # Make file unreadable
-        os.chmod(str(sf), 0o000)
+        _make_dev_story(sd, 1, 1, "a", deps="None")
         items = [{"type": "story", "category": "new",
                   "epic_index": 1, "story_index": 1,
                   "jira_key": None, "title": "",
-                  "file": "epic-1/story-01-unreadable.md"}]
-        r = sync_helper.plan_creation_order(items, self.tmpdir, None)
+                  "file": "epic-1/story-01-a.md"}]
+        # Mock read_text to raise OSError for the story file
+        original_read_text = Path.read_text
+
+        def _failing_read(self_path, *args, **kwargs):
+            if "story-01-a.md" in str(self_path):
+                raise OSError("Permission denied (mocked)")
+            return original_read_text(self_path, *args, **kwargs)
+
+        with mock.patch.object(Path, "read_text", _failing_read):
+            r = sync_helper.plan_creation_order(items, self.tmpdir, None)
         self.assertTrue(any("cannot read" in e for e in r["errors"]))
-        # Restore permissions for cleanup
-        os.chmod(str(sf), 0o644)
+        self.assertEqual(len(r["ordered"]), 0)
+
+
+# ---------------------------------------------------------------------------
+# Test: changed/reopened invalid refs produce errors + CLI nonzero
+# ---------------------------------------------------------------------------
+
+class TestChangedReopenedInvalidRefs(_TmpDirMixin, unittest.TestCase):
+    """Changed/reopened stories with invalid refs must fail structural
+    preflight (errors non-empty, CLI nonzero) BEFORE Step 5 writes."""
+
+    def _item(self, eidx, sidx, slug, cat="new", key=None, title=""):
+        return {"type": "story", "category": cat,
+                "epic_index": eidx, "story_index": sidx,
+                "jira_key": key, "title": title,
+                "file": f"epic-{eidx}/story-{sidx:02d}-{slug}.md"}
+
+    def test_changed_story_invalid_ref_produces_error(self) -> None:
+        """Changed story with dep on Story 9.99 → error in plan."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="None")
+        _make_dev_story(sd, 1, 2, "client", deps="Story 9.99")
+        manifest = {"epics": [{"file": "epic-1-building.md", "jira_key": "T-100",
+                    "stories": [{"file": "story-01-api.md", "jira_key": "T-101"},
+                                {"file": "story-02-client.md", "jira_key": "T-102",
+                                 "content_hash": "old", "synced_status": "active"}]}]}
+        items = [
+            self._item(1, 1, "api", "unchanged", "T-101"),
+            self._item(1, 2, "client", "changed", "T-102"),
+        ]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, manifest)
+        self.assertTrue(any("9.99" in e for e in r["errors"]),
+                        f"Expected error about 9.99, got: {r['errors']}")
+
+    def test_changed_story_invalid_epic_ref_produces_error(self) -> None:
+        """Changed story with dep on Epic 999 → error in plan."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "client", deps="Epic 999")
+        manifest = {"epics": [{"file": "epic-1-building.md", "jira_key": "T-100",
+                    "stories": [{"file": "story-01-client.md", "jira_key": "T-101",
+                                 "content_hash": "old", "synced_status": "active"}]}]}
+        items = [self._item(1, 1, "client", "changed", "T-101")]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, manifest)
+        self.assertTrue(any("epic-999" in e for e in r["errors"]),
+                        f"Expected error about epic-999, got: {r['errors']}")
+
+    def test_changed_valid_planned_target_no_error(self) -> None:
+        """Changed story refs a new story in creation plan → no error."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="None")
+        _make_dev_story(sd, 1, 2, "client", deps="Story 1.03")
+        _make_dev_story(sd, 1, 3, "new", deps="None")
+        manifest = {"epics": [{"file": "epic-1-building.md", "jira_key": "T-100",
+                    "stories": [{"file": "story-01-api.md", "jira_key": "T-101"},
+                                {"file": "story-02-client.md", "jira_key": "T-102",
+                                 "content_hash": "old", "synced_status": "active"}]}]}
+        items = [
+            self._item(1, 1, "api", "unchanged", "T-101"),
+            self._item(1, 2, "client", "changed", "T-102"),
+            self._item(1, 3, "new"),
+        ]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, manifest)
+        self.assertEqual(r["errors"], [],
+                         "Valid planned target should not produce errors")
+
+    def test_cli_nonzero_on_changed_invalid_ref(self) -> None:
+        """CLI plan-creation-order returns nonzero when changed story has invalid ref."""
+        import subprocess
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="Story 9.99")
+        _make_manifest(Path(self.tmpdir), [{
+            "file": "epic-1-building.md", "jira_key": "T-100",
+            "content_hash": "h", "synced_status": "active",
+            "stories": [{"file": "story-01-api.md", "jira_key": "T-101",
+                         "content_hash": "old", "synced_status": "active"}],
+        }])
+        r = subprocess.run(
+            [sys.executable, "-I",
+             str(Path(__file__).resolve().parent / "sync_helper.py"),
+             "plan-creation-order", self.tmpdir],
+            capture_output=True, text=True, timeout=10)
+        self.assertNotEqual(r.returncode, 0,
+                            "CLI must return nonzero for changed story with invalid ref")
+        out = json.loads(r.stdout)
+        self.assertTrue(any("9.99" in e for e in out.get("errors", [])))
+
+
+# ---------------------------------------------------------------------------
+# Test: sync.md consumer contracts for reference-availability guard
+# ---------------------------------------------------------------------------
+
+class TestSyncConsumerContracts(unittest.TestCase):
+    """Verify sync.md consumer instructions reference the executable guard."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        sync_path = Path(__file__).resolve().parent.parent / "skills" / "sync.md"
+        cls._sync_md = sync_path.read_text(encoding="utf-8")
+
+    def test_6a_calls_check_ref_availability(self) -> None:
+        """Step 6a must call check-ref-availability before the prepare recipe."""
+        import re
+        m6a = re.search(r"#### 6a:.*?(?=#### 6b:)", self._sync_md, re.DOTALL)
+        self.assertIsNotNone(m6a)
+        section = m6a.group()
+        check_pos = section.find("check-ref-availability")
+        # The prepare recipe is the bash block calling `prepare`
+        prepare_recipe_pos = section.find("story `prepare` recipe")
+        self.assertGreater(check_pos, -1,
+                           "6a must reference check-ref-availability")
+        self.assertGreater(prepare_recipe_pos, -1,
+                           "6a must reference the prepare recipe")
+        self.assertLess(check_pos, prepare_recipe_pos,
+                        "check-ref-availability must appear before prepare recipe in 6a")
+
+    def test_6b_calls_check_ref_availability(self) -> None:
+        """Step 6b must call check-ref-availability before prepare."""
+        import re
+        m6b = re.search(r"#### 6b:.*?(?=#### 6c:)", self._sync_md, re.DOTALL)
+        self.assertIsNotNone(m6b)
+        section = m6b.group()
+        self.assertIn("check-ref-availability", section,
+                      "6b must reference check-ref-availability")
+
+    def test_helper_reference_documents_check_ref(self) -> None:
+        """Helper reference must document check-ref-availability."""
+        ref_path = (Path(__file__).resolve().parent.parent
+                    / "references" / "sync-helper-usage.md")
+        content = ref_path.read_text(encoding="utf-8")
+        self.assertIn("check-ref-availability", content)
+        self.assertIn("ready", content)
+        self.assertIn("blocked", content)
+
+    def test_preflight_catches_changed_invalid_refs(self) -> None:
+        """Step 3 preflight description covers changed/reopened invalid refs."""
+        import re
+        m3 = re.search(r"### Step 3:.*?(?=### Step 4:)", self._sync_md, re.DOTALL)
+        self.assertIsNotNone(m3)
+        section = m3.group()
+        self.assertIn("changed", section.lower())
+        self.assertIn("reopened", section.lower())
+
+
+# ---------------------------------------------------------------------------
+# Test: DOCS Contributing with mapped parents + runtime guard + PREP
+# ---------------------------------------------------------------------------
+
+class TestDocsContribRuntimeReady(_TmpDirMixin, unittest.TestCase):
+    """DOCS Contributing with mapped parents: runtime guard ready,
+    PREP.description has Jira key, PREP.dependencies stays None."""
+
+    def test_docs_contrib_with_mapped_parents_runtime_ready(self) -> None:
+        """DOCS 1.01 Contributing Story 2.01: with mapped epic parents and
+        contributor key, runtime guard shows ready, PREP.description contains
+        Jira contributor key (not [unresolved]) and PREP.dependencies is None."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "docs-epic")
+        _make_docs_story(sd, 1, 1, "guide",
+                         deps="None",
+                         contributing_stories="Story 2.01",
+                         doc_inputs="**Story 2.01 — API:** output.")
+        _make_epic(sd, 2, "dev-epic")
+        _make_dev_story(sd, 2, 1, "api", deps="None")
+        mf_path = Path(self.tmpdir) / "sync-manifest.json"
+        mf_data = {
+            "schema_version": 2, "feature_key": "FEAT-100",
+            "synced_at": "", "epics": [
+                {"file": "epic-1-docs-epic.md", "jira_key": "EDM-101",
+                 "content_hash": "h1", "synced_status": "active", "stories": []},
+                {"file": "epic-2-dev-epic.md", "jira_key": "EDM-102",
+                 "content_hash": "h2", "synced_status": "active",
+                 "stories": [{"file": "story-01-api.md", "jira_key": "EDM-201",
+                              "content_hash": "h3", "synced_status": "active"}]},
+            ],
+        }
+        _write(mf_path, json.dumps(mf_data, indent=2))
+
+        # Runtime guard: story-1.01 should be ready
+        result = sync_helper.check_ref_availability(
+            ["story-1.01"], self.tmpdir, mf_path)
+        self.assertEqual(len(result["ready"]), 1, f"Expected ready, got: {result}")
+        self.assertEqual(len(result["blocked"]), 0)
+
+        # PREP: description should contain Jira key EDM-201
+        docs_path = sd / "epic-1" / "story-01-guide.md"
+        prep = sync_helper.prepare(
+            str(docs_path), str(mf_path), "story", story_type="DOCS")
+        self.assertIn("EDM-201", prep["description"],
+                      "Contributing story must resolve to Jira key")
+        self.assertNotIn("[unresolved]", prep["description"],
+                         "No unresolved refs when all are mapped")
+        # PREP.dependencies should be "None"
+        self.assertEqual(prep["dependencies"].strip(), "None",
+                         "Dependencies must remain None for DOCS with only Contributing refs")
+
+        # Verify no manifest mutation
+        mf_after = Path(mf_path).read_text(encoding="utf-8")
+        self.assertEqual(mf_after, json.dumps(mf_data, indent=2),
+                         "Manifest must not be mutated")
+
+    def test_fresh_manifest_missing_then_ready_after_key(self) -> None:
+        """Same-path: missing key → blocked, record key → ready."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="Story 1.02")
+        _make_dev_story(sd, 1, 2, "lib", deps="None")
+        mf_path = Path(self.tmpdir) / "sync-manifest.json"
+        mf_data = {"schema_version": 2, "feature_key": "FEAT-100",
+                    "synced_at": "", "epics": [
+                        {"file": "epic-1-building.md", "jira_key": "EDM-101",
+                         "content_hash": "h", "synced_status": "active",
+                         "stories": []}]}
+        _write(mf_path, json.dumps(mf_data, indent=2))
+
+        # Before recording: story-1.01 is blocked (needs story-1.02)
+        r1 = sync_helper.check_ref_availability(
+            ["story-1.01"], self.tmpdir, mf_path)
+        self.assertEqual(len(r1["blocked"]), 1)
+        self.assertIn("story-1.02", r1["blocked"][0]["missing"])
+
+        # Record story-1.02 key in manifest
+        sync_helper.update_manifest(
+            mf_path, "create", "story-02-lib.md", "EDM-202", "abc",
+            item_type="story", epic_file="epic-1-building.md")
+
+        # After recording: story-1.01 is ready
+        r2 = sync_helper.check_ref_availability(
+            ["story-1.01"], self.tmpdir, mf_path)
+        self.assertEqual(len(r2["ready"]), 1)
+        self.assertEqual(len(r2["blocked"]), 0)
+
+    def test_failed_parent_blocks_dependent_independent_ready(self) -> None:
+        """Failed prerequisite blocks dependent; independent story is ready."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="None")
+        _make_dev_story(sd, 1, 2, "client", deps="Story 1.03")
+        _make_dev_story(sd, 1, 3, "missing-dep", deps="None")
+        mf_path = Path(self.tmpdir) / "sync-manifest.json"
+        mf_data = {"schema_version": 2, "feature_key": "FEAT-100",
+                    "synced_at": "", "epics": [
+                        {"file": "epic-1-building.md", "jira_key": "EDM-101",
+                         "content_hash": "h", "synced_status": "active",
+                         "stories": []}]}
+        _write(mf_path, json.dumps(mf_data, indent=2))
+
+        result = sync_helper.check_ref_availability(
+            ["story-1.01", "story-1.02"], self.tmpdir, mf_path)
+        ready_qids = [r["qid"] for r in result["ready"]]
+        blocked_qids = [b["qid"] for b in result["blocked"]]
+        self.assertIn("story-1.01", ready_qids,
+                      "Independent story must be ready")
+        self.assertIn("story-1.02", blocked_qids,
+                      "Dependent on missing must be blocked")
+
+    def test_ambiguous_file_blocked(self) -> None:
+        """Multiple files matching same story index → blocked with diagnostic."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api")
+        _write(sd / "epic-1" / "story-01-also.md",
+               "---\n---\n# Story 1.01: [DEV] Also\n\n"
+               "**As a** dev,\n**I want to** x,\n**So that** y.\n\n"
+               "## Acceptance Criteria\n\n- AC\n\n"
+               "## Implementation Guidance\n\nDo.\n\n"
+               "## Testing Approach\n\nTest.\n\n"
+               "## Dependencies\n\nNone\n\n"
+               "## Design Reference\n\nEpic: Epic 1\n")
+        mf_path = Path(self.tmpdir) / "sync-manifest.json"
+        mf_data = {"schema_version": 2, "feature_key": "FEAT-100",
+                    "synced_at": "", "epics": [
+                        {"file": "epic-1-building.md", "jira_key": "EDM-101",
+                         "content_hash": "h", "synced_status": "active",
+                         "stories": []}]}
+        _write(mf_path, json.dumps(mf_data, indent=2))
+        result = sync_helper.check_ref_availability(
+            ["story-1.01"], self.tmpdir, mf_path)
+        self.assertEqual(len(result["blocked"]), 1)
+        self.assertIn("ambiguous", result["blocked"][0]["reason"])
 
 
 if __name__ == "__main__":
