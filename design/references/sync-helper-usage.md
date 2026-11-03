@@ -42,8 +42,8 @@ your responsibility.
 | `render-description <file> <manifest> --type epic\|story [options]` | Render Jira-ready description with resolved refs |
 | `update-manifest <manifest> --operation create\|update\|close --file <f> --jira-key <K> --content-hash <H> [--item-type epic\|story] [--epic-file <E>] [options]` | Record one successful Jira operation (`--epic-file` required for stories) |
 | `compute-hash <file>` | Print SHA-256 of file content |
-| `plan-creation-order <artifacts-dir>` | Plan dependency-first creation order for new stories; output JSON with `ordered`, `blocked`, `errors`, `satisfied_keys` |
-| `check-ref-availability <artifacts-dir> <story-qid>...` | Check whether a story's referenced stories/epics have Jira keys; exit 0 if ready, 1 if blocked |
+| `plan-creation-order <artifacts-dir>` | Plan dependency-first creation order for new stories; output JSON with `ordered`, `blocked`, `errors`, `satisfied_keys`. Exit 0 if plan is valid; exit 1 if `errors` is non-empty (JSON is still printed). Fatal I/O or manifest errors also exit 1 but print only to stderr with no JSON. |
+| `check-ref-availability <artifacts-dir> <story-qid>...` | Check whether stories' referenced stories/epics have Jira keys; output JSON with `ready` and `blocked` lists. Exit 0 if all stories are ready; exit 1 if any story is blocked (JSON is still printed). Fatal manifest/I/O errors also exit 1 with stderr only and no JSON. |
 | `migrate-manifest <manifest>` | Upgrade v1 manifest to v2 in place |
 
 The `prepare` subcommand is preferred over separate `compute-hash` +

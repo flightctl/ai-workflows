@@ -19,6 +19,12 @@ Subcommands:
   migrate-manifest Upgrade a v1 manifest to v2 schema in place.
   prepare          Compute hash and render description in one call,
                    returning both from a single file read.
+  plan-creation-order  Plan dependency-first creation order for new
+                       stories; output JSON with ``ordered``, ``blocked``,
+                       ``errors``, ``satisfied_keys``.
+  check-ref-availability  Check whether stories' referenced
+                          stories/epics have Jira keys; output JSON
+                          with ``ready`` and ``blocked`` lists.
 
 Environment variables:
   None required.  All inputs come from command-line arguments and local
@@ -26,7 +32,12 @@ Environment variables:
 
 Exit codes:
   0 -- success
-  1 -- runtime error (missing file, invalid manifest, I/O failure)
+  1 -- runtime error (missing file, invalid manifest, I/O failure);
+       also used by plan-creation-order and check-ref-availability
+       for structured invalid/blocked results (JSON is still printed
+       to stdout in that case).  Callers must check whether stdout
+       contains valid JSON to distinguish structured errors from
+       fatal failures (which print only to stderr).
   2 -- invalid arguments (from argparse)
 """
 
@@ -1328,7 +1339,7 @@ def check_ref_availability(
 
     for qid in story_qids:
         # Parse epic_index and story_index from qualified ID
-        m = re.match(r"story-(\d+)\.(\d+)", qid)
+        m = re.fullmatch(r"story-(\d+)\.(\d+)", qid)
         if not m:
             blocked.append({
                 "qid": qid, "missing": [],

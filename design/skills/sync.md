@@ -220,14 +220,13 @@ topologically sorted creation plan. The output contains:
 — **stop**. Errors cover new stories with missing targets, cycles,
 unreadable source files, AND changed/reopened stories whose edited
 Dependencies or Contributing stories reference nonexistent or
-unavailable items. Present the diagnostics and recommend `/revise` to
-fix the decomposition before re-running `/sync`. Do not proceed to any
-Jira writes (including epic creation in Step 5) with an invalid
-plan. If `blocked` is non-empty but `errors` is empty, present the
-blocked items and their missing references. Eligible (non-blocked)
-stories may still proceed after user approval; blocked stories will
-not be written. Do not silently create extra issues to satisfy
-references or proceed with `[unresolved]` placeholders.
+unavailable items. Every `blocked` item has at least one root-cause
+entry in `errors`, so a non-empty `errors` list is the single gate.
+Present the diagnostics and recommend `/revise` to fix the
+decomposition before re-running `/sync`. Do not proceed to any Jira
+writes (including epic creation in Step 5) with an invalid plan. Do
+not silently create extra issues to satisfy references or proceed
+with `[unresolved]` placeholders.
 
 **Dry-run preview.** Present all planned operations:
 
@@ -536,32 +535,35 @@ Wait for the user's choice before continuing.
 
 **Reference-availability guard.** Before calling `prepare` for any
 story, run the `check-ref-availability` subcommand against the current
-on-disk manifest to verify that every required reference has a Jira
-key:
+on-disk manifest with this story's qualified ID:
 
 ```bash
 REF_CHECK=$(python3 "$SYNC_HELPER" check-ref-availability \
   .artifacts/design/{issue-key}/ \
-  "story-{N}.{NN}")
+  "story-{N}.{NN}" 2>ref_check_err.txt)
+REF_EXIT=$?
 ```
 
-The helper reloads the manifest fresh, reads the story's artifact file,
-extracts Dependencies (Story and Epic refs) and Contributing stories
-(for `[DOCS]` stories), verifies the owning epic has a key, and returns
-JSON with `ready` and `blocked` lists.  Native Jira keys in
-Dependencies are always treated as available.  Exit code 0 means ready;
-nonzero means blocked.
+Interpret the result with fail-closed semantics:
 
-If the exit code is nonzero (story is blocked), **skip** this story —
-do not call `prepare`, do not create the Jira issue, do not record a
-manifest checkpoint.  Record the story's qualified ID, the `missing`
-refs from the result, and the `reason` for the Step 8 report.  Continue
-with the next story in the ordered list — do not abort independent
-eligible work.  Keys recorded by earlier stories in this run
-(via `update-manifest`) are immediately visible to subsequent
-`check-ref-availability` calls because the manifest is reloaded fresh.
-Blocked stories remain eligible for the next explicit `/sync`
-invocation.
+1. **Exit 0 with valid JSON containing this story's QID in `ready`:**
+   proceed to `prepare`.
+2. **Exit 1 with valid JSON containing this story's QID in `blocked`:**
+   **skip** this story — do not call `prepare`, do not create the Jira
+   issue, do not record a manifest checkpoint.  Record the story's
+   qualified ID, the `missing` refs from the result, and the `reason`
+   for the Step 8 report.  Continue with the next story in the ordered
+   list — do not abort independent eligible work.
+3. **Exit nonzero with empty/malformed stdout, or JSON missing the
+   expected QID in `ready` or `blocked`:** the helper itself failed
+   (e.g. corrupted manifest, I/O error).  **Stop the sync** and
+   report the stderr content.  Do not skip the story or continue
+   with others — the manifest state is indeterminate.
+
+Keys recorded by earlier stories in this run (via `update-manifest`)
+are immediately visible to subsequent `check-ref-availability` calls
+because the manifest is reloaded fresh from disk.  Blocked stories
+remain eligible for the next explicit `/sync` invocation.
 
 For each new story (non-blocked), prepare the hash and description
 using the story `prepare` recipe from the helper reference. `PREP`
@@ -649,8 +651,11 @@ Process changed and reopened stories per epic.
 
 **Reference-availability guard.** Before calling `prepare` for a
 changed or reopened story, run the same `check-ref-availability` guard
-as in Step 6a.  If the exit code is nonzero, skip this story and
-record it for the Step 8 report.  Do not retry it in the current run.
+as in Step 6a with this story's qualified ID.  Apply the same
+three-way result interpretation: proceed on ready, skip-and-record on
+blocked, stop on helper failure.  Do not call `prepare`, update Jira,
+or record a manifest checkpoint for a blocked or failed story.  Do not
+retry a blocked story in the current run.
 
 For each story categorized as **Changed** or **Reopened** (non-blocked),
 prepare the updated description and hash using the story `prepare`

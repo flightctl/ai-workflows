@@ -4818,16 +4818,30 @@ class TestSyncDocsReferenceGuard(_TmpDirMixin, unittest.TestCase):
     # -- Instruction contract: guard in 6a/6b --
 
     def test_sync_6a_guard_covers_deps_and_contributing(self) -> None:
-        """Step 6a reference-availability guard checks Dependencies and
-        Contributing stories."""
+        """Step 6a reference-availability guard calls check-ref-availability
+        (which covers Dependencies and Contributing stories per its
+        contract); guard paragraph precedes prepare recipe."""
         sync_md = self._read_sync_md()
         start = sync_md.find("#### 6a:")
         end = sync_md.find("#### 6b:")
         self.assertGreaterEqual(start, 0)
         self.assertGreater(end, start)
-        section = " ".join(sync_md[start:end].split())
-        self.assertIn("Dependencies", section)
-        self.assertIn("Contributing stories", section)
+        section_6a = sync_md[start:end]
+        # Guard paragraph exists and uses the CLI subcommand
+        guard_start = section_6a.find("**Reference-availability guard.**")
+        guard_end = section_6a.find("For each new story")
+        self.assertGreater(guard_start, -1, "guard paragraph must exist")
+        self.assertGreater(guard_end, guard_start, "prepare recipe must follow guard")
+        guard = section_6a[guard_start:guard_end]
+        self.assertIn("check-ref-availability", guard)
+        # The helper reference documents that check-ref-availability
+        # covers Dependencies (Story + Epic refs) and Contributing
+        # stories (for DOCS).  Verify the reference says so:
+        ref_path = (Path(__file__).resolve().parent.parent
+                    / "references" / "sync-helper-usage.md")
+        ref = ref_path.read_text(encoding="utf-8")
+        self.assertIn("Dependencies", ref)
+        self.assertIn("Contributing stories", ref)
 
 
 # ---------------------------------------------------------------------------
@@ -5359,7 +5373,7 @@ class TestPlanCreationOrder(_TmpDirMixin, unittest.TestCase):
         section = " ".join(content[s6a:s6b].split())
         self.assertIn("Step 3 creation plan", section)
         self.assertIn("Reference-availability guard", section)
-        self.assertIn("reloads the manifest fresh", section)
+        self.assertIn("manifest is reloaded fresh", section)
 
 
 # ---------------------------------------------------------------------------
@@ -6013,22 +6027,25 @@ class TestChangedReopenedInvalidRefs(_TmpDirMixin, unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class TestSyncConsumerContracts(unittest.TestCase):
-    """Verify sync.md consumer instructions reference the executable guard."""
+    """Verify sync.md consumer instructions reference the executable guard
+    and pin behavioral contracts for blocked/fatal handling."""
 
     @classmethod
     def setUpClass(cls) -> None:
+        import re as _re
         sync_path = Path(__file__).resolve().parent.parent / "skills" / "sync.md"
         cls._sync_md = sync_path.read_text(encoding="utf-8")
+        m6a = _re.search(r"#### 6a:.*?(?=#### 6b:)", cls._sync_md, _re.DOTALL)
+        assert m6a, "6a section not found"
+        cls._section_6a = m6a.group()
+        m6b = _re.search(r"#### 6b:.*?(?=#### 6c:)", cls._sync_md, _re.DOTALL)
+        assert m6b, "6b section not found"
+        cls._section_6b = m6b.group()
 
     def test_6a_calls_check_ref_availability(self) -> None:
         """Step 6a must call check-ref-availability before the prepare recipe."""
-        import re
-        m6a = re.search(r"#### 6a:.*?(?=#### 6b:)", self._sync_md, re.DOTALL)
-        self.assertIsNotNone(m6a)
-        section = m6a.group()
-        check_pos = section.find("check-ref-availability")
-        # The prepare recipe is the bash block calling `prepare`
-        prepare_recipe_pos = section.find("story `prepare` recipe")
+        check_pos = self._section_6a.find("check-ref-availability")
+        prepare_recipe_pos = self._section_6a.find("story `prepare` recipe")
         self.assertGreater(check_pos, -1,
                            "6a must reference check-ref-availability")
         self.assertGreater(prepare_recipe_pos, -1,
@@ -6036,14 +6053,16 @@ class TestSyncConsumerContracts(unittest.TestCase):
         self.assertLess(check_pos, prepare_recipe_pos,
                         "check-ref-availability must appear before prepare recipe in 6a")
 
-    def test_6b_calls_check_ref_availability(self) -> None:
-        """Step 6b must call check-ref-availability before prepare."""
-        import re
-        m6b = re.search(r"#### 6b:.*?(?=#### 6c:)", self._sync_md, re.DOTALL)
-        self.assertIsNotNone(m6b)
-        section = m6b.group()
-        self.assertIn("check-ref-availability", section,
-                      "6b must reference check-ref-availability")
+    def test_6b_calls_check_ref_availability_before_prepare(self) -> None:
+        """Step 6b must call check-ref-availability before the prepare recipe."""
+        check_pos = self._section_6b.find("check-ref-availability")
+        prepare_pos = self._section_6b.find("story `prepare`")
+        self.assertGreater(check_pos, -1,
+                           "6b must reference check-ref-availability")
+        self.assertGreater(prepare_pos, -1,
+                           "6b must reference the prepare recipe")
+        self.assertLess(check_pos, prepare_pos,
+                        "check-ref-availability must appear before prepare in 6b")
 
     def test_helper_reference_documents_check_ref(self) -> None:
         """Helper reference must document check-ref-availability."""
@@ -6062,6 +6081,49 @@ class TestSyncConsumerContracts(unittest.TestCase):
         section = m3.group()
         self.assertIn("changed", section.lower())
         self.assertIn("reopened", section.lower())
+
+    # -- Behavioral contracts: blocked → no Jira/checkpoint ---
+
+    def test_6a_blocked_no_prepare_no_jira_no_checkpoint(self) -> None:
+        """Step 6a: blocked story must not call prepare, create Jira, or
+        record a manifest checkpoint."""
+        guard_start = self._section_6a.find("**Reference-availability guard.**")
+        prepare_start = self._section_6a.find("For each new story")
+        guard = self._section_6a[guard_start:prepare_start]
+        self.assertIn("do not call `prepare`", guard)
+        self.assertIn("do not create the Jira", guard)
+        self.assertIn("manifest checkpoint", guard)
+
+    def test_6b_blocked_no_prepare_no_update_no_checkpoint(self) -> None:
+        """Step 6b: blocked story must not call prepare, update Jira, or
+        record a manifest checkpoint."""
+        self.assertIn("Do not call `prepare`", self._section_6b)
+        self.assertIn("manifest checkpoint", self._section_6b)
+
+    def test_6a_blocked_recorded_for_step8(self) -> None:
+        """Step 6a: blocked stories must be recorded for Step 8 report
+        with per-story missing refs."""
+        guard_start = self._section_6a.find("**Reference-availability guard.**")
+        prepare_start = self._section_6a.find("For each new story")
+        guard = self._section_6a[guard_start:prepare_start]
+        self.assertIn("Step 8 report", guard)
+        self.assertIn("missing", guard.lower())
+
+    def test_6a_fatal_stops_sync(self) -> None:
+        """Step 6a: helper failure (malformed output) stops sync, does not
+        skip-and-continue."""
+        guard_start = self._section_6a.find("**Reference-availability guard.**")
+        prepare_start = self._section_6a.find("For each new story")
+        guard = self._section_6a[guard_start:prepare_start]
+        self.assertIn("Stop the sync", guard)
+        self.assertIn("stderr", guard)
+
+    def test_preflight_blocked_implies_errors(self) -> None:
+        """Step 3: every blocked item has a root-cause error entry."""
+        import re
+        m3 = re.search(r"### Step 3:.*?(?=### Step 4:)", self._sync_md, re.DOTALL)
+        section = m3.group()
+        self.assertIn("Every `blocked` item has at least one root-cause", section)
 
 
 # ---------------------------------------------------------------------------
@@ -6204,6 +6266,152 @@ class TestDocsContribRuntimeReady(_TmpDirMixin, unittest.TestCase):
             ["story-1.01"], self.tmpdir, mf_path)
         self.assertEqual(len(result["blocked"]), 1)
         self.assertIn("ambiguous", result["blocked"][0]["reason"])
+
+
+# ---------------------------------------------------------------------------
+# Test: QID fullmatch regression (finding 4458710793)
+# ---------------------------------------------------------------------------
+
+class TestQIDFullmatch(_TmpDirMixin, unittest.TestCase):
+    """check_ref_availability must reject QIDs with trailing garbage."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="None")
+        self.mf = Path(self.tmpdir) / "sync-manifest.json"
+        _write(self.mf, json.dumps({
+            "schema_version": 2, "feature_key": "F",
+            "epics": [{"file": "epic-1-building.md", "jira_key": "EDM-101",
+                        "content_hash": "h", "synced_status": "active",
+                        "stories": []}]}))
+
+    def test_trailing_garbage_rejected(self) -> None:
+        """story-1.01abc must not be accepted as story-1.01."""
+        result = sync_helper.check_ref_availability(
+            ["story-1.01abc"], self.tmpdir, self.mf)
+        self.assertEqual(len(result["blocked"]), 1)
+        self.assertIn("invalid", result["blocked"][0]["reason"])
+
+    def test_trailing_newline_rejected(self) -> None:
+        """story-1.01\\n must not be accepted."""
+        result = sync_helper.check_ref_availability(
+            ["story-1.01\n"], self.tmpdir, self.mf)
+        self.assertEqual(len(result["blocked"]), 1)
+
+    def test_valid_qid_accepted(self) -> None:
+        """story-1.01 (exact) must be accepted."""
+        result = sync_helper.check_ref_availability(
+            ["story-1.01"], self.tmpdir, self.mf)
+        # May be blocked (no story key) or ready (if requirements met),
+        # but NOT rejected as invalid QID
+        for entry in result.get("blocked", []):
+            self.assertNotIn("invalid", entry.get("reason", ""))
+
+    def test_cli_trailing_garbage_blocked(self) -> None:
+        """CLI check-ref-availability with trailing garbage → blocked."""
+        import subprocess
+        r = subprocess.run(
+            [sys.executable, "-I",
+             str(Path(__file__).resolve().parent / "sync_helper.py"),
+             "check-ref-availability", self.tmpdir, "story-1.01xyz"],
+            capture_output=True, text=True, timeout=10)
+        self.assertNotEqual(r.returncode, 0)
+        out = json.loads(r.stdout)
+        self.assertEqual(len(out["blocked"]), 1)
+        self.assertIn("invalid", out["blocked"][0]["reason"])
+
+
+# ---------------------------------------------------------------------------
+# Test: CLI fatal-vs-blocked distinction (finding 4458710829)
+# ---------------------------------------------------------------------------
+
+class TestCLIFatalVsBlocked(_TmpDirMixin, unittest.TestCase):
+    """Distinguish structured blocked JSON (exit 1) from fatal stderr
+    (exit 1, no JSON) for check-ref-availability and plan-creation-order.
+    Instruction contracts, not live Jira/LLM E2E."""
+
+    def test_check_ref_blocked_produces_json(self) -> None:
+        """Blocked story → exit 1 with valid JSON on stdout."""
+        import subprocess
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="Story 9.99")
+        _write(Path(self.tmpdir) / "sync-manifest.json", json.dumps({
+            "schema_version": 2, "feature_key": "F",
+            "epics": [{"file": "epic-1-building.md", "jira_key": "EDM-101",
+                        "content_hash": "h", "synced_status": "active",
+                        "stories": []}]}))
+        r = subprocess.run(
+            [sys.executable, "-I",
+             str(Path(__file__).resolve().parent / "sync_helper.py"),
+             "check-ref-availability", self.tmpdir, "story-1.01"],
+            capture_output=True, text=True, timeout=10)
+        self.assertEqual(r.returncode, 1)
+        out = json.loads(r.stdout)  # Must be valid JSON
+        self.assertIn("blocked", out)
+        self.assertIn("ready", out)
+
+    def test_check_ref_corrupted_manifest_fatal_no_json(self) -> None:
+        """Corrupted manifest → exit 1 with stderr, NO valid JSON."""
+        import subprocess
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="None")
+        _write(Path(self.tmpdir) / "sync-manifest.json", "NOT JSON {{{")
+        r = subprocess.run(
+            [sys.executable, "-I",
+             str(Path(__file__).resolve().parent / "sync_helper.py"),
+             "check-ref-availability", self.tmpdir, "story-1.01"],
+            capture_output=True, text=True, timeout=10)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("ERROR", r.stderr)
+        # stdout should NOT contain valid JSON
+        with self.assertRaises(json.JSONDecodeError):
+            json.loads(r.stdout)
+
+    def test_plan_creation_errors_produces_json(self) -> None:
+        """plan-creation-order with errors → exit 1 with valid JSON."""
+        import subprocess
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "a", deps="Story 1.02")
+        _make_dev_story(sd, 1, 2, "b", deps="Story 1.01")
+        r = subprocess.run(
+            [sys.executable, "-I",
+             str(Path(__file__).resolve().parent / "sync_helper.py"),
+             "plan-creation-order", self.tmpdir],
+            capture_output=True, text=True, timeout=10)
+        self.assertEqual(r.returncode, 1)
+        out = json.loads(r.stdout)  # Must be valid JSON
+        self.assertTrue(out["errors"])
+
+    def test_check_ref_ready_produces_json(self) -> None:
+        """Ready story → exit 0 with valid JSON containing QID in ready."""
+        import subprocess
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="None")
+        _write(Path(self.tmpdir) / "sync-manifest.json", json.dumps({
+            "schema_version": 2, "feature_key": "F",
+            "epics": [{"file": "epic-1-building.md", "jira_key": "EDM-101",
+                        "content_hash": "h", "synced_status": "active",
+                        "stories": []}]}))
+        r = subprocess.run(
+            [sys.executable, "-I",
+             str(Path(__file__).resolve().parent / "sync_helper.py"),
+             "check-ref-availability", self.tmpdir, "story-1.01"],
+            capture_output=True, text=True, timeout=10)
+        self.assertEqual(r.returncode, 0)
+        out = json.loads(r.stdout)
+        ready_qids = [e["qid"] for e in out["ready"]]
+        self.assertIn("story-1.01", ready_qids)
 
 
 if __name__ == "__main__":
