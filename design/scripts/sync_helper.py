@@ -891,40 +891,32 @@ def plan_creation_order(
     """Plan a dependency-first creation order for new stories.
 
     Reads Dependencies and Contributing stories from each story that
-    needs a Jira key (new stories without an existing manifest key).
-    Produces a topologically sorted creation plan so prerequisites are
-    created before their dependents in a single ``/sync`` invocation.
+    needs a Jira key.  Produces a topologically sorted creation plan so
+    prerequisites are created before their dependents in a single
+    ``/sync`` invocation.
 
-    Parameters
-    ----------
-    items : list
-        Change-plan items from ``detect_changes``.
-    artifacts_dir : str or Path
-        Path to ``.artifacts/design/{issue-key}/``.
-    manifest : dict or None
-        Loaded sync manifest (may be None for fresh sync).
+    Returns a dict with:
 
-    Returns
-    -------
-    dict with:
     - ``ordered``: list of story items in prerequisite-first order.
-      Includes only stories that need creation (new) and have all
-      required references satisfiable.
-    - ``blocked``: list of ``{"item": <item>, "missing": [<ref>, ...]}``
-      for stories whose required references cannot be satisfied.
-    - ``errors``: list of human-readable diagnostic strings
-      (cycles, missing local targets, etc.).
-    - ``satisfied_keys``: dict mapping ``story-N.NN`` keys to Jira keys
-      that are already available (from manifest or matched existing).
+    - ``blocked``: list of ``{"item": <item>, "missing": [<ref>, ...],
+      "reason": <str>}`` for stories that cannot proceed.
+    - ``errors``: list of human-readable diagnostic strings (cycles,
+      missing local targets, unreadable sources).
+    - ``satisfied_keys``: dict of ``story-N.NN`` / ``epic-N`` → Jira
+      key already available (from manifest or item jira_key).
+
+    Exit semantics: if ``errors`` is non-empty the plan is invalid and
+    no Jira writes should proceed until resolved.
     """
     artifacts_dir = Path(artifacts_dir)
+    stories_dir = artifacts_dir / "06-stories"
 
-    # Build the set of available keys from manifest
+    # ── Available keys (already-synced or in-item) ──────────────
     available: dict[str, str] = {}
     if manifest:
         available = _build_ref_lookup(manifest)
 
-    # Index all change-plan items by qualified story ID
+    # Index items by qualified story ID; record existing keys
     item_by_id: dict[str, dict[str, Any]] = {}
     for item in items:
         if item.get("type") != "story":
@@ -935,104 +927,112 @@ def plan_creation_order(
             continue
         qid = f"story-{eidx}.{sidx:02d}"
         item_by_id[qid] = item
-        # If the item already has a Jira key it's available
         jira_key = item.get("jira_key")
         if jira_key:
             available[qid] = jira_key
 
-    # Identify stories that need creation (new, no existing key)
+    # ── Locate story artifact file from change-plan item ────────
+    def _find_story_path(item: dict[str, Any]) -> Path | None:
+        """Resolve story file using the item's ``file`` field
+        (same identity used by detect_changes)."""
+        rel = item.get("file", "")
+        if not rel:
+            return None
+        candidate = stories_dir / rel
+        return candidate if candidate.is_file() else None
+
+    # ── Extract required refs from a story artifact ─────────────
+    errors: list[str] = []
+
+    def _get_required_refs(
+        item: dict[str, Any], qid: str,
+    ) -> list[str]:
+        """Return qualified story ref strings from Dependencies and
+        (for DOCS stories only) Contributing stories."""
+        path = _find_story_path(item)
+        if path is None:
+            errors.append(
+                f"{qid}: artifact file not found at "
+                f"{stories_dir / item.get('file', '?')}")
+            return []
+        try:
+            content = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            errors.append(f"{qid}: cannot read artifact: {exc}")
+            return []
+        sections = _extract_sections_from_text(content)
+        refs: list[str] = []
+
+        deps_text = sections.get("Dependencies", "")
+        if deps_text:
+            refs.extend(_extract_story_refs(deps_text))
+
+        # Detect story type for Contributing-stories extraction
+        title = item.get("title", "")
+        m = re.search(r"\[(\w+)\]", title)
+        story_type = (m.group(1) if m else "").upper()
+        if story_type == "DOCS":
+            design_ref = sections.get("Design Reference", "")
+            for line in design_ref.splitlines():
+                stripped = line.strip()
+                if stripped.startswith("Contributing stories:"):
+                    contrib_text = stripped.split(":", 1)[1]
+                    refs.extend(_extract_story_refs(contrib_text))
+        return refs
+
+    # ── Classify stories ────────────────────────────────────────
     needs_creation: dict[str, dict[str, Any]] = {}
     for qid, item in item_by_id.items():
         if item.get("category") == "new" and qid not in available:
             needs_creation[qid] = item
 
-    # For changed/reopened DOCS, collect required refs too
-    needs_refs_check: dict[str, dict[str, Any]] = {}
+    needs_write: dict[str, dict[str, Any]] = {}
     for qid, item in item_by_id.items():
-        if item.get("category") in ("changed", "reopened"):
-            needs_refs_check[qid] = item
+        cat = item.get("category", "")
+        if cat in ("changed", "reopened"):
+            needs_write[qid] = item
 
-    # Extract required references from artifact files
-    stories_dir = artifacts_dir / "06-stories"
-    deps_graph: dict[str, list[str]] = {}  # qid -> [required qid, ...]
+    # ── Build dependency graph ──────────────────────────────────
+    deps_graph: dict[str, list[str]] = {}
 
-    def _get_required_refs(item: dict[str, Any]) -> list[str]:
-        """Extract Dependencies + Contributing stories refs."""
-        eidx = item.get("epic_index")
-        sidx = item.get("story_index")
-        if eidx is None or sidx is None:
-            return []
-        # Find the story file
-        epic_dir = None
-        for d in stories_dir.iterdir() if stories_dir.is_dir() else []:
-            if d.is_dir() and _parse_epic_index(d.name) == eidx:
-                epic_dir = d
-                break
-        if epic_dir is None:
-            return []
-        story_file = None
-        for f in epic_dir.iterdir():
-            if (_parse_story_index(f.name) == sidx
-                    and f.name.endswith(".md")):
-                story_file = f
-                break
-        if story_file is None:
-            return []
-        try:
-            content = story_file.read_text(encoding="utf-8")
-        except OSError:
-            return []
-        sections = _extract_sections_from_text(content)
-        refs: list[str] = []
-        deps_text = sections.get("Dependencies", "")
-        if deps_text:
-            refs.extend(_extract_story_refs(deps_text))
-        # For DOCS stories, Contributing stories are ordering deps
-        # (they need keys for reference resolution, not Jira links)
-        design_ref = sections.get("Design Reference", "")
-        if design_ref:
-            for line in design_ref.splitlines():
-                if line.strip().startswith("Contributing stories:"):
-                    contrib_text = line.split(":", 1)[1]
-                    refs.extend(_extract_story_refs(contrib_text))
-        return refs
-
-    # Build dependency graph for new stories
     for qid, item in needs_creation.items():
-        raw_refs = _get_required_refs(item)
-        # Filter to only refs that need creation (unsatisfied)
-        unsatisfied = []
+        raw_refs = _get_required_refs(item, qid)
+        unsatisfied: list[str] = []
         for ref in raw_refs:
             ref_qid = f"story-{ref}"
+            if ref_qid not in available and ref_qid not in needs_creation:
+                # Target exists but has no usable key and won't be created
+                if ref_qid in item_by_id:
+                    cat = item_by_id[ref_qid].get("category", "")
+                    if cat in ("removed", "unchanged") and ref_qid not in available:
+                        errors.append(
+                            f"{qid} requires {ref_qid} which has no "
+                            f"usable Jira key (category: {cat})")
+                else:
+                    errors.append(
+                        f"{qid} requires {ref_qid} which does not "
+                        f"exist in artifacts or manifest")
             if ref_qid not in available:
                 unsatisfied.append(ref_qid)
         deps_graph[qid] = unsatisfied
 
-    # Also check changed/reopened stories for unavailable refs
-    blocked_updates: list[dict[str, Any]] = []
-    for qid, item in needs_refs_check.items():
-        raw_refs = _get_required_refs(item)
-        missing = []
+    # Check changed/reopened stories for unavailable refs
+    blocked_writes: list[dict[str, Any]] = []
+    for qid, item in needs_write.items():
+        raw_refs = _get_required_refs(item, qid)
+        missing: list[str] = []
         for ref in raw_refs:
             ref_qid = f"story-{ref}"
-            if ref_qid not in available and ref_qid not in needs_creation:
+            if (ref_qid not in available
+                    and ref_qid not in needs_creation):
                 missing.append(ref_qid)
         if missing:
-            blocked_updates.append({"item": item, "missing": missing})
+            blocked_writes.append({
+                "item": item, "missing": missing,
+                "reason": "required reference has no usable key "
+                          "and is not in the approved creation plan"})
 
-    # Topological sort with cycle detection
-    errors: list[str] = []
-
-    # Check for references to nonexistent local targets
-    all_known = set(item_by_id.keys()) | set(available.keys())
-    for qid, dep_list in deps_graph.items():
-        for dep_qid in dep_list:
-            if dep_qid not in all_known:
-                errors.append(
-                    f"{qid} requires {dep_qid} which does not exist "
-                    f"in artifacts or manifest")
-
-    # Kahn's algorithm for topological sort
+    # ── Topological sort (Kahn's algorithm) ─────────────────────
     in_degree: dict[str, int] = {qid: 0 for qid in needs_creation}
     adj: dict[str, list[str]] = {qid: [] for qid in needs_creation}
     for qid, dep_list in deps_graph.items():
@@ -1041,7 +1041,6 @@ def plan_creation_order(
                 adj[dep_qid].append(qid)
                 in_degree[qid] = in_degree.get(qid, 0) + 1
 
-    # Seed with stories that have no unsatisfied creation deps
     queue: list[str] = sorted(
         qid for qid, deg in in_degree.items() if deg == 0)
     ordered_ids: list[str] = []
@@ -1052,27 +1051,60 @@ def plan_creation_order(
             in_degree[dependent] -= 1
             if in_degree[dependent] == 0:
                 queue.append(dependent)
-        queue.sort()  # deterministic order for ties
+        queue.sort()
 
-    # Detect cycles
-    if len(ordered_ids) < len(needs_creation):
-        cycle_nodes = sorted(
-            qid for qid in needs_creation if qid not in ordered_ids)
-        errors.append(
-            f"Creation cycle detected among: {', '.join(cycle_nodes)}")
+    # ── Distinguish real cycles from downstream-blocked ─────────
+    ordered_set = set(ordered_ids)
+    not_ordered = {qid for qid in needs_creation if qid not in ordered_set}
+    if not_ordered:
+        # Find actual cycle participants: a node is in a cycle if it
+        # can reach itself via deps_graph edges within not_ordered.
+        cycle_members: set[str] = set()
+        for start in sorted(not_ordered):
+            # BFS/DFS from start's dependencies to see if start is
+            # reachable (= cycle)
+            visited: set[str] = set()
+            stack = []
+            for dep in deps_graph.get(start, []):
+                if dep in not_ordered:
+                    stack.append(dep)
+            while stack:
+                node = stack.pop()
+                if node in visited:
+                    continue
+                visited.add(node)
+                if node == start:
+                    break  # Found cycle back to start
+                for dep in deps_graph.get(node, []):
+                    if dep in not_ordered:
+                        stack.append(dep)
+            if start in visited:
+                cycle_members.add(start)
 
-    # Build ordered item list
-    ordered_items = [needs_creation[qid] for qid in ordered_ids
-                     if qid in needs_creation]
+        if cycle_members:
+            errors.append(
+                f"Creation cycle detected among: "
+                f"{', '.join(sorted(cycle_members))}")
 
-    # Build blocked list (new stories with unsatisfiable deps)
+        downstream_only = not_ordered - cycle_members
+        if downstream_only:
+            for qid in sorted(downstream_only):
+                errors.append(
+                    f"{qid} blocked: depends on items that cannot "
+                    f"be created (cycle or unavailable target)")
+
+    # ── Build results ───────────────────────────────────────────
+    ordered_items = [needs_creation[qid] for qid in ordered_ids]
+
     blocked: list[dict[str, Any]] = []
-    for qid in sorted(needs_creation.keys()):
-        if qid not in ordered_ids:
-            missing = [d for d in deps_graph.get(qid, [])
-                       if d not in available and d not in set(ordered_ids)]
-            blocked.append({"item": needs_creation[qid], "missing": missing})
-    blocked.extend(blocked_updates)
+    for qid in sorted(not_ordered if not_ordered else []):
+        missing = [d for d in deps_graph.get(qid, [])
+                   if d not in available and d not in ordered_set]
+        blocked.append({
+            "item": needs_creation[qid],
+            "missing": missing,
+            "reason": "cycle or unavailable prerequisite"})
+    blocked.extend(blocked_writes)
 
     return {
         "ordered": ordered_items,

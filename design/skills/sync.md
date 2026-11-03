@@ -216,14 +216,15 @@ topologically sorted creation plan. The output contains:
   references to nonexistent artifacts).
 - `satisfied_keys`: references already satisfied by manifest keys.
 
-**Preflight check.** If `errors` is non-empty or `blocked` is
-non-empty, present the diagnostics to the user. Do not proceed to
-any Jira writes (including epic creation in Step 5) until the user
-acknowledges. If the blocked items include stories whose references
-cannot be satisfied by the approved plan, recommend `/revise` to fix
-the decomposition. Do not silently create extra issues to satisfy
-references or proceed with `[unresolved]` placeholders for blocked
-stories.
+**Preflight check.** If `errors` is non-empty, the plan is invalid
+— **stop**. Present the diagnostics and recommend `/revise` to fix
+the decomposition before re-running `/sync`. Do not proceed to any
+Jira writes (including epic creation in Step 5) with an invalid
+plan. If `blocked` is non-empty but `errors` is empty, present the
+blocked items and their missing references. Eligible (non-blocked)
+stories may still proceed after user approval; blocked stories will
+not be written. Do not silently create extra issues to satisfy
+references or proceed with `[unresolved]` placeholders.
 
 **Dry-run preview.** Present all planned operations:
 
@@ -250,6 +251,7 @@ story's references resolve before it is written to Jira:
 - **Type:** Epic
 - **Parent:** {feature-key}
 - **T-Shirt Size:** {size}
+- **Summary:** {1-2 sentences}
 
 ### To Update ({N} items)
 
@@ -257,6 +259,9 @@ story's references resolve before it is written to Jira:
 |----------|------------|--------------|
 | {jira_key} | `{file}` | Content changed |
 | {jira_key} | `{file}` | Reopened (closed → open), Content changed |
+
+For items with `category: "reopened"`, prefix with "Reopened (closed →
+open)" so the status transition is visible.
 
 ### To Close ({N} items)
 
@@ -527,17 +532,18 @@ options as in Step 5a (skip and record, create anyway, or stop).
 Wait for the user's choice before continuing.
 
 **Reference-availability guard.** Before preparing any story that has
-Dependencies or (for `[DOCS]` stories) Contributing stories, verify
-that every referenced story has a Jira key in the manifest. Required
-keys may come from the manifest (already synced), from a story
-created earlier in this invocation's ordered list, or from a matched
-existing issue recorded via the duplicate check. If any required key
-is still missing (prerequisite creation failed or was skipped),
-**skip** this story — do not call `prepare`, do not create the Jira
-issue, do not record a manifest checkpoint. Record the story file,
-missing keys, and reason for the Step 8 report. Continue with the
-next story in the ordered list. Blocked stories remain eligible for
-the next explicit `/sync` invocation.
+Dependencies or (for `[DOCS]` stories) Contributing stories, reload
+the current manifest and verify that every referenced story has a Jira
+key. Keys may come from already-synced entries, from a story
+created earlier in this invocation's ordered list (recorded
+immediately after creation), or from a matched existing issue
+recorded via the duplicate check. If any required key is still
+missing (prerequisite creation failed or was skipped), **skip** this
+story — do not call `prepare`, do not create the Jira issue, do not
+record a manifest checkpoint. Record the story file, missing keys,
+and reason for the Step 8 report. Continue with the next story in
+the ordered list. Blocked stories remain eligible for the next
+explicit `/sync` invocation.
 
 For each new story (non-blocked), prepare the hash and description
 using the story `prepare` recipe from the helper reference. `PREP`

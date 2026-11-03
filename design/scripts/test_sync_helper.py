@@ -5093,277 +5093,233 @@ class TestInstructionContracts(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class TestPlanCreationOrder(_TmpDirMixin, unittest.TestCase):
-    """Tests for plan_creation_order: dependency-first topological sort,
-    cycle detection, missing targets, key reuse, and deterministic order."""
+    """Tests for plan_creation_order using actual fixture file identities.
 
-    def _setup_feature(self, stories_spec):
-        """Create epics/stories from a spec list of (epic_idx, story_idx,
-        slug, type, deps_text, contrib_text, removed)."""
-        stories_dir = Path(self.tmpdir) / "06-stories"
-        stories_dir.mkdir(exist_ok=True)
-        for eidx, sidx, slug, stype, deps, contrib, removed in stories_spec:
-            _make_epic(stories_dir, eidx, f"epic{eidx}")
+    Helper-level tests verify the planner's dependency graph, topological
+    sort, cycle/missing-target detection, and key reuse. Instruction
+    contracts verify sync.md consumer references. NOT live Jira/LLM E2E."""
+
+    def _setup(self, specs):
+        """Create artifacts. specs: [(epic, story, slug, type, deps, contrib, removed)]."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        paths = {}
+        for eidx, sidx, slug, stype, deps, contrib, removed in specs:
+            _make_epic(sd, eidx, f"epic{eidx}")
             if stype == "DOCS":
-                _make_docs_story(
-                    stories_dir, eidx, sidx, slug,
+                p = _make_docs_story(sd, eidx, sidx, slug,
                     title=f"{slug} docs", deps=deps,
-                    contributing_stories=contrib or "None",
-                    removed=removed)
+                    contributing_stories=contrib or "None", removed=removed)
             else:
-                _make_dev_story(
-                    stories_dir, eidx, sidx, slug,
+                p = _make_dev_story(sd, eidx, sidx, slug,
                     title=slug, deps=deps, removed=removed)
-        return stories_dir
+            paths[(eidx, sidx)] = p
+        return sd, paths
 
-    def test_linear_chain_ordered_correctly(self) -> None:
-        """A→B→C: C depends on B, B depends on A."""
-        self._setup_feature([
-            (1, 1, "a", "DEV", "None", None, False),
-            (1, 2, "b", "DEV", "Story 1.01", None, False),
-            (1, 3, "c", "DEV", "Story 1.02", None, False),
-        ])
-        items = [
-            {"type": "story", "category": "new", "epic_index": 1,
-             "story_index": i, "jira_key": None, "file": f"epic-1/story-0{i}-x.md"}
-            for i in [1, 2, 3]
-        ]
-        result = sync_helper.plan_creation_order(
-            items, self.tmpdir, None)
-        ordered_ids = [
-            f"story-{it['epic_index']}.{it['story_index']:02d}"
-            for it in result["ordered"]]
-        self.assertEqual(ordered_ids, ["story-1.01", "story-1.02", "story-1.03"])
-        self.assertEqual(len(result["errors"]), 0)
-        self.assertEqual(len(result["blocked"]), 0)
+    def _item(self, eidx, sidx, slug, cat="new", key=None, title=""):
+        return {"type": "story", "category": cat,
+                "epic_index": eidx, "story_index": sidx,
+                "jira_key": key, "title": title,
+                "file": f"epic-{eidx}/story-{sidx:02d}-{slug}.md"}
 
-    def test_cross_epic_prerequisite(self) -> None:
-        """Story 2.01 depends on Story 1.01 (different epics)."""
-        self._setup_feature([
-            (1, 1, "api", "DEV", "None", None, False),
-            (2, 1, "client", "DEV", "Story 1.01", None, False),
-        ])
-        items = [
-            {"type": "story", "category": "new", "epic_index": 1,
-             "story_index": 1, "jira_key": None, "file": "epic-1/story-01-api.md"},
-            {"type": "story", "category": "new", "epic_index": 2,
-             "story_index": 1, "jira_key": None, "file": "epic-2/story-01-client.md"},
-        ]
-        result = sync_helper.plan_creation_order(
-            items, self.tmpdir, None)
-        ordered_ids = [
-            f"story-{it['epic_index']}.{it['story_index']:02d}"
-            for it in result["ordered"]]
-        self.assertEqual(ordered_ids[0], "story-1.01",
-                         "Prerequisite must come first")
-        self.assertEqual(ordered_ids[1], "story-2.01")
-        self.assertEqual(len(result["errors"]), 0)
+    def _qids(self, result):
+        return [f"story-{it['epic_index']}.{it['story_index']:02d}"
+                for it in result["ordered"]]
 
-    def test_existing_key_satisfies_dependency(self) -> None:
-        """Story 1.01 already synced (has key); Story 1.02 depends on it."""
-        self._setup_feature([
-            (1, 1, "api", "DEV", "None", None, False),
-            (1, 2, "client", "DEV", "Story 1.01", None, False),
-        ])
+    # ── Core ordering ──────────────────────────────────────────
+
+    def test_linear_chain(self) -> None:
+        """A→B→C multi-hop: C after B after A."""
+        self._setup([(1,1,"a","DEV","None",None,False),
+                     (1,2,"b","DEV","Story 1.01",None,False),
+                     (1,3,"c","DEV","Story 1.02",None,False)])
+        items = [self._item(1,i,["a","b","c"][i-1]) for i in [1,2,3]]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, None)
+        self.assertEqual(self._qids(r),
+                         ["story-1.01","story-1.02","story-1.03"])
+        self.assertEqual(r["errors"], [])
+        self.assertEqual(r["blocked"], [])
+
+    def test_reversed_cross_epic(self) -> None:
+        """Story 1.01 depends on Story 2.01 (numerically earlier epic
+        needs later epic's story — must still sort correctly)."""
+        self._setup([(1,1,"client","DEV","Story 2.01",None,False),
+                     (2,1,"api","DEV","None",None,False)])
+        items = [self._item(1,1,"client"), self._item(2,1,"api")]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, None)
+        self.assertEqual(self._qids(r), ["story-2.01","story-1.01"])
+        self.assertEqual(r["errors"], [])
+
+    def test_existing_key_satisfies(self) -> None:
+        """Already-synced story satisfies dependency without recreation."""
+        self._setup([(1,1,"api","DEV","None",None,False),
+                     (1,2,"client","DEV","Story 1.01",None,False)])
         manifest = {"epics": [{"file": "epic-1-epic1.md", "jira_key": "T-100",
-                    "stories": [{"file": "story-01-api.md",
-                                 "jira_key": "T-101"}]}]}
-        items = [
-            {"type": "story", "category": "unchanged", "epic_index": 1,
-             "story_index": 1, "jira_key": "T-101",
-             "file": "epic-1/story-01-api.md"},
-            {"type": "story", "category": "new", "epic_index": 1,
-             "story_index": 2, "jira_key": None,
-             "file": "epic-1/story-02-client.md"},
-        ]
-        result = sync_helper.plan_creation_order(
-            items, self.tmpdir, manifest)
-        # Only story-02 needs creation; story-01 already has key
-        self.assertEqual(len(result["ordered"]), 1)
-        self.assertEqual(result["ordered"][0]["story_index"], 2)
-        self.assertEqual(len(result["errors"]), 0)
-        self.assertIn("story-1.01", result["satisfied_keys"])
+                    "stories": [{"file": "story-01-api.md","jira_key":"T-101"}]}]}
+        items = [self._item(1,1,"api","unchanged","T-101"),
+                 self._item(1,2,"client")]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, manifest)
+        self.assertEqual(len(r["ordered"]), 1)
+        self.assertEqual(r["ordered"][0]["story_index"], 2)
+        self.assertIn("story-1.01", r["satisfied_keys"])
 
-    def test_cycle_detected(self) -> None:
-        """Story 1.01 depends on 1.02, 1.02 depends on 1.01 → cycle."""
-        self._setup_feature([
-            (1, 1, "a", "DEV", "Story 1.02", None, False),
-            (1, 2, "b", "DEV", "Story 1.01", None, False),
-        ])
-        items = [
-            {"type": "story", "category": "new", "epic_index": 1,
-             "story_index": i, "jira_key": None,
-             "file": f"epic-1/story-0{i}-x.md"}
-            for i in [1, 2]
-        ]
-        result = sync_helper.plan_creation_order(
-            items, self.tmpdir, None)
-        self.assertGreater(len(result["errors"]), 0,
-                           "Must report cycle")
-        self.assertTrue(
-            any("cycle" in e.lower() for e in result["errors"]))
-        self.assertEqual(len(result["ordered"]), 0,
-                         "Cycle participants must not be in ordered list")
-        self.assertGreater(len(result["blocked"]), 0)
+    # ── DOCS Contributing-only ordering ────────────────────────
 
-    def test_missing_target_reported(self) -> None:
-        """Story 1.01 depends on nonexistent Story 3.99."""
-        self._setup_feature([
-            (1, 1, "a", "DEV", "Story 3.99", None, False),
-        ])
-        items = [
-            {"type": "story", "category": "new", "epic_index": 1,
-             "story_index": 1, "jira_key": None,
-             "file": "epic-1/story-01-a.md"},
-        ]
-        result = sync_helper.plan_creation_order(
-            items, self.tmpdir, None)
-        self.assertGreater(len(result["errors"]), 0,
-                           "Must report missing target")
-        self.assertTrue(
-            any("3.99" in e for e in result["errors"]))
+    def test_docs_contrib_ordering_not_jira_dep(self) -> None:
+        """DOCS Contributing stories affect ORDER but do NOT appear in
+        the Dependencies section of the DOCS PREP output."""
+        self._setup([(1,1,"api","DEV","None",None,False),
+                     (1,2,"docs","DOCS","None","Story 1.01",False)])
+        items = [self._item(1,1,"api"),
+                 self._item(1,2,"docs",title="[DOCS] docs docs")]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, None)
+        self.assertEqual(self._qids(r)[0], "story-1.01",
+                         "Contributor must be created first")
+        # Verify PREP.dependencies stays "None" (no contrib dep)
+        docs_path = Path(self.tmpdir) / "06-stories/epic-1/story-02-docs.md"
+        prep = sync_helper.prepare(
+            str(docs_path), str(Path(self.tmpdir) / "sync-manifest.json"),
+            "story", story_type="DOCS")
+        self.assertNotIn("T-", prep.get("dependencies", ""),
+                         "Contributing stories must not create Jira dep links")
 
-    def test_no_dependencies_stable_order(self) -> None:
-        """Stories with no deps maintain deterministic order."""
-        self._setup_feature([
-            (1, 1, "a", "DEV", "None", None, False),
-            (1, 2, "b", "DEV", "None", None, False),
-            (2, 1, "c", "DEV", "None", None, False),
-        ])
-        items = [
-            {"type": "story", "category": "new", "epic_index": e,
-             "story_index": s, "jira_key": None,
-             "file": f"epic-{e}/story-0{s}-x.md"}
-            for e, s in [(1, 1), (1, 2), (2, 1)]
-        ]
-        result = sync_helper.plan_creation_order(
-            items, self.tmpdir, None)
-        self.assertEqual(len(result["ordered"]), 3)
-        # Run twice to verify deterministic
-        result2 = sync_helper.plan_creation_order(
-            items, self.tmpdir, None)
-        ids1 = [(it["epic_index"], it["story_index"]) for it in result["ordered"]]
-        ids2 = [(it["epic_index"], it["story_index"]) for it in result2["ordered"]]
-        self.assertEqual(ids1, ids2, "Order must be deterministic")
+    # ── Cycle detection ────────────────────────────────────────
 
-    def test_docs_contributing_stories_ordering(self) -> None:
-        """DOCS contributing stories affect creation order without
-        creating Jira dependency links."""
-        self._setup_feature([
-            (1, 1, "api", "DEV", "None", None, False),
-            (1, 2, "docs", "DOCS", "None", "Story 1.01", False),
-        ])
-        items = [
-            {"type": "story", "category": "new", "epic_index": 1,
-             "story_index": 1, "jira_key": None,
-             "file": "epic-1/story-01-api.md"},
-            {"type": "story", "category": "new", "epic_index": 1,
-             "story_index": 2, "jira_key": None,
-             "file": "epic-1/story-02-docs.md"},
-        ]
-        result = sync_helper.plan_creation_order(
-            items, self.tmpdir, None)
-        ordered_ids = [
-            f"story-{it['epic_index']}.{it['story_index']:02d}"
-            for it in result["ordered"]]
-        self.assertEqual(ordered_ids[0], "story-1.01",
-                         "Contributing story must be created first")
+    def test_self_cycle(self) -> None:
+        """Story depends on itself → cycle."""
+        self._setup([(1,1,"a","DEV","Story 1.01",None,False)])
+        items = [self._item(1,1,"a")]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, None)
+        self.assertTrue(any("cycle" in e.lower() for e in r["errors"]))
+        self.assertEqual(len(r["ordered"]), 0)
 
-    def test_changed_docs_with_missing_new_dep(self) -> None:
-        """Changed DOCS story references a new story that failed creation."""
-        self._setup_feature([
-            (1, 1, "api", "DEV", "None", None, False),
-            (1, 2, "docs", "DOCS", "Story 1.01, Story 1.03",
-             "Story 1.01, Story 1.03", False),
-            (1, 3, "webhook", "DEV", "None", None, False),
-        ])
-        manifest = {"epics": [{"file": "epic-1-epic1.md", "jira_key": "T-100",
-                    "stories": [
-                        {"file": "story-01-api.md", "jira_key": "T-101"},
-                        {"file": "story-02-docs.md", "jira_key": "T-102",
-                         "content_hash": "old", "synced_status": "active"},
-                    ]}]}
-        items = [
-            {"type": "story", "category": "unchanged", "epic_index": 1,
-             "story_index": 1, "jira_key": "T-101",
-             "file": "epic-1/story-01-api.md"},
-            {"type": "story", "category": "changed", "epic_index": 1,
-             "story_index": 2, "jira_key": "T-102",
-             "file": "epic-1/story-02-docs.md"},
-            {"type": "story", "category": "new", "epic_index": 1,
-             "story_index": 3, "jira_key": None,
-             "file": "epic-1/story-03-webhook.md"},
-        ]
-        result = sync_helper.plan_creation_order(
-            items, self.tmpdir, manifest)
-        # story-03 is new and needs creation
-        self.assertEqual(len(result["ordered"]), 1)
-        self.assertEqual(result["ordered"][0]["story_index"], 3)
-        # story-02 (changed) needs story-03's key but it's not created yet
-        # This is reported in blocked_updates
-        blocked_files = [b["item"]["file"] for b in result["blocked"]
-                         if b["item"].get("category") == "changed"]
-        # After story-03 is created, story-02 should be updatable
-        # (the guard at 6b checks at runtime)
+    def test_two_node_cycle(self) -> None:
+        """A↔B mutual dependency → cycle, both blocked."""
+        self._setup([(1,1,"a","DEV","Story 1.02",None,False),
+                     (1,2,"b","DEV","Story 1.01",None,False)])
+        items = [self._item(1,1,"a"), self._item(1,2,"b")]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, None)
+        self.assertTrue(any("cycle" in e.lower() for e in r["errors"]))
+        self.assertEqual(len(r["blocked"]), 2)
 
-    def test_mapped_key_not_cycled(self) -> None:
-        """An already-mapped key does not create a cycle even if the
-        stories reference each other."""
-        self._setup_feature([
-            (1, 1, "a", "DEV", "Story 1.02", None, False),
-            (1, 2, "b", "DEV", "Story 1.01", None, False),
-        ])
-        manifest = {"epics": [{"file": "epic-1-epic1.md", "jira_key": "T-100",
-                    "stories": [
-                        {"file": "story-01-a.md", "jira_key": "T-101"},
-                        {"file": "story-02-b.md", "jira_key": "T-102"},
-                    ]}]}
-        items = [
-            {"type": "story", "category": "unchanged", "epic_index": 1,
-             "story_index": 1, "jira_key": "T-101",
-             "file": "epic-1/story-01-a.md"},
-            {"type": "story", "category": "unchanged", "epic_index": 1,
-             "story_index": 2, "jira_key": "T-102",
-             "file": "epic-1/story-02-b.md"},
-        ]
-        result = sync_helper.plan_creation_order(
-            items, self.tmpdir, manifest)
-        # Both already have keys — no creation needed, no cycle
-        self.assertEqual(len(result["ordered"]), 0)
-        self.assertEqual(len(result["errors"]), 0)
-        self.assertIn("story-1.01", result["satisfied_keys"])
-        self.assertIn("story-1.02", result["satisfied_keys"])
+    def test_cycle_downstream_distinction(self) -> None:
+        """A↔B cycle blocks downstream C; C is not a cycle participant."""
+        self._setup([(1,1,"a","DEV","Story 1.02",None,False),
+                     (1,2,"b","DEV","Story 1.01",None,False),
+                     (1,3,"c","DEV","Story 1.01",None,False)])
+        items = [self._item(1,i,["a","b","c"][i-1]) for i in [1,2,3]]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, None)
+        cycle_errors = [e for e in r["errors"] if "cycle" in e.lower()]
+        downstream_errors = [e for e in r["errors"] if "blocked" in e.lower()]
+        self.assertGreater(len(cycle_errors), 0)
+        self.assertGreater(len(downstream_errors), 0)
+        # C should be in downstream, not cycle
+        self.assertTrue(any("story-1.03" in e for e in downstream_errors))
 
-    def test_multi_ref_list_parsed(self) -> None:
-        """Dependencies with multiple refs like 'Story 1.01, Story 2.01'."""
-        self._setup_feature([
-            (1, 1, "a", "DEV", "None", None, False),
-            (2, 1, "b", "DEV", "None", None, False),
-            (2, 2, "c", "DEV", "Story 1.01, Story 2.01", None, False),
-        ])
-        items = [
-            {"type": "story", "category": "new", "epic_index": e,
-             "story_index": s, "jira_key": None,
-             "file": f"epic-{e}/story-0{s}-x.md"}
-            for e, s in [(1, 1), (2, 1), (2, 2)]
-        ]
-        result = sync_helper.plan_creation_order(
-            items, self.tmpdir, None)
-        ordered_ids = [
-            f"story-{it['epic_index']}.{it['story_index']:02d}"
-            for it in result["ordered"]]
-        # story-2.02 must come after both 1.01 and 2.01
-        idx_c = ordered_ids.index("story-2.02")
-        idx_a = ordered_ids.index("story-1.01")
-        idx_b = ordered_ids.index("story-2.01")
-        self.assertGreater(idx_c, idx_a)
-        self.assertGreater(idx_c, idx_b)
+    def test_mapped_key_no_false_cycle(self) -> None:
+        """Mutual refs between already-keyed stories → no cycle."""
+        self._setup([(1,1,"a","DEV","Story 1.02",None,False),
+                     (1,2,"b","DEV","Story 1.01",None,False)])
+        manifest = {"epics": [{"file":"epic-1-epic1.md","jira_key":"T-100",
+                    "stories":[{"file":"story-01-a.md","jira_key":"T-101"},
+                               {"file":"story-02-b.md","jira_key":"T-102"}]}]}
+        items = [self._item(1,1,"a","unchanged","T-101"),
+                 self._item(1,2,"b","unchanged","T-102")]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, manifest)
+        self.assertEqual(r["errors"], [])
+        self.assertEqual(len(r["ordered"]), 0)
 
-    def test_cli_plan_creation_order(self) -> None:
-        """CLI subcommand produces valid JSON output."""
-        self._setup_feature([
-            (1, 1, "a", "DEV", "None", None, False),
-            (1, 2, "b", "DEV", "Story 1.01", None, False),
-        ])
+    # ── Missing/unavailable targets ────────────────────────────
+
+    def test_missing_nonexistent_target(self) -> None:
+        """Dependency on nonexistent Story 9.99 → error."""
+        self._setup([(1,1,"a","DEV","Story 9.99",None,False)])
+        items = [self._item(1,1,"a")]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, None)
+        self.assertTrue(any("9.99" in e for e in r["errors"]))
+
+    def test_removed_no_key_target_unavailable(self) -> None:
+        """Dependency on a removed story with no manifest key → error."""
+        self._setup([(1,1,"a","DEV","Story 1.02",None,False),
+                     (1,2,"old","DEV","None",None,True)])
+        items = [self._item(1,1,"a"),
+                 {"type":"story","category":"removed","epic_index":1,
+                  "story_index":2,"jira_key":None,
+                  "file":"epic-1/story-02-old.md","title":"old"}]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, None)
+        self.assertTrue(any("no usable" in e.lower() for e in r["errors"]))
+
+    # ── Changed/reopened write checks ──────────────────────────
+
+    def test_changed_docs_satisfiable_by_creation_plan(self) -> None:
+        """Changed DOCS references new story-03 that IS in creation plan
+        → not blocked at plan time (runtime guard checks after creation)."""
+        self._setup([(1,1,"api","DEV","None",None,False),
+                     (1,2,"docs","DOCS","Story 1.03","Story 1.03",False),
+                     (1,3,"wh","DEV","None",None,False)])
+        manifest = {"epics":[{"file":"epic-1-epic1.md","jira_key":"T-100",
+                    "stories":[{"file":"story-01-api.md","jira_key":"T-101"},
+                               {"file":"story-02-docs.md","jira_key":"T-102",
+                                "content_hash":"old","synced_status":"active"}]}]}
+        items = [self._item(1,1,"api","unchanged","T-101"),
+                 self._item(1,2,"docs","changed","T-102",
+                            title="[DOCS] docs docs"),
+                 self._item(1,3,"wh")]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, manifest)
+        # story-03 in creation plan satisfies the changed DOCS ref
+        self.assertEqual(len(r["ordered"]), 1)
+        self.assertEqual(r["ordered"][0]["story_index"], 3)
+        self.assertEqual(len(r["blocked"]), 0)
+
+    def test_changed_docs_blocked_unsatisfiable_ref(self) -> None:
+        """Changed DOCS references a story that has no key and is NOT
+        in the creation plan → blocked."""
+        self._setup([(1,1,"api","DEV","None",None,False),
+                     (1,2,"docs","DOCS","Story 1.03","Story 1.03",False)])
+        # story-03 doesn't exist at all
+        manifest = {"epics":[{"file":"epic-1-epic1.md","jira_key":"T-100",
+                    "stories":[{"file":"story-01-api.md","jira_key":"T-101"},
+                               {"file":"story-02-docs.md","jira_key":"T-102",
+                                "content_hash":"old","synced_status":"active"}]}]}
+        items = [self._item(1,1,"api","unchanged","T-101"),
+                 self._item(1,2,"docs","changed","T-102",
+                            title="[DOCS] docs docs")]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, manifest)
+        blocked_changed = [b for b in r["blocked"]
+                           if b["item"].get("category") == "changed"]
+        self.assertGreater(len(blocked_changed), 0,
+                           "Changed DOCS with unsatisfiable ref must be blocked")
+
+    # ── Multi-ref and deterministic ────────────────────────────
+
+    def test_multi_ref_list(self) -> None:
+        """'Story 1.01, Story 2.01' both prerequisites for 2.02."""
+        self._setup([(1,1,"a","DEV","None",None,False),
+                     (2,1,"b","DEV","None",None,False),
+                     (2,2,"c","DEV","Story 1.01, Story 2.01",None,False)])
+        items = [self._item(1,1,"a"), self._item(2,1,"b"),
+                 self._item(2,2,"c")]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, None)
+        ids = self._qids(r)
+        self.assertGreater(ids.index("story-2.02"), ids.index("story-1.01"))
+        self.assertGreater(ids.index("story-2.02"), ids.index("story-2.01"))
+
+    def test_deterministic_shuffled_input(self) -> None:
+        """Same result regardless of input item order."""
+        self._setup([(1,1,"a","DEV","None",None,False),
+                     (1,2,"b","DEV","None",None,False),
+                     (2,1,"c","DEV","None",None,False)])
+        items_fwd = [self._item(1,1,"a"),self._item(1,2,"b"),self._item(2,1,"c")]
+        items_rev = list(reversed(items_fwd))
+        r1 = sync_helper.plan_creation_order(items_fwd, self.tmpdir, None)
+        r2 = sync_helper.plan_creation_order(items_rev, self.tmpdir, None)
+        self.assertEqual(self._qids(r1), self._qids(r2))
+
+    # ── CLI ────────────────────────────────────────────────────
+
+    def test_cli_success(self) -> None:
+        """CLI plan-creation-order returns JSON with expected keys."""
+        self._setup([(1,1,"a","DEV","None",None,False)])
         import subprocess
         r = subprocess.run(
             [sys.executable, "-I",
@@ -5371,46 +5327,39 @@ class TestPlanCreationOrder(_TmpDirMixin, unittest.TestCase):
              "plan-creation-order", self.tmpdir],
             capture_output=True, text=True, timeout=10)
         self.assertEqual(r.returncode, 0)
-        output = json.loads(r.stdout)
-        self.assertIn("ordered", output)
-        self.assertIn("errors", output)
-        self.assertIn("blocked", output)
+        out = json.loads(r.stdout)
+        for k in ("ordered", "errors", "blocked", "satisfied_keys"):
+            self.assertIn(k, out)
 
-    # -- Instruction contracts --
+    # ── Instruction contracts ──────────────────────────────────
 
-    def test_sync_step3_calls_plan(self) -> None:
-        """sync.md Step 3 calls plan-creation-order."""
+    def test_sync_step3_calls_plan_and_preflight(self) -> None:
         sync_path = Path(__file__).resolve().parent.parent / "skills" / "sync.md"
-        content = sync_path.read_text(encoding="utf-8")
-        step3_start = content.find("### Step 3:")
-        step4_start = content.find("### Step 4:")
-        self.assertGreaterEqual(step3_start, 0)
-        self.assertGreater(step4_start, step3_start)
-        step3 = content[step3_start:step4_start]
+        c = sync_path.read_text(encoding="utf-8")
+        s3 = c.find("### Step 3:"); s4 = c.find("### Step 4:")
+        self.assertGreaterEqual(s3, 0); self.assertGreater(s4, s3)
+        step3 = c[s3:s4]
         self.assertIn("plan-creation-order", step3)
         self.assertIn("Preflight check", step3)
-
-    def test_sync_step6a_uses_planned_order(self) -> None:
-        """sync.md Step 6a creates stories in planned order, not per-epic."""
-        sync_path = Path(__file__).resolve().parent.parent / "skills" / "sync.md"
-        content = sync_path.read_text(encoding="utf-8")
-        step6a_start = content.find("#### 6a:")
-        step6b_start = content.find("#### 6b:")
-        self.assertGreaterEqual(step6a_start, 0)
-        self.assertGreater(step6b_start, step6a_start)
-        section = " ".join(content[step6a_start:step6b_start].split())
-        self.assertIn("list from the Step 3 creation plan", section)
-        self.assertIn("Reference-availability guard", section)
+        self.assertIn("stop", step3.lower())
 
     def test_sync_preflight_before_epic_writes(self) -> None:
-        """Preflight check in Step 3 occurs before Step 5 epic writes."""
-        sync_path = Path(__file__).resolve().parent.parent / "skills" / "sync.md"
-        content = sync_path.read_text(encoding="utf-8")
-        preflight = content.find("Preflight check")
-        step5 = content.find("### Step 5:")
-        self.assertGreaterEqual(preflight, 0, "Preflight must exist")
-        self.assertGreater(step5, preflight,
-                           "Preflight must precede epic writes")
+        c = Path(__file__).resolve().parent.parent / "skills" / "sync.md"
+        content = c.read_text(encoding="utf-8")
+        pf = content.find("Preflight check")
+        s5 = content.find("### Step 5:")
+        self.assertGreaterEqual(pf, 0)
+        self.assertGreater(s5, pf)
+
+    def test_sync_6a_uses_planned_order(self) -> None:
+        c = Path(__file__).resolve().parent.parent / "skills" / "sync.md"
+        content = c.read_text(encoding="utf-8")
+        s6a = content.find("#### 6a:"); s6b = content.find("#### 6b:")
+        self.assertGreaterEqual(s6a, 0); self.assertGreater(s6b, s6a)
+        section = " ".join(content[s6a:s6b].split())
+        self.assertIn("Step 3 creation plan", section)
+        self.assertIn("Reference-availability guard", section)
+        self.assertIn("reload the current manifest", section)
 
 
 if __name__ == "__main__":
