@@ -883,6 +883,25 @@ def _extract_story_refs(text: str) -> list[str]:
     return refs
 
 
+def _extract_epic_refs(text: str) -> list[str]:
+    """Extract epic index references (e.g. '1', '2') from text.
+
+    Matches the same ``Epic N`` / ``Epics N, M`` syntax used by
+    ``resolve_refs``.  Returns integer strings like ``['1', '2']``.
+    """
+    refs: list[str] = []
+    for m in _EPIC_REF_RE.finditer(text):
+        for part in m.group(1).split(","):
+            part = part.strip()
+            if part:
+                refs.append(part)
+    return refs
+
+
+# Pattern: native Jira issue keys (e.g. "PROJ-123", "EDM-456")
+_JIRA_KEY_RE = re.compile(r"\b([A-Z][A-Z0-9]+-\d+)\b")
+
+
 def plan_creation_order(
     items: list[dict[str, Any]],
     artifacts_dir: str | Path,
@@ -943,29 +962,52 @@ def plan_creation_order(
 
     # ── Extract required refs from a story artifact ─────────────
     errors: list[str] = []
+    # Track stories with unreadable/missing source files
+    unreadable_sources: set[str] = set()
 
     def _get_required_refs(
         item: dict[str, Any], qid: str,
     ) -> list[str]:
-        """Return qualified story ref strings from Dependencies and
-        (for DOCS stories only) Contributing stories."""
+        """Return qualified ref strings from Dependencies and
+        (for DOCS stories only) Contributing stories.
+
+        Returned IDs are qualified: ``story-N.NN`` for story refs,
+        ``epic-N`` for epic refs.  Native Jira keys (e.g. ``PROJ-123``)
+        found in the text are recorded in ``available`` as
+        self-satisfied external references and are NOT returned (they
+        need no local creation or manifest lookup).
+
+        On file-not-found or read errors, records the qid in
+        ``unreadable_sources`` so the caller can fail closed.
+        """
         path = _find_story_path(item)
         if path is None:
             errors.append(
                 f"{qid}: artifact file not found at "
                 f"{stories_dir / item.get('file', '?')}")
+            unreadable_sources.add(qid)
             return []
         try:
             content = path.read_text(encoding="utf-8")
         except OSError as exc:
             errors.append(f"{qid}: cannot read artifact: {exc}")
+            unreadable_sources.add(qid)
             return []
         sections = _extract_sections_from_text(content)
         refs: list[str] = []
 
         deps_text = sections.get("Dependencies", "")
         if deps_text:
-            refs.extend(_extract_story_refs(deps_text))
+            # Story refs: "Story 1.01" → "story-1.01"
+            for sref in _extract_story_refs(deps_text):
+                refs.append(f"story-{sref}")
+            # Epic refs: "Epic 1" → "epic-1"
+            for eref in _extract_epic_refs(deps_text):
+                refs.append(f"epic-{eref}")
+            # Native Jira keys: "PROJ-123" → mark as available
+            for jm in _JIRA_KEY_RE.finditer(deps_text):
+                jkey = jm.group(1)
+                available.setdefault(jkey, jkey)
 
         # Detect story type for Contributing-stories extraction
         title = item.get("title", "")
@@ -977,7 +1019,10 @@ def plan_creation_order(
                 stripped = line.strip()
                 if stripped.startswith("Contributing stories:"):
                     contrib_text = stripped.split(":", 1)[1]
-                    refs.extend(_extract_story_refs(contrib_text))
+                    for sref in _extract_story_refs(contrib_text):
+                        refs.append(f"story-{sref}")
+                    for eref in _extract_epic_refs(contrib_text):
+                        refs.append(f"epic-{eref}")
         return refs
 
     # ── Classify stories ────────────────────────────────────────
@@ -992,28 +1037,69 @@ def plan_creation_order(
         if cat in ("changed", "reopened"):
             needs_write[qid] = item
 
+    # ── Index epic items for epic-ref availability ───────────────
+    epic_items_by_idx: dict[int, dict[str, Any]] = {}
+    for item in items:
+        if item.get("type") == "epic":
+            eidx = item.get("epic_index")
+            if eidx is not None:
+                epic_items_by_idx[eidx] = item
+
     # ── Build dependency graph ──────────────────────────────────
     deps_graph: dict[str, list[str]] = {}
+    # Track stories with hard-unavailable refs (must be excluded)
+    has_unavailable_ref: set[str] = set()
 
     for qid, item in needs_creation.items():
         raw_refs = _get_required_refs(item, qid)
         unsatisfied: list[str] = []
-        for ref in raw_refs:
-            ref_qid = f"story-{ref}"
-            if ref_qid not in available and ref_qid not in needs_creation:
-                # Target exists but has no usable key and won't be created
-                if ref_qid in item_by_id:
+        for ref_qid in raw_refs:
+            if ref_qid in available:
+                continue  # Already satisfied
+            if ref_qid.startswith("story-"):
+                if ref_qid in needs_creation:
+                    unsatisfied.append(ref_qid)
+                elif ref_qid in item_by_id:
                     cat = item_by_id[ref_qid].get("category", "")
-                    if cat in ("removed", "unchanged") and ref_qid not in available:
-                        errors.append(
-                            f"{qid} requires {ref_qid} which has no "
-                            f"usable Jira key (category: {cat})")
+                    errors.append(
+                        f"{qid} requires {ref_qid} which has no "
+                        f"usable Jira key (category: {cat})")
+                    has_unavailable_ref.add(qid)
                 else:
                     errors.append(
                         f"{qid} requires {ref_qid} which does not "
                         f"exist in artifacts or manifest")
-            if ref_qid not in available:
-                unsatisfied.append(ref_qid)
+                    has_unavailable_ref.add(qid)
+            elif ref_qid.startswith("epic-"):
+                # Epic ref: check if this epic index has a mapped key
+                # or is a new epic that will be created in Step 5
+                epic_idx_str = ref_qid.split("-", 1)[1]
+                try:
+                    epic_idx = int(epic_idx_str)
+                except ValueError:
+                    errors.append(
+                        f"{qid} references invalid epic: {ref_qid}")
+                    has_unavailable_ref.add(qid)
+                    continue
+                epic_item = epic_items_by_idx.get(epic_idx)
+                if epic_item is not None:
+                    ecat = epic_item.get("category", "")
+                    if ecat == "new":
+                        # Will be created in Step 5; treat as planned
+                        pass
+                    elif epic_item.get("jira_key"):
+                        available[ref_qid] = epic_item["jira_key"]
+                    else:
+                        errors.append(
+                            f"{qid} requires {ref_qid} which has no "
+                            f"usable Jira key (category: {ecat})")
+                        has_unavailable_ref.add(qid)
+                elif ref_qid not in available:
+                    errors.append(
+                        f"{qid} requires {ref_qid} which does not "
+                        f"exist in artifacts or manifest")
+                    has_unavailable_ref.add(qid)
+            # else: native Jira key already handled in _get_required_refs
         deps_graph[qid] = unsatisfied
 
     # Check changed/reopened stories for unavailable refs
@@ -1021,23 +1107,62 @@ def plan_creation_order(
     for qid, item in needs_write.items():
         raw_refs = _get_required_refs(item, qid)
         missing: list[str] = []
-        for ref in raw_refs:
-            ref_qid = f"story-{ref}"
-            if (ref_qid not in available
-                    and ref_qid not in needs_creation):
-                missing.append(ref_qid)
+        for ref_qid in raw_refs:
+            if ref_qid in available:
+                continue
+            if ref_qid.startswith("story-"):
+                if ref_qid not in needs_creation:
+                    missing.append(ref_qid)
+            elif ref_qid.startswith("epic-"):
+                epic_idx_str = ref_qid.split("-", 1)[1]
+                try:
+                    epic_idx = int(epic_idx_str)
+                except ValueError:
+                    missing.append(ref_qid)
+                    continue
+                epic_item = epic_items_by_idx.get(epic_idx)
+                if epic_item is None or (
+                        epic_item.get("category") != "new"
+                        and not epic_item.get("jira_key")):
+                    missing.append(ref_qid)
         if missing:
             blocked_writes.append({
                 "item": item, "missing": missing,
                 "reason": "required reference has no usable key "
                           "and is not in the approved creation plan"})
 
+    # ── Exclude stories with unavailable refs and their dependents ─
+    # Stories with hard-unavailable refs or unreadable sources cannot
+    # proceed; transitively block any story that depends on them.
+    preflight_blocked: set[str] = set(has_unavailable_ref) | unreadable_sources
+    if preflight_blocked:
+        # Build forward adjacency from needs_creation deps_graph
+        fwd: dict[str, list[str]] = {qid: [] for qid in needs_creation}
+        for qid, dep_list in deps_graph.items():
+            for dep_qid in dep_list:
+                if dep_qid in needs_creation:
+                    fwd[dep_qid].append(qid)
+        # BFS from preflight_blocked to find all transitively blocked
+        expand_queue = sorted(preflight_blocked)
+        while expand_queue:
+            node = expand_queue.pop(0)
+            for dependent in fwd.get(node, []):
+                if dependent not in preflight_blocked:
+                    preflight_blocked.add(dependent)
+                    expand_queue.append(dependent)
+
+    # Eligible set for topological sort: needs_creation minus blocked
+    eligible: dict[str, dict[str, Any]] = {
+        qid: item for qid, item in needs_creation.items()
+        if qid not in preflight_blocked
+    }
+
     # ── Topological sort (Kahn's algorithm) ─────────────────────
-    in_degree: dict[str, int] = {qid: 0 for qid in needs_creation}
-    adj: dict[str, list[str]] = {qid: [] for qid in needs_creation}
-    for qid, dep_list in deps_graph.items():
-        for dep_qid in dep_list:
-            if dep_qid in needs_creation:
+    in_degree: dict[str, int] = {qid: 0 for qid in eligible}
+    adj: dict[str, list[str]] = {qid: [] for qid in eligible}
+    for qid in eligible:
+        for dep_qid in deps_graph.get(qid, []):
+            if dep_qid in eligible:
                 adj[dep_qid].append(qid)
                 in_degree[qid] = in_degree.get(qid, 0) + 1
 
@@ -1055,7 +1180,7 @@ def plan_creation_order(
 
     # ── Distinguish real cycles from downstream-blocked ─────────
     ordered_set = set(ordered_ids)
-    not_ordered = {qid for qid in needs_creation if qid not in ordered_set}
+    not_ordered = {qid for qid in eligible if qid not in ordered_set}
     if not_ordered:
         # Find actual cycle participants: a node is in a cycle if it
         # can reach itself via deps_graph edges within not_ordered.
@@ -1094,14 +1219,31 @@ def plan_creation_order(
                     f"be created (cycle or unavailable target)")
 
     # ── Build results ───────────────────────────────────────────
-    ordered_items = [needs_creation[qid] for qid in ordered_ids]
+    ordered_items = [eligible[qid] for qid in ordered_ids]
 
     blocked: list[dict[str, Any]] = []
-    for qid in sorted(not_ordered if not_ordered else []):
+    # Preflight-blocked stories (unavailable refs and their dependents)
+    for qid in sorted(preflight_blocked):
+        if qid in needs_creation:
+            missing_refs = [d for d in deps_graph.get(qid, [])
+                           if d not in available and d not in ordered_set]
+            # Include refs that caused the error even if not in graph
+            if qid in has_unavailable_ref and not missing_refs:
+                # The unavailable ref was an external target, not a graph edge
+                missing_refs = [f"(see errors for {qid})"]
+            blocked.append({
+                "item": needs_creation[qid],
+                "missing": missing_refs,
+                "reason": "unavailable prerequisite"
+                          if qid in has_unavailable_ref
+                          else "depends on story with unavailable prerequisite"})
+    # Cycle-blocked stories
+    all_blocked_ids = preflight_blocked | not_ordered
+    for qid in sorted(not_ordered):
         missing = [d for d in deps_graph.get(qid, [])
                    if d not in available and d not in ordered_set]
         blocked.append({
-            "item": needs_creation[qid],
+            "item": eligible[qid],
             "missing": missing,
             "reason": "cycle or unavailable prerequisite"})
     blocked.extend(blocked_writes)
@@ -1112,6 +1254,135 @@ def plan_creation_order(
         "errors": errors,
         "satisfied_keys": dict(available),
     }
+
+
+# ---------------------------------------------------------------------------
+# Reference-availability check (runtime guard for Steps 6a/6b)
+# ---------------------------------------------------------------------------
+
+
+def check_ref_availability(
+    story_qids: list[str],
+    artifacts_dir: str | Path,
+    manifest_path: str | Path,
+) -> dict[str, Any]:
+    """Check whether referenced stories/epics have Jira keys.
+
+    Reloads the manifest fresh from *manifest_path* (no cached copy).
+    For each story in *story_qids* (qualified IDs like ``story-1.01``),
+    reads its artifact file, extracts required refs (Dependencies and
+    Contributing stories for DOCS), and checks each against the
+    current manifest.  Also verifies that the owning epic has a Jira
+    key (required for story creation).
+
+    Returns a dict with:
+
+    - ``ready``: list of ``{"qid": ..., "refs": {...}}`` — stories
+      whose refs and owning epic are all available.
+    - ``blocked``: list of ``{"qid": ..., "missing": [...], "reason":
+      ...}`` — stories with unavailable refs or owning epic.
+
+    **Invariants**: never mutates the manifest or source files; native
+    Jira keys in Dependencies are always treated as available.
+    """
+    artifacts_dir = Path(artifacts_dir)
+    stories_dir = artifacts_dir / "06-stories"
+    manifest = load_manifest(Path(manifest_path))
+    available: dict[str, str] = {}
+    if manifest:
+        available = _build_ref_lookup(manifest)
+
+    ready: list[dict[str, Any]] = []
+    blocked: list[dict[str, Any]] = []
+
+    for qid in story_qids:
+        # Parse epic_index and story_index from qualified ID
+        m = re.match(r"story-(\d+)\.(\d+)", qid)
+        if not m:
+            blocked.append({
+                "qid": qid, "missing": [],
+                "reason": f"invalid qualified ID: {qid}"})
+            continue
+        epic_idx = int(m.group(1))
+        story_idx = int(m.group(2))
+
+        # Find the story artifact file
+        epic_dir_pattern = f"epic-{epic_idx}"
+        story_pattern = f"story-{story_idx:02d}-*.md"
+        candidates = list((stories_dir / epic_dir_pattern).glob(
+            story_pattern)) if (stories_dir / epic_dir_pattern).is_dir() else []
+        if not candidates:
+            blocked.append({
+                "qid": qid, "missing": [],
+                "reason": f"artifact file not found for {qid}"})
+            continue
+        path = candidates[0]
+
+        # Read and parse sections
+        try:
+            content = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            blocked.append({
+                "qid": qid, "missing": [],
+                "reason": f"cannot read artifact: {exc}"})
+            continue
+        sections = _extract_sections_from_text(content)
+
+        # Extract all required refs
+        refs: list[str] = []
+        deps_text = sections.get("Dependencies", "")
+        if deps_text:
+            for sref in _extract_story_refs(deps_text):
+                refs.append(f"story-{sref}")
+            for eref in _extract_epic_refs(deps_text):
+                refs.append(f"epic-{eref}")
+            # Native Jira keys are always available
+            for jm in _JIRA_KEY_RE.finditer(deps_text):
+                available.setdefault(jm.group(1), jm.group(1))
+
+        # DOCS Contributing stories
+        raw_title = ""
+        for cline in content.splitlines():
+            cs = cline.strip()
+            if cs.startswith("# "):
+                raw_title = cs[2:].strip()
+                break
+        tm = re.search(r"\[(\w+)\]", raw_title)
+        story_type = (tm.group(1) if tm else "").upper()
+        if story_type == "DOCS":
+            design_ref = sections.get("Design Reference", "")
+            for line in design_ref.splitlines():
+                stripped = line.strip()
+                if stripped.startswith("Contributing stories:"):
+                    contrib_text = stripped.split(":", 1)[1]
+                    for sref in _extract_story_refs(contrib_text):
+                        refs.append(f"story-{sref}")
+                    for eref in _extract_epic_refs(contrib_text):
+                        refs.append(f"epic-{eref}")
+
+        # Check owning epic has a key (for creation)
+        epic_key_ref = f"epic-{epic_idx}"
+        missing: list[str] = []
+        if epic_key_ref not in available:
+            missing.append(epic_key_ref)
+
+        # Check all refs
+        for ref_qid in refs:
+            if ref_qid not in available:
+                missing.append(ref_qid)
+
+        if missing:
+            blocked.append({
+                "qid": qid, "missing": missing,
+                "reason": "required reference or owning epic has no "
+                          "usable Jira key"})
+        else:
+            ready.append({
+                "qid": qid,
+                "refs": {r: available.get(r, "") for r in refs},
+            })
+
+    return {"ready": ready, "blocked": blocked}
 
 
 # ---------------------------------------------------------------------------
@@ -1767,6 +2038,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to .artifacts/design/{issue-key}/ directory.",
     )
 
+    # check-ref-availability
+    p_check = sub.add_parser(
+        "check-ref-availability",
+        help="Check whether referenced stories/epics have Jira keys.",
+    )
+    p_check.add_argument(
+        "artifacts_dir",
+        help="Path to .artifacts/design/{issue-key}/ directory.",
+    )
+    p_check.add_argument(
+        "story_qids", nargs="+",
+        help="Qualified story IDs (e.g. story-1.01 story-2.03).",
+    )
+
     # migrate-manifest
     p_migrate = sub.add_parser(
         "migrate-manifest",
@@ -1861,6 +2146,18 @@ def main(argv: list[str] | None = None) -> int:
             change_plan["items"], args.artifacts_dir, manifest)
         json.dump(plan, sys.stdout, indent=2, default=str)
         print()
+        if plan.get("errors"):
+            return EXIT_ERROR
+        return EXIT_SUCCESS
+
+    elif args.command == "check-ref-availability":
+        manifest_path = Path(args.artifacts_dir) / "sync-manifest.json"
+        result = check_ref_availability(
+            args.story_qids, args.artifacts_dir, manifest_path)
+        json.dump(result, sys.stdout, indent=2)
+        print()
+        if result.get("blocked"):
+            return EXIT_ERROR
         return EXIT_SUCCESS
 
     elif args.command == "migrate-manifest":
