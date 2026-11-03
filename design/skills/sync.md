@@ -538,27 +538,42 @@ story, run the `check-ref-availability` subcommand against the current
 on-disk manifest with this story's qualified ID:
 
 ```bash
+REF_EXIT=0
 REF_CHECK=$(python3 "$SYNC_HELPER" check-ref-availability \
   .artifacts/design/{issue-key}/ \
-  "story-{N}.{NN}" 2>ref_check_err.txt)
-REF_EXIT=$?
+  "story-{N}.{NN}" 2>ref_check_err.txt) || REF_EXIT=$?
 ```
 
-Interpret the result with fail-closed semantics:
+The `|| REF_EXIT=$?` idiom captures a nonzero exit without aborting
+under `set -e`.
 
-1. **Exit 0 with valid JSON containing this story's QID in `ready`:**
-   proceed to `prepare`.
-2. **Exit 1 with valid JSON containing this story's QID in `blocked`:**
-   **skip** this story — do not call `prepare`, do not create the Jira
-   issue, do not record a manifest checkpoint.  Record the story's
-   qualified ID, the `missing` refs from the result, and the `reason`
-   for the Step 8 report.  Continue with the next story in the ordered
-   list — do not abort independent eligible work.
-3. **Exit nonzero with empty/malformed stdout, or JSON missing the
-   expected QID in `ready` or `blocked`:** the helper itself failed
-   (e.g. corrupted manifest, I/O error).  **Stop the sync** and
-   report the stderr content.  Do not skip the story or continue
-   with others — the manifest state is indeterminate.
+The helper checks Dependencies (Story and Epic refs) and Contributing
+stories (for `[DOCS]` stories), verifies the owning epic has a key,
+and treats native Jira keys as always available.
+
+Interpret the result with fail-closed semantics.  Exactly ONE of these
+branches must match; any other outcome is a catch-all failure:
+
+1. **Ready:** `REF_EXIT` is 0, stdout is valid JSON, the `ready` list
+   contains an entry whose `qid` equals THIS story's qualified ID, and
+   the `blocked` list does NOT contain this QID.  → Proceed to
+   `prepare`.
+2. **Blocked:** `REF_EXIT` is 1, stdout is valid JSON, the `blocked`
+   list contains an entry whose `qid` equals THIS story's qualified ID
+   with `missing` (list of unresolved ref IDs) and `reason` (string).
+   → **Skip** this story — do not call `prepare`, do not render a
+   description, do not create the Jira issue, do not record a manifest
+   checkpoint.  Record the story's qualified ID, the `missing` refs,
+   and the `reason` for the Step 8 report.  Continue with the next
+   story in the ordered list — do not abort independent eligible work.
+3. **Catch-all failure** (every other outcome — including exit 0 with
+   invalid JSON, exit 0 with this QID missing from `ready`, exit
+   nonzero with no JSON, malformed or missing `ready`/`blocked` fields,
+   this QID appearing in both lists, or unexpected exit codes):
+   **Stop the sync** and report stderr (`ref_check_err.txt`) and any
+   stdout.  Do not skip the story or continue with others — the
+   manifest state may be indeterminate.  Do not call `prepare`, render,
+   write to Jira, or record a manifest checkpoint.
 
 Keys recorded by earlier stories in this run (via `update-manifest`)
 are immediately visible to subsequent `check-ref-availability` calls
@@ -651,10 +666,11 @@ Process changed and reopened stories per epic.
 
 **Reference-availability guard.** Before calling `prepare` for a
 changed or reopened story, run the same `check-ref-availability` guard
-as in Step 6a with this story's qualified ID.  Apply the same
-three-way result interpretation: proceed on ready, skip-and-record on
-blocked, stop on helper failure.  Do not call `prepare`, update Jira,
-or record a manifest checkpoint for a blocked or failed story.  Do not
+as in Step 6a with this story's qualified ID and the same `|| REF_EXIT=$?`
+capture idiom.  Apply the same three-branch result interpretation
+(ready → proceed; blocked → skip; catch-all → stop).  Do not call
+`prepare`, render a description, update or reopen the Jira issue, or
+record a manifest checkpoint for a blocked or failed story.  Do not
 retry a blocked story in the current run.
 
 For each story categorized as **Changed** or **Reopened** (non-blocked),

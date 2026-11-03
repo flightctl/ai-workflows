@@ -4818,30 +4818,24 @@ class TestSyncDocsReferenceGuard(_TmpDirMixin, unittest.TestCase):
     # -- Instruction contract: guard in 6a/6b --
 
     def test_sync_6a_guard_covers_deps_and_contributing(self) -> None:
-        """Step 6a reference-availability guard calls check-ref-availability
-        (which covers Dependencies and Contributing stories per its
-        contract); guard paragraph precedes prepare recipe."""
+        """Step 6a guard paragraph states coverage of Dependencies and
+        Contributing stories directly, and delegates to the helper."""
         sync_md = self._read_sync_md()
         start = sync_md.find("#### 6a:")
         end = sync_md.find("#### 6b:")
         self.assertGreaterEqual(start, 0)
         self.assertGreater(end, start)
         section_6a = sync_md[start:end]
-        # Guard paragraph exists and uses the CLI subcommand
         guard_start = section_6a.find("**Reference-availability guard.**")
         guard_end = section_6a.find("For each new story")
         self.assertGreater(guard_start, -1, "guard paragraph must exist")
         self.assertGreater(guard_end, guard_start, "prepare recipe must follow guard")
         guard = section_6a[guard_start:guard_end]
-        self.assertIn("check-ref-availability", guard)
-        # The helper reference documents that check-ref-availability
-        # covers Dependencies (Story + Epic refs) and Contributing
-        # stories (for DOCS).  Verify the reference says so:
-        ref_path = (Path(__file__).resolve().parent.parent
-                    / "references" / "sync-helper-usage.md")
-        ref = ref_path.read_text(encoding="utf-8")
-        self.assertIn("Dependencies", ref)
-        self.assertIn("Contributing stories", ref)
+        guard_flat = " ".join(guard.split())
+        self.assertIn("check-ref-availability", guard_flat)
+        # Guard itself states what the helper checks
+        self.assertIn("Dependencies", guard_flat)
+        self.assertIn("Contributing stories", guard_flat)
 
 
 # ---------------------------------------------------------------------------
@@ -6041,31 +6035,39 @@ class TestSyncConsumerContracts(unittest.TestCase):
         m6b = _re.search(r"#### 6b:.*?(?=#### 6c:)", cls._sync_md, _re.DOTALL)
         assert m6b, "6b section not found"
         cls._section_6b = m6b.group()
+        # Extract the guard paragraph from 6a (between guard heading and
+        # the next consumer "For each new story")
+        g_start = cls._section_6a.find("**Reference-availability guard.**")
+        g_end = cls._section_6a.find("For each new story")
+        assert g_start >= 0 and g_end > g_start, "guard bounds missing"
+        cls._guard_6a = cls._section_6a[g_start:g_end]
+        # Extract the 6b guard paragraph (between guard heading and
+        # the next consumer "For each story categorized")
+        gb_start = cls._section_6b.find("**Reference-availability guard.**")
+        gb_end = cls._section_6b.find("For each story categorized")
+        assert gb_start >= 0 and gb_end > gb_start, "6b guard bounds missing"
+        cls._guard_6b = cls._section_6b[gb_start:gb_end]
+
+    # -- Guard-before-prepare ordering ---
 
     def test_6a_calls_check_ref_availability(self) -> None:
-        """Step 6a must call check-ref-availability before the prepare recipe."""
+        """Step 6a guard calls check-ref-availability before prepare recipe."""
         check_pos = self._section_6a.find("check-ref-availability")
         prepare_recipe_pos = self._section_6a.find("story `prepare` recipe")
-        self.assertGreater(check_pos, -1,
-                           "6a must reference check-ref-availability")
-        self.assertGreater(prepare_recipe_pos, -1,
-                           "6a must reference the prepare recipe")
-        self.assertLess(check_pos, prepare_recipe_pos,
-                        "check-ref-availability must appear before prepare recipe in 6a")
+        self.assertGreater(check_pos, -1)
+        self.assertGreater(prepare_recipe_pos, -1)
+        self.assertLess(check_pos, prepare_recipe_pos)
 
     def test_6b_calls_check_ref_availability_before_prepare(self) -> None:
-        """Step 6b must call check-ref-availability before the prepare recipe."""
+        """Step 6b guard calls check-ref-availability before prepare recipe."""
         check_pos = self._section_6b.find("check-ref-availability")
         prepare_pos = self._section_6b.find("story `prepare`")
-        self.assertGreater(check_pos, -1,
-                           "6b must reference check-ref-availability")
-        self.assertGreater(prepare_pos, -1,
-                           "6b must reference the prepare recipe")
-        self.assertLess(check_pos, prepare_pos,
-                        "check-ref-availability must appear before prepare in 6b")
+        self.assertGreater(check_pos, -1)
+        self.assertGreater(prepare_pos, -1)
+        self.assertLess(check_pos, prepare_pos)
 
     def test_helper_reference_documents_check_ref(self) -> None:
-        """Helper reference must document check-ref-availability."""
+        """Helper reference documents check-ref-availability."""
         ref_path = (Path(__file__).resolve().parent.parent
                     / "references" / "sync-helper-usage.md")
         content = ref_path.read_text(encoding="utf-8")
@@ -6074,7 +6076,7 @@ class TestSyncConsumerContracts(unittest.TestCase):
         self.assertIn("blocked", content)
 
     def test_preflight_catches_changed_invalid_refs(self) -> None:
-        """Step 3 preflight description covers changed/reopened invalid refs."""
+        """Step 3 preflight covers changed/reopened invalid refs."""
         import re
         m3 = re.search(r"### Step 3:.*?(?=### Step 4:)", self._sync_md, re.DOTALL)
         self.assertIsNotNone(m3)
@@ -6082,41 +6084,59 @@ class TestSyncConsumerContracts(unittest.TestCase):
         self.assertIn("changed", section.lower())
         self.assertIn("reopened", section.lower())
 
-    # -- Behavioral contracts: blocked → no Jira/checkpoint ---
+    # -- 6a guard: blocked → no prepare/render/create/checkpoint ---
 
-    def test_6a_blocked_no_prepare_no_jira_no_checkpoint(self) -> None:
-        """Step 6a: blocked story must not call prepare, create Jira, or
-        record a manifest checkpoint."""
-        guard_start = self._section_6a.find("**Reference-availability guard.**")
-        prepare_start = self._section_6a.find("For each new story")
-        guard = self._section_6a[guard_start:prepare_start]
-        self.assertIn("do not call `prepare`", guard)
-        self.assertIn("do not create the Jira", guard)
-        self.assertIn("manifest checkpoint", guard)
+    def test_6a_blocked_no_prepare_no_render_no_create_no_checkpoint(self) -> None:
+        """6a blocked: no prepare, no render, no Jira create, no checkpoint."""
+        self.assertIn("do not call `prepare`", self._guard_6a)
+        self.assertIn("do not render", self._guard_6a)
+        self.assertIn("do not create the Jira", self._guard_6a)
+        self.assertIn("manifest checkpoint", self._guard_6a)
 
-    def test_6b_blocked_no_prepare_no_update_no_checkpoint(self) -> None:
-        """Step 6b: blocked story must not call prepare, update Jira, or
-        record a manifest checkpoint."""
-        self.assertIn("Do not call `prepare`", self._section_6b)
-        self.assertIn("manifest checkpoint", self._section_6b)
+    def test_6a_blocked_recorded_for_step8_with_missing(self) -> None:
+        """6a blocked: recorded for Step 8 with missing refs and reason."""
+        self.assertIn("Step 8 report", self._guard_6a)
+        self.assertIn("`missing` refs", self._guard_6a)
+        self.assertIn("`reason`", self._guard_6a)
 
-    def test_6a_blocked_recorded_for_step8(self) -> None:
-        """Step 6a: blocked stories must be recorded for Step 8 report
-        with per-story missing refs."""
-        guard_start = self._section_6a.find("**Reference-availability guard.**")
-        prepare_start = self._section_6a.find("For each new story")
-        guard = self._section_6a[guard_start:prepare_start]
-        self.assertIn("Step 8 report", guard)
-        self.assertIn("missing", guard.lower())
+    # -- 6b guard: blocked → no prepare/render/update/reopen/checkpoint ---
 
-    def test_6a_fatal_stops_sync(self) -> None:
-        """Step 6a: helper failure (malformed output) stops sync, does not
-        skip-and-continue."""
-        guard_start = self._section_6a.find("**Reference-availability guard.**")
-        prepare_start = self._section_6a.find("For each new story")
-        guard = self._section_6a[guard_start:prepare_start]
-        self.assertIn("Stop the sync", guard)
-        self.assertIn("stderr", guard)
+    def test_6b_blocked_no_prepare_no_update_no_reopen_no_checkpoint(self) -> None:
+        """6b blocked/failed: no prepare, render, update, reopen, or checkpoint."""
+        self.assertIn("`prepare`", self._guard_6b)
+        self.assertIn("render", self._guard_6b)
+        self.assertIn("update", self._guard_6b.lower())
+        self.assertIn("reopen", self._guard_6b.lower())
+        self.assertIn("manifest checkpoint", self._guard_6b)
+
+    # -- 6a fatal: catch-all stops sync ---
+
+    def test_6a_fatal_catch_all_stops_sync(self) -> None:
+        """6a catch-all: stops sync, reports stderr, no skip-continue."""
+        self.assertIn("Stop the sync", self._guard_6a)
+        self.assertIn("stderr", self._guard_6a)
+        self.assertIn("Do not skip the story", self._guard_6a)
+
+    def test_6a_catch_all_covers_exit0_invalid(self) -> None:
+        """6a catch-all enumerates exit 0 with invalid JSON as failure."""
+        guard_flat = " ".join(self._guard_6a.split())
+        self.assertIn("exit 0 with invalid json", guard_flat.lower())
+
+    def test_6a_catch_all_covers_conflicting_qid(self) -> None:
+        """6a catch-all enumerates QID in both lists as failure."""
+        self.assertIn("both lists", self._guard_6a.lower())
+
+    # -- Errexit-safe capture idiom ---
+
+    def test_6a_errexit_safe_capture(self) -> None:
+        """6a guard uses || REF_EXIT=$? idiom for errexit safety."""
+        self.assertIn("|| REF_EXIT=$?", self._guard_6a)
+
+    def test_6b_references_same_capture_idiom(self) -> None:
+        """6b guard references the same capture idiom."""
+        self.assertIn("|| REF_EXIT=$?", self._guard_6b)
+
+    # -- Step 3 preflight invariant ---
 
     def test_preflight_blocked_implies_errors(self) -> None:
         """Step 3: every blocked item has a root-cause error entry."""
@@ -6124,6 +6144,49 @@ class TestSyncConsumerContracts(unittest.TestCase):
         m3 = re.search(r"### Step 3:.*?(?=### Step 4:)", self._sync_md, re.DOTALL)
         section = m3.group()
         self.assertIn("Every `blocked` item has at least one root-cause", section)
+
+    def test_preflight_blocked_implies_errors_planner(self) -> None:
+        """Planner: a blocked item always has a corresponding error entry.
+        Verified via negative case: cycle produces both blocked and errors."""
+        sd = Path(tempfile.mkdtemp()) / "06-stories"
+        sd.mkdir(parents=True)
+        _make_epic(sd, 1, "ep")
+        _make_dev_story(sd, 1, 1, "a", deps="Story 1.02")
+        _make_dev_story(sd, 1, 2, "b", deps="Story 1.01")
+        items = [
+            {"type": "story", "category": "new", "epic_index": 1,
+             "story_index": 1, "jira_key": None, "title": "",
+             "file": "epic-1/story-01-a.md"},
+            {"type": "story", "category": "new", "epic_index": 1,
+             "story_index": 2, "jira_key": None, "title": "",
+             "file": "epic-1/story-02-b.md"},
+        ]
+        r = sync_helper.plan_creation_order(items, str(sd.parent), None)
+        self.assertGreater(len(r["blocked"]), 0, "cycle must produce blocked")
+        self.assertGreater(len(r["errors"]), 0, "cycle must produce errors")
+        import shutil
+        shutil.rmtree(str(sd.parent))
+
+    # -- Step 8 blocked reporting ---
+
+    def test_step8_reports_blocked_with_missing_keys(self) -> None:
+        """Step 8 must report blocked stories with missing keys/reasons."""
+        import re
+        m8 = re.search(r"### Step 8:.*", self._sync_md, re.DOTALL)
+        self.assertIsNotNone(m8)
+        step8 = m8.group()
+        self.assertIn("blocked", step8.lower())
+        self.assertIn("missing", step8.lower())
+        self.assertIn("reason", step8.lower())
+
+    # -- Step 3 no unreachable blocked-count wording ---
+
+    def test_step3_no_unreachable_blocked_success_path(self) -> None:
+        """Step 3: no 'blocked is non-empty but errors is empty' wording."""
+        import re
+        m3 = re.search(r"### Step 3:.*?(?=### Step 4:)", self._sync_md, re.DOTALL)
+        section = m3.group()
+        self.assertNotIn("blocked` is non-empty but `errors` is empty", section)
 
 
 # ---------------------------------------------------------------------------
@@ -6301,14 +6364,16 @@ class TestQIDFullmatch(_TmpDirMixin, unittest.TestCase):
             ["story-1.01\n"], self.tmpdir, self.mf)
         self.assertEqual(len(result["blocked"]), 1)
 
-    def test_valid_qid_accepted(self) -> None:
-        """story-1.01 (exact) must be accepted."""
+    def test_valid_qid_with_mapped_parent_is_ready(self) -> None:
+        """story-1.01 (exact) with mapped epic and no deps → ready with
+        actual ready entry and empty blocked."""
         result = sync_helper.check_ref_availability(
             ["story-1.01"], self.tmpdir, self.mf)
-        # May be blocked (no story key) or ready (if requirements met),
-        # but NOT rejected as invalid QID
-        for entry in result.get("blocked", []):
-            self.assertNotIn("invalid", entry.get("reason", ""))
+        self.assertEqual(len(result["ready"]), 1,
+                         "Valid QID with mapped parent + no deps must be ready")
+        self.assertEqual(result["ready"][0]["qid"], "story-1.01")
+        self.assertEqual(len(result["blocked"]), 0,
+                         "Blocked must be empty for a ready story")
 
     def test_cli_trailing_garbage_blocked(self) -> None:
         """CLI check-ref-availability with trailing garbage → blocked."""
@@ -6333,8 +6398,9 @@ class TestCLIFatalVsBlocked(_TmpDirMixin, unittest.TestCase):
     (exit 1, no JSON) for check-ref-availability and plan-creation-order.
     Instruction contracts, not live Jira/LLM E2E."""
 
-    def test_check_ref_blocked_produces_json(self) -> None:
-        """Blocked story → exit 1 with valid JSON on stdout."""
+    def test_check_ref_blocked_produces_json_with_qid_and_missing(self) -> None:
+        """Blocked story → exit 1 with valid JSON containing matching QID,
+        missing refs list, empty ready."""
         import subprocess
         sd = Path(self.tmpdir) / "06-stories"
         sd.mkdir(exist_ok=True)
@@ -6351,9 +6417,11 @@ class TestCLIFatalVsBlocked(_TmpDirMixin, unittest.TestCase):
              "check-ref-availability", self.tmpdir, "story-1.01"],
             capture_output=True, text=True, timeout=10)
         self.assertEqual(r.returncode, 1)
-        out = json.loads(r.stdout)  # Must be valid JSON
-        self.assertIn("blocked", out)
-        self.assertIn("ready", out)
+        out = json.loads(r.stdout)
+        self.assertEqual(len(out["ready"]), 0, "ready must be empty")
+        self.assertEqual(len(out["blocked"]), 1)
+        self.assertEqual(out["blocked"][0]["qid"], "story-1.01")
+        self.assertIn("story-9.99", out["blocked"][0]["missing"])
 
     def test_check_ref_corrupted_manifest_fatal_no_json(self) -> None:
         """Corrupted manifest → exit 1 with stderr, NO valid JSON."""
