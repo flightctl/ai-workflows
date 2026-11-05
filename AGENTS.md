@@ -21,6 +21,7 @@ This repository contains reusable AI coding workflows and focused skills that ca
 - **implement** — Story-to-code workflow (ingest, plan, revise, code, validate, publish, respond)
 - **ui-implement** — Story-to-code workflow for UI/front-end [UI] stories (ingest, plan, revise, code, validate, publish, respond)
 - **kcs** — KCS Solution article workflow (gather, draft, validate, handoff)
+- **pr-review** — AI-driven review of a remote GitHub PR or GitLab MR by URL (start, revise, publish, continue, clean)
 - **prd** — Requirements-to-PRD workflow (ingest, clarify, draft, revise, publish, respond)
 - **ux-design** — UX design workflow (ingest, research, prototype, evaluate, handoff, revise, publish, respond)
 - **rebase-stack** — Rebase a gh-stack-tracked branch chain with health reporting, conflict guidance, trunk-adjacent validation, and atomic push (status, start, continue, validate, push)
@@ -263,6 +264,7 @@ ai-workflows/
 ├── implement/
 ├── ui-implement/
 ├── kcs/
+├── pr-review/
 ├── prd/
 ├── rebase-stack/
 ├── sizing/
