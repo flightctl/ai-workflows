@@ -462,16 +462,18 @@ def resolve_artifacts(artifact_dir: Path) -> list[dict[str, Any]]:
         if errors:
             raise ValidationIndexError(
                 f"invalid validation-index.json: {'; '.join(errors)}")
-        # Verify listed files exist and are not symlinks
+        # Verify listed files exist and are not symlinks.
+        # Check is_symlink BEFORE is_file — is_file follows symlinks
+        # and returns True for a symlink pointing to a regular file.
         missing = []
         for art in data["artifacts"]:
             local = art.get("local", "")
             art_path = artifact_dir / local
-            if not art_path.is_file():
-                missing.append(local)
-            elif art_path.is_symlink():
+            if art_path.is_symlink():
                 raise ValidationIndexError(
                     f"artifact is a symlink (not allowed): {local}")
+            if not art_path.is_file():
+                missing.append(local)
         if missing:
             raise ValidationIndexError(
                 f"listed artifacts not found on disk: "
