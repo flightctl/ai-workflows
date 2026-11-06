@@ -7,12 +7,14 @@ whether the reviewer is a subagent or the decomposer performing inline
 self-review.
 
 The reviewer receives the PRD and the decomposition artifacts (epics,
-stories, coverage matrix) and the testplan (for cross-reference
-checking), but intentionally does **not** receive the design document.
-This is the independence property: the reviewer evaluates what the
-artifacts actually say, not what the decomposer intended. The testplan
-is included for implementation traceability verification — confirming
-that stories reference valid test cases and interface changes — not for
+stories, coverage matrix) and all validation artifacts (primary testplan
+and any companions, as listed in `validation-index.json`) for
+cross-reference checking, but intentionally does **not** receive the
+design document. This is the independence property: the reviewer
+evaluates what the artifacts actually say, not what the decomposer
+intended. The validation artifacts are included for implementation
+traceability verification — confirming that stories reference valid
+test cases and interface changes across the full artifact set — not for
 testplan content review (content quality was verified during `/draft`).
 If a story's acceptance criteria are unclear without cross-referencing
 the design document, that is a real finding — the implementor needs
@@ -106,23 +108,25 @@ impact:
 
 5. **Implementation Traceability** — Do stories correctly reference the
    interface changes they implement and the test cases that validate
-   them? Derive the universe of ICs and TCs from the testplan
-   (`04-testplan.md`): collect ICs from test case metadata tables and
-   from the IC coverage gaps section. Verify: every story's `Interface
-   Changes:` ICs exist in the testplan (as test case IC references or
-   IC coverage gap entries). Every story's `Validated by:` TCs exist in
-   the testplan. Every IC referenced in the testplan has at least one
+   them? Derive the universe of ICs and TCs from all validation
+   artifacts (primary testplan and any companions): collect ICs from
+   test case metadata tables and from the IC coverage gaps section.
+   Verify: every story's `Interface Changes:` ICs exist in the
+   validation artifacts (as test case IC references or IC coverage gap
+   entries). Every story's `Validated by:` TCs exist in the validation
+   artifacts. Every IC referenced in the artifacts has at least one
    implementing story — an IC with no story is designed but
    unimplemented work. Every TC that references an IC has at least one
    story whose `Interface Changes` include that IC — a test case that
-   nothing implements is a gap in the decomposition, not the testplan.
-   For cross-cutting test cases with `Interface Change: —`, verify
-   that at least one story whose PRD Requirements include the test
-   case's requirement has it in its `Validated by` line — these TCs
-   use requirement-based matching instead of IC overlap.
+   nothing implements is a gap in the decomposition, not the validation
+   artifacts. For cross-cutting test cases with `Interface Change: —`,
+   verify that at least one story whose PRD Requirements include the
+   test case's requirement has it in its `Validated by` line — these
+   TCs use requirement-based matching instead of IC overlap.
    No story claims to implement an IC that doesn't appear in the
-   testplan. No story references a TC that doesn't exist in the
-   testplan. Infrastructure stories with `Interface Changes: None` and
+   validation artifacts. No story references a TC that doesn't exist
+   in any validation artifact. Infrastructure stories with
+   `Interface Changes: None` and
    `Validated by: None` are acceptable if justified.
 
 6. **Integration Stability** — Would implementing all stories in
