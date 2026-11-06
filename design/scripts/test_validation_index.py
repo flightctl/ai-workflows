@@ -215,6 +215,19 @@ class TestLocalIndexValidation(unittest.TestCase):
         errors = vi.validate_local_index(idx)
         self.assertTrue(any("must be a string" in e for e in errors))
 
+    def test_companion_rejects_testplan_md_published_as(self):
+        """Companion with published_as=testplan.md → validation error."""
+        idx = _make_local_index(companions=[{
+            "local": "04-extra.md",
+            "published_as": "testplan.md",
+            "purpose": "Extra validation",
+            "audience": "QE team",
+        }])
+        errs = vi.validate_local_index(idx)
+        reserved = [e for e in errs if "reserved" in e.lower()]
+        self.assertTrue(reserved,
+                        f"Expected testplan.md reservation error, got: {errs}")
+
 
 # ===========================================================================
 # 2. Path safety
@@ -1713,19 +1726,123 @@ class TestSafeWriteParentSymlink(unittest.TestCase):
                     "No files/dirs should be created at outside target")
 
     def test_transform_input_read_error(self):
-        """Unreadable input file → clean exit 1, no traceback."""
+        """Unreadable input → exit 1 with ERROR, no traceback.
+
+        Calls cmd_transform directly with mocked Path.read_text
+        OSError — portable to privileged runners.
+        """
+        import argparse as _argparse
+        import io
+        import unittest.mock
         with tempfile.TemporaryDirectory() as td:
             src = Path(td) / "local.json"
             _write_json(src, _make_local_index())
-            src.chmod(0o000)
             dst = Path(td) / "output.json"
-            r = _run_cli("transform", str(src), str(dst))
-            # Restore for cleanup
-            src.chmod(0o644)
+            original_read = Path.read_text
+            def failing_read(self_path, *a, **kw):
+                if str(self_path) == str(src):
+                    raise OSError("Permission denied")
+                return original_read(self_path, *a, **kw)
+            err = io.StringIO()
+            with unittest.mock.patch.object(Path, "read_text",
+                                            failing_read), \
+                 unittest.mock.patch("sys.stderr", err):
+                ns = _argparse.Namespace(
+                    local_index=str(src), output=str(dst),
+                    trusted_output_base=None)
+                rc = vi.cmd_transform(ns)
+            self.assertEqual(rc, 1)
+            self.assertIn("ERROR", err.getvalue())
+            self.assertNotIn("Traceback", err.getvalue())
+
+    def test_transform_trusted_base_allows_ancestor_symlink(self):
+        """--trusted-output-base: symlink above base is permitted."""
+        with tempfile.TemporaryDirectory() as td:
+            real_dir = Path(td) / "real"
+            real_dir.mkdir()
+            link = Path(td) / "via_link"
+            link.symlink_to(real_dir)
+            docs = real_dir / "docs"
+            docs.mkdir()
+            src = Path(td) / "local.json"
+            _write_json(src, _make_local_index())
+            dst = link / "docs" / "output.json"
+            r = _run_cli("transform", str(src), str(dst),
+                         "--trusted-output-base", str(link / "docs"))
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertTrue((real_dir / "docs" / "output.json").exists())
+
+    def test_transform_trusted_base_rejects_symlink_below(self):
+        """--trusted-output-base: symlink BELOW base still rejected.
+
+        The symlink resolves outside the base, so the guard may report
+        either 'symlink' or 'escapes trusted base' — both are correct.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td) / "base"
+            base.mkdir()
+            outside = Path(td) / "outside"
+            outside.mkdir()
+            (base / "escape").symlink_to(outside)
+            src = Path(td) / "local.json"
+            _write_json(src, _make_local_index())
+            dst = base / "escape" / "output.json"
+            r = _run_cli("transform", str(src), str(dst),
+                         "--trusted-output-base", str(base))
             self.assertEqual(r.returncode, 1)
-            self.assertIn("ERROR", r.stderr)
-            # No Python traceback
-            self.assertNotIn("Traceback", r.stderr)
+            err = r.stderr.lower()
+            self.assertTrue(
+                "symlink" in err or "escape" in err,
+                f"Expected symlink or escape error, got: {r.stderr}")
+
+    def test_transform_trusted_base_rejects_internal_symlink(self):
+        """--trusted-output-base: symlink inside base to another dir
+        inside base still rejected by the ancestor walk."""
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td) / "base"
+            base.mkdir()
+            target = base / "realdir"
+            target.mkdir()
+            (base / "linked").symlink_to(target)
+            src = Path(td) / "local.json"
+            _write_json(src, _make_local_index())
+            # linked → realdir (both under base), but it's still a
+            # symlink component below the trusted base — rejected.
+            dst = base / "linked" / "output.json"
+            r = _run_cli("transform", str(src), str(dst),
+                         "--trusted-output-base", str(base))
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("symlink", r.stderr.lower())
+
+    def test_transform_trusted_base_rejects_escape(self):
+        """--trusted-output-base: output outside base is rejected."""
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td) / "base"
+            base.mkdir()
+            outside = Path(td) / "elsewhere"
+            outside.mkdir()
+            src = Path(td) / "local.json"
+            _write_json(src, _make_local_index())
+            dst = outside / "output.json"
+            r = _run_cli("transform", str(src), str(dst),
+                         "--trusted-output-base", str(base))
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("escape", r.stderr.lower())
+
+    def test_transform_no_trusted_base_rejects_ancestor_symlink(self):
+        """Without --trusted-output-base, ancestor symlinks rejected."""
+        with tempfile.TemporaryDirectory() as td:
+            real_dir = Path(td) / "real"
+            real_dir.mkdir()
+            link = Path(td) / "via_link"
+            link.symlink_to(real_dir)
+            (real_dir / "sub").mkdir()
+            src = Path(td) / "local.json"
+            _write_json(src, _make_local_index())
+            dst = link / "sub" / "output.json"
+            r = _run_cli("transform", str(src), str(dst))
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("symlink", r.stderr.lower())
 
 
 # ===========================================================================
@@ -1882,6 +1999,42 @@ class TestCLIWorkflowSequence(unittest.TestCase):
             self.assertIn("testplan.md", d["added"])
             self.assertIn("hw.md", d["added"])
             self.assertEqual(d["removed"], [])
+
+    def test_diff_rejects_empty_new_index(self):
+        """Empty new {} → exit 1 to prevent mass deletion."""
+        with tempfile.TemporaryDirectory() as td:
+            valid = {
+                "schema_version": "1.0",
+                "primary_testplan": "testplan.md",
+                "artifacts": [
+                    {"file": "testplan.md", "type": "testplan"},
+                ],
+            }
+            _write_json(Path(td) / "old.json", valid)
+            _write_json(Path(td) / "new.json", {})
+            r = _run_cli("diff",
+                         str(Path(td) / "old.json"),
+                         str(Path(td) / "new.json"))
+            self.assertEqual(r.returncode, 1,
+                             "Empty new index must be rejected")
+
+    def test_diff_rejects_empty_artifacts_new_index(self):
+        """Empty new {"artifacts": []} → exit 1."""
+        with tempfile.TemporaryDirectory() as td:
+            valid = {
+                "schema_version": "1.0",
+                "primary_testplan": "testplan.md",
+                "artifacts": [
+                    {"file": "testplan.md", "type": "testplan"},
+                ],
+            }
+            _write_json(Path(td) / "old.json", valid)
+            _write_json(Path(td) / "new.json", {"artifacts": []})
+            r = _run_cli("diff",
+                         str(Path(td) / "old.json"),
+                         str(Path(td) / "new.json"))
+            self.assertEqual(r.returncode, 1,
+                             "Empty new index must be rejected")
 
 
 if __name__ == "__main__":

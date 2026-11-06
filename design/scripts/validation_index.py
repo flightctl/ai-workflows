@@ -255,6 +255,12 @@ def validate_local_index(data: dict[str, Any]) -> list[str]:
                     errors.append(
                         f"{ctx}: companion slug must not be 'testplan'")
 
+            # Companion must not claim the primary published filename
+            if isinstance(pub, str) and pub == "testplan.md":
+                errors.append(
+                    f"{ctx}.published_as: testplan.md is reserved "
+                    "for the primary testplan")
+
     if testplan_count == 0:
         errors.append("exactly one artifact must have type 'testplan'")
     elif testplan_count > 1:
@@ -750,19 +756,23 @@ def cmd_resolve(args: argparse.Namespace) -> int:
     return 0
 
 
-def _safe_write_output(dst: Path, content: str) -> int:
+def _safe_write_output(dst: Path, content: str,
+                       *, trusted_base: Path | None = None) -> int:
     """Write content to dst with symlink and error protection.
 
     Returns 0 on success, 1 on error (with message printed).
 
+    When *trusted_base* is given (e.g. the operator-configured docs
+    repo root), it is resolved to canonicalize OS-level symlinks
+    (``/home`` → ``/var/home`` on Silverblue) and the ancestor walk
+    stops there.  Symlink components **below** the base are still
+    rejected.  Without *trusted_base*, every ancestor up to the
+    filesystem root is checked (strict default).
+
     Safety checks:
     - Rejects symlink at the final destination path.
-    - Walks ALL ancestors of dst from dst.parent up to the
-      filesystem root.  Every existing component is checked with
-      is_symlink() (without resolve, which would follow links).
-      Non-existing intermediates are skipped but the walk continues
-      upward so that a symlink ancestor above a missing component
-      is still detected.
+    - Walks ancestors of dst from dst.parent upward (to
+      *trusted_base* or the filesystem root).
     - Uses O_CREAT|O_WRONLY|O_TRUNC with O_NOFOLLOW to reject a
       symlink final target at open time.
     """
@@ -774,13 +784,39 @@ def _safe_write_output(dst: Path, content: str) -> int:
               file=sys.stderr)
         return 1
 
-    # Walk ALL ancestors to root, checking every existing component.
-    # Do NOT stop at the first non-existing intermediate — a symlink
-    # ancestor above a missing component must still be caught
-    # (e.g. link/new/deeper/index.json where link→outside).
+    # Walk ancestors checking for symlinks.
+    # When trusted_base is given, resolve it (handles OS-level
+    # symlinks above the base, e.g. /home -> /var/home on
+    # Silverblue) and stop the walk there — ancestors above an
+    # operator-configured base are not checked.
+    # Without trusted_base, walk to the filesystem root.
     try:
+        stop_at: Path | None = None
+        if trusted_base is not None:
+            resolved_base = trusted_base.resolve()
+            try:
+                dst.resolve().relative_to(resolved_base)
+            except ValueError:
+                print(f"ERROR: output path escapes trusted base: "
+                      f"{dst} is not under {trusted_base}",
+                      file=sys.stderr)
+                return 1
+            stop_at = resolved_base
+
         cur = dst.parent
         while True:
+            # Stop at or above the trusted base boundary
+            if stop_at is not None:
+                try:
+                    cur_resolved = cur.resolve()
+                except OSError:
+                    break
+                if cur_resolved == stop_at:
+                    break
+                try:
+                    cur_resolved.relative_to(stop_at)
+                except ValueError:
+                    break  # above the trusted base
             if cur.is_symlink():
                 print(f"ERROR: output parent contains symlink: "
                       f"{cur}", file=sys.stderr)
@@ -842,8 +878,13 @@ def cmd_transform(args: argparse.Namespace) -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
+    trusted = None
+    if getattr(args, 'trusted_output_base', None):
+        trusted = Path(args.trusted_output_base)
+
     rc = _safe_write_output(dst,
-                            json.dumps(published, indent=2) + "\n")
+                            json.dumps(published, indent=2) + "\n",
+                            trusted_base=trusted)
     if rc != 0:
         return rc
     print(f"Wrote published index: {dst}")
@@ -900,8 +941,10 @@ def cmd_diff(args: argparse.Namespace) -> int:
             print(f"ERROR: {label} index must be a JSON object",
                   file=sys.stderr)
             return 1
-        # Allow intentionally empty indexes (first-publish case)
-        if _is_intentionally_empty(data):
+        # Allow an intentionally empty old index (first-publish case).
+        # An empty NEW index must fail schema validation — it would
+        # cause diff_published to report all old artifacts as removed.
+        if label == "old" and _is_intentionally_empty(data):
             continue
         # Full published-schema validation
         errors = validate_published_index(data)
@@ -986,6 +1029,9 @@ def build_parser() -> argparse.ArgumentParser:
                           help="Transform local index to published format")
     p_tx.add_argument("local_index", help="Path to local index file")
     p_tx.add_argument("output", help="Output path for published index")
+    p_tx.add_argument("--trusted-output-base", metavar="DIR",
+                      help="Trusted output root (e.g., docs repo). "
+                           "Symlinks above this base are permitted.")
 
     # --- diff ---
     p_diff = sub.add_parser("diff",

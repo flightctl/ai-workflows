@@ -257,8 +257,12 @@ Coverage section, skip this step entirely. However, if `02-plan.md`
 has TC mappings but `testplan.md` is missing, unreadable, or malformed
 (no parseable TC IDs and no Qualification Gates section), stop and
 report the inconsistency. A gate-only testplan (zero TC IDs but a
-`## Qualification Gates` section) is valid — skip the automated
-coverage check and proceed directly to step 4 below.
+`## Qualification Gates` section) is valid only when `02-plan.md`
+contains no TC mappings in its Test Plan Coverage section. If TC
+mappings remain, stop and report the inconsistency — re-ingest may
+have replaced TCs with gates while the plan retains stale mappings.
+When consistent, skip the automated coverage check and proceed
+directly to step 4 below.
 
 **Unverified source handling:** If `testplan.md` contains
 `Freshness: unverified`, report the TC coverage as "unverified —

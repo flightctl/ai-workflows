@@ -205,7 +205,14 @@ Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
  "unverified — awaiting user confirmation of retained TC
  applicability." Do not block AC-based work or add extra approval
  stages — the user may confirm and proceed, or discard the stale
- testplan.}
+ testplan.
+
+ When the user confirms retained TCs, record the confirmation in
+ `02-plan.md` by changing the Test Plan Coverage status to
+ "confirmed — user verified TC applicability on {date}". This
+ record allows `/validate` to treat confirmed TCs as normative.
+ Confirmation does NOT restore `Freshness` to verified — the
+ upstream source remains absent.}
 
 | TC ID | Title | Covered by Task | Notes |
 |-------|-------|-----------------|-------|
@@ -250,7 +257,15 @@ Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
 {Gates use source path + gate heading as identity — no TC IDs.
  Status values: not-started, pending, verified, failed.
  All gates remain pending until actual evidence is provided;
- do not infer complete from automated test results.}
+ do not infer complete from automated test results.
+
+ Required Evidence must come from the source gate definition or the
+ linked source document (design testplan or external specification).
+ If the source gate specifies criteria (e.g., "security audit report
+ from accredited lab"), carry them verbatim. If the source does not
+ specify criteria, set Required Evidence to "criteria not specified
+ in source — clarification needed" rather than inventing requirements.
+ TC-based gates use the TC's own Expected Results as criteria.}
 
 ## Scope Baseline
 

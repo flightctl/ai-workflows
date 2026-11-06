@@ -479,19 +479,36 @@ artifact whose local file is missing or is a symlink is an error —
 stop and report to the user. Do not delete published content based
 on a missing local file.
 
-**Snapshot PREVIOUS state:** If
+**Snapshot PREVIOUS state:** Before capture, remove any existing
+`.artifacts/design/{issue-key}/prev-published-index.json`. If the
+removal fails (non-zero exit other than file-not-found), stop and
+report the error. Then: if
 `{docs_repo_path}/{feature-dir}/validation-index.json` exists, copy
 it to `.artifacts/design/{issue-key}/prev-published-index.json`. If
 it does not exist but `{docs_repo_path}/{feature-dir}/testplan.md`
-exists (legacy), build a snapshot. If neither exists, there is no
+exists (legacy), create the minimal published snapshot:
+
+```json
+{
+  "schema_version": "1.0",
+  "primary_testplan": "testplan.md",
+  "artifacts": [{"file": "testplan.md", "type": "testplan"}]
+}
+```
+
+Save to `.artifacts/design/{issue-key}/prev-published-index.json`.
+If neither exists, no previous snapshot is captured.
+
+**Validate the snapshot if one was captured.** Before copying any
+current artifacts or overwriting the published index, validate the
+captured snapshot. If no snapshot was captured (no previous
+published state), skip validation and continue with an empty
 previous set.
 
-**Validate the snapshot immediately after capture.** Before copying
-any current artifacts or overwriting the published index, validate
-the captured snapshot:
-
 ```bash
-python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issue-key}/prev-published-index.json"
+if [ -f ".artifacts/design/{issue-key}/prev-published-index.json" ]; then
+  python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issue-key}/prev-published-index.json"
+fi
 ```
 
 If validation fails, **stop and report** — do not proceed with
@@ -545,8 +562,14 @@ For each filename in the `removed` list:
 git -C "{docs_repo_path}" ls-files --error-unmatch "{feature-dir}/{stale-filename}"
 ```
 
-If tracked, remove it. If not tracked (already removed), skip.
-If any other non-zero exit (unexpected git error), stop and report.
+If tracked, stage its removal:
+
+```bash
+git -C "{docs_repo_path}" rm -- "{feature-dir}/{stale-filename}"
+```
+
+If not tracked (already removed), skip. If the check or removal
+produces an unexpected error, stop and report.
 
 If the current set is **empty** and the previous set had artifacts,
 validate the previous snapshot before removal:
@@ -555,10 +578,13 @@ validate the previous snapshot before removal:
 python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issue-key}/prev-published-index.json"
 ```
 
-If validation fails, stop and report. If it passes, remove each
-listed artifact. Remove the published `validation-index.json` only
-if the previous publication included one (skip for legacy-only
-snapshots that had only `testplan.md`).
+If validation fails, stop and report. If it passes, for each
+listed artifact, check whether it is tracked and stage removal
+with `git -C "{docs_repo_path}" rm -- "{feature-dir}/{filename}"`.
+Skip untracked files. Remove the published `validation-index.json`
+only if the previous publication included one (skip for legacy-only
+snapshots that had only `testplan.md`). Use the same tracked-file
+check and `git rm` for the index removal.
 
 **Update publish-metadata.json:** Read, update `validation_artifacts`
 to match the current published set, update `testplan_file_path` to
