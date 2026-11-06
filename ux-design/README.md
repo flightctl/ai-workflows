@@ -187,10 +187,29 @@ It contains:
   evaluation used Quick depth or URL-only input
 - **Research context** — why decisions were made
 
-The accompanying `screenshot-manifest.json` records each screenshot's
-SHA-256 checksum, source path, caption, and the prototype iteration and
-context revision it was captured from. This enables consumers and the
-publish phase to validate asset identity and detect visual-only changes.
+The authoring `screenshot-manifest.json` (in `.artifacts/`) records each
+screenshot's SHA-256 checksum, source path, caption, and the prototype
+iteration and context revision it was captured from. A consumer-facing
+manifest (published alongside the handoff in the docs repo) omits private
+source paths and enables `ui-design` to verify asset identity and detect
+visual-only changes.
+
+### Screenshot Storage Policy
+
+The `/publish` phase requires an explicit storage policy before copying
+or committing screenshot assets. Configuration locations (checked in
+order):
+
+1. `publish-metadata.json` → `screenshot_storage` (per-handoff, set on
+   first publish)
+2. `{docs_repo}/.workflows/ux-design/config.json` → `screenshot_storage`
+   (repository-level)
+3. `{docs_repo}/.workflows/config.json` → `screenshot_storage`
+   (repository-level fallback)
+
+Valid values: `lfs`, `external`, `git`. The value `none` is recorded for
+text-only publishes and is not valid authorization for image commits.
+`.gitattributes` LFS patterns indicate capability, not authorization.
 
 ## UXD Marketplace Skills
 

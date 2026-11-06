@@ -194,13 +194,32 @@ These are curated references for the handoff consumer (`ui-design`), not a
 dump of all raw evaluation evidence.
 
 **Source.** The `/evaluate` phase captures screenshots into
-`.artifacts/ux-design/{issue-key}/04-eval-raw/screenshots/`. If no
-screenshots exist (Quick depth was used, or screenshots were not captured),
-skip this step and record `Screenshots: None — evaluation used URL or Quick
-depth` in the handoff template's Screenshots section.
+`.artifacts/ux-design/{issue-key}/04-eval-raw/screenshots/` at Standard
+and Full depth. Check whether screenshots exist in that directory.
 
-**Selection criteria.** From the available screenshots, select images that
-show:
+If no screenshots exist, determine why:
+- Read `04-evaluation.md` to confirm the evaluation depth used.
+- If the evaluation was Quick depth or URL-only: record
+  `Screenshots: None — evaluation at {depth} depth did not capture
+  screenshots.`
+- If the evaluation was Standard or Full but no screenshots were saved:
+  record `Screenshots: None — evaluation did not produce screenshots.`
+- In either case, tell the researcher: *"No screenshots are available
+  for the handoff. To include visual references, either re-run
+  `/evaluate` at Standard or Full depth with screenshot capture, or
+  provide screenshots to `/revise`."*
+
+Skip the rest of this step and proceed to Step 6.
+
+**Binding check.** Only use screenshots whose evaluation revision
+bindings (prototype iteration, discovery revision, context revision)
+match the current context. Read `04-evaluation.md`'s header to confirm
+bindings. If screenshots exist but their evaluation bindings are stale,
+stop and recommend re-running `/evaluate` against the current context
+rather than using outdated screenshots.
+
+**Selection criteria.** From the available current-context screenshots,
+select images that show:
 
 1. The **primary user flow** in its populated/happy-path state
 2. Each **alternate state** relevant to implementation (empty, loading, error,
@@ -209,8 +228,7 @@ show:
 4. **Responsive breakpoints** if the design adapts to screen size
 
 Do not include redundant screenshots that show the same state from
-different evaluation runs. Prefer screenshots from the evaluation whose
-revision bindings match the current context.
+different evaluation runs.
 
 **Curated directory.** Copy selected screenshots to
 `.artifacts/ux-design/{issue-key}/screenshots/` with stable filenames:
@@ -317,7 +335,18 @@ Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 
 ### User Flows
 
-{Step-by-step flows from skill output}
+{Step-by-step flows from skill output.
+
+When screenshots are available, embed the primary-flow screenshot
+adjacent to the flow it illustrates:
+
+![SS-1: {alt_text from manifest}](screenshots/SS-1-{description}.png)
+*{caption from manifest} — Prototype iteration {N}, context revision {R}*
+
+Place each embed immediately after the flow step(s) it depicts. Use the
+resolved reference for the storage mode: a relative path for `lfs`/`git`
+mode, or the external HTTPS URL for `external` mode. Both must render as
+visible images in standard Markdown viewers.}
 
 ### Keyboard Navigation
 
@@ -384,26 +413,53 @@ technical design supports the full design."}
 
 ## Screenshots
 
-{From Step 5. If no screenshots were captured (Quick depth or URL-only
-evaluation), state: "Screenshots: None — evaluation used URL or Quick
-depth. The ui-design workflow will operate from the written spec only."}
+{From Step 5. If no screenshots were captured, state one of:
 
-{If screenshots are available, list each curated image with its stable ID,
-caption, and alt text. Reference the screenshot manifest for asset
-identity (SHA-256 checksums) and source traceability.}
+- "Screenshots: None — evaluation at Quick depth used a URL; no images
+  were captured. To add screenshots, run `/evaluate` at Standard or Full
+  depth with screenshot capture, or provide images to `/revise`."
+- "Screenshots: None — evaluation did not capture screenshots. The
+  ui-design workflow will operate from the written spec only. To add
+  screenshots later, use `/revise`."
 
-| ID | File | Caption | State |
-|----|------|---------|-------|
-| SS-1 | `screenshots/SS-1-{description}.png` | {What the screenshot shows} | {populated / empty / loading / error / partial / responsive / persona-specific} |
+Do not label every missing-screenshot case as "Quick depth" unless the
+evaluation record confirms Quick depth was used.}
 
-**Manifest:** `screenshot-manifest.json` (SHA-256 checksums, source paths,
-context revision, prototype iteration)
+{If screenshots are available, embed each curated image with its stable
+ID, caption, and alt text. Embeds render the actual image in Markdown
+viewers; the index below provides metadata and identity for tooling.
+
+For `lfs`/`git` storage mode, use relative paths. For `external` mode,
+use the immutable HTTPS URL. Both forms must render as visible images.}
+
+### SS-1: {short description}
+
+![SS-1: {alt_text}](screenshots/SS-1-{description}.png)
+*{caption} — {state}: {populated / empty / loading / error / partial /
+responsive / persona-specific}*
+
+### SS-2: {short description}
+
+![SS-2: {alt_text}](screenshots/SS-2-{description}.png)
+*{caption} — {state}*
+
+{Repeat for each curated screenshot. Place additional embeds inline
+beside the User Flows, State Matrix, or Persona-Specific Views sections
+where they illustrate specific flows or states.}
+
+### Screenshot Index
+
+| ID | File | SHA-256 | Caption | State |
+|----|------|---------|---------|-------|
+| SS-1 | `screenshots/SS-1-{description}.png` | `{first 12 hex chars}…` | {caption} | {state} |
+
+**Context revision:** {revision} | **Prototype iteration:** {N}
 
 **Note for `ui-design`:** Open and visually inspect each referenced
-screenshot during `/ingest`. Do not treat this table as a substitute for
-image inspection — the screenshots show rendered layout, spacing, visual
-hierarchy, and state presentation that the written spec cannot fully
-convey.
+screenshot during `/ingest`. The embeds above show rendered layout,
+spacing, visual hierarchy, and state presentation that the written spec
+cannot fully convey. Do not treat the index table as a substitute for
+image inspection.
 
 ## Open Questions
 

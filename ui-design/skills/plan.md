@@ -58,8 +58,11 @@ Observations** section of `01-context.md` for the `Screenshots` status:
 - `deferred` → `HAS_SCREENSHOTS = deferred` — screenshots exist but
   were not visually inspected; note reduced visual fidelity in decisions
   that would benefit from visual evidence
-- `unavailable` → `HAS_SCREENSHOTS = false` — screenshots could not be
-  inspected; treat as text-only with a note
+- `unavailable` → `HAS_SCREENSHOTS = unavailable` — screenshots were
+  referenced but none could be inspected; note the limitation explicitly
+  in each section where visual evidence would apply
+- `partial` → `HAS_SCREENSHOTS = partial` — some images were inspected;
+  cite only the inspected ones and note which are missing
 
 `HAS_SCREENSHOTS` is independent of `HAS_HANDOFF`. A handoff may exist
 without screenshots (Quick evaluation) and screenshots are never present
@@ -95,29 +98,36 @@ Before writing, create a mental map. If `HAS_HANDOFF` is true:
 - Which persona-specific views require conditional rendering or permission gates?
 - Which acceptance criteria drive which components?
 
-If `HAS_SCREENSHOTS` is true, use the inspected screenshot observations
-from `01-context.md` to inform component grouping, layout, and visible-
-state decisions:
+If `HAS_SCREENSHOTS` is true (or `partial` — some images inspected),
+use the inspected screenshot observations from `01-context.md` to inform
+component grouping, layout, and visible-state decisions. Use the
+image's recorded path or URL and identity status from the context to
+reference the correct asset.
 
 - **Cite image IDs** alongside written spec references using the marker
   `[Screenshot: SS-N]` — for example, `[Screenshot: SS-1]` when a
   component's layout is informed by the populated-state screenshot.
-- **Compare visual and textual evidence.** If a screenshot shows layout,
-  spacing, component arrangement, or visual hierarchy that differs from or
-  is not described in the written handoff spec, flag the discrepancy
-  explicitly rather than silently selecting one source:
+  Only cite screenshots whose status is `inspected` with identity
+  `verified` or `unverified`. Do not cite `unavailable` or
+  `lfs-unresolved` screenshots as visual evidence.
 
-  *"[Discrepancy: SS-2 vs Handoff §Component Mapping] The screenshot
-  shows {observed visual detail}, but the written spec describes
+- **Distinguish additive evidence from contradictions.** Visual details
+  present in a screenshot but not mentioned in the written spec are
+  **additive** — the screenshot supplements the prose. Cite these as:
+  `[Screenshot: SS-N — additive: {detail}]`. These are not discrepancies;
+  they add visual context the prose did not capture.
+
+  A **contradiction** is when a screenshot shows something that
+  conflicts with what the written spec explicitly states (e.g., the spec
+  says "two-column layout" but the screenshot shows three columns). Flag
+  these explicitly:
+
+  *"[Contradiction: SS-2 vs Handoff §Component Mapping] The screenshot
+  shows {observed visual detail}, but the written spec states
   {written detail}. Flagging for user resolution."*
 
-  Do not invent behavior to resolve a discrepancy — present both sources
-  and let the user decide.
-
-- **Visual-only evidence.** When a screenshot provides visual details not
-  in the written spec (spacing proportions, visual weight, color-coded
-  states), cite the screenshot as the source for those decisions:
-  `[Screenshot: SS-N — visual detail]`.
+  Do not invent behavior to resolve a contradiction — present both
+  sources and let the user decide.
 
 If `HAS_SCREENSHOTS` is `deferred`:
 - Note in each section where visual evidence would have informed a
@@ -557,8 +567,8 @@ Before presenting the UI design document, verify:
 - [ ] No vague language ("appropriate", "standard", "as needed" without specifics)
 - [ ] No scope reduction language ("v2", "simplified", "placeholder", "future enhancement")
 - [ ] Source markers trace decisions to UX handoff, design document, PRD, or codebase
-- [ ] Screenshot citations (`[Screenshot: SS-N]`) are present for layout and visual-state decisions when `HAS_SCREENSHOTS` is true; deferred decisions are noted when `HAS_SCREENSHOTS` is `deferred`
-- [ ] Text/image discrepancies are flagged explicitly, not silently resolved
+- [ ] Screenshot citations (`[Screenshot: SS-N]`) are present for layout and visual-state decisions when `HAS_SCREENSHOTS` is true or partial; deferred/unavailable decisions are noted when applicable
+- [ ] Contradictions between screenshots and written spec are flagged explicitly; additive visual details are cited as supplementary evidence, not as discrepancies
 - [ ] File paths are specific and follow the project's directory conventions
 - [ ] No `[Assumption: ...]` markers remain
 - [ ] The document is concise — no redundant sections or unnecessary repetition

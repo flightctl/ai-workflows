@@ -47,7 +47,7 @@ The workflow draws from multiple published sources — never from another workfl
 | Context path | User-provided filesystem path (non-Jira flow only) | No — used when starting from a local document |
 | Description | User-provided text (non-Jira flow only) | No — used when starting from a textual description |
 | UX handoff (`handoff.md`) | Docs repo (from `ux-design` workflow) | No — optional for purely technical work |
-| UX screenshots (`screenshots/`) | Docs repo (alongside `handoff.md`) | No — present only when evaluation captured screenshots |
+| UX screenshots (`screenshots/` or external URLs) | Docs repo (repo-local files or immutable external HTTPS refs alongside `handoff.md`) | No — present only when evaluation captured screenshots |
 | PRD (`prd.md`) | Docs repo (from `prd` workflow) | Yes |
 | Design document (`design.md`) | Docs repo (from `design` workflow) | Yes |
 | `AGENTS.md` / `UI-ARCHITECTURE.md` | Project root | If available |

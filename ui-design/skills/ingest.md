@@ -270,22 +270,49 @@ proceed without a handoff (it is optional).
 If found, read it.
 
 **Screenshot inspection.** After reading the handoff text, check whether
-its Screenshots section references curated images (rows in the screenshot
-table with `SS-N` IDs) or states that no screenshots are available.
+its Screenshots section references curated images (inline `![alt](ref)`
+embeds with `SS-N` IDs) or states that no screenshots are available.
 
-- **If screenshots are referenced:** For each referenced screenshot, locate
-  the image file relative to the handoff's directory in the docs repo
-  (e.g., `{handoff_dir}/screenshots/SS-1-description.png`). Then:
+- **If screenshots are referenced:** Read the published
+  `screenshot-manifest.json` from the same directory as the handoff in
+  the docs repo. This manifest contains per-image SHA-256 checksums,
+  `context_revision`, `prototype_iteration`, captions, and alt text —
+  the consumer-facing identity record. If the manifest is missing, warn
+  the user and record `manifest: unavailable` per image.
 
-  1. **Open and visually inspect each image** using the runtime's image
-     reading capability (e.g., the `Read` tool on the image file path).
-     Reading the markdown table, file metadata, captions, or alt text
-     alone is **not** image inspection — the purpose is to observe the
-     actual rendered layout, visual hierarchy, spacing, color usage,
-     component arrangement, and state presentation in the image pixels.
+  Determine the reference type from the handoff embeds:
 
-  2. For each inspected image, record:
+  **Local references** (`screenshots/SS-N-desc.png` — `lfs` or `git`
+  mode): Locate the image file relative to the handoff directory. If the
+  file is a Git LFS pointer stub (starts with `version https://git-lfs`),
+  attempt to resolve the actual content via `git lfs smudge` or report
+  `inspection: lfs-unresolved` for that image — do not inspect the
+  pointer text as if it were an image.
+
+  **External references** (`https://...` URLs — `external` mode):
+  Retrieve the image bytes using the runtime's HTTP/image-fetch
+  capability (e.g., `WebFetch` with `save_to` to a temp file, then
+  `Read` the saved image). If HTTP access is unavailable or the fetch
+  fails, record `inspection: fetch-failed` for that image.
+
+  For each resolved image (local file or fetched external):
+
+  1. **Verify identity.** If the manifest provides a `sha256` for this
+     ID, compute the SHA-256 of the actual image bytes and compare. If
+     they differ, record `identity: mismatched` and warn the user that
+     the published image does not match the manifest. If the manifest is
+     unavailable, record `identity: unverified`.
+
+  2. **Open and visually inspect** using the runtime's image reading
+     capability (e.g., the `Read` tool on the file path). Reading the
+     markdown table, file metadata, captions, or alt text alone is
+     **not** image inspection — the purpose is to observe the actual
+     rendered layout, visual hierarchy, spacing, color usage, component
+     arrangement, and state presentation in the image pixels.
+
+  3. For each inspected image, record:
      - The screenshot ID (`SS-N`)
+     - Identity status (`verified` / `mismatched` / `unverified`)
      - A brief observation of what the image actually shows (layout,
        component arrangement, visual state, notable visual details)
      - Whether the image content is consistent with or contradicts the
@@ -293,27 +320,28 @@ table with `SS-N` IDs) or states that no screenshots are available.
      - Any visual details not captured in the written spec (spacing,
        alignment, visual weight, color patterns)
 
-  3. If an image file cannot be found, is unreadable, or the runtime does
-     not support image inspection (e.g., no multimodal capability, or
-     the tool returns an error for binary files):
-     - Record the screenshot ID and status as `unavailable` or
-       `inspection-not-supported`
-     - Report to the user which images could not be inspected and why
+  4. If an image cannot be resolved, is unreadable, or the runtime does
+     not support image inspection:
+     - Record the screenshot ID and per-image status: `unavailable`,
+       `lfs-unresolved`, `fetch-failed`, or `inspection-not-supported`
+     - Report to the user which specific images could not be inspected
+       and the reason for each
      - Do **not** claim the images were inspected or fabricate visual
        observations from the caption or alt text
-     - Ask the user whether to proceed with text-only context or wait
-       for image access
+     - Preserve observations from images that were successfully inspected
+     - Ask the user whether to proceed with partial/text-only context or
+       wait for full image access — this is a per-decision choice, not a
+       blanket pass/fail
 
-  4. If the handoff references a `screenshot-manifest.json`, read it to
-     obtain SHA-256 checksums for asset identity verification. Record the
-     manifest's `context_revision` and `prototype_iteration` fields. If
-     the manifest's revision differs from the handoff's metadata, warn
-     the user that screenshots may be stale.
+  5. Record the manifest's `context_revision` and `prototype_iteration`.
+     If these differ from the handoff's metadata header, warn the user
+     that screenshots may be from a different evaluation cycle.
 
 - **If no screenshots are available** (handoff says "None" or the
-  Screenshots section is absent): Record `HAS_SCREENSHOTS = false` in the
-  context. This is a legitimate case (Quick evaluation depth, URL-only
-  input, or pre-screenshot handoff). Do not treat this as an error.
+  Screenshots section is absent): Record `HAS_SCREENSHOTS = false` in
+  the context. This is a legitimate case — do not treat it as an error
+  or assume it means Quick depth was used. Record the actual reason from
+  the handoff's Screenshots section if stated.
 
 - **User-authorized text-only path.** If the user explicitly authorizes
   proceeding without image inspection (when screenshots exist but cannot
@@ -522,25 +550,34 @@ If this is a first invocation, write
 
 ### Screenshot Observations
 
-- **Screenshots:** {`inspected` / `none` / `deferred` / `unavailable`}
+- **Screenshots:** {`inspected` / `partial` / `none` / `deferred` / `unavailable`}
+- **Manifest revision:** {context_revision from published manifest, or "N/A"}
+- **Manifest iteration:** {prototype_iteration from published manifest, or "N/A"}
 
-{If inspected: for each screenshot, record the ID, a brief visual
-observation, and any text/image discrepancies.}
+{If inspected or partial: for each screenshot, record per-image status,
+identity verification, visual observation, and text/image consistency.}
 
-| ID | Visual Observation | Consistent with Spec | Notes |
-|----|-------------------|----------------------|-------|
-| SS-1 | {What the image actually shows — layout, components, visual state} | {Yes / No — discrepancy description} | {Visual details not in written spec} |
+| ID | Status | Identity | Visual Observation | Consistent with Spec | Notes |
+|----|--------|----------|--------------------|----------------------|-------|
+| SS-1 | `inspected` | `verified` | {What the image shows — layout, components, state} | {Yes / No — discrepancy} | {Visual details not in written spec} |
+| SS-2 | `lfs-unresolved` | `unverified` | — | — | LFS pointer not resolved |
 
-{If none: "No screenshots in the UX handoff. Visual context is derived
+{Use `partial` when some images were inspected and others were not.
+Record observations for inspected images and per-image failure reasons
+for uninspected ones.}
+
+{If none: "No screenshots in the UX handoff. Reason: {reason from
+handoff Screenshots section, e.g., 'evaluation at Quick depth' or
+'evaluation did not produce screenshots'}. Visual context is derived
 from the written spec only."}
 
 {If deferred: "Screenshots exist but image inspection was deferred by
 user authorization. Reason: {reason}. Visual fidelity is reduced — the
 plan phase will note which decisions lack visual evidence."}
 
-{If unavailable: "Screenshots referenced but could not be inspected.
-Images not inspected: {list of SS-N IDs and reasons}. Visual context is
-derived from the written spec only for these screenshots."}
+{If unavailable: "Screenshots referenced but none could be inspected.
+Per-image status: {SS-1: fetch-failed, SS-2: inspection-not-supported,
+...}. Visual context is derived from the written spec only."}
 
 ### Feasibility & Phasing
 

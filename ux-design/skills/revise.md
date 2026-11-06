@@ -59,22 +59,40 @@ After writing the updated `05-handoff.md`, read and follow
 
 If the revision adds, replaces, or removes screenshots:
 
-1. **Adding/replacing:** Copy new screenshots into
-   `.artifacts/ux-design/{issue-key}/screenshots/` using stable `SS-N`
-   naming. Compute the SHA-256 and update `screenshot-manifest.json`.
-   Update the Screenshots section in `05-handoff.md`.
+1. **Adding:** Assign a new `SS-N` ID (next unused integer). Copy the
+   image into `.artifacts/ux-design/{issue-key}/screenshots/` using stable
+   naming. Compute its SHA-256 and add the entry to
+   `screenshot-manifest.json`. Add both an inline `![alt](ref)` embed at
+   the relevant flow/state section and a row in the Screenshot Index of
+   `05-handoff.md`.
 
-2. **Removing:** Delete the file from `screenshots/`, remove its manifest
-   entry, and remove its row from the Screenshots section.
-
-3. **Image-only change** (same screenshot re-captured with visual changes
-   but no textual handoff change): Replace the file, update the manifest's
-   `sha256` field, and note the visual change in the revision summary. The
-   manifest checksum ensures `/publish` and `ui-design` detect the update
+2. **Replacing:** Replace the file in `screenshots/`, update the
+   manifest's `sha256` field, and update the embed's alt text and caption
+   if the visual content changed. Note the visual change in the revision
+   summary. The manifest checksum ensures `/publish` detects the update
    even when the filename and handoff text are unchanged.
 
-If the handoff previously had no screenshots and the researcher requests
-adding them, follow the curation procedure from `/handoff` Step 5.
+3. **Removing:** Delete the file from `screenshots/`, remove its manifest
+   entry, remove the inline `![alt](ref)` embed **and** the Screenshot
+   Index row from `05-handoff.md`. If a PR has been published, `/publish`
+   will remove the file from the published Git/LFS tree on the next
+   update.
+
+4. **Image-only change** (same ID, same filename, visually different
+   content): Replace the file, update the manifest's `sha256`, and note
+   the change. The checksum difference signals `/publish` and `ui-design`
+   that the visual content changed.
+
+**Adding screenshots to a previously text-only handoff.** If the handoff
+has `Screenshots: None` and the researcher provides images, the recorded
+`screenshot_storage` policy of `none` is no longer valid. Tell the
+researcher that an explicit storage policy (`lfs`, `external`, or `git`)
+is required before the next `/publish`, then follow the curation
+procedure from `/handoff` Step 5.
+
+**Provenance ordering.** Capture provenance after all screenshot updates
+are written to `05-handoff.md` and the manifest, so the event reflects
+the final content state.
 
 ### Step 4: Consistency Check
 

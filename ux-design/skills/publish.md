@@ -206,22 +206,31 @@ creating the branch and report the specific failures.
 
 ### Step 3b: Resolve Screenshot Storage Policy
 
-Determine how screenshot assets will be stored in the docs repo. The
-explicit repository or researcher policy is authoritative — do not infer
-storage mode from filesystem configuration alone.
+**Skip this step entirely** when the handoff's Screenshots section says
+"None" and the authoring manifest does not exist or is empty. Set
+`screenshot_storage` to `none` in publish-metadata.json and proceed to
+Step 4 without prompting for a storage policy or touching asset paths.
+
+When the handoff contains screenshot references, determine how assets
+will be stored. The explicit repository or researcher policy is
+authoritative — do not infer storage mode from filesystem configuration
+alone.
 
 **Policy resolution order:**
 
 1. **Recorded policy.** If the `publish-metadata.json` for this handoff
-   already contains a `screenshot_storage` field, use it. This preserves
-   the choice made on the first publish for subsequent updates.
+   already contains a `screenshot_storage` field **and its value is not
+   `none`**, use it. A previously recorded `none` is not valid
+   authorization when the handoff now contains images — fall through to
+   check repository policy or ask the researcher.
 
 2. **Repository-level policy.** Check for a `screenshot_storage` key in
-   `{docs_repo_path}/.workflows/ux-design/config.json` (or
-   `.workflows/config.json`). If present, its value is the explicit
-   repository policy.
+   `{docs_repo_path}/.workflows/ux-design/config.json` or
+   `.workflows/config.json`. Valid values are `lfs`, `external`, or
+   `git`. If present, its value is the explicit repository policy.
+   Document these config locations in the workflow README.
 
-3. **No recorded policy.** If neither source provides a policy, stop
+3. **No valid policy.** If neither source provides a valid policy, stop
    before copying any assets and present the available options to the
    researcher:
 
@@ -299,8 +308,27 @@ mkdir -p "{destination_dir}"
 cp "{source_repo_root}/.artifacts/ux-design/{issue-key}/05-handoff.md" "{handoff_target}"
 ```
 
-**Copy screenshot assets** (when the manifest is non-empty and the
-Screenshots section is not "None"):
+**Skip screenshot handling** when the handoff's Screenshots section says
+"None" or the authoring manifest does not exist. Do not prompt for a
+storage policy, touch asset paths, or stage screenshot directories on
+text-only publishes.
+
+**Copy screenshot assets** (only when the authoring manifest is non-empty
+and the Screenshots section contains image references):
+
+**Pre-copy containment validation.** Before creating directories or
+copying any file, validate every planned destination path:
+
+1. For each manifest entry, compute the candidate destination:
+   `{destination_dir}/screenshots/{filename}`.
+2. Require `{filename}` to match `^SS-[0-9]+-[a-z0-9-]+\\.png$` (the
+   stable naming convention). Reject filenames containing `..`, `/`,
+   `\`, or path separators.
+3. Resolve the candidate path and verify it is inside `{docs_repo_root}`.
+4. Verify `{destination_dir}/screenshots` — if it already exists, confirm
+   it is a directory (not a symlink to a location outside the docs repo).
+
+If any validation fails, stop and report before copying.
 
 Apply the storage policy resolved in Step 3b:
 
@@ -310,38 +338,68 @@ Apply the storage policy resolved in Step 3b:
 mkdir -p "{destination_dir}/screenshots"
 ```
 
-For each screenshot in the manifest, copy it and verify containment:
+For each screenshot in the manifest, copy it individually:
 
 ```bash
 cp "{source_repo_root}/.artifacts/ux-design/{issue-key}/screenshots/{filename}" \
    "{destination_dir}/screenshots/{filename}"
 ```
 
-After copying, verify the SHA-256 of each copied file matches the manifest.
-If any checksum fails, stop and report the corruption before committing.
+After copying all files, verify the SHA-256 of each copied file matches
+the manifest. If any checksum fails, stop and report the corruption
+before committing.
 
-Validate that every copied file's resolved path is inside
-`{docs_repo_root}`. If `lfs` mode is selected, verify that the docs repo
-has LFS initialized and that a tracking pattern covers the target path
-(e.g., `*.png` or `screenshots/**`). If LFS is not configured, stop and
-ask the researcher to configure it.
+If `lfs` mode is selected, verify that the docs repo has LFS initialized
+(`git lfs env` succeeds) and that a tracking pattern covers the target
+path (e.g., `*.png` or `screenshots/**`). If LFS is not configured, stop
+and ask the researcher to configure it before committing.
+
+**Publish a consumer-facing manifest.** Write
+`{destination_dir}/screenshot-manifest.json` containing only
+consumer-relevant fields (no private `.artifacts/` source paths):
+
+```json
+{
+  "issue_key": "{issue-key}",
+  "context_revision": "{from authoring manifest}",
+  "prototype_iteration": "{from authoring manifest}",
+  "screenshots": [
+    {
+      "id": "SS-1",
+      "filename": "SS-1-{description}.png",
+      "sha256": "{hex digest of published file}",
+      "caption": "{caption}",
+      "alt_text": "{alt_text}",
+      "flow": "{flow}",
+      "state": "{state}"
+    }
+  ]
+}
+```
+
+The authoring manifest at
+`{source_repo_root}/.artifacts/ux-design/{issue-key}/screenshot-manifest.json`
+is preserved separately with its `source` field for traceability. The
+published manifest omits `source` because consumers must not reference
+private artifact paths.
 
 **`external` mode:**
 
 Do not copy image files. Instead, for each screenshot in the manifest,
-require the researcher to provide an immutable, revision-bound URL. Update
-the handoff's Screenshots section to reference external URLs instead of
-relative paths. Each URL must:
+require the researcher to provide an immutable, revision-bound URL. Rewrite
+**both** the inline `![alt](ref)` embeds **and** the Screenshot Index
+table entries in the published handoff to use the external URL. Preserve
+the original relative references in the authoring `05-handoff.md` — only
+the docs-repo copy uses external URLs. Each URL must:
 
 - Be an HTTPS URL (not `file://`, `ftp://`, or data URI)
 - Include a version, commit, or content-addressed identifier in the path
   (not a mutable `latest` tag or query-parameter-only versioning)
 - Not contain time-limited authentication tokens or presigned parameters
 
-Record each screenshot's external URL and the file's SHA-256 checksum in
-the `publish-metadata.json` `screenshot_assets` array so `/respond` and
-subsequent publishes can verify the external reference still resolves to the
-expected content.
+Write the consumer-facing manifest with `published_path` set to each
+external URL (no `filename` field since files are not copied). Verify
+the mapping from authoring manifest IDs to external URLs is complete.
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ux-design`, `ISSUE_KEY={issue-key}`,
@@ -361,36 +419,57 @@ Provenance at publish time:
 - Only if the researcher explicitly declines provenance, pass `ALLOW_MISSING=yes` to
   strip the footer and record `provenance_kind: declined`.
 
+**Stage only owned files by explicit allowlist.** Build the list of paths
+this publish owns, then stage and commit exactly those paths. This
+prevents committing unrelated pre-staged changes or unstaged work.
+
 ```bash
 git -C "{docs_repo_path}" add -- "{handoff_file_path}"
 ```
 
-Stage screenshot assets (when `lfs` or `git` mode copied files):
+When `lfs` or `git` mode copied screenshot files, stage each file
+individually by name — do not stage the entire directory:
 
 ```bash
-git -C "{docs_repo_path}" add -- "{destination_dir}/screenshots/"
+# For each {filename} from the manifest:
+git -C "{docs_repo_path}" add -- "{handoff_file_path_dir}/screenshots/{filename}"
 ```
 
-For a new PR, commit the handoff and any screenshots together:
+When the consumer-facing manifest was written:
 
 ```bash
-git -C "{docs_repo_path}" commit -m "Add UX design handoff for {issue-key}"
+git -C "{docs_repo_path}" add -- "{handoff_file_path_dir}/screenshot-manifest.json"
 ```
 
-For an existing PR, compare staged changes with the branch version. If
-there are changes, commit them; if everything is unchanged, do not create
-an empty commit.
+Do not stage screenshot paths on text-only or external-mode publishes
+where no files were copied.
+
+For a new PR, commit only the allowlisted paths:
 
 ```bash
-git -C "{docs_repo_path}" diff --cached --quiet -- "{handoff_file_path}" "{destination_dir}/screenshots/"
+git -C "{docs_repo_path}" commit --only -m "Add UX design handoff for {issue-key}" \
+  -- "{handoff_file_path}" "{handoff_file_path_dir}/screenshot-manifest.json" \
+     "{handoff_file_path_dir}/screenshots/SS-1-{desc}.png" ...
+```
+
+List every owned file explicitly in the `--` pathspec. The `--only` flag
+ensures only these paths are committed regardless of other staged changes.
+
+For an existing PR, check whether owned files changed:
+
+```bash
+git -C "{docs_repo_path}" diff --cached --quiet \
+  -- "{handoff_file_path}" "{handoff_file_path_dir}/screenshot-manifest.json" \
+     "{handoff_file_path_dir}/screenshots/"
 ```
 
 An exit status of `0` means nothing changed: skip the commit and push. An
-exit status of `1` means there are changes: create the update commit below.
-For any other status, stop and report the Git error.
+exit status of `1` means there are changes: create the update commit. For
+any other status, stop and report the Git error.
 
 ```bash
-git -C "{docs_repo_path}" commit -m "Update UX design handoff for {issue-key}"
+git -C "{docs_repo_path}" commit --only -m "Update UX design handoff for {issue-key}" \
+  -- {same explicit allowlist as above}
 ```
 
 ### Step 5: Prepare PR Description for a New PR

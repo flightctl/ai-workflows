@@ -145,45 +145,96 @@ cp ".artifacts/ux-design/{issue-key}/05-handoff.md" "{docs_repo_path}/{handoff_f
 
 **Update screenshot assets if changed.** Read
 `.artifacts/ux-design/{issue-key}/screenshot-manifest.json` and
-`.artifacts/ux-design/{issue-key}/publish-metadata.json`. If the manifest
-exists and contains screenshots:
-
-Derive the handoff directory from the published handoff path:
+`.artifacts/ux-design/{issue-key}/publish-metadata.json`. Derive the
+handoff directory from the published handoff path:
 
 ```bash
 handoff_dir=$(dirname "{handoff_file_path}")
 ```
 
-1. Compare each manifest entry's `sha256` against the corresponding
-   `screenshot_assets` entry in `publish-metadata.json`. If any checksum
-   differs, the screenshot was visually updated since the last publish.
+If the authoring manifest does not exist or contains no screenshots, and
+`screenshot_storage` is `none`, skip screenshot handling entirely — do not
+touch asset paths.
 
-2. For `lfs` or `git` storage mode: copy changed screenshots to
-   `{docs_repo_path}/{handoff_dir}/screenshots/` and stage them.
+Otherwise, apply the same validation and storage gates as `/publish`:
 
-3. For `external` mode: ask the researcher for the updated external URL
-   for each changed screenshot.
+1. **Validate containment** of every planned destination path before
+   copying, using the same filename-pattern and symlink checks as
+   `/publish` Step 4.
 
-4. Update `publish-metadata.json` `screenshot_assets` with the new
-   checksums and paths.
+2. **Detect changes, additions, and removals:**
+   - For each entry in the current authoring manifest, compare its
+     `sha256` against the corresponding `screenshot_assets` entry in
+     `publish-metadata.json`. Changed checksum → updated image.
+   - Manifest entries absent from `publish-metadata.json` → newly added.
+   - `publish-metadata.json` entries absent from the current manifest →
+     removed.
+
+3. **Handle removals** (`lfs` or `git` mode): remove the deleted file
+   from the docs repo and stage the removal:
+
+   ```bash
+   git -C "{docs_repo_path}" rm -- "{handoff_dir}/screenshots/{removed_filename}"
+   ```
+
+   Remove the entry from the published `screenshot-manifest.json`.
+
+4. **Handle additions and updates** (`lfs` or `git` mode): copy each
+   changed or new file individually and verify its SHA-256 matches the
+   authoring manifest:
+
+   ```bash
+   cp ".artifacts/ux-design/{issue-key}/screenshots/{filename}" \
+      "{docs_repo_path}/{handoff_dir}/screenshots/{filename}"
+   ```
+
+5. **External mode:** For changed or added screenshots, require the
+   researcher to provide new immutable, revision-bound URLs. Rewrite
+   **both** the inline `![alt](ref)` embeds **and** the Screenshot Index
+   entries in the published handoff with the new URLs. For removals,
+   delete the embed and index entry. Preserve authoring references in
+   `05-handoff.md` separately.
+
+6. **Regenerate the published consumer-facing manifest** at
+   `{handoff_dir}/screenshot-manifest.json` with the current set of
+   published screenshots (no private paths).
+
+7. **Update `publish-metadata.json`** `screenshot_assets` with the new
+   checksums, paths, and entry set. Do not write metadata until the
+   commit and push succeed (Step below).
+
+**Capture provenance and render footer** after all screenshot updates are
+applied to the handoff, so the footer reflects the final content:
+
+Read and follow `../../_shared/recipes/capture-provenance-event.md` with
+`WORKFLOW=ux-design`, `ISSUE_KEY={issue-key}`, `PHASE=respond`,
+`AUTHORING_MODE=skill`.
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ux-design`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{docs_repo_path}/{handoff_file_path}"`.
 
-```bash
-git -C "{docs_repo_path}" add "{handoff_file_path}"
-```
-
-Stage screenshot changes if any were copied:
+**Stage only owned files by explicit allowlist:**
 
 ```bash
-git -C "{docs_repo_path}" add "{handoff_dir}/screenshots/" 2>/dev/null || true
+git -C "{docs_repo_path}" add -- "{handoff_file_path}"
+git -C "{docs_repo_path}" add -- "{handoff_dir}/screenshot-manifest.json"
+# For each changed/added {filename}:
+git -C "{docs_repo_path}" add -- "{handoff_dir}/screenshots/{filename}"
 ```
 
+If no owned files changed (exit 0 from `git diff --cached --quiet` on
+the allowlist), skip the commit. If changes exist:
+
 ```bash
-git -C "{docs_repo_path}" commit -m "UX design {issue-key}: address review feedback" -- "{handoff_file_path}" "{handoff_dir}/screenshots/"
+git -C "{docs_repo_path}" commit --only \
+  -m "UX design {issue-key}: address review feedback" \
+  -- "{handoff_file_path}" "{handoff_dir}/screenshot-manifest.json" \
+     "{handoff_dir}/screenshots/{file1}" ...
 ```
+
+Only update `publish-metadata.json` `screenshot_assets` after the commit
+and push succeed.
 
 ```bash
 git -C "{docs_repo_path}" push
