@@ -116,17 +116,18 @@ For each resolved image (local file or fetched external):
 ### 4. Account for every declared index ID
 
 Read `{HANDOFF_FILE}`'s **Screenshot Index** section and collect all
-declared `SS-N` IDs. Map each declared ID to its actual image embed
-(`![...](...)` reference) in the handoff body using the ID's declared
-ref path, not just the presence of the ID text.
+declared `SS-N` IDs. Match each declared ID to an actual image embed
+(`![...](...)` in the handoff body) by **both** the ID and its declared
+ref path. Consume each embed at most once — a shared ref path cannot
+satisfy two distinct IDs from one embed.
 
-- **IDs with matching embeds:** these are the images processed in
+- **IDs with a matching embed:** these are the images processed in
   steps 2–3 above.
-- **IDs without embeds:** record each as a complete 9-column row with
-  `status: unavailable`, `identity: —`, `observation: —`,
-  `spec_match: —`, and
+- **IDs without an embed or whose embed was already consumed:** record
+  as a 9-column row with `status: unavailable`, `identity: —`,
+  `observation: —`, `spec_match: —`, and
   `notes: "declared in index but no matching embed found"`. Include
-  these rows in the output and in aggregate totals.
+  in the output and aggregate totals.
 
 Run this accounting **before** computing the final aggregate status or
 eligibility. The total is the count of declared IDs, not the count of
@@ -145,15 +146,28 @@ ID or claim all images were inspected when embeds are missing.
 ### 5. Eligibility and citation rules
 
 Callers (e.g. `/plan`) read this section for citation policy; they
-must not rerun image inspection.
+must not rerun image inspection. Evaluate each image in rule order:
 
-| Condition | Eligibility | Citation form |
-|-----------|-------------|---------------|
-| `identity: verified` AND all bindings `matched` | verified | `[Screenshot: SS-N]` |
-| `identity: verified` but any binding `mismatched`/`unknown` | requires acceptance | `[Screenshot: SS-N — accepted-unverified]` |
-| `identity: mismatched` or `unverified`, user accepted | accepted-unverified | `[Screenshot: SS-N — accepted-unverified]` |
-| `identity: mismatched`/`unverified`, user rejected or not prompted | rejected/unavailable | Do not cite |
-| `status: unavailable`/`lfs-unresolved`/`fetch-failed` | unavailable | Do not cite |
+**Rule 1 — Inspection gate.** `status` must be `inspected`. Any
+other status (`unavailable`, `lfs-unresolved`, `fetch-failed`,
+`inspection-not-supported`) → **ineligible**. Do not cite.
+
+**Rule 2 — Identity.** If `identity` is `mismatched` or `unverified`,
+the user must explicitly accept that specific exception. Rejected or
+unprompted → **ineligible**.
+
+**Rule 3 — Bindings.** Each binding (`context_revision`,
+`prototype_iteration`) that is `mismatched` or `unknown` requires its
+own explicit acceptance, independent of identity. Any rejected,
+unprompted, or deferred binding → **ineligible**.
+
+**Outcome:**
+
+| Result | When | Citation |
+|--------|------|----------|
+| verified | inspected + identity `verified` + all bindings `matched` | `[Screenshot: SS-N]` |
+| accepted-unverified | inspected + every applicable identity/binding exception explicitly accepted | `[Screenshot: SS-N — accepted-unverified]` |
+| ineligible | any rule blocks use | Do not cite |
 
 Rejected, deferred, or unavailable evidence must not be used for
 planning decisions — not merely given a different citation tag.

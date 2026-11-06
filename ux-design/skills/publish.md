@@ -239,38 +239,16 @@ alone.
    Valid values are `lfs`, `external`, or `git`. Use the first valid
    value as the explicit repository policy.
 
-3. **No valid policy.** If neither source provides a valid policy, stop
-   before copying any assets and present the available options to the
-   researcher:
+3. **No valid policy.** Stop before copying assets. Present options:
+   **lfs** (Git LFS; requires LFS init in docs repo), **external**
+   (immutable revision-bound URLs per screenshot), **git** (ordinary
+   Git objects; increases repo size). Wait for the researcher's
+   explicit choice. Do not default to any mode.
 
-   *"The docs repo has no configured screenshot storage policy. Choose how
-   screenshot assets should be stored:*
-
-   *- **lfs** — Store images via Git LFS. Requires LFS to be initialized
-   in the docs repo (the researcher must run `git lfs install` and add
-   tracking patterns; this workflow does not enable LFS automatically).*
-
-   *- **external** — Reference images via stable, immutable external URLs.
-   You will provide a revision-bound URL for each screenshot. URLs must
-   not be mutable 'latest' links or time-expiring presigned URLs.*
-
-   *- **git** — Commit images as ordinary Git objects. This increases
-   repository size with each revision. Only appropriate for small asset
-   sets in repos that explicitly accept binary commits."*
-
-   Wait for the researcher's explicit choice. Do not default to any mode.
-
-**Important constraints:**
-
-- `.gitattributes` containing LFS patterns demonstrates that the docs repo
-  *can* use LFS but does not constitute a storage policy choice for this
-  handoff. Do not silently copy/commit images because LFS patterns exist.
-- Do not auto-enable LFS tracking. If the researcher selects `lfs` but the
-  docs repo has no LFS initialization or matching tracking patterns, stop
-  and tell them to configure LFS first.
-- Do not invent an external upload provider, endpoint, or credentials.
-- Store the resolved policy in `publish-metadata.json` so subsequent
-  `/publish`, `/revise`, and `/respond` updates reuse the same mode.
+**Constraints:** `.gitattributes` LFS patterns alone are not a policy
+choice; do not auto-commit images or auto-enable LFS tracking. Do not
+invent external upload providers. Store the policy in
+`publish-metadata.json` for subsequent updates.
 
 ### Step 6: Create or Update Branch and Commit
 
@@ -326,11 +304,11 @@ storage policy, touch asset paths, or stage screenshot directories.
 publish (`publish-metadata.json` exists with `screenshot_assets`), always
 check for removals even if the current handoff has no screenshots. If
 the current authoring manifest is empty or absent but `screenshot_assets`
-records prior images: remove them (lfs/git: `git rm`; external: remove
-embeds/index entries), `git rm` the tracked consumer manifest, and set
-`screenshot_storage` to `none` **after** the commit and push succeed.
-Use previous metadata for cleanup; do not overwrite metadata with empty
-values before using it for reconciliation.
+records prior images: remove them (lfs/git: `git rm` only paths still
+tracked; external: remove embeds/index entries), `git rm` the consumer
+manifest only if still tracked, and set `screenshot_storage` to `none`
+**after** the commit and push succeed. Use previous metadata for
+cleanup; do not overwrite it before reconciliation.
 
 **Copy screenshot assets** (only when the authoring manifest is non-empty
 and the Screenshot Index section contains image references):
@@ -352,9 +330,9 @@ handoff; preserve authoring references in `05-handoff.md`.
 
 **Reconcile removals** (update publishes only). Compare previous
 `screenshot_assets` against the current manifest. For removed IDs:
-`lfs`/`git` — validate removal path and `git rm`; `external` — remove
-embed/index entries. If all screenshots removed, also `git rm` the
-tracked consumer manifest and set `screenshot_storage` to `none` after
+`lfs`/`git` — `git rm` only if still tracked; `external` — remove
+embed/index entries. If all removed, also `git rm` the consumer
+manifest if tracked, and set `screenshot_storage` to `none` after
 commit.
 
 **Publish consumer manifest.** When any screenshots remain after
@@ -423,9 +401,11 @@ Prepare the PR description and save it to
 
 ### Step 8: Push and Create PR
 
-**For an existing PR**, push the update to its existing branch only when Step 6
-created a commit. Keep the existing PR number, URL, and draft or ready status;
-do not run `gh pr create`.
+**For an existing PR**, push to its branch when unpushed commits
+exist (the branch is ahead of its remote tracking ref). Keep its PR
+number, URL, and draft/ready status; do not run `gh pr create`. If a
+prior invocation committed but the push failed, this recovers without
+re-running Steps 4–7.
 
 ```bash
 git -C "{docs_repo_path}" push origin "{branch-name}"
@@ -522,11 +502,11 @@ resolved paths used to derive the canonical handoff directory.
   `external` mode, `published_path` is the external URL; for `lfs` or
   `git`, it is the repo-relative path.
 
-For an existing PR, retain the PR number, branch, and other identity metadata.
-After a successful update commit and push, update `screenshot_storage` and
-replace `screenshot_assets` with the current published entries. If no
-screenshots remain, set `screenshot_storage` to `none` and
-`screenshot_assets` to an empty array `[]`.
+For an existing PR, retain the PR number, branch, and other identity
+metadata. After a successful push, update `screenshot_storage` and
+replace `screenshot_assets` with the current entries. If no screenshots
+remain, set `screenshot_storage` to `none` and `screenshot_assets` to
+`[]`. If push failed, preserve previous metadata unchanged.
 
 ### Step 10: Report to Researcher
 

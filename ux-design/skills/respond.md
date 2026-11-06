@@ -184,15 +184,16 @@ Otherwise, apply the same validation and storage gates as `/publish`:
    - `publish-metadata.json` entries absent from the current manifest →
      removed.
 
-3. **Handle removals** (`lfs` or `git` mode): remove the deleted file
-   from the docs repo and stage the removal:
+3. **Handle removals** (`lfs` or `git` mode): `git rm` only files
+   still tracked (skip if already removed by a prior committed run):
 
    ```bash
    git -C "{docs_repo_path}" rm -- "{handoff_dir}/screenshots/{removed_filename}"
    ```
 
    Remove the entry from the published `screenshot-manifest.json`. If
-   all screenshots are removed, also remove the consumer manifest:
+   all screenshots are removed and the consumer manifest is still
+   tracked, remove it:
 
    ```bash
    git -C "{docs_repo_path}" rm -- "{handoff_dir}/screenshot-manifest.json"
@@ -269,13 +270,18 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 - `MANIFEST_REMOVED="true"` if the consumer manifest was removed (all screenshots deleted)
 - `COMMIT_MESSAGE="UX design {issue-key}: address review feedback"`
 
-Only update `publish-metadata.json` `screenshot_assets` after the commit
-and push succeed. Set `screenshot_storage` to `none` only after
-successful commit+push when all screenshots have been removed.
+Push only when unpushed commits exist (the branch is ahead of its
+remote tracking ref). If a prior invocation committed but the push
+failed, this recovers without re-running the removal/copy steps.
 
 ```bash
 git -C "{docs_repo_path}" push
 ```
+
+Only update `publish-metadata.json` `screenshot_assets` after the push
+succeeds. If push failed, preserve previous metadata unchanged. Set
+`screenshot_storage` to `none` only after successful push when all
+screenshots have been removed.
 
 **If "Handoff change needed: No":**
 

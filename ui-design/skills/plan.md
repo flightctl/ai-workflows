@@ -94,10 +94,12 @@ Before writing, create a mental map. If `HAS_HANDOFF` is true:
 If `HAS_SCREENSHOTS` is true or `partial`, cite inspected screenshot
 observations from `01-context.md` for layout and visible-state decisions:
 
-- Follow the eligibility table in
+- Follow the eligibility rules in
   `../../_shared/recipes/screenshot-inspection.md` §5 using the
   recorded status and Notes from `01-context.md`. Do not re-inspect.
-  Do not cite `unavailable` or `lfs-unresolved` images.
+  Do not cite `unavailable` or `lfs-unresolved` images. If no
+  images are eligible per §5, note *"no eligible images"* instead
+  of fabricating citations.
 - **Additive evidence** (visual detail not in prose): verified
   `[Screenshot: SS-N — additive: {detail}]`; accepted-unverified
   `[Screenshot: SS-N — accepted-unverified, additive: {detail}]`.
@@ -540,7 +542,7 @@ Before presenting the UI design document, verify:
 - [ ] No vague language ("appropriate", "standard", "as needed" without specifics)
 - [ ] No scope reduction language ("v2", "simplified", "placeholder", "future enhancement")
 - [ ] Source markers trace decisions to UX handoff, design document, PRD, or codebase
-- [ ] Screenshot citations (`[Screenshot: SS-N]`) are present for layout and visual-state decisions when `HAS_SCREENSHOTS` is true or partial; deferred/unavailable decisions are noted when applicable
+- [ ] Screenshot citations present when eligible images exist per §5; *"no eligible images"* noted when all are ineligible; deferred/unavailable noted when applicable
 - [ ] Contradictions between screenshots and written spec are flagged explicitly; additive visual details are cited as supplementary evidence, not as discrepancies
 - [ ] File paths are specific and follow the project's directory conventions
 - [ ] No `[Assumption: ...]` markers remain

@@ -26,7 +26,7 @@ to change, and what constraints apply.
 - **UX handoff is optional.** The `[UI]` story may not have a UX handoff artifact. If none exists, note it and proceed — the workflow must function for purely technical work.
 - **Explore relevant areas only.** Don't map the entire codebase. Focus on UI components, hooks, routes, and API endpoints the story will affect.
 - **Note unknowns.** If you can't determine something from the codebase, say so explicitly.
-- **Re-invocation diffs before overwriting.** If `01-context.md` already exists, preserve it before exploring. After compiling new context, diff the key sections against the previous version and present changes to the user before overwriting (see Steps 2a and 8a).
+- **Re-invocation diffs.** If `01-context.md` exists, preserve it before exploring. After compiling new context, diff against the previous version and present changes before overwriting (see Steps 2a and 8a).
 
 ## Shared Script
 
@@ -99,14 +99,15 @@ delete or overwrite other phase artifacts during ingest.
 mkdir -p ".artifacts/ui-design/{workspace-id}"
 ```
 
-### Step 2a: Resolve Workspace Paths and Check for Prior Ingest
-
-Resolve once against Step 2's invocation directory; retain across
-later `cwd` changes. No hardcoded prefix or Git-root requirement.
+Resolve workspace paths once, anchored to this step's invocation
+directory; retain across later `cwd` changes. No hardcoded prefix
+or Git-root requirement.
 
 - `ARTIFACT_DIR` = `.artifacts/ui-design/{workspace-id}`
 - `CONTEXT_PATH` = `{ARTIFACT_DIR}/01-context.md`
 - `BACKUP_PATH` = `{ARTIFACT_DIR}/01-context.md.prev`
+
+### Step 2a: Check for Prior Ingest
 
 If `{CONTEXT_PATH}` exists, copy it to `{BACKUP_PATH}` for Step 8a.
 
@@ -280,11 +281,12 @@ provenance is confirmed).
 and ask whether to proceed or wait.
 
 - **Proceed:** continue to Screenshot inspection below.
-- **Wait or skip:** mark handoff not-used, clear only newly
-  compiled/provisional UX data (prior `{CONTEXT_PATH}` stays
-  until Step 8a), record the deferral reason, **skip all remaining
-  5.3 work** (inspection + extraction). Plan cannot cite skipped
-  UX evidence.
+- **Wait or skip:** compile Handoff as `"Not available"`, set
+  `HAS_SCREENSHOTS = false`, clear provisional UX data (prior
+  `{CONTEXT_PATH}` stays until Step 8a), record the deferral
+  reason, **skip all remaining 5.3 work** (inspection +
+  extraction). Plan must not read a skipped handoff or cite its
+  evidence.
 
 **Screenshot inspection.** Check the handoff's **Screenshot Index**
 for image references (`SS-N` IDs).

@@ -357,9 +357,10 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
         self.assertIn("missing or has no screenshot entries", content)
 
     def test_publish_git_rm_consumer_manifest(self) -> None:
-        """Item 16: publish uses git rm for tracked consumer manifest."""
+        """Item 16: publish uses git rm for consumer manifest if tracked."""
         content = _read("ux-design/skills/publish.md")
-        self.assertIn("`git rm` the tracked consumer manifest", content)
+        flat = " ".join(content.split())
+        self.assertIn("`git rm` the consumer manifest", flat)
 
     def test_publish_step_numbering_no_sub_steps(self) -> None:
         """Root A: publish uses main step numbers, no 3a/3b sub-steps."""
@@ -372,7 +373,7 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
         self.assertIn("### Step 6: Create or Update Branch and Commit", content)
 
     def test_publish_metadata_refresh_on_update(self) -> None:
-        """Item 9: metadata refreshes screenshot_assets after successful update."""
+        """Item 9: metadata refreshes screenshot_assets after successful push."""
         content = _read("ux-design/skills/publish.md")
         # Scoped to Step 9 (Save Publish Metadata)
         step9 = content.split("Step 9: Save Publish Metadata", 1)[1].split(
@@ -380,8 +381,10 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
         )[0]
         self.assertIn("update `screenshot_storage`", step9)
         self.assertIn("replace `screenshot_assets`", step9)
-        # Success-only: refresh happens after successful commit+push
-        self.assertIn("successful update commit and push", step9)
+        # Success-only: refresh happens after successful push
+        self.assertIn("successful push", step9)
+        # Failure preservation: metadata unchanged on push failure
+        self.assertIn("push failed, preserve previous metadata", step9)
         # Identity preservation
         self.assertIn("retain the PR number, branch", step9)
 
@@ -447,21 +450,26 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
 
     def test_ingest_resolves_workspace_paths_once(self) -> None:
         """Finding 1: ingest defines ARTIFACT_DIR/CONTEXT_PATH/BACKUP_PATH
-        once in Step 2a, anchored to Step 2, used in Step 8a."""
+        once in Step 2 (unconditional), used in Step 8a."""
         content = _read("ui-design/skills/ingest.md")
-        step2a = content.split("### Step 2a:", 1)[1].split("### Step 3", 1)[0]
-        # Path definitions exist in Step 2a
-        self.assertIn("ARTIFACT_DIR", step2a)
-        self.assertIn("CONTEXT_PATH", step2a)
-        self.assertIn("BACKUP_PATH", step2a)
-        # Anchored to Step 2 invocation dir, no hardcoded prefix
-        flat2a = " ".join(step2a.split())
-        self.assertIn("invocation directory", flat2a)
-        self.assertNotIn("git rev-parse --show-toplevel", step2a)
+        step2 = content.split("### Step 2:", 1)[1].split("### Step 2a:", 1)[0]
+        # Path definitions exist in Step 2 (unconditional)
+        self.assertIn("ARTIFACT_DIR", step2)
+        self.assertIn("CONTEXT_PATH", step2)
+        self.assertIn("BACKUP_PATH", step2)
+        # Anchored to invocation dir, no hardcoded prefix
+        flat2 = " ".join(step2.split())
+        self.assertIn("invocation directory", flat2)
+        self.assertNotIn("git rev-parse --show-toplevel", step2)
         # Retained across later cwd changes
-        self.assertIn("later `cwd` changes", flat2a)
+        self.assertIn("later `cwd` changes", flat2)
         # No Git-root requirement
-        self.assertIn("Git-root requirement", flat2a)
+        self.assertIn("Git-root requirement", flat2)
+        # Step 2a is now only the conditional backup
+        step2a = content.split("### Step 2a:", 1)[1].split("### Step 3", 1)[0]
+        self.assertNotIn("ARTIFACT_DIR", step2a)
+        self.assertIn("{CONTEXT_PATH}", step2a)
+        self.assertIn("{BACKUP_PATH}", step2a)
         # Step 8a uses the resolved path variables
         step8a = content.split("### Step 8a:", 1)[1].split("### Step 9", 1)[0]
         self.assertIn("{CONTEXT_PATH}", step8a)
@@ -558,7 +566,7 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
         # Recipe §5 has the actual identity+binding rule
         recipe = _read("_shared/recipes/screenshot-inspection.md")
         elig = recipe.split("Eligibility and citation rules", 1)[1]
-        self.assertIn("identity: verified", elig)
+        self.assertIn("identity `verified`", elig)
         self.assertIn("bindings `matched`", elig)
 
     # =================================================================
@@ -589,19 +597,21 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
         )
 
     def test_ingest_provenance_skip_excludes_evidence(self) -> None:
-        """Finding 4: if user skips provenance, both text AND screenshot
-        observations are excluded from context."""
+        """Finding 4: if user skips provenance, handoff compiled as
+        Not available, screenshots set false, evidence excluded."""
         content = _read("ui-design/skills/ingest.md")
         gate = content.split("Provenance freshness check (gate)", 1)[1].split(
             "**Screenshot inspection.**", 1
         )[0]
         flat = " ".join(gate.split())
-        # Wait/skip branch: marks handoff not-used
-        self.assertIn("not-used", flat)
+        # Wait/skip branch: compiles Handoff as "Not available"
+        self.assertIn('"Not available"', flat)
+        # Sets HAS_SCREENSHOTS = false
+        self.assertIn("HAS_SCREENSHOTS = false", flat)
         # Skips all remaining 5.3 work (inspection + extraction)
         self.assertIn("skip all remaining 5.3 work", flat)
-        # Plan cannot cite skipped evidence
-        self.assertIn("Plan cannot cite skipped UX evidence", flat)
+        # Plan must not read skipped handoff or cite evidence
+        self.assertIn("must not read a skipped handoff", flat)
 
     # =================================================================
     # Finding 5: Inverse text-only/authoring-manifest mismatch guard
@@ -936,6 +946,296 @@ class TestRecipeExecution(unittest.TestCase):
         blocks = _extract_bash_blocks(recipe)
         self.assertEqual(len(blocks), 3,
                          f"Recipe should have 3 bash blocks, got {len(blocks)}")
+
+    # --- T10: Failed push retry — commit idempotent, push recovers ---
+    def test_failed_push_retry_commit_idempotent(self) -> None:
+        """Finding 6 regression (contract + Git execution): after a commit
+        succeeds but push fails, re-running the recipe creates no new commit;
+        a subsequent push delivers the original commit exactly.
+
+        Scope: stages the documented recipe Bash blocks in disposable Git
+        repos with a local bare remote. Does NOT exercise live network push,
+        external-host round-trip, or runtime workflow invocation."""
+        with tempfile.TemporaryDirectory() as tmp:
+            # --- Set up local repo + bare remote ---
+            repo = _setup_repo(tmp)
+            bare = os.path.join(tmp, "remote.git")
+            subprocess.run(["git", "clone", "--bare", repo, bare],
+                           capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", repo, "remote", "add", "origin", bare],
+                capture_output=True, check=True,
+            )
+
+            # --- Prepare handoff + image files ---
+            d = os.path.join(repo, "feat/PROJ-R")
+            sd = os.path.join(d, "screenshots")
+            os.makedirs(sd)
+            _w(os.path.join(d, "handoff.md"), "# Retry test\n")
+            _w(os.path.join(d, "screenshot-manifest.json"), '{"r":1}')
+            _w(os.path.join(sd, "SS-1-r.png"), "img-retry")
+
+            # --- First recipe run: creates commit ---
+            r1 = self._exec(
+                repo, "feat/PROJ-R/handoff.md", "feat/PROJ-R",
+                copied=["SS-1-r.png"], manifest_written=True,
+                msg="Add retry handoff",
+            )
+            self.assertEqual(r1.returncode, 0, r1.stderr)
+            sha_after_commit = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True,
+            ).stdout.strip()
+
+            # --- Simulate push failure (don't push) ---
+            # The commit exists locally but not on remote.
+
+            # --- Second recipe run: must be idempotent (no new commit) ---
+            r2 = self._exec(
+                repo, "feat/PROJ-R/handoff.md", "feat/PROJ-R",
+                copied=["SS-1-r.png"], manifest_written=True,
+                msg="Should NOT appear",
+            )
+            self.assertEqual(r2.returncode, 0, r2.stderr)
+            sha_after_retry = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True,
+            ).stdout.strip()
+            self.assertEqual(
+                sha_after_commit, sha_after_retry,
+                "Retry created a second commit; recipe must be idempotent",
+            )
+
+            # --- Push recovers: delivers the original commit ---
+            push = subprocess.run(
+                ["git", "-C", repo, "push", "origin", "HEAD:refs/heads/main"],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(push.returncode, 0, push.stderr)
+            remote_sha = subprocess.run(
+                ["git", "-C", bare, "rev-parse", "main"],
+                capture_output=True, text=True,
+            ).stdout.strip()
+            self.assertEqual(
+                sha_after_commit, remote_sha,
+                "Remote HEAD must match the original commit SHA exactly",
+            )
+
+    # --- T11: git-rm idempotent on already-committed removal ---
+    def test_git_rm_idempotent_after_committed_removal(self) -> None:
+        """Finding 6 regression (Git execution): if a git-rm + commit ran
+        but push failed, re-running the recipe with the same removed
+        filenames must not error — the file is already committed as deleted.
+
+        Scope: documented recipe Bash blocks in disposable Git repos."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            d = os.path.join(repo, "feat/PROJ-RM")
+            sd = os.path.join(d, "screenshots")
+            os.makedirs(sd)
+            _w(os.path.join(d, "handoff.md"), "# RM test\n")
+            _w(os.path.join(d, "screenshot-manifest.json"), "{}")
+            _w(os.path.join(sd, "SS-1-rm.png"), "to-remove")
+            # Initial commit with image
+            self._exec(repo, "feat/PROJ-RM/handoff.md", "feat/PROJ-RM",
+                        copied=["SS-1-rm.png"], manifest_written=True,
+                        msg="Init for removal test")
+            # Remove image + manifest via git rm
+            subprocess.run(
+                ["git", "-C", repo, "rm",
+                 "feat/PROJ-RM/screenshots/SS-1-rm.png"],
+                capture_output=True, check=True,
+            )
+            subprocess.run(
+                ["git", "-C", repo, "rm",
+                 "feat/PROJ-RM/screenshot-manifest.json"],
+                capture_output=True, check=True,
+            )
+            _w(os.path.join(d, "handoff.md"), "# Text only\n")
+            # First recipe run: commits the removal
+            r1 = self._exec(
+                repo, "feat/PROJ-RM/handoff.md", "feat/PROJ-RM",
+                removed=["SS-1-rm.png"], manifest_removed=True,
+                msg="Remove all images",
+            )
+            self.assertEqual(r1.returncode, 0, r1.stderr)
+            sha1 = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True,
+            ).stdout.strip()
+            # Seed unrelated change to verify survival
+            _w(os.path.join(repo, "unrelated.txt"), "survive")
+
+            # Second run: same removed paths, already committed.
+            # Recipe must not error on absent/untracked paths.
+            r2 = self._exec(
+                repo, "feat/PROJ-RM/handoff.md", "feat/PROJ-RM",
+                removed=["SS-1-rm.png"], manifest_removed=True,
+                msg="Should not create commit",
+            )
+            self.assertEqual(r2.returncode, 0, r2.stderr)
+            sha2 = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True,
+            ).stdout.strip()
+            self.assertEqual(sha1, sha2, "No new commit on idempotent retry")
+            # Unrelated file untouched
+            self.assertTrue(
+                os.path.exists(os.path.join(repo, "unrelated.txt")),
+                "Unrelated file must survive",
+            )
+
+
+# ===================================================================
+# Part 3: Regression contract checks for seven PR159 findings
+#
+# These are structural assertions on the committed instruction files.
+# They verify that the documented rules are present and consistent
+# but are NOT full runtime/vision proof — they check instruction text,
+# not live workflow execution with real images or browsers.
+# ===================================================================
+
+class TestPR159FindingRegressions(unittest.TestCase):
+    """Contract checks for the seven verified PR159 findings.
+
+    Each test verifies that the relevant instruction file documents
+    the rule or behavior the finding requires. These are structural
+    assertions on committed text, not runtime execution tests."""
+
+    # --- Finding 1 (4498704663): ID+ref one-to-one embed matching ---
+
+    def test_f1_one_to_one_embed_matching(self) -> None:
+        """§4 requires matching each ID to its own embed by both ID and
+        ref, consuming each embed at most once."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        section = content.split("Account for every declared index ID", 1)[1]
+        section = section.split("### 5.", 1)[0]
+        flat = " ".join(section.split())
+        self.assertIn("both", flat.lower())
+        self.assertIn("at most once", flat)
+        self.assertIn("already consumed", flat)
+
+    # --- Finding 2 (4498704673): Inspection gate in eligibility ---
+
+    def test_f2_inspection_gate_required(self) -> None:
+        """§5 Rule 1 requires status==inspected; inspection-not-supported
+        is explicitly ineligible."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        elig = content.split("Eligibility and citation rules", 1)[1]
+        flat = " ".join(elig.split())
+        # Rule 1 inspection gate
+        self.assertIn("Inspection gate", flat)
+        self.assertIn("`inspected`", flat)
+        # inspection-not-supported listed as ineligible
+        self.assertIn("inspection-not-supported", flat)
+        self.assertIn("ineligible", flat)
+
+    # --- Finding 3 (4498704681): Independent identity & binding ---
+
+    def test_f3_independent_binding_decisions(self) -> None:
+        """§5 requires each binding exception to be accepted independently
+        of identity, using ordered rules instead of overlapping table."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        elig = content.split("Eligibility and citation rules", 1)[1]
+        flat = " ".join(elig.split())
+        # Ordered rules
+        self.assertIn("Rule 1", flat)
+        self.assertIn("Rule 2", flat)
+        self.assertIn("Rule 3", flat)
+        # Independent
+        self.assertIn("independent of identity", flat)
+        # Each binding requires own acceptance
+        self.assertIn("own explicit acceptance", flat)
+
+    # --- Finding 4 (4498704690): Skip compiles Not available ---
+
+    def test_f4_skip_compiles_not_available(self) -> None:
+        """Provenance skip branch sets Handoff='Not available' and
+        HAS_SCREENSHOTS=false, excluding skipped file from plan."""
+        content = _read("ui-design/skills/ingest.md")
+        gate = content.split("Provenance freshness check (gate)", 1)[1]
+        gate = gate.split("**Screenshot inspection.**", 1)[0]
+        flat = " ".join(gate.split())
+        self.assertIn('"Not available"', flat)
+        self.assertIn("HAS_SCREENSHOTS = false", flat)
+        self.assertIn("must not read a skipped handoff", flat)
+
+    # --- Finding 5 (4498704704): All-rejected citation rule ---
+
+    def test_f5_no_eligible_images_explicit(self) -> None:
+        """Plan notes 'no eligible images' when all inspected images are
+        ineligible, without fabricating citations."""
+        content = _read("ui-design/skills/plan.md")
+        section = content.split(
+            "If `HAS_SCREENSHOTS` is true or `partial`", 1
+        )[1].split("If `HAS_SCREENSHOTS` is `deferred`", 1)[0]
+        self.assertIn("no eligible images", section)
+        self.assertIn("fabricating citations", section)
+        # Self-review checklist also covers this
+        checklist = content.split("### Step 5: Self-Review", 1)[1]
+        self.assertIn("no eligible images", checklist)
+
+    # --- Finding 6 (5808403059): Push retry recovery ---
+
+    def test_f6_publish_push_on_unpushed_commits(self) -> None:
+        """Publish Step 8 pushes based on unpushed commits, not just
+        whether this invocation created a new commit."""
+        content = _read("ux-design/skills/publish.md")
+        step8 = content.split("### Step 8:", 1)[1].split("### Step 9:", 1)[0]
+        flat = " ".join(step8.split())
+        self.assertIn("unpushed commits", flat)
+        self.assertIn("recovers without re-running", flat)
+
+    def test_f6_publish_git_rm_only_if_tracked(self) -> None:
+        """Publish Step 6 only git-rm paths that are still tracked."""
+        content = _read("ux-design/skills/publish.md")
+        flat = " ".join(content.split())
+        self.assertIn("`git rm` only paths still tracked", flat)
+        self.assertIn("`git rm` only if still tracked", flat)
+
+    def test_f6_publish_metadata_preserved_on_failure(self) -> None:
+        """Publish Step 9 preserves metadata on push failure."""
+        content = _read("ux-design/skills/publish.md")
+        step9 = content.split("Step 9:", 1)[1].split("Step 10:", 1)[0]
+        self.assertIn("push failed, preserve previous metadata", step9)
+
+    def test_f6_respond_push_on_unpushed_commits(self) -> None:
+        """Respond pushes based on unpushed commits with recovery."""
+        content = _read("ux-design/skills/respond.md")
+        flat = " ".join(content.split())
+        self.assertIn("unpushed commits", flat)
+        self.assertIn("recovers without re-running", flat)
+
+    def test_f6_respond_git_rm_only_if_tracked(self) -> None:
+        """Respond only git-rm files still tracked."""
+        content = _read("ux-design/skills/respond.md")
+        flat = " ".join(content.split())
+        self.assertIn("still tracked", flat)
+        self.assertIn("already removed", flat)
+
+    def test_f6_respond_metadata_after_push(self) -> None:
+        """Respond updates metadata only after push succeeds."""
+        content = _read("ux-design/skills/respond.md")
+        flat = " ".join(content.split())
+        self.assertIn("push failed, preserve previous metadata", flat)
+
+    # --- Finding 7 (Root Step-Sequencing): Setup in Step 2 ---
+
+    def test_f7_path_setup_unconditional_in_step2(self) -> None:
+        """ARTIFACT_DIR/CONTEXT_PATH/BACKUP_PATH resolution is in Step 2
+        (unconditional), not only in the conditional Step 2a."""
+        content = _read("ui-design/skills/ingest.md")
+        step2 = content.split("### Step 2:", 1)[1].split("### Step 2a:", 1)[0]
+        step2a = content.split("### Step 2a:", 1)[1].split("### Step 3:", 1)[0]
+        # Definitions in Step 2
+        self.assertIn("ARTIFACT_DIR", step2)
+        self.assertIn("CONTEXT_PATH", step2)
+        self.assertIn("BACKUP_PATH", step2)
+        # Step 2a is only the conditional backup check
+        self.assertNotIn("ARTIFACT_DIR", step2a)
+        self.assertIn("Prior Ingest", step2a)
+        # No Git-root absolute requirement
+        self.assertNotIn("git rev-parse --show-toplevel", step2)
 
 
 if __name__ == "__main__":
