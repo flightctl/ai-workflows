@@ -344,11 +344,21 @@ If `.artifacts/implement/{issue-key}/testplan.md` exists, independently
 verify that every **automatable** test case has been implemented.
 
 **Unverified source handling:** If `testplan.md` contains
-`Freshness: unverified`, report the TC coverage as "unverified —
-source testplan not confirmed" rather than PASS. Coverage from
-unverified TCs is provisional, not normative. Do not block the
-validation report or AC-based work, but do not claim TC coverage
-is verified.
+`Freshness: unverified`, check whether the Test Plan Coverage
+section in `02-plan.md` records a confirmed status for the TCs.
+
+- **Confirmed TCs** (plan records user confirmation): treat as
+  normative despite unverified source freshness. Write gap-fill
+  tests for missing confirmed TCs, report TC coverage normally.
+  Source freshness remains unverified but confirmed TCs represent
+  the user's accepted validation contract.
+- **Unconfirmed TCs** (no confirmed status in plan): coverage is
+  provisional, not normative. Do not write mandatory gap-fill
+  tests, do not gate commits or block AC-based work on unconfirmed
+  TC gaps. Report as "unverified — source testplan not confirmed."
+
+In both cases, do not block the validation report or AC-based
+work.
 
 Test cases marked with a `Qualification gate` marker in the story
 testplan are **not** candidates for unit/integration test generation —
@@ -410,10 +420,13 @@ to step 4 below.
      Plan Coverage in `02-plan.md` has not been confirmed by the user
      (no "confirmed" status), do NOT write tests for the missing TCs.
      Report the gap as provisional: "TC coverage gap — unconfirmed
-     source, awaiting user confirmation before gap-filling." AC-based
-     validation and existing tests continue normally.
-   - For confirmed or verified TCs: write the missing test following
-     contract-based testing standards.
+     source, not normative until confirmed." AC-based validation and
+     existing tests continue normally. Do not gate commits on
+     unconfirmed TC gaps.
+   - For confirmed TCs (user-confirmed in plan despite unverified
+     source) or verified TCs: write the missing test following
+     contract-based testing standards. Confirmed TCs are normative —
+     their gaps are real and should be filled.
    - Commit the test following the project's commit format.
    - Re-run Step 4 affected checks, Step 5 coverage when tests affect
      covered packages, Step 6 regression when production code changed,

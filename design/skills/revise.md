@@ -414,7 +414,7 @@ git -C "{docs_repo_path}" add "{feature-dir}/{published_as}"
 transform and write the updated index:
 
 ```bash
-python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" "{docs_repo_path}/{feature-dir}/validation-index.json"
+python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" "{docs_repo_path}/{feature-dir}/validation-index.json" --trusted-output-base "{docs_repo_path}"
 ```
 
 ```bash
