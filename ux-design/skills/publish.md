@@ -207,9 +207,12 @@ creating the branch and report the specific failures.
 ### Step 3b: Resolve Screenshot Storage Policy
 
 **Skip this step entirely** when the handoff's Screenshot Index section says
-"None" and the authoring manifest does not exist or is empty. Set
-`screenshot_storage` to `none` in publish-metadata.json and proceed to
-Step 4 without prompting for a storage policy or touching asset paths.
+"None" and the authoring manifest does not exist or is empty. Resolve
+`screenshot_storage` to `none` **in memory only** — do not write it to
+`publish-metadata.json` yet. Previous metadata and assets must remain
+intact for the reconciliation check in Step 4; persist `none` only after
+a successful commit+push. Proceed to Step 4 without prompting for a
+storage policy or touching asset paths.
 
 When the handoff contains screenshot references, determine how assets
 will be stored. The explicit repository or researcher policy is

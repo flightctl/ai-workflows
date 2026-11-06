@@ -274,7 +274,7 @@ for image references (`SS-N` IDs). Images are embedded inline at User
 Flows, State Matrix, and Persona-Specific Views sections.
 
 - **If referenced:** Read and follow
-  `${HOME}/.ai-workflows/_shared/recipes/screenshot-inspection.md` with
+  `../../_shared/recipes/screenshot-inspection.md` with
   `HANDOFF_DIR` = the handoff's directory and
   `MANIFEST_PATH` = `{HANDOFF_DIR}/screenshot-manifest.json`.
   Warn if the manifest's `context_revision`/`prototype_iteration` differ
@@ -448,15 +448,13 @@ If this is a first invocation, write
 - **Manifest revision:** {context_revision from manifest, or "N/A"}
 - **Manifest iteration:** {prototype_iteration from manifest, or "N/A"}
 
-{If `inspected` or `partial`: one row per image from the inspection recipe.}
+{If `inspected`/`partial`: one row per image per the inspection recipe schema.}
 
-| ID | Status | Identity | Observation | Spec Match |
-|----|--------|----------|-------------|------------|
-| SS-1 | inspected | verified | {layout, state} | Yes/No |
+| ID | Status | Identity | Ref | Expected SHA | Observed SHA | Observation | Spec Match | Notes |
+|----|--------|----------|-----|-------------|-------------|-------------|------------|-------|
+| SS-1 | inspected | verified | `screenshots/SS-1-desc.png` | `a1b2…` | `a1b2…` | {layout, state} | Yes/No | — |
 
-{If `none`: "No screenshots. Reason: {from Screenshot Index}."
-If `deferred`: "Deferred — reduced visual fidelity. Reason: {reason}."
-If `unavailable`: "Per-image: {SS-1: fetch-failed, …}."}
+{`none`/`deferred`/`unavailable`: one-line reason and per-image status.}
 
 ### Feasibility & Phasing
 

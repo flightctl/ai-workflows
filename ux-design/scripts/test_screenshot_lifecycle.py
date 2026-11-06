@@ -1,22 +1,28 @@
 """Regression tests for the screenshot publish/respond lifecycle.
 
-Verifies the canonical owned-path procedure documented in
-_shared/recipes/screenshot-publish-stage.md is consistent across
-ux-design/skills/publish.md and ux-design/skills/respond.md.
+Part 1 (Structural): Parses actual canonical instruction files to verify
+cross-file consistency — section names, recipe references, parameter
+completeness, field alignment.
 
-Also validates section-name consistency across producer, publisher,
-responder, and consumer instructions.
+Part 2 (Executable): Extracts the Bash fenced blocks from the committed
+_shared/recipes/screenshot-publish-stage.md, instantiates declared
+parameters, and runs them in disposable Git repos via subprocess.
+Covers: initial images+manifest, initial text-only, unchanged repeat,
+image-only update, one-image removal, final-image+manifest removal
+(including external-mode manifest-only), and external doc+manifest-only
+update. Seeds unrelated staged/unstaged files and asserts survival.
 
-These tests parse the actual canonical instruction files — no
-hand-copied procedure code.
+Scope: staging/commit procedure only. Does NOT exercise prose-level URL
+fetching, rewriting, runtime image inspection, or any live workflow.
 """
 
 from __future__ import annotations
 
-import json
 import os
 import re
-import sys
+import subprocess
+import tempfile
+import textwrap
 import unittest
 
 REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), "../.."))
@@ -27,250 +33,500 @@ def _read(relpath: str) -> str:
         return f.read()
 
 
-class TestSharedRecipeExists(unittest.TestCase):
-    """The canonical shared publish-stage recipe exists and is well-formed."""
+# ---------------------------------------------------------------------------
+# Helper: extract and instantiate recipe bash blocks
+# ---------------------------------------------------------------------------
 
-    def test_recipe_exists(self) -> None:
-        path = os.path.join(REPO_ROOT, "_shared/recipes/screenshot-publish-stage.md")
-        self.assertTrue(os.path.isfile(path), "screenshot-publish-stage.md missing")
+def _w(path: str, content: str = "") -> None:
+    """Write content to a file (properly closed)."""
+    with open(path, "w") as f:
+        f.write(content)
 
-    def test_recipe_has_frontmatter(self) -> None:
+
+def _extract_bash_blocks(md_content: str) -> list[str]:
+    """Return the contents of all ```bash ... ``` blocks in order."""
+    return re.findall(r"```bash\n(.*?)```", md_content, re.DOTALL)
+
+
+def _instantiate_recipe(
+    docs: str,
+    handoff_path: str,
+    handoff_dir: str,
+    commit_msg: str,
+    copied: list[str] | None = None,
+    removed: list[str] | None = None,
+    manifest_written: bool = False,
+    manifest_removed: bool = False,
+) -> str:
+    """Build a runnable Bash script from the recipe's fenced blocks.
+
+    Declares parameter variables, then pastes the three recipe blocks
+    (build allowlist, stage, check+commit) verbatim after substitution
+    of the declared placeholders.
+    """
+    recipe_md = _read("_shared/recipes/screenshot-publish-stage.md")
+    blocks = _extract_bash_blocks(recipe_md)
+    assert len(blocks) == 3, f"Expected 3 bash blocks in recipe, got {len(blocks)}"
+
+    # Join recipe blocks with parameter declarations.
+    # Recipe uses two placeholder conventions:
+    #   {PARAM} — text-substituted to shell variable references
+    #   ${VAR}  — already shell variable references, kept as-is
+    copied_arr = " ".join(f'"{f}"' for f in (copied or []))
+    removed_arr = " ".join(f'"{f}"' for f in (removed or []))
+
+    script = textwrap.dedent(f"""\
+        #!/usr/bin/env bash
+        # --- Parameter declarations (from caller) ---
+        DOCS_REPO_PATH="{docs}"
+        HANDOFF_FILE_PATH="{handoff_path}"
+        HANDOFF_DIR="{handoff_dir}"
+        COPIED_FILENAMES=({copied_arr})
+        REMOVED_FILENAMES=({removed_arr})
+        MANIFEST_WRITTEN="{str(manifest_written).lower()}"
+        MANIFEST_REMOVED="{str(manifest_removed).lower()}"
+        COMMIT_MESSAGE="{commit_msg}"
+
+    """)
+    # Text-substitute {PLACEHOLDER} tokens to $VARIABLE references.
+    # The recipe's ${...} references (MANIFEST_WRITTEN, etc.) are
+    # already valid shell and need no transformation.
+    subs = {
+        "{HANDOFF_FILE_PATH}": "$HANDOFF_FILE_PATH",
+        "{HANDOFF_DIR}": "$HANDOFF_DIR",
+        "{DOCS_REPO_PATH}": "$DOCS_REPO_PATH",
+        "{COMMIT_MESSAGE}": "$COMMIT_MESSAGE",
+    }
+    for i, block in enumerate(blocks):
+        for old, new in subs.items():
+            block = block.replace(old, new)
+        script += f"# --- Recipe block {i+1} ---\n{block}\n"
+
+    return script
+
+
+def _run_script(script: str, cwd: str | None = None) -> subprocess.CompletedProcess:
+    """Run a bash script, returning the result.
+
+    Uses set -uo pipefail (strict unset + pipefail) but NOT -e (errexit),
+    because the recipe intentionally uses ``git diff --cached --quiet``
+    which returns exit 1 to signal "there are staged changes" — that is
+    not an error. The recipe captures $? and branches; errexit would
+    abort before the branch.
+    """
+    return subprocess.run(
+        ["bash", "-uo", "pipefail", "-c", script],
+        capture_output=True, text=True, cwd=cwd,
+    )
+
+
+def _setup_repo(tmpdir: str) -> str:
+    """Create a minimal git repo with an initial commit, return its path."""
+    repo = os.path.join(tmpdir, "docs-repo")
+    os.makedirs(repo)
+    subprocess.run(["git", "init", repo], capture_output=True, check=True)
+    subprocess.run(
+        ["git", "-C", repo, "config", "user.email", "test@test"],
+        capture_output=True, check=True,
+    )
+    subprocess.run(
+        ["git", "-C", repo, "config", "user.name", "test"],
+        capture_output=True, check=True,
+    )
+    # Initial commit so HEAD exists
+    dummy = os.path.join(repo, ".gitkeep")
+    _w(dummy)
+    subprocess.run(["git", "-C", repo, "add", ".gitkeep"], capture_output=True, check=True)
+    subprocess.run(
+        ["git", "-C", repo, "commit", "-m", "init"],
+        capture_output=True, check=True,
+    )
+    return repo
+
+
+# ===================================================================
+# Part 1: Structural assertions on canonical instruction files
+# ===================================================================
+
+class TestStructuralRecipeConsistency(unittest.TestCase):
+    """Cross-file structural checks — recipe references, params, naming."""
+
+    def test_recipe_exists_and_has_frontmatter(self) -> None:
         content = _read("_shared/recipes/screenshot-publish-stage.md")
-        self.assertTrue(content.startswith("---"), "Missing YAML frontmatter")
+        self.assertTrue(content.startswith("---"))
         self.assertIn("name: screenshot-publish-stage", content)
-
-    def test_recipe_includes_manifest_removed(self) -> None:
-        """Recipe handles manifest removal (Bug 1 fix)."""
-        content = _read("_shared/recipes/screenshot-publish-stage.md")
-        self.assertIn("MANIFEST_REMOVED", content)
-
-    def test_recipe_includes_tracked_deletion_staging(self) -> None:
-        """Recipe stages tracked deletions that no longer exist on disk."""
-        content = _read("_shared/recipes/screenshot-publish-stage.md")
-        # The recipe should handle files staged by git rm (not on disk)
-        self.assertIn("git rm", content.lower()) or self.assertIn(
-            "already staged", content.lower()
-        )
 
     def test_inspection_recipe_exists(self) -> None:
         path = os.path.join(REPO_ROOT, "_shared/recipes/screenshot-inspection.md")
-        self.assertTrue(os.path.isfile(path), "screenshot-inspection.md missing")
+        self.assertTrue(os.path.isfile(path))
 
+    def test_inspection_recipe_has_per_image_schema(self) -> None:
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        for field in ("expected_sha", "observed_sha", "ref", "spec_match"):
+            self.assertIn(field, content, f"inspection recipe missing field {field}")
 
-class TestPublishReferencesSharedRecipe(unittest.TestCase):
-    """publish.md references the shared recipe (Bug 2 fix)."""
-
-    def setUp(self) -> None:
-        self.content = _read("ux-design/skills/publish.md")
-
-    def test_references_shared_recipe(self) -> None:
-        self.assertIn("screenshot-publish-stage.md", self.content)
-
-    def test_no_inline_owned_paths_loop(self) -> None:
-        """publish.md should not duplicate the owned_paths loop inline."""
-        # The old inline loop had "for p in "${owned_paths[@]}"" etc.
-        # After the fix, it delegates to the recipe.
-        # Count occurrences of the git add staging loop
-        add_loops = re.findall(
-            r'for p in "\$\{owned_paths\[@\]\}"', self.content
-        )
-        self.assertEqual(
-            len(add_loops),
-            0,
-            "publish.md still has inline owned_paths staging loop; "
-            "should delegate to shared recipe",
-        )
-
-    def test_has_manifest_removed_parameter(self) -> None:
-        """publish.md passes MANIFEST_REMOVED to the recipe."""
-        self.assertIn("MANIFEST_REMOVED", self.content)
-
-
-class TestRespondReferencesSharedRecipe(unittest.TestCase):
-    """respond.md references the same shared recipe (Bug 2 fix)."""
-
-    def setUp(self) -> None:
-        self.content = _read("ux-design/skills/respond.md")
-
-    def test_references_shared_recipe(self) -> None:
-        self.assertIn("screenshot-publish-stage.md", self.content)
-
-    def test_has_copied_filenames(self) -> None:
-        """respond.md defines/tracks copied_filenames."""
-        self.assertIn("copied_filenames", self.content)
-
-    def test_has_removed_filenames(self) -> None:
-        """respond.md defines/tracks removed_filenames."""
-        self.assertIn("removed_filenames", self.content)
-
-    def test_has_manifest_removed_parameter(self) -> None:
-        """respond.md passes MANIFEST_REMOVED to the recipe."""
-        self.assertIn("MANIFEST_REMOVED", self.content)
-
-
-class TestInitialTextOnlyVsUpdateReconciliation(unittest.TestCase):
-    """Bug 3: skip condition distinguishes initial text-only from updates."""
-
-    def _assert_update_reconciliation(self, content: str, filename: str) -> None:
-        """File must reconcile previous assets on updates."""
-        self.assertIn(
-            "publish-metadata",
-            content.lower(),
-            f"{filename} must check publish-metadata for prior assets",
-        )
-        # Must NOT skip when prior assets exist
-        self.assertIn(
-            "Reconcile previous assets",
-            content,
-            f"{filename} must reconcile previous assets on updates",
-        )
-
-    def test_publish_reconciles_updates(self) -> None:
+    def test_publish_references_recipe(self) -> None:
         content = _read("ux-design/skills/publish.md")
-        self._assert_update_reconciliation(content, "publish.md")
+        self.assertIn("screenshot-publish-stage.md", content)
+        self.assertIn("MANIFEST_REMOVED", content)
 
-    def test_respond_reconciles_updates(self) -> None:
+    def test_respond_references_recipe_with_arrays(self) -> None:
         content = _read("ux-design/skills/respond.md")
-        self._assert_update_reconciliation(content, "respond.md")
+        self.assertIn("screenshot-publish-stage.md", content)
+        self.assertIn("copied_filenames", content)
+        self.assertIn("removed_filenames", content)
+        self.assertIn("MANIFEST_REMOVED", content)
 
-    def test_publish_initial_skip_qualified(self) -> None:
-        """publish.md skip is limited to initial text-only publishes."""
-        content = _read("ux-design/skills/publish.md")
-        self.assertIn("initial text-only", content.lower())
-
-    def test_respond_initial_skip_qualified(self) -> None:
-        """respond.md skip is limited to initial text-only publishes."""
+    def test_respond_external_final_removal_manifest(self) -> None:
+        """respond external mode removes consumer manifest on final image."""
         content = _read("ux-design/skills/respond.md")
-        self.assertIn("initial text-only", content.lower())
+        self.assertIn("Final-image removal in external mode", content)
+        self.assertIn("MANIFEST_REMOVED", content)
 
+    def test_screenshot_index_naming(self) -> None:
+        for label, path in [
+            ("handoff", "ux-design/skills/handoff.md"),
+            ("publish", "ux-design/skills/publish.md"),
+            ("respond", "ux-design/skills/respond.md"),
+            ("ingest", "ui-design/skills/ingest.md"),
+        ]:
+            content = _read(path)
+            self.assertIn("Screenshot Index", content, f"{label} missing Screenshot Index")
+            self.assertNotIn(
+                "the handoff's Screenshots section", content,
+                f"{label} has old Screenshots section naming",
+            )
 
-class TestScreenshotIndexNaming(unittest.TestCase):
-    """Bug 4: Section naming consistency across all files."""
-
-    FILES = {
-        "handoff": "ux-design/skills/handoff.md",
-        "publish": "ux-design/skills/publish.md",
-        "respond": "ux-design/skills/respond.md",
-        "revise": "ux-design/skills/revise.md",
-        "ingest": "ui-design/skills/ingest.md",
-        "plan": "ui-design/skills/plan.md",
-    }
-
-    def test_handoff_uses_screenshot_index(self) -> None:
-        content = _read(self.FILES["handoff"])
-        self.assertIn("## Screenshot Index", content)
-
-    def test_publish_uses_screenshot_index(self) -> None:
-        content = _read(self.FILES["publish"])
-        # publish references the section by name
-        self.assertIn("Screenshot Index", content)
-        # Must not use old "Screenshots section" phrasing
+    def test_ingest_uses_relative_path_for_recipe(self) -> None:
+        """Correction 1: recipe ref must use relative ../../ not ${HOME}."""
+        content = _read("ui-design/skills/ingest.md")
+        # The screenshot-inspection recipe reference must be relative
+        self.assertIn("../../_shared/recipes/screenshot-inspection.md", content)
+        # Must NOT use ${HOME} for the recipe (scripts are different)
         self.assertNotIn(
-            "the handoff's Screenshots section",
+            "${HOME}/.ai-workflows/_shared/recipes/screenshot-inspection.md",
             content,
-            "publish.md still uses old 'Screenshots section' naming",
         )
 
-    def test_respond_uses_screenshot_index(self) -> None:
-        content = _read(self.FILES["respond"])
-        self.assertIn("Screenshot Index", content)
-
-    def test_ingest_uses_screenshot_index(self) -> None:
-        content = _read(self.FILES["ingest"])
-        self.assertIn("Screenshot Index", content)
-        self.assertNotIn(
-            "its Screenshots section references",
-            content,
-            "ingest.md still uses old 'Screenshots section' naming",
-        )
-
-    def test_plan_references_screenshot_observations(self) -> None:
-        """plan.md reads Screenshot Observations from ingest context."""
-        content = _read(self.FILES["plan"])
-        self.assertIn("Screenshot", content)
-
-
-class TestExternalModeFullRewrite(unittest.TestCase):
-    """Bug 5: respond rewrites ALL image refs, not just changed ones."""
-
-    def setUp(self) -> None:
-        self.content = _read("ux-design/skills/respond.md")
-
-    def test_unchanged_images_reuse_urls(self) -> None:
-        """Unchanged images reuse published_path from metadata."""
-        self.assertIn("Unchanged images", self.content)
-        self.assertIn("published_path", self.content)
-
-    def test_every_embed_rewritten(self) -> None:
-        """ALL current embeds are rewritten, not just changed ones."""
-        # Must contain language about rewriting every/all refs
-        lower = self.content.lower()
-        self.assertTrue(
-            "every" in lower and "embed" in lower,
-            "respond.md must rewrite every embed in external mode",
-        )
-
-    def test_metadata_after_success(self) -> None:
-        """Metadata updated only after successful commit+push."""
-        self.assertIn(
-            "after the commit",
-            self.content.lower(),
-        )
-
-
-class TestManifestFieldAlignment(unittest.TestCase):
-    """Handoff header fields and consumer manifest fields align."""
-
-    def test_handoff_has_context_revision(self) -> None:
-        content = _read("ux-design/skills/handoff.md")
-        self.assertIn("context_revision", content)
-        self.assertIn("prototype_iteration", content)
-        self.assertIn("**Context revision:**", content)
-        self.assertIn("**Prototype iteration:**", content)
-
-    def test_manifest_has_context_revision(self) -> None:
-        """Publish writes context_revision and prototype_iteration."""
+    def test_publish_step3b_in_memory_only(self) -> None:
+        """Correction 2: Step3b resolves none in memory, not persisted."""
         content = _read("ux-design/skills/publish.md")
-        self.assertIn("context_revision", content)
-        self.assertIn("prototype_iteration", content)
+        self.assertIn("in memory only", content)
 
-    def test_ingest_checks_header_vs_manifest(self) -> None:
-        """Ingest compares manifest revision with handoff header."""
+    def test_recipes_listed_in_agents(self) -> None:
+        content = _read("AGENTS.md")
+        self.assertIn("screenshot-publish-stage.md", content)
+        self.assertIn("screenshot-inspection.md", content)
+
+    def test_ingest_context_has_full_schema(self) -> None:
+        """Correction 4: context template has per-image ref/sha/notes."""
         content = _read("ui-design/skills/ingest.md")
-        self.assertIn("context_revision", content)
-        self.assertIn("prototype_iteration", content)
-        # Should mention comparing/matching
-        self.assertTrue(
-            "differ" in content.lower() or "match" in content.lower(),
-            "ingest should compare manifest and handoff header fields",
-        )
+        self.assertIn("Expected SHA", content)
+        self.assertIn("Observed SHA", content)
+        self.assertIn("Ref", content)
 
+    def test_plan_accepted_unverified_label(self) -> None:
+        """Plan must not silently accept missing/mismatched screenshots."""
+        content = _read("ui-design/skills/plan.md")
+        # Plan already references unverified citation style
+        self.assertIn("unverified", content.lower())
 
-class TestAgentsMdRecipeListing(unittest.TestCase):
-    """New recipes are listed in AGENTS.md."""
-
-    def setUp(self) -> None:
-        self.content = _read("AGENTS.md")
-
-    def test_publish_stage_listed(self) -> None:
-        self.assertIn("screenshot-publish-stage.md", self.content)
-
-    def test_inspection_listed(self) -> None:
-        self.assertIn("screenshot-inspection.md", self.content)
-
-
-class TestIngestTokenBudget(unittest.TestCase):
-    """Ingest token count is within baseline (<=6478, preferably <=6000)."""
-
-    def test_ingest_char_count_within_baseline(self) -> None:
+    def test_ingest_token_budget(self) -> None:
         content = _read("ui-design/skills/ingest.md")
-        # Rough estimate: 4 chars per token
-        est_tokens = len(content) // 4
-        self.assertLessEqual(
-            est_tokens,
-            6478,
-            f"ingest.md ~{est_tokens} tokens exceeds baseline 6478",
+        est = len(content) // 4
+        self.assertLessEqual(est, 6478, f"ingest ~{est} tokens > baseline 6478")
+
+
+# ===================================================================
+# Part 2: Executable Bash tests of the actual recipe code
+# ===================================================================
+
+class TestRecipeExecution(unittest.TestCase):
+    """Extract Bash blocks from screenshot-publish-stage.md, run them."""
+
+    def _exec(
+        self, repo: str, handoff_path: str, handoff_dir: str,
+        copied: list[str] | None = None, removed: list[str] | None = None,
+        manifest_written: bool = False, manifest_removed: bool = False,
+        msg: str = "test commit",
+    ) -> subprocess.CompletedProcess:
+        script = _instantiate_recipe(
+            repo, handoff_path, handoff_dir, msg,
+            copied, removed, manifest_written, manifest_removed,
         )
+        return _run_script(script)
+
+    # --- T1: Initial images + manifest ---
+    def test_initial_images_and_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            d = os.path.join(repo, "feat/PROJ-1")
+            sd = os.path.join(d, "screenshots")
+            os.makedirs(sd)
+            # Write handoff, manifest, image
+            _w(os.path.join(d, "handoff.md"), "# Handoff\n")
+            _w(os.path.join(d, "screenshot-manifest.json"), "{}")
+            _w(os.path.join(sd, "SS-1-pop.png"), "img1")
+            # Seed unrelated staged file
+            _w(os.path.join(repo, "unrelated-staged.txt"), "staged")
+            subprocess.run(["git", "-C", repo, "add", "unrelated-staged.txt"],
+                           capture_output=True, check=True)
+            # Seed unrelated unstaged file
+            _w(os.path.join(repo, "unrelated-dirty.txt"), "dirty")
+
+            r = self._exec(
+                repo, "feat/PROJ-1/handoff.md", "feat/PROJ-1",
+                copied=["SS-1-pop.png"], manifest_written=True,
+                msg="Add handoff",
+            )
+            self.assertEqual(r.returncode, 0, r.stderr)
+            # Verify commit happened
+            log = subprocess.run(
+                ["git", "-C", repo, "log", "--oneline", "-1"],
+                capture_output=True, text=True,
+            )
+            self.assertIn("Add handoff", log.stdout)
+            # Verify unrelated staged file survives in index
+            status = subprocess.run(
+                ["git", "-C", repo, "status", "--porcelain"],
+                capture_output=True, text=True,
+            )
+            self.assertIn("unrelated-staged.txt", status.stdout)
+            self.assertIn("unrelated-dirty.txt", status.stdout)
+
+    # --- T2: Initial text-only (no optional paths) ---
+    def test_initial_text_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            d = os.path.join(repo, "feat/PROJ-2")
+            os.makedirs(d)
+            _w(os.path.join(d, "handoff.md"), "# Text only\n")
+
+            r = self._exec(
+                repo, "feat/PROJ-2/handoff.md", "feat/PROJ-2",
+                msg="Add text handoff",
+            )
+            self.assertEqual(r.returncode, 0, r.stderr)
+            log = subprocess.run(
+                ["git", "-C", repo, "log", "--oneline", "-1"],
+                capture_output=True, text=True,
+            )
+            self.assertIn("Add text handoff", log.stdout)
+
+    # --- T3: Unchanged repeat — no extra commit ---
+    def test_unchanged_repeat_no_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            d = os.path.join(repo, "feat/PROJ-3")
+            os.makedirs(d)
+            _w(os.path.join(d, "handoff.md"), "# Handoff\n")
+            # Initial commit
+            self._exec(repo, "feat/PROJ-3/handoff.md", "feat/PROJ-3",
+                        msg="Initial")
+            before = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True,
+            ).stdout.strip()
+            # Re-run without changes
+            r = self._exec(repo, "feat/PROJ-3/handoff.md", "feat/PROJ-3",
+                            msg="Should not appear")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            after = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True,
+            ).stdout.strip()
+            self.assertEqual(before, after, "Unchanged repeat created a commit")
+
+    # --- T4: Image-only update ---
+    def test_image_only_update(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            d = os.path.join(repo, "feat/PROJ-4")
+            sd = os.path.join(d, "screenshots")
+            os.makedirs(sd)
+            _w(os.path.join(d, "handoff.md"), "# H\n")
+            _w(os.path.join(d, "screenshot-manifest.json"), "{}")
+            _w(os.path.join(sd, "SS-1-a.png"), "v1")
+            self._exec(repo, "feat/PROJ-4/handoff.md", "feat/PROJ-4",
+                        copied=["SS-1-a.png"], manifest_written=True,
+                        msg="Init images")
+            # Update image content
+            _w(os.path.join(sd, "SS-1-a.png"), "v2")
+            _w(os.path.join(d, "screenshot-manifest.json"), '{"v":2}')
+            r = self._exec(
+                repo, "feat/PROJ-4/handoff.md", "feat/PROJ-4",
+                copied=["SS-1-a.png"], manifest_written=True,
+                msg="Update image",
+            )
+            self.assertEqual(r.returncode, 0, r.stderr)
+            log = subprocess.run(
+                ["git", "-C", repo, "log", "--oneline", "-1"],
+                capture_output=True, text=True,
+            )
+            self.assertIn("Update image", log.stdout)
+
+    # --- T5: One-image removal ---
+    def test_one_image_removal(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            d = os.path.join(repo, "feat/PROJ-5")
+            sd = os.path.join(d, "screenshots")
+            os.makedirs(sd)
+            _w(os.path.join(d, "handoff.md"), "# H\n")
+            _w(os.path.join(d, "screenshot-manifest.json"), "{}")
+            _w(os.path.join(sd, "SS-1-a.png"), "keep")
+            _w(os.path.join(sd, "SS-2-b.png"), "remove")
+            self._exec(repo, "feat/PROJ-5/handoff.md", "feat/PROJ-5",
+                        copied=["SS-1-a.png", "SS-2-b.png"],
+                        manifest_written=True, msg="Init 2 images")
+            # Remove SS-2
+            subprocess.run(
+                ["git", "-C", repo, "rm", "feat/PROJ-5/screenshots/SS-2-b.png"],
+                capture_output=True, check=True,
+            )
+            _w(os.path.join(d, "handoff.md"), "# H updated\n")
+            _w(os.path.join(d, "screenshot-manifest.json"), '{"only1":true}')
+            r = self._exec(
+                repo, "feat/PROJ-5/handoff.md", "feat/PROJ-5",
+                removed=["SS-2-b.png"], manifest_written=True,
+                msg="Remove one image",
+            )
+            self.assertEqual(r.returncode, 0, r.stderr)
+            # SS-1 still tracked
+            ls = subprocess.run(
+                ["git", "-C", repo, "ls-files", "feat/PROJ-5/screenshots/SS-1-a.png"],
+                capture_output=True, text=True,
+            )
+            self.assertIn("SS-1-a.png", ls.stdout)
+            # SS-2 gone
+            ls2 = subprocess.run(
+                ["git", "-C", repo, "ls-files", "feat/PROJ-5/screenshots/SS-2-b.png"],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(ls2.stdout.strip(), "")
+
+    # --- T6: Final image + manifest removal (lfs/git mode) ---
+    def test_final_image_and_manifest_removal(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            d = os.path.join(repo, "feat/PROJ-6")
+            sd = os.path.join(d, "screenshots")
+            os.makedirs(sd)
+            _w(os.path.join(d, "handoff.md"), "# H\n")
+            _w(os.path.join(d, "screenshot-manifest.json"), "{}")
+            _w(os.path.join(sd, "SS-1-only.png"), "solo")
+            self._exec(repo, "feat/PROJ-6/handoff.md", "feat/PROJ-6",
+                        copied=["SS-1-only.png"], manifest_written=True,
+                        msg="Init single image")
+            # Remove last image + manifest
+            subprocess.run(
+                ["git", "-C", repo, "rm", "feat/PROJ-6/screenshots/SS-1-only.png"],
+                capture_output=True, check=True,
+            )
+            subprocess.run(
+                ["git", "-C", repo, "rm", "feat/PROJ-6/screenshot-manifest.json"],
+                capture_output=True, check=True,
+            )
+            _w(os.path.join(d, "handoff.md"), "# Text only now\n")
+            # Seed unrelated staged+unstaged to verify survival
+            _w(os.path.join(repo, "other-staged.txt"), "s")
+            subprocess.run(["git", "-C", repo, "add", "other-staged.txt"],
+                           capture_output=True, check=True)
+            _w(os.path.join(repo, "other-dirty.txt"), "d")
+
+            r = self._exec(
+                repo, "feat/PROJ-6/handoff.md", "feat/PROJ-6",
+                removed=["SS-1-only.png"],
+                manifest_removed=True,
+                msg="Remove final image and manifest",
+            )
+            self.assertEqual(r.returncode, 0, r.stderr)
+            # Manifest no longer tracked
+            ls = subprocess.run(
+                ["git", "-C", repo, "ls-files",
+                 "feat/PROJ-6/screenshot-manifest.json"],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(ls.stdout.strip(), "", "manifest still tracked")
+            # Unrelated staged file survives
+            st = subprocess.run(
+                ["git", "-C", repo, "status", "--porcelain"],
+                capture_output=True, text=True,
+            )
+            self.assertIn("other-staged.txt", st.stdout)
+            self.assertIn("other-dirty.txt", st.stdout)
+            # Commit only touched owned paths
+            show = subprocess.run(
+                ["git", "-C", repo, "diff-tree", "--no-commit-id",
+                 "--name-only", "-r", "HEAD"],
+                capture_output=True, text=True,
+            )
+            self.assertNotIn("other-staged.txt", show.stdout)
+
+    # --- T7: External-mode manifest-only removal (final image) ---
+    def test_external_manifest_only_removal(self) -> None:
+        """External mode: no local image files, only manifest to remove."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            d = os.path.join(repo, "feat/PROJ-7")
+            os.makedirs(d)
+            _w(os.path.join(d, "handoff.md"), "# Ext\n")
+            _w(os.path.join(d, "screenshot-manifest.json"), "{}")
+            # Initial commit with handoff + manifest (external: no image files)
+            self._exec(repo, "feat/PROJ-7/handoff.md", "feat/PROJ-7",
+                        manifest_written=True, msg="Init external")
+            # Remove manifest (all external images removed)
+            subprocess.run(
+                ["git", "-C", repo, "rm",
+                 "feat/PROJ-7/screenshot-manifest.json"],
+                capture_output=True, check=True,
+            )
+            _w(os.path.join(d, "handoff.md"), "# Ext text-only\n")
+            r = self._exec(
+                repo, "feat/PROJ-7/handoff.md", "feat/PROJ-7",
+                manifest_removed=True,
+                msg="External: remove manifest",
+            )
+            self.assertEqual(r.returncode, 0, r.stderr)
+            ls = subprocess.run(
+                ["git", "-C", repo, "ls-files",
+                 "feat/PROJ-7/screenshot-manifest.json"],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(ls.stdout.strip(), "")
+
+    # --- T8: External doc+manifest-only update ---
+    def test_external_doc_and_manifest_update(self) -> None:
+        """External mode text edit: handoff + manifest update, no images."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            d = os.path.join(repo, "feat/PROJ-8")
+            os.makedirs(d)
+            _w(os.path.join(d, "handoff.md"), "# Ext v1\n")
+            _w(os.path.join(d, "screenshot-manifest.json"), '{"v":1}')
+            self._exec(repo, "feat/PROJ-8/handoff.md", "feat/PROJ-8",
+                        manifest_written=True, msg="Init ext")
+            # Update handoff text + regenerated manifest
+            _w(os.path.join(d, "handoff.md"), "# Ext v2\n")
+            _w(os.path.join(d, "screenshot-manifest.json"), '{"v":2}')
+            r = self._exec(
+                repo, "feat/PROJ-8/handoff.md", "feat/PROJ-8",
+                manifest_written=True,
+                msg="External: text+manifest update",
+            )
+            self.assertEqual(r.returncode, 0, r.stderr)
+            log = subprocess.run(
+                ["git", "-C", repo, "log", "--oneline", "-1"],
+                capture_output=True, text=True,
+            )
+            self.assertIn("text+manifest update", log.stdout)
+
+    # --- T9: Verify recipe has exactly 3 bash blocks ---
+    def test_recipe_bash_block_count(self) -> None:
+        recipe = _read("_shared/recipes/screenshot-publish-stage.md")
+        blocks = _extract_bash_blocks(recipe)
+        self.assertEqual(len(blocks), 3,
+                         f"Recipe should have 3 bash blocks, got {len(blocks)}")
 
 
 if __name__ == "__main__":

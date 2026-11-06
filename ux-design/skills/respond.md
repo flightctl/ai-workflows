@@ -225,6 +225,7 @@ Otherwise, apply the same validation and storage gates as `/publish`:
      compute SHA-256, and verify against the authoring manifest. Stop on
      mismatch.
    - **Removed images**: delete the embed and Screenshot Index entry.
+     External hosted bytes are not deleted by this workflow.
 
    Rewrite **every** current `![alt](ref)` embed **and** Screenshot
    Index `Ref` column in the published handoff with the correct external
@@ -232,10 +233,15 @@ Otherwise, apply the same validation and storage gates as `/publish`:
    all external references. Preserve authoring references in
    `05-handoff.md` separately.
 
+   **Final-image removal in external mode.** If all images are removed,
+   `git rm` the consumer manifest (`{handoff_dir}/screenshot-manifest.json`)
+   and pass `MANIFEST_REMOVED="true"` to the staging recipe. This applies
+   to all storage modes, not only `lfs`/`git`.
+
 6. **Regenerate the published consumer-facing manifest** at
    `{handoff_dir}/screenshot-manifest.json` with the current set of
    published screenshots (no private paths). If all screenshots were
-   removed, skip this — the manifest was already deleted in step 3.
+   removed (any storage mode), skip — the manifest was removed above.
 
 7. **Update `publish-metadata.json`** `screenshot_assets` with the new
    checksums, paths, and entry set. Do not write metadata until the

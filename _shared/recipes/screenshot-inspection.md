@@ -56,19 +56,30 @@ For each resolved image (local file or fetched external):
    If identity is `mismatched`, still record observations but flag the
    image as stale/unverified.
 
-3. **Record** per image:
-   - Screenshot ID (`SS-N`)
-   - Identity status (`verified` / `mismatched` / `unverified`)
-   - Brief observation of actual visual content
-   - Consistency with handoff's written description
-   - Visual details not captured in the written spec
+3. **Record** per image using this schema:
 
-4. **If unresolvable:** Record the ID and per-image status:
-   `unavailable`, `lfs-unresolved`, `fetch-failed`, or
-   `inspection-not-supported`. Report which images could not be
-   inspected. Do **not** fabricate observations from captions or alt
-   text. Ask the user whether to proceed with partial/text-only context
-   or wait for full image access.
+   | Field | Value |
+   |-------|-------|
+   | `id` | Screenshot ID (`SS-N`) |
+   | `status` | `inspected` / `unavailable` / `lfs-unresolved` / `fetch-failed` / `inspection-not-supported` |
+   | `identity` | `verified` / `mismatched` / `unverified` |
+   | `ref` | Published reference (local path or external URL) |
+   | `expected_sha` | SHA-256 from manifest (or `—` if unavailable) |
+   | `observed_sha` | SHA-256 of actual bytes (or `—` if not resolved) |
+   | `observation` | Brief description of actual visual content |
+   | `spec_match` | `Yes` / `No` — consistency with written description |
+   | `notes` | Visual details not in spec, or failure reason |
+
+   When the user explicitly accepts a `mismatched` or `unverified` image,
+   record that decision so downstream phases can cite it as
+   `[Screenshot: SS-N — accepted-unverified]`. Do not silently accept
+   missing manifests or identity mismatches.
+
+4. **If unresolvable:** Record the ID and per-image status per the
+   schema above. Report which images could not be inspected. Do **not**
+   fabricate observations from captions or alt text. Ask the user
+   whether to proceed with partial/text-only context or wait for full
+   image access.
 
 5. **Check revision binding.** Record the manifest's `context_revision`
    and `prototype_iteration`. If these differ from the handoff's
