@@ -295,6 +295,17 @@ When writing the story testplan from matches across multiple artifacts,
 include all matched TCs in a single `testplan.md` with a Source line
 listing each contributing artifact.
 
+**Companion artifact filtering:** When a matched TC comes from a
+companion artifact (type `"companion"` in the published index), note
+its source artifact and purpose in the story testplan metadata. TCs
+from companion artifacts with a specialized execution context (e.g.,
+hardware qualification, security certification) are included as
+**qualification evidence references** — the `/plan` and `/code`
+phases treat these as validation requirements to be aware of, but
+they are not candidates for unit/integration test generation in the
+implementation story. The story's own Testing Approach covers the
+appropriate test scope for `[DEV]` work.
+
 ### Step 6: Explore the Codebase
 
 Based on the story's scope, explore the areas of the codebase that will be

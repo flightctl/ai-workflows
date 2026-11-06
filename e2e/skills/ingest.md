@@ -248,6 +248,20 @@ When writing the story testplan from matches across multiple artifacts,
 include all matched TCs in a single `testplan.md` with a Source line
 listing each contributing artifact.
 
+**Companion artifact filtering:** When a matched TC comes from a
+companion artifact (type `"companion"` in the published index), note
+its source artifact and purpose in the story testplan metadata. TCs
+from companion artifacts with a specialized execution environment
+(e.g., hardware qualification requiring a physical device lab,
+security certification requiring audit tooling) are included as
+**qualification evidence references** — the `/plan` and `/code`
+phases must not generate automated e2e test code for them. Instead,
+they are listed in the story testplan with a `Qualification gate`
+marker so downstream phases know these scenarios require their
+designated execution environment, not the project's e2e test
+infrastructure. TCs from the primary testplan are always candidates
+for e2e automation.
+
 **Write story-scoped testplan (Normal outcome only):**
 
 Write `.artifacts/e2e/{issue-key}/testplan.md`:
