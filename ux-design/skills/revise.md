@@ -40,6 +40,7 @@ The user's feedback may target:
 - State coverage gaps
 - Acceptance criteria adjustments
 - Research context clarifications
+- Screenshot additions, replacements, or removals
 
 Clarify with the user if the feedback is ambiguous before making changes.
 
@@ -54,6 +55,27 @@ After writing the updated `05-handoff.md`, read and follow
 `../../_shared/recipes/capture-provenance-event.md` with `WORKFLOW=ux-design`,
 `ISSUE_KEY={issue-key}`, `PHASE=revise`, `AUTHORING_MODE=skill`.
 
+### Step 3a: Handle Screenshot Changes
+
+If the revision adds, replaces, or removes screenshots:
+
+1. **Adding/replacing:** Copy new screenshots into
+   `.artifacts/ux-design/{issue-key}/screenshots/` using stable `SS-N`
+   naming. Compute the SHA-256 and update `screenshot-manifest.json`.
+   Update the Screenshots section in `05-handoff.md`.
+
+2. **Removing:** Delete the file from `screenshots/`, remove its manifest
+   entry, and remove its row from the Screenshots section.
+
+3. **Image-only change** (same screenshot re-captured with visual changes
+   but no textual handoff change): Replace the file, update the manifest's
+   `sha256` field, and note the visual change in the revision summary. The
+   manifest checksum ensures `/publish` and `ui-design` detect the update
+   even when the filename and handoff text are unchanged.
+
+If the handoff previously had no screenshots and the researcher requests
+adding them, follow the curation procedure from `/handoff` Step 5.
+
 ### Step 4: Consistency Check
 
 After applying changes, verify:
@@ -61,6 +83,7 @@ After applying changes, verify:
 - Does the component mapping still align with the prototype?
 - Are interaction specs consistent with evaluation findings?
 - Are there contradictions with locked research decisions?
+- Do screenshot references in the handoff match the manifest?
 
 ### Step 5: Present Changes
 

@@ -1,6 +1,6 @@
 ---
 name: ui-design
-version: 0.1.0
+version: 0.2.0
 description: >-
   UI design workflow that takes a [UI] Jira story and optional UX handoff artifact,
   produces a component decomposition with hook design, state management,

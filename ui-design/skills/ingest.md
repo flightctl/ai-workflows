@@ -269,6 +269,57 @@ proceed without a handoff (it is optional).
 
 If found, read it.
 
+**Screenshot inspection.** After reading the handoff text, check whether
+its Screenshots section references curated images (rows in the screenshot
+table with `SS-N` IDs) or states that no screenshots are available.
+
+- **If screenshots are referenced:** For each referenced screenshot, locate
+  the image file relative to the handoff's directory in the docs repo
+  (e.g., `{handoff_dir}/screenshots/SS-1-description.png`). Then:
+
+  1. **Open and visually inspect each image** using the runtime's image
+     reading capability (e.g., the `Read` tool on the image file path).
+     Reading the markdown table, file metadata, captions, or alt text
+     alone is **not** image inspection — the purpose is to observe the
+     actual rendered layout, visual hierarchy, spacing, color usage,
+     component arrangement, and state presentation in the image pixels.
+
+  2. For each inspected image, record:
+     - The screenshot ID (`SS-N`)
+     - A brief observation of what the image actually shows (layout,
+       component arrangement, visual state, notable visual details)
+     - Whether the image content is consistent with or contradicts the
+       handoff's written description for that screenshot
+     - Any visual details not captured in the written spec (spacing,
+       alignment, visual weight, color patterns)
+
+  3. If an image file cannot be found, is unreadable, or the runtime does
+     not support image inspection (e.g., no multimodal capability, or
+     the tool returns an error for binary files):
+     - Record the screenshot ID and status as `unavailable` or
+       `inspection-not-supported`
+     - Report to the user which images could not be inspected and why
+     - Do **not** claim the images were inspected or fabricate visual
+       observations from the caption or alt text
+     - Ask the user whether to proceed with text-only context or wait
+       for image access
+
+  4. If the handoff references a `screenshot-manifest.json`, read it to
+     obtain SHA-256 checksums for asset identity verification. Record the
+     manifest's `context_revision` and `prototype_iteration` fields. If
+     the manifest's revision differs from the handoff's metadata, warn
+     the user that screenshots may be stale.
+
+- **If no screenshots are available** (handoff says "None" or the
+  Screenshots section is absent): Record `HAS_SCREENSHOTS = false` in the
+  context. This is a legitimate case (Quick evaluation depth, URL-only
+  input, or pre-screenshot handoff). Do not treat this as an error.
+
+- **User-authorized text-only path.** If the user explicitly authorizes
+  proceeding without image inspection (when screenshots exist but cannot
+  be inspected), record `HAS_SCREENSHOTS = deferred` and the reason.
+  Downstream phases will note reduced visual fidelity.
+
 **Provenance freshness check.** Before extracting content, look for a
 provenance footer (`<!-- ai-workflow-provenance:`) in the handoff file.
 If no provenance footer is found, warn the user:
@@ -468,6 +519,28 @@ If this is a first invocation, write
 
  If not available: "No UX handoff artifact. This [UI] story operates from
  PRD and design document context only."}
+
+### Screenshot Observations
+
+- **Screenshots:** {`inspected` / `none` / `deferred` / `unavailable`}
+
+{If inspected: for each screenshot, record the ID, a brief visual
+observation, and any text/image discrepancies.}
+
+| ID | Visual Observation | Consistent with Spec | Notes |
+|----|-------------------|----------------------|-------|
+| SS-1 | {What the image actually shows — layout, components, visual state} | {Yes / No — discrepancy description} | {Visual details not in written spec} |
+
+{If none: "No screenshots in the UX handoff. Visual context is derived
+from the written spec only."}
+
+{If deferred: "Screenshots exist but image inspection was deferred by
+user authorization. Reason: {reason}. Visual fidelity is reduced — the
+plan phase will note which decisions lack visual evidence."}
+
+{If unavailable: "Screenshots referenced but could not be inspected.
+Images not inspected: {list of SS-N IDs and reasons}. Visual context is
+derived from the written spec only for these screenshots."}
 
 ### Feasibility & Phasing
 

@@ -187,17 +187,93 @@ and data-source classifications, and mark affected findings **unverified
 against the technical design**. `/handoff` does no codebase exploration of its
 own, so do not imply verification the phase cannot perform.
 
-### Step 5: Assemble the handoff artifact
+### Step 5: Curate Screenshots
 
-Combine the skill's output with Steps 2, 3, and 4 into the artifact below, and
-save it to `.artifacts/ux-design/{issue-key}/05-handoff.md`.
+Select screenshots that illustrate the approved design for implementation.
+These are curated references for the handoff consumer (`ui-design`), not a
+dump of all raw evaluation evidence.
+
+**Source.** The `/evaluate` phase captures screenshots into
+`.artifacts/ux-design/{issue-key}/04-eval-raw/screenshots/`. If no
+screenshots exist (Quick depth was used, or screenshots were not captured),
+skip this step and record `Screenshots: None — evaluation used URL or Quick
+depth` in the handoff template's Screenshots section.
+
+**Selection criteria.** From the available screenshots, select images that
+show:
+
+1. The **primary user flow** in its populated/happy-path state
+2. Each **alternate state** relevant to implementation (empty, loading, error,
+   partial — choose the states present in the State Matrix)
+3. Any **persona-specific view** that differs visually from the default
+4. **Responsive breakpoints** if the design adapts to screen size
+
+Do not include redundant screenshots that show the same state from
+different evaluation runs. Prefer screenshots from the evaluation whose
+revision bindings match the current context.
+
+**Curated directory.** Copy selected screenshots to
+`.artifacts/ux-design/{issue-key}/screenshots/` with stable filenames:
+
+```
+screenshots/
+  SS-1-{short-description}.png     (e.g., SS-1-fleet-list-populated.png)
+  SS-2-{short-description}.png     (e.g., SS-2-fleet-list-empty.png)
+  ...
+```
+
+Use the `SS-N` prefix as the stable identifier referenced throughout the
+handoff. The short description is lowercase-hyphenated and describes the
+flow or state. Keep filenames under 80 characters.
+
+**Screenshot manifest.** Write
+`.artifacts/ux-design/{issue-key}/screenshot-manifest.json` recording each
+curated screenshot. The manifest enables consumers and the publish phase to
+validate references, detect visual-only changes, and verify asset identity
+without re-inspecting the images:
+
+```json
+{
+  "issue_key": "{issue-key}",
+  "context_revision": "{current context revision}",
+  "prototype_iteration": "{iteration evaluated}",
+  "screenshots": [
+    {
+      "id": "SS-1",
+      "filename": "SS-1-fleet-list-populated.png",
+      "sha256": "{hex digest of the image file}",
+      "caption": "{One sentence describing what the screenshot shows}",
+      "alt_text": "{Accessible description of the visual content}",
+      "flow": "{Which user flow or state this illustrates}",
+      "state": "{populated | empty | loading | error | partial | responsive | persona-specific}",
+      "source": "{path to the source screenshot in 04-eval-raw/screenshots/}"
+    }
+  ]
+}
+```
+
+Compute `sha256` by hashing the curated image file's bytes:
+
+```bash
+sha256sum ".artifacts/ux-design/{issue-key}/screenshots/{filename}" | cut -d' ' -f1
+```
+
+If the handoff is regenerated after a new evaluation cycle, re-curate
+screenshots from the updated evaluation and regenerate the manifest. The
+prior manifest is overwritten — history is preserved via `04-eval-raw/`
+which retains raw screenshots per evaluation run.
+
+### Step 6: Assemble the handoff artifact
+
+Combine the skill's output with Steps 2, 3, 4, and 5 into the artifact
+below, and save it to `.artifacts/ux-design/{issue-key}/05-handoff.md`.
 Preserve the skill's Given/When/Then acceptance criteria format — it is
 more precise than a flat table and `ui-design` can consume it.
 
 Then move the skill's raw output into the namespace and clean up the repo
 root as described in Step 1.
 
-### Step 6: Capture Provenance
+### Step 7: Capture Provenance
 
 `05-handoff.md` is a planning document published to the docs repo (via
 `/publish`), so it carries the same provenance contract as `prd`/`design`.
@@ -305,6 +381,29 @@ deferred — the researcher confirms this split}
 
 {If the full design is deliverable as-is, state: "No phasing required — the
 technical design supports the full design."}
+
+## Screenshots
+
+{From Step 5. If no screenshots were captured (Quick depth or URL-only
+evaluation), state: "Screenshots: None — evaluation used URL or Quick
+depth. The ui-design workflow will operate from the written spec only."}
+
+{If screenshots are available, list each curated image with its stable ID,
+caption, and alt text. Reference the screenshot manifest for asset
+identity (SHA-256 checksums) and source traceability.}
+
+| ID | File | Caption | State |
+|----|------|---------|-------|
+| SS-1 | `screenshots/SS-1-{description}.png` | {What the screenshot shows} | {populated / empty / loading / error / partial / responsive / persona-specific} |
+
+**Manifest:** `screenshot-manifest.json` (SHA-256 checksums, source paths,
+context revision, prototype iteration)
+
+**Note for `ui-design`:** Open and visually inspect each referenced
+screenshot during `/ingest`. Do not treat this table as a substitute for
+image inspection — the screenshots show rendered layout, spacing, visual
+hierarchy, and state presentation that the written spec cannot fully
+convey.
 
 ## Open Questions
 

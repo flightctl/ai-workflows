@@ -88,6 +88,27 @@ Stop and request human guidance when:
 - The researcher's domain expertise is needed to interpret data
 - Confidence in a design recommendation is low
 
+## Screenshot Handling
+
+- **Curated, not exhaustive.** Handoff screenshots are a curated selection
+  of the most implementation-relevant images. Raw evaluation evidence
+  remains private in `04-eval-raw/screenshots/` and must not be published
+  wholesale.
+- **Stable identifiers.** Each curated screenshot has a stable `SS-N` ID
+  that persists across revisions. Consumers cite these IDs, not filenames.
+- **Asset identity.** The `screenshot-manifest.json` records SHA-256
+  checksums of each curated screenshot. Use checksums — not filenames or
+  timestamps — to detect visual-only changes when the handoff text is
+  unchanged.
+- **No storage assumption.** The `/publish` phase does not assume any
+  particular storage backend for the docs repo. An explicit repository or
+  researcher policy must authorize how screenshot assets are stored before
+  any copy, commit, or upload occurs.
+- **Quick depth and text-only paths.** When evaluation captured no
+  screenshots, the handoff explicitly records this. Downstream workflows
+  must not fabricate visual observations or fail — they operate from the
+  written spec and note the absence.
+
 ## Artifact Persistence and Isolation
 
 - All workflow artifacts MUST be stored under `.artifacts/ux-design/{issue-key}/`,

@@ -143,6 +143,30 @@ git -C "{docs_repo_path}" pull --ff-only
 cp ".artifacts/ux-design/{issue-key}/05-handoff.md" "{docs_repo_path}/{handoff_file_path}"
 ```
 
+**Update screenshot assets if changed.** Read
+`.artifacts/ux-design/{issue-key}/screenshot-manifest.json` and
+`.artifacts/ux-design/{issue-key}/publish-metadata.json`. If the manifest
+exists and contains screenshots:
+
+Derive the handoff directory from the published handoff path:
+
+```bash
+handoff_dir=$(dirname "{handoff_file_path}")
+```
+
+1. Compare each manifest entry's `sha256` against the corresponding
+   `screenshot_assets` entry in `publish-metadata.json`. If any checksum
+   differs, the screenshot was visually updated since the last publish.
+
+2. For `lfs` or `git` storage mode: copy changed screenshots to
+   `{docs_repo_path}/{handoff_dir}/screenshots/` and stage them.
+
+3. For `external` mode: ask the researcher for the updated external URL
+   for each changed screenshot.
+
+4. Update `publish-metadata.json` `screenshot_assets` with the new
+   checksums and paths.
+
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ux-design`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{docs_repo_path}/{handoff_file_path}"`.
@@ -151,8 +175,14 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 git -C "{docs_repo_path}" add "{handoff_file_path}"
 ```
 
+Stage screenshot changes if any were copied:
+
 ```bash
-git -C "{docs_repo_path}" commit --only -m "UX design {issue-key}: address review feedback" -- "{handoff_file_path}"
+git -C "{docs_repo_path}" add "{handoff_dir}/screenshots/" 2>/dev/null || true
+```
+
+```bash
+git -C "{docs_repo_path}" commit -m "UX design {issue-key}: address review feedback" -- "{handoff_file_path}" "{handoff_dir}/screenshots/"
 ```
 
 ```bash

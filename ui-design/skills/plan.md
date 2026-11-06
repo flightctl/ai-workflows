@@ -48,6 +48,25 @@ context flag for the rest of this phase:
 All subsequent sections use `HAS_HANDOFF` to choose between UX-derived
 content and fallback guidance (PRD + design document + codebase context).
 
+**Determine screenshot availability.** Check the **Screenshot
+Observations** section of `01-context.md` for the `Screenshots` status:
+
+- `inspected` → `HAS_SCREENSHOTS = true` — visual observations are
+  available and should be cited alongside written spec references
+- `none` → `HAS_SCREENSHOTS = false` — no screenshots exist; design
+  from written spec only (legitimate case, not an error)
+- `deferred` → `HAS_SCREENSHOTS = deferred` — screenshots exist but
+  were not visually inspected; note reduced visual fidelity in decisions
+  that would benefit from visual evidence
+- `unavailable` → `HAS_SCREENSHOTS = false` — screenshots could not be
+  inspected; treat as text-only with a note
+
+`HAS_SCREENSHOTS` is independent of `HAS_HANDOFF`. A handoff may exist
+without screenshots (Quick evaluation) and screenshots are never present
+without a handoff. Do not conflate screenshot inspection with keyboard
+navigation testing, accessibility auditing, API verification, or runtime
+behavior validation — screenshots show visual presentation only.
+
 Then open **cited sources only** from `01-context.md`:
 
 1. The UX handoff artifact — use the path recorded in the Upstream Artifacts
@@ -75,6 +94,36 @@ Before writing, create a mental map. If `HAS_HANDOFF` is true:
 - Which interaction specs require new hooks or state?
 - Which persona-specific views require conditional rendering or permission gates?
 - Which acceptance criteria drive which components?
+
+If `HAS_SCREENSHOTS` is true, use the inspected screenshot observations
+from `01-context.md` to inform component grouping, layout, and visible-
+state decisions:
+
+- **Cite image IDs** alongside written spec references using the marker
+  `[Screenshot: SS-N]` — for example, `[Screenshot: SS-1]` when a
+  component's layout is informed by the populated-state screenshot.
+- **Compare visual and textual evidence.** If a screenshot shows layout,
+  spacing, component arrangement, or visual hierarchy that differs from or
+  is not described in the written handoff spec, flag the discrepancy
+  explicitly rather than silently selecting one source:
+
+  *"[Discrepancy: SS-2 vs Handoff §Component Mapping] The screenshot
+  shows {observed visual detail}, but the written spec describes
+  {written detail}. Flagging for user resolution."*
+
+  Do not invent behavior to resolve a discrepancy — present both sources
+  and let the user decide.
+
+- **Visual-only evidence.** When a screenshot provides visual details not
+  in the written spec (spacing proportions, visual weight, color-coded
+  states), cite the screenshot as the source for those decisions:
+  `[Screenshot: SS-N — visual detail]`.
+
+If `HAS_SCREENSHOTS` is `deferred`:
+- Note in each section where visual evidence would have informed a
+  decision: *"Visual evidence deferred — this decision is based on the
+  written spec only."*
+- Do not fabricate visual observations from captions or alt text.
 
 If `HAS_HANDOFF` is false:
 - Which design document interface changes (IC-N) affect the frontend?
@@ -508,6 +557,8 @@ Before presenting the UI design document, verify:
 - [ ] No vague language ("appropriate", "standard", "as needed" without specifics)
 - [ ] No scope reduction language ("v2", "simplified", "placeholder", "future enhancement")
 - [ ] Source markers trace decisions to UX handoff, design document, PRD, or codebase
+- [ ] Screenshot citations (`[Screenshot: SS-N]`) are present for layout and visual-state decisions when `HAS_SCREENSHOTS` is true; deferred decisions are noted when `HAS_SCREENSHOTS` is `deferred`
+- [ ] Text/image discrepancies are flagged explicitly, not silently resolved
 - [ ] File paths are specific and follow the project's directory conventions
 - [ ] No `[Assumption: ...]` markers remain
 - [ ] The document is concise — no redundant sections or unnecessary repetition

@@ -147,10 +147,13 @@ context, use the stable key agreed during `/ingest` (for example,
     prototype/                 (generated prototype files, from the skill)
   04-evaluation.md             (heuristic eval report, readiness assessment)
   04-eval-raw/                 (raw skill reports, mirrored from the eval skills)
+    screenshots/               (raw evaluation screenshots — private evidence)
   history/                     (prior context snapshots, prototypes, evaluations)
   05-handoff.md                (implementation spec, component mapping, AC)
+  screenshots/                 (curated screenshots for handoff, with stable SS-N IDs)
+  screenshot-manifest.json     (asset index: IDs, checksums, captions, source paths)
   06-pr-description.md         (generated PR body for /publish)
-  publish-metadata.json        (PR number, branch, canonical handoff and source paths)
+  publish-metadata.json        (PR number, branch, handoff/source paths, storage policy)
   provenance.json              (authoring provenance log)
 ```
 
@@ -178,7 +181,16 @@ It contains:
 - **Acceptance criteria** — testable, traced to research findings
 - **Feasibility and phasing** — design reality-checked against the technical
   design, with a final-vision/MVP split when constraints require it
+- **Screenshots** — curated images of the rendered prototype showing primary
+  flows and important alternate/error states, with stable IDs (`SS-N`),
+  meaningful captions, alt text, and revision metadata; absent when
+  evaluation used Quick depth or URL-only input
 - **Research context** — why decisions were made
+
+The accompanying `screenshot-manifest.json` records each screenshot's
+SHA-256 checksum, source path, caption, and the prototype iteration and
+context revision it was captured from. This enables consumers and the
+publish phase to validate asset identity and detect visual-only changes.
 
 ## UXD Marketplace Skills
 
