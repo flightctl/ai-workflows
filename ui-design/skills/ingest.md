@@ -101,22 +101,14 @@ mkdir -p ".artifacts/ui-design/{workspace-id}"
 
 ### Step 2a: Resolve Workspace Paths and Check for Prior Ingest
 
-Resolve these paths once, anchored to Step 2's `mkdir -p` directory
-(the workflow workspace root). Store and reuse for all operations
-(backup, write, cleanup, diff, first/re-invocation) without
-re-evaluating against later exploration `cwd`:
+Resolve once against Step 2's invocation directory; retain across
+later `cwd` changes. No hardcoded prefix or Git-root requirement.
 
-```
-ARTIFACT_DIR  = .artifacts/ui-design/{workspace-id}
-CONTEXT_PATH  = {ARTIFACT_DIR}/01-context.md
-BACKUP_PATH   = {ARTIFACT_DIR}/01-context.md.prev
-```
+- `ARTIFACT_DIR` = `.artifacts/ui-design/{workspace-id}`
+- `CONTEXT_PATH` = `{ARTIFACT_DIR}/01-context.md`
+- `BACKUP_PATH` = `{ARTIFACT_DIR}/01-context.md.prev`
 
-Dynamic absolute resolution is fine; no machine-specific hardcoded
-prefix or Git-root requirement. Same values for non-Jira workspace-id.
-
-If `{CONTEXT_PATH}` already exists, this is a re-invocation. Copy it
-to `{BACKUP_PATH}` for Step 8a.
+If `{CONTEXT_PATH}` exists, copy it to `{BACKUP_PATH}` for Step 8a.
 
 ### Step 3: Read the [UI] Story
 

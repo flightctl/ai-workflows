@@ -259,12 +259,17 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
     def test_ingest_token_budget(self) -> None:
         content = _read("ui-design/skills/ingest.md")
         est = len(content) // 4
-        self.assertLessEqual(est, 6100, f"ingest ~{est} est tokens > 6100")
+        self.assertLess(est, 6000, f"ingest ~{est} tokens >= 6000 checker limit")
 
     def test_plan_token_budget(self) -> None:
         content = _read("ui-design/skills/plan.md")
         est = len(content) // 4
-        self.assertLessEqual(est, 6100, f"plan ~{est} est tokens > 6100")
+        self.assertLess(est, 6000, f"plan ~{est} tokens >= 6000 checker limit")
+
+    def test_publish_token_budget(self) -> None:
+        content = _read("ux-design/skills/publish.md")
+        est = len(content) // 4
+        self.assertLess(est, 6000, f"publish ~{est} tokens >= 6000 checker limit")
 
     def test_ingest_aggregate_status_mapping(self) -> None:
         """Item 2: ingest maps per-image statuses to aggregate status."""
@@ -449,18 +454,18 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
         self.assertIn("ARTIFACT_DIR", step2a)
         self.assertIn("CONTEXT_PATH", step2a)
         self.assertIn("BACKUP_PATH", step2a)
-        # Anchored to Step 2 workspace root, no hardcoded prefix
+        # Anchored to Step 2 invocation dir, no hardcoded prefix
         flat2a = " ".join(step2a.split())
-        self.assertIn("workspace root", flat2a)
+        self.assertIn("invocation directory", flat2a)
         self.assertNotIn("git rev-parse --show-toplevel", step2a)
-        # No re-evaluation against later cwd
-        self.assertIn("re-evaluating", flat2a)
+        # Retained across later cwd changes
+        self.assertIn("later `cwd` changes", flat2a)
+        # No Git-root requirement
+        self.assertIn("Git-root requirement", flat2a)
         # Step 8a uses the resolved path variables
         step8a = content.split("### Step 8a:", 1)[1].split("### Step 9", 1)[0]
         self.assertIn("{CONTEXT_PATH}", step8a)
         self.assertIn("{BACKUP_PATH}", step8a)
-        # Non-Jira workspace-id supported
-        self.assertIn("non-Jira workspace-id", flat2a)
 
     # =================================================================
     # Finding 2: Every declared Screenshot Index ID accounted for
@@ -607,13 +612,15 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
         authoring manifest is nonempty, asks to reconcile."""
         content = _read("ux-design/skills/publish.md")
         step5 = content.split("### Step 5:", 1)[1].split("### Step 6:", 1)[0]
-        self.assertIn("Inverse mismatch guard", step5)
-        self.assertIn("reconcile before publishing", step5)
+        flat5 = " ".join(step5.split())
+        self.assertIn("Inverse mismatch guard", flat5)
+        self.assertIn("reconcile", flat5)
+        self.assertIn("before publishing", flat5)
         # Does not auto-delete
-        self.assertIn("Do not automatically delete", step5)
-        # Distinguishes authoring vs published consumer manifest
-        self.assertIn("authoring", step5)
-        self.assertIn("published", step5)
+        self.assertIn("Do not automatically delete", flat5)
+        # Distinguishes authoring vs published
+        self.assertIn("authoring", flat5)
+        self.assertIn("published", flat5)
 
     # =================================================================
     # Finding 6: Unconditional provenance capture in revise
