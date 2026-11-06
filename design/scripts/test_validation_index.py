@@ -261,6 +261,19 @@ class TestPathSafety(unittest.TestCase):
         errors = vi.safe_filename(42, "test")
         self.assertTrue(any("must be a string" in e for e in errors))
 
+    def test_rejects_uppercase_format(self):
+        """safe_filename directly rejects non-lowercase filenames."""
+        errors = vi.safe_filename("UpperCase.md", "test")
+        self.assertTrue(any("lowercase" in e for e in errors),
+                        f"Expected format error, got: {errors}")
+
+    def test_accepts_valid_lowercase_format(self):
+        """safe_filename accepts valid lowercase filenames."""
+        for name in ("testplan.md", "hw-validation.md",
+                      "04-testplan.md", "security-cert.md"):
+            errors = vi.safe_filename(name, "test")
+            self.assertEqual(errors, [], f"rejected valid: {name}")
+
     def test_reserved_in_full_local_validation(self):
         """Reserved filenames rejected in full local index validation."""
         idx = _make_local_index()
@@ -1660,6 +1673,44 @@ class TestSafeWriteParentSymlink(unittest.TestCase):
             r = _run_cli("transform", str(src), str(link))
             self.assertEqual(r.returncode, 1)
             self.assertIn("symlink", r.stderr.lower())
+
+    def test_transform_rejects_ancestor_symlink_with_nonexistent_child(self):
+        """Ancestor symlink with nonexistent descendant → exit 1.
+
+        Tests the case where output is link/nonexistent/output.json
+        and link→outside.  The walk must NOT stop at the nonexistent
+        intermediate — it must continue upward and catch the symlink.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            with tempfile.TemporaryDirectory() as outside:
+                src = Path(td) / "local.json"
+                _write_json(src, _make_local_index())
+                link = Path(td) / "link"
+                link.symlink_to(outside)
+                # Output: link/nonexistent/output.json
+                dst = link / "nonexistent" / "output.json"
+                r = _run_cli("transform", str(src), str(dst))
+                self.assertEqual(r.returncode, 1)
+                self.assertIn("symlink", r.stderr.lower())
+                # Nothing created outside
+                self.assertEqual(
+                    list(Path(outside).iterdir()), [],
+                    "No files/dirs should be created at outside target")
+
+    def test_build_legacy_rejects_ancestor_symlink_with_nonexistent_child(self):
+        """build-legacy: ancestor symlink + nonexistent child → exit 1."""
+        with tempfile.TemporaryDirectory() as td:
+            with tempfile.TemporaryDirectory() as outside:
+                _write(Path(td) / "04-testplan.md", "# Plan")
+                link = Path(td) / "link"
+                link.symlink_to(outside)
+                dst = link / "deep" / "output.json"
+                r = _run_cli("build-legacy", td, str(dst))
+                self.assertEqual(r.returncode, 1)
+                self.assertIn("symlink", r.stderr.lower())
+                self.assertEqual(
+                    list(Path(outside).iterdir()), [],
+                    "No files/dirs should be created at outside target")
 
     def test_transform_input_read_error(self):
         """Unreadable input file → clean exit 1, no traceback."""

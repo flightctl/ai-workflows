@@ -705,7 +705,7 @@ from Step 9c, plus verify:
 
 Save each companion to `.artifacts/design/{issue-key}/04-{slug}.md`.
 
-#### 9f: Write Validation Artifact Index
+#### Validation Artifact Index
 
 After writing the primary testplan and any companions, write the
 validation artifact index to

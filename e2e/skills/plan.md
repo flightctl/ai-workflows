@@ -280,7 +280,14 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
 ## Test Plan Coverage
 
 {Include this section only if `.artifacts/e2e/{issue-key}/testplan.md`
- exists. If no story-scoped testplan: omit this section entirely.}
+ exists. If no story-scoped testplan: omit this section entirely.
+
+ **Unverified source handling:** If `testplan.md` contains
+ `Freshness: unverified`, present the TC list to the user and
+ require explicit confirmation that the retained TCs are still
+ applicable before using them as normative coverage requirements.
+ Until confirmed, mark Test Plan Coverage as "unverified —
+ awaiting user confirmation." Do not block AC-based work.}
 
 | TC ID | Title | Covered by Scenario | Notes |
 |-------|-------|---------------------|-------|
@@ -304,7 +311,26 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
  set of TC IDs in testplan.md and the set assigned to scenarios, marked
  N/A, listed as manual verification, or listed as qualification gates.
  If the difference is non-empty, the plan is incomplete — resolve
- before proceeding.}
+ before proceeding.
+
+ A gate-only testplan (zero TC IDs, only a Qualification Gates
+ section) is valid — omit the TC table and include only the
+ Qualification Gates section below.}
+
+## Qualification Gates
+
+{Include this section only if `testplan.md` contains a
+ `## Qualification Gates` section (gate-only or mixed plans).
+ Omit entirely if no gates exist.}
+
+| Gate | Source | Requirements | ICs | Type | Required Evidence | Status |
+|------|--------|-------------|-----|------|-------------------|--------|
+| {gate heading} | {source path, e.g., testplan.md §Review and Qualification Gates} | {FR-N, NFR-N} | {IC-N or —} | {type} | {required evidence} | not-started |
+
+{Gates use source path + gate heading as identity — no TC IDs.
+ Status values: not-started, pending, verified, failed.
+ All gates remain pending until actual evidence is provided;
+ do not infer complete from automated test results.}
 
 ## Risk Assessment
 

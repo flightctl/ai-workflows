@@ -288,8 +288,12 @@ mapped TC ID has coverage. A TC ID may be treated as N/A only if the
 plan's Test Plan Coverage matrix already marks it N/A with a non-empty
 rationale. A TC ID marked `Qualification gate` in the plan is external
 validation evidence — it does not require an e2e test and is not
-counted toward the coverage gate. The code phase must not invent N/A
-or qualification-gate exemptions that the plan did not authorize.
+counted toward the coverage gate. A TC ID marked `Manual verification`
+in the plan requires human verification — it does not require an
+automated e2e test and is not counted toward the coverage gate;
+the procedure and evidence remain visible in the validation report.
+The code phase must not invent N/A, qualification-gate, or
+manual-verification exemptions that the plan did not authorize.
 The testplan is a floor, not a ceiling: validations discovered through
 test design that are not tied to any TC ID are expected and
 encouraged.

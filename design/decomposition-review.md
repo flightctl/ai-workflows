@@ -110,7 +110,9 @@ impact:
    interface changes they implement and the test cases that validate
    them? Derive the universe of ICs and TCs from all validation
    artifacts (primary testplan and any companions): collect ICs from
-   test case metadata tables and from the IC coverage gaps section.
+   test case metadata tables, from the IC coverage gaps section, and
+   from the Review and Qualification Gates table (gates may map ICs
+   without any associated TC IDs).
    Verify: every story's `Interface Changes:` ICs exist in the
    validation artifacts (as test case IC references or IC coverage gap
    entries). Every story's `Validated by:` TCs exist in the validation
