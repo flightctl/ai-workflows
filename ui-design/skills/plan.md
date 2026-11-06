@@ -49,26 +49,18 @@ All subsequent sections use `HAS_HANDOFF` to choose between UX-derived
 content and fallback guidance (PRD + design document + codebase context).
 
 **Determine screenshot availability.** Check the **Screenshot
-Observations** section of `01-context.md` for the `Screenshots` status:
+Observations** section of `01-context.md` for `Screenshots` status:
 
-- `inspected` → `HAS_SCREENSHOTS = true` — visual observations are
-  available and should be cited alongside written spec references
-- `none` → `HAS_SCREENSHOTS = false` — no screenshots exist; design
-  from written spec only (legitimate case, not an error)
-- `deferred` → `HAS_SCREENSHOTS = deferred` — screenshots exist but
-  were not visually inspected; note reduced visual fidelity in decisions
-  that would benefit from visual evidence
-- `unavailable` → `HAS_SCREENSHOTS = unavailable` — screenshots were
-  referenced but none could be inspected; note the limitation explicitly
-  in each section where visual evidence would apply
-- `partial` → `HAS_SCREENSHOTS = partial` — some images were inspected;
-  cite only the inspected ones and note which are missing
+| Status | `HAS_SCREENSHOTS` | Behavior |
+|--------|-------------------|----------|
+| `inspected` | `true` | Cite observations alongside written spec |
+| `partial` | `partial` | Cite inspected images; note missing ones |
+| `none` | `false` | Text-only design (not an error) |
+| `deferred` | `deferred` | Note reduced fidelity where visual evidence applies |
+| `unavailable` | `unavailable` | Note limitation explicitly per section |
 
-`HAS_SCREENSHOTS` is independent of `HAS_HANDOFF`. A handoff may exist
-without screenshots (Quick evaluation) and screenshots are never present
-without a handoff. Do not conflate screenshot inspection with keyboard
-navigation testing, accessibility auditing, API verification, or runtime
-behavior validation — screenshots show visual presentation only.
+Screenshots show visual presentation only — do not conflate with
+keyboard, accessibility, API, or runtime verification.
 
 Then open **cited sources only** from `01-context.md`:
 
@@ -98,42 +90,18 @@ Before writing, create a mental map. If `HAS_HANDOFF` is true:
 - Which persona-specific views require conditional rendering or permission gates?
 - Which acceptance criteria drive which components?
 
-If `HAS_SCREENSHOTS` is true (or `partial` — some images inspected),
-use the inspected screenshot observations from `01-context.md` to inform
-component grouping, layout, and visible-state decisions. Use the
-image's recorded path or URL and identity status from the context to
-reference the correct asset.
+If `HAS_SCREENSHOTS` is true or `partial`, cite inspected screenshot
+observations from `01-context.md` for layout and visible-state decisions:
 
-- **Cite image IDs** alongside written spec references using the marker
-  `[Screenshot: SS-N]` — for example, `[Screenshot: SS-1]` when a
-  component's layout is informed by the populated-state screenshot.
-  Only cite screenshots whose status is `inspected` with identity
-  `verified` or `unverified`. Do not cite `unavailable` or
-  `lfs-unresolved` screenshots as visual evidence.
+- **Cite** with `[Screenshot: SS-N]`. Only cite `inspected` images.
+- **Additive evidence** (visual detail not in prose) supplements the
+  spec: `[Screenshot: SS-N — additive: {detail}]`.
+- **Contradictions** (image conflicts with explicit spec text) are
+  flagged: *"[Contradiction: SS-N vs §section] screenshot shows X, spec
+  states Y."* Do not resolve — let the user decide.
 
-- **Distinguish additive evidence from contradictions.** Visual details
-  present in a screenshot but not mentioned in the written spec are
-  **additive** — the screenshot supplements the prose. Cite these as:
-  `[Screenshot: SS-N — additive: {detail}]`. These are not discrepancies;
-  they add visual context the prose did not capture.
-
-  A **contradiction** is when a screenshot shows something that
-  conflicts with what the written spec explicitly states (e.g., the spec
-  says "two-column layout" but the screenshot shows three columns). Flag
-  these explicitly:
-
-  *"[Contradiction: SS-2 vs Handoff §Component Mapping] The screenshot
-  shows {observed visual detail}, but the written spec states
-  {written detail}. Flagging for user resolution."*
-
-  Do not invent behavior to resolve a contradiction — present both
-  sources and let the user decide.
-
-If `HAS_SCREENSHOTS` is `deferred`:
-- Note in each section where visual evidence would have informed a
-  decision: *"Visual evidence deferred — this decision is based on the
-  written spec only."*
-- Do not fabricate visual observations from captions or alt text.
+If `HAS_SCREENSHOTS` is `deferred`: note *"Visual evidence deferred"*
+where visual context would apply. Do not fabricate observations.
 
 If `HAS_HANDOFF` is false:
 - Which design document interface changes (IC-N) affect the frontend?

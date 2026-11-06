@@ -316,90 +316,27 @@ text-only publishes.
 **Copy screenshot assets** (only when the authoring manifest is non-empty
 and the Screenshots section contains image references):
 
-**Pre-copy containment validation.** Before creating directories or
-copying any file, validate every planned destination path:
+**Pre-copy validation.** For each manifest entry, require `{filename}`
+to match `^SS-[0-9]+-[a-z0-9-]+\.png$`. Resolve each candidate
+destination `{destination_dir}/screenshots/{filename}` and verify it is
+inside `{docs_repo_root}`. If `screenshots/` exists, confirm it is not
+a symlink escaping the repo. Stop before copying if any check fails.
 
-1. For each manifest entry, compute the candidate destination:
-   `{destination_dir}/screenshots/{filename}`.
-2. Require `{filename}` to match `^SS-[0-9]+-[a-z0-9-]+\\.png$` (the
-   stable naming convention). Reject filenames containing `..`, `/`,
-   `\`, or path separators.
-3. Resolve the candidate path and verify it is inside `{docs_repo_root}`.
-4. Verify `{destination_dir}/screenshots` — if it already exists, confirm
-   it is a directory (not a symlink to a location outside the docs repo).
+**`lfs` or `git` mode:** Create `{destination_dir}/screenshots/`, copy
+each file individually, verify each copy's SHA-256 matches the manifest.
+For `lfs`, also confirm LFS is initialized and tracking covers the path.
 
-If any validation fails, stop and report before copying.
+**`external` mode:** Do not copy files. Require the researcher to
+provide immutable, revision-bound HTTPS URLs (no `latest` tags or
+expiring tokens). Rewrite `![alt](ref)` embeds and Screenshot Index in
+the published handoff with external URLs; preserve authoring references
+in `05-handoff.md`.
 
-Apply the storage policy resolved in Step 3b:
-
-**`lfs` or `git` mode:**
-
-```bash
-mkdir -p "{destination_dir}/screenshots"
-```
-
-For each screenshot in the manifest, copy it individually:
-
-```bash
-cp "{source_repo_root}/.artifacts/ux-design/{issue-key}/screenshots/{filename}" \
-   "{destination_dir}/screenshots/{filename}"
-```
-
-After copying all files, verify the SHA-256 of each copied file matches
-the manifest. If any checksum fails, stop and report the corruption
-before committing.
-
-If `lfs` mode is selected, verify that the docs repo has LFS initialized
-(`git lfs env` succeeds) and that a tracking pattern covers the target
-path (e.g., `*.png` or `screenshots/**`). If LFS is not configured, stop
-and ask the researcher to configure it before committing.
-
-**Publish a consumer-facing manifest.** Write
-`{destination_dir}/screenshot-manifest.json` containing only
-consumer-relevant fields (no private `.artifacts/` source paths):
-
-```json
-{
-  "issue_key": "{issue-key}",
-  "context_revision": "{from authoring manifest}",
-  "prototype_iteration": "{from authoring manifest}",
-  "screenshots": [
-    {
-      "id": "SS-1",
-      "filename": "SS-1-{description}.png",
-      "sha256": "{hex digest of published file}",
-      "caption": "{caption}",
-      "alt_text": "{alt_text}",
-      "flow": "{flow}",
-      "state": "{state}"
-    }
-  ]
-}
-```
-
-The authoring manifest at
-`{source_repo_root}/.artifacts/ux-design/{issue-key}/screenshot-manifest.json`
-is preserved separately with its `source` field for traceability. The
-published manifest omits `source` because consumers must not reference
-private artifact paths.
-
-**`external` mode:**
-
-Do not copy image files. Instead, for each screenshot in the manifest,
-require the researcher to provide an immutable, revision-bound URL. Rewrite
-**both** the inline `![alt](ref)` embeds **and** the Screenshot Index
-table entries in the published handoff to use the external URL. Preserve
-the original relative references in the authoring `05-handoff.md` — only
-the docs-repo copy uses external URLs. Each URL must:
-
-- Be an HTTPS URL (not `file://`, `ftp://`, or data URI)
-- Include a version, commit, or content-addressed identifier in the path
-  (not a mutable `latest` tag or query-parameter-only versioning)
-- Not contain time-limited authentication tokens or presigned parameters
-
-Write the consumer-facing manifest with `published_path` set to each
-external URL (no `filename` field since files are not copied). Verify
-the mapping from authoring manifest IDs to external URLs is complete.
+**Publish consumer manifest.** Write
+`{destination_dir}/screenshot-manifest.json` with `id`, `sha256`,
+`caption`, `alt_text`, `flow`, `state`, `published_ref` (relative path
+for lfs/git or external URL), plus `issue_key`, `context_revision`, and
+`prototype_iteration`. Omit the authoring `source` field.
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ux-design`, `ISSUE_KEY={issue-key}`,
