@@ -520,6 +520,9 @@ run per-epic update and close passes.
 
 #### 6a: Create New Stories (Dependency-First Order)
 
+The user's Step 5 confirmation ("Wait for user confirmation before
+syncing stories") covers the ordered cross-epic creation batch below.
+
 Process the `ordered` list from the Step 3 creation plan. This list
 spans all epics and is sorted so prerequisites are created before
 their dependents.
@@ -548,13 +551,17 @@ REF_EXIT=0
 REF_CHECK=$(python3 "$SYNC_HELPER" check-ref-availability \
   .artifacts/design/{issue-key}/ \
   "story-{N}.{NN}" 2>"$REF_ERR") || REF_EXIT=$?
+REF_ERR_TEXT=$(cat "$REF_ERR")
+rm -f "$REF_ERR"
 ```
 
 The `|| REF_EXIT=$?` idiom captures a nonzero exit without aborting
 under `set -e`.  Stderr is captured to a per-guard temp file
-(`$REF_ERR`) created fresh for this story.  Each branch (ready,
-blocked, catch-all) cleans up `$REF_ERR` before proceeding; the
-catch-all reads its text first for the fatal diagnostic report.
+(`$REF_ERR`) created fresh for this story.  The two lines after
+the helper call read the stderr text and remove the temp file
+immediately — before branch interpretation — so cleanup cannot be
+forgotten on any exit path.  `REF_ERR_TEXT` is available for fatal
+diagnostic reporting; on ready/blocked paths it is simply unused.
 
 The helper checks Dependencies (Story and Epic refs) and Contributing
 stories (for `[DOCS]` stories), verifies the owning epic has a key,
@@ -565,26 +572,24 @@ branches must match; any other outcome is a catch-all failure:
 
 1. **Ready:** `REF_EXIT` is 0, stdout is valid JSON, the `ready` list
    contains an entry whose `qid` equals THIS story's qualified ID, and
-   the `blocked` list does NOT contain this QID.  → Clean up: `rm -f
-   "$REF_ERR"`.  Proceed to `prepare`.
+   the `blocked` list does NOT contain this QID.  → Proceed to
+   `prepare`.
 2. **Blocked:** `REF_EXIT` is 1, stdout is valid JSON, the `blocked`
    list contains an entry whose `qid` equals THIS story's qualified ID
    with `missing` (list of unresolved ref IDs) and `reason` (string).
-   → Clean up: `rm -f "$REF_ERR"`.  **Skip** this story —
-   do not call `prepare`, do not render a description,
-   do not create the Jira issue, do not record a manifest checkpoint.
-   Record the story's qualified ID, the `missing` refs, and the
-   `reason` for the Step 8 report.  Continue with the next story in
-   the ordered list — do not abort independent eligible work.
+   → **Skip** this story — do not call `prepare`, do not render a
+   description, do not create the Jira issue, do not record a manifest
+   checkpoint.  Record the story's qualified ID, the `missing` refs,
+   and the `reason` for the Step 8 report.  Continue with the next
+   story in the ordered list — do not abort independent eligible work.
 3. **Catch-all failure** (every other outcome — including exit 0 with
    invalid JSON, exit 0 with this QID missing from `ready`, exit
    nonzero with no JSON, malformed or missing `ready`/`blocked` fields,
    this QID appearing in both lists, or unexpected exit codes):
-   Read the stderr text: `REF_ERR_TEXT=$(cat "$REF_ERR")`, then clean
-   up: `rm -f "$REF_ERR"`.  **Stop the sync** and report the captured
-   stderr text and any stdout.  Do not skip the story or continue with
-   others — the manifest state may be indeterminate.  Do not call
-   `prepare`, render, write to Jira, or record a manifest checkpoint.
+   **Stop the sync** and report `REF_ERR_TEXT` and any stdout.  Do not
+   skip the story or continue with others — the manifest state may be
+   indeterminate.  Do not call `prepare`, render, write to Jira, or
+   record a manifest checkpoint.
 
 Keys recorded by earlier stories in this run (via `update-manifest`)
 are immediately visible to subsequent `check-ref-availability` calls
@@ -677,14 +682,15 @@ Process changed and reopened stories per epic.
 
 **Reference-availability guard.** Before calling `prepare` for a
 changed or reopened story, run the same `check-ref-availability` guard
-as in Step 6a with this story's qualified ID: create a fresh per-guard
-temp (`REF_ERR=$(mktemp)`), capture stderr and exit status with the
-`|| REF_EXIT=$?` idiom, and apply the same three-branch result
-interpretation (ready → clean up temp, proceed; blocked → clean up
-temp, skip; catch-all → read stderr text, clean up temp, stop).  Do
-not call `prepare`, render a description, update or reopen the Jira
-issue, or record a manifest checkpoint for a blocked or failed story.
-Do not retry a blocked story in the current run.
+as in Step 6a with this story's qualified ID: create a per-guard temp
+(`REF_ERR=$(mktemp)`), capture stderr and exit status with the
+`|| REF_EXIT=$?` idiom, read stderr text and remove the temp
+immediately after the helper call (same two-line cleanup as 6a), then
+apply the same three-branch result interpretation (ready → proceed;
+blocked → skip; catch-all → stop and report `REF_ERR_TEXT`).  Do not
+call `prepare`, render a description, update or reopen the Jira issue,
+or record a manifest checkpoint for a blocked or failed story.  Do not
+retry a blocked story in the current run.
 
 For each story categorized as **Changed** or **Reopened** (non-blocked),
 prepare the updated description and hash using the story `prepare`

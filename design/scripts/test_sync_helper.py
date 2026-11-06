@@ -6114,10 +6114,12 @@ class TestSyncConsumerContracts(unittest.TestCase):
     # -- 6a fatal: catch-all stops sync ---
 
     def test_6a_fatal_catch_all_stops_sync(self) -> None:
-        """6a catch-all: stops sync, reports stderr, no skip-continue."""
+        """6a catch-all: stops sync, reports captured text, no skip."""
         self.assertIn("Stop the sync", self._guard_6a)
-        self.assertIn("stderr", self._guard_6a)
-        self.assertIn("Do not skip the story", self._guard_6a)
+        self.assertIn("REF_ERR_TEXT", self._guard_6a)
+        # Check no-skip wording (may wrap across lines)
+        guard_flat = " ".join(self._guard_6a.split())
+        self.assertIn("Do not skip the story", guard_flat)
 
     def test_6a_catch_all_covers_exit0_invalid(self) -> None:
         """6a catch-all enumerates exit 0 with invalid JSON as failure."""
@@ -6668,8 +6670,8 @@ class TestSelfRefInPlanner(_TmpDirMixin, unittest.TestCase):
             "Peer ref must NOT produce self-reference error")
         self.assertEqual(len(r["ordered"]), 2)
 
-    def test_mapped_cycle_preserved(self) -> None:
-        """Multi-story cycle (A→B→A) still detected as cycle, not self-ref."""
+    def test_unmapped_new_cycle_detected(self) -> None:
+        """Two NEW unmapped stories with A→B→A → cycle detected."""
         sd = Path(self.tmpdir) / "06-stories"
         sd.mkdir(exist_ok=True)
         _make_epic(sd, 1, "building")
@@ -6687,6 +6689,36 @@ class TestSelfRefInPlanner(_TmpDirMixin, unittest.TestCase):
         self.assertTrue(any("cycle" in e.lower() for e in r["errors"]),
                         "Multi-story cycle must produce cycle error")
         self.assertEqual(len(r["ordered"]), 0)
+
+    def test_mapped_peer_cycle_accepted_at_runtime(self) -> None:
+        """Two MAPPED stories with A→B→A: runtime guard accepts each
+        individually (they have distinct keys; cycle is a creation-time
+        concern, not a runtime-update concern)."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "a", deps="Story 1.02")
+        _make_dev_story(sd, 1, 2, "b", deps="Story 1.01")
+        mf = Path(self.tmpdir) / "sync-manifest.json"
+        _write(mf, json.dumps({
+            "schema_version": 2, "feature_key": "F",
+            "epics": [{"file": "epic-1-building.md", "jira_key": "EDM-101",
+                        "content_hash": "h", "synced_status": "active",
+                        "stories": [
+                            {"file": "story-01-a.md", "jira_key": "EDM-201",
+                             "content_hash": "h2", "synced_status": "active"},
+                            {"file": "story-02-b.md", "jira_key": "EDM-202",
+                             "content_hash": "h3", "synced_status": "active"}
+                        ]}]}))
+        # Each story depends on the other — distinct keys, so no self-ref
+        r1 = sync_helper.check_ref_availability(
+            ["story-1.01"], self.tmpdir, mf)
+        self.assertEqual(len(r1["ready"]), 1,
+                         "A→B with distinct keys: A should be ready")
+        r2 = sync_helper.check_ref_availability(
+            ["story-1.02"], self.tmpdir, mf)
+        self.assertEqual(len(r2["ready"]), 1,
+                         "B→A with distinct keys: B should be ready")
 
     def test_self_ref_no_mutation(self) -> None:
         """Self-ref detection must not mutate the manifest."""
@@ -6755,7 +6787,9 @@ class TestSelfRefInRuntime(_TmpDirMixin, unittest.TestCase):
             ["story-1.01"], self.tmpdir, mf)
         self.assertEqual(len(r["blocked"]), 1)
         self.assertIn("self-reference", r["blocked"][0]["reason"])
-        self.assertIn("EDM-201", r["blocked"][0]["missing"])
+        # Self-ref IDs in invalid_refs, not missing (they exist but are invalid)
+        self.assertEqual(r["blocked"][0]["missing"], [])
+        self.assertIn("EDM-201", r["blocked"][0]["invalid_refs"])
 
     def test_runtime_docs_contributing_self_blocked(self) -> None:
         """DOCS story Contributing self-ref → blocked at runtime."""
@@ -7000,29 +7034,29 @@ class TestGuardRecipeConsumer(unittest.TestCase):
         """Step 6a guard does NOT use fixed ref_check_err.txt."""
         self.assertNotIn("ref_check_err.txt", self._guard_6a)
 
-    def test_6a_cleanup_in_ready(self) -> None:
-        """Step 6a ready branch cleans up temp file."""
-        # Look in the full guard section for cleanup after ready
-        self.assertIn('rm -f', self._guard_6a)
+    def test_6a_inline_cleanup(self) -> None:
+        """Step 6a capture block does inline cleanup before branches."""
+        # rm -f and cat appear in the capture block before branch text
+        self.assertIn('rm -f "$REF_ERR"', self._guard_6a)
+        self.assertIn('cat "$REF_ERR"', self._guard_6a)
 
-    def test_6a_cleanup_in_blocked(self) -> None:
-        """Step 6a blocked branch cleans up temp file."""
-        # Both ready and blocked branches have cleanup
-        clean_count = self._guard_6a.count('rm -f')
-        self.assertGreaterEqual(clean_count, 2,
-                                "Both ready and blocked must clean up temp")
-
-    def test_6a_fatal_reads_then_cleans(self) -> None:
-        """Step 6a catch-all reads stderr text then cleans temp."""
-        self.assertIn("cat", self._guard_6a)
+    def test_6a_cleanup_before_interpretation(self) -> None:
+        """Temp cleanup happens before branch interpretation text."""
+        rm_pos = self._guard_6a.find('rm -f "$REF_ERR"')
+        branch_pos = self._guard_6a.find("Interpret the result")
+        self.assertGreater(rm_pos, -1)
+        self.assertGreater(branch_pos, -1)
+        self.assertLess(rm_pos, branch_pos,
+                        "Cleanup must be before branch interpretation")
 
     def test_6b_mentions_per_guard_temp(self) -> None:
         """Step 6b references per-guard temp creation."""
         self.assertIn("mktemp", self._guard_6b)
 
-    def test_6b_mentions_cleanup(self) -> None:
-        """Step 6b references cleanup in all branches."""
-        self.assertIn("clean up temp", self._guard_6b.lower())
+    def test_6b_mentions_inline_cleanup(self) -> None:
+        """Step 6b references inline cleanup pattern from 6a."""
+        guard_lower = self._guard_6b.lower()
+        self.assertIn("remove the temp", guard_lower)
 
     def test_helper_ref_uses_errexit_safe_capture(self) -> None:
         """Helper reference uses || REF_EXIT=$? idiom."""
@@ -7106,24 +7140,27 @@ class TestApprovalOrderConsistency(unittest.TestCase):
 
 class TestBashTempCapture(unittest.TestCase):
     """Verify Bash temp-capture/cleanup snippets work correctly
-    under errexit."""
+    under errexit, using the ACTUAL documented recipe pattern."""
 
-    def test_mktemp_errexit_safe(self) -> None:
-        """mktemp with || exit captures allocation failure."""
+    def test_mktemp_allocation_failure_stops_helper(self) -> None:
+        """mktemp failure → exit before helper runs (shell test)."""
         import subprocess
         script = textwrap.dedent("""\
             set -euo pipefail
-            REF_ERR=$(mktemp) || { echo "FATAL" >&2; exit 1; }
-            echo "ready" > "$REF_ERR"
-            cat "$REF_ERR"
-            rm -f "$REF_ERR"
-            echo "done"
+            # Override mktemp to simulate allocation failure
+            mktemp() { return 1; }
+            export -f mktemp
+            REF_ERR=$(mktemp) || { echo "FATAL: cannot create temp" >&2; exit 1; }
+            echo "SHOULD_NOT_REACH"
         """)
         r = subprocess.run(
             ["bash", "-c", script],
             capture_output=True, text=True, timeout=5)
-        self.assertEqual(r.returncode, 0)
-        self.assertIn("done", r.stdout)
+        self.assertNotEqual(r.returncode, 0,
+                            "Allocation failure must exit nonzero")
+        self.assertNotIn("SHOULD_NOT_REACH", r.stdout,
+                         "Helper must not run after allocation failure")
+        self.assertIn("FATAL", r.stderr)
 
     def test_errexit_safe_status_capture(self) -> None:
         """|| REF_EXIT=$? captures nonzero exit under set -e."""
@@ -7240,6 +7277,57 @@ class TestDocsContribNativeKeyExtraction(unittest.TestCase):
         finally:
             fp.unlink()
 
+    def test_docs_native_contributing_self_ref_blocked(self) -> None:
+        """DOCS story with own native key in Contributing → blocked."""
+        content = textwrap.dedent("""\
+            ---
+            ---
+            # Story 1.01: [DOCS] Guide
+
+            **As a** writer,
+            **I want to** document,
+            **So that** users understand.
+
+            ## Acceptance Criteria
+
+            - [ ] Done
+
+            ## Documentation Scope
+
+            API docs.
+
+            ## Documentation Inputs
+
+            Input.
+
+            ## Dependencies
+
+            None
+
+            ## Design Reference
+
+            Epic: Epic 1 — Docs
+            Contributing stories: EDM-301
+        """)
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.md', delete=False,
+                encoding='utf-8') as f:
+            f.write(content)
+            f.flush()
+            fp = Path(f.name)
+        try:
+            extraction = sync_helper.extract_required_refs(
+                fp, story_title="[DOCS] Guide")
+            # EDM-301 is the story's own key in this scenario
+            available = {"story-1.01": "EDM-301", "epic-1": "EDM-101"}
+            self_refs = sync_helper._detect_self_refs(
+                "story-1.01", extraction["refs"],
+                extraction["native_keys"], "EDM-301", available)
+            self.assertIn("EDM-301", self_refs,
+                          "Own native key in Contributing must be detected")
+        finally:
+            fp.unlink()
+
     def test_contributing_story_ref_still_extracted(self) -> None:
         """Story ref in Contributing → still in refs (unchanged)."""
         content = textwrap.dedent("""\
@@ -7282,6 +7370,371 @@ class TestDocsContribNativeKeyExtraction(unittest.TestCase):
             self.assertIn("story-2.01", extraction["refs"])
         finally:
             fp.unlink()
+
+
+# ---------------------------------------------------------------------------
+# Test: Canonical ID normalization in self-ref detection (Point A)
+# ---------------------------------------------------------------------------
+
+class TestCanonicalIDSelfRef(_TmpDirMixin, unittest.TestCase):
+    """Self-ref detection uses canonical ID for own-key lookup."""
+
+    def test_noncanonical_qid_still_detects_self_ref(self) -> None:
+        """story-1.1 (non-canonical) with mapped story-1.01 → self-ref."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="Story 1.01")
+        mf = Path(self.tmpdir) / "sync-manifest.json"
+        _write(mf, json.dumps({
+            "schema_version": 2, "feature_key": "F",
+            "epics": [{"file": "epic-1-building.md", "jira_key": "EDM-101",
+                        "content_hash": "h", "synced_status": "active",
+                        "stories": [{"file": "story-01-api.md",
+                                     "jira_key": "EDM-201",
+                                     "content_hash": "h2",
+                                     "synced_status": "active"}]}]}))
+        # Non-canonical input "story-1.1" maps to same story as "story-1.01"
+        r = sync_helper.check_ref_availability(
+            ["story-1.1"], self.tmpdir, mf)
+        self.assertEqual(len(r["blocked"]), 1,
+                         "Non-canonical QID must still detect self-ref")
+        self.assertIn("self-reference", r["blocked"][0]["reason"])
+
+    def test_canonical_qid_self_ref(self) -> None:
+        """story-1.01 (canonical) with mapped key → self-ref detected."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="Story 1.01")
+        mf = Path(self.tmpdir) / "sync-manifest.json"
+        _write(mf, json.dumps({
+            "schema_version": 2, "feature_key": "F",
+            "epics": [{"file": "epic-1-building.md", "jira_key": "EDM-101",
+                        "content_hash": "h", "synced_status": "active",
+                        "stories": [{"file": "story-01-api.md",
+                                     "jira_key": "EDM-201",
+                                     "content_hash": "h2",
+                                     "synced_status": "active"}]}]}))
+        r = sync_helper.check_ref_availability(
+            ["story-1.01"], self.tmpdir, mf)
+        self.assertEqual(len(r["blocked"]), 1)
+        self.assertIn("self-reference", r["blocked"][0]["reason"])
+
+    def test_resolved_alias_integration(self) -> None:
+        """Resolved alias self-ref via check_ref_availability integration."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        # story-1.01 depends on EDM-201 (its own key, as native dep)
+        _make_dev_story(sd, 1, 1, "api", deps="EDM-201")
+        mf = Path(self.tmpdir) / "sync-manifest.json"
+        _write(mf, json.dumps({
+            "schema_version": 2, "feature_key": "F",
+            "epics": [{"file": "epic-1-building.md", "jira_key": "EDM-101",
+                        "content_hash": "h", "synced_status": "active",
+                        "stories": [{"file": "story-01-api.md",
+                                     "jira_key": "EDM-201",
+                                     "content_hash": "h2",
+                                     "synced_status": "active"}]}]}))
+        r = sync_helper.check_ref_availability(
+            ["story-1.01"], self.tmpdir, mf)
+        self.assertEqual(len(r["blocked"]), 1)
+        self.assertIn("self-reference", r["blocked"][0]["reason"])
+        self.assertIn("EDM-201", r["blocked"][0].get("invalid_refs", []))
+
+
+# ---------------------------------------------------------------------------
+# Test: Self-ref diagnostics truthfulness (Point B)
+# ---------------------------------------------------------------------------
+
+class TestSelfRefDiagnostics(_TmpDirMixin, unittest.TestCase):
+    """Self-ref blocked entries use invalid_refs, not missing."""
+
+    def test_new_story_self_ref_accurate_reason(self) -> None:
+        """New story planner self-ref: reason says 'self-reference',
+        missing is empty, invalid_refs contains the ref."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="Story 1.01")
+        items = [{"type": "story", "category": "new",
+                  "epic_index": 1, "story_index": 1,
+                  "jira_key": None, "title": "",
+                  "file": "epic-1/story-01-api.md"}]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, None)
+        self.assertGreater(len(r["blocked"]), 0)
+        b = r["blocked"][0]
+        self.assertIn("self-reference", b["reason"])
+        self.assertEqual(b["missing"], [],
+                         "Self-ref IDs are invalid, not missing")
+        self.assertIn("story-1.01", b.get("invalid_refs", []))
+
+    def test_changed_story_self_ref_accurate_reason(self) -> None:
+        """Changed story planner self-ref: accurate diagnostics."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="Story 1.01")
+        manifest = {"epics": [{"file": "epic-1-building.md",
+                    "jira_key": "TE-100",
+                    "stories": [{"file": "story-01-api.md",
+                                 "jira_key": "TE-101",
+                                 "content_hash": "old",
+                                 "synced_status": "active"}]}]}
+        items = [
+            {"type": "story", "category": "changed", "epic_index": 1,
+             "story_index": 1, "jira_key": "TE-101", "title": "",
+             "file": "epic-1/story-01-api.md"},
+        ]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, manifest)
+        self.assertGreater(len(r["blocked"]), 0)
+        b = r["blocked"][0]
+        self.assertIn("self-reference", b["reason"])
+        self.assertEqual(b["missing"], [])
+        self.assertIn("story-1.01", b.get("invalid_refs", []))
+
+    def test_runtime_self_ref_accurate_shape(self) -> None:
+        """Runtime self-ref: missing=[], invalid_refs has IDs."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="Story 1.01")
+        mf = Path(self.tmpdir) / "sync-manifest.json"
+        _write(mf, json.dumps({
+            "schema_version": 2, "feature_key": "F",
+            "epics": [{"file": "epic-1-building.md", "jira_key": "EDM-101",
+                        "content_hash": "h", "synced_status": "active",
+                        "stories": [{"file": "story-01-api.md",
+                                     "jira_key": "EDM-201",
+                                     "content_hash": "h2",
+                                     "synced_status": "active"}]}]}))
+        r = sync_helper.check_ref_availability(
+            ["story-1.01"], self.tmpdir, mf)
+        b = r["blocked"][0]
+        self.assertEqual(b["missing"], [],
+                         "Self-ref IDs are invalid, not missing")
+        self.assertIn("story-1.01", b.get("invalid_refs", []))
+
+    def test_legitimate_missing_ref_still_in_missing(self) -> None:
+        """Actual missing ref → in 'missing', no invalid_refs."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="Story 9.99")
+        mf = Path(self.tmpdir) / "sync-manifest.json"
+        _write(mf, json.dumps({
+            "schema_version": 2, "feature_key": "F",
+            "epics": [{"file": "epic-1-building.md", "jira_key": "EDM-101",
+                        "content_hash": "h", "synced_status": "active",
+                        "stories": []}]}))
+        r = sync_helper.check_ref_availability(
+            ["story-1.01"], self.tmpdir, mf)
+        b = r["blocked"][0]
+        self.assertIn("story-9.99", b["missing"],
+                      "Legitimate missing ref must be in missing")
+        self.assertNotIn("invalid_refs", b,
+                         "No invalid_refs for legitimate missing")
+
+
+# ---------------------------------------------------------------------------
+# Test: Real documented capture recipe (Point C)
+# ---------------------------------------------------------------------------
+
+class TestRealCaptureRecipe(unittest.TestCase):
+    """Test the ACTUAL documented Bash capture recipe with the real
+    helper, not toy scripts with hardcoded cleanup."""
+
+    def test_recipe_ready_no_leaked_temp(self) -> None:
+        """Real recipe with ready story: temp file removed."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmpdir:
+            sd = Path(tmpdir) / "06-stories"
+            sd.mkdir()
+            _make_epic(sd, 1, "building")
+            _make_dev_story(sd, 1, 1, "api", deps="None")
+            _write(Path(tmpdir) / "sync-manifest.json", json.dumps({
+                "schema_version": 2, "feature_key": "F",
+                "epics": [{"file": "epic-1-building.md",
+                           "jira_key": "EDM-101",
+                           "content_hash": "h",
+                           "synced_status": "active",
+                           "stories": []}]}))
+            script = textwrap.dedent(f"""\
+                set -euo pipefail
+                REF_ERR=$(mktemp) || {{ echo "FATAL" >&2; exit 1; }}
+                REF_EXIT=0
+                REF_CHECK=$(python3 -I "{_SCRIPT}" check-ref-availability \\
+                  "{tmpdir}" "story-1.01" 2>"$REF_ERR") || REF_EXIT=$?
+                REF_ERR_TEXT=$(cat "$REF_ERR")
+                rm -f "$REF_ERR"
+                if [ -f "$REF_ERR" ]; then echo "LEAKED"; exit 1; fi
+                echo "exit=$REF_EXIT leaked=no"
+            """)
+            r = subprocess.run(
+                ["bash", "-c", script],
+                capture_output=True, text=True, timeout=10)
+            self.assertEqual(r.returncode, 0)
+            self.assertIn("exit=0", r.stdout)
+            self.assertNotIn("LEAKED", r.stdout)
+
+    def test_recipe_blocked_no_leaked_temp(self) -> None:
+        """Real recipe with blocked story: temp file removed."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmpdir:
+            sd = Path(tmpdir) / "06-stories"
+            sd.mkdir()
+            _make_epic(sd, 1, "building")
+            _make_dev_story(sd, 1, 1, "api", deps="Story 9.99")
+            _write(Path(tmpdir) / "sync-manifest.json", json.dumps({
+                "schema_version": 2, "feature_key": "F",
+                "epics": [{"file": "epic-1-building.md",
+                           "jira_key": "EDM-101",
+                           "content_hash": "h",
+                           "synced_status": "active",
+                           "stories": []}]}))
+            script = textwrap.dedent(f"""\
+                set -euo pipefail
+                REF_ERR=$(mktemp) || {{ echo "FATAL" >&2; exit 1; }}
+                REF_EXIT=0
+                REF_CHECK=$(python3 -I "{_SCRIPT}" check-ref-availability \\
+                  "{tmpdir}" "story-1.01" 2>"$REF_ERR") || REF_EXIT=$?
+                REF_ERR_TEXT=$(cat "$REF_ERR")
+                rm -f "$REF_ERR"
+                if [ -f "$REF_ERR" ]; then echo "LEAKED"; exit 1; fi
+                echo "exit=$REF_EXIT leaked=no"
+            """)
+            r = subprocess.run(
+                ["bash", "-c", script],
+                capture_output=True, text=True, timeout=10)
+            self.assertEqual(r.returncode, 0)
+            self.assertIn("exit=1", r.stdout)
+            self.assertNotIn("LEAKED", r.stdout)
+
+    def test_recipe_fatal_captures_stderr_text(self) -> None:
+        """Real recipe with corrupted manifest: stderr text captured."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmpdir:
+            sd = Path(tmpdir) / "06-stories"
+            sd.mkdir()
+            _make_epic(sd, 1, "building")
+            _make_dev_story(sd, 1, 1, "api", deps="None")
+            _write(Path(tmpdir) / "sync-manifest.json", "NOT JSON {{{")
+            script = textwrap.dedent(f"""\
+                set -euo pipefail
+                REF_ERR=$(mktemp) || {{ echo "FATAL" >&2; exit 1; }}
+                REF_EXIT=0
+                REF_CHECK=$(python3 -I "{_SCRIPT}" check-ref-availability \\
+                  "{tmpdir}" "story-1.01" 2>"$REF_ERR") || REF_EXIT=$?
+                REF_ERR_TEXT=$(cat "$REF_ERR")
+                rm -f "$REF_ERR"
+                if [ -f "$REF_ERR" ]; then echo "LEAKED"; exit 1; fi
+                echo "exit=$REF_EXIT text=$REF_ERR_TEXT"
+            """)
+            r = subprocess.run(
+                ["bash", "-c", script],
+                capture_output=True, text=True, timeout=10)
+            self.assertEqual(r.returncode, 0)
+            self.assertIn("exit=1", r.stdout)
+            self.assertIn("ERROR", r.stdout,
+                          "Fatal stderr text must be captured in REF_ERR_TEXT")
+            self.assertNotIn("LEAKED", r.stdout)
+
+    def test_no_fixed_name_clobber(self) -> None:
+        """Recipe does not clobber a CWD file named ref_check_err.txt."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmpdir:
+            sd = Path(tmpdir) / "06-stories"
+            sd.mkdir()
+            _make_epic(sd, 1, "building")
+            _make_dev_story(sd, 1, 1, "api", deps="None")
+            _write(Path(tmpdir) / "sync-manifest.json", json.dumps({
+                "schema_version": 2, "feature_key": "F",
+                "epics": [{"file": "epic-1-building.md",
+                           "jira_key": "EDM-101",
+                           "content_hash": "h",
+                           "synced_status": "active",
+                           "stories": []}]}))
+            sentinel = Path(tmpdir) / "ref_check_err.txt"
+            sentinel.write_text("SENTINEL", encoding="utf-8")
+            script = textwrap.dedent(f"""\
+                set -euo pipefail
+                cd "{tmpdir}"
+                REF_ERR=$(mktemp) || exit 1
+                REF_EXIT=0
+                REF_CHECK=$(python3 -I "{_SCRIPT}" check-ref-availability \\
+                  "{tmpdir}" "story-1.01" 2>"$REF_ERR") || REF_EXIT=$?
+                REF_ERR_TEXT=$(cat "$REF_ERR")
+                rm -f "$REF_ERR"
+                cat ref_check_err.txt
+            """)
+            r = subprocess.run(
+                ["bash", "-c", script],
+                capture_output=True, text=True, timeout=10)
+            self.assertEqual(r.returncode, 0)
+            self.assertIn("SENTINEL", r.stdout,
+                          "CWD file must not be overwritten by recipe")
+
+
+# ---------------------------------------------------------------------------
+# Test: Quality gate manual trace (Point D)
+# ---------------------------------------------------------------------------
+
+class TestQualityGateApprovalTrace(unittest.TestCase):
+    """Verify Step 4 quality gate + approval flow cross-references."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import re
+        sync_path = Path(__file__).resolve().parent.parent / "skills" / "sync.md"
+        cls._sync_md = sync_path.read_text(encoding="utf-8")
+        m4 = re.search(r"### Step 4:.*?(?=### Step 5:)", cls._sync_md, re.DOTALL)
+        assert m4
+        cls._step4 = m4.group()
+        m5 = re.search(r"### Step 5:.*?(?=### Step 6:)", cls._sync_md, re.DOTALL)
+        assert m5
+        cls._step5 = m5.group()
+        m6a = re.search(r"#### 6a:.*?(?=#### 6b:)", cls._sync_md, re.DOTALL)
+        assert m6a
+        cls._step6a = m6a.group()
+
+    def test_step3_plan_approval(self) -> None:
+        """Step 3 has explicit plan approval gate."""
+        import re
+        m3 = re.search(r"### Step 3:.*?(?=### Step 4:)", self._sync_md, re.DOTALL)
+        self.assertIn("approval", m3.group().lower())
+
+    def test_step5_epic_confirmation(self) -> None:
+        """Step 5 has user confirmation before stories."""
+        self.assertIn("Wait for user confirmation", self._step5)
+
+    def test_step6a_creation_batch_approval_ref(self) -> None:
+        """Step 6a references the Step 5 confirmation covering creation."""
+        self.assertIn("Step 5 confirmation", self._step6a)
+
+    def test_step4_pass_continues_to_step5(self) -> None:
+        """Step 4 pass allows continuation to Step 5."""
+        self.assertIn("Before proceeding to Jira", self._step4)
+
+    def test_step4_fail_blocks_entire_plan(self) -> None:
+        """Step 4 failure blocks entire plan, not just failing story."""
+        self.assertIn("stop the entire sync", self._step4.lower())
+        self.assertIn("do not proceed to Step 5", self._step4)
+
+    def test_step4_fresh_approval_after_revise(self) -> None:
+        """After /revise correction, fresh approval cycle required."""
+        self.assertIn("fresh", self._step4.lower())
+        self.assertIn("Do not reuse a stale approval", self._step4)
+
+    def test_step4_unchanged_unaffected_preserved(self) -> None:
+        """Step 4 only evaluates relevant DOCS stories, not all."""
+        self.assertIn("new", self._step4.lower())
+        self.assertIn("changed", self._step4.lower())
+        self.assertIn("reopened", self._step4.lower())
+
+    def test_runtime_blocked_independence_preserved(self) -> None:
+        """Step 4 note distinguishes from runtime independence."""
+        self.assertIn("independent eligible work", self._step4)
 
 
 if __name__ == "__main__":

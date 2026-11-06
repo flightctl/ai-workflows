@@ -230,16 +230,16 @@ REF_EXIT=0
 REF_CHECK=$(python3 "$SYNC_HELPER" check-ref-availability \
   .artifacts/design/{issue-key}/ \
   "story-{N}.{NN}" 2>"$REF_ERR") || REF_EXIT=$?
-# REF_EXIT: 0 = ready, 1 = blocked or fatal
-# On ready/blocked: rm -f "$REF_ERR"
-# On catch-all fatal: REF_ERR_TEXT=$(cat "$REF_ERR"); rm -f "$REF_ERR"
+REF_ERR_TEXT=$(cat "$REF_ERR")
+rm -f "$REF_ERR"
 ```
 
 The `|| REF_EXIT=$?` idiom captures a nonzero exit without aborting
-under `set -e`.  Stderr is captured to a per-guard temp file created
-fresh for each story.  Apply the three-branch interpretation from
-`sync.md` Step 6a (ready → proceed; blocked → skip; catch-all →
-stop) and clean up `$REF_ERR` in every branch.
+under `set -e`.  The two lines after the helper call read stderr text
+and remove the temp file immediately — before branch interpretation
+— so cleanup cannot be forgotten on any exit path.  Apply the
+three-branch interpretation from `sync.md` Step 6a (ready → proceed;
+blocked → skip; catch-all → stop and report `REF_ERR_TEXT`).
 
 The subcommand accepts one or more qualified IDs.  For each story it:
 

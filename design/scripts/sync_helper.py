@@ -1089,6 +1089,8 @@ def plan_creation_order(
     unreadable_sources: set[str] = set()
     # Track native Jira keys per story for self-reference detection
     native_keys_by_qid: dict[str, list[str]] = {}
+    # Track stories with invalid self-references (for accurate diagnostics)
+    has_self_ref: dict[str, list[str]] = {}
 
     def _get_required_refs(
         item: dict[str, Any], qid: str,
@@ -1149,6 +1151,7 @@ def plan_creation_order(
             errors.append(
                 f"{qid} contains invalid self-reference: "
                 f"{', '.join(self_refs)}")
+            has_self_ref[qid] = self_refs
             has_unavailable_ref.add(qid)
             deps_graph[qid] = []
             continue
@@ -1213,7 +1216,8 @@ def plan_creation_order(
             own_key, available)
         if self_refs:
             blocked_writes.append({
-                "item": item, "missing": self_refs,
+                "item": item, "missing": [],
+                "invalid_refs": self_refs,
                 "reason": f"invalid self-reference: "
                           f"{', '.join(self_refs)}"})
             errors.append(
@@ -1345,6 +1349,15 @@ def plan_creation_order(
     # Preflight-blocked stories (unavailable refs and their dependents)
     for qid in sorted(preflight_blocked):
         if qid in needs_creation:
+            # Self-ref stories: use accurate reason and invalid IDs
+            if qid in has_self_ref:
+                blocked.append({
+                    "item": needs_creation[qid],
+                    "missing": [],
+                    "invalid_refs": has_self_ref[qid],
+                    "reason": f"invalid self-reference: "
+                              f"{', '.join(has_self_ref[qid])}"})
+                continue
             missing_refs = [d for d in deps_graph.get(qid, [])
                            if d not in available and d not in ordered_set]
             # Include refs that caused the error even if not in graph
@@ -1459,12 +1472,16 @@ def check_ref_availability(
         native_keys = extraction["native_keys"]
 
         # Self-reference detection (before available-key shortcuts)
-        own_key = available.get(qid, "")
+        # Use canonical qid for own-key lookup (input qid may be
+        # non-canonical, e.g. "story-1.1" vs canonical "story-1.01")
+        canonical_qid = f"story-{epic_idx}.{story_idx:02d}"
+        own_key = available.get(canonical_qid, "")
         self_refs = _detect_self_refs(
-            qid, refs, native_keys, own_key, available)
+            canonical_qid, refs, native_keys, own_key, available)
         if self_refs:
             blocked.append({
-                "qid": qid, "missing": self_refs,
+                "qid": qid, "missing": [],
+                "invalid_refs": self_refs,
                 "reason": f"invalid self-reference: "
                           f"{', '.join(self_refs)}"})
             continue
