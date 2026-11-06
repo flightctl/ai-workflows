@@ -220,14 +220,35 @@ authorized by researcher.`
 Do not silently proceed to Step 6 without this choice. Skip the rest of
 this step only after the researcher confirms option 3.
 
-**Binding check.** Only use screenshots whose evaluation revision
-bindings (prototype iteration, discovery revision, context revision)
-match the current context. Read `04-evaluation.md`'s header to confirm
-bindings. If screenshots exist but their evaluation bindings are stale,
-stop and recommend re-running `/evaluate` against the current context
-rather than using outdated screenshots.
+**Per-image capture provenance.** The evaluation header binds to the
+overall run but does not prove each file in `04-eval-raw/screenshots/`
+was captured during that run. A Quick evaluation or re-evaluation may
+leave old images. Verify each candidate individually:
 
-**Selection criteria.** From the available current-context screenshots,
+1. Read `04-eval-raw/screenshot-captures.json` (written by `/evaluate`).
+   If present, it lists every image captured during that run with
+   `filename`, `sha256`, `context_revision`, and `prototype_iteration`.
+2. For each candidate file in the screenshots directory, check whether
+   its filename **and** SHA-256 appear in the capture index with
+   bindings matching the current context. Only images that match are
+   verified as current-run captures.
+3. If the index is absent (older evaluate run), fall back to the
+   evaluation header bindings but warn the researcher that per-image
+   provenance could not be verified.
+4. Quick/URL-only evaluations produce no captures. Their index will be
+   absent or have an empty `captures` array. Do not use leftover images
+   from prior Standard/Full runs that remain in the directory.
+5. If no images verify as current, treat this as "no screenshots exist"
+   and present the three options above.
+
+**Researcher-supplied images.** When the researcher provides images
+directly (option 2), record `source: researcher-supplied` in the
+manifest entry. Require the researcher to explicitly confirm that each
+image reflects the current prototype iteration and context revision
+before curating it. Record this confirmation. Do not assume currency
+from the file alone.
+
+**Selection criteria.** From the verified current-context screenshots,
 select images that show:
 
 1. The **primary user flow** in its populated/happy-path state
@@ -284,6 +305,10 @@ Compute `sha256` by hashing the curated image file's bytes:
 ```bash
 sha256sum ".artifacts/ux-design/{issue-key}/screenshots/{filename}" | cut -d' ' -f1
 ```
+
+If `sha256sum` is unavailable, use `shasum -a 256` on the same file
+and record the full digest. If neither command is available or hashing
+fails, stop and ask the researcher to provide a SHA-256 tool.
 
 If the handoff is regenerated after a new evaluation cycle, re-curate
 screenshots from the updated evaluation and regenerate the manifest. The

@@ -38,12 +38,12 @@ if [ "${MANIFEST_WRITTEN}" = "true" ] || [ "${MANIFEST_REMOVED}" = "true" ]; the
 fi
 
 # Each copied/updated screenshot (lfs/git mode):
-for f in "${COPIED_FILENAMES[@]}"; do
+for f in ${COPIED_FILENAMES[@]+"${COPIED_FILENAMES[@]}"}; do
   owned_paths+=("{HANDOFF_DIR}/screenshots/$f")
 done
 
 # Each removed screenshot (already staged by git rm):
-for f in "${REMOVED_FILENAMES[@]}"; do
+for f in ${REMOVED_FILENAMES[@]+"${REMOVED_FILENAMES[@]}"}; do
   owned_paths+=("{HANDOFF_DIR}/screenshots/$f")
 done
 ```

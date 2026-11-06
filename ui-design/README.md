@@ -36,6 +36,8 @@ graph TD
 | Docs repository (configured) | For `/ingest`, `/publish` | Load upstream PRD, design doc, UX handoff; publish UI design |
 | GitHub CLI (`gh`) | For `/publish`, `/respond` | Create PRs, post review comments |
 | Git | Yes | Branch management, commits |
+| Runtime image-reading capability | For screenshot inspection | Open and inspect image files |
+| Runtime binary-download capability | For external screenshot inspection | Retrieve image bytes from URLs |
 
 ## Inputs
 

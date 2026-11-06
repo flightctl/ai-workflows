@@ -219,22 +219,123 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
         self.assertIn("screenshot-inspection.md", content)
 
     def test_ingest_context_has_full_schema(self) -> None:
-        """Correction 4: context template has per-image ref/sha/notes."""
+        """Correction 4: context template has full 9-column table header."""
         content = _read("ui-design/skills/ingest.md")
-        self.assertIn("Expected SHA", content)
-        self.assertIn("Observed SHA", content)
-        self.assertIn("Ref", content)
+        # Extract the Screenshot Observations section
+        parts = content.split("### Screenshot Observations", 1)
+        self.assertEqual(len(parts), 2, "Missing Screenshot Observations section")
+        section = parts[1].split("### Feasibility & Phasing", 1)[0]
+        self.assertIn(
+            "| ID | Status | Identity | Ref | Expected SHA | Observed SHA "
+            "| Observation | Spec Match | Notes |",
+            section,
+        )
 
     def test_plan_accepted_unverified_label(self) -> None:
-        """Plan must not silently accept missing/mismatched screenshots."""
+        """Plan uses accepted-unverified citation label consistently."""
         content = _read("ui-design/skills/plan.md")
-        # Plan already references unverified citation style
-        self.assertIn("unverified", content.lower())
+        # Check the screenshot citation section exists with specific rules
+        self.assertIn("accepted-unverified", content)
+        self.assertIn("[Screenshot: SS-N]", content)
+        self.assertIn(
+            "Do not cite `unavailable` or `lfs-unresolved` images.", content
+        )
 
     def test_ingest_token_budget(self) -> None:
         content = _read("ui-design/skills/ingest.md")
         est = len(content) // 4
         self.assertLessEqual(est, 6478, f"ingest ~{est} tokens > baseline 6478")
+
+    def test_ingest_aggregate_status_mapping(self) -> None:
+        """Item 2: ingest maps per-image statuses to aggregate status."""
+        content = _read("ui-design/skills/ingest.md")
+        self.assertIn("inspected", content)
+        self.assertIn("partial", content)
+        self.assertIn("unavailable", content)
+
+    def test_ingest_rerun_step7(self) -> None:
+        """Item 3: no-evidence gate says to re-run Step 7."""
+        content = _read("ui-design/skills/ingest.md")
+        self.assertIn("re-run Step 7", content)
+
+    def test_ingest_write_cleanup_on_confirm(self) -> None:
+        """Item 4: Step 8a defines write + cleanup for both paths."""
+        content = _read("ui-design/skills/ingest.md")
+        self.assertIn("write the compiled content to `01-context.md`", content)
+        self.assertIn("01-context.md.prev", content)
+        self.assertIn("was preserved, and stop", content)
+
+    def test_plan_missing_screenshot_section_fallback(self) -> None:
+        """Item 5: plan handles absent Screenshot Observations."""
+        content = _read("ui-design/skills/plan.md")
+        self.assertIn("Screenshot Observations or its `Screenshots` status is absent", content)
+        self.assertIn("rerun `/ingest`", content)
+
+    def test_inspection_recipe_path_containment(self) -> None:
+        """Item 10: inspection recipe rejects traversal in refs."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        self.assertIn("Path containment", content)
+        self.assertIn("..", content.split("Path containment")[1].split("###")[0])
+
+    def test_publish_stage_recipe_empty_array_guard(self) -> None:
+        """Item 11: recipe guards empty array expansion under nounset."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        # Both loops must use the ${arr[@]+...} guard pattern
+        self.assertIn('${COPIED_FILENAMES[@]+"${COPIED_FILENAMES[@]}"}', content)
+        self.assertIn('${REMOVED_FILENAMES[@]+"${REMOVED_FILENAMES[@]}"}', content)
+
+    def test_handoff_sha256_fallback(self) -> None:
+        """Item 14: handoff provides shasum -a 256 fallback."""
+        content = _read("ux-design/skills/handoff.md")
+        self.assertIn("shasum -a 256", content)
+
+    def test_publish_reject_empty_manifest(self) -> None:
+        """Item 15: publish rejects empty manifest when handoff has refs."""
+        content = _read("ux-design/skills/publish.md")
+        self.assertIn("missing or has no screenshot entries", content)
+
+    def test_publish_git_rm_consumer_manifest(self) -> None:
+        """Item 16: publish uses git rm for tracked consumer manifest."""
+        content = _read("ux-design/skills/publish.md")
+        self.assertIn("`git rm` the tracked consumer manifest", content)
+
+    def test_publish_step_numbering_no_sub_steps(self) -> None:
+        """Root A: publish uses main step numbers, no 3a/3b sub-steps."""
+        content = _read("ux-design/skills/publish.md")
+        self.assertNotIn("Step 3a", content)
+        self.assertNotIn("Step 3b", content)
+        # Verify the renumbered steps exist
+        self.assertIn("### Step 4: Validate Screenshot References", content)
+        self.assertIn("### Step 5: Resolve Screenshot Storage Policy", content)
+        self.assertIn("### Step 6: Create or Update Branch and Commit", content)
+
+    def test_publish_metadata_refresh_on_update(self) -> None:
+        """Item 9: metadata refreshes screenshot_assets after update."""
+        content = _read("ux-design/skills/publish.md")
+        self.assertIn("update `screenshot_storage`", content)
+        self.assertIn("replace `screenshot_assets`", content)
+
+    def test_revise_index_sha_update(self) -> None:
+        """Item 17: revise updates Screenshot Index SHA on replacement."""
+        content = _read("ux-design/skills/revise.md")
+        self.assertIn("Screenshot Index SHA-256", content)
+
+    def test_respond_publish_step_ref_updated(self) -> None:
+        """Root A: respond.md references updated publish step number."""
+        content = _read("ux-design/skills/respond.md")
+        self.assertIn("`/publish` Step 6", content)
+        self.assertNotIn("`/publish` Step 4.", content)
+
+    def test_handoff_capture_provenance(self) -> None:
+        """Item 13: handoff verifies per-image capture provenance."""
+        content = _read("ux-design/skills/handoff.md")
+        self.assertIn("screenshot-captures.json", content)
+        self.assertIn("researcher-supplied", content)
+
+    def test_config_precedence(self) -> None:
+        """Item 7: publish checks workflow-specific config first."""
+        content = _read("ux-design/skills/publish.md")
+        self.assertIn("ux-design/config.json` first", content)
 
 
 # ===================================================================

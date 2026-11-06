@@ -279,6 +279,10 @@ Flows, State Matrix, and Persona-Specific Views sections.
   `MANIFEST_PATH` = `{HANDOFF_DIR}/screenshot-manifest.json`.
   Warn if the manifest's `context_revision`/`prototype_iteration` differ
   from the handoff header.
+  After inspection, set the Screenshot Observations status to
+  `inspected` (all images inspected), `partial` (some inspected),
+  or `unavailable` (none inspected). Preserve each image's per-entry
+  status and any user acceptance decision.
 
 - **If none** (Screenshot Index says "None" or absent): Set
   `HAS_SCREENSHOTS = false`. Record the reason if stated.
@@ -370,6 +374,7 @@ component directories (`src/components/` etc.), or backend API type
 definitions — stop before writing `01-context.md`. Report which searches
 were attempted and their results. Wait for the user to provide a
 corrected path or explicitly confirm proceeding with limited evidence.
+If the user provides a corrected path, re-run Step 7 using that path.
 
 ### Step 8: Compile Context
 
@@ -560,8 +565,11 @@ API endpoints, and affected components.
 Check for downstream artifacts (`02-ui-design.md`, `03-api-findings.md`,
 `04-pr-description.md`, `05-review-responses.md`, `sync-manifest.json`).
 If any exist, report which may be affected and warn about Jira sync
-implications. Wait for the user to confirm before overwriting. If they
-decline, delete the temp file and stop.
+implications. Present the diff summary and wait for the user to confirm.
+If they confirm, write the compiled content to `01-context.md` and delete
+`01-context.md.prev` and any temporary file. If they decline, discard the
+compiled content, delete `01-context.md.prev`, report that `01-context.md`
+was preserved, and stop.
 
 ### Step 9: Report to User
 

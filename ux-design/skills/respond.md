@@ -167,7 +167,7 @@ Otherwise, apply the same validation and storage gates as `/publish`:
 
 1. **Validate containment** of every planned destination path before
    copying, using the same filename-pattern and symlink checks as
-   `/publish` Step 4.
+   `/publish` Step 6.
 
 2. **Verify current local bytes** before change detection. For each
    entry in the authoring manifest, compute the SHA-256 of the actual

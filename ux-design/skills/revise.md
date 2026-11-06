@@ -63,7 +63,7 @@ If the revision adds, replaces, or removes screenshots:
    `05-handoff.md`.
 
 2. **Replacing:** Replace the file in `screenshots/`, update the
-   manifest's `sha256` field, and update the embed's alt text and caption
+   manifest's `sha256` field and the Screenshot Index SHA-256, and update the embed's alt text and caption
    if the visual content changed. Note the visual change in the revision
    summary. The manifest checksum ensures `/publish` detects the update
    even when the filename and handoff text are unchanged.
@@ -75,7 +75,7 @@ If the revision adds, replaces, or removes screenshots:
    update.
 
 4. **Image-only change** (same ID, same filename, visually different
-   content): Replace the file, update the manifest's `sha256`, and note
+   content): Replace the file, update the manifest's `sha256` and the Screenshot Index SHA-256, and note
    the change. The checksum difference signals `/publish` and `ui-design`
    that the visual content changed.
 

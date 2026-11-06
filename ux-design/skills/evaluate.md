@@ -94,6 +94,14 @@ Screenshots are required at Standard and Full depth because Step 3 needs them.
 At Quick depth, a live URL or screenshots are sufficient. If the required input
 cannot be produced, stop and explain what the researcher needs to provide.
 
+**Capture index.** After saving screenshots (Standard/Full depth), write
+`.artifacts/ux-design/{issue-key}/04-eval-raw/screenshot-captures.json`
+listing each image captured during this run with its filename and SHA-256.
+Quick/URL-only evaluations that capture no screenshots must write the
+index with an empty `captures` array so `/handoff` can distinguish
+"no captures this run" from "index missing because evaluate predates
+this feature."
+
 Run the skill in agent-operated mode so its review gate is deferred to the
 single combined researcher review in Step 7. `--project` must be relative to the
 source repository root. Pass `prototype_input`, `chosen_framework`, and

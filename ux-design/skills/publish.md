@@ -174,14 +174,14 @@ different value before continuing.
 Use only the resolved `destination_dir`, `handoff_target`, and
 `handoff_file_path` for filesystem operations and the provenance target below.
 
-### Step 3a: Validate Screenshot References
+### Step 4: Validate Screenshot References
 
 Before publishing, verify that every screenshot referenced in the handoff
 is available and has a valid identity record.
 
 Read `{source_repo_root}/.artifacts/ux-design/{issue-key}/screenshot-manifest.json`.
-If the file does not exist, check whether the handoff's Screenshot Index section
-says "None." If the handoff references screenshots but no manifest exists,
+Check the handoff's Screenshot Index section. If the handoff references
+screenshots but the manifest is missing or has no screenshot entries,
 stop and recommend re-running `/handoff` to generate the manifest.
 
 For each entry in the manifest:
@@ -204,14 +204,14 @@ For each entry in the manifest:
 If any screenshot is missing or has a broken reference, stop before
 creating the branch and report the specific failures.
 
-### Step 3b: Resolve Screenshot Storage Policy
+### Step 5: Resolve Screenshot Storage Policy
 
 **Skip this step entirely** when the handoff's Screenshot Index section says
 "None" and the authoring manifest does not exist or is empty. Resolve
 `screenshot_storage` to `none` **in memory only** — do not write it to
 `publish-metadata.json` yet. Previous metadata and assets must remain
-intact for the reconciliation check in Step 4; persist `none` only after
-a successful commit+push. Proceed to Step 4 without prompting for a
+intact for the reconciliation check in Step 6; persist `none` only after
+a successful commit+push. Proceed to Step 6 without prompting for a
 storage policy or touching asset paths.
 
 When the handoff contains screenshot references, determine how assets
@@ -228,10 +228,10 @@ alone.
    check repository policy or ask the researcher.
 
 2. **Repository-level policy.** Check for a `screenshot_storage` key in
-   `{docs_repo_path}/.workflows/ux-design/config.json` or
-   `.workflows/config.json`. Valid values are `lfs`, `external`, or
-   `git`. If present, its value is the explicit repository policy.
-   Document these config locations in the workflow README.
+   `{docs_repo_path}/.workflows/ux-design/config.json` first. If it has
+   no valid value, check `{docs_repo_path}/.workflows/config.json`.
+   Valid values are `lfs`, `external`, or `git`. Use the first valid
+   value as the explicit repository policy.
 
 3. **No valid policy.** If neither source provides a valid policy, stop
    before copying any assets and present the available options to the
@@ -266,7 +266,7 @@ alone.
 - Store the resolved policy in `publish-metadata.json` so subsequent
   `/publish`, `/revise`, and `/respond` updates reuse the same mode.
 
-### Step 4: Create or Update Branch and Commit
+### Step 6: Create or Update Branch and Commit
 
 All git operations run against the **docs repo**. Use
 `git -C "{docs_repo_path}"` for all commands.
@@ -321,7 +321,7 @@ publish (`publish-metadata.json` exists with `screenshot_assets`), always
 check for removals even if the current handoff has no screenshots. If
 the current authoring manifest is empty or absent but `screenshot_assets`
 records prior images: remove them (lfs/git: `git rm`; external: remove
-embeds/index entries), remove the consumer manifest, and set
+embeds/index entries), `git rm` the tracked consumer manifest, and set
 `screenshot_storage` to `none` **after** the commit and push succeed.
 Use previous metadata for cleanup; do not overwrite metadata with empty
 values before using it for reconciliation.
@@ -347,8 +347,9 @@ handoff; preserve authoring references in `05-handoff.md`.
 **Reconcile removals** (update publishes only). Compare previous
 `screenshot_assets` against the current manifest. For removed IDs:
 `lfs`/`git` — validate removal path and `git rm`; `external` — remove
-embed/index entries. If all screenshots removed, also remove the
-consumer manifest and set `screenshot_storage` to `none` after commit.
+embed/index entries. If all screenshots removed, also `git rm` the
+tracked consumer manifest and set `screenshot_storage` to `none` after
+commit.
 
 **Publish consumer manifest.** When any screenshots remain after
 removals, write `{destination_dir}/screenshot-manifest.json` with `id`,
@@ -378,14 +379,14 @@ Provenance at publish time:
 `../../_shared/recipes/screenshot-publish-stage.md` with:
 - `DOCS_REPO_PATH="{docs_repo_path}"`
 - `HANDOFF_FILE_PATH="{handoff_file_path}"`
-- `HANDOFF_DIR="{handoff_file_path_dir}"`
+- `HANDOFF_DIR` = the repo-relative parent directory of `{handoff_file_path}` (i.e., `dirname "{handoff_file_path}"`)
 - `COPIED_FILENAMES` = the array of screenshot filenames copied this run
 - `REMOVED_FILENAMES` = the array of screenshot filenames removed via `git rm`
 - `MANIFEST_WRITTEN="true"` if the consumer manifest was written/updated
 - `MANIFEST_REMOVED="true"` if the consumer manifest was removed (all screenshots deleted)
 - `COMMIT_MESSAGE="{Add|Update} UX design handoff for {issue-key}"`
 
-### Step 5: Prepare PR Description for a New PR
+### Step 7: Prepare PR Description for a New PR
 
 When updating an existing PR, keep its existing description and skip the rest
 of this step. Do not rewrite the PR body as part of a handoff-only update.
@@ -414,9 +415,9 @@ Prepare the PR description and save it to
 - Approve when the handoff spec is implementation-ready
 ```
 
-### Step 6: Push and Create PR
+### Step 8: Push and Create PR
 
-**For an existing PR**, push the update to its existing branch only when Step 4
+**For an existing PR**, push the update to its existing branch only when Step 6
 created a commit. Keep the existing PR number, URL, and draft or ready status;
 do not run `gh pr create`.
 
@@ -480,7 +481,7 @@ subprocess.run(
 PY
 ```
 
-### Step 7: Save Publish Metadata
+### Step 9: Save Publish Metadata
 
 For a new PR, write
 `{source_repo_root}/.artifacts/ux-design/{issue-key}/publish-metadata.json`:
@@ -515,9 +516,13 @@ resolved paths used to derive the canonical handoff directory.
   `external` mode, `published_path` is the external URL; for `lfs` or
   `git`, it is the repo-relative path.
 
-For an existing PR, retain its metadata. Do not change the PR number or branch.
+For an existing PR, retain the PR number, branch, and other identity metadata.
+After a successful update commit and push, update `screenshot_storage` and
+replace `screenshot_assets` with the current published entries. If no
+screenshots remain, set `screenshot_storage` to `none` and
+`screenshot_assets` to an empty array `[]`.
 
-### Step 8: Report to Researcher
+### Step 10: Report to Researcher
 
 Present the existing PR URL when updating, or the new PR URL when publishing
 for the first time. Also report:

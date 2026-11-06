@@ -59,6 +59,13 @@ Observations** section of `01-context.md` for `Screenshots` status:
 | `deferred` | `deferred` | Note reduced fidelity where visual evidence applies |
 | `unavailable` | `unavailable` | Note limitation explicitly per section |
 
+If Screenshot Observations or its `Screenshots` status is absent (older
+context from before this feature), tell the user that visual evidence was
+not assessed. Ask whether to rerun `/ingest` or continue without screenshot
+observations. If rerunning, stop. If continuing, set
+`HAS_SCREENSHOTS = unavailable` and note where visual evidence was not
+assessed.
+
 Screenshots show visual presentation only — do not conflate with
 keyboard, accessibility, API, or runtime verification.
 
@@ -93,11 +100,11 @@ Before writing, create a mental map. If `HAS_HANDOFF` is true:
 If `HAS_SCREENSHOTS` is true or `partial`, cite inspected screenshot
 observations from `01-context.md` for layout and visible-state decisions:
 
-- **Cite verified images** with `[Screenshot: SS-N]`. Only cite images
-  whose identity is `verified`. For `mismatched` images that the user
-  explicitly accepted, cite as `[Screenshot: SS-N — unverified]` so the
-  plan reader knows the visual evidence may not reflect the current
-  published state. Do not cite `unavailable` or `lfs-unresolved` images.
+- **Cite verified images** with `[Screenshot: SS-N]`. For `mismatched`
+  or `unverified` images that the user explicitly accepted, cite as
+  `[Screenshot: SS-N — accepted-unverified]` so the plan reader knows
+  the visual evidence may not reflect the current published state.
+  Do not cite `unavailable` or `lfs-unresolved` images.
 - **Additive evidence** (visual detail not in prose) supplements the
   spec: `[Screenshot: SS-N — additive: {detail}]`.
 - **Contradictions** (image conflicts with explicit spec text) are

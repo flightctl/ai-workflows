@@ -28,6 +28,12 @@ per image.
 
 Determine the reference type from the handoff embeds:
 
+**Path containment.** Before resolving any reference, reject paths
+containing `..` components or absolute paths. Resolve each candidate
+against `{HANDOFF_DIR}` and verify the result remains inside
+`{HANDOFF_DIR}`. If the path is a symlink, verify its target is also
+inside `{HANDOFF_DIR}`. Stop and report any reference that escapes.
+
 **Local references** (`screenshots/SS-N-desc.png` -- `lfs` or `git`
 mode): Locate the image file relative to `{HANDOFF_DIR}`. If the file
 is a Git LFS pointer stub (starts with `version https://git-lfs`),

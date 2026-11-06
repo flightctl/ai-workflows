@@ -204,9 +204,9 @@ order):
 1. `publish-metadata.json` → `screenshot_storage` (per-handoff, set on
    first publish)
 2. `{docs_repo}/.workflows/ux-design/config.json` → `screenshot_storage`
-   (repository-level)
+   (workflow-specific; checked first)
 3. `{docs_repo}/.workflows/config.json` → `screenshot_storage`
-   (repository-level fallback)
+   (shared fallback; checked only if workflow-specific has no valid value)
 
 Valid values: `lfs`, `external`, `git`. The value `none` is recorded for
 text-only publishes and is not valid authorization for image commits.
