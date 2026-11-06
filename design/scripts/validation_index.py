@@ -201,6 +201,10 @@ def validate_local_index(data: dict[str, Any]) -> list[str]:
             errors.extend(local_errs)
         else:
             errors.extend(safe_filename(local, f"{ctx}.local"))
+            if not _LOCAL_FILENAME_RE.match(local):
+                errors.append(
+                    f"{ctx}.local: must match 04-{{slug}}.md "
+                    f"convention: {local!r}")
             if local in seen_locals:
                 errors.append(f"duplicate local filename: {local}")
             else:
@@ -213,6 +217,10 @@ def validate_local_index(data: dict[str, Any]) -> list[str]:
             errors.extend(pub_errs)
         else:
             errors.extend(safe_filename(pub, f"{ctx}.published_as"))
+            if not _SAFE_FILENAME_RE.match(pub):
+                errors.append(
+                    f"{ctx}.published_as: must be lowercase "
+                    f"alphanumeric with extension: {pub!r}")
             if pub in seen_published:
                 errors.append(f"duplicate published_as filename: {pub}")
             else:
@@ -302,6 +310,10 @@ def validate_published_index(data: dict[str, Any]) -> list[str]:
             errors.extend(f_errs)
         else:
             errors.extend(safe_filename(f, f"{ctx}.file"))
+            if not _SAFE_FILENAME_RE.match(f):
+                errors.append(
+                    f"{ctx}.file: must be lowercase "
+                    f"alphanumeric with extension: {f!r}")
             if f in seen_files:
                 errors.append(f"duplicate file: {f}")
             else:
@@ -665,6 +677,10 @@ def build_metadata_artifacts(
 def cmd_validate(args: argparse.Namespace) -> int:
     """Validate a local or published validation-index.json."""
     path = Path(args.local or args.published)
+    if path.is_symlink():
+        print(f"ERROR: index is a symlink (not allowed): {path}",
+              file=sys.stderr)
+        return 1
     if not path.is_file():
         print(f"ERROR: file not found: {path}", file=sys.stderr)
         return 1
@@ -677,12 +693,15 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
     if args.local:
         errors = validate_local_index(data)
-        # Optionally check files exist on disk
+        # Optionally check files exist on disk and reject symlinks
         if not errors and args.artifact_dir:
             adir = Path(args.artifact_dir)
             for art in data.get("artifacts", []):
                 local = art.get("local", "")
-                if not (adir / local).is_file():
+                art_path = adir / local
+                if art_path.is_symlink():
+                    errors.append(f"symlink not allowed: {local}")
+                elif not art_path.is_file():
                     errors.append(f"file not found: {local}")
     else:
         errors = validate_published_index(data)
@@ -690,7 +709,10 @@ def cmd_validate(args: argparse.Namespace) -> int:
             fdir = Path(args.feature_dir)
             for art in data.get("artifacts", []):
                 fname = art.get("file", "")
-                if not (fdir / fname).is_file():
+                art_path = fdir / fname
+                if art_path.is_symlink():
+                    errors.append(f"symlink not allowed: {fname}")
+                elif not art_path.is_file():
                     errors.append(f"file not found: {fname}")
 
     if errors:
@@ -727,11 +749,46 @@ def cmd_resolve(args: argparse.Namespace) -> int:
     return 0
 
 
+def _safe_write_output(dst: Path, content: str) -> int:
+    """Write content to dst with symlink and error protection.
+
+    Returns 0 on success, 1 on error (with message printed).
+    """
+    if dst.is_symlink():
+        print(f"ERROR: output path is a symlink: {dst}",
+              file=sys.stderr)
+        return 1
+    # Reject symlink components in parent path
+    try:
+        resolved = dst.resolve(strict=False)
+        parent_resolved = dst.parent.resolve(strict=False)
+        if dst.parent.exists():
+            real_parent = dst.parent.resolve()
+            if real_parent != parent_resolved:
+                print(f"ERROR: output parent contains symlink: "
+                      f"{dst.parent}", file=sys.stderr)
+                return 1
+    except OSError as exc:
+        print(f"ERROR: cannot resolve output path: {exc}",
+              file=sys.stderr)
+        return 1
+    try:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.write_text(content, encoding="utf-8")
+    except OSError as exc:
+        print(f"ERROR: cannot write {dst}: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def cmd_transform(args: argparse.Namespace) -> int:
     """Transform a local index to published format."""
     src = Path(args.local_index)
     dst = Path(args.output)
 
+    if src.is_symlink():
+        print(f"ERROR: input is a symlink: {src}", file=sys.stderr)
+        return 1
     if not src.is_file():
         print(f"ERROR: file not found: {src}", file=sys.stderr)
         return 1
@@ -743,9 +800,10 @@ def cmd_transform(args: argparse.Namespace) -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    dst.write_text(
-        json.dumps(published, indent=2) + "\n", encoding="utf-8")
+    rc = _safe_write_output(dst,
+                            json.dumps(published, indent=2) + "\n")
+    if rc != 0:
+        return rc
     print(f"Wrote published index: {dst}")
     return 0
 
@@ -787,6 +845,13 @@ def cmd_diff(args: argparse.Namespace) -> int:
             for i, art in enumerate(arts):
                 if isinstance(art, dict):
                     fname = art.get("file")
+                    if fname is not None and not isinstance(fname, str):
+                        print(
+                            f"ERROR: {label}.artifacts[{i}].file "
+                            f"must be a string, got "
+                            f"{type(fname).__name__}",
+                            file=sys.stderr)
+                        return 1
                     if isinstance(fname, str):
                         errs = safe_filename(fname,
                                              f"{label}.artifacts[{i}].file")
@@ -815,9 +880,10 @@ def cmd_build_legacy(args: argparse.Namespace) -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    dst.write_text(
-        json.dumps(index, indent=2) + "\n", encoding="utf-8")
+    rc = _safe_write_output(dst,
+                            json.dumps(index, indent=2) + "\n")
+    if rc != 0:
+        return rc
     print(f"Wrote legacy index: {dst}")
     return 0
 

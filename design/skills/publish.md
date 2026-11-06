@@ -232,7 +232,7 @@ git -C "{docs_repo_path}" add "{release}/{feature}/design.md"
 Publication follows a strict snapshot-before-write order to avoid
 data loss when artifacts change between publishes.
 
-**Step 4a: Resolve current artifacts.** Resolve the local validation
+**Resolve current artifacts.** Resolve the local validation
 artifact set:
 
 ```bash
@@ -245,8 +245,9 @@ validation error occurred (malformed index, missing listed files) —
 **stop and report the error to the user.** Do not fall back to
 legacy behavior when a malformed index is present.
 
-If the current set is empty (`[]`) and `04-testplan.md` exists
-(legacy layout without an index), build a normalized index first:
+If `validation-index.json` does not exist in
+`.artifacts/design/{issue-key}` and `04-testplan.md` exists (legacy
+layout), build a normalized index first:
 
 ```bash
 python3 "$VALIDATION_INDEX_SCRIPT" build-legacy ".artifacts/design/{issue-key}" ".artifacts/design/{issue-key}/validation-index.json"
@@ -255,7 +256,7 @@ python3 "$VALIDATION_INDEX_SCRIPT" build-legacy ".artifacts/design/{issue-key}" 
 This writes `validation-index.json` with the single primary entry.
 Re-run `resolve --local` to get the normalized set.
 
-**Step 4b: Snapshot previous published state.** Before writing any
+**Snapshot previous published state.** Before writing any
 files to the docs repo, snapshot the previously published index so
 stale files can be identified after the new set is written.
 
@@ -281,16 +282,23 @@ Save to `.artifacts/design/{issue-key}/prev-published-index.json`.
 
 If neither exists, there is no previous set — skip the snapshot.
 
-**Step 4c: Copy current artifacts.** If the current set is empty
-(no validation artifacts), skip to Step 4e.
+### Step 5: Copy Current Artifacts
+
+If the current set is empty (no validation artifacts), skip to Step 7.
 
 For each entry in the current set, verify the local file exists
 before copying. A listed artifact whose local file is missing is an
 error — stop and report it to the user. Do not proceed with partial
 publication.
 
-Verify that no source file or destination is a symlink. If a
-symlink is detected, stop and report the error.
+Verify that no source file is a symlink. For each destination path,
+check:
+- If the destination is a symlink, stop and report.
+- If the destination already exists and the filename is NOT in the
+  previous validation set (from Step 4), stop and report — this
+  would overwrite an unowned file (e.g., `clarifications.md` from
+  PRD publication). Files that ARE in the previous set are owned
+  updates and may be overwritten.
 
 Copy each artifact to the docs repo:
 
@@ -302,7 +310,9 @@ cp ".artifacts/design/{issue-key}/{local}" "{docs_repo_path}/{release}/{feature}
 git -C "{docs_repo_path}" add "{release}/{feature}/{published_as}"
 ```
 
-**Step 4d: Publish the validation index.** Transform and write the
+### Step 6: Publish the Validation Index
+
+Transform and write the
 published index for downstream discovery:
 
 ```bash
@@ -313,10 +323,12 @@ python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/vali
 git -C "{docs_repo_path}" add "{release}/{feature}/validation-index.json"
 ```
 
-**Step 4e: Remove stale artifacts.** Compute the change set by
-comparing the previous snapshot (Step 4b) against the current set.
-The comparison must use the new published index when one was written
-in Step 4d, or an empty artifact list when the current set is empty.
+### Step 7: Remove Stale Artifacts
+
+Compute the change set by comparing the previous snapshot (Step 4)
+against the current set. The comparison must use the new published
+index when one was written in Step 6, or an empty artifact list
+when the current set is empty.
 
 **If the current set is non-empty** and a previous snapshot exists,
 diff using the newly written published index:
@@ -336,23 +348,37 @@ Do not remove files outside the feature directory or files not
 listed in the previous set.
 
 **If the current set is empty** and the previous set had artifacts,
-all previously published artifacts are stale. For each artifact in
-the previous snapshot (`prev-published-index.json`), remove its
-file and the published index:
+validate the previous snapshot before using it for removal:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issue-key}/prev-published-index.json"
+```
+
+If validation fails, **stop and report** — do not delete files based
+on a malformed snapshot. If validation passes, remove each artifact
+listed in the snapshot:
 
 ```bash
 git -C "{docs_repo_path}" rm -- "{release}/{feature}/{previous-artifact-file}"
 ```
 
+If the previous snapshot was built from a published
+`validation-index.json` (not a legacy-only `testplan.md` snapshot),
+also remove the index:
+
 ```bash
 git -C "{docs_repo_path}" rm -- "{release}/{feature}/validation-index.json"
 ```
 
+Do not attempt to remove `validation-index.json` for a legacy-only
+snapshot — no index file exists to remove.
+
 If no previous snapshot exists (first publish with no artifacts),
 no removal is needed.
 
-**Step 4f: Commit.** Commit with a message reflecting what was
-published:
+### Step 8: Commit
+
+Commit with a message reflecting what was published:
 
 ```bash
 # If validation artifacts were published:
@@ -362,7 +388,7 @@ git -C "{docs_repo_path}" commit -m "Add design document and validation artifact
 git -C "{docs_repo_path}" commit -m "Add design document for {issue-key}: {title}"
 ```
 
-### Step 5: Push and Create PR
+### Step 9: Push and Create PR
 
 Push the branch using the shared script (run from the docs repo):
 
@@ -419,7 +445,7 @@ First, check whether a PR already exists for this branch:
 python3 "$PUBLISH_SCRIPT" check-existing --repo {owner}/{repo} --head {head-ref}
 ```
 
-If exit code is 5, a PR already exists — skip to Step 6 and report its
+If exit code is 5, a PR already exists — skip to Step 10 and report its
 URL. Parse the PR number from the returned JSON. If the command fails
 (non-zero exit other than 5), stop and report the error. If exit code
 is 0, create a new PR:
@@ -436,7 +462,7 @@ python3 "$PUBLISH_SCRIPT" create-pr \
 
 The script prints the PR URL on stdout. Parse the PR number from the URL path.
 
-### Step 6: Save Publish Metadata
+### Step 10: Save Metadata and Report
 
 Save the core metadata using the shared script. If the primary
 testplan was published, include `testplan_file_path` for backwards
@@ -496,7 +522,7 @@ Example resulting metadata:
 When no validation artifacts were published, omit the
 `validation_artifacts` key entirely (legacy-only metadata).
 
-### Step 7: Report to User
+**Report to the user:**
 
 Present:
 - PR URL

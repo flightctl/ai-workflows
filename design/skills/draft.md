@@ -477,13 +477,18 @@ rather than executable test cases, add:
 
 ## Review and Qualification Gates
 
-| Gate | Requirements | Type | Reviewer/Owner |
-|------|-------------|------|----------------|
-| {gate name} | {FR-N, NFR-N} | {architectural review / documentation check / compliance certification / hardware qualification} | {responsible party} |
+| Gate | Requirements | ICs | Type | Reviewer/Owner |
+|------|-------------|-----|------|----------------|
+| {gate name} | {FR-N, NFR-N} | {IC-N or —} | {architectural review / documentation check / compliance certification / hardware qualification} | {responsible party} |
 
+Include the IC mapping when the gate covers behavior exposed
+through an interface change. Use `—` when the gate covers a
+requirement with no direct IC (e.g., documentation completeness).
 These gates are NOT counted in the test case totals above. They
 represent non-executable validation criteria tracked separately
-from the testplan's test cases.
+from the testplan's test cases. Downstream consumers
+(`/decompose`, `/ingest`) use the requirement and IC mappings
+to carry gates through to story artifacts.
 
 Otherwise, omit this section entirely.}
 
@@ -631,13 +636,13 @@ Before presenting the testplan, verify:
 Save the testplan to `.artifacts/design/{issue-key}/04-testplan.md`.
 
 The Overview counts, Gaps sections, and Summary table written in Step 9b
-are the canonical testplan summary. Step 10 presents those already-written
+are the canonical testplan summary. Step 12 presents those already-written
 values — it does not recompute counts or coverage after the fact.
 
 Provenance was already captured in Step 8 for the entire `/draft` phase —
 no additional provenance call is needed here.
 
-#### 9e: Companion Validation Plans (Optional)
+### Step 10: Companion Validation Plans (Optional)
 
 Generate a companion validation plan **only** when a design-level
 cross-component or operational contract genuinely requires a separate
@@ -700,7 +705,7 @@ from Step 9c, plus verify:
 
 Save each companion to `.artifacts/design/{issue-key}/04-{slug}.md`.
 
-#### 9f: Write Validation Artifact Index
+### Step 11: Write Validation Artifact Index
 
 After writing the primary testplan and any companions, write the
 validation artifact index to
@@ -759,7 +764,7 @@ audience), and that all listed local files exist on disk.
 This file is read by `/publish`, `/revise`, `/respond`, and
 `/decompose` to discover the full set of validation artifacts.
 
-### Step 10: Present to User
+### Step 12: Present to User
 
 Show the user the complete design document and highlight:
 - Key architectural decisions and their rationale

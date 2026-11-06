@@ -1325,5 +1325,120 @@ class TestControlCharSafety(unittest.TestCase):
         self.assertTrue(any("control" in e for e in errors))
 
 
+# ===========================================================================
+# 19. Filename format validation (allowlist regexes)
+# ===========================================================================
+
+class TestFilenameFormatValidation(unittest.TestCase):
+    """_SAFE_FILENAME_RE and _LOCAL_FILENAME_RE are now enforced."""
+
+    def test_local_filename_format_rejected(self):
+        """Local artifact with bad format → validation error."""
+        idx = _make_local_index()
+        idx["artifacts"][0]["local"] = "Testplan.MD"
+        idx["artifacts"][0]["published_as"] = "testplan.md"
+        errors = vi.validate_local_index(idx)
+        self.assertTrue(any("04-" in e for e in errors),
+                        f"Expected 04-slug convention error, got: {errors}")
+
+    def test_published_filename_format_rejected(self):
+        """Published filename with bad format → validation error."""
+        data = {
+            "schema_version": "1.0",
+            "primary_testplan": "Test Plan.md",
+            "artifacts": [
+                {"file": "Test Plan.md", "type": "testplan"},
+            ],
+        }
+        errors = vi.validate_published_index(data)
+        self.assertTrue(any("lowercase" in e for e in errors),
+                        f"Expected format error, got: {errors}")
+
+    def test_valid_local_format_accepted(self):
+        """Valid 04-slug.md format passes."""
+        idx = _make_local_index()
+        errors = vi.validate_local_index(idx)
+        self.assertEqual(errors, [])
+
+    def test_valid_published_format_accepted(self):
+        """Valid lowercase-with-hyphens.ext passes."""
+        data = {
+            "schema_version": "1.0",
+            "primary_testplan": "testplan.md",
+            "artifacts": [
+                {"file": "testplan.md", "type": "testplan"},
+            ],
+        }
+        errors = vi.validate_published_index(data)
+        self.assertEqual(errors, [])
+
+
+# ===========================================================================
+# 20. cmd_validate symlink rejection
+# ===========================================================================
+
+class TestCLIValidateSymlinks(unittest.TestCase):
+    """cmd_validate rejects symlinked index files."""
+
+    def test_symlinked_index_file_rejected(self):
+        """Symlink index file → exit 1."""
+        with tempfile.TemporaryDirectory() as td:
+            real = Path(td) / "real-index.json"
+            _write_json(real, _make_local_index())
+            link = Path(td) / "link-index.json"
+            link.symlink_to(real)
+            r = _run_cli("validate", "--local", str(link))
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("symlink", r.stderr.lower())
+
+    def test_symlinked_artifact_dir_file_rejected(self):
+        """Symlink artifact in --artifact-dir → exit 1."""
+        with tempfile.TemporaryDirectory() as td:
+            idx = _make_local_index()
+            _write_json(Path(td) / "validation-index.json", idx)
+            real = Path(td) / "real-plan.md"
+            _write(real, "# Plan")
+            link = Path(td) / "04-testplan.md"
+            link.symlink_to(real)
+            r = _run_cli("validate", "--local",
+                         str(Path(td) / "validation-index.json"),
+                         "--artifact-dir", td)
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("symlink", r.stderr.lower())
+
+
+# ===========================================================================
+# 21. Safe output writes
+# ===========================================================================
+
+class TestSafeOutputWrites(unittest.TestCase):
+    """cmd_transform/cmd_build_legacy reject symlink outputs."""
+
+    def test_transform_rejects_symlink_output(self):
+        """Symlink output path → exit 1."""
+        with tempfile.TemporaryDirectory() as td:
+            src = Path(td) / "local.json"
+            _write_json(src, _make_local_index())
+            real = Path(td) / "real-output.json"
+            _write(real, "{}")
+            link = Path(td) / "link-output.json"
+            link.symlink_to(real)
+            r = _run_cli("transform", str(src), str(link))
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("symlink", r.stderr.lower())
+
+    def test_build_legacy_rejects_symlink_output(self):
+        """Symlink output path → exit 1."""
+        with tempfile.TemporaryDirectory() as td:
+            _write(Path(td) / "04-testplan.md", "# Plan")
+            real = Path(td) / "real-output.json"
+            _write(real, "{}")
+            link = Path(td) / "link-output.json"
+            link.symlink_to(real)
+            r = _run_cli("build-legacy", td, str(link))
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("symlink", r.stderr.lower())
+
+
 if __name__ == "__main__":
     unittest.main()

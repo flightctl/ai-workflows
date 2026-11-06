@@ -288,30 +288,41 @@ UI-design origin means missing testplan coverage is expected, not an error.
 
 No feature testplan (neither `validation-index.json` nor `testplan.md`):
 note and continue. If a story-level testplan already exists from a prior
-ingest, emit a warning: "Source testplan not found — story testplan may
-be stale. Verify test coverage before proceeding."
+ingest, mark it as **unverified** by prepending a metadata line
+`- **Freshness:** unverified — upstream source not found on re-ingest`
+to the story testplan header. Emit a warning: "Source testplan not
+found — retained story testplan marked as unverified. `/plan` and
+`/validate` should treat its TC coverage requirements as provisional
+until the upstream source is available."
 
 When writing the story testplan from matches across multiple artifacts,
 include all matched TCs in a single `testplan.md` with a Source line
 listing each contributing artifact.
 
-**Qualification gate classification:** Any matched TC — whether from
-the primary testplan or a companion artifact — may require a
-specialized execution environment rather than this workflow's
-unit/integration test infrastructure. Classification is by the TC's
-own verification method, not by which document it came from:
+**Carry non-TC qualification gates:** If the feature-level testplan
+has a `## Review and Qualification Gates` section, check each gate's
+requirement mapping against the story's `PRD Requirements`. Gates
+whose requirements overlap are included in the story testplan's
+`## Qualification Gates` section even when no TC matches — they
+represent required validation evidence that `/plan` and `/validate`
+must track.
 
-- TCs whose verification method is a specialized environment (e.g.,
-  hardware qualification requiring a physical device lab, security
-  certification requiring audit tooling, integration tests requiring
-  a dedicated cross-service staging environment not available in this
-  project's CI) are included in the story testplan with a
-  `Qualification gate` marker. The `/plan` and `/code` phases treat
-  these as external validation evidence — they are not candidates for
-  unit/integration test generation. They remain visible and tracked.
-- TCs whose verification method is standard automated testing
-  (unit, integration within the project's CI, or behavioral contract
-  tests) are normal implementation candidates.
+**Per-TC verification classification:** Classify each matched TC
+by its verification method, regardless of source artifact:
+
+- **`Automation: automated`** — candidate for unit/integration test
+  implementation. These are the default.
+- **`Automation: manual`** — requires human verification (visual
+  checks, exploratory testing, UX evaluation). Listed in the story
+  testplan with a `[Manual verification]` marker. The `/plan` and
+  `/code` phases must not generate automated tests for these;
+  `/validate` tracks them as manual verification evidence.
+- **`Qualification gate`** — requires a specialized execution
+  environment (hardware device lab, security audit tooling,
+  cross-service staging not available in CI). Listed with a
+  `[Qualification gate]` marker. The `/plan` and `/code` phases
+  treat these as external validation evidence — they are not
+  candidates for unit/integration test generation.
 
 When a matched TC comes from a companion artifact, additionally note
 its source artifact and purpose in the story testplan metadata. The

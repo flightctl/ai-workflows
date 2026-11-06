@@ -248,21 +248,36 @@ When writing the story testplan from matches across multiple artifacts,
 include all matched TCs in a single `testplan.md` with a Source line
 listing each contributing artifact.
 
-**Companion artifact filtering:** When a matched TC comes from a
-companion artifact (type `"companion"` in the published index), note
-its source artifact and purpose in the story testplan metadata. TCs
-from companion artifacts with a specialized execution environment
-(e.g., hardware qualification requiring a physical device lab,
-security certification requiring audit tooling) are included as
-**qualification evidence references** — the `/plan` and `/code`
-phases must not generate automated e2e test code for them. Instead,
-they are listed in the story testplan with a `Qualification gate`
-marker so downstream phases know these scenarios require their
-designated execution environment, not the project's e2e test
-infrastructure. TCs from the primary testplan are candidates for
-e2e automation unless they carry a `Qualification gate` marker
-(the primary testplan may include targeted integration, hardware,
-or security test cases that require specialized environments).
+**Carry non-TC qualification gates:** If the feature-level testplan
+has a `## Review and Qualification Gates` section, check each gate's
+requirement mapping against the story's `PRD Requirements`. Gates
+whose requirements overlap with this story's requirements are
+included in the story testplan's `## Qualification Gates` section
+even when no TC matches — they represent required validation
+evidence that `/plan` and `/validate` must track. This ensures a
+story whose acceptance criteria are covered exclusively by a gate
+(no automatable TCs) still carries that obligation.
+
+**Per-TC verification classification:** Classify each matched TC
+by its verification method, regardless of source artifact:
+
+- **`Automation: automated`** — candidate for e2e test automation.
+  These are the default and require automated test scenarios.
+- **`Automation: manual`** — requires human verification (visual
+  checks, exploratory testing, UX evaluation). Listed in the story
+  testplan with a `[Manual verification]` marker. The `/plan` and
+  `/code` phases must not generate automated e2e test code for
+  these; `/validate` tracks them as manual verification evidence.
+- **`Qualification gate`** — requires a specialized execution
+  environment (hardware device lab, security audit tooling,
+  cross-service staging not available in CI). Listed with a
+  `[Qualification gate]` marker. The `/plan` and `/code` phases
+  must not generate automated e2e test code for these; `/validate`
+  tracks them as external validation evidence.
+
+When a matched TC comes from a companion artifact (type
+`"companion"` in the published index), additionally note its
+source artifact and purpose in the story testplan metadata.
 
 **Write story-scoped testplan (Normal outcome only):**
 
@@ -271,16 +286,17 @@ Write `.artifacts/e2e/{issue-key}/testplan.md`:
 ```markdown
 # Story Test Plan — {issue-key}
 
-- **Source:** {docs-repo-path}/testplan.md
+- **Source:** {comma-separated list of contributing source files}
 - **Story:** {issue-key} — {story-title}
-- **Test cases:** {count}
+- **Test cases:** {count of automatable + manual TCs}
+- **Manual verification:** {count or 0}
 - **Qualification gates:** {count or 0}
 
 ## TC-FR1-01: {scenario title}
 
-| Requirement | Interface Change | Priority | Automation |
-|-------------|-----------------|----------|------------|
-| FR-1 | IC-1 | high | automated |
+| Requirement | Interface Change | Priority | Automation | Source |
+|-------------|-----------------|----------|------------|--------|
+| FR-1 | IC-1 | high | automated | testplan.md |
 
 ### Preconditions
 
