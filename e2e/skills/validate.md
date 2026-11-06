@@ -268,14 +268,21 @@ directly to step 4 below.
 `Freshness: unverified`, check whether the Test Plan Coverage
 section in `02-plan.md` records a confirmed status for the TCs.
 
-- **Confirmed TCs** (plan records user confirmation): treat as
-  normative despite unverified source freshness. Write gap-fill
-  tests for missing confirmed TCs, report TC coverage normally.
-  Source freshness remains unverified but confirmed TCs represent
-  the user's accepted validation contract.
+- **Confirmed TCs** (plan records user confirmation and confirmed
+  TC IDs): treat as normative despite unverified source freshness.
+  Write gap-fill tests for missing confirmed TCs, report TC
+  coverage normally.  Source freshness remains unverified but
+  confirmed TCs represent the user's accepted validation contract.
 - **Unconfirmed TCs** (no confirmed status in plan): coverage is
   provisional, not normative. Do not write mandatory gap-fill
   tests. Report as "unverified — source testplan not confirmed."
+
+When the user confirms TCs during validation, record the
+confirmation in the Test Plan Coverage section of `02-plan.md`:
+set the status to "confirmed — user verified TC applicability on
+{date}" and list the confirmed TC IDs. This persistent record
+allows subsequent `/validate` runs to distinguish confirmed TCs
+from provisional ones without re-prompting.
 
 In both cases, do not block the validation report or AC-based
 work.
@@ -418,8 +425,14 @@ Write `.artifacts/e2e/{issue-key}/05-validation-report.md`:
  Status values:
  - not-started: no evidence collection has begun
  - pending: evidence collection in progress
- - verified: evidence reviewed and accepted
+ - verified: evidence reviewed and accepted — verification method
+   and source criteria compared with the provided evidence
  - failed: evidence shows the requirement is not met
+
+ Before marking manual evidence `verified`, compare it with the
+ TC's verification method and original source criteria. If the
+ evidence does not address the criteria, keep it `pending`. An
+ incomplete manual check must not contribute to an overall PASS.
 
  If all verified: "All external validation evidence verified."
  If any failed: "N entries FAILED — required evidence shows

@@ -2267,7 +2267,155 @@ class TestCLIWorkflowSequence(unittest.TestCase):
 
 
 # ===========================================================================
-# 25. Snapshot/Git consumer regressions
+# 25. Atomic writer regression tests
+# ===========================================================================
+
+class TestAtomicWriterRegressions(unittest.TestCase):
+    """Atomic write safety for _safe_write_output.
+
+    Exercises the documented atomic-write contract:
+    - Partial write + exception leaves destination intact, temp cleaned
+    - Successful write replaces with correct content and preserves mode
+    - Replace failure leaves destination intact, temp cleaned
+    - CLI subcommands (transform/build-legacy) still work end-to-end
+    """
+
+    def test_successful_write_correct_content(self):
+        """Atomic write produces correct content at destination."""
+        with tempfile.TemporaryDirectory() as td:
+            td = str(Path(td).resolve())
+            dst = Path(td) / "output.json"
+            content = '{"test": true}\n'
+            rc = vi._safe_write_output(dst, content)
+            self.assertEqual(rc, 0)
+            self.assertEqual(dst.read_text(encoding="utf-8"), content)
+
+    def test_successful_write_preserves_existing_mode(self):
+        """Atomic replacement preserves the existing file's mode."""
+        import os as _os
+        import stat as _stat
+        with tempfile.TemporaryDirectory() as td:
+            td = str(Path(td).resolve())
+            dst = Path(td) / "output.json"
+            dst.write_text("{}", encoding="utf-8")
+            _os.chmod(str(dst), 0o600)
+            rc = vi._safe_write_output(dst, '{"updated": true}\n')
+            self.assertEqual(rc, 0)
+            mode = _stat.S_IMODE(_os.stat(str(dst)).st_mode)
+            self.assertEqual(mode, 0o600,
+                             "Replacement must preserve 0o600 mode")
+            self.assertEqual(dst.read_text(encoding="utf-8"),
+                             '{"updated": true}\n')
+
+    def test_new_file_gets_default_mode(self):
+        """New file (no existing dst) gets 0o644 default mode."""
+        import os as _os
+        import stat as _stat
+        with tempfile.TemporaryDirectory() as td:
+            td = str(Path(td).resolve())
+            dst = Path(td) / "new-output.json"
+            rc = vi._safe_write_output(dst, '{"new": true}\n')
+            self.assertEqual(rc, 0)
+            mode = _stat.S_IMODE(_os.stat(str(dst)).st_mode)
+            self.assertEqual(mode, 0o644,
+                             "New file must get 0o644 default mode")
+
+    def test_write_failure_preserves_destination(self):
+        """If write fails, existing destination bytes and mode unchanged."""
+        import os as _os
+        import stat as _stat
+        import unittest.mock as _mock
+        with tempfile.TemporaryDirectory() as td:
+            td = str(Path(td).resolve())
+            dst = Path(td) / "output.json"
+            original = '{"original": true}\n'
+            dst.write_text(original, encoding="utf-8")
+            _os.chmod(str(dst), 0o640)
+            orig_mode = _stat.S_IMODE(_os.stat(str(dst)).st_mode)
+
+            # Patch os.write to fail partway through
+            real_write = _os.write
+            call_count = [0]
+
+            def failing_write(fd, data):
+                call_count[0] += 1
+                if call_count[0] > 0:
+                    raise OSError("simulated write failure")
+                return real_write(fd, data)
+
+            with _mock.patch("os.write", side_effect=failing_write):
+                rc = vi._safe_write_output(dst, '{"should not appear"}\n')
+
+            self.assertEqual(rc, 1, "Must return error code")
+            self.assertEqual(dst.read_text(encoding="utf-8"), original,
+                             "Destination bytes must be unchanged")
+            self.assertEqual(
+                _stat.S_IMODE(_os.stat(str(dst)).st_mode), orig_mode,
+                "Destination mode must be unchanged")
+            # Temp file must be cleaned up
+            temps = [f for f in Path(td).iterdir()
+                     if f.name.startswith(".tmp_vi_")]
+            self.assertEqual(len(temps), 0,
+                             "Temp file must be cleaned up on failure")
+
+    def test_replace_failure_preserves_destination(self):
+        """If os.replace fails, destination and mode unchanged, temp gone."""
+        import os as _os
+        import stat as _stat
+        import unittest.mock as _mock
+        with tempfile.TemporaryDirectory() as td:
+            td = str(Path(td).resolve())
+            dst = Path(td) / "output.json"
+            original = '{"original": true}\n'
+            dst.write_text(original, encoding="utf-8")
+            _os.chmod(str(dst), 0o640)
+            orig_mode = _stat.S_IMODE(_os.stat(str(dst)).st_mode)
+
+            real_replace = _os.replace
+
+            def failing_replace(src, dst_path):
+                raise OSError("simulated replace failure")
+
+            with _mock.patch("os.replace", side_effect=failing_replace):
+                rc = vi._safe_write_output(dst, '{"should not appear"}\n')
+
+            self.assertEqual(rc, 1, "Must return error code")
+            self.assertEqual(dst.read_text(encoding="utf-8"), original,
+                             "Destination bytes must be unchanged")
+            self.assertEqual(
+                _stat.S_IMODE(_os.stat(str(dst)).st_mode), orig_mode,
+                "Destination mode must be unchanged")
+            temps = [f for f in Path(td).iterdir()
+                     if f.name.startswith(".tmp_vi_")]
+            self.assertEqual(len(temps), 0,
+                             "Temp file must be cleaned up on replace failure")
+
+    def test_cli_transform_still_works(self):
+        """transform CLI uses atomic writer end-to-end."""
+        with tempfile.TemporaryDirectory() as td:
+            td = str(Path(td).resolve())
+            src = Path(td) / "local.json"
+            _write_json(src, _make_local_index())
+            out = Path(td) / "published.json"
+            r = _run_cli("transform", str(src), str(out))
+            self.assertEqual(r.returncode, 0, r.stderr)
+            data = json.loads(out.read_text())
+            self.assertIn("schema_version", data)
+
+    def test_cli_build_legacy_still_works(self):
+        """build-legacy CLI uses atomic writer end-to-end."""
+        with tempfile.TemporaryDirectory() as td:
+            td = str(Path(td).resolve())
+            _write(Path(td) / "04-testplan.md", "# Plan\n## TC-FR1-01")
+            out = Path(td) / "validation-index.json"
+            r = _run_cli("build-legacy", td, str(out))
+            self.assertEqual(r.returncode, 0, r.stderr)
+            data = json.loads(out.read_text())
+            self.assertEqual(len(data["artifacts"]), 1)
+
+
+# ===========================================================================
+# 26. Snapshot/Git consumer regressions
 # ===========================================================================
 
 class TestSnapshotGitConsumerRegressions(unittest.TestCase):
@@ -2278,7 +2426,7 @@ class TestSnapshotGitConsumerRegressions(unittest.TestCase):
     - Stale snapshot with missing source
     - Valid published index round-trip
     - Canonical legacy snapshot (testplan.md only)
-    - Invalid previous snapshot stops before doc mutation
+    - Invalid previous snapshot is rejected by validation and diff
     - Pure retirement: staged deletion of tracked files
 
     These tests use real temp Git repos because the design publish
@@ -2293,8 +2441,19 @@ class TestSnapshotGitConsumerRegressions(unittest.TestCase):
     """
 
     def _init_git_repo(self, path):
-        """Initialize a bare git repo with an initial commit."""
+        """Initialize a Git repository with an initial commit."""
         subprocess.run(["git", "init", str(path)],
+                       capture_output=True, check=True)
+        # Isolate from host Git configuration: disable signing and
+        # set an empty hooks directory to prevent global hooks from
+        # interfering with test commits.
+        hooks_dir = tempfile.mkdtemp(prefix="empty-git-hooks-",
+                                     dir=str(path.parent))
+        subprocess.run(["git", "-C", str(path), "config",
+                        "core.hooksPath", hooks_dir],
+                       capture_output=True, check=True)
+        subprocess.run(["git", "-C", str(path), "config",
+                        "commit.gpgsign", "false"],
                        capture_output=True, check=True)
         subprocess.run(["git", "-C", str(path), "config",
                         "user.email", "test@test.com"],
@@ -2313,6 +2472,7 @@ class TestSnapshotGitConsumerRegressions(unittest.TestCase):
     def test_first_publish_no_previous_snapshot(self):
         """First publish: empty old → diff shows all artifacts as added."""
         with tempfile.TemporaryDirectory() as td:
+            td = str(Path(td).resolve())
             art_dir = Path(td) / "artifacts"
             docs_dir = Path(td) / "docs" / "v1" / "feature"
             art_dir.mkdir(parents=True)
@@ -2384,6 +2544,7 @@ class TestSnapshotGitConsumerRegressions(unittest.TestCase):
     def test_valid_published_index_roundtrip(self):
         """Local → transform → published → resolve → primary_path."""
         with tempfile.TemporaryDirectory() as td:
+            td = str(Path(td).resolve())
             art_dir = Path(td) / "art"
             docs_dir = Path(td) / "docs"
             art_dir.mkdir()
@@ -2486,6 +2647,7 @@ class TestSnapshotGitConsumerRegressions(unittest.TestCase):
         git rm stages the deletion. Verifies the recipe's 'git -C
         repo rm' + 'git -C repo commit' path with real git."""
         with tempfile.TemporaryDirectory() as td:
+            td = str(Path(td).resolve())
             docs_root = Path(td) / "docs"
             feat_dir = docs_root / "v1" / "feature"
             feat_dir.mkdir(parents=True)

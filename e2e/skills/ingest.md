@@ -245,14 +245,20 @@ retained validation artifact.
 If the story type prefix is not listed above, treat it as anomalous
 zero (warn the user, continue without `testplan.md`).
 
+If the source location or any discovered validation artifact cannot be
+resolved or read, retain any prior story-scoped testplan and mark it
+`Freshness: unverified`. Report that the source could not be checked.
+Skip the outcome gate and story testplan write below.
+
 For non-normal/non-gate-only outcomes (expected zero, anomalous zero,
-or no feature-level testplan): if
+or confirmed absence of a feature-level testplan): if
 `.artifacts/e2e/{issue-key}/testplan.md` exists from a prior ingest
 run, delete it. A stale story-scoped testplan
 would cause downstream gates to enforce obsolete coverage requirements.
 
-If no validation artifacts were found (neither `validation-index.json`
-nor `testplan.md` in the docs repo), note "No feature-level testplan
+If the source location was checked and no validation artifacts were found
+(neither `validation-index.json` nor `testplan.md` in the docs repo),
+note "No feature-level testplan
 available" and continue. This is not an error — the testplan is a newer
 feature and older designs may not have one.
 
@@ -539,7 +545,7 @@ These suites become the "pattern source" for the `/code` phase.
 
 Use file search (glob), content search (grep), and targeted file reading.
 Focus exploration on the test infrastructure files. Apply the convergence
-heuristic per discovery area (Steps 6c–6j), not across the entire
+heuristic per discovery area (Steps 7c–7j), not across the entire
 exploration: within each area, if the last 5-7 files explored introduced
 no new patterns, that area is likely complete. E2e infrastructure spans
 a broad surface (test infrastructure files, auxiliary configs, suite files, utilities,
@@ -548,9 +554,9 @@ critical patterns.
 
 ### Step 8: Compile Context
 
-> **Checkpoint:** Step 6 is the heaviest phase of ingestion (10 sub-steps
+> **Checkpoint:** Step 7 is the heaviest phase of ingestion (10 sub-steps
 > across test infrastructure, services, utilities, conventions, and reference suites).
-> Before compiling, verify that all Step 6 sub-steps have been completed
+> Before compiling, verify that all Step 7 sub-steps have been completed
 > and that key findings are captured. If working in a constrained context,
 > consider spawning a subagent for the compilation.
 

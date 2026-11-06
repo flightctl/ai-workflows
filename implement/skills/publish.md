@@ -127,11 +127,15 @@ unchanged), proceed directly to Step 3.
 
 If the gate made code fixes, re-run the validation profile's required
 checks on the post-fix working-tree candidate **before** staging or
-committing. If checks fail or produce further unreviewed code changes,
+committing. Reassess whether each required external validation entry
+still applies to the post-fix candidate. If evidence is stale or its
+applicability is unknown after the code changes, stop and return to
+the existing `/validate` workflow to reverify before proceeding.
+If checks fail or produce further unreviewed code changes,
 stop and present the gap to the user — hand back to the existing
 `/validate` and review workflow rather than entering an unbounded
-automatic cycle. Once checks pass on the unchanged post-fix candidate,
-commit the gate fixes:
+automatic cycle. Once checks pass and applicable external evidence
+is verified on the unchanged post-fix candidate, commit the gate fixes:
 
 ```bash
 git add {fixed files}

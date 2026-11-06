@@ -209,8 +209,20 @@ Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
 
  When the user confirms retained TCs, record the confirmation in
  `02-plan.md` by changing the Test Plan Coverage status to
- "confirmed — user verified TC applicability on {date}". This
- record allows `/validate` to treat confirmed TCs as normative.
+ "confirmed — user verified TC applicability on {date}" and listing
+ the confirmed TC IDs. Additionally, record a content fingerprint
+ (or inline summary) of the confirmed TC content so that subsequent
+ phases can detect changes.
+
+ If a later re-ingest replaces `testplan.md` with different TC
+ content, `/code` and `/validate` must compare the current TC
+ content against the recorded confirmation. When the content has
+ changed, invalidate the confirmation: mark Test Plan Coverage as
+ "unverified — TC content changed since confirmation" and require
+ the user to re-confirm before treating the replacement TCs as
+ normative. TC-specific gap-fill and commit gates remain provisional
+ until re-confirmed.
+
  Confirmation does NOT restore `Freshness` to verified — the
  upstream source remains absent.}
 
@@ -265,7 +277,12 @@ Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
  from accredited lab"), carry them verbatim. If the source does not
  specify criteria, set Required Evidence to "criteria not specified
  in source — clarification needed" rather than inventing requirements.
- TC-based gates use the TC's own Expected Results as criteria.}
+ TC-based gates use the TC's own Expected Results as evidence
+ criteria. Record each qualification-gate TC's Expected Results in
+ Notes. If the story testplan does not include Expected Results for
+ a gate TC, read the TC from its Source artifact. If the source is
+ unavailable or has no Expected Results, mark the criteria as
+ "criteria not available from source — clarification needed."}
 
 ## Scope Baseline
 

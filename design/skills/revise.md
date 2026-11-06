@@ -457,7 +457,10 @@ stop and report. Do not delete published content based on a missing
 local file.
 
 **Copy ALL current artifacts** (not just previously tracked — handles
-new companions added during revision):
+new companions added during revision). Before each copy, reject
+symlink destinations and verify that any existing destination file
+is in the previous validation set (an existing file not in the
+previous set is unowned and must not be overwritten):
 
 ```bash
 cp ".artifacts/design/{issue-key}/{local}" "{docs_repo_path}/{feature-dir}/{published_as}"
@@ -512,9 +515,14 @@ validate the previous snapshot before removal:
 python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issue-key}/prev-published-index.json"
 ```
 
-If validation fails, stop and report. If it passes, for each
-listed artifact, check whether it is tracked and stage removal
-with `git -C "{docs_repo_path}" rm -- "{feature-dir}/{filename}"`.
+If validation fails, stop and report. If it passes, confirm with
+the user that retirement of all previously published artifacts is
+intended before staging removals. An empty current set caused by
+missing local sources (rather than explicit user intent) must not
+silently remove published content — stop and report the missing
+sources. Once confirmed, for each listed artifact, check whether
+it is tracked and stage removal with
+`git -C "{docs_repo_path}" rm -- "{feature-dir}/{filename}"`.
 Skip untracked files. Remove the published `validation-index.json`
 only if the previous publication included one (skip for legacy-only
 snapshots that had only `testplan.md`). Use the same tracked-file

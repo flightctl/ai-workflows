@@ -330,6 +330,12 @@ reconciliation — do not block the commit on TC coverage. AC-based
 work and existing tests proceed normally. Once the user confirms
 the retained TCs, this gate becomes mandatory for subsequent tasks.
 
+If the plan records a confirmation with a content fingerprint,
+compare the current TC content in `testplan.md` against the
+recorded fingerprint. If the content has changed since
+confirmation (e.g., after a re-ingest), treat as unconfirmed and
+defer TC reconciliation until the user re-confirms.
+
 If the test plan is confirmed or verified, verify each mapped TC ID
 before proceeding to commit:
 

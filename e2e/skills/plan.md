@@ -274,14 +274,17 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
 | AC-2 | {brief} | S1 | Task 3 |
 | AC-3 | {brief} | C1 | Task 2 |
 
-{Every AC must appear in at least one scenario or be covered by a
- qualification gate with tracked evidence. Consolidated scenarios
+{Every AC must appear in at least one scenario, be covered by a
+ qualification gate with tracked evidence, or be covered by a manual
+ TC with tracked verification evidence. Consolidated scenarios
  will appear in multiple AC rows — this is expected. An AC covered
  solely by a gate appears with status "Gate: {gate heading}" instead
- of a scenario reference. Gate-covered ACs have pending evidence
- until actual validation — planned gate coverage is not verified
- coverage. Flag any gaps where an AC has neither a scenario nor a
- gate.}
+ of a scenario reference. An AC covered solely by a manual TC
+ appears with status "Manual: {TC ID}" — its coverage remains
+ pending until manual verification evidence is reviewed and accepted.
+ Gate-covered ACs have pending evidence until actual validation —
+ planned gate coverage is not verified coverage. Flag any gaps where
+ an AC has neither a scenario, a gate, nor a manual TC.}
 
 ## Test Plan Coverage
 
@@ -343,7 +346,12 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
  carry them verbatim. If the source does not specify criteria, set
  Required Evidence to "criteria not specified in source —
  clarification needed." Do not invent evidence requirements.
- TC-based gates use the TC's Expected Results as criteria.}
+ TC-based gates use the TC's Expected Results as evidence criteria.
+ Record each qualification-gate TC's Expected Results in Notes. If
+ the story testplan does not include Expected Results for a gate TC,
+ read the TC from its Source artifact. If the source is unavailable
+ or has no Expected Results, mark the criteria as "criteria not
+ available from source — clarification needed."}
 
 ## Risk Assessment
 
@@ -361,7 +369,7 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
 
 Before presenting the plan, verify:
 
-- [ ] Every acceptance criterion has at least one test scenario or is covered by a qualification gate with tracked external evidence
+- [ ] Every acceptance criterion has at least one test scenario, is covered by a qualification gate with tracked external evidence, or is covered by a manual TC with tracked verification evidence (manual TC coverage remains pending until evidence is verified)
 - [ ] Test scenarios validate user-facing behavior, not internal logic that `[DEV]` tests already cover
 - [ ] Suite file follows the reference suite's lifecycle hook pattern
 - [ ] Test infrastructure methods referenced actually exist (verified during `/ingest`)

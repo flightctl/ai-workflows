@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import stat
 import sys
 from pathlib import Path, PurePosixPath
 from typing import Any, NoReturn
@@ -777,16 +778,20 @@ def _safe_write_output(dst: Path, content: str,
     pointing outside it.  Without *trusted_base*, every ancestor up
     to the filesystem root is checked (strict default).
 
-    The final write uses ``O_NOFOLLOW`` to atomically reject a
-    symlink at the destination.  If ``O_NOFOLLOW`` is not available
-    on the platform, the function returns an error rather than
-    proceeding without atomic symlink protection.
+    The write uses a temporary file in the same directory as *dst*,
+    followed by ``os.replace`` for atomic swap.  This ensures a
+    partial write never corrupts the published index — the
+    destination is either the old content or the fully new content.
+    The temporary file is cleaned up on any failure.
+
+    When updating an existing regular file, its permission mode is
+    preserved on the replacement.  New files default to 0o644.
 
     Safety checks:
     - Rejects symlink at the final destination path (pre-open check).
     - Walks ancestors of dst from dst.parent upward (to
       *trusted_base* or the filesystem root) using lexical boundary.
-    - Requires O_NOFOLLOW for atomic final-target protection;
+    - Requires O_NOFOLLOW availability as a platform capability gate;
       returns error when unavailable.
     - Resolved containment check rejects paths escaping the base.
     """
@@ -882,23 +887,67 @@ def _safe_write_output(dst: Path, content: str,
               f"{exc}", file=sys.stderr)
         return 1
 
-    # Open with O_NOFOLLOW to atomically reject a symlink target.
+    # Atomic write: create a temporary file in the same directory,
+    # write content to it, then replace the destination.  This ensures
+    # a partial write never corrupts the published index.
+    import tempfile as _tf
+
+    # Preserve mode of existing regular file, if present.
+    existing_mode: int | None = None
     try:
-        flags = os.O_CREAT | os.O_WRONLY | os.O_TRUNC | os.O_NOFOLLOW
-        fd = os.open(str(dst), flags, 0o644)
-        try:
-            data = content.encode("utf-8")
-            written = 0
-            while written < len(data):
-                n = os.write(fd, data[written:])
-                if n == 0:
-                    raise OSError("write returned 0 bytes")
-                written += n
-        finally:
-            os.close(fd)
+        st = os.stat(str(dst), follow_symlinks=False)
+        if stat.S_ISREG(st.st_mode):
+            existing_mode = stat.S_IMODE(st.st_mode)
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        print(f"ERROR: cannot stat destination {dst}: {exc}",
+              file=sys.stderr)
+        return 1
+
+    tmp_fd: int | None = None
+    tmp_path: str | None = None
+    try:
+        # Create temp file in the same directory (same filesystem) so
+        # os.replace is atomic.  O_NOFOLLOW on the directory fd is not
+        # needed because mkstemp creates a new file by name.
+        tmp_fd, tmp_path = _tf.mkstemp(
+            dir=str(dst.parent), prefix=".tmp_vi_")
+
+        data = content.encode("utf-8")
+        written = 0
+        while written < len(data):
+            n = os.write(tmp_fd, data[written:])
+            if n == 0:
+                raise OSError("write returned 0 bytes")
+            written += n
+        os.close(tmp_fd)
+        tmp_fd = None  # mark closed
+
+        # Set permissions before replacing: use existing mode when
+        # updating a regular file, otherwise default 0o644.
+        target_mode = existing_mode if existing_mode is not None else 0o644
+        os.chmod(tmp_path, target_mode)
+
+        # Atomic replace — destination is either old or fully new.
+        os.replace(tmp_path, str(dst))
+        tmp_path = None  # successfully replaced, nothing to clean up
     except OSError as exc:
         print(f"ERROR: cannot write {dst}: {exc}", file=sys.stderr)
         return 1
+    finally:
+        # Close fd if still open (write failed before close).
+        if tmp_fd is not None:
+            try:
+                os.close(tmp_fd)
+            except OSError:
+                pass
+        # Remove temp file if it still exists (write or replace failed).
+        if tmp_path is not None:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
     return 0
 
 
