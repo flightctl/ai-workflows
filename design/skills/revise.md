@@ -43,7 +43,18 @@ Determine which artifacts exist and read them:
 - `.artifacts/design/{issue-key}/05-epics.md` (epic metadata, if exists)
 - `.artifacts/design/{issue-key}/06-stories/` (epic and story files, if exist)
 - `.artifacts/design/{issue-key}/07-coverage.md` (coverage matrix, if exists)
-- `.artifacts/design/{issue-key}/04-testplan.md` (testplan, if exists)
+- **Validation artifacts:** Before reading any testplan or companion,
+  resolve the validation index:
+  ```bash
+  VALIDATION_INDEX_SCRIPT="${HOME}/.ai-workflows/design/scripts/validation_index.py"
+  python3 "$VALIDATION_INDEX_SCRIPT" resolve --local ".artifacts/design/{issue-key}"
+  ```
+  If exit 0, parse the JSON array to discover all artifact paths.
+  Read only the returned artifacts. If exit non-zero (malformed index,
+  missing files, symlinks), stop and report. If the result is empty
+  and `04-testplan.md` exists, fall back to reading it directly
+  (legacy). This resolution happens here so the correct artifact set
+  is known before any testplan content is read.
 - `.artifacts/design/{issue-key}/sync-manifest.json` (if exists — means
   epics/stories have been synced to Jira and filenames are locked)
 

@@ -763,26 +763,41 @@ def _safe_write_output(dst: Path, content: str,
     Returns 0 on success, 1 on error (with message printed).
 
     When *trusted_base* is given (e.g. the operator-configured docs
-    repo root or project repo root), the ancestor walk uses **lexical**
-    path comparison to determine the boundary.  Components *at* the
-    base or *above* it are operator-trusted and not checked for
-    symlinks.  Symlink components strictly **below** the base are
-    always rejected — even when they resolve back to the base itself
-    (e.g. ``base/selflink → base``).  A resolved-destination
-    containment check also rejects paths that escape the base via
-    symlinks pointing outside it.  OS-level aliases above the base
-    (e.g. ``/home`` → ``/var/home``) are tolerated because the walk
-    never reaches them.  Without *trusted_base*, every ancestor up to
-    the filesystem root is checked (strict default).
+    repo root or project repo root), it must be an existing directory.
+    Both *dst* and *trusted_base* are normalized to absolute paths
+    (without resolving symlinks) so lexical comparison works
+    regardless of the caller's relative/absolute form.  The ancestor
+    walk checks every component from dst.parent up to (but not
+    including) the trusted base for symlinks.  Components *at* or
+    *above* the base are operator-trusted and not checked.  Symlink
+    components strictly **below** the base are always rejected — even
+    when they resolve back to the base itself (e.g.
+    ``base/selflink → base``).  A resolved-destination containment
+    check also rejects paths that escape the base via symlinks
+    pointing outside it.  Without *trusted_base*, every ancestor up
+    to the filesystem root is checked (strict default).
+
+    The final write uses ``O_NOFOLLOW`` to atomically reject a
+    symlink at the destination.  If ``O_NOFOLLOW`` is not available
+    on the platform, the function returns an error rather than
+    proceeding without atomic symlink protection.
 
     Safety checks:
-    - Rejects symlink at the final destination path.
+    - Rejects symlink at the final destination path (pre-open check).
     - Walks ancestors of dst from dst.parent upward (to
       *trusted_base* or the filesystem root) using lexical boundary.
-    - Uses O_CREAT|O_WRONLY|O_TRUNC with O_NOFOLLOW to reject a
-      symlink final target at open time.
+    - Requires O_NOFOLLOW for atomic final-target protection;
+      returns error when unavailable.
+    - Resolved containment check rejects paths escaping the base.
     """
     import os
+
+    # Require O_NOFOLLOW for atomic symlink protection at open time.
+    if not hasattr(os, "O_NOFOLLOW"):
+        print("ERROR: O_NOFOLLOW not available on this platform; "
+              "cannot safely write output without atomic symlink "
+              "protection", file=sys.stderr)
+        return 1
 
     # Reject symlink at the destination itself
     if dst.is_symlink():
@@ -790,37 +805,55 @@ def _safe_write_output(dst: Path, content: str,
               file=sys.stderr)
         return 1
 
+    # Normalize both paths to absolute WITHOUT resolving symlinks.
+    # This ensures lexical comparison works regardless of whether
+    # the caller passes relative or absolute forms.
+    abs_dst = dst if dst.is_absolute() else (Path.cwd() / dst)
+    abs_base: Path | None = None
+
+    if trusted_base is not None:
+        # Trusted base must be an existing directory.
+        if not trusted_base.is_dir():
+            print(f"ERROR: trusted base is not an existing "
+                  f"directory: {trusted_base}", file=sys.stderr)
+            return 1
+        abs_base = (trusted_base if trusted_base.is_absolute()
+                    else (Path.cwd() / trusted_base))
+
     # Walk ancestors checking for symlinks.
-    # When trusted_base is given, use LEXICAL path comparison to
-    # determine the boundary — not resolved identity of each
-    # component.  This prevents a symlink below the base that
-    # resolves back to the base from bypassing the check (e.g.
-    # base/selflink → base would pass resolved-identity but is
-    # caught by lexical "selflink is below base").
+    # When trusted_base is given, normalize both paths to absolute
+    # (without resolving away symlinks) so lexical comparison works
+    # regardless of caller's relative/absolute form.  Components at
+    # or above the base are operator-trusted.  Unrecognized prefix
+    # (ValueError from relative_to) fails closed — it means the
+    # paths have incompatible roots, not that we are above the base.
     # A resolved containment check catches escapes via symlinks
     # pointing outside the base.
     # Without trusted_base, walk to the filesystem root.
     try:
-        if trusted_base is not None:
-            resolved_base = trusted_base.resolve()
+        if abs_base is not None:
+            resolved_base = abs_base.resolve()
             try:
-                dst.resolve().relative_to(resolved_base)
+                abs_dst.resolve().relative_to(resolved_base)
             except ValueError:
                 print(f"ERROR: output path escapes trusted base: "
                       f"{dst} is not under {trusted_base}",
                       file=sys.stderr)
                 return 1
 
-        cur = dst.parent
+        cur = abs_dst.parent
         while True:
-            if trusted_base is not None:
-                # Lexical boundary: is cur strictly below the base?
-                # Components at or above the base are trusted by the
-                # operator and not checked for symlinks.
+            if abs_base is not None:
+                # Lexical boundary: is cur at or above the base?
+                # Both are absolute, so relative_to is well-defined.
                 try:
-                    rel = cur.relative_to(trusted_base)
+                    rel = cur.relative_to(abs_base)
                 except ValueError:
-                    break  # above the trusted base — trusted
+                    # Incompatible prefix — fail closed.
+                    print(f"ERROR: output path has unexpected root "
+                          f"relative to trusted base: {dst}",
+                          file=sys.stderr)
+                    return 1
                 if rel == Path('.'):
                     break  # at the base itself — trusted
                 # Below the base: reject any symlink component
@@ -849,11 +882,9 @@ def _safe_write_output(dst: Path, content: str,
               f"{exc}", file=sys.stderr)
         return 1
 
-    # Open with O_NOFOLLOW to reject a symlink final target.
+    # Open with O_NOFOLLOW to atomically reject a symlink target.
     try:
-        flags = os.O_CREAT | os.O_WRONLY | os.O_TRUNC
-        if hasattr(os, "O_NOFOLLOW"):
-            flags |= os.O_NOFOLLOW
+        flags = os.O_CREAT | os.O_WRONLY | os.O_TRUNC | os.O_NOFOLLOW
         fd = os.open(str(dst), flags, 0o644)
         try:
             data = content.encode("utf-8")

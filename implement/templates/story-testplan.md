@@ -5,6 +5,7 @@
 - **Test cases:** {count of automatable + manual TCs}
 - **Manual verification:** {count or 0}
 - **Qualification gates:** {count or 0}
+- **Companion artifacts:** {comma-separated list of companion files with purposes, e.g., "hw-validation.md (Hardware qualification)" or "None — primary testplan only"}
 
 One `## {tc-id}` section per filtered story test case:
 

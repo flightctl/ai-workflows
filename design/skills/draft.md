@@ -610,7 +610,7 @@ Before presenting the testplan, verify:
 
 - [ ] No test case targets unit-level or internal implementation verification — every scenario exercises an observable system surface (API, CLI, UI, device behavior, configuration effect) or a justified cross-component/operational contract
 - [ ] Every FR and NFR has a test case, a review/qualification gate, or a documented Requirement Coverage Gap with rationale — requirements covered by gates reference the gate in Gaps, not listed as uncovered
-- [ ] Every IC from §5 has a test case or a documented Interface Change Coverage Gap with rationale
+- [ ] Every IC from §5 has a test case, a qualification gate, or a documented Interface Change Coverage Gap with rationale
 - [ ] Every non-`—` Interface Change value matches an IC defined in §5, and that IC's `Requirements` line includes the test case's requirement
 - [ ] Every `—` Interface Change value is used only for a requirement without a direct IC mapping
 - [ ] Every IC named in an Interface Change Coverage Gap entry exists in §5

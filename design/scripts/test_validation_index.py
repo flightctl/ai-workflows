@@ -1940,6 +1940,139 @@ class TestTrustedBaseSelfLink(unittest.TestCase):
                          "--trusted-output-base", str(base))
             self.assertEqual(r.returncode, 1)
 
+    def test_mixed_form_relative_output_absolute_base_rejected(self):
+        """Relative output + absolute trusted base: selflink rejected.
+
+        Exercises the normalization path — both forms must be
+        compared as absolute paths to detect the symlink."""
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td) / "base"
+            base.mkdir()
+            (base / "selflink").symlink_to(base)
+            src = Path(td) / "local.json"
+            _write_json(src, _make_local_index())
+            # Run from base, output relative, trusted base absolute
+            r = subprocess.run(
+                [sys.executable, str(_SCRIPT), "transform",
+                 str(src), "selflink/output.json",
+                 "--trusted-output-base", str(base)],
+                capture_output=True, text=True, timeout=10,
+                cwd=str(base))
+            self.assertEqual(r.returncode, 1,
+                             f"Mixed form must reject selflink: {r.stderr}")
+            self.assertFalse(
+                (base / "selflink" / "output.json").exists())
+
+    def test_mixed_form_absolute_output_relative_base_rejected(self):
+        """Absolute output + relative trusted base: selflink rejected."""
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td) / "base"
+            base.mkdir()
+            (base / "selflink").symlink_to(base)
+            src = Path(td) / "local.json"
+            _write_json(src, _make_local_index())
+            r = subprocess.run(
+                [sys.executable, str(_SCRIPT), "transform",
+                 str(src), str(base / "selflink" / "output.json"),
+                 "--trusted-output-base", "."],
+                capture_output=True, text=True, timeout=10,
+                cwd=str(base))
+            self.assertEqual(r.returncode, 1,
+                             f"Mixed form must reject selflink: {r.stderr}")
+            self.assertFalse(
+                (base / "selflink" / "output.json").exists())
+
+    def test_mixed_form_positive_relative_base_allowed(self):
+        """Relative base + absolute output under base: no symlink → ok."""
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td) / "base"
+            base.mkdir()
+            (base / "realdir").mkdir()
+            src = Path(td) / "local.json"
+            _write_json(src, _make_local_index())
+            r = subprocess.run(
+                [sys.executable, str(_SCRIPT), "transform",
+                 str(src), str(base / "realdir" / "output.json"),
+                 "--trusted-output-base", "."],
+                capture_output=True, text=True, timeout=10,
+                cwd=str(base))
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertTrue(
+                (base / "realdir" / "output.json").exists())
+
+    def test_build_legacy_mixed_form_rejected(self):
+        """build-legacy: relative output + absolute base rejects selflink."""
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td) / "base"
+            base.mkdir()
+            (base / "selflink").symlink_to(base)
+            _write(base / "04-testplan.md", "# Plan")
+            r = subprocess.run(
+                [sys.executable, str(_SCRIPT), "build-legacy",
+                 str(base), "selflink/output.json",
+                 "--trusted-output-base", str(base)],
+                capture_output=True, text=True, timeout=10,
+                cwd=str(base))
+            self.assertEqual(r.returncode, 1,
+                             f"build-legacy mixed form must reject: {r.stderr}")
+
+    def test_trusted_base_must_be_existing_dir(self):
+        """Non-existent trusted base → exit 1."""
+        with tempfile.TemporaryDirectory() as td:
+            src = Path(td) / "local.json"
+            _write_json(src, _make_local_index())
+            dst = Path(td) / "output.json"
+            r = _run_cli("transform", str(src), str(dst),
+                         "--trusted-output-base",
+                         str(Path(td) / "nonexistent"))
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("not an existing directory", r.stderr)
+
+
+# ===========================================================================
+# 23d. O_NOFOLLOW absence: fail closed
+# ===========================================================================
+
+class TestNoFollowAbsence(unittest.TestCase):
+    """When O_NOFOLLOW is unavailable, _safe_write_output must fail
+    closed — no file creation, no truncation, no writes."""
+
+    def test_missing_nofollow_rejects_write(self):
+        """Mock absent O_NOFOLLOW → exit 1, no file created."""
+        import io
+        import os as _os
+        import unittest.mock
+        with tempfile.TemporaryDirectory() as td:
+            dst = Path(td) / "output.json"
+            # Temporarily remove O_NOFOLLOW from the os module
+            original = getattr(_os, 'O_NOFOLLOW', None)
+            if original is not None:
+                delattr(_os, 'O_NOFOLLOW')
+            try:
+                err = io.StringIO()
+                with unittest.mock.patch("sys.stderr", err):
+                    rc = vi._safe_write_output(dst, '{"test": true}\n')
+                self.assertEqual(rc, 1,
+                                 "Must fail when O_NOFOLLOW unavailable")
+                self.assertIn("O_NOFOLLOW", err.getvalue())
+                self.assertFalse(dst.exists(),
+                                 "No file should be created")
+            finally:
+                if original is not None:
+                    _os.O_NOFOLLOW = original
+
+    def test_with_nofollow_writes_normally(self):
+        """Positive: O_NOFOLLOW present → successful write."""
+        import os as _os
+        if not hasattr(_os, 'O_NOFOLLOW'):
+            self.skipTest("O_NOFOLLOW not available")
+        with tempfile.TemporaryDirectory() as td:
+            dst = Path(td) / "output.json"
+            rc = vi._safe_write_output(dst, '{"test": true}\n')
+            self.assertEqual(rc, 0)
+            self.assertTrue(dst.exists())
+            self.assertEqual(dst.read_text(), '{"test": true}\n')
+
 
 # ===========================================================================
 # 24. CLI workflow sequence regressions

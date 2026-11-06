@@ -526,7 +526,9 @@ Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
  - gap-filled: test was written during validation
  - N/A: test case legitimately not applicable (rationale required)
 
- If all covered: "All test plan cases verified."
+ If all automatable TCs are covered: "All automatable test plan cases
+ verified." (Qualification-gate and manual-verification TCs are tracked
+ separately in External Validation Evidence.)
  If gaps were filled: "{N} test cases required additional tests during
  validation."
  If any N/A: list rationale for each.}
