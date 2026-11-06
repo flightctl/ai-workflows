@@ -746,13 +746,13 @@ Validate the written index:
 
 ```bash
 VALIDATION_INDEX_SCRIPT="${HOME}/.ai-workflows/design/scripts/validation_index.py"
-python3 "$VALIDATION_INDEX_SCRIPT" validate --local ".artifacts/design/{issue-key}/validation-index.json"
+python3 "$VALIDATION_INDEX_SCRIPT" validate --local ".artifacts/design/{issue-key}/validation-index.json" --artifact-dir ".artifacts/design/{issue-key}"
 ```
 
 If validation fails (non-zero exit), fix the reported errors before
 proceeding. The validate subcommand checks schema version, artifact
-types, filename uniqueness, companion requirements (purpose, audience),
-and that all listed local files exist.
+types, filename safety, uniqueness, companion requirements (purpose,
+audience), and that all listed local files exist on disk.
 
 This file is read by `/publish`, `/revise`, `/respond`, and
 `/decompose` to discover the full set of validation artifacts.

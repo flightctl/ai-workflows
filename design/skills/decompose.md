@@ -683,7 +683,8 @@ subagent for independence. Load it with:
 - All decomposition artifacts: `05-epics.md`, all
   `06-stories/epic-{N}-{slug}.md` files, all
   `06-stories/epic-{N}/story-{NN}-{slug}.md` files, `07-coverage.md`
-- The testplan (`04-testplan.md`) — for cross-reference checking of
+- All validation artifacts listed in `validation-index.json` (or
+  `04-testplan.md` for legacy) — for cross-reference checking of
   story implementation references, not for testplan content review
   (content quality was verified during `/draft`)
 - NOT the design document (`03-design.md`) — the reviewer evaluates
