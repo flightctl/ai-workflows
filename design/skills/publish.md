@@ -373,7 +373,24 @@ Do not remove files outside the feature directory or files not
 listed in the previous set.
 
 **If the current set is empty** and the previous set had artifacts,
-validate the previous snapshot before using it for removal:
+present the exact filenames from the previous snapshot to the user
+and ask for explicit confirmation before proceeding:
+
+List the filenames:
+- For each artifact in the previous snapshot, show: `{release}/{feature}/{filename}`
+- Show: `{release}/{feature}/validation-index.json` (if the previous
+  publication included one)
+
+Ask the user: **"The following published validation artifacts will
+be removed. Confirm retirement, or restore the local artifact set
+before proceeding."** The user must explicitly confirm removal of
+these specific filenames. Generic publish approval is not sufficient.
+
+If the user declines or does not confirm, stop — preserve published
+artifacts and metadata unchanged. The `/revise` fallback to `/publish`
+must not bypass this confirmation.
+
+If the user confirms, validate the previous snapshot before removal:
 
 ```bash
 python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issue-key}/prev-published-index.json"

@@ -66,9 +66,14 @@ Verify readiness:
      unresolved dependency.
 
 2. Read `.artifacts/implement/{issue-key}/05-validation-report.md`. Check
-   that the `## Result` section contains `PASS`. If the file doesn't exist,
-   the `## Result` section is missing, or it contains `FAIL`, tell the user
-   that `/validate` should be run (or re-run) first.
+   that the `## Result` section contains an explicit `Overall: PASS`
+   line (not `PASS (automated)` or any qualified PASS). A result of
+   `PASS (automated) — awaiting external validation` means external
+   evidence is still pending and the implementation is NOT ready for
+   publication. If the file doesn't exist, the `## Result` section is
+   missing, it contains `FAIL`, or it contains only a qualified PASS
+   without overall PASS, tell the user that `/validate` should be run
+   (or re-run) first.
 
 3. Verify the feature branch exists and has commits:
 

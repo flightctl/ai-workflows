@@ -119,6 +119,12 @@ map from `publish-metadata.json`:
   `validation-index.json` to get the validated `published_as` →
   `local` mapping — this ensures the local filename used for routing
   matches the actual local artifact file.
+  If `validation-index.json` is listed but cannot be read, parsed, or
+  validated (via `resolve --local`), stop and report the error — do
+  not build a routing map from unvalidated metadata. If
+  `validation_artifacts` in metadata lists files that do not match the
+  local `validation-index.json` entries, stop and report the
+  inconsistency.
 - If `validation_artifacts` is absent, fall back to `testplan_file_path`
   as the sole entry (maps to `04-testplan.md` locally).
 
@@ -572,7 +578,26 @@ If not tracked (already removed), skip. If the check or removal
 produces an unexpected error, stop and report.
 
 If the current set is **empty** and the previous set had artifacts,
-validate the previous snapshot before removal:
+present the exact filenames from the previous snapshot to the user
+and ask for explicit confirmation before proceeding:
+
+List the filenames:
+- For each artifact in the previous snapshot, show: `{feature-dir}/{filename}`
+- Show: `{feature-dir}/validation-index.json` (if the previous
+  publication included one)
+
+Ask the user: **"The following published validation artifacts will
+be removed. Confirm retirement, or restore the local artifact set
+and re-run."** The user must explicitly confirm removal of these
+specific filenames. Generic publish or review approval is not
+sufficient — the user must acknowledge that these files are
+intentionally being retired.
+
+If the user declines or does not confirm, stop cleanup — preserve
+published artifacts and metadata unchanged. Do not proceed with
+deletion or metadata updates.
+
+If the user confirms, validate the previous snapshot before removal:
 
 ```bash
 python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issue-key}/prev-published-index.json"
