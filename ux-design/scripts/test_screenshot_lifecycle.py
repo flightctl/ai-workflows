@@ -232,13 +232,23 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
         )
 
     def test_plan_accepted_unverified_label(self) -> None:
-        """Plan uses accepted-unverified citation label consistently."""
+        """Plan uses accepted-unverified citation for both ordinary and additive."""
         content = _read("ui-design/skills/plan.md")
-        # Check the screenshot citation section exists with specific rules
-        self.assertIn("accepted-unverified", content)
-        self.assertIn("[Screenshot: SS-N]", content)
+        # Scoped to the citation instructions section
+        section = content.split(
+            "If `HAS_SCREENSHOTS` is true or `partial`", 1
+        )[1].split("If `HAS_SCREENSHOTS` is `deferred`", 1)[0]
+        self.assertIn("[Screenshot: SS-N]", section)
+        self.assertIn("accepted-unverified", section)
+        self.assertIn("[Screenshot: SS-N — accepted-unverified]", section)
+        # Additive forms: both verified and accepted-unverified
+        self.assertIn("[Screenshot: SS-N — additive: {detail}]", section)
         self.assertIn(
-            "Do not cite `unavailable` or `lfs-unresolved` images.", content
+            "[Screenshot: SS-N — accepted-unverified, additive: {detail}]",
+            section,
+        )
+        self.assertIn(
+            "Do not cite `unavailable` or `lfs-unresolved` images.", section
         )
 
     def test_ingest_token_budget(self) -> None:
@@ -261,21 +271,47 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
     def test_ingest_write_cleanup_on_confirm(self) -> None:
         """Item 4: Step 8a defines write + cleanup for both paths."""
         content = _read("ui-design/skills/ingest.md")
-        self.assertIn("write the compiled content to `01-context.md`", content)
-        self.assertIn("01-context.md.prev", content)
-        self.assertIn("was preserved, and stop", content)
+        step8a = content.split("### Step 8a:", 1)[1].split("### Step 9", 1)[0]
+        # Normalize whitespace for cross-line assertions
+        flat = " ".join(step8a.split())
+        # Confirm path: write content, delete .prev and temp
+        self.assertIn("write the compiled content to `01-context.md`", flat)
+        self.assertIn("01-context.md.prev", flat)
+        # Decline path: discard content, delete .prev and temp, preserve
+        self.assertIn("discard the compiled content", flat)
+        self.assertIn("any temporary file", flat)
+        self.assertIn("was preserved, and stop", flat)
 
     def test_plan_missing_screenshot_section_fallback(self) -> None:
-        """Item 5: plan handles absent Screenshot Observations."""
+        """Item 5: plan handles absent Screenshot Observations; preserves no-handoff."""
         content = _read("ui-design/skills/plan.md")
-        self.assertIn("Screenshot Observations or its `Screenshots` status is absent", content)
-        self.assertIn("rerun `/ingest`", content)
+        fallback = content.split(
+            "Screenshot Observations or its `Screenshots` status is absent", 1
+        )
+        self.assertEqual(len(fallback), 2, "Missing absent-status fallback")
+        instructions = fallback[1].split("Screenshots show", 1)[0]
+        # No-handoff path: HAS_HANDOFF=false -> HAS_SCREENSHOTS=false, no re-ingest
+        self.assertIn("HAS_HANDOFF", instructions)
+        self.assertIn("HAS_SCREENSHOTS = false", instructions)
+        # Handoff-present unknown path: offers re-ingest or unavailable
+        self.assertIn("rerun `/ingest`", instructions)
+        self.assertIn("unavailable", instructions)
 
     def test_inspection_recipe_path_containment(self) -> None:
-        """Item 10: inspection recipe rejects traversal in refs."""
+        """Item 10: inspection recipe rejects traversal for local refs only."""
         content = _read("_shared/recipes/screenshot-inspection.md")
-        self.assertIn("Path containment", content)
-        self.assertIn("..", content.split("Path containment")[1].split("###")[0])
+        # Containment is scoped under Local references, not before reference selection
+        local_section = content.split("**Local references**", 1)[1].split(
+            "**External references**", 1
+        )[0]
+        self.assertIn("Path containment", local_section)
+        self.assertIn("..", local_section)
+        self.assertIn("symlink", local_section)
+        # External section has no filesystem containment check
+        external_section = content.split("**External references**", 1)[1].split(
+            "###", 1
+        )[0]
+        self.assertNotIn("Path containment", external_section)
 
     def test_publish_stage_recipe_empty_array_guard(self) -> None:
         """Item 11: recipe guards empty array expansion under nounset."""
@@ -310,10 +346,18 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
         self.assertIn("### Step 6: Create or Update Branch and Commit", content)
 
     def test_publish_metadata_refresh_on_update(self) -> None:
-        """Item 9: metadata refreshes screenshot_assets after update."""
+        """Item 9: metadata refreshes screenshot_assets after successful update."""
         content = _read("ux-design/skills/publish.md")
-        self.assertIn("update `screenshot_storage`", content)
-        self.assertIn("replace `screenshot_assets`", content)
+        # Scoped to Step 9 (Save Publish Metadata)
+        step9 = content.split("Step 9: Save Publish Metadata", 1)[1].split(
+            "Step 10:", 1
+        )[0]
+        self.assertIn("update `screenshot_storage`", step9)
+        self.assertIn("replace `screenshot_assets`", step9)
+        # Success-only: refresh happens after successful commit+push
+        self.assertIn("successful update commit and push", step9)
+        # Identity preservation
+        self.assertIn("retain the PR number, branch", step9)
 
     def test_revise_index_sha_update(self) -> None:
         """Item 17: revise updates Screenshot Index SHA on replacement."""
@@ -327,10 +371,42 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
         self.assertNotIn("`/publish` Step 4.", content)
 
     def test_handoff_capture_provenance(self) -> None:
-        """Item 13: handoff verifies per-image capture provenance."""
+        """Item 13: handoff verifies per-image capture provenance with all bindings."""
         content = _read("ux-design/skills/handoff.md")
-        self.assertIn("screenshot-captures.json", content)
-        self.assertIn("researcher-supplied", content)
+        provenance = content.split("Per-image capture provenance", 1)[1].split(
+            "Selection criteria", 1
+        )[0]
+        # Requires capture index
+        self.assertIn("screenshot-captures.json", provenance)
+        # Checks all three bindings per image
+        self.assertIn("context_revision", provenance)
+        self.assertIn("discovery_revision", provenance)
+        self.assertIn("prototype_iteration", provenance)
+        # Absent index means no verified images — prohibits header fallback
+        self.assertIn("do not fall back to the evaluation header", provenance)
+        self.assertIn("no screenshots can be verified as current", provenance)
+        # Researcher-supplied source path (private) with all-binding confirmation
+        supplied = content.split("Researcher-supplied", 1)[1].split(
+            "Selection criteria", 1
+        )[0]
+        self.assertIn("source", supplied)
+        self.assertIn("discovery revision", supplied)
+
+    def test_evaluate_capture_index_schema(self) -> None:
+        """Item 13: evaluate writes capture index with all binding fields."""
+        content = _read("ux-design/skills/evaluate.md")
+        index = content.split("screenshot-captures.json", 1)[1].split(
+            "Run the skill", 1
+        )[0]
+        # Schema must include all three binding fields per capture entry
+        self.assertIn("context_revision", index)
+        self.assertIn("discovery_revision", index)
+        self.assertIn("prototype_iteration", index)
+        self.assertIn("sha256", index)
+        self.assertIn("filename", index)
+        self.assertIn("captures", index)
+        # Quick depth writes empty captures array
+        self.assertIn("empty `captures`", content)
 
     def test_config_precedence(self) -> None:
         """Item 7: publish checks workflow-specific config first."""

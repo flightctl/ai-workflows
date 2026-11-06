@@ -226,27 +226,27 @@ was captured during that run. A Quick evaluation or re-evaluation may
 leave old images. Verify each candidate individually:
 
 1. Read `04-eval-raw/screenshot-captures.json` (written by `/evaluate`).
-   If present, it lists every image captured during that run with
-   `filename`, `sha256`, `context_revision`, and `prototype_iteration`.
-2. For each candidate file in the screenshots directory, check whether
-   its filename **and** SHA-256 appear in the capture index with
-   bindings matching the current context. Only images that match are
-   verified as current-run captures.
-3. If the index is absent (older evaluate run), fall back to the
-   evaluation header bindings but warn the researcher that per-image
-   provenance could not be verified.
-4. Quick/URL-only evaluations produce no captures. Their index will be
-   absent or have an empty `captures` array. Do not use leftover images
-   from prior Standard/Full runs that remain in the directory.
-5. If no images verify as current, treat this as "no screenshots exist"
-   and present the three options above.
+   Each entry records `filename`, `sha256`, `context_revision`,
+   `discovery_revision`, and `prototype_iteration`.
+2. For each candidate file in the screenshots directory, compute its
+   SHA-256 and check whether its filename **and** digest appear in the
+   capture index with all three bindings (`context_revision`,
+   `discovery_revision`, `prototype_iteration`) matching the current
+   context. Only images that match are verified as current-run captures.
+3. If the index is absent (older evaluate run that predates this
+   feature) or has an empty `captures` array (Quick/URL-only depth),
+   no screenshots can be verified as current. Treat this the same as
+   "no screenshots exist" — do not fall back to the evaluation header
+   or assume directory contents are current.
+4. If no images verify as current, present the three options above.
 
 **Researcher-supplied images.** When the researcher provides images
-directly (option 2), record `source: researcher-supplied` in the
-manifest entry. Require the researcher to explicitly confirm that each
-image reflects the current prototype iteration and context revision
-before curating it. Record this confirmation. Do not assume currency
-from the file alone.
+directly (option 2), record the researcher-provided source path in the
+manifest entry's `source` field (authoring-private; omitted from the
+consumer manifest by `/publish`). Require the researcher to explicitly
+confirm that each supplied image reflects the current context revision,
+discovery revision, and prototype iteration. Record this confirmation
+alongside the source. Do not assume currency from the file alone.
 
 **Selection criteria.** From the verified current-context screenshots,
 select images that show:

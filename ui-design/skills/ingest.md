@@ -279,9 +279,8 @@ Flows, State Matrix, and Persona-Specific Views sections.
   `MANIFEST_PATH` = `{HANDOFF_DIR}/screenshot-manifest.json`.
   Warn if the manifest's `context_revision`/`prototype_iteration` differ
   from the handoff header.
-  After inspection, set the Screenshot Observations status to
-  `inspected` (all images inspected), `partial` (some inspected),
-  or `unavailable` (none inspected). Preserve each image's per-entry
+  After inspection, set Screenshots status to `inspected` (all),
+  `partial` (some), or `unavailable` (none). Preserve per-image
   status and any user acceptance decision.
 
 - **If none** (Screenshot Index says "None" or absent): Set
@@ -568,7 +567,8 @@ If any exist, report which may be affected and warn about Jira sync
 implications. Present the diff summary and wait for the user to confirm.
 If they confirm, write the compiled content to `01-context.md` and delete
 `01-context.md.prev` and any temporary file. If they decline, discard the
-compiled content, delete `01-context.md.prev`, report that `01-context.md`
+compiled content, delete `01-context.md.prev` and any temporary file,
+report that `01-context.md`
 was preserved, and stop.
 
 ### Step 9: Report to User

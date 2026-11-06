@@ -60,11 +60,10 @@ Observations** section of `01-context.md` for `Screenshots` status:
 | `unavailable` | `unavailable` | Note limitation explicitly per section |
 
 If Screenshot Observations or its `Screenshots` status is absent (older
-context from before this feature), tell the user that visual evidence was
-not assessed. Ask whether to rerun `/ingest` or continue without screenshot
-observations. If rerunning, stop. If continuing, set
-`HAS_SCREENSHOTS = unavailable` and note where visual evidence was not
-assessed.
+context), check `HAS_HANDOFF`. If `HAS_HANDOFF` is false, set
+`HAS_SCREENSHOTS = false` (text-only design; no re-ingest needed). If
+`HAS_HANDOFF` is true, ask whether to rerun `/ingest` to assess
+screenshots or continue with `HAS_SCREENSHOTS = unavailable`.
 
 Screenshots show visual presentation only — do not conflate with
 keyboard, accessibility, API, or runtime verification.
@@ -106,7 +105,9 @@ observations from `01-context.md` for layout and visible-state decisions:
   the visual evidence may not reflect the current published state.
   Do not cite `unavailable` or `lfs-unresolved` images.
 - **Additive evidence** (visual detail not in prose) supplements the
-  spec: `[Screenshot: SS-N — additive: {detail}]`.
+  spec. For verified images: `[Screenshot: SS-N — additive: {detail}]`.
+  For accepted-unverified images:
+  `[Screenshot: SS-N — accepted-unverified, additive: {detail}]`.
 - **Contradictions** (image conflicts with explicit spec text) are
   flagged: *"[Contradiction: SS-N vs §section] screenshot shows X, spec
   states Y."* Do not resolve — let the user decide.

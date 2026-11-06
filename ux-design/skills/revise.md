@@ -66,7 +66,7 @@ If the revision adds, replaces, or removes screenshots:
    manifest's `sha256` field and the Screenshot Index SHA-256, and update the embed's alt text and caption
    if the visual content changed. Note the visual change in the revision
    summary. The manifest checksum ensures `/publish` detects the update
-   even when the filename and handoff text are unchanged.
+   even when the filename is unchanged.
 
 3. **Removing:** Delete the file from `screenshots/`, remove its manifest
    entry, remove the inline `![alt](ref)` embed **and** the Screenshot
