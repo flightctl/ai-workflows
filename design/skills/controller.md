@@ -54,6 +54,8 @@ the source repo (this directory should be gitignored in the source repo):
 | Design research | `02-research.md` | `/research` |
 | Design document | `03-design.md` | `/draft`, `/revise`, `/respond` |
 | Testplan | `04-testplan.md` | `/draft`, `/revise`, `/respond` |
+| Companion plans | `04-{slug}.md` (optional) | `/draft`, `/revise`, `/respond` |
+| Validation index | `validation-index.json` | `/draft`, `/publish`, `/revise`, `/respond` |
 | Provenance log | `provenance.json` | `/draft`, `/revise`, `/respond` |
 | Epic metadata | `05-epics.md` | `/decompose`, `/revise` |
 | Epic files | `06-stories/epic-{N}-{slug}.md` | `/decompose`, `/revise` |

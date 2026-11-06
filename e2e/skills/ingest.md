@@ -190,10 +190,18 @@ location or proceed with only the Jira story content. The design
 document and PRD are valuable context but not strictly required — the
 story's acceptance criteria are the primary contract.
 
-#### 5d: Filter Testplan to Story Scope
+#### 5d: Discover Validation Artifacts and Filter to Story Scope
 
-If `testplan.md` was found in Step 5c, filter it to the test cases
-relevant to this story's scope.
+**Artifact discovery:** Check for `validation-index.json` in the
+feature directory alongside `design.md`. If found, read it to get
+the list of published validation artifact filenames and identify the
+primary testplan. If `validation-index.json` does not exist (legacy
+design), fall back to looking for `testplan.md` directly.
+
+**Filter across all validation artifacts:** For each validation
+artifact file discovered above, apply the TC matching rules below.
+Collect matching TCs from ALL artifacts (primary testplan and any
+companions).
 
 The Jira story's description contains a `Validated by` line in its
 Design Reference section (captured in Step 3) listing TC IDs, and a
@@ -203,10 +211,11 @@ For `[QE]` stories, `Validated by` may not carry the full set of
 relevant TCs — `/decompose` assigns TCs via IC overlap, but `[QE]`
 stories typically don't implement ICs (they test the surface that
 `[DEV]` stories implement). To ensure complete coverage, always
-**union** the `Validated by` TC IDs with requirement-heading matches:
-extract PRD requirement IDs from the story's `PRD Requirements` line
-and collect all test cases whose requirement heading matches, then
-merge with the `Validated by` set (deduplicate).
+**union** the `Validated by` TC IDs with requirement-heading matches
+across all validation artifacts: extract PRD requirement IDs from the
+story's `PRD Requirements` line and collect all test cases whose
+requirement heading matches, then merge with the `Validated by` set
+(deduplicate).
 
 For non-`[QE]` stories, use `Validated by` TC IDs directly. If the
 `Validated by` line is missing, empty, or contains no TC IDs (e.g.,
@@ -217,7 +226,7 @@ matching as above.
 
 | Outcome | Condition | Action |
 |---------|-----------|--------|
-| **Normal** | Matching test cases found | Write `.artifacts/e2e/{issue-key}/testplan.md` |
+| **Normal** | Matching test cases found (in any artifact) | Write `.artifacts/e2e/{issue-key}/testplan.md` |
 | **Expected zero** | No matches AND story type is `[DOCS]`, `[UX]`, or `[CI]` | Note in context. |
 | **Anomalous zero** | No matches AND story type is `[QE]`, `[DEV]`, or `[UI]` | Warn the user: "Testplan exists but no test cases match this story's requirements. This may indicate a gap in the testplan or the story's requirement mapping." This is non-blocking. |
 
@@ -230,9 +239,14 @@ feature-level testplan): if
 run, delete it. A stale story-scoped testplan
 would cause downstream gates to enforce obsolete coverage requirements.
 
-If `testplan.md` was not found in the docs repo, note "No feature-level
-testplan available" and continue. This is not an error — the testplan is
-a newer feature and older designs may not have one.
+If no validation artifacts were found (neither `validation-index.json`
+nor `testplan.md` in the docs repo), note "No feature-level testplan
+available" and continue. This is not an error — the testplan is a newer
+feature and older designs may not have one.
+
+When writing the story testplan from matches across multiple artifacts,
+include all matched TCs in a single `testplan.md` with a Source line
+listing each contributing artifact.
 
 **Write story-scoped testplan (Normal outcome only):**
 

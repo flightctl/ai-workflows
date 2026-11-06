@@ -251,13 +251,22 @@ Jira story content. The design document and PRD are valuable context
 but not strictly required — the story's acceptance criteria are the
 primary contract.
 
-#### 5d: Filter Testplan to Story Scope
+#### 5d: Discover Validation Artifacts and Filter to Story Scope
 
-Match the story's `Validated by` TC IDs (captured in Step 3) against the
-testplan's test-case headings. If `Validated by` is missing, empty, or
-`None` (no TC IDs), fall back to requirement match: collect every test case
-whose requirement heading matches a `PRD Requirements` ID from the story's
-Design Reference.
+**Artifact discovery:** Check for `validation-index.json` in the
+feature directory alongside `design.md`. If found, read it to get
+the list of published validation artifact filenames and identify the
+primary testplan. If `validation-index.json` does not exist (legacy
+design), fall back to looking for `testplan.md` directly.
+
+**Filter across all validation artifacts:** For each validation
+artifact file discovered above, match the story's `Validated by`
+TC IDs (captured in Step 3) against the artifact's test-case
+headings. If `Validated by` is missing, empty, or `None` (no TC IDs),
+fall back to requirement match: collect every test case whose
+requirement heading matches a `PRD Requirements` ID from the story's
+Design Reference. Collect matching TCs from ALL artifacts (primary
+testplan and any companions).
 
 **UI-design-originated stories:** If `PRD Requirements` contains
 "Discovered during UI design" (set by ui-design `/sync` for stories that
@@ -272,14 +281,19 @@ UI-design origin means missing testplan coverage is expected, not an error.
 
 | Outcome | Condition | Action |
 |---------|-----------|--------|
-| Normal | Matches found | Write `testplan.md` **once** from `../templates/story-testplan.md` |
+| Normal | Matches found (in any artifact) | Write `testplan.md` **once** from `../templates/story-testplan.md` |
 | Expected zero | No matches and type is `[QE]`/`[DOCS]`/`[UX]`/`[CI]` | Note expected; delete stale story testplan if present |
 | Expected zero | No matching `Validated by` IDs and PRD Requirements contains "Discovered during UI design" | Note UI-design origin; delete stale story testplan if present |
 | Anomalous zero | No matches and type is `[DEV]`/`[UI]` (or unknown) | Warn; delete stale story testplan if present |
 
-No feature testplan: note and continue. If a story-level testplan already
-exists from a prior ingest, emit a warning: "Source testplan not found —
-story testplan may be stale. Verify test coverage before proceeding."
+No feature testplan (neither `validation-index.json` nor `testplan.md`):
+note and continue. If a story-level testplan already exists from a prior
+ingest, emit a warning: "Source testplan not found — story testplan may
+be stale. Verify test coverage before proceeding."
+
+When writing the story testplan from matches across multiple artifacts,
+include all matched TCs in a single `testplan.md` with a Source line
+listing each contributing artifact.
 
 ### Step 6: Explore the Codebase
 
