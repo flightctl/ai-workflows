@@ -86,16 +86,18 @@ researcher that an explicit storage policy (`lfs`, `external`, or `git`)
 is required before the next `/publish`, then follow the curation
 procedure from `/handoff` Step 5.
 
-**Provenance capture.** After all textual and screenshot changes are
-written to `05-handoff.md` and the manifest, capture provenance:
+### Step 4: Consistency Check
+
+**Provenance capture (unconditional).** After all textual and screenshot
+changes are written to `05-handoff.md` and the manifest (Steps 3 and
+3a), capture provenance regardless of whether the revision involved
+screenshots. Text-only revisions must also capture provenance:
 
 Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 `WORKFLOW=ux-design`, `ISSUE_KEY={issue-key}`, `PHASE=revise`,
 `AUTHORING_MODE=skill`.
 
-### Step 4: Consistency Check
-
-After applying changes, verify:
+After capturing provenance, verify:
 - Do acceptance criteria still trace to research findings?
 - Does the component mapping still align with the prototype?
 - Are interaction specs consistent with evaluation findings?

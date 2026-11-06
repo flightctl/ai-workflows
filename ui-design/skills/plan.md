@@ -94,10 +94,13 @@ Before writing, create a mental map. If `HAS_HANDOFF` is true:
 If `HAS_SCREENSHOTS` is true or `partial`, cite inspected screenshot
 observations from `01-context.md` for layout and visible-state decisions:
 
-- **Cite verified images** with `[Screenshot: SS-N]`. For `mismatched`
-  or `unverified` images that the user explicitly accepted, cite as
-  `[Screenshot: SS-N — accepted-unverified]` so the plan reader knows
-  the visual evidence may not reflect the current published state.
+- **Cite verified images** with `[Screenshot: SS-N]` only when the
+  inspection recorded BOTH `identity: verified` AND all revision
+  bindings `matched` (see Notes column). For images with `mismatched`
+  or `unknown` bindings, or `mismatched`/`unverified` identity, that
+  the user explicitly accepted, cite as
+  `[Screenshot: SS-N — accepted-unverified]`. Do not re-inspect images;
+  use the recorded status and Notes from `01-context.md`.
   Do not cite `unavailable` or `lfs-unresolved` images.
 - **Additive evidence** (visual detail not in prose): verified
   `[Screenshot: SS-N — additive: {detail}]`; accepted-unverified

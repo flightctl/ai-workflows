@@ -214,6 +214,24 @@ intact for the reconciliation check in Step 6; persist `none` only after
 a successful commit+push. Proceed to Step 6 without prompting for a
 storage policy or touching asset paths.
 
+**Inverse mismatch guard.** When the handoff's Screenshot Index says
+"None" (or selects text-only) but the authoring manifest at
+`{source_repo_root}/.artifacts/ux-design/{issue-key}/screenshot-manifest.json`
+exists and is **nonempty** (contains screenshot entries), stop and ask
+the researcher to reconcile before publishing:
+
+*"The handoff declares no screenshots (Screenshot Index: None), but the
+authoring manifest contains {N} image entries. This mismatch can
+retain stale assets in the published artifact. Please either:
+(a) update the handoff to reference the manifest images, or
+(b) clear the authoring manifest to confirm text-only publication."*
+
+Do not automatically delete manifest entries or images. Do not confuse
+the **authoring** manifest (in `.artifacts/ux-design/{issue-key}/`)
+with a prior **published** consumer manifest (in the docs repo, used
+for legitimate final-image cleanup in Step 6). Wait for the
+researcher's choice before proceeding.
+
 When the handoff contains screenshot references, determine how assets
 will be stored. The explicit repository or researcher policy is
 authoritative — do not infer storage mode from filesystem configuration

@@ -14,6 +14,7 @@ observe the actual design assets.
 |-----------|----------|-------------|
 | HANDOFF_DIR | Yes | Absolute path to the directory containing the published handoff |
 | MANIFEST_PATH | Yes | Absolute path to the published `screenshot-manifest.json` |
+| HANDOFF_FILE | No | Path to the handoff file — used to read the Screenshot Index for ID accounting |
 
 ## Procedure
 
@@ -86,7 +87,51 @@ For each resolved image (local file or fetched external):
    whether to proceed with partial/text-only context or wait for full
    image access.
 
-5. **Check revision binding.** Record the manifest's `context_revision`
-   and `prototype_iteration`. If these differ from the handoff's
-   metadata header, warn the user that screenshots may be from a
-   different evaluation cycle.
+5. **Check revision binding (separate from identity).** Byte-identity
+   verification (step 3.1) and revision-binding validity are
+   independent checks — a verified SHA must not erase a binding
+   mismatch.
+
+   Read the manifest's top-level `context_revision` and
+   `prototype_iteration` (the actual published fields). Read the
+   handoff's metadata header for its declared revision/iteration. For
+   each image, record:
+
+   | Binding | Expected (handoff header) | Actual (manifest) | Match |
+   |---------|--------------------------|-------------------|-------|
+   | `context_revision` | {from header} | {from manifest} | `matched` / `mismatched` / `unknown` |
+   | `prototype_iteration` | {from header} | {from manifest} | `matched` / `mismatched` / `unknown` |
+
+   Record binding status in the Notes column of the per-image schema
+   (keeping 9 columns). `unknown` means the field is absent from the
+   manifest or header. An image is eligible for **unqualified verified
+   citation** (`[Screenshot: SS-N]`) only when BOTH byte identity is
+   `verified` AND all bindings are `matched`. A verified SHA with
+   `mismatched` or `unknown` bindings requires explicit user acceptance
+   and must be cited as `[Screenshot: SS-N — accepted-unverified]`.
+   The plan phase must not re-inspect images to apply citation rules;
+   it uses the recorded status and Notes.
+
+### 4. Account for every declared index ID
+
+When `{HANDOFF_FILE}` is provided, read the handoff's **Screenshot
+Index** section and collect all declared `SS-N` IDs. Map each declared
+ID to its actual image embed (`![...](...)`  reference) in the handoff
+body using the ID's declared ref path, not just the presence of the
+ID text.
+
+- **IDs with matching embeds:** these are the images processed in
+  steps 2–3 above.
+- **IDs without embeds:** record each as `status: unavailable` with
+  `notes: "declared in index but no matching embed found"`. Include
+  these in aggregate totals.
+
+Report the full accounting:
+- **Total declared:** count of IDs in the Screenshot Index
+- **Embeds found:** count with matching image embeds
+- **Missing embeds:** count without embeds (list the IDs)
+
+If any IDs have missing embeds, warn the user and prompt: repair the
+handoff to add the missing embeds, or explicitly authorize partial
+continuation (text-only for those IDs). Never silently omit a declared
+ID or claim all images were inspected when embeds are missing.

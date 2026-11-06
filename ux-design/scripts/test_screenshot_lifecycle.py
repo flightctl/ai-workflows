@@ -292,10 +292,10 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
         step8a = content.split("### Step 8a:", 1)[1].split("### Step 9", 1)[0]
         # Normalize whitespace for cross-line assertions
         flat = " ".join(step8a.split())
-        # Confirm path: write content, delete .prev and temp
-        self.assertIn("write compiled content to `01-context.md`", flat)
-        self.assertIn("01-context.md.prev", flat)
-        # Decline path: discard content, delete .prev and temp, preserve
+        # Confirm path: write content, delete backup and temp
+        self.assertIn("write compiled content to `{CONTEXT_PATH}`", flat)
+        self.assertIn("{BACKUP_PATH}", flat)
+        # Decline path: discard content, delete backup and temp, preserve
         self.assertIn("discard compiled content", flat)
         self.assertIn("temp file", flat)
         self.assertIn("preserved", flat)
@@ -430,6 +430,198 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
         """Item 7: publish checks workflow-specific config first."""
         content = _read("ux-design/skills/publish.md")
         self.assertIn("ux-design/config.json` first", content)
+
+    # =================================================================
+    # Finding 1: Canonical workspace paths resolved once before use
+    # =================================================================
+
+    def test_ingest_resolves_workspace_paths_once(self) -> None:
+        """Finding 1: ingest defines ARTIFACT_DIR/CONTEXT_PATH/BACKUP_PATH
+        once in Step 2a and uses them in Step 8a."""
+        content = _read("ui-design/skills/ingest.md")
+        step2a = content.split("### Step 2a:", 1)[1].split("### Step 3", 1)[0]
+        # Path definitions exist in Step 2a
+        self.assertIn("ARTIFACT_DIR", step2a)
+        self.assertIn("CONTEXT_PATH", step2a)
+        self.assertIn("BACKUP_PATH", step2a)
+        # Paths are workspace-relative, no absolute prefix required
+        self.assertIn("workspace-relative", step2a)
+        self.assertNotIn("git rev-parse --show-toplevel", step2a)
+        # Step 8a uses the resolved path variables
+        step8a = content.split("### Step 8a:", 1)[1].split("### Step 9", 1)[0]
+        self.assertIn("{CONTEXT_PATH}", step8a)
+        self.assertIn("{BACKUP_PATH}", step8a)
+        # Non-Jira workspace-id is supported (no Jira key prerequisite)
+        self.assertNotIn("must be a Jira", step2a)
+
+    # =================================================================
+    # Finding 2: Every declared Screenshot Index ID accounted for
+    # =================================================================
+
+    def test_inspection_recipe_index_accounting(self) -> None:
+        """Finding 2: recipe accounts for every declared index ID against
+        actual embeds, records missing embeds, and prompts repair."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        flat = " ".join(content.split())
+        # Has the index-accounting step
+        self.assertIn("Account for every declared index ID", flat)
+        # Matches via declared ref, not just ID text
+        self.assertIn("declared ref", flat)
+        # Missing embeds recorded as unavailable
+        self.assertIn("declared in index but no matching embed found", flat)
+        # Reports aggregate totals
+        self.assertIn("Total declared", flat)
+        self.assertIn("Embeds found", flat)
+        self.assertIn("Missing embeds", flat)
+        # Prompts repair or explicit authorization
+        self.assertIn("repair the handoff", flat)
+        self.assertIn("authorize partial", flat)
+        # Never silently omits
+        self.assertIn("Never silently omit", flat)
+
+    def test_inspection_recipe_has_handoff_file_param(self) -> None:
+        """Finding 2: recipe accepts HANDOFF_FILE for index reading."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        # Parameter table includes HANDOFF_FILE
+        param_section = content.split("## Parameters", 1)[1].split(
+            "## Procedure", 1
+        )[0]
+        self.assertIn("HANDOFF_FILE", param_section)
+
+    def test_ingest_passes_handoff_file_to_recipe(self) -> None:
+        """Finding 2: ingest passes HANDOFF_FILE when calling recipe."""
+        content = _read("ui-design/skills/ingest.md")
+        section = content.split("screenshot-inspection.md", 1)[1].split(
+            "- **If none**", 1
+        )[0]
+        self.assertIn("HANDOFF_FILE", section)
+
+    # =================================================================
+    # Finding 3: Byte identity separate from revision-binding validity
+    # =================================================================
+
+    def test_inspection_recipe_binding_separation(self) -> None:
+        """Finding 3: recipe checks revision binding separately from
+        byte identity with structured matched/mismatched/unknown status."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        binding_section = content.split(
+            "Check revision binding (separate from identity)", 1
+        )
+        self.assertEqual(
+            len(binding_section), 2,
+            "Missing 'separate from identity' binding section",
+        )
+        binding = binding_section[1].split("### 4.", 1)[0]
+        flat = " ".join(binding.split())  # normalize whitespace
+        # Uses actual manifest fields
+        self.assertIn("context_revision", flat)
+        self.assertIn("prototype_iteration", flat)
+        # Records match status
+        self.assertIn("matched", flat)
+        self.assertIn("mismatched", flat)
+        self.assertIn("unknown", flat)
+        # Verified SHA must not erase binding mismatch
+        self.assertIn("verified SHA must not erase a binding mismatch", flat)
+        # Eligibility rule: both required for unqualified citation
+        self.assertIn("byte identity", flat)
+        self.assertIn("bindings are `matched`", flat)
+        # Explicit acceptance required for mismatched bindings
+        self.assertIn("accepted-unverified", flat)
+        # Plan must not re-inspect
+        self.assertIn("must not re-inspect", flat)
+
+    def test_plan_citation_requires_both_identity_and_binding(self) -> None:
+        """Finding 3: plan requires BOTH identity verified AND bindings
+        matched for unqualified [Screenshot: SS-N] citation."""
+        content = _read("ui-design/skills/plan.md")
+        cite_section = content.split(
+            "Cite verified images", 1
+        )[1].split("Additive evidence", 1)[0]
+        self.assertIn("identity: verified", cite_section)
+        self.assertIn("bindings `matched`", cite_section)
+        self.assertIn("Do not re-inspect", cite_section)
+
+    # =================================================================
+    # Finding 4: Provenance gate before text extraction and inspection
+    # =================================================================
+
+    def test_ingest_provenance_before_inspection(self) -> None:
+        """Finding 4: provenance check runs before screenshot inspection
+        and text extraction in the handoff loading section."""
+        content = _read("ui-design/skills/ingest.md")
+        handoff_section = content.split("#### 5.3:", 1)[1].split(
+            "#### 5.4:", 1
+        )[0]
+        prov_pos = handoff_section.find("Provenance freshness check")
+        inspect_pos = handoff_section.find("Screenshot inspection")
+        extract_pos = handoff_section.find("Extract:")
+        self.assertGreater(prov_pos, -1, "Provenance check missing")
+        self.assertGreater(inspect_pos, -1, "Screenshot inspection missing")
+        self.assertGreater(extract_pos, -1, "Extract section missing")
+        # Provenance must come before both inspection and extraction
+        self.assertLess(
+            prov_pos, inspect_pos,
+            "Provenance check must precede screenshot inspection",
+        )
+        self.assertLess(
+            prov_pos, extract_pos,
+            "Provenance check must precede text extraction",
+        )
+
+    def test_ingest_provenance_skip_excludes_evidence(self) -> None:
+        """Finding 4: if user skips provenance, both text AND screenshot
+        observations are excluded from context."""
+        content = _read("ui-design/skills/ingest.md")
+        gate = content.split("Provenance freshness check (gate)", 1)[1].split(
+            "Screenshot inspection", 1
+        )[0]
+        flat = " ".join(gate.split())
+        # Both text and screenshot excluded
+        self.assertIn("text AND screenshot observations", flat)
+        # Clear carried-over observations
+        self.assertIn("carried-over UX observations", flat)
+        # Plan cannot cite skipped evidence
+        self.assertIn("plan cannot cite skipped UX evidence", flat)
+
+    # =================================================================
+    # Finding 5: Inverse text-only/authoring-manifest mismatch guard
+    # =================================================================
+
+    def test_publish_inverse_mismatch_guard(self) -> None:
+        """Finding 5: publish stops when Screenshot Index says None but
+        authoring manifest is nonempty, asks to reconcile."""
+        content = _read("ux-design/skills/publish.md")
+        step5 = content.split("### Step 5:", 1)[1].split("### Step 6:", 1)[0]
+        self.assertIn("Inverse mismatch guard", step5)
+        self.assertIn("reconcile before publishing", step5)
+        # Does not auto-delete
+        self.assertIn("Do not automatically delete", step5)
+        # Distinguishes authoring vs published consumer manifest
+        self.assertIn("authoring", step5)
+        self.assertIn("published", step5)
+
+    # =================================================================
+    # Finding 6: Unconditional provenance capture in revise
+    # =================================================================
+
+    def test_revise_provenance_unconditional(self) -> None:
+        """Finding 6: provenance capture is under Step 4 (unconditional),
+        not inside Step 3a (conditional screenshot branch)."""
+        content = _read("ux-design/skills/revise.md")
+        # Provenance is NOT in Step 3a
+        step3a = content.split("### Step 3a:", 1)[1].split("### Step 4:", 1)[0]
+        self.assertNotIn("capture-provenance-event.md", step3a)
+        # Provenance IS in Step 4
+        step4 = content.split("### Step 4:", 1)[1].split("### Step 5:", 1)[0]
+        self.assertIn("capture-provenance-event.md", step4)
+        # Marked as unconditional
+        self.assertIn("unconditional", step4)
+        # Text-only revisions must also capture provenance
+        self.assertIn("Text-only revisions must also capture provenance", step4)
+        # Preserves recipe args
+        self.assertIn("WORKFLOW=ux-design", step4)
+        self.assertIn("PHASE=revise", step4)
+        self.assertIn("AUTHORING_MODE=skill", step4)
 
 
 # ===================================================================

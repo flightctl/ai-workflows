@@ -99,10 +99,22 @@ delete or overwrite other phase artifacts during ingest.
 mkdir -p ".artifacts/ui-design/{workspace-id}"
 ```
 
-### Step 2a: Check for Prior Ingest
+### Step 2a: Resolve Workspace Paths and Check for Prior Ingest
 
-If `.artifacts/ui-design/{workspace-id}/01-context.md` already exists,
-this is a re-invocation. Copy it to `01-context.md.prev` for Step 8a.
+Resolve these paths once and use them for all subsequent operations
+(backup, write, cleanup, diff) regardless of `cwd`:
+
+```
+ARTIFACT_DIR  = .artifacts/ui-design/{workspace-id}
+CONTEXT_PATH  = {ARTIFACT_DIR}/01-context.md
+BACKUP_PATH   = {ARTIFACT_DIR}/01-context.md.prev
+```
+
+These are workspace-relative — do not prepend machine-specific
+absolute prefixes or require a Git root.
+
+If `{CONTEXT_PATH}` already exists, this is a re-invocation. Copy it
+to `{BACKUP_PATH}` for Step 8a.
 
 ### Step 3: Read the [UI] Story
 
@@ -265,16 +277,26 @@ fall back to `05-handoff.md` (the private artifact name). If multiple
 match, present them to the user and ask which is current. If none,
 proceed without a handoff (it is optional).
 
-If found, read it.
+If found, read candidate text to locate the provenance footer (reading
+the file is okay; extracting content or opening images is not until
+provenance is confirmed).
+
+**Provenance freshness check (gate).** Look for
+`<!-- ai-workflow-provenance:` in the handoff. If absent, warn the user
+and ask whether to proceed or wait. If the user chooses **wait or
+skip**: exclude this handoff's text AND screenshot observations from
+newly compiled context, clear any provisional or carried-over UX
+observations, record the deferral reason, and proceed without handoff.
+The plan cannot cite skipped UX evidence.
 
 **Screenshot inspection.** Check the handoff's **Screenshot Index**
 for image references (`SS-N` IDs).
 
 - **If referenced:** Read and follow
   `../../_shared/recipes/screenshot-inspection.md` with
-  `HANDOFF_DIR` = the handoff's directory and
-  `MANIFEST_PATH` = `{HANDOFF_DIR}/screenshot-manifest.json`.
-  Warn if manifest bindings differ from the handoff header.
+  `HANDOFF_DIR` = the handoff's directory,
+  `MANIFEST_PATH` = `{HANDOFF_DIR}/screenshot-manifest.json`, and
+  `HANDOFF_FILE` = the handoff file path.
   Set Screenshots status: `inspected` (all), `partial` (some), or
   `unavailable` (none). Preserve per-image status and user decisions.
 
@@ -286,10 +308,6 @@ for image references (`SS-N` IDs).
 
 - **If deferred** (user authorizes skipping inspection): Set
   `HAS_SCREENSHOTS = deferred`. Note reduced visual fidelity downstream.
-
-**Provenance freshness check.** Look for `<!-- ai-workflow-provenance:`
-in the handoff. If absent, warn the user and ask whether to proceed or
-wait. If they wait, skip the handoff.
 
 Extract: Component Mapping, State Matrix, Interaction Specs, Data
 Annotations, Persona-Specific Views, Accessibility Requirements,
@@ -386,8 +404,8 @@ non-Jira input (Step 1), fill the Story Summary with substitute values:
 where `{source description}` is the path or label the user provided.
 Skip the Linked Stories table if no Jira data is available.
 
-If this is a first invocation, write
-`.artifacts/ui-design/{workspace-id}/01-context.md` with this structure:
+If this is a first invocation, write `{CONTEXT_PATH}` with this
+structure:
 
 ```markdown
 # UI Design Context — {workspace-id}
@@ -482,8 +500,7 @@ If this is a first invocation, write
 
 ### Component Patterns
 
-{How components are organized in this project. Directory structure,
- naming conventions, composition patterns.}
+{Directory structure, naming conventions, composition patterns.}
 
 ### Affected Components
 
@@ -497,23 +514,19 @@ If this is a first invocation, write
 
 ### Hook Patterns
 
-{Existing custom hooks relevant to this work. Data-fetching patterns,
- cache strategies, error handling conventions.}
+{Custom hooks relevant to this work. Data-fetching, caching, errors.}
 
 ### State Management Patterns
 
-{How state is organized — slices/stores, selectors, actions. What
- belongs in global state vs. local state in this project.}
+{Slices/stores, selectors, actions. Global vs. local state.}
 
 ### Route Structure
 
-{Current routing setup relevant to the story — file-based or config-based,
- lazy loading patterns, route guard patterns.}
+{Routing setup — file-based or config-based, lazy loading, guards.}
 
 ### Testing Conventions
 
-{Test framework, directory structure, naming conventions, what existing
- component tests look like, coverage expectations.}
+{Framework, directory structure, naming conventions, coverage.}
 
 ## Backend API Context
 
@@ -536,33 +549,31 @@ If this is a first invocation, write
 
 ### API Type Definitions
 
-{Key TypeScript interfaces or type definitions for API responses that
- the frontend uses. Show structure, not full code.}
+{Key TypeScript interfaces or types for API responses the frontend
+ uses. Show structure, not full code.}
 
 ## Constraints and Considerations
 
-{Technical constraints discovered during exploration — restricted imports,
- generated files, design system requirements, performance constraints,
- browser support, existing patterns the design should follow.}
+{Restricted imports, generated files, design system requirements,
+ performance constraints, browser support, existing patterns.}
 
 ## Open Questions
 
-{Things you couldn't determine from the codebase or upstream artifacts
- that the plan phase will need to resolve.}
+{Items unresolved from codebase or upstream artifacts that /plan needs.}
 ```
 
 ### Step 8a: Diff Against Prior Ingest (Re-invocation Only)
 
-If Step 2a created a `.prev` file, diff it against the compiled content
-(acceptance criteria, upstream artifact changes, API endpoints, affected
-components). Check for
-downstream artifacts (`02-ui-design.md`, `03-api-findings.md`,
-`sync-manifest.json`, etc.) and warn about sync implications.
-Present the diff and wait for confirmation.
-**Confirm:** write compiled content to `01-context.md`, delete
-`01-context.md.prev` and any temp file.
-**Decline:** discard compiled content, delete `.prev` and temp files,
-report `01-context.md` preserved, and stop.
+If Step 2a created `{BACKUP_PATH}`, diff it against the compiled
+content (acceptance criteria, upstream artifact changes, API endpoints,
+affected components). Check for downstream artifacts
+(`02-ui-design.md`, `03-api-findings.md`, `sync-manifest.json`, etc.)
+and warn about sync implications. Present the diff and wait for
+confirmation.
+**Confirm:** write compiled content to `{CONTEXT_PATH}`, delete
+`{BACKUP_PATH}` and any temp file.
+**Decline:** discard compiled content, delete `{BACKUP_PATH}` and temp
+files, report `{CONTEXT_PATH}` preserved, and stop.
 
 ### Step 9: Report to User
 
