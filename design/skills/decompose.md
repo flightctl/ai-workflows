@@ -45,9 +45,15 @@ VALIDATION_INDEX_SCRIPT="${HOME}/.ai-workflows/design/scripts/validation_index.p
 python3 "$VALIDATION_INDEX_SCRIPT" resolve --local ".artifacts/design/{issue-key}"
 ```
 
-The command outputs a JSON array of artifact entries. Read each
-listed file. If the command exits non-zero (no index), fall back to
-reading `04-testplan.md` directly (legacy single-testplan behavior).
+If the command exits 0, parse the JSON array of artifact entries and
+read each listed file. The array may be empty `[]` if no validation
+artifacts exist. If the command exits non-zero, a validation error
+occurred (malformed index, missing listed files) — **stop and report
+the error.** Do not fall back to legacy behavior when a malformed
+index is present.
+
+If the result is empty and `04-testplan.md` exists (legacy layout),
+fall back to reading `04-testplan.md` directly.
 
 If the design document doesn't exist, tell the user that `/draft` should be
 run first.

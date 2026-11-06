@@ -239,12 +239,14 @@ artifact set:
 python3 "$VALIDATION_INDEX_SCRIPT" resolve --local ".artifacts/design/{issue-key}"
 ```
 
-If the command outputs a JSON array, use it as the current set. If it
-exits non-zero (no index and no `04-testplan.md`), the current set is
-empty.
+If the command exits 0, parse the JSON array output as the current
+set (may be empty `[]`). If the command exits non-zero, a
+validation error occurred (malformed index, missing listed files) —
+**stop and report the error to the user.** Do not fall back to
+legacy behavior when a malformed index is present.
 
-If `validation-index.json` does not exist but `04-testplan.md` does
-(legacy), build a normalized index first:
+If the current set is empty (`[]`) and `04-testplan.md` exists
+(legacy layout without an index), build a normalized index first:
 
 ```bash
 python3 "$VALIDATION_INDEX_SCRIPT" build-legacy ".artifacts/design/{issue-key}" ".artifacts/design/{issue-key}/validation-index.json"
@@ -287,6 +289,9 @@ before copying. A listed artifact whose local file is missing is an
 error — stop and report it to the user. Do not proceed with partial
 publication.
 
+Verify that no source file or destination is a symlink. If a
+symlink is detected, stop and report the error.
+
 Copy each artifact to the docs repo:
 
 ```bash
@@ -308,9 +313,13 @@ python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/vali
 git -C "{docs_repo_path}" add "{release}/{feature}/validation-index.json"
 ```
 
-**Step 4e: Remove stale artifacts.** If a previous snapshot was
-captured in Step 4b, compare it against the newly written published
-index to find retired artifacts:
+**Step 4e: Remove stale artifacts.** Compute the change set by
+comparing the previous snapshot (Step 4b) against the current set.
+The comparison must use the new published index when one was written
+in Step 4d, or an empty artifact list when the current set is empty.
+
+**If the current set is non-empty** and a previous snapshot exists,
+diff using the newly written published index:
 
 ```bash
 python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-published-index.json" "{docs_repo_path}/{release}/{feature}/validation-index.json"
@@ -326,13 +335,21 @@ git -C "{docs_repo_path}" rm -- "{release}/{feature}/{stale-filename}"
 Do not remove files outside the feature directory or files not
 listed in the previous set.
 
-If the current set is empty and the previous set had artifacts, also
-remove the published `validation-index.json` so no stale index
-remains:
+**If the current set is empty** and the previous set had artifacts,
+all previously published artifacts are stale. For each artifact in
+the previous snapshot (`prev-published-index.json`), remove its
+file and the published index:
+
+```bash
+git -C "{docs_repo_path}" rm -- "{release}/{feature}/{previous-artifact-file}"
+```
 
 ```bash
 git -C "{docs_repo_path}" rm -- "{release}/{feature}/validation-index.json"
 ```
+
+If no previous snapshot exists (first publish with no artifacts),
+no removal is needed.
 
 **Step 4f: Commit.** Commit with a message reflecting what was
 published:

@@ -341,12 +341,20 @@ satisfied:
 ### Step 8b: Test Plan Verification
 
 If `.artifacts/implement/{issue-key}/testplan.md` exists, independently
-verify that every test case has been implemented. This check re-derives
-the required TC ID list from `testplan.md` directly — it does NOT rely
-on the plan's task-to-TC-ID mappings or `/code`'s per-task reconciliation
-for determining which tests exist. The only information carried forward
-from the plan is the N/A rationale for test cases marked inapplicable.
-This is an intentional independent verification: if the plan's
+verify that every **automatable** test case has been implemented. Test
+cases marked with a `Qualification gate` marker in the story testplan
+are **not** candidates for unit/integration test generation — they
+require their designated execution environment and are tracked as
+external validation evidence. Exclude qualification-gate TCs from the
+coverage check; verify they are listed in the validation report's
+external evidence section instead.
+
+This check re-derives the required TC ID list from `testplan.md`
+directly — it does NOT rely on the plan's task-to-TC-ID mappings or
+`/code`'s per-task reconciliation for determining which tests exist.
+The only information carried forward from the plan is the N/A rationale
+for test cases marked inapplicable. This is an intentional independent
+verification: if the plan's
 bookkeeping or the code phase's gate drifted from reality, this step
 catches it.
 
