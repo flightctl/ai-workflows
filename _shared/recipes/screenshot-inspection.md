@@ -14,7 +14,7 @@ observe the actual design assets.
 |-----------|----------|-------------|
 | HANDOFF_DIR | Yes | Absolute path to the directory containing the published handoff |
 | MANIFEST_PATH | Yes | Absolute path to the published `screenshot-manifest.json` |
-| HANDOFF_FILE | No | Path to the handoff file — used to read the Screenshot Index for ID accounting |
+| HANDOFF_FILE | Yes | Path to the handoff file — required for Screenshot Index ID accounting |
 
 ## Procedure
 
@@ -103,28 +103,34 @@ For each resolved image (local file or fetched external):
    | `prototype_iteration` | {from header} | {from manifest} | `matched` / `mismatched` / `unknown` |
 
    Record binding status in the Notes column of the per-image schema
-   (keeping 9 columns). `unknown` means the field is absent from the
-   manifest or header. An image is eligible for **unqualified verified
-   citation** (`[Screenshot: SS-N]`) only when BOTH byte identity is
-   `verified` AND all bindings are `matched`. A verified SHA with
-   `mismatched` or `unknown` bindings requires explicit user acceptance
-   and must be cited as `[Screenshot: SS-N — accepted-unverified]`.
-   The plan phase must not re-inspect images to apply citation rules;
-   it uses the recorded status and Notes.
+   (keeping 9 columns) with the actual expected/actual values and
+   match status. Default missing fields to `unknown` — never treat an
+   absent binding as vacuously `matched`.
+
+   When any binding is `mismatched` or `unknown`, prompt the user
+   **per image** to accept or reject and persist the decision in
+   Notes (e.g., `binding: mismatched, ctx_rev expected=r3 actual=r2,
+   decision=accepted`). A verified SHA cannot clear a binding
+   mismatch. See §5 Eligibility for citation rules.
 
 ### 4. Account for every declared index ID
 
-When `{HANDOFF_FILE}` is provided, read the handoff's **Screenshot
-Index** section and collect all declared `SS-N` IDs. Map each declared
-ID to its actual image embed (`![...](...)`  reference) in the handoff
-body using the ID's declared ref path, not just the presence of the
-ID text.
+Read `{HANDOFF_FILE}`'s **Screenshot Index** section and collect all
+declared `SS-N` IDs. Map each declared ID to its actual image embed
+(`![...](...)` reference) in the handoff body using the ID's declared
+ref path, not just the presence of the ID text.
 
 - **IDs with matching embeds:** these are the images processed in
   steps 2–3 above.
-- **IDs without embeds:** record each as `status: unavailable` with
+- **IDs without embeds:** record each as a complete 9-column row with
+  `status: unavailable`, `identity: —`, `observation: —`,
+  `spec_match: —`, and
   `notes: "declared in index but no matching embed found"`. Include
-  these in aggregate totals.
+  these rows in the output and in aggregate totals.
+
+Run this accounting **before** computing the final aggregate status or
+eligibility. The total is the count of declared IDs, not the count of
+discovered embeds.
 
 Report the full accounting:
 - **Total declared:** count of IDs in the Screenshot Index
@@ -135,3 +141,21 @@ If any IDs have missing embeds, warn the user and prompt: repair the
 handoff to add the missing embeds, or explicitly authorize partial
 continuation (text-only for those IDs). Never silently omit a declared
 ID or claim all images were inspected when embeds are missing.
+
+### 5. Eligibility and citation rules
+
+Callers (e.g. `/plan`) read this section for citation policy; they
+must not rerun image inspection.
+
+| Condition | Eligibility | Citation form |
+|-----------|-------------|---------------|
+| `identity: verified` AND all bindings `matched` | verified | `[Screenshot: SS-N]` |
+| `identity: verified` but any binding `mismatched`/`unknown` | requires acceptance | `[Screenshot: SS-N — accepted-unverified]` |
+| `identity: mismatched` or `unverified`, user accepted | accepted-unverified | `[Screenshot: SS-N — accepted-unverified]` |
+| `identity: mismatched`/`unverified`, user rejected or not prompted | rejected/unavailable | Do not cite |
+| `status: unavailable`/`lfs-unresolved`/`fetch-failed` | unavailable | Do not cite |
+
+Rejected, deferred, or unavailable evidence must not be used for
+planning decisions — not merely given a different citation tag.
+Accepted-unverified evidence stays usable but always carries the
+qualified label.

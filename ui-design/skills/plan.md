@@ -94,13 +94,9 @@ Before writing, create a mental map. If `HAS_HANDOFF` is true:
 If `HAS_SCREENSHOTS` is true or `partial`, cite inspected screenshot
 observations from `01-context.md` for layout and visible-state decisions:
 
-- **Cite verified images** with `[Screenshot: SS-N]` only when the
-  inspection recorded BOTH `identity: verified` AND all revision
-  bindings `matched` (see Notes column). For images with `mismatched`
-  or `unknown` bindings, or `mismatched`/`unverified` identity, that
-  the user explicitly accepted, cite as
-  `[Screenshot: SS-N — accepted-unverified]`. Do not re-inspect images;
-  use the recorded status and Notes from `01-context.md`.
+- Follow the eligibility table in
+  `../../_shared/recipes/screenshot-inspection.md` §5 using the
+  recorded status and Notes from `01-context.md`. Do not re-inspect.
   Do not cite `unavailable` or `lfs-unresolved` images.
 - **Additive evidence** (visual detail not in prose): verified
   `[Screenshot: SS-N — additive: {detail}]`; accepted-unverified

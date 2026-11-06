@@ -101,8 +101,10 @@ mkdir -p ".artifacts/ui-design/{workspace-id}"
 
 ### Step 2a: Resolve Workspace Paths and Check for Prior Ingest
 
-Resolve these paths once and use them for all subsequent operations
-(backup, write, cleanup, diff) regardless of `cwd`:
+Resolve these paths once, anchored to Step 2's `mkdir -p` directory
+(the workflow workspace root). Store and reuse for all operations
+(backup, write, cleanup, diff, first/re-invocation) without
+re-evaluating against later exploration `cwd`:
 
 ```
 ARTIFACT_DIR  = .artifacts/ui-design/{workspace-id}
@@ -110,8 +112,8 @@ CONTEXT_PATH  = {ARTIFACT_DIR}/01-context.md
 BACKUP_PATH   = {ARTIFACT_DIR}/01-context.md.prev
 ```
 
-These are workspace-relative — do not prepend machine-specific
-absolute prefixes or require a Git root.
+Dynamic absolute resolution is fine; no machine-specific hardcoded
+prefix or Git-root requirement. Same values for non-Jira workspace-id.
 
 If `{CONTEXT_PATH}` already exists, this is a re-invocation. Copy it
 to `{BACKUP_PATH}` for Step 8a.
@@ -283,11 +285,14 @@ provenance is confirmed).
 
 **Provenance freshness check (gate).** Look for
 `<!-- ai-workflow-provenance:` in the handoff. If absent, warn the user
-and ask whether to proceed or wait. If the user chooses **wait or
-skip**: exclude this handoff's text AND screenshot observations from
-newly compiled context, clear any provisional or carried-over UX
-observations, record the deferral reason, and proceed without handoff.
-The plan cannot cite skipped UX evidence.
+and ask whether to proceed or wait.
+
+- **Proceed:** continue to Screenshot inspection below.
+- **Wait or skip:** mark handoff not-used, clear only newly
+  compiled/provisional UX data (prior `{CONTEXT_PATH}` stays
+  until Step 8a), record the deferral reason, **skip all remaining
+  5.3 work** (inspection + extraction). Plan cannot cite skipped
+  UX evidence.
 
 **Screenshot inspection.** Check the handoff's **Screenshot Index**
 for image references (`SS-N` IDs).
@@ -445,20 +450,16 @@ structure:
 
 - **Design:** {resolved path in docs repo}
 
-{Summary of design sections relevant to the UI — API changes, data model,
- interface changes, architecture, RBAC/tenancy. Reference specific section
- numbers (§4.3, §5, etc.) so /plan can cite them.}
+{Design sections relevant to UI — API, data model, interfaces,
+ architecture, RBAC. Reference §numbers for /plan.}
 
 ### UX Handoff Summary
 
 - **Handoff:** {resolved path in docs repo, or "Not available"}
 
-{If available: summary of component mapping, key interaction specs, data
- annotation source types, persona-specific views, accessibility
- requirements, and acceptance criteria count.
-
- If not available: "No UX handoff artifact. This [UI] story operates from
- PRD and design document context only."}
+{If available: component mapping, interaction specs, data annotations,
+ persona views, accessibility, AC count. If not: "No UX handoff
+ artifact. This [UI] story operates from PRD and design context only."}
 
 ### Screenshot Observations
 
@@ -542,10 +543,9 @@ structure:
 
 #### {Method} {path}
 - **Purpose:** {what it does}
-- **Request:** {params, query, body — key fields only}
+- **Request:** {params, query, body — key fields}
 - **Response:** {key fields and types}
-- **Pagination:** {if applicable — cursor, offset, page-based}
-- **Notes:** {filtering, sorting, known limitations}
+- **Pagination/Notes:** {cursor/offset, filtering, limitations}
 
 ### API Type Definitions
 

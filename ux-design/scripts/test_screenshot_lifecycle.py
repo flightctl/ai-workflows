@@ -232,15 +232,15 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
         )
 
     def test_plan_accepted_unverified_label(self) -> None:
-        """Plan uses accepted-unverified citation for both ordinary and additive."""
+        """Plan references recipe §5 eligibility and uses additive forms."""
         content = _read("ui-design/skills/plan.md")
         # Scoped to the citation instructions section
         section = content.split(
             "If `HAS_SCREENSHOTS` is true or `partial`", 1
         )[1].split("If `HAS_SCREENSHOTS` is `deferred`", 1)[0]
-        self.assertIn("[Screenshot: SS-N]", section)
-        self.assertIn("accepted-unverified", section)
-        self.assertIn("[Screenshot: SS-N — accepted-unverified]", section)
+        # References recipe eligibility table
+        self.assertIn("screenshot-inspection.md", section)
+        self.assertIn("eligibility", section)
         # Additive forms: both verified and accepted-unverified
         self.assertIn("[Screenshot: SS-N — additive: {detail}]", section)
         self.assertIn(
@@ -250,6 +250,11 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
         self.assertIn(
             "Do not cite `unavailable` or `lfs-unresolved` images.", section
         )
+        # Recipe has the full citation forms
+        recipe = _read("_shared/recipes/screenshot-inspection.md")
+        recipe_elig = recipe.split("Eligibility and citation rules", 1)[1]
+        self.assertIn("[Screenshot: SS-N]", recipe_elig)
+        self.assertIn("accepted-unverified", recipe_elig)
 
     def test_ingest_token_budget(self) -> None:
         content = _read("ui-design/skills/ingest.md")
@@ -437,22 +442,25 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
 
     def test_ingest_resolves_workspace_paths_once(self) -> None:
         """Finding 1: ingest defines ARTIFACT_DIR/CONTEXT_PATH/BACKUP_PATH
-        once in Step 2a and uses them in Step 8a."""
+        once in Step 2a, anchored to Step 2, used in Step 8a."""
         content = _read("ui-design/skills/ingest.md")
         step2a = content.split("### Step 2a:", 1)[1].split("### Step 3", 1)[0]
         # Path definitions exist in Step 2a
         self.assertIn("ARTIFACT_DIR", step2a)
         self.assertIn("CONTEXT_PATH", step2a)
         self.assertIn("BACKUP_PATH", step2a)
-        # Paths are workspace-relative, no absolute prefix required
-        self.assertIn("workspace-relative", step2a)
+        # Anchored to Step 2 workspace root, no hardcoded prefix
+        flat2a = " ".join(step2a.split())
+        self.assertIn("workspace root", flat2a)
         self.assertNotIn("git rev-parse --show-toplevel", step2a)
+        # No re-evaluation against later cwd
+        self.assertIn("re-evaluating", flat2a)
         # Step 8a uses the resolved path variables
         step8a = content.split("### Step 8a:", 1)[1].split("### Step 9", 1)[0]
         self.assertIn("{CONTEXT_PATH}", step8a)
         self.assertIn("{BACKUP_PATH}", step8a)
-        # Non-Jira workspace-id is supported (no Jira key prerequisite)
-        self.assertNotIn("must be a Jira", step2a)
+        # Non-Jira workspace-id supported
+        self.assertIn("non-Jira workspace-id", flat2a)
 
     # =================================================================
     # Finding 2: Every declared Screenshot Index ID accounted for
@@ -516,30 +524,37 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
         # Uses actual manifest fields
         self.assertIn("context_revision", flat)
         self.assertIn("prototype_iteration", flat)
-        # Records match status
+        # Records match status per binding
         self.assertIn("matched", flat)
         self.assertIn("mismatched", flat)
         self.assertIn("unknown", flat)
-        # Verified SHA must not erase binding mismatch
-        self.assertIn("verified SHA must not erase a binding mismatch", flat)
-        # Eligibility rule: both required for unqualified citation
-        self.assertIn("byte identity", flat)
-        self.assertIn("bindings are `matched`", flat)
-        # Explicit acceptance required for mismatched bindings
-        self.assertIn("accepted-unverified", flat)
-        # Plan must not re-inspect
-        self.assertIn("must not re-inspect", flat)
+        # Verified SHA cannot clear binding mismatch
+        self.assertIn("verified SHA", flat)
+        self.assertIn("cannot clear a binding mismatch", flat)
+        # Default missing to unknown, never vacuously matched
+        self.assertIn("vacuously `matched`", flat)
+        # Explicit per-image accept/reject prompt with persisted decision
+        self.assertIn("prompt the user", flat)
+        self.assertIn("per image", flat)
+        self.assertIn("persist the decision", flat)
+        # References eligibility rules
+        self.assertIn("Eligibility", flat)
 
     def test_plan_citation_requires_both_identity_and_binding(self) -> None:
-        """Finding 3: plan requires BOTH identity verified AND bindings
-        matched for unqualified [Screenshot: SS-N] citation."""
+        """Finding 3: plan references recipe eligibility (which requires
+        BOTH identity verified AND bindings matched) and does not re-inspect."""
         content = _read("ui-design/skills/plan.md")
-        cite_section = content.split(
-            "Cite verified images", 1
-        )[1].split("Additive evidence", 1)[0]
-        self.assertIn("identity: verified", cite_section)
-        self.assertIn("bindings `matched`", cite_section)
-        self.assertIn("Do not re-inspect", cite_section)
+        section = content.split(
+            "If `HAS_SCREENSHOTS` is true or `partial`", 1
+        )[1].split("If `HAS_SCREENSHOTS` is `deferred`", 1)[0]
+        # Plan delegates to recipe §5 eligibility
+        self.assertIn("eligibility", section)
+        self.assertIn("Do not re-inspect", section)
+        # Recipe §5 has the actual identity+binding rule
+        recipe = _read("_shared/recipes/screenshot-inspection.md")
+        elig = recipe.split("Eligibility and citation rules", 1)[1]
+        self.assertIn("identity: verified", elig)
+        self.assertIn("bindings `matched`", elig)
 
     # =================================================================
     # Finding 4: Provenance gate before text extraction and inspection
@@ -573,15 +588,15 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
         observations are excluded from context."""
         content = _read("ui-design/skills/ingest.md")
         gate = content.split("Provenance freshness check (gate)", 1)[1].split(
-            "Screenshot inspection", 1
+            "**Screenshot inspection.**", 1
         )[0]
         flat = " ".join(gate.split())
-        # Both text and screenshot excluded
-        self.assertIn("text AND screenshot observations", flat)
-        # Clear carried-over observations
-        self.assertIn("carried-over UX observations", flat)
+        # Wait/skip branch: marks handoff not-used
+        self.assertIn("not-used", flat)
+        # Skips all remaining 5.3 work (inspection + extraction)
+        self.assertIn("skip all remaining 5.3 work", flat)
         # Plan cannot cite skipped evidence
-        self.assertIn("plan cannot cite skipped UX evidence", flat)
+        self.assertIn("Plan cannot cite skipped UX evidence", flat)
 
     # =================================================================
     # Finding 5: Inverse text-only/authoring-manifest mismatch guard
