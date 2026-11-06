@@ -763,16 +763,22 @@ def _safe_write_output(dst: Path, content: str,
     Returns 0 on success, 1 on error (with message printed).
 
     When *trusted_base* is given (e.g. the operator-configured docs
-    repo root), it is resolved to canonicalize OS-level symlinks
-    (``/home`` → ``/var/home`` on Silverblue) and the ancestor walk
-    stops there.  Symlink components **below** the base are still
-    rejected.  Without *trusted_base*, every ancestor up to the
-    filesystem root is checked (strict default).
+    repo root or project repo root), the ancestor walk uses **lexical**
+    path comparison to determine the boundary.  Components *at* the
+    base or *above* it are operator-trusted and not checked for
+    symlinks.  Symlink components strictly **below** the base are
+    always rejected — even when they resolve back to the base itself
+    (e.g. ``base/selflink → base``).  A resolved-destination
+    containment check also rejects paths that escape the base via
+    symlinks pointing outside it.  OS-level aliases above the base
+    (e.g. ``/home`` → ``/var/home``) are tolerated because the walk
+    never reaches them.  Without *trusted_base*, every ancestor up to
+    the filesystem root is checked (strict default).
 
     Safety checks:
     - Rejects symlink at the final destination path.
     - Walks ancestors of dst from dst.parent upward (to
-      *trusted_base* or the filesystem root).
+      *trusted_base* or the filesystem root) using lexical boundary.
     - Uses O_CREAT|O_WRONLY|O_TRUNC with O_NOFOLLOW to reject a
       symlink final target at open time.
     """
@@ -785,13 +791,16 @@ def _safe_write_output(dst: Path, content: str,
         return 1
 
     # Walk ancestors checking for symlinks.
-    # When trusted_base is given, resolve it (handles OS-level
-    # symlinks above the base, e.g. /home -> /var/home on
-    # Silverblue) and stop the walk there — ancestors above an
-    # operator-configured base are not checked.
+    # When trusted_base is given, use LEXICAL path comparison to
+    # determine the boundary — not resolved identity of each
+    # component.  This prevents a symlink below the base that
+    # resolves back to the base from bypassing the check (e.g.
+    # base/selflink → base would pass resolved-identity but is
+    # caught by lexical "selflink is below base").
+    # A resolved containment check catches escapes via symlinks
+    # pointing outside the base.
     # Without trusted_base, walk to the filesystem root.
     try:
-        stop_at: Path | None = None
         if trusted_base is not None:
             resolved_base = trusted_base.resolve()
             try:
@@ -801,26 +810,29 @@ def _safe_write_output(dst: Path, content: str,
                       f"{dst} is not under {trusted_base}",
                       file=sys.stderr)
                 return 1
-            stop_at = resolved_base
 
         cur = dst.parent
         while True:
-            # Stop at or above the trusted base boundary
-            if stop_at is not None:
+            if trusted_base is not None:
+                # Lexical boundary: is cur strictly below the base?
+                # Components at or above the base are trusted by the
+                # operator and not checked for symlinks.
                 try:
-                    cur_resolved = cur.resolve()
-                except OSError:
-                    break
-                if cur_resolved == stop_at:
-                    break
-                try:
-                    cur_resolved.relative_to(stop_at)
+                    rel = cur.relative_to(trusted_base)
                 except ValueError:
-                    break  # above the trusted base
-            if cur.is_symlink():
-                print(f"ERROR: output parent contains symlink: "
-                      f"{cur}", file=sys.stderr)
-                return 1
+                    break  # above the trusted base — trusted
+                if rel == Path('.'):
+                    break  # at the base itself — trusted
+                # Below the base: reject any symlink component
+                if cur.is_symlink():
+                    print(f"ERROR: output parent contains symlink: "
+                          f"{cur}", file=sys.stderr)
+                    return 1
+            else:
+                if cur.is_symlink():
+                    print(f"ERROR: output parent contains symlink: "
+                          f"{cur}", file=sys.stderr)
+                    return 1
             next_cur = cur.parent
             if next_cur == cur:
                 break  # filesystem root
@@ -973,8 +985,13 @@ def cmd_build_legacy(args: argparse.Namespace) -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
+    trusted = None
+    if getattr(args, 'trusted_output_base', None):
+        trusted = Path(args.trusted_output_base)
+
     rc = _safe_write_output(dst,
-                            json.dumps(index, indent=2) + "\n")
+                            json.dumps(index, indent=2) + "\n",
+                            trusted_base=trusted)
     if rc != 0:
         return rc
     print(f"Wrote legacy index: {dst}")
@@ -1044,6 +1061,9 @@ def build_parser() -> argparse.ArgumentParser:
                            help="Build local index from legacy directory")
     p_leg.add_argument("dir", help="Directory containing 04-testplan.md")
     p_leg.add_argument("output", help="Output path for local index")
+    p_leg.add_argument("--trusted-output-base", metavar="DIR",
+                       help="Trusted output root (e.g., project repo). "
+                            "Symlinks above this base are permitted.")
 
     return parser
 

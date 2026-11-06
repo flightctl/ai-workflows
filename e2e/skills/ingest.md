@@ -68,7 +68,7 @@ with the code.
 
 If `.artifacts/e2e/{issue-key}/01-context.md` already exists, this is a
 re-invocation. Copy the existing file to `01-context.md.prev` so it is
-preserved for the diff in Step 7a.
+preserved for the diff in Step 8a.
 
 ### Step 3: Fetch the Jira Story
 
@@ -94,8 +94,8 @@ Capture:
 - Acceptance criteria
 - Testing approach (if present — this is the primary implementation guidance for [QE] stories)
 - Implementation guidance (if present — may be sparse for [QE] stories)
-- Validated by (if present — TC IDs used for testplan filtering in Step 5d)
-- Design Reference (if present — PRD requirement IDs used for testplan filtering fallback in Step 5d)
+- Validated by (if present — TC IDs used for testplan filtering in Step 6)
+- Design Reference (if present — PRD requirement IDs used for testplan filtering fallback in Step 6)
 - Story type prefix — verify it is `[QE]`. If it is `[DEV]`, `[UI]`, or another prefix, warn the user that this workflow is designed for `[QE]` stories and ask whether to proceed.
 - Parent epic key
 - Story dependencies (linked issues — "depends on", "is blocked by")
@@ -183,14 +183,14 @@ Read these from the docs repo:
 2. **PRD** (`prd.md`) — the product requirements, with locked decisions
    reflected in the requirements text
 3. **Testplan** (`testplan.md`) — behavioral test cases mapped to PRD
-   requirements. If found, proceed to Step 5d for filtering.
+   requirements. If found, proceed to Step 6 for filtering.
 
 If the design document or PRD are not found, ask the user for their
 location or proceed with only the Jira story content. The design
 document and PRD are valuable context but not strictly required — the
 story's acceptance criteria are the primary contract.
 
-### Step 5d: Discover Validation Artifacts and Filter to Story Scope
+### Step 6: Discover Validation Artifacts and Filter to Story Scope
 
 **Artifact discovery:** Check for `validation-index.json` in the
 feature directory alongside `design.md`. If found, read it to get
@@ -343,14 +343,14 @@ the requirement-grouping layer and the Test Cases section are removed.
 The Requirement ID and Interface Change are included in the metadata
 table for traceability back to the feature-level testplan.
 
-### Step 6: Explore E2E Test Infrastructure
+### Step 7: Explore E2E Test Infrastructure
 
 This is the core discovery step. Unlike implementation ingestion, which
 explores production code, this step focuses on the project's e2e testing
 infrastructure. Thorough discovery here is critical — shallow exploration
 leads to tests that don't follow project patterns.
 
-#### 6a: Project Configuration
+#### 7a: Project Configuration
 
 Read project-level configuration:
 - `AGENTS.md`, `CLAUDE.md` — project conventions and AI guidance
@@ -359,7 +359,7 @@ Read project-level configuration:
 - `CONTRIBUTING.md` — PR and commit message conventions
 - `.github/PULL_REQUEST_TEMPLATE.md` — PR description template
 
-#### 6b: Repository Topology
+#### 7b: Repository Topology
 
 Determine whether the local clone is a fork or a direct clone. Parse
 `{owner}/{repo}` from the origin remote:
@@ -382,7 +382,7 @@ gh repo view {owner}/{repo} --json isFork,parent
   also ask for the upstream `{owner}/{repo}` so the Repository Topology
   section is complete for downstream sync steps
 
-#### 6c: E2E Test Framework and Runner
+#### 7c: E2E Test Framework and Runner
 
 Discover the testing framework and how tests are executed:
 
@@ -394,7 +394,7 @@ Discover the testing framework and how tests are executed:
 4. **Filtering:** What label/tag/focus mechanisms exist for CI selection?
 5. **Parallel execution:** Does the project support parallel test execution?
 
-#### 6d: Test Organization
+#### 7d: Test Organization
 
 Map the e2e test directory structure:
 
@@ -405,7 +405,7 @@ Map the e2e test directory structure:
    (e.g., `*_suite_test.go` + `*_test.go` in Go/Ginkgo)
 4. **Naming conventions:** How are test files and directories named?
 
-#### 6e: Test Infrastructure Abstractions
+#### 7e: Test Infrastructure Abstractions
 
 Discover what abstractions the project uses for test code to interact
 with the system under test. Projects vary widely — look for whichever
@@ -434,7 +434,7 @@ For whatever the project uses:
 If the project has no dedicated test infrastructure abstractions (tests
 interact with the system directly), note that — this is a valid pattern.
 
-#### 6f: Test Lifecycle
+#### 7f: Test Lifecycle
 
 Read 2-3 existing suite/test files to understand lifecycle patterns.
 Use whatever terminology the project's framework uses — common patterns
@@ -466,7 +466,7 @@ Also discover the **parallelism model** — if tests can run in parallel:
 
 If tests run sequentially or parallelism is not documented, note that.
 
-#### 6g: Auxiliary Services
+#### 7g: Auxiliary Services
 
 If the project manages external services for e2e tests, discover them.
 Not all projects do this — some test against pre-deployed environments
@@ -484,7 +484,7 @@ If the project does manage test services:
 If no auxiliary service management is found, note "Tests run against a
 pre-existing environment" or whatever the actual pattern is.
 
-#### 6h: Test Utilities
+#### 7h: Test Utilities
 
 Find test helper packages:
 
@@ -493,7 +493,7 @@ Find test helper packages:
 3. **Tracing/logging:** How tests set up observability
 4. **Test data:** Where test fixtures and example files live
 
-#### 6i: Test Conventions and Documentation
+#### 7i: Test Conventions and Documentation
 
 Read test-specific documentation:
 
@@ -506,7 +506,7 @@ Read test-specific documentation:
 If these files don't exist, note their absence — the project may document
 test conventions elsewhere (in the main AGENTS.md) or not at all.
 
-#### 6j: Reference Suite Selection
+#### 7j: Reference Suite Selection
 
 Based on the story's scope, identify the 1-2 existing test suites most
 similar to what needs to be written:
@@ -546,7 +546,7 @@ a broad surface (test infrastructure files, auxiliary configs, suite files, util
 CI workflows, test documentation), so premature convergence can miss
 critical patterns.
 
-### Step 7: Compile Context
+### Step 8: Compile Context
 
 > **Checkpoint:** Step 6 is the heaviest phase of ingestion (10 sub-steps
 > across test infrastructure, services, utilities, conventions, and reference suites).
@@ -556,7 +556,7 @@ critical patterns.
 
 Compile all findings into the structure below. If this is a re-invocation
 (Step 2a found an existing file), **do not write the file yet** — hold the
-compiled content and proceed to Step 7a first.
+compiled content and proceed to Step 8a first.
 
 If this is a first invocation, write
 `.artifacts/e2e/{issue-key}/01-context.md` with this structure:
@@ -735,12 +735,12 @@ If this is a first invocation, write
 {Sanitized skeleton of the reference suite's lifecycle — hook ordering,
  infrastructure initialization, parallelism integration, cleanup. Include
  the suite entry point, all lifecycle hooks, and a representative test
- block. Apply the keep/strip rules from Step 6j.}
+ block. Apply the keep/strip rules from Step 7j.}
 
 ```{language — use the project's language, e.g., go, python, typescript}
 {skeleton code here — actual hook names, actual method calls,
  with domain-specific logic replaced per the keep/strip rules
- in Step 6j}
+ in Step 7j}
 ```
 
 ## Repository Topology
@@ -790,7 +790,7 @@ If this is a first invocation, write
  (observation, not a question)}
 ```
 
-### Step 7a: Diff Against Prior Ingest (Re-invocation Only)
+### Step 8a: Diff Against Prior Ingest (Re-invocation Only)
 
 If Step 2a created a `.prev` file, compare `01-context.md.prev` against
 the newly compiled content. Focus the diff on:
@@ -809,7 +809,7 @@ Wait for the user to confirm before proceeding. If the user confirms, write
 the compiled content to `01-context.md` and clean up the `.prev` file. If
 the user declines, delete the `.prev` file and stop without overwriting.
 
-### Step 8: Report to User
+### Step 9: Report to User
 
 Present a brief summary:
 - Story scope and acceptance criteria
@@ -823,7 +823,7 @@ Present a brief summary:
   way that implies the user must answer them before proceeding.
 - Whether the context is sufficient to proceed to `/plan`
 
-If the user declined a re-invocation overwrite in Step 7a, report instead
+If the user declined a re-invocation overwrite in Step 8a, report instead
 what changes were found and that the existing context was preserved.
 
 ## Output

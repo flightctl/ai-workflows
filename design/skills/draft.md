@@ -705,7 +705,7 @@ from Step 9c, plus verify:
 
 Save each companion to `.artifacts/design/{issue-key}/04-{slug}.md`.
 
-### Step 9f: Write Validation Artifact Index
+### Step 10: Write Validation Index and Present Draft
 
 After writing the primary testplan and any companions, write the
 validation artifact index to
@@ -764,9 +764,7 @@ audience), and that all listed local files exist on disk.
 This file is read by `/publish`, `/revise`, `/respond`, and
 `/decompose` to discover the full set of validation artifacts.
 
-### Step 10: Present to User
-
-Show the user the complete design document and highlight:
+**Present to User.** Show the user the complete design document and highlight:
 - Key architectural decisions and their rationale
 - Open questions that need resolution
 - Areas where multiple approaches were viable and why you chose the one you did

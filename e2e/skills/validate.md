@@ -265,10 +265,20 @@ When consistent, skip the automated coverage check and proceed
 directly to step 4 below.
 
 **Unverified source handling:** If `testplan.md` contains
-`Freshness: unverified`, report the TC coverage as "unverified —
-source testplan not confirmed" rather than PASS. Coverage from
-unverified TCs is provisional, not normative. Do not block the
-validation report or AC-based work.
+`Freshness: unverified`, check whether the Test Plan Coverage
+section in `02-plan.md` records a confirmed status for the TCs.
+
+- **Confirmed TCs** (plan records user confirmation): treat as
+  normative despite unverified source freshness. Write gap-fill
+  tests for missing confirmed TCs, report TC coverage normally.
+  Source freshness remains unverified but confirmed TCs represent
+  the user's accepted validation contract.
+- **Unconfirmed TCs** (no confirmed status in plan): coverage is
+  provisional, not normative. Do not write mandatory gap-fill
+  tests. Report as "unverified — source testplan not confirmed."
+
+In both cases, do not block the validation report or AC-based
+work.
 
 1. Read `testplan.md` and extract all TC IDs. Separate them into
    three groups:
@@ -293,7 +303,15 @@ validation report or AC-based work.
      described scenario and assert the described outcomes.
    - Record the test file and scenario name for each TC ID.
 3. If any automatable TC ID lacks a corresponding test:
-   - Write the missing test following the reference suite's patterns.
+   - If `testplan.md` contains `Freshness: unverified` and the Test
+     Plan Coverage in `02-plan.md` has not been confirmed (no
+     "confirmed" status), report the gap as provisional: "TC
+     coverage gap — unconfirmed source, not normative until
+     confirmed." Do not gate commits on unconfirmed TC gaps.
+   - For confirmed TCs (user-confirmed despite unverified source)
+     or verified TCs: write the missing test following the
+     reference suite's patterns. Confirmed TCs are normative —
+     their gaps are real and should be filled.
    - Commit the test following the project's commit format.
    - Re-run the relevant checks from Step 3.
 4. For manual verification TCs, qualification gate TCs, and non-TC

@@ -341,7 +341,7 @@ Transform and write the
 published index for downstream discovery:
 
 ```bash
-python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" "{docs_repo_path}/{release}/{feature}/validation-index.json"
+python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" "{docs_repo_path}/{release}/{feature}/validation-index.json" --trusted-output-base "{docs_repo_path}"
 ```
 
 ```bash
@@ -446,9 +446,10 @@ exist, write "General review — no specific items flagged."}
 
 ### Documents
 - `design.md` — technical design document
-{For each published validation artifact, add a bullet:
-- `testplan.md` — acceptance test cases mapped to PRD requirements
-- `{companion-published-name}` — {companion purpose}
+{For each published validation artifact, add a bullet using the
+ file names from the published validation-index.json (Step 6):
+- `{primary_testplan}` — acceptance test cases mapped to PRD requirements
+- `{companion-file}` — {companion purpose}
 If no validation artifacts were published, omit these bullets entirely.}
 
 ### How to Review
@@ -491,7 +492,12 @@ The script prints the PR URL on stdout. Parse the PR number from the URL path.
 
 Save the core metadata using the shared script. If the primary
 testplan was published, include `testplan_file_path` for backwards
-compatibility with consumers that do not read `validation_artifacts`:
+compatibility with consumers that do not read `validation_artifacts`.
+Derive the primary testplan filename from the published
+`validation-index.json` written in Step 6 — read its
+`primary_testplan` value (e.g., `testplan.md` for the default, or a
+custom name if the index specifies one). For the legacy case where
+no index was written, fall back to the literal `testplan.md`:
 
 ```bash
 python3 "$PUBLISH_SCRIPT" save-metadata \
@@ -499,7 +505,7 @@ python3 "$PUBLISH_SCRIPT" save-metadata \
   release={release} \
   feature={feature} \
   design_file_path={release}/{feature}/design.md \
-  testplan_file_path={release}/{feature}/testplan.md \
+  testplan_file_path={release}/{feature}/{primary_testplan} \
   pr_number={pr-number} \
   branch={branch-name}
 ```

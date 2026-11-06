@@ -1846,6 +1846,102 @@ class TestSafeWriteParentSymlink(unittest.TestCase):
 
 
 # ===========================================================================
+# 23c. Trusted-base self-link regression (lexical boundary)
+# ===========================================================================
+
+class TestTrustedBaseSelfLink(unittest.TestCase):
+    """Trusted-base guard rejects symlink components below base even
+    when they resolve to the base itself (lexical boundary, not
+    resolved identity)."""
+
+    def test_selflink_to_base_rejected(self):
+        """base/selflink → base; output under selflink → exit 1."""
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td) / "base"
+            base.mkdir()
+            (base / "selflink").symlink_to(base)
+            src = Path(td) / "local.json"
+            _write_json(src, _make_local_index())
+            dst = base / "selflink" / "output.json"
+            r = _run_cli("transform", str(src), str(dst),
+                         "--trusted-output-base", str(base))
+            self.assertEqual(r.returncode, 1,
+                             "selflink to base must be rejected")
+            err = r.stderr.lower()
+            self.assertTrue("symlink" in err or "escape" in err,
+                            f"Expected symlink/escape error, got: {r.stderr}")
+            self.assertFalse(dst.exists(),
+                             "No output should be written through selflink")
+
+    def test_selflink_subdirs_rejected(self):
+        """base/selflink/subdir/output.json → exit 1."""
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td) / "base"
+            base.mkdir()
+            (base / "selflink").symlink_to(base)
+            src = Path(td) / "local.json"
+            _write_json(src, _make_local_index())
+            dst = base / "selflink" / "subdir" / "output.json"
+            r = _run_cli("transform", str(src), str(dst),
+                         "--trusted-output-base", str(base))
+            self.assertEqual(r.returncode, 1)
+
+    def test_nonexistent_under_selflink_rejected(self):
+        """base/selflink/nonexistent/output.json → exit 1."""
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td) / "base"
+            base.mkdir()
+            (base / "selflink").symlink_to(base)
+            src = Path(td) / "local.json"
+            _write_json(src, _make_local_index())
+            dst = base / "selflink" / "nonexistent" / "output.json"
+            r = _run_cli("transform", str(src), str(dst),
+                         "--trusted-output-base", str(base))
+            self.assertEqual(r.returncode, 1)
+
+    def test_build_legacy_selflink_rejected(self):
+        """build-legacy --trusted-output-base also rejects selflink."""
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td) / "base"
+            base.mkdir()
+            (base / "selflink").symlink_to(base)
+            _write(Path(td) / "04-testplan.md", "# Plan")
+            dst = base / "selflink" / "output.json"
+            r = _run_cli("build-legacy", td, str(dst),
+                         "--trusted-output-base", str(base))
+            self.assertEqual(r.returncode, 1)
+
+    def test_regular_subdir_under_base_allowed(self):
+        """base/realdir/output.json → exit 0 (no symlinks)."""
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td) / "base"
+            base.mkdir()
+            (base / "realdir").mkdir()
+            src = Path(td) / "local.json"
+            _write_json(src, _make_local_index())
+            dst = base / "realdir" / "output.json"
+            r = _run_cli("transform", str(src), str(dst),
+                         "--trusted-output-base", str(base))
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertTrue(dst.exists())
+
+    def test_internal_link_to_sibling_under_base_rejected(self):
+        """base/link → base/other; output under link → exit 1.
+        Internal symlinks below the base are still rejected."""
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td) / "base"
+            base.mkdir()
+            (base / "other").mkdir()
+            (base / "link").symlink_to(base / "other")
+            src = Path(td) / "local.json"
+            _write_json(src, _make_local_index())
+            dst = base / "link" / "output.json"
+            r = _run_cli("transform", str(src), str(dst),
+                         "--trusted-output-base", str(base))
+            self.assertEqual(r.returncode, 1)
+
+
+# ===========================================================================
 # 24. CLI workflow sequence regressions
 # ===========================================================================
 
@@ -2035,6 +2131,307 @@ class TestCLIWorkflowSequence(unittest.TestCase):
                          str(Path(td) / "new.json"))
             self.assertEqual(r.returncode, 1,
                              "Empty new index must be rejected")
+
+
+# ===========================================================================
+# 25. Snapshot/Git consumer regressions
+# ===========================================================================
+
+class TestSnapshotGitConsumerRegressions(unittest.TestCase):
+    """Real snapshot/diff/retire lifecycle with temp Git repos.
+
+    Exercises the documented publish workflow paths:
+    - First publish: no previous snapshot
+    - Stale snapshot with missing source
+    - Valid published index round-trip
+    - Canonical legacy snapshot (testplan.md only)
+    - Invalid previous snapshot stops before doc mutation
+    - Pure retirement: staged deletion of tracked files
+
+    These tests use real temp Git repos because the design publish
+    recipe (Step 8) uses plain 'git -C repo commit -m' with no
+    pathspec — staging and change detection are the caller's
+    responsibility, not a shared commit API.
+
+    NOT tested (requires live AI agents / real infrastructure):
+    - End-to-end design workflow execution
+    - GitHub PR creation and comment posting
+    - Jira integration
+    """
+
+    def _init_git_repo(self, path):
+        """Initialize a bare git repo with an initial commit."""
+        subprocess.run(["git", "init", str(path)],
+                       capture_output=True, check=True)
+        subprocess.run(["git", "-C", str(path), "config",
+                        "user.email", "test@test.com"],
+                       capture_output=True, check=True)
+        subprocess.run(["git", "-C", str(path), "config",
+                        "user.name", "Test"],
+                       capture_output=True, check=True)
+        # Create initial commit
+        (path / ".gitkeep").write_text("")
+        subprocess.run(["git", "-C", str(path), "add", ".gitkeep"],
+                       capture_output=True, check=True)
+        subprocess.run(["git", "-C", str(path), "commit",
+                        "-m", "initial"],
+                       capture_output=True, check=True)
+
+    def test_first_publish_no_previous_snapshot(self):
+        """First publish: empty old → diff shows all artifacts as added."""
+        with tempfile.TemporaryDirectory() as td:
+            art_dir = Path(td) / "artifacts"
+            docs_dir = Path(td) / "docs" / "v1" / "feature"
+            art_dir.mkdir(parents=True)
+            docs_dir.mkdir(parents=True)
+            self._init_git_repo(Path(td) / "docs")
+
+            # Local artifacts
+            _write(art_dir / "04-testplan.md", "# Plan\n## TC-FR1-01")
+            r = _run_cli("build-legacy", str(art_dir),
+                         str(art_dir / "validation-index.json"))
+            self.assertEqual(r.returncode, 0, r.stderr)
+
+            # Transform to published format
+            r = _run_cli("transform",
+                         str(art_dir / "validation-index.json"),
+                         str(docs_dir / "validation-index.json"))
+            self.assertEqual(r.returncode, 0, r.stderr)
+            (docs_dir / "testplan.md").write_text(
+                (art_dir / "04-testplan.md").read_text())
+
+            # Diff against empty old (first publish)
+            _write_json(Path(td) / "empty-old.json", {})
+            r = _run_cli("diff",
+                         str(Path(td) / "empty-old.json"),
+                         str(docs_dir / "validation-index.json"))
+            self.assertEqual(r.returncode, 0, r.stderr)
+            d = json.loads(r.stdout)
+            self.assertEqual(d["added"], ["testplan.md"])
+            self.assertEqual(d["removed"], [])
+
+            # Stage and commit (matching publish Step 8 recipe)
+            subprocess.run(["git", "-C", str(Path(td) / "docs"),
+                           "add", "v1/feature/testplan.md",
+                           "v1/feature/validation-index.json"],
+                          capture_output=True, check=True)
+            r2 = subprocess.run(
+                ["git", "-C", str(Path(td) / "docs"), "commit", "-m",
+                 "Add design and validation artifacts"],
+                capture_output=True, text=True)
+            self.assertEqual(r2.returncode, 0, r2.stderr)
+
+    def test_stale_snapshot_source_missing(self):
+        """Previous snapshot lists a file that no longer exists on disk.
+
+        validates that resolve --published fails for a stale published
+        state (file listed in index but removed from disk)."""
+        with tempfile.TemporaryDirectory() as td:
+            docs_dir = Path(td) / "docs"
+            docs_dir.mkdir()
+
+            pub = {
+                "schema_version": "1.0",
+                "primary_testplan": "testplan.md",
+                "artifacts": [
+                    {"file": "testplan.md", "type": "testplan"},
+                    {"file": "hw.md", "type": "companion",
+                     "purpose": "HW", "audience": "team"},
+                ],
+            }
+            _write_json(docs_dir / "validation-index.json", pub)
+            _write(docs_dir / "testplan.md", "# Plan")
+            # hw.md NOT on disk — stale snapshot
+            r = _run_cli("resolve", "--published", str(docs_dir))
+            self.assertEqual(r.returncode, 1,
+                             "Stale snapshot must fail when listed file "
+                             "is missing")
+            self.assertIn("not found", r.stderr)
+
+    def test_valid_published_index_roundtrip(self):
+        """Local → transform → published → resolve → primary_path."""
+        with tempfile.TemporaryDirectory() as td:
+            art_dir = Path(td) / "art"
+            docs_dir = Path(td) / "docs"
+            art_dir.mkdir()
+            docs_dir.mkdir()
+
+            # Build local index with companion
+            idx = _make_local_index(companions=[_HW_COMPANION])
+            _write_json(art_dir / "validation-index.json", idx)
+            _write(art_dir / "04-testplan.md", "# Plan")
+            _write(art_dir / "04-hw-validation.md", "# HW")
+
+            # Transform
+            r = _run_cli("transform",
+                         str(art_dir / "validation-index.json"),
+                         str(docs_dir / "validation-index.json"))
+            self.assertEqual(r.returncode, 0, r.stderr)
+            for art in idx["artifacts"]:
+                (docs_dir / art["published_as"]).write_text(
+                    (art_dir / art["local"]).read_text())
+
+            # Resolve from published
+            r = _run_cli("resolve", "--published", str(docs_dir))
+            self.assertEqual(r.returncode, 0, r.stderr)
+            arts = json.loads(r.stdout)
+            self.assertEqual(len(arts), 2)
+
+            # Primary path
+            primary = vi.primary_testplan_path(docs_dir)
+            self.assertEqual(primary, docs_dir / "testplan.md")
+
+    def test_canonical_legacy_snapshot(self):
+        """Legacy published state: testplan.md only, no index.
+
+        The snapshot recipe builds a minimal published index for
+        diffing purposes."""
+        with tempfile.TemporaryDirectory() as td:
+            docs_dir = Path(td) / "docs"
+            docs_dir.mkdir()
+            _write(docs_dir / "testplan.md", "# Plan")
+
+            # Resolve published (legacy fallback)
+            arts = vi.resolve_published_artifacts(docs_dir)
+            self.assertEqual(len(arts), 1)
+            self.assertEqual(arts[0]["file"], "testplan.md")
+
+            # Build minimal snapshot for diffing (as publish recipe does)
+            legacy_snapshot = {
+                "schema_version": "1.0",
+                "primary_testplan": "testplan.md",
+                "artifacts": [
+                    {"file": "testplan.md", "type": "testplan"},
+                ],
+            }
+            _write_json(Path(td) / "prev-snapshot.json", legacy_snapshot)
+
+            # Validate snapshot
+            r = _run_cli("validate", "--published",
+                         str(Path(td) / "prev-snapshot.json"))
+            self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_invalid_previous_snapshot_blocks_diff(self):
+        """Malformed previous snapshot → diff rejects before computing.
+
+        Ensures corrupted snapshot cannot silently produce wrong
+        removal lists. This guards the publish recipe's snapshot
+        validation step."""
+        with tempfile.TemporaryDirectory() as td:
+            # Validate rejects malformed snapshot
+            malformed = {
+                "primary_testplan": "testplan.md",
+                "artifacts": [
+                    {"file": "testplan.md", "type": "testplan"},
+                ],
+            }
+            _write_json(Path(td) / "prev.json", malformed)
+            r = _run_cli("validate", "--published",
+                         str(Path(td) / "prev.json"))
+            self.assertEqual(r.returncode, 1,
+                             "Malformed snapshot must fail validation")
+
+            # And diff also rejects it
+            valid_new = {
+                "schema_version": "1.0",
+                "primary_testplan": "testplan.md",
+                "artifacts": [
+                    {"file": "testplan.md", "type": "testplan"},
+                ],
+            }
+            _write_json(Path(td) / "new.json", valid_new)
+            r = _run_cli("diff",
+                         str(Path(td) / "prev.json"),
+                         str(Path(td) / "new.json"))
+            self.assertEqual(r.returncode, 1,
+                             "Diff must reject malformed snapshot")
+
+    def test_pure_retirement_stages_deletion(self):
+        """Pure retirement: tracked file removal staged and committed.
+
+        When current content is unchanged but artifacts are removed,
+        git rm stages the deletion. Verifies the recipe's 'git -C
+        repo rm' + 'git -C repo commit' path with real git."""
+        with tempfile.TemporaryDirectory() as td:
+            docs_root = Path(td) / "docs"
+            feat_dir = docs_root / "v1" / "feature"
+            feat_dir.mkdir(parents=True)
+            self._init_git_repo(docs_root)
+
+            # Publish initial state (testplan + companion)
+            _write(feat_dir / "testplan.md", "# Plan")
+            _write(feat_dir / "hw.md", "# HW")
+            pub = {
+                "schema_version": "1.0",
+                "primary_testplan": "testplan.md",
+                "artifacts": [
+                    {"file": "testplan.md", "type": "testplan"},
+                    {"file": "hw.md", "type": "companion",
+                     "purpose": "HW", "audience": "team"},
+                ],
+            }
+            _write_json(feat_dir / "validation-index.json", pub)
+            subprocess.run(["git", "-C", str(docs_root), "add", "-A"],
+                          capture_output=True, check=True)
+            subprocess.run(["git", "-C", str(docs_root), "commit",
+                           "-m", "initial publish"],
+                          capture_output=True, check=True)
+
+            # Save previous snapshot
+            prev_path = Path(td) / "prev.json"
+            _write_json(prev_path, pub)
+
+            # Retire companion: new state has only testplan
+            new_pub = {
+                "schema_version": "1.0",
+                "primary_testplan": "testplan.md",
+                "artifacts": [
+                    {"file": "testplan.md", "type": "testplan"},
+                ],
+            }
+            _write_json(feat_dir / "validation-index.json", new_pub)
+
+            # Diff to find retired artifacts
+            _write_json(Path(td) / "new.json", new_pub)
+            r = _run_cli("diff", str(prev_path),
+                         str(Path(td) / "new.json"))
+            self.assertEqual(r.returncode, 0, r.stderr)
+            d = json.loads(r.stdout)
+            self.assertEqual(d["removed"], ["hw.md"])
+
+            # Stage removal (matching publish recipe)
+            r2 = subprocess.run(
+                ["git", "-C", str(docs_root), "rm", "--",
+                 "v1/feature/hw.md"],
+                capture_output=True, text=True)
+            self.assertEqual(r2.returncode, 0, r2.stderr)
+
+            # Stage updated index
+            subprocess.run(["git", "-C", str(docs_root), "add",
+                           "v1/feature/validation-index.json"],
+                          capture_output=True, check=True)
+
+            # Verify staged changes include deletion
+            r3 = subprocess.run(
+                ["git", "-C", str(docs_root), "diff", "--cached",
+                 "--name-status"],
+                capture_output=True, text=True)
+            self.assertIn("D\tv1/feature/hw.md", r3.stdout)
+            self.assertIn("M\tv1/feature/validation-index.json",
+                          r3.stdout)
+
+            # Commit (matching publish Step 8: plain git commit -m)
+            r4 = subprocess.run(
+                ["git", "-C", str(docs_root), "commit", "-m",
+                 "Retire companion artifact"],
+                capture_output=True, text=True)
+            self.assertEqual(r4.returncode, 0, r4.stderr)
+
+            # Verify file is gone but testplan remains
+            self.assertFalse((feat_dir / "hw.md").exists())
+            self.assertTrue((feat_dir / "testplan.md").exists())
+            self.assertTrue(
+                (feat_dir / "validation-index.json").exists())
 
 
 if __name__ == "__main__":
