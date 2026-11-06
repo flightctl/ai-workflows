@@ -51,10 +51,6 @@ Edit the handoff spec:
 - For directional feedback: propose concrete changes and confirm before applying
 - For new information: add it to the appropriate sections
 
-After writing the updated `05-handoff.md`, read and follow
-`../../_shared/recipes/capture-provenance-event.md` with `WORKFLOW=ux-design`,
-`ISSUE_KEY={issue-key}`, `PHASE=revise`, `AUTHORING_MODE=skill`.
-
 ### Step 3a: Handle Screenshot Changes
 
 If the revision adds, replaces, or removes screenshots:
@@ -90,9 +86,12 @@ researcher that an explicit storage policy (`lfs`, `external`, or `git`)
 is required before the next `/publish`, then follow the curation
 procedure from `/handoff` Step 5.
 
-**Provenance ordering.** Capture provenance after all screenshot updates
-are written to `05-handoff.md` and the manifest, so the event reflects
-the final content state.
+**Provenance capture.** After all textual and screenshot changes are
+written to `05-handoff.md` and the manifest, capture provenance:
+
+Read and follow `../../_shared/recipes/capture-provenance-event.md` with
+`WORKFLOW=ux-design`, `ISSUE_KEY={issue-key}`, `PHASE=revise`,
+`AUTHORING_MODE=skill`.
 
 ### Step 4: Consistency Check
 

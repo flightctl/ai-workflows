@@ -290,10 +290,12 @@ embeds with `SS-N` IDs) or states that no screenshots are available.
   pointer text as if it were an image.
 
   **External references** (`https://...` URLs — `external` mode):
-  Retrieve the image bytes using the runtime's HTTP/image-fetch
-  capability (e.g., `WebFetch` with `save_to` to a temp file, then
-  `Read` the saved image). If HTTP access is unavailable or the fetch
-  fails, record `inspection: fetch-failed` for that image.
+  Retrieve the image bytes using the runtime's authorized binary
+  download capability (save to a temporary file, then open the file
+  with the image-reading tool). Do not assume any specific tool
+  parameter — use whichever download mechanism the runtime provides for
+  binary files. If the download or image read fails, record
+  `inspection: fetch-failed` for that image.
 
   For each resolved image (local file or fetched external):
 
@@ -304,11 +306,16 @@ embeds with `SS-N` IDs) or states that no screenshots are available.
      unavailable, record `identity: unverified`.
 
   2. **Open and visually inspect** using the runtime's image reading
-     capability (e.g., the `Read` tool on the file path). Reading the
-     markdown table, file metadata, captions, or alt text alone is
-     **not** image inspection — the purpose is to observe the actual
-     rendered layout, visual hierarchy, spacing, color usage, component
-     arrangement, and state presentation in the image pixels.
+     capability (the `Read` tool on the file path). Reading the markdown
+     table, file metadata, captions, or alt text alone is **not** image
+     inspection — the purpose is to observe the actual rendered layout,
+     visual hierarchy, spacing, color usage, component arrangement, and
+     state presentation in the image pixels.
+
+     If identity is `mismatched`, still record visual observations but
+     flag the image as stale/unverified — it must not be silently cited
+     as current design evidence. The user must decide whether to accept
+     the mismatched image or wait for the publisher to update it.
 
   3. For each inspected image, record:
      - The screenshot ID (`SS-N`)
@@ -557,10 +564,10 @@ If this is a first invocation, write
 {If inspected or partial: for each screenshot, record per-image status,
 identity verification, visual observation, and text/image consistency.}
 
-| ID | Status | Identity | Visual Observation | Consistent with Spec | Notes |
-|----|--------|----------|--------------------|----------------------|-------|
-| SS-1 | `inspected` | `verified` | {What the image shows — layout, components, state} | {Yes / No — discrepancy} | {Visual details not in written spec} |
-| SS-2 | `lfs-unresolved` | `unverified` | — | — | LFS pointer not resolved |
+| ID | Status | Identity | Ref | Expected SHA | Observed SHA | Observation | Spec Match | Notes |
+|----|--------|----------|-----|-------------|-------------|-------------|------------|-------|
+| SS-1 | inspected | verified | `screenshots/SS-1-desc.png` | `a1b2…` | `a1b2…` | {layout, state} | Yes/No | {detail} |
+| SS-2 | lfs-unresolved | unverified | `screenshots/SS-2-desc.png` | `d4e5…` | — | — | — | LFS stub |
 
 {Use `partial` when some images were inspected and others were not.
 Record observations for inspected images and per-image failure reasons

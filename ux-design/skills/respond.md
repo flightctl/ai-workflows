@@ -162,10 +162,17 @@ Otherwise, apply the same validation and storage gates as `/publish`:
    copying, using the same filename-pattern and symlink checks as
    `/publish` Step 4.
 
-2. **Detect changes, additions, and removals:**
-   - For each entry in the current authoring manifest, compare its
-     `sha256` against the corresponding `screenshot_assets` entry in
-     `publish-metadata.json`. Changed checksum → updated image.
+2. **Verify current local bytes** before change detection. For each
+   entry in the authoring manifest, compute the SHA-256 of the actual
+   local file at `.artifacts/.../screenshots/{filename}` and confirm it
+   matches the manifest's `sha256`. If they differ, the manifest is
+   stale — stop and ask the researcher to re-curate or update the
+   manifest before proceeding.
+
+   **Detect changes, additions, and removals:**
+   - For each verified manifest entry, compare its `sha256` against the
+     corresponding `screenshot_assets` entry in `publish-metadata.json`.
+     Changed checksum → updated image.
    - Manifest entries absent from `publish-metadata.json` → newly added.
    - `publish-metadata.json` entries absent from the current manifest →
      removed.
@@ -189,10 +196,12 @@ Otherwise, apply the same validation and storage gates as `/publish`:
    ```
 
 5. **External mode:** For changed or added screenshots, require the
-   researcher to provide new immutable, revision-bound URLs. Rewrite
-   **both** the inline `![alt](ref)` embeds **and** the Screenshot Index
-   entries in the published handoff with the new URLs. For removals,
-   delete the embed and index entry. Preserve authoring references in
+   researcher to provide new immutable, revision-bound URLs. Retrieve
+   the image bytes from each URL, compute SHA-256, and verify against
+   the authoring manifest. Stop on mismatch. Rewrite **both** the
+   inline `![alt](ref)` embeds **and** the Screenshot Index entries in
+   the published handoff with the new URLs. For removals, delete the
+   embed and index entry. Preserve authoring references in
    `05-handoff.md` separately.
 
 6. **Regenerate the published consumer-facing manifest** at
@@ -214,23 +223,36 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ux-design`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{docs_repo_path}/{handoff_file_path}"`.
 
-**Stage only owned files by explicit allowlist:**
+**Build owned-path allowlist, stage, and commit** using the same
+procedure as `/publish` Step 4. Construct `owned_paths` from the
+handoff path plus only the paths actually written, copied, or removed
+in this run — no unconditional manifest or screenshot paths:
 
 ```bash
-git -C "{docs_repo_path}" add -- "{handoff_file_path}"
-git -C "{docs_repo_path}" add -- "{handoff_dir}/screenshot-manifest.json"
-# For each changed/added {filename}:
-git -C "{docs_repo_path}" add -- "{handoff_dir}/screenshots/{filename}"
-```
+owned_paths=("{handoff_file_path}")
+# Add manifest only if it was regenerated:
+if [ -f "{docs_repo_path}/{handoff_dir}/screenshot-manifest.json" ]; then
+  owned_paths+=("{handoff_dir}/screenshot-manifest.json")
+fi
+# Add each changed/added file and each removed path...
+# (same array-building logic as /publish Step 4)
 
-If no owned files changed (exit 0 from `git diff --cached --quiet` on
-the allowlist), skip the commit. If changes exist:
+for p in "${owned_paths[@]}"; do
+  if git -C "{docs_repo_path}" ls-files --error-unmatch "$p" >/dev/null 2>&1 \
+     || [ -f "{docs_repo_path}/$p" ]; then
+    git -C "{docs_repo_path}" add -- "$p"
+  fi
+done
 
-```bash
-git -C "{docs_repo_path}" commit --only \
-  -m "UX design {issue-key}: address review feedback" \
-  -- "{handoff_file_path}" "{handoff_dir}/screenshot-manifest.json" \
-     "{handoff_dir}/screenshots/{file1}" ...
+git -C "{docs_repo_path}" diff --cached --quiet -- "${owned_paths[@]}"
+rc=$?
+if [ "$rc" -eq 1 ]; then
+  git -C "{docs_repo_path}" commit --only \
+    -m "UX design {issue-key}: address review feedback" \
+    -- "${owned_paths[@]}"
+elif [ "$rc" -ne 0 ]; then
+  echo "Git error (exit $rc); stopping." >&2; exit "$rc"
+fi
 ```
 
 Only update `publish-metadata.json` `screenshot_assets` after the commit

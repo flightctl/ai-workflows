@@ -183,8 +183,9 @@ It contains:
   design, with a final-vision/MVP split when constraints require it
 - **Screenshots** — curated images of the rendered prototype showing primary
   flows and important alternate/error states, with stable IDs (`SS-N`),
-  meaningful captions, alt text, and revision metadata; absent when
-  evaluation used Quick depth or URL-only input
+  meaningful captions, alt text, and revision metadata; absent when the
+  researcher authorized a text-only handoff (screenshots may still be
+  supplied or captured even at Quick depth)
 - **Research context** — why decisions were made
 
 The authoring `screenshot-manifest.json` (in `.artifacts/`) records each

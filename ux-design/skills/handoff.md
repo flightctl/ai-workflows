@@ -197,19 +197,28 @@ dump of all raw evaluation evidence.
 `.artifacts/ux-design/{issue-key}/04-eval-raw/screenshots/` at Standard
 and Full depth. Check whether screenshots exist in that directory.
 
-If no screenshots exist, determine why:
-- Read `04-evaluation.md` to confirm the evaluation depth used.
-- If the evaluation was Quick depth or URL-only: record
-  `Screenshots: None — evaluation at {depth} depth did not capture
-  screenshots.`
-- If the evaluation was Standard or Full but no screenshots were saved:
-  record `Screenshots: None — evaluation did not produce screenshots.`
-- In either case, tell the researcher: *"No screenshots are available
-  for the handoff. To include visual references, either re-run
-  `/evaluate` at Standard or Full depth with screenshot capture, or
-  provide screenshots to `/revise`."*
+If no screenshots exist, determine why and require an explicit decision:
 
-Skip the rest of this step and proceed to Step 6.
+- Read `04-evaluation.md` to confirm the evaluation depth used.
+- If the evaluation was Quick depth or URL-only: tell the researcher
+  screenshots are not available because the evaluation depth did not
+  capture them.
+- If the evaluation was Standard or Full but no screenshots were saved:
+  tell the researcher screenshots were expected but not produced.
+
+In either case, present the options and **wait for an explicit choice**:
+
+*"No screenshots are available for the handoff. Choose one:*
+*1. Re-run `/evaluate` at Standard or Full depth with screenshot capture*
+*2. Provide screenshots directly (the researcher supplies image files)*
+*3. Proceed with a text-only handoff (record this as a documented decision — `ui-design` will operate from written spec only)"*
+
+If the researcher chooses option 3, record in the Screenshots section:
+`Screenshots: None — {reason from evaluation depth}. Text-only handoff
+authorized by researcher.`
+
+Do not silently proceed to Step 6 without this choice. Skip the rest of
+this step only after the researcher confirms option 3.
 
 **Binding check.** Only use screenshots whose evaluation revision
 bindings (prototype iteration, discovery revision, context revision)
@@ -278,8 +287,7 @@ sha256sum ".artifacts/ux-design/{issue-key}/screenshots/{filename}" | cut -d' ' 
 
 If the handoff is regenerated after a new evaluation cycle, re-curate
 screenshots from the updated evaluation and regenerate the manifest. The
-prior manifest is overwritten — history is preserved via `04-eval-raw/`
-which retains raw screenshots per evaluation run.
+prior manifest is overwritten.
 
 ### Step 6: Assemble the handoff artifact
 
@@ -411,55 +419,28 @@ deferred — the researcher confirms this split}
 {If the full design is deliverable as-is, state: "No phasing required — the
 technical design supports the full design."}
 
-## Screenshots
+## Screenshot Index
 
-{From Step 5. If no screenshots were captured, state one of:
+{From Step 5. If no screenshots were captured, record the researcher's
+explicit text-only decision: `Screenshots: None — {reason}. Text-only
+handoff authorized by researcher.`}
 
-- "Screenshots: None — evaluation at Quick depth used a URL; no images
-  were captured. To add screenshots, run `/evaluate` at Standard or Full
-  depth with screenshot capture, or provide images to `/revise`."
-- "Screenshots: None — evaluation did not capture screenshots. The
-  ui-design workflow will operate from the written spec only. To add
-  screenshots later, use `/revise`."
+{If screenshots are available, this section is the identity/metadata
+index. Each screenshot is embedded **once** at the relevant flow or
+state section above (User Flows, State Matrix, or Persona-Specific
+Views) using `![SS-N: {alt_text}]({ref})` with a caption. This index
+provides the SHA-256 checksums and revision metadata for tooling and
+consumer identity verification — it is not a duplicate gallery.}
 
-Do not label every missing-screenshot case as "Quick depth" unless the
-evaluation record confirms Quick depth was used.}
-
-{If screenshots are available, embed each curated image with its stable
-ID, caption, and alt text. Embeds render the actual image in Markdown
-viewers; the index below provides metadata and identity for tooling.
-
-For `lfs`/`git` storage mode, use relative paths. For `external` mode,
-use the immutable HTTPS URL. Both forms must render as visible images.}
-
-### SS-1: {short description}
-
-![SS-1: {alt_text}](screenshots/SS-1-{description}.png)
-*{caption} — {state}: {populated / empty / loading / error / partial /
-responsive / persona-specific}*
-
-### SS-2: {short description}
-
-![SS-2: {alt_text}](screenshots/SS-2-{description}.png)
-*{caption} — {state}*
-
-{Repeat for each curated screenshot. Place additional embeds inline
-beside the User Flows, State Matrix, or Persona-Specific Views sections
-where they illustrate specific flows or states.}
-
-### Screenshot Index
-
-| ID | File | SHA-256 | Caption | State |
-|----|------|---------|---------|-------|
-| SS-1 | `screenshots/SS-1-{description}.png` | `{first 12 hex chars}…` | {caption} | {state} |
+| ID | Ref | SHA-256 | Caption | State | Embedded at |
+|----|-----|---------|---------|-------|-------------|
+| SS-1 | `screenshots/SS-1-{desc}.png` | `{12 hex}…` | {caption} | {state} | §User Flows |
 
 **Context revision:** {revision} | **Prototype iteration:** {N}
 
-**Note for `ui-design`:** Open and visually inspect each referenced
-screenshot during `/ingest`. The embeds above show rendered layout,
-spacing, visual hierarchy, and state presentation that the written spec
-cannot fully convey. Do not treat the index table as a substitute for
-image inspection.
+**Note for `ui-design`:** Open and visually inspect each image at its
+embed location during `/ingest`. Do not treat this index as a substitute
+for image inspection.
 
 ## Open Questions
 

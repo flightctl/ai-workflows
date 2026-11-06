@@ -326,17 +326,22 @@ a symlink escaping the repo. Stop before copying if any check fails.
 each file individually, verify each copy's SHA-256 matches the manifest.
 For `lfs`, also confirm LFS is initialized and tracking covers the path.
 
-**`external` mode:** Do not copy files. Require the researcher to
-provide immutable, revision-bound HTTPS URLs (no `latest` tags or
-expiring tokens). Rewrite `![alt](ref)` embeds and Screenshot Index in
-the published handoff with external URLs; preserve authoring references
-in `05-handoff.md`.
+**`external` mode:** No file copies. Require immutable HTTPS URLs per
+screenshot. Retrieve each URL's bytes, verify SHA-256 against the
+manifest, and stop on mismatch. Rewrite embeds and index in the published
+handoff; preserve authoring references in `05-handoff.md`.
 
-**Publish consumer manifest.** Write
-`{destination_dir}/screenshot-manifest.json` with `id`, `sha256`,
-`caption`, `alt_text`, `flow`, `state`, `published_ref` (relative path
-for lfs/git or external URL), plus `issue_key`, `context_revision`, and
-`prototype_iteration`. Omit the authoring `source` field.
+**Reconcile removals** (update publishes only). Compare previous
+`screenshot_assets` against the current manifest. For removed IDs:
+`lfs`/`git` — validate removal path and `git rm`; `external` — remove
+embed/index entries. If all screenshots removed, also remove the
+consumer manifest and set `screenshot_storage` to `none` after commit.
+
+**Publish consumer manifest.** When any screenshots remain after
+removals, write `{destination_dir}/screenshot-manifest.json` with `id`,
+`sha256`, `caption`, `alt_text`, `flow`, `state`, `published_ref`, plus
+`issue_key`, `context_revision`, `prototype_iteration`. Omit the
+authoring `source` field.
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ux-design`, `ISSUE_KEY={issue-key}`,
@@ -356,58 +361,57 @@ Provenance at publish time:
 - Only if the researcher explicitly declines provenance, pass `ALLOW_MISSING=yes` to
   strip the footer and record `provenance_kind: declined`.
 
-**Stage only owned files by explicit allowlist.** Build the list of paths
-this publish owns, then stage and commit exactly those paths. This
-prevents committing unrelated pre-staged changes or unstaged work.
+**Build owned-path allowlist and stage/commit.** Construct a Bash array
+of every path this publish created, modified, or owns. Use this single
+array for staging, change detection, and the commit pathspec.
 
 ```bash
-git -C "{docs_repo_path}" add -- "{handoff_file_path}"
+owned_paths=("{handoff_file_path}")
+
+# Add only paths that were actually written in this run:
+if [ -f "{docs_repo_path}/{handoff_file_path_dir}/screenshot-manifest.json" ]; then
+  owned_paths+=("{handoff_file_path_dir}/screenshot-manifest.json")
+fi
+# For lfs/git mode — each copied screenshot by validated filename:
+for f in "${copied_filenames[@]}"; do
+  owned_paths+=("{handoff_file_path_dir}/screenshots/$f")
+done
+# For removals — each git-rm'd path (already staged by git rm):
+for f in "${removed_filenames[@]}"; do
+  owned_paths+=("{handoff_file_path_dir}/screenshots/$f")
+done
 ```
 
-When `lfs` or `git` mode copied screenshot files, stage each file
-individually by name — do not stage the entire directory:
+Stage the owned paths (skip absent optional paths):
 
 ```bash
-# For each {filename} from the manifest:
-git -C "{docs_repo_path}" add -- "{handoff_file_path_dir}/screenshots/{filename}"
+for p in "${owned_paths[@]}"; do
+  if git -C "{docs_repo_path}" ls-files --error-unmatch "$p" >/dev/null 2>&1 \
+     || [ -f "{docs_repo_path}/$p" ]; then
+    git -C "{docs_repo_path}" add -- "$p"
+  fi
+done
 ```
 
-When the consumer-facing manifest was written:
+Check for changes and commit using `--only` with the full allowlist:
 
 ```bash
-git -C "{docs_repo_path}" add -- "{handoff_file_path_dir}/screenshot-manifest.json"
+git -C "{docs_repo_path}" diff --cached --quiet -- "${owned_paths[@]}"
+rc=$?
+if [ "$rc" -eq 0 ]; then
+  echo "No changes to owned paths; skipping commit."
+elif [ "$rc" -eq 1 ]; then
+  git -C "{docs_repo_path}" commit --only \
+    -m "{Add|Update} UX design handoff for {issue-key}" \
+    -- "${owned_paths[@]}"
+else
+  echo "Git error (exit $rc); stopping." >&2; exit "$rc"
+fi
 ```
 
-Do not stage screenshot paths on text-only or external-mode publishes
-where no files were copied.
-
-For a new PR, commit only the allowlisted paths:
-
-```bash
-git -C "{docs_repo_path}" commit --only -m "Add UX design handoff for {issue-key}" \
-  -- "{handoff_file_path}" "{handoff_file_path_dir}/screenshot-manifest.json" \
-     "{handoff_file_path_dir}/screenshots/SS-1-{desc}.png" ...
-```
-
-List every owned file explicitly in the `--` pathspec. The `--only` flag
-ensures only these paths are committed regardless of other staged changes.
-
-For an existing PR, check whether owned files changed:
-
-```bash
-git -C "{docs_repo_path}" diff --cached --quiet \
-  -- "{handoff_file_path}" "{handoff_file_path_dir}/screenshot-manifest.json" \
-     "{handoff_file_path_dir}/screenshots/"
-```
-
-An exit status of `0` means nothing changed: skip the commit and push. An
-exit status of `1` means there are changes: create the update commit. For
-any other status, stop and report the Git error.
-
-```bash
-git -C "{docs_repo_path}" commit --only -m "Update UX design handoff for {issue-key}" \
-  -- {same explicit allowlist as above}
-```
+This procedure handles text-only (array contains only the handoff),
+lfs/git (handoff + manifest + each image), external (handoff + manifest),
+and removal runs (handoff + manifest + removed paths) identically.
 
 ### Step 5: Prepare PR Description for a New PR
 

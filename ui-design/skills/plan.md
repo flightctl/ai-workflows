@@ -93,7 +93,11 @@ Before writing, create a mental map. If `HAS_HANDOFF` is true:
 If `HAS_SCREENSHOTS` is true or `partial`, cite inspected screenshot
 observations from `01-context.md` for layout and visible-state decisions:
 
-- **Cite** with `[Screenshot: SS-N]`. Only cite `inspected` images.
+- **Cite verified images** with `[Screenshot: SS-N]`. Only cite images
+  whose identity is `verified`. For `mismatched` images that the user
+  explicitly accepted, cite as `[Screenshot: SS-N — unverified]` so the
+  plan reader knows the visual evidence may not reflect the current
+  published state. Do not cite `unavailable` or `lfs-unresolved` images.
 - **Additive evidence** (visual detail not in prose) supplements the
   spec: `[Screenshot: SS-N — additive: {detail}]`.
 - **Contradictions** (image conflicts with explicit spec text) are
