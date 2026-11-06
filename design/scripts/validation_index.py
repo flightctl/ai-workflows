@@ -631,9 +631,13 @@ def primary_testplan_path(
 def build_legacy_index(artifact_dir: Path) -> dict[str, Any]:
     """Build a local index for a legacy directory with 04-testplan.md.
 
-    Raises ValidationIndexError if 04-testplan.md does not exist.
+    Raises ValidationIndexError if 04-testplan.md does not exist or
+    is a symlink.
     """
     tp = artifact_dir / "04-testplan.md"
+    if tp.is_symlink():
+        raise ValidationIndexError(
+            "04-testplan.md is a symlink (not allowed)")
     if not tp.is_file():
         raise ValidationIndexError(
             f"04-testplan.md not found in {artifact_dir}")
@@ -753,28 +757,73 @@ def _safe_write_output(dst: Path, content: str) -> int:
     """Write content to dst with symlink and error protection.
 
     Returns 0 on success, 1 on error (with message printed).
+
+    Safety checks:
+    - Rejects symlink at the final destination path.
+    - Walks each existing component of the parent directory and
+      rejects any that is a symlink (prevents symlink escape via
+      parent traversal).  Components are checked with lstat-level
+      is_symlink() — resolve() is NOT used because it follows
+      symlinks and would hide their presence.
+    - Uses O_CREAT|O_WRONLY|O_TRUNC without O_FOLLOW to write,
+      preventing a TOCTOU race where dst becomes a symlink between
+      the check and the write.
     """
+    import os
+
+    # Reject symlink at the destination itself
     if dst.is_symlink():
         print(f"ERROR: output path is a symlink: {dst}",
               file=sys.stderr)
         return 1
-    # Reject symlink components in parent path
+
+    # Walk existing parent components WITHOUT resolving away link
+    # identities.  Check is_symlink() on each real component.
     try:
-        resolved = dst.resolve(strict=False)
-        parent_resolved = dst.parent.resolve(strict=False)
-        if dst.parent.exists():
-            real_parent = dst.parent.resolve()
-            if real_parent != parent_resolved:
+        parent = dst.parent
+        # Collect path components from dst.parent upward until we
+        # reach a component that does not exist (for parents=True
+        # mkdir later).
+        parts_to_check: list[Path] = []
+        cur = parent
+        while True:
+            if cur.exists() or cur.is_symlink():
+                parts_to_check.append(cur)
+            else:
+                break
+            next_cur = cur.parent
+            if next_cur == cur:
+                break  # filesystem root
+            cur = next_cur
+
+        for component in parts_to_check:
+            if component.is_symlink():
                 print(f"ERROR: output parent contains symlink: "
-                      f"{dst.parent}", file=sys.stderr)
+                      f"{component}", file=sys.stderr)
                 return 1
     except OSError as exc:
-        print(f"ERROR: cannot resolve output path: {exc}",
+        print(f"ERROR: cannot check output path: {exc}",
               file=sys.stderr)
         return 1
+
     try:
         dst.parent.mkdir(parents=True, exist_ok=True)
-        dst.write_text(content, encoding="utf-8")
+    except OSError as exc:
+        print(f"ERROR: cannot create parent directory {dst.parent}: "
+              f"{exc}", file=sys.stderr)
+        return 1
+
+    # Write using os.open with no-follow semantics to prevent TOCTOU
+    # symlink race.  O_NOFOLLOW is available on Linux/macOS.
+    try:
+        flags = os.O_CREAT | os.O_WRONLY | os.O_TRUNC
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        fd = os.open(str(dst), flags, 0o644)
+        try:
+            os.write(fd, content.encode("utf-8"))
+        finally:
+            os.close(fd)
     except OSError as exc:
         print(f"ERROR: cannot write {dst}: {exc}", file=sys.stderr)
         return 1
@@ -796,7 +845,7 @@ def cmd_transform(args: argparse.Namespace) -> int:
     try:
         data = json.loads(src.read_text(encoding="utf-8"))
         published = transform_for_publish(data)
-    except (json.JSONDecodeError, ValidationIndexError) as exc:
+    except (json.JSONDecodeError, ValidationIndexError, OSError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
@@ -808,11 +857,34 @@ def cmd_transform(args: argparse.Namespace) -> int:
     return 0
 
 
+def _is_intentionally_empty(data: dict[str, Any]) -> bool:
+    """Check if data represents an intentionally empty published index.
+
+    An intentionally empty index is used for the first-publish case
+    where no previous published set exists.  Recognized forms:
+    - ``{}`` — empty dict (no artifacts key)
+    - ``{"artifacts": []}`` — explicit empty artifact list
+    These bypass full schema validation so cmd_diff can compute a
+    meaningful "all added" result against an empty prior state.
+    """
+    if not isinstance(data, dict):
+        return False
+    keys = set(data.keys())
+    if keys == set():
+        return True
+    if keys <= {"artifacts"} and data.get("artifacts") == []:
+        return True
+    return False
+
+
 def cmd_diff(args: argparse.Namespace) -> int:
     """Compute artifact diff between two published indexes.
 
-    Validates both inputs as JSON objects before diffing.
-    Rejects non-object inputs and unsafe filenames in artifact entries.
+    Validates both inputs fully as published indexes before diffing.
+    An intentionally empty prior index (``{}`` or ``{"artifacts": []}``)
+    is allowed to support the first-publish diff case.
+    Rejects malformed schema, local-format fields, null/non-string
+    filenames, and unsafe filenames.
     """
     old_path = Path(args.old_index)
     new_path = Path(args.new_index)
@@ -829,36 +901,21 @@ def cmd_diff(args: argparse.Namespace) -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
-    # Validate inputs are dicts with artifacts lists
+    # Validate both inputs — intentionally empty old is allowed
     for label, data in [("old", old), ("new", new)]:
         if not isinstance(data, dict):
             print(f"ERROR: {label} index must be a JSON object",
                   file=sys.stderr)
             return 1
-        arts = data.get("artifacts")
-        if arts is not None and not isinstance(arts, list):
-            print(f"ERROR: {label} index artifacts must be an array",
-                  file=sys.stderr)
+        # Allow intentionally empty indexes (first-publish case)
+        if _is_intentionally_empty(data):
+            continue
+        # Full published-schema validation
+        errors = validate_published_index(data)
+        if errors:
+            for e in errors:
+                print(f"ERROR: {label}: {e}", file=sys.stderr)
             return 1
-        # Validate filenames in artifacts are safe
-        if isinstance(arts, list):
-            for i, art in enumerate(arts):
-                if isinstance(art, dict):
-                    fname = art.get("file")
-                    if fname is not None and not isinstance(fname, str):
-                        print(
-                            f"ERROR: {label}.artifacts[{i}].file "
-                            f"must be a string, got "
-                            f"{type(fname).__name__}",
-                            file=sys.stderr)
-                        return 1
-                    if isinstance(fname, str):
-                        errs = safe_filename(fname,
-                                             f"{label}.artifacts[{i}].file")
-                        if errs:
-                            for e in errs:
-                                print(f"ERROR: {e}", file=sys.stderr)
-                            return 1
 
     result = diff_published(old, new)
     print(json.dumps(result, indent=2))

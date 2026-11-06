@@ -418,10 +418,12 @@ Write `.artifacts/e2e/{issue-key}/05-validation-report.md`:
  Overall: PASS only when both automated coverage passes AND external
  validation is complete. If automated tests pass but qualification
  gates are pending or not started, report "PASS (automated) —
- awaiting external validation evidence for {N} gates." A pending
- or failed gate does not block the PR merge but must be visible in
- the report and user summary. Do not claim required acceptance passed
- when external evidence is outstanding.}
+ awaiting external validation evidence for {N} gates."  If any
+ required external gate has FAILED evidence, report "FAIL —
+ external validation failed for {gate names}." Follow the
+ project's existing gating policy for merge readiness — do not
+ introduce unconditional merge permissions. Do not claim required
+ acceptance passed when external evidence is outstanding or failed.}
 ```
 
 ### Step 9: Present Results

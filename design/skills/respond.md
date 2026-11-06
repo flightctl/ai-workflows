@@ -486,6 +486,18 @@ it does not exist but `{docs_repo_path}/{feature-dir}/testplan.md`
 exists (legacy), build a snapshot. If neither exists, there is no
 previous set.
 
+**Validate the snapshot immediately after capture.** Before copying
+any current artifacts or overwriting the published index, validate
+the captured snapshot:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issue-key}/prev-published-index.json"
+```
+
+If validation fails, **stop and report** — do not proceed with
+sync using a malformed previous snapshot. The snapshot must be
+corrected or removed before continuing.
+
 **Skip sync entirely** if both current and previous sets are empty
 and publish-metadata has no `validation_artifacts` or
 `testplan_file_path`.

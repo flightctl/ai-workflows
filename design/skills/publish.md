@@ -282,6 +282,19 @@ Save to `.artifacts/design/{issue-key}/prev-published-index.json`.
 
 If neither exists, there is no previous set — skip the snapshot.
 
+**Validate the snapshot immediately after capture.** Before copying
+any current artifacts or overwriting the published index, validate
+the captured snapshot to ensure it is trustworthy for later removal
+decisions:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issue-key}/prev-published-index.json"
+```
+
+If validation fails, **stop and report** — do not proceed with
+publication using a malformed previous snapshot. The snapshot must
+be corrected or removed before continuing.
+
 ### Step 5: Copy Current Artifacts
 
 If the current set is empty (no validation artifacts), skip to Step 7.

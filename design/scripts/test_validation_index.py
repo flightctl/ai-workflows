@@ -1009,17 +1009,38 @@ class TestLifecycle(unittest.TestCase):
             self.assertEqual(companion["file"], "security-cert.md")
             self.assertEqual(companion["purpose"], "Cert")
 
-            # Verify companion slug 'testplan' is still rejected
-            idx = _make_local_index()
-            idx["artifacts"].append({
-                "local": "04-testplan.md",
-                "published_as": "testplan-extra.md",
-                "type": "companion",
-                "purpose": "p", "audience": "a",
-            })
-            idx["artifacts"][-1]["local"] = "04-testplan.md"
+            # Verify companion slug 'testplan' is rejected via the
+            # companion-slug check — use a DIFFERENT primary so
+            # duplicate-local does not trigger first.
+            idx = {
+                "schema_version": "1.0",
+                "primary_testplan": "04-primary.md",
+                "artifacts": [
+                    {
+                        "local": "04-primary.md",
+                        "published_as": "primary.md",
+                        "type": "testplan",
+                    },
+                    {
+                        "local": "04-testplan.md",
+                        "published_as": "testplan-extra.md",
+                        "type": "companion",
+                        "purpose": "p", "audience": "a",
+                    },
+                ],
+            }
             errors = vi.validate_local_index(idx)
-            self.assertTrue(any("duplicate local" in e for e in errors))
+            self.assertTrue(
+                any("companion slug must not be 'testplan'" in e
+                    for e in errors),
+                f"Expected companion-slug error, got: {errors}")
+
+            # Negative control: non-testplan slug passes
+            idx["artifacts"][1]["local"] = "04-security.md"
+            errors2 = vi.validate_local_index(idx)
+            self.assertFalse(
+                any("companion slug" in e for e in errors2),
+                f"Non-testplan slug should pass, got: {errors2}")
 
 
 # ===========================================================================
@@ -1438,6 +1459,378 @@ class TestSafeOutputWrites(unittest.TestCase):
             r = _run_cli("build-legacy", td, str(link))
             self.assertEqual(r.returncode, 1)
             self.assertIn("symlink", r.stderr.lower())
+
+
+# ===========================================================================
+# 22. cmd_diff published schema validation
+# ===========================================================================
+
+class TestDiffSchemaValidation(unittest.TestCase):
+    """cmd_diff validates both inputs as published indexes."""
+
+    def _valid_pub(self):
+        return {
+            "schema_version": "1.0",
+            "primary_testplan": "testplan.md",
+            "artifacts": [
+                {"file": "testplan.md", "type": "testplan"},
+            ],
+        }
+
+    def test_diff_missing_file_exits_1(self):
+        """diff with missing file → exit 1."""
+        with tempfile.TemporaryDirectory() as td:
+            _write_json(Path(td) / "new.json", self._valid_pub())
+            r = _run_cli("diff",
+                         str(Path(td) / "nonexistent.json"),
+                         str(Path(td) / "new.json"))
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("not found", r.stderr)
+
+    def test_diff_rejects_null_file_in_artifact(self):
+        """file: null in artifact → exit 1."""
+        with tempfile.TemporaryDirectory() as td:
+            bad = {
+                "schema_version": "1.0",
+                "primary_testplan": "testplan.md",
+                "artifacts": [
+                    {"file": None, "type": "testplan"},
+                ],
+            }
+            _write_json(Path(td) / "old.json", bad)
+            _write_json(Path(td) / "new.json", self._valid_pub())
+            r = _run_cli("diff",
+                         str(Path(td) / "old.json"),
+                         str(Path(td) / "new.json"))
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("ERROR", r.stderr)
+
+    def test_diff_rejects_local_format_fields(self):
+        """Published index with 'local' field → exit 1."""
+        with tempfile.TemporaryDirectory() as td:
+            bad = {
+                "schema_version": "1.0",
+                "primary_testplan": "testplan.md",
+                "artifacts": [
+                    {"file": "testplan.md", "type": "testplan",
+                     "local": "04-testplan.md"},
+                ],
+            }
+            _write_json(Path(td) / "old.json", bad)
+            _write_json(Path(td) / "new.json", self._valid_pub())
+            r = _run_cli("diff",
+                         str(Path(td) / "old.json"),
+                         str(Path(td) / "new.json"))
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("must not have 'local'", r.stderr)
+
+    def test_diff_rejects_malformed_schema_version(self):
+        """Malformed schema_version → exit 1."""
+        with tempfile.TemporaryDirectory() as td:
+            bad = {
+                "schema_version": "99.0",
+                "primary_testplan": "testplan.md",
+                "artifacts": [
+                    {"file": "testplan.md", "type": "testplan"},
+                ],
+            }
+            _write_json(Path(td) / "old.json", self._valid_pub())
+            _write_json(Path(td) / "new.json", bad)
+            r = _run_cli("diff",
+                         str(Path(td) / "old.json"),
+                         str(Path(td) / "new.json"))
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("unsupported", r.stderr)
+
+    def test_diff_allows_intentional_empty_old(self):
+        """Intentional empty old {} → exit 0 (first-publish case)."""
+        with tempfile.TemporaryDirectory() as td:
+            _write_json(Path(td) / "old.json", {})
+            _write_json(Path(td) / "new.json", self._valid_pub())
+            r = _run_cli("diff",
+                         str(Path(td) / "old.json"),
+                         str(Path(td) / "new.json"))
+            self.assertEqual(r.returncode, 0, r.stderr)
+            d = json.loads(r.stdout)
+            self.assertEqual(d["added"], ["testplan.md"])
+
+    def test_diff_allows_intentional_empty_artifacts_old(self):
+        """Intentional empty old {"artifacts": []} → exit 0."""
+        with tempfile.TemporaryDirectory() as td:
+            _write_json(Path(td) / "old.json", {"artifacts": []})
+            _write_json(Path(td) / "new.json", self._valid_pub())
+            r = _run_cli("diff",
+                         str(Path(td) / "old.json"),
+                         str(Path(td) / "new.json"))
+            self.assertEqual(r.returncode, 0, r.stderr)
+            d = json.loads(r.stdout)
+            self.assertEqual(d["added"], ["testplan.md"])
+
+    def test_diff_rejects_non_string_file(self):
+        """Non-string file in artifact → exit 1."""
+        with tempfile.TemporaryDirectory() as td:
+            bad = {
+                "schema_version": "1.0",
+                "primary_testplan": "testplan.md",
+                "artifacts": [
+                    {"file": 42, "type": "testplan"},
+                ],
+            }
+            _write_json(Path(td) / "old.json", bad)
+            _write_json(Path(td) / "new.json", self._valid_pub())
+            r = _run_cli("diff",
+                         str(Path(td) / "old.json"),
+                         str(Path(td) / "new.json"))
+            self.assertEqual(r.returncode, 1)
+
+    def test_diff_rejects_missing_primary(self):
+        """Published index with missing primary_testplan → exit 1."""
+        with tempfile.TemporaryDirectory() as td:
+            bad = {
+                "schema_version": "1.0",
+                "artifacts": [
+                    {"file": "testplan.md", "type": "testplan"},
+                ],
+            }
+            _write_json(Path(td) / "old.json", bad)
+            _write_json(Path(td) / "new.json", self._valid_pub())
+            r = _run_cli("diff",
+                         str(Path(td) / "old.json"),
+                         str(Path(td) / "new.json"))
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("primary_testplan", r.stderr)
+
+
+# ===========================================================================
+# 23. Parent-symlink and write-safety regressions
+# ===========================================================================
+
+class TestSafeWriteParentSymlink(unittest.TestCase):
+    """_safe_write_output rejects symlink parents and symlink targets."""
+
+    def test_transform_rejects_parent_symlink_outside(self):
+        """Output parent is symlink to outside temp dir → exit 1."""
+        with tempfile.TemporaryDirectory() as td:
+            with tempfile.TemporaryDirectory() as outside:
+                src = Path(td) / "local.json"
+                _write_json(src, _make_local_index())
+                link_dir = Path(td) / "escaped"
+                link_dir.symlink_to(outside)
+                dst = link_dir / "output.json"
+                r = _run_cli("transform", str(src), str(dst))
+                self.assertEqual(r.returncode, 1)
+                self.assertIn("symlink", r.stderr.lower())
+                # Verify nothing was written outside
+                self.assertFalse((Path(outside) / "output.json").exists())
+
+    def test_build_legacy_rejects_parent_symlink_outside(self):
+        """build-legacy output parent is symlink → exit 1."""
+        with tempfile.TemporaryDirectory() as td:
+            with tempfile.TemporaryDirectory() as outside:
+                _write(Path(td) / "04-testplan.md", "# Plan")
+                link_dir = Path(td) / "escaped"
+                link_dir.symlink_to(outside)
+                dst = link_dir / "output.json"
+                r = _run_cli("build-legacy", td, str(dst))
+                self.assertEqual(r.returncode, 1)
+                self.assertIn("symlink", r.stderr.lower())
+                self.assertFalse((Path(outside) / "output.json").exists())
+
+    def test_build_legacy_rejects_symlink_testplan(self):
+        """build-legacy with symlinked 04-testplan.md → exit 1."""
+        with tempfile.TemporaryDirectory() as td:
+            real = Path(td) / "real.md"
+            _write(real, "# Plan")
+            link = Path(td) / "04-testplan.md"
+            link.symlink_to(real)
+            out = Path(td) / "index.json"
+            r = _run_cli("build-legacy", td, str(out))
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("symlink", r.stderr.lower())
+
+    def test_transform_rejects_symlink_final_target(self):
+        """Output path is a symlink to a real file → exit 1."""
+        with tempfile.TemporaryDirectory() as td:
+            src = Path(td) / "local.json"
+            _write_json(src, _make_local_index())
+            real = Path(td) / "real-output.json"
+            _write(real, "{}")
+            link = Path(td) / "link-output.json"
+            link.symlink_to(real)
+            r = _run_cli("transform", str(src), str(link))
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("symlink", r.stderr.lower())
+
+    def test_transform_input_read_error(self):
+        """Unreadable input file → clean exit 1, no traceback."""
+        with tempfile.TemporaryDirectory() as td:
+            src = Path(td) / "local.json"
+            _write_json(src, _make_local_index())
+            src.chmod(0o000)
+            dst = Path(td) / "output.json"
+            r = _run_cli("transform", str(src), str(dst))
+            # Restore for cleanup
+            src.chmod(0o644)
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("ERROR", r.stderr)
+            # No Python traceback
+            self.assertNotIn("Traceback", r.stderr)
+
+
+# ===========================================================================
+# 24. CLI workflow sequence regressions
+# ===========================================================================
+
+class TestCLIWorkflowSequence(unittest.TestCase):
+    """CLI-level workflow sequences matching instruction-driven paths."""
+
+    def test_legacy_to_published_lifecycle(self):
+        """04-testplan.md only → build-legacy → transform → validate
+        published → resolve published from fresh docs dir.
+
+        Exercises the actual CLI consumer sequence: legacy artifact
+        directory without validation-index.json, then full publication
+        path through CLI subcommands."""
+        with tempfile.TemporaryDirectory() as td:
+            art_dir = Path(td) / "artifacts"
+            docs_dir = Path(td) / "docs" / "v1" / "feature"
+            art_dir.mkdir(parents=True)
+            docs_dir.mkdir(parents=True)
+
+            # Legacy directory: only 04-testplan.md, no index
+            _write(art_dir / "04-testplan.md", "# Plan\n## TC-FR1-01")
+
+            # Step 1: resolve → NON-EMPTY but index absent
+            r = _run_cli("resolve", "--local", str(art_dir))
+            self.assertEqual(r.returncode, 0, r.stderr)
+            arts = json.loads(r.stdout)
+            self.assertEqual(len(arts), 1,
+                             "Legacy fallback should return 1 artifact")
+            self.assertFalse(
+                (art_dir / "validation-index.json").exists(),
+                "Index should NOT exist yet")
+
+            # Step 2: build-legacy
+            r = _run_cli("build-legacy", str(art_dir),
+                         str(art_dir / "validation-index.json"))
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertTrue(
+                (art_dir / "validation-index.json").exists())
+
+            # Step 3: transform → published format
+            r = _run_cli("transform",
+                         str(art_dir / "validation-index.json"),
+                         str(docs_dir / "validation-index.json"))
+            self.assertEqual(r.returncode, 0, r.stderr)
+
+            # Step 4: copy artifact
+            (docs_dir / "testplan.md").write_text(
+                (art_dir / "04-testplan.md").read_text())
+
+            # Step 5: validate published
+            r = _run_cli("validate", "--published",
+                         str(docs_dir / "validation-index.json"),
+                         "--feature-dir", str(docs_dir))
+            self.assertEqual(r.returncode, 0, r.stderr)
+
+            # Step 6: resolve published from fresh docs dir
+            r = _run_cli("resolve", "--published", str(docs_dir))
+            self.assertEqual(r.returncode, 0, r.stderr)
+            pub_arts = json.loads(r.stdout)
+            self.assertEqual(len(pub_arts), 1)
+            self.assertEqual(pub_arts[0]["file"], "testplan.md")
+
+    def test_artifact_set_transition(self):
+        """Published single → add companion (new index) → diff shows
+        added companion.
+
+        Exercises the revise path: existing published state transitions
+        to a multi-artifact set via diff."""
+        with tempfile.TemporaryDirectory() as td:
+            # Old published state: single testplan
+            old_pub = {
+                "schema_version": "1.0",
+                "primary_testplan": "testplan.md",
+                "artifacts": [
+                    {"file": "testplan.md", "type": "testplan"},
+                ],
+            }
+            # New published state: testplan + companion
+            new_pub = {
+                "schema_version": "1.0",
+                "primary_testplan": "testplan.md",
+                "artifacts": [
+                    {"file": "testplan.md", "type": "testplan"},
+                    {"file": "hw-validation.md", "type": "companion",
+                     "purpose": "HW qual", "audience": "HW team"},
+                ],
+            }
+            _write_json(Path(td) / "old.json", old_pub)
+            _write_json(Path(td) / "new.json", new_pub)
+
+            r = _run_cli("diff",
+                         str(Path(td) / "old.json"),
+                         str(Path(td) / "new.json"))
+            self.assertEqual(r.returncode, 0, r.stderr)
+            d = json.loads(r.stdout)
+            self.assertEqual(d["added"], ["hw-validation.md"])
+            self.assertEqual(d["removed"], [])
+            self.assertEqual(d["unchanged"], ["testplan.md"])
+
+    def test_invalid_previous_snapshot_guard(self):
+        """Malformed prev index → diff rejects before computing changes.
+
+        Ensures that a corrupted snapshot captured during publish
+        cannot silently produce wrong removal lists."""
+        with tempfile.TemporaryDirectory() as td:
+            # Malformed: missing schema_version, wrong type
+            malformed_prev = {
+                "primary_testplan": "testplan.md",
+                "artifacts": [
+                    {"file": "testplan.md", "type": "testplan"},
+                ],
+            }
+            valid_new = {
+                "schema_version": "1.0",
+                "primary_testplan": "testplan.md",
+                "artifacts": [
+                    {"file": "testplan.md", "type": "testplan"},
+                ],
+            }
+            _write_json(Path(td) / "old.json", malformed_prev)
+            _write_json(Path(td) / "new.json", valid_new)
+            r = _run_cli("diff",
+                         str(Path(td) / "old.json"),
+                         str(Path(td) / "new.json"))
+            self.assertEqual(r.returncode, 1,
+                             "Malformed snapshot must be rejected")
+            self.assertIn("ERROR", r.stderr)
+
+    def test_first_publish_empty_old(self):
+        """First publish: empty old {} → diff shows all as added.
+
+        The first publish has no prior published state, so cmd_diff
+        receives an intentionally empty old index."""
+        with tempfile.TemporaryDirectory() as td:
+            new_pub = {
+                "schema_version": "1.0",
+                "primary_testplan": "testplan.md",
+                "artifacts": [
+                    {"file": "testplan.md", "type": "testplan"},
+                    {"file": "hw.md", "type": "companion",
+                     "purpose": "p", "audience": "a"},
+                ],
+            }
+            _write_json(Path(td) / "old.json", {})
+            _write_json(Path(td) / "new.json", new_pub)
+            r = _run_cli("diff",
+                         str(Path(td) / "old.json"),
+                         str(Path(td) / "new.json"))
+            self.assertEqual(r.returncode, 0, r.stderr)
+            d = json.loads(r.stdout)
+            self.assertIn("testplan.md", d["added"])
+            self.assertIn("hw.md", d["added"])
+            self.assertEqual(d["removed"], [])
 
 
 if __name__ == "__main__":
