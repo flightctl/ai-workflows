@@ -115,9 +115,12 @@ map from `publish-metadata.json`:
 - If `validation_artifacts` exists, build a map from each artifact's
   full published path (`{release}/{feature}/{file}`) to its local
   filename. Use `design_file_path` from publish-metadata to derive
-  the `{release}/{feature}` prefix.
+  the `{release}/{feature}` prefix. Also read the local
+  `validation-index.json` to get the validated `published_as` →
+  `local` mapping — this ensures the local filename used for routing
+  matches the actual local artifact file.
 - If `validation_artifacts` is absent, fall back to `testplan_file_path`
-  as the sole entry.
+  as the sole entry (maps to `04-testplan.md` locally).
 
 Route comments using exact full-path matching against this map — not
 basename matching, which would collide if multiple features share a
@@ -277,9 +280,10 @@ Apply changes in this order:
      this mutation round (additions or ID-reassignments). For each
      such group, build a **reserved-ID high-water mark** before
      applying any edits in the batch: scan all current TC IDs under
-     that group's `### FR-*` / `### NFR-*` heading (including any
-     about to be removed — deletion never releases a reserved
-     sequence) and record the highest sequence number. If reliable
+     that group's `### FR-*` / `### NFR-*` heading **across all
+     validation artifacts** (including any about to be removed —
+     deletion never releases a reserved sequence) and record the
+     highest sequence number. If reliable
      context is available (e.g., prior document versions, review
      comments, or provenance metadata that names previously retired
      IDs), include any retired ID higher than the current maximum.
@@ -370,8 +374,9 @@ Apply changes in this order:
    - Re-read the story file at
      `.artifacts/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md`.
    - Rewrite the `Validated by` line from the **current** (post-
-     mutation) testplan state: collect all TC IDs that match this story
-     (by IC overlap or requirement-based fallback for `—` TCs),
+     mutation) state **across all validation artifacts** (primary
+     testplan and companions): collect all TC IDs that match this
+     story (by IC overlap or requirement-based fallback for `—` TCs),
      then write `Validated by: {comma-separated TC IDs}`. This ensures
      old stories lose stale references and new stories gain them.
    - If a story loses all its test cases, write:
@@ -463,9 +468,10 @@ If the command exits non-zero, a validation error occurred — **stop
 and report the error.** Do not fall back to legacy behavior when a
 malformed index is present.
 
-If the current set is empty and `04-testplan.md` exists (legacy
-layout without an index), build a legacy index first with
-`build-legacy`, then re-run `resolve --local`.
+If `validation-index.json` does not exist in
+`.artifacts/design/{issue-key}` and `04-testplan.md` exists (legacy
+layout), build a normalized index first with `build-legacy`, then
+re-run `resolve --local`.
 
 **Validate current set:** For each artifact in the current set,
 verify its local file exists and is not a symlink. A listed
@@ -485,7 +491,11 @@ and publish-metadata has no `validation_artifacts` or
 `testplan_file_path`.
 
 **Copy ALL current artifacts** to the docs repo (not just previously
-tracked ones — this handles new companions added during respond):
+tracked ones — this handles new companions added during respond).
+Before each copy, reject symlink destinations and verify that any
+existing destination file is in the previous validation set (an
+existing file not in the previous set is unowned and must not be
+overwritten):
 
 ```bash
 cp ".artifacts/design/{issue-key}/{local}" "{docs_repo_path}/{feature-dir}/{published_as}"
@@ -527,9 +537,16 @@ If tracked, remove it. If not tracked (already removed), skip.
 If any other non-zero exit (unexpected git error), stop and report.
 
 If the current set is **empty** and the previous set had artifacts,
-all previously published artifacts are stale. For each artifact in
-the previous snapshot, remove its file. Also remove the published
-`validation-index.json`.
+validate the previous snapshot before removal:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issue-key}/prev-published-index.json"
+```
+
+If validation fails, stop and report. If it passes, remove each
+listed artifact. Remove the published `validation-index.json` only
+if the previous publication included one (skip for legacy-only
+snapshots that had only `testplan.md`).
 
 **Update publish-metadata.json:** Read, update `validation_artifacts`
 to match the current published set, update `testplan_file_path` to

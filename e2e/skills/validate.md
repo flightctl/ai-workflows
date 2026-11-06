@@ -257,24 +257,36 @@ Coverage section, skip this step entirely. However, if `02-plan.md`
 has TC mappings but `testplan.md` is missing, unreadable, or malformed
 (no parseable TC IDs), stop and report the inconsistency.
 
-1. Read `testplan.md` and extract all TC IDs. For each TC entry,
-   verify that Preconditions, Steps, and Expected Results sections
-   are present. If any entry is missing a required section, stop and
-   report the testplan as malformed.
-2. For each TC ID (except those the validate phase agrees are
-   legitimately N/A based on the rationale in the plan's Test Plan
-   Coverage matrix):
+1. Read `testplan.md` and extract all TC IDs. Separate them into
+   three groups:
+   - **Automatable TCs** (`Automation: automated` without a
+     `[Qualification gate]` marker): verify Preconditions, Steps,
+     and Expected Results sections are present. If missing, stop
+     and report the testplan as malformed.
+   - **Manual verification TCs** (`[Manual verification]` marker):
+     verify the TC entry is present. These do not require
+     Preconditions/Steps/Expected Results sections (they describe
+     human verification procedures).
+   - **Qualification gate TCs** (`[Qualification gate]` marker):
+     verify the TC entry is present. These do not require
+     Preconditions/Steps/Expected Results sections.
+2. For each **automatable** TC ID (except those the validate phase
+   agrees are legitimately N/A based on the rationale in the plan's
+   Test Plan Coverage matrix):
    - Search the e2e test files on the feature branch for a test
      scenario whose validations match the TC's Steps and Expected
      Results.
    - The match is behavioral, not textual — the test must exercise the
      described scenario and assert the described outcomes.
    - Record the test file and scenario name for each TC ID.
-3. If any TC ID lacks a corresponding test:
+3. If any automatable TC ID lacks a corresponding test:
    - Write the missing test following the reference suite's patterns.
    - Commit the test following the project's commit format.
    - Re-run the relevant checks from Step 3.
-4. Record results for the validation report.
+4. For manual verification and qualification gate TCs, record their
+   status in the External Validation Evidence section (see report
+   template below).
+5. Record results for the validation report.
 
 ### Step 8: Write Validation Report
 
@@ -397,10 +409,19 @@ Write `.artifacts/e2e/{issue-key}/05-validation-report.md`:
 
 ## Result
 
-{PASS — all checks pass, no anti-patterns, all acceptance criteria
- covered, no regressions.
- OR
- FAIL — with explanation of what still needs fixing.}
+{Automated e2e coverage: PASS / FAIL — whether all automatable TC IDs
+ have passing tests, no anti-patterns, and no regressions.
+
+ External validation: COMPLETE / PENDING / NOT STARTED — whether all
+ manual verification and qualification gate evidence has been provided.
+
+ Overall: PASS only when both automated coverage passes AND external
+ validation is complete. If automated tests pass but qualification
+ gates are pending or not started, report "PASS (automated) —
+ awaiting external validation evidence for {N} gates." A pending
+ or failed gate does not block the PR merge but must be visible in
+ the report and user summary. Do not claim required acceptance passed
+ when external evidence is outstanding.}
 ```
 
 ### Step 9: Present Results

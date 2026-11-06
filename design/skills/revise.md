@@ -131,9 +131,18 @@ After applying changes, verify:
 
 **If validation artifacts exist:**
 
-Read `validation-index.json` to discover all validation artifacts.
-If the index does not exist, fall back to checking `04-testplan.md`
-directly (legacy single-testplan behavior).
+Resolve the validation index **before** reading any artifact files.
+Use the CLI helper to validate and resolve paths:
+
+```bash
+VALIDATION_INDEX_SCRIPT="${HOME}/.ai-workflows/design/scripts/validation_index.py"
+python3 "$VALIDATION_INDEX_SCRIPT" resolve --local ".artifacts/design/{issue-key}"
+```
+
+If the command exits 0, parse the JSON array to discover all
+validation artifacts. If it exits non-zero, stop and report the
+error. If the result is empty and `04-testplan.md` exists, fall
+back to reading it directly (legacy single-testplan behavior).
 
 For **each** validation artifact (primary testplan and any companions):
 
@@ -169,7 +178,7 @@ feature-wide high-water mark for that requirement group.
 **Adding or removing companion plans during revision:**
 
 - **Adding:** If the user requests a new companion plan, create it
-  following the companion rules from the draft skill's Step 9e.
+  following the companion rules from the draft skill's Step 10.
   Update `validation-index.json` to include the new entry.
 - **Removing:** If the user requests removing a companion, delete its
   local file. Update `validation-index.json` to remove the entry.
@@ -218,10 +227,11 @@ updates above are complete on their own.
   that lost their IC mapping during the IC update). Re-read each
   affected story file at
   `.artifacts/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md`
-  before modifying it. Collect all TC IDs from the updated testplan
-  that match this story — by IC overlap with the story's (now-updated)
-  `Interface Changes`, or by requirement overlap for cross-cutting TCs
-  with `Interface Change: —` — then write the updated `Validated by`
+  before modifying it. Collect all TC IDs **across all validation
+  artifacts** (primary testplan and companions) that match this
+  story — by IC overlap with the story's (now-updated) `Interface
+  Changes`, or by requirement overlap for cross-cutting TCs with
+  `Interface Change: —` — then write the updated `Validated by`
   line. If a story loses all its test cases, write:
   `Validated by: None — no behavioral test cases after testplan revision`.
 
@@ -316,9 +326,10 @@ If the command exits non-zero, a validation error occurred — **stop
 and report the error.** Do not fall back to legacy behavior when a
 malformed index is present.
 
-If the current set is empty and `04-testplan.md` exists (legacy
-layout without an index), build a legacy index first with
-`build-legacy`, then re-run `resolve --local`.
+If `validation-index.json` does not exist in
+`.artifacts/design/{issue-key}` and `04-testplan.md` exists (legacy
+layout), build a normalized index first with `build-legacy`, then
+re-run `resolve --local`.
 
 **Snapshot PREVIOUS state:** If
 `{docs_repo_path}/{feature-dir}/validation-index.json` exists, copy
@@ -388,9 +399,16 @@ If tracked, remove it. If not tracked, skip. If any other non-zero
 exit (unexpected git error), stop and report.
 
 If the current set is **empty** and the previous set had artifacts,
-all previously published artifacts are stale. For each artifact in
-the previous snapshot, remove its file. Also remove the published
-`validation-index.json`.
+validate the previous snapshot before removal:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issue-key}/prev-published-index.json"
+```
+
+If validation fails, stop and report. If it passes, remove each
+listed artifact. Remove the published `validation-index.json` only
+if the previous publication included one (skip for legacy-only
+snapshots that had only `testplan.md`).
 
 Update `publish-metadata.json`: set `validation_artifacts` to match
 the current published set, update `testplan_file_path` to the primary

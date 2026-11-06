@@ -316,7 +316,7 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
 
 Before presenting the plan, verify:
 
-- [ ] Every acceptance criterion has at least one test scenario
+- [ ] Every acceptance criterion has at least one test scenario or is covered by a qualification gate with tracked external evidence
 - [ ] Test scenarios validate user-facing behavior, not internal logic that `[DEV]` tests already cover
 - [ ] Suite file follows the reference suite's lifecycle hook pattern
 - [ ] Test infrastructure methods referenced actually exist (verified during `/ingest`)
