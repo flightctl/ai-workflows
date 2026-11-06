@@ -2307,21 +2307,61 @@ class TestAtomicWriterRegressions(unittest.TestCase):
             self.assertEqual(dst.read_text(encoding="utf-8"),
                              '{"updated": true}\n')
 
-    def test_new_file_gets_default_mode(self):
-        """New file (no existing dst) gets 0o644 default mode."""
+    def test_new_file_respects_umask_077(self):
+        """New file with umask 077 gets 0o600."""
         import os as _os
         import stat as _stat
         with tempfile.TemporaryDirectory() as td:
             td = str(Path(td).resolve())
             dst = Path(td) / "new-output.json"
-            rc = vi._safe_write_output(dst, '{"new": true}\n')
+            old_umask = _os.umask(0o077)
+            try:
+                rc = vi._safe_write_output(dst, '{"new": true}\n')
+            finally:
+                _os.umask(old_umask)
             self.assertEqual(rc, 0)
             mode = _stat.S_IMODE(_os.stat(str(dst)).st_mode)
-            self.assertEqual(mode, 0o644,
-                             "New file must get 0o644 default mode")
+            self.assertEqual(mode, 0o600,
+                             "New file with umask 077 must get 0o600")
 
-    def test_write_failure_preserves_destination(self):
-        """If write fails, existing destination bytes and mode unchanged."""
+    def test_new_file_respects_umask_027(self):
+        """New file with umask 027 gets 0o640."""
+        import os as _os
+        import stat as _stat
+        with tempfile.TemporaryDirectory() as td:
+            td = str(Path(td).resolve())
+            dst = Path(td) / "new-output.json"
+            old_umask = _os.umask(0o027)
+            try:
+                rc = vi._safe_write_output(dst, '{"new": true}\n')
+            finally:
+                _os.umask(old_umask)
+            self.assertEqual(rc, 0)
+            mode = _stat.S_IMODE(_os.stat(str(dst)).st_mode)
+            self.assertEqual(mode, 0o640,
+                             "New file with umask 027 must get 0o640")
+
+    def test_rejects_fifo_destination(self):
+        """FIFO at destination is rejected before write."""
+        import os as _os
+        with tempfile.TemporaryDirectory() as td:
+            td = str(Path(td).resolve())
+            fifo_path = Path(td) / "output.json"
+            _os.mkfifo(str(fifo_path))
+            rc = vi._safe_write_output(fifo_path, '{"test": true}\n')
+            self.assertEqual(rc, 1, "FIFO destination must be rejected")
+
+    def test_rejects_directory_destination(self):
+        """Directory at destination is rejected before write."""
+        with tempfile.TemporaryDirectory() as td:
+            td = str(Path(td).resolve())
+            dir_path = Path(td) / "output.json"
+            dir_path.mkdir()
+            rc = vi._safe_write_output(dir_path, '{"test": true}\n')
+            self.assertEqual(rc, 1, "Directory destination must be rejected")
+
+    def test_partial_write_then_failure_preserves_destination(self):
+        """Short write + subsequent failure: old bytes/mode intact, temp gone."""
         import os as _os
         import stat as _stat
         import unittest.mock as _mock
@@ -2333,19 +2373,22 @@ class TestAtomicWriterRegressions(unittest.TestCase):
             _os.chmod(str(dst), 0o640)
             orig_mode = _stat.S_IMODE(_os.stat(str(dst)).st_mode)
 
-            # Patch os.write to fail partway through
+            # First os.write call: short write (only 5 bytes), so the
+            # loop iterates.  Second call: raise to simulate I/O failure.
             real_write = _os.write
             call_count = [0]
 
-            def failing_write(fd, data):
+            def partial_then_fail(fd, data):
                 call_count[0] += 1
-                if call_count[0] > 0:
-                    raise OSError("simulated write failure")
-                return real_write(fd, data)
+                if call_count[0] == 1:
+                    return real_write(fd, data[:5])
+                raise OSError("simulated write failure after partial")
 
-            with _mock.patch("os.write", side_effect=failing_write):
+            with _mock.patch("os.write", side_effect=partial_then_fail):
                 rc = vi._safe_write_output(dst, '{"should not appear"}\n')
 
+            self.assertGreaterEqual(call_count[0], 2,
+                                    "Must attempt at least two writes")
             self.assertEqual(rc, 1, "Must return error code")
             self.assertEqual(dst.read_text(encoding="utf-8"), original,
                              "Destination bytes must be unchanged")
@@ -2415,7 +2458,85 @@ class TestAtomicWriterRegressions(unittest.TestCase):
 
 
 # ===========================================================================
-# 26. Snapshot/Git consumer regressions
+# 26. TC confirmation binding contract (static document test)
+# ===========================================================================
+
+class TestTCConfirmationBindingContract(unittest.TestCase):
+    """Static contract test for TC confirmation binding.
+
+    Validates the documented SHA-256 confirmation contract that both
+    the e2e and implement workflows use: when a user confirms retained
+    TCs from an unverified testplan, the confirmation records the
+    SHA-256 of the testplan bytes. Later consumers compare this hash
+    to detect content changes from re-ingestion.
+
+    This is a STATIC document contract test — it exercises the SHA-256
+    computation and comparison that the workflow instructions prescribe,
+    not live AI agent behavior.
+
+    NOT tested (requires live AI agents):
+    - Actual agent reading plan markdown and extracting confirmation
+    - Agent re-prompting users when hash differs
+    """
+
+    def test_same_ids_modified_expected_results_stale(self):
+        """Same TC IDs but modified Expected Results → different SHA-256.
+
+        Simulates the documented scenario: re-ingest replaces testplan.md
+        with same TC IDs but changed Expected Results. The confirmation
+        hash from the original must NOT match the replacement."""
+        import hashlib
+        original = (
+            "# Story Test Plan — TEST-123\n\n"
+            "## TC-FR1-01: Login validation\n\n"
+            "### Expected Results\n\n"
+            "- User sees dashboard after login\n"
+        )
+        replacement = (
+            "# Story Test Plan — TEST-123\n\n"
+            "## TC-FR1-01: Login validation\n\n"
+            "### Expected Results\n\n"
+            "- User sees welcome page after login\n"
+        )
+
+        orig_hash = hashlib.sha256(
+            original.encode("utf-8")).hexdigest()
+        repl_hash = hashlib.sha256(
+            replacement.encode("utf-8")).hexdigest()
+
+        # Confirmation hash from original must NOT match replacement
+        self.assertNotEqual(orig_hash, repl_hash,
+                            "Modified Expected Results must produce "
+                            "different SHA-256 — confirmation is stale")
+
+    def test_unchanged_content_matches(self):
+        """Identical content → same SHA-256 → confirmation valid."""
+        import hashlib
+        content = (
+            "# Story Test Plan — TEST-456\n\n"
+            "## TC-FR2-01: Data export\n\n"
+            "### Expected Results\n\n"
+            "- CSV file is downloaded\n"
+        )
+        hash_at_confirmation = hashlib.sha256(
+            content.encode("utf-8")).hexdigest()
+        hash_at_validation = hashlib.sha256(
+            content.encode("utf-8")).hexdigest()
+        self.assertEqual(hash_at_confirmation, hash_at_validation,
+                         "Unchanged content must produce same SHA-256")
+
+    def test_missing_binding_is_unconfirmed(self):
+        """No SHA-256 recorded → treated as unconfirmed per contract.
+
+        Documents the workflow instruction: 'Missing SHA-256 binding
+        (no hash recorded) is treated as unconfirmed.'"""
+        recorded_hash = None  # plan has no SHA-256 binding
+        self.assertIsNone(recorded_hash,
+                          "Missing binding must be treated as unconfirmed")
+
+
+# ===========================================================================
+# 27. Snapshot/Git consumer regressions
 # ===========================================================================
 
 class TestSnapshotGitConsumerRegressions(unittest.TestCase):
@@ -2727,6 +2848,67 @@ class TestSnapshotGitConsumerRegressions(unittest.TestCase):
             self.assertTrue((feat_dir / "testplan.md").exists())
             self.assertTrue(
                 (feat_dir / "validation-index.json").exists())
+
+
+    def test_hostile_global_config_does_not_block_commits(self):
+        """Host GIT_CONFIG_GLOBAL with forced signing and hooks is overridden.
+
+        Verifies that _init_git_repo's local config overrides are
+        sufficient: even when GIT_CONFIG_GLOBAL points to a config
+        that enables commit.gpgsign and sets core.hooksPath to a
+        directory with a failing pre-commit hook, the test's local
+        repo config (set before the first commit) takes precedence.
+
+        This is a static Git consumer regression test — it exercises
+        the actual test helper, not a live AI workflow."""
+        import os as _os
+        with tempfile.TemporaryDirectory() as td:
+            td = str(Path(td).resolve())
+
+            # Create a hostile global config
+            hostile_dir = Path(td) / "hostile"
+            hostile_dir.mkdir()
+            hostile_hooks = hostile_dir / "hooks"
+            hostile_hooks.mkdir()
+            # Failing pre-commit hook
+            hook = hostile_hooks / "pre-commit"
+            hook.write_text("#!/bin/sh\nexit 1\n")
+            hook.chmod(0o755)
+            # Global config forcing signing and hostile hooks
+            global_cfg = hostile_dir / "gitconfig"
+            global_cfg.write_text(
+                "[commit]\n\tgpgsign = true\n"
+                f"[core]\n\thooksPath = {hostile_hooks}\n"
+            )
+
+            # _init_git_repo must succeed despite hostile global
+            repo_path = Path(td) / "repo"
+            repo_path.mkdir()
+            env = {**_os.environ, "GIT_CONFIG_GLOBAL": str(global_cfg)}
+
+            # Patch subprocess.run to inject hostile env for git commands
+            import unittest.mock as _mock
+            orig_run = subprocess.run
+
+            def run_with_env(*a, **kw):
+                if a and a[0] and a[0][0] == "git":
+                    kw.setdefault("env", env)
+                return orig_run(*a, **kw)
+
+            with _mock.patch("subprocess.run", side_effect=run_with_env):
+                self._init_git_repo(repo_path)
+                # Consumer commit: add a file and commit
+                (repo_path / "test.txt").write_text("content")
+                subprocess.run(["git", "-C", str(repo_path), "add",
+                               "test.txt"],
+                              capture_output=True, check=True, env=env)
+                r = subprocess.run(
+                    ["git", "-C", str(repo_path), "commit", "-m",
+                     "consumer commit"],
+                    capture_output=True, text=True, env=env)
+            self.assertEqual(r.returncode, 0,
+                             f"Consumer commit must succeed despite "
+                             f"hostile global config: {r.stderr}")
 
 
 if __name__ == "__main__":

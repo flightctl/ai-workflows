@@ -259,6 +259,16 @@ dismissed findings in the implementation report (Discoveries section).
 
 **Test plan reconciliation (if story-scoped testplan exists):**
 
+**Unverified source deferral:** If `testplan.md` contains
+`Freshness: unverified` and the Test Plan Coverage status in
+`02-plan.md` has not been confirmed by the user (no "confirmed"
+status with SHA-256 binding), defer TC reconciliation — do not
+block the commit on TC coverage. AC-based work and existing tests
+proceed normally. If the plan records a confirmation with a
+SHA-256 hash, compute the current `testplan.md` SHA-256 and
+compare. If the hash differs, treat as unconfirmed and defer.
+Missing SHA-256 binding is treated as unconfirmed.
+
 After the self-review gate passes, check whether this task's scenario(s)
 have TC IDs mapped to them in the Test Plan Coverage matrix of
 `02-plan.md`. If so, verify each mapped TC ID before proceeding to

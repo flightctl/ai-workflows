@@ -785,7 +785,10 @@ def _safe_write_output(dst: Path, content: str,
     The temporary file is cleaned up on any failure.
 
     When updating an existing regular file, its permission mode is
-    preserved on the replacement.  New files default to 0o644.
+    preserved on the replacement.  New files default to 0o644 masked
+    by the process umask (matching ``os.open`` mode semantics).
+    Non-regular destination files (FIFO, directory, device) are
+    rejected before writing.
 
     Safety checks:
     - Rejects symlink at the final destination path (pre-open check).
@@ -892,12 +895,19 @@ def _safe_write_output(dst: Path, content: str,
     # a partial write never corrupts the published index.
     import tempfile as _tf
 
-    # Preserve mode of existing regular file, if present.
+    # Check existing destination: preserve mode of regular files,
+    # reject non-regular non-symlink leaves (FIFO, directory, etc.).
+    # Symlinks are already rejected above by the is_symlink check.
     existing_mode: int | None = None
     try:
         st = os.stat(str(dst), follow_symlinks=False)
         if stat.S_ISREG(st.st_mode):
             existing_mode = stat.S_IMODE(st.st_mode)
+        else:
+            # Non-regular, non-symlink: FIFO, directory, device, etc.
+            print(f"ERROR: destination is not a regular file: {dst}",
+                  file=sys.stderr)
+            return 1
     except FileNotFoundError:
         pass
     except OSError as exc:
@@ -925,8 +935,14 @@ def _safe_write_output(dst: Path, content: str,
         tmp_fd = None  # mark closed
 
         # Set permissions before replacing: use existing mode when
-        # updating a regular file, otherwise default 0o644.
-        target_mode = existing_mode if existing_mode is not None else 0o644
+        # updating a regular file, otherwise 0o644 masked by process
+        # umask (matching the old os.open(mode=0o644) semantics).
+        if existing_mode is not None:
+            target_mode = existing_mode
+        else:
+            cur_umask = os.umask(0)
+            os.umask(cur_umask)
+            target_mode = 0o644 & ~cur_umask
         os.chmod(tmp_path, target_mode)
 
         # Atomic replace — destination is either old or fully new.

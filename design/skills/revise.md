@@ -515,13 +515,16 @@ validate the previous snapshot before removal:
 python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issue-key}/prev-published-index.json"
 ```
 
-If validation fails, stop and report. If it passes, confirm with
-the user that retirement of all previously published artifacts is
-intended before staging removals. An empty current set caused by
-missing local sources (rather than explicit user intent) must not
-silently remove published content — stop and report the missing
-sources. Once confirmed, for each listed artifact, check whether
-it is tracked and stage removal with
+If validation fails, stop and report. If it passes, present the
+exact list of previously published filenames from the validated
+snapshot to the user and confirm that retirement of each named
+artifact is intended (the user may choose to retire all, restore
+specific files, or abort). An empty current set caused by missing
+local sources (rather than explicit user intent) must not silently
+remove published content — stop and report the missing sources
+instead of proceeding to retirement. Once the user confirms the
+named retirements, for each confirmed artifact, check whether it
+is tracked and stage removal with
 `git -C "{docs_repo_path}" rm -- "{feature-dir}/{filename}"`.
 Skip untracked files. Remove the published `validation-index.json`
 only if the previous publication included one (skip for legacy-only

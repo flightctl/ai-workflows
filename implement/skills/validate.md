@@ -347,16 +347,14 @@ verify that every **automatable** test case has been implemented.
 `Freshness: unverified`, check whether the Test Plan Coverage
 section in `02-plan.md` records a confirmed status for the TCs.
 
-- **Confirmed TCs** (plan records user confirmation and confirmed
-  TC IDs with content fingerprint): compare the current TC content
-  in `testplan.md` against the recorded confirmation. If the content
-  has changed since confirmation, treat as unconfirmed — mark Test
-  Plan Coverage as "unverified — TC content changed since
-  confirmation" and require the user to re-confirm. Otherwise,
-  treat as normative despite unverified source freshness. Write
-  gap-fill tests for missing confirmed TCs, report TC coverage
-  normally. Source freshness remains unverified but confirmed TCs
-  represent the user's accepted validation contract.
+- **Confirmed TCs** (plan records user confirmation, confirmed TC
+  IDs, and SHA-256 of `testplan.md` at confirmation time): compute
+  the current `testplan.md` SHA-256 and compare against the recorded
+  hash. If they match, treat confirmed TCs as normative despite
+  unverified source freshness. Write gap-fill tests for missing
+  confirmed TCs, report TC coverage normally. If the hash differs,
+  the confirmation is stale — treat as unconfirmed. Missing SHA-256
+  binding (no hash recorded) is treated as unconfirmed.
 - **Unconfirmed TCs** (no confirmed status in plan): coverage is
   provisional, not normative. Do not write mandatory gap-fill
   tests, do not gate commits or block AC-based work on unconfirmed

@@ -268,21 +268,26 @@ directly to step 4 below.
 `Freshness: unverified`, check whether the Test Plan Coverage
 section in `02-plan.md` records a confirmed status for the TCs.
 
-- **Confirmed TCs** (plan records user confirmation and confirmed
-  TC IDs): treat as normative despite unverified source freshness.
-  Write gap-fill tests for missing confirmed TCs, report TC
-  coverage normally.  Source freshness remains unverified but
-  confirmed TCs represent the user's accepted validation contract.
-- **Unconfirmed TCs** (no confirmed status in plan): coverage is
-  provisional, not normative. Do not write mandatory gap-fill
-  tests. Report as "unverified — source testplan not confirmed."
+- **Confirmed TCs** (plan records user confirmation, confirmed TC
+  IDs, and SHA-256 of `testplan.md` at confirmation time): compute
+  the current `testplan.md` SHA-256 and compare against the recorded
+  hash. If they match, treat confirmed TCs as normative despite
+  unverified source freshness. Write gap-fill tests for missing
+  confirmed TCs, report TC coverage normally. If the hash differs,
+  the confirmation is stale — treat as unconfirmed.
+- **Unconfirmed TCs** (no confirmed status in plan, or missing
+  SHA-256 binding, or stale hash): coverage is provisional, not
+  normative. Do not write mandatory gap-fill tests. Report as
+  "unverified — source testplan not confirmed."
 
 When the user confirms TCs during validation, record the
 confirmation in the Test Plan Coverage section of `02-plan.md`:
 set the status to "confirmed — user verified TC applicability on
-{date}" and list the confirmed TC IDs. This persistent record
-allows subsequent `/validate` runs to distinguish confirmed TCs
-from provisional ones without re-prompting.
+{date}", list the confirmed TC IDs, and record the SHA-256 of the
+current `testplan.md` bytes (computed as `sha256sum testplan.md`).
+This persistent record allows subsequent `/validate` runs to
+distinguish confirmed TCs from provisional ones without
+re-prompting and detects content changes from re-ingestion.
 
 In both cases, do not block the validation report or AC-based
 work.
