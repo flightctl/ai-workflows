@@ -278,10 +278,11 @@ for image references (`SS-N` IDs).
   Set Screenshots status: `inspected` (all), `partial` (some), or
   `unavailable` (none). Preserve per-image status and user decisions.
 
-- **If none** (Screenshot Index says "None", no inline embeds): Set
-  `HAS_SCREENSHOTS = false`. If the index is absent but inline embeds
-  exist, report the inconsistency and request an updated handoff or
-  explicit limited-evidence continuation.
+- **If none** (Screenshot Index says "None" or is absent, and no
+  inline image embeds exist): Set `HAS_SCREENSHOTS = false`. If the
+  index says "None" or is absent but inline embeds are present, report
+  the inconsistency; if the user chooses limited continuation, record
+  `HAS_SCREENSHOTS = unavailable` with the decision — not `false`.
 
 - **If deferred** (user authorizes skipping inspection): Set
   `HAS_SCREENSHOTS = deferred`. Note reduced visual fidelity downstream.
@@ -295,7 +296,7 @@ Annotations, Persona-Specific Views, Accessibility Requirements,
 Acceptance Criteria (AC-N), and Feasibility & Phasing.
 
 If not found: *"No UX handoff artifact. Proceeding with PRD, design
-document, and codebase context only."*
+document, and codebase context."*
 
 #### 5.4: Load Clarifications
 
@@ -364,11 +365,11 @@ files introduce no new patterns. Note remaining unknowns in Open Questions.
 
 #### No-Evidence Stop Gate
 
-If exploration found **none** of: `UI-ARCHITECTURE.md`, component
-directories, or backend API type definitions — stop before writing
-`01-context.md`. Report which searches were attempted. Wait for a
-corrected path or explicit limited-evidence confirmation. If the user
-provides a corrected path, re-run Step 7 with it.
+If exploration found **none** of `UI-ARCHITECTURE.md`, component
+directories, or API type definitions — stop before writing
+`01-context.md`. Report searches attempted; wait for a corrected path
+or explicit limited-evidence confirmation. On corrected path, re-run
+Step 7.
 
 ### Step 8: Compile Context
 
@@ -553,10 +554,11 @@ If this is a first invocation, write
 ### Step 8a: Diff Against Prior Ingest (Re-invocation Only)
 
 If Step 2a created a `.prev` file, diff it against the compiled content
-(acceptance criteria, API endpoints, affected components). Check for
+(acceptance criteria, upstream artifact changes, API endpoints, affected
+components). Check for
 downstream artifacts (`02-ui-design.md`, `03-api-findings.md`,
-`sync-manifest.json`, etc.) and warn about Jira sync implications.
-Present the diff summary and wait for confirmation.
+`sync-manifest.json`, etc.) and warn about sync implications.
+Present the diff and wait for confirmation.
 **Confirm:** write compiled content to `01-context.md`, delete
 `01-context.md.prev` and any temp file.
 **Decline:** discard compiled content, delete `.prev` and temp files,

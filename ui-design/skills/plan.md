@@ -78,9 +78,9 @@ Then open **cited sources only** from `01-context.md`:
 3. Cited source files from the codebase — components, hooks, routes,
    API client code. Cap at **≤15** reads (bootstrap reads of
    `01-context.md`, `AGENTS.md`, `UI-ARCHITECTURE.md` don't count).
-4. No glob, grep, or Jira queries. Read only cited files and required
-   upstream artifacts. If reads fail, stop and report which before
-   writing the plan — do not substitute assumptions.
+4. No repo-wide glob/grep or Jira queries. Read only cited files and
+   required upstream artifacts. If reads fail, stop and report which
+   before writing — do not substitute assumptions.
 
 ### Step 2: Map UX Handoff to Design Decisions
 

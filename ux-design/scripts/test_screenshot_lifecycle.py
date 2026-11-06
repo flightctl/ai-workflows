@@ -270,7 +270,7 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
 
     def test_ingest_rerun_step7(self) -> None:
         """Item 3: no-evidence gate says to re-run Step 7."""
-        content = _read("ui-design/skills/ingest.md")
+        content = " ".join(_read("ui-design/skills/ingest.md").split())
         self.assertIn("re-run Step 7", content)
 
     def test_ingest_legacy_embeds_not_silently_false(self) -> None:
@@ -279,11 +279,12 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
         section = content.split("Screenshot inspection", 1)[1].split(
             "Provenance freshness", 1
         )[0]
-        # True no-image: "None", no inline embeds -> false
+        # True no-image: "None" or absent, no inline embeds -> false
         self.assertIn("HAS_SCREENSHOTS = false", section)
-        # Legacy/contradictory: absent index + embeds -> report inconsistency
+        # Legacy/contradictory: embeds present -> report inconsistency
         self.assertIn("inconsistency", section)
-        self.assertIn("updated handoff", section)
+        # Limited continuation records unavailable, not false
+        self.assertIn("HAS_SCREENSHOTS = unavailable", section)
 
     def test_ingest_write_cleanup_on_confirm(self) -> None:
         """Item 4: Step 8a defines write + cleanup for both paths."""
