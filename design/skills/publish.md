@@ -36,17 +36,18 @@ full usage.
 
 ## Process
 
-### Prerequisites: Resolve Script Path
+### Prerequisites: Resolve Script Paths
 
 Before any `cd` or subshell that changes the working directory, resolve
-the shared script to an absolute path so it remains valid:
+shared scripts to absolute paths so they remain valid:
 
 ```bash
 PUBLISH_SCRIPT="${HOME}/.ai-workflows/_shared/scripts/publish.py"
+VALIDATION_INDEX_SCRIPT="${HOME}/.ai-workflows/design/scripts/validation_index.py"
 ```
 
-Use `$PUBLISH_SCRIPT` instead of the relative path in all subsequent
-commands.
+Use `$PUBLISH_SCRIPT` and `$VALIDATION_INDEX_SCRIPT` instead of the
+relative paths in all subsequent commands.
 
 ### Step 1: Read the Design Document
 
@@ -228,30 +229,51 @@ git -C "{docs_repo_path}" add "{release}/{feature}/design.md"
 
 **Validation artifact publication:**
 
-Read the validation artifact index at
-`.artifacts/design/{issue-key}/validation-index.json` if it exists.
-If the index does not exist, fall back to legacy behavior: check
-whether `04-testplan.md` exists and treat it as the sole artifact
-with `published_as: "testplan.md"`.
+Publication follows a strict snapshot-before-write order to avoid
+data loss when artifacts change between publishes.
 
-**If no validation artifacts exist** (no index and no `04-testplan.md`):
-check whether previously published validation files exist in the docs
-repo feature directory. For each file listed in the existing
-`validation-index.json` in the docs repo (if present), or for
-`testplan.md` (legacy), remove it:
+**Step 4a: Resolve current artifacts.** Resolve the local validation
+artifact set:
 
 ```bash
-git -C "{docs_repo_path}" rm -- "{release}/{feature}/{published-filename}"
+python3 "$VALIDATION_INDEX_SCRIPT" resolve --local ".artifacts/design/{issue-key}"
 ```
 
-Commit with the design-only message and skip to Step 5:
+If the command outputs a JSON array, use it as the current set. If it
+exits non-zero (no index and no `04-testplan.md`), the current set is
+empty.
+
+If `validation-index.json` does not exist but `04-testplan.md` does
+(legacy), build a normalized index first:
 
 ```bash
-git -C "{docs_repo_path}" commit -m "Add design document for {issue-key}: {title}"
+python3 "$VALIDATION_INDEX_SCRIPT" build-legacy ".artifacts/design/{issue-key}"
 ```
 
-**If validation artifacts exist**, copy each to the docs repo using
-the `published_as` filename from the index:
+This writes `validation-index.json` with the single primary entry,
+then re-run `resolve --local` to get the normalized set.
+
+**Step 4b: Snapshot previous published state.** Before writing any
+files to the docs repo, capture the previously published artifact
+set so stale files can be identified after the new set is written:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" resolve --published "{docs_repo_path}/{release}/{feature}"
+```
+
+If this returns a JSON array, save it as `{previous-set}`. If it
+exits non-zero (no prior index and no `testplan.md`), the previous
+set is empty.
+
+**Step 4c: Copy current artifacts.** If the current set is empty
+(no validation artifacts), skip to Step 4e.
+
+For each entry in the current set, verify the local file exists
+before copying. A listed artifact whose local file is missing is an
+error — stop and report it to the user. Do not proceed with partial
+publication.
+
+Copy each artifact to the docs repo:
 
 ```bash
 cp ".artifacts/design/{issue-key}/{local}" "{docs_repo_path}/{release}/{feature}/{published_as}"
@@ -261,57 +283,50 @@ cp ".artifacts/design/{issue-key}/{local}" "{docs_repo_path}/{release}/{feature}
 git -C "{docs_repo_path}" add "{release}/{feature}/{published_as}"
 ```
 
-Repeat for every entry in the `artifacts` array.
-
-**Publish the validation index** to make the artifact set discoverable
-by downstream consumers (implement, e2e) without hidden local metadata:
+**Step 4d: Publish the validation index.** Transform and write the
+published index for downstream discovery:
 
 ```bash
-cp ".artifacts/design/{issue-key}/validation-index.json" "{docs_repo_path}/{release}/{feature}/validation-index.json"
+python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" --output "{docs_repo_path}/{release}/{feature}/validation-index.json"
 ```
-
-Before writing the published copy, transform the index for the docs
-repo context: replace each `local` filename with the `published_as`
-value (since consumers in the docs repo see only published filenames)
-and replace `primary_testplan` with its `published_as` value. Write
-the transformed index:
-
-```json
-{
-  "schema_version": "1.0",
-  "primary_testplan": "testplan.md",
-  "artifacts": [
-    {
-      "file": "testplan.md",
-      "type": "testplan"
-    }
-  ]
-}
-```
-
-Companion entries retain their `type`, `purpose`, and `audience` fields.
-The `local` field is dropped (not meaningful in the docs repo).
 
 ```bash
 git -C "{docs_repo_path}" add "{release}/{feature}/validation-index.json"
 ```
 
-**Safe removal of stale artifacts:** If a `validation-index.json`
-already exists in the docs repo from a prior publish, compare its
-`artifacts` list against the current set. For each previously
-published artifact not present in the current index, remove it:
+**Step 4e: Remove stale artifacts.** Compare the previous set
+(from Step 4b) against the current set to find retired artifacts:
 
 ```bash
-git -C "{docs_repo_path}" rm -- "{release}/{feature}/{stale-published-filename}"
+python3 "$VALIDATION_INDEX_SCRIPT" diff --previous-json '{previous-set}' --current-json '{current-set}'
 ```
 
-Do not remove files outside the feature directory or files not listed
-in the previous index.
-
-Commit with a message reflecting the published artifacts:
+The command outputs a JSON array of filenames to remove. For each:
 
 ```bash
+git -C "{docs_repo_path}" rm -- "{release}/{feature}/{stale-filename}"
+```
+
+Do not remove files outside the feature directory or files not
+listed in the previous set.
+
+If the current set is empty and the previous set had artifacts, also
+remove the published `validation-index.json` so no stale index
+remains:
+
+```bash
+git -C "{docs_repo_path}" rm -- "{release}/{feature}/validation-index.json"
+```
+
+**Step 4f: Commit.** Commit with a message reflecting what was
+published:
+
+```bash
+# If validation artifacts were published:
 git -C "{docs_repo_path}" commit -m "Add design document and validation artifacts for {issue-key}: {title}"
+
+# If no validation artifacts (design-only):
+git -C "{docs_repo_path}" commit -m "Add design document for {issue-key}: {title}"
 ```
 
 ### Step 5: Push and Create PR

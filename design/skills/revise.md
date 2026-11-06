@@ -296,44 +296,90 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 
 **Validation artifact docs-repo sync:**
 
-Read `validation_artifacts` from `publish-metadata.json`. If absent,
-fall back to the legacy `testplan_file_path` field. If neither exists,
-skip all sync steps below.
-
-If `validation_artifacts` exists but the local `validation-index.json`
-does not (artifacts were created after initial publish or locally only),
-note to the user: "Validation artifacts exist locally but were not
-included in the original publish. Re-run `/publish` to include them."
-
-For each tracked artifact, determine its local and published paths:
-
-- **If the local file exists**, copy it to the docs repo:
+Resolve the shared validation index script:
 
 ```bash
-cp ".artifacts/design/{issue-key}/{local}" "{docs_repo_path}/{feature-dir}/{published}"
+VALIDATION_INDEX_SCRIPT="${HOME}/.ai-workflows/design/scripts/validation_index.py"
+```
+
+Derive `{feature-dir}` from `design_file_path` in publish-metadata
+(e.g., `v2.1/feature-slug` from `v2.1/feature-slug/design.md`).
+
+**Build CURRENT set:** Resolve the current local artifacts:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" resolve --local ".artifacts/design/{issue-key}"
+```
+
+If the command exits non-zero and `04-testplan.md` exists, build a
+legacy index first with `build-legacy`. If neither index nor
+`04-testplan.md` exists, the current set is empty.
+
+**Build PREVIOUS set:** Resolve what was previously published:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" resolve --published "{docs_repo_path}/{feature-dir}"
+```
+
+If the previous set is empty and publish-metadata has no
+`validation_artifacts` or `testplan_file_path`, skip all sync below.
+
+If the previous set is non-empty but local `validation-index.json`
+does not exist (validation artifacts were published previously but no
+local index exists now), note to the user: "Validation artifacts were
+previously published but no local index exists. Re-run `/publish` to
+resync, or create a local index before proceeding."
+
+**Validate current set:** For each artifact in the current set,
+verify its local file exists. A listed artifact whose local file is
+missing is an error — stop and report. Do not delete published
+content based on a missing local file.
+
+**Copy ALL current artifacts** (not just previously tracked — handles
+new companions added during revision):
+
+```bash
+cp ".artifacts/design/{issue-key}/{local}" "{docs_repo_path}/{feature-dir}/{published_as}"
 ```
 
 ```bash
-git -C "{docs_repo_path}" add "{feature-dir}/{published}"
+git -C "{docs_repo_path}" add "{feature-dir}/{published_as}"
 ```
 
-- **If the local file does NOT exist** (artifact was removed during
-  revision), remove the published copy if tracked:
+**Remove retired artifacts** — only those in PREVIOUS but NOT in
+CURRENT:
 
 ```bash
-git -C "{docs_repo_path}" ls-files --error-unmatch "{feature-dir}/{published}"
+python3 "$VALIDATION_INDEX_SCRIPT" diff --previous-json '{previous-set}' --current-json '{current-set}'
 ```
 
-If tracked, remove it. If not tracked, skip. If any other error,
-stop and report.
+For each stale filename:
 
-Update the published `validation-index.json` and `publish-metadata.json`
-to reflect the current artifact set (same procedure as respond sync).
+```bash
+git -C "{docs_repo_path}" ls-files --error-unmatch "{feature-dir}/{stale-filename}"
+```
+
+If tracked, remove it. If not tracked, skip. If any other non-zero
+exit (unexpected git error), stop and report.
+
+If the current set is empty and the previous set had artifacts,
+also remove `validation-index.json` from the docs repo.
+
+**Update published index and metadata:** If the current set is
+non-empty, transform and write the updated index:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" --output "{docs_repo_path}/{feature-dir}/validation-index.json"
+```
 
 ```bash
 git -C "{docs_repo_path}" add "{design_file_path}"
 git -C "{docs_repo_path}" add "{feature-dir}/validation-index.json"
 ```
+
+Update `publish-metadata.json`: set `validation_artifacts` to match
+the current published set, update `testplan_file_path` to the primary
+testplan's full published path (or remove if no primary testplan).
 
 ```bash
 git -C "{docs_repo_path}" commit -m "Design {issue-key}: revise — {brief description}"
