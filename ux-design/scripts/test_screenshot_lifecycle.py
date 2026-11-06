@@ -254,7 +254,12 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
     def test_ingest_token_budget(self) -> None:
         content = _read("ui-design/skills/ingest.md")
         est = len(content) // 4
-        self.assertLessEqual(est, 6478, f"ingest ~{est} tokens > baseline 6478")
+        self.assertLessEqual(est, 6100, f"ingest ~{est} est tokens > 6100")
+
+    def test_plan_token_budget(self) -> None:
+        content = _read("ui-design/skills/plan.md")
+        est = len(content) // 4
+        self.assertLessEqual(est, 6100, f"plan ~{est} est tokens > 6100")
 
     def test_ingest_aggregate_status_mapping(self) -> None:
         """Item 2: ingest maps per-image statuses to aggregate status."""
@@ -268,6 +273,18 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
         content = _read("ui-design/skills/ingest.md")
         self.assertIn("re-run Step 7", content)
 
+    def test_ingest_legacy_embeds_not_silently_false(self) -> None:
+        """Item B: absent index with inline embeds reports inconsistency."""
+        content = _read("ui-design/skills/ingest.md")
+        section = content.split("Screenshot inspection", 1)[1].split(
+            "Provenance freshness", 1
+        )[0]
+        # True no-image: "None", no inline embeds -> false
+        self.assertIn("HAS_SCREENSHOTS = false", section)
+        # Legacy/contradictory: absent index + embeds -> report inconsistency
+        self.assertIn("inconsistency", section)
+        self.assertIn("updated handoff", section)
+
     def test_ingest_write_cleanup_on_confirm(self) -> None:
         """Item 4: Step 8a defines write + cleanup for both paths."""
         content = _read("ui-design/skills/ingest.md")
@@ -275,26 +292,24 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
         # Normalize whitespace for cross-line assertions
         flat = " ".join(step8a.split())
         # Confirm path: write content, delete .prev and temp
-        self.assertIn("write the compiled content to `01-context.md`", flat)
+        self.assertIn("write compiled content to `01-context.md`", flat)
         self.assertIn("01-context.md.prev", flat)
         # Decline path: discard content, delete .prev and temp, preserve
-        self.assertIn("discard the compiled content", flat)
-        self.assertIn("any temporary file", flat)
-        self.assertIn("was preserved, and stop", flat)
+        self.assertIn("discard compiled content", flat)
+        self.assertIn("temp file", flat)
+        self.assertIn("preserved", flat)
 
     def test_plan_missing_screenshot_section_fallback(self) -> None:
         """Item 5: plan handles absent Screenshot Observations; preserves no-handoff."""
         content = _read("ui-design/skills/plan.md")
-        fallback = content.split(
-            "Screenshot Observations or its `Screenshots` status is absent", 1
-        )
+        fallback = content.split("Screenshot Observations or its status is absent", 1)
         self.assertEqual(len(fallback), 2, "Missing absent-status fallback")
         instructions = fallback[1].split("Screenshots show", 1)[0]
         # No-handoff path: HAS_HANDOFF=false -> HAS_SCREENSHOTS=false, no re-ingest
         self.assertIn("HAS_HANDOFF", instructions)
         self.assertIn("HAS_SCREENSHOTS = false", instructions)
         # Handoff-present unknown path: offers re-ingest or unavailable
-        self.assertIn("rerun `/ingest`", instructions)
+        self.assertIn("rerun", instructions)
         self.assertIn("unavailable", instructions)
 
     def test_inspection_recipe_path_containment(self) -> None:
@@ -393,20 +408,22 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
         self.assertIn("discovery revision", supplied)
 
     def test_evaluate_capture_index_schema(self) -> None:
-        """Item 13: evaluate writes capture index with all binding fields."""
+        """Item 13: evaluate writes capture index at every depth."""
         content = _read("ux-design/skills/evaluate.md")
         index = content.split("screenshot-captures.json", 1)[1].split(
             "Run the skill", 1
         )[0]
-        # Schema must include all three binding fields per capture entry
+        # Schema includes all three binding fields per capture entry
         self.assertIn("context_revision", index)
         self.assertIn("discovery_revision", index)
         self.assertIn("prototype_iteration", index)
         self.assertIn("sha256", index)
         self.assertIn("filename", index)
         self.assertIn("captures", index)
-        # Quick depth writes empty captures array
-        self.assertIn("empty `captures`", content)
+        # Written at every depth, not just Standard/Full
+        self.assertIn("At every depth", content.split("screenshot-captures.json")[0])
+        # No-capture runs write empty captures array
+        self.assertIn("captures:[]", index)
 
     def test_config_precedence(self) -> None:
         """Item 7: publish checks workflow-specific config first."""

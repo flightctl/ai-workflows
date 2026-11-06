@@ -59,11 +59,10 @@ Observations** section of `01-context.md` for `Screenshots` status:
 | `deferred` | `deferred` | Note reduced fidelity where visual evidence applies |
 | `unavailable` | `unavailable` | Note limitation explicitly per section |
 
-If Screenshot Observations or its `Screenshots` status is absent (older
-context), check `HAS_HANDOFF`. If `HAS_HANDOFF` is false, set
-`HAS_SCREENSHOTS = false` (text-only design; no re-ingest needed). If
-`HAS_HANDOFF` is true, ask whether to rerun `/ingest` to assess
-screenshots or continue with `HAS_SCREENSHOTS = unavailable`.
+If Screenshot Observations or its status is absent: when
+`HAS_HANDOFF` is false, set `HAS_SCREENSHOTS = false` (text-only; no
+re-ingest needed). When `HAS_HANDOFF` is true, ask whether to rerun
+`/ingest` or continue with `HAS_SCREENSHOTS = unavailable`.
 
 Screenshots show visual presentation only — do not conflate with
 keyboard, accessibility, API, or runtime verification.
@@ -76,16 +75,12 @@ Then open **cited sources only** from `01-context.md`:
    design input.
 2. The design document — read only the sections cited in `01-context.md`
    (typically §4.3 API Changes, §4.7 RBAC, §5 Interface Changes).
-3. Cited source files from the codebase — read component files, hook files,
-   route definitions, and API client code as needed to verify patterns.
-   Cap at **≤15** cited source reads (bootstrap reads of `01-context.md`,
-   `AGENTS.md`, and `UI-ARCHITECTURE.md` do not count).
-4. Do not glob, repo-wide grep, or run Jira queries. Read the cited files
-   and the required upstream artifacts. Do not re-run ingest exploration.
-   If cited source files cannot be read (e.g., file read tools are
-   unavailable or return errors), stop and report which reads failed
-   before writing the plan — do not substitute assumptions for
-   unverified source content.
+3. Cited source files from the codebase — components, hooks, routes,
+   API client code. Cap at **≤15** reads (bootstrap reads of
+   `01-context.md`, `AGENTS.md`, `UI-ARCHITECTURE.md` don't count).
+4. No glob, grep, or Jira queries. Read only cited files and required
+   upstream artifacts. If reads fail, stop and report which before
+   writing the plan — do not substitute assumptions.
 
 ### Step 2: Map UX Handoff to Design Decisions
 
@@ -104,13 +99,12 @@ observations from `01-context.md` for layout and visible-state decisions:
   `[Screenshot: SS-N — accepted-unverified]` so the plan reader knows
   the visual evidence may not reflect the current published state.
   Do not cite `unavailable` or `lfs-unresolved` images.
-- **Additive evidence** (visual detail not in prose) supplements the
-  spec. For verified images: `[Screenshot: SS-N — additive: {detail}]`.
-  For accepted-unverified images:
+- **Additive evidence** (visual detail not in prose): verified
+  `[Screenshot: SS-N — additive: {detail}]`; accepted-unverified
   `[Screenshot: SS-N — accepted-unverified, additive: {detail}]`.
-- **Contradictions** (image conflicts with explicit spec text) are
-  flagged: *"[Contradiction: SS-N vs §section] screenshot shows X, spec
-  states Y."* Do not resolve — let the user decide.
+- **Contradictions** (image vs spec): flag as
+  *"[Contradiction: SS-N vs §section] screenshot shows X, spec states
+  Y."* Do not resolve — let the user decide.
 
 If `HAS_SCREENSHOTS` is `deferred`: note *"Visual evidence deferred"*
 where visual context would apply. Do not fabricate observations.

@@ -94,15 +94,15 @@ Screenshots are required at Standard and Full depth because Step 3 needs them.
 At Quick depth, a live URL or screenshots are sufficient. If the required input
 cannot be produced, stop and explain what the researcher needs to provide.
 
-**Capture index.** After saving screenshots (Standard/Full depth), write
+**Capture index.** At every depth, write or update
 `.artifacts/ux-design/{issue-key}/04-eval-raw/screenshot-captures.json`
-with `evaluation_depth`, top-level `context_revision`,
-`discovery_revision`, `prototype_iteration`, and a `captures` array.
-Each capture entry records `filename`, `sha256` (full hex digest),
-`context_revision`, `discovery_revision`, and `prototype_iteration` from
-the bindings active when that image was saved. Quick/URL-only evaluations
-must write the index with an empty `captures` array. Never enumerate
-pre-existing directory contents as current captures.
+with `evaluation_depth` and top-level `context_revision`,
+`discovery_revision`, `prototype_iteration`. The `captures` array lists
+every image accepted or captured during **this** run — each entry records
+`filename`, `sha256`, `context_revision`, `discovery_revision`, and
+`prototype_iteration`. Runs with no accepted or captured images (e.g.
+Quick URL-only) write `captures:[]`. Never enumerate pre-existing
+directory contents; only images saved or accepted this run appear.
 
 Run the skill in agent-operated mode so its review gate is deferred to the
 single combined researcher review in Step 7. `--project` must be relative to the

@@ -101,10 +101,8 @@ mkdir -p ".artifacts/ui-design/{workspace-id}"
 
 ### Step 2a: Check for Prior Ingest
 
-If `.artifacts/ui-design/{workspace-id}/01-context.md` already exists, this
-is a re-invocation. Copy the existing file to
-`.artifacts/ui-design/{workspace-id}/01-context.md.prev` so it is preserved
-for the diff in Step 8a.
+If `.artifacts/ui-design/{workspace-id}/01-context.md` already exists,
+this is a re-invocation. Copy it to `01-context.md.prev` for Step 8a.
 
 ### Step 3: Read the [UI] Story
 
@@ -270,33 +268,31 @@ proceed without a handoff (it is optional).
 If found, read it.
 
 **Screenshot inspection.** Check the handoff's **Screenshot Index**
-for image references (`SS-N` IDs). Images are embedded inline at User
-Flows, State Matrix, and Persona-Specific Views sections.
+for image references (`SS-N` IDs).
 
 - **If referenced:** Read and follow
   `../../_shared/recipes/screenshot-inspection.md` with
   `HANDOFF_DIR` = the handoff's directory and
   `MANIFEST_PATH` = `{HANDOFF_DIR}/screenshot-manifest.json`.
-  Warn if the manifest's `context_revision`/`prototype_iteration` differ
-  from the handoff header.
-  After inspection, set Screenshots status to `inspected` (all),
-  `partial` (some), or `unavailable` (none). Preserve per-image
-  status and any user acceptance decision.
+  Warn if manifest bindings differ from the handoff header.
+  Set Screenshots status: `inspected` (all), `partial` (some), or
+  `unavailable` (none). Preserve per-image status and user decisions.
 
-- **If none** (Screenshot Index says "None" or absent): Set
-  `HAS_SCREENSHOTS = false`. Record the reason if stated.
+- **If none** (Screenshot Index says "None", no inline embeds): Set
+  `HAS_SCREENSHOTS = false`. If the index is absent but inline embeds
+  exist, report the inconsistency and request an updated handoff or
+  explicit limited-evidence continuation.
 
 - **If deferred** (user authorizes skipping inspection): Set
   `HAS_SCREENSHOTS = deferred`. Note reduced visual fidelity downstream.
 
 **Provenance freshness check.** Look for `<!-- ai-workflow-provenance:`
-in the handoff. If absent, warn the user it may not be finalized and ask
-whether to proceed or wait. If they wait, skip the handoff.
+in the handoff. If absent, warn the user and ask whether to proceed or
+wait. If they wait, skip the handoff.
 
 Extract: Component Mapping, State Matrix, Interaction Specs, Data
-Annotations (source types), Persona-Specific Views, Accessibility
-Requirements, Acceptance Criteria (Given/When/Then, AC-N), and
-Feasibility & Phasing (MVP vs Final Vision, implementation order).
+Annotations, Persona-Specific Views, Accessibility Requirements,
+Acceptance Criteria (AC-N), and Feasibility & Phasing.
 
 If not found: *"No UX handoff artifact. Proceeding with PRD, design
 document, and codebase context only."*
@@ -368,12 +364,11 @@ files introduce no new patterns. Note remaining unknowns in Open Questions.
 
 #### No-Evidence Stop Gate
 
-If codebase exploration found **none** of: `UI-ARCHITECTURE.md`,
-component directories (`src/components/` etc.), or backend API type
-definitions — stop before writing `01-context.md`. Report which searches
-were attempted and their results. Wait for the user to provide a
-corrected path or explicitly confirm proceeding with limited evidence.
-If the user provides a corrected path, re-run Step 7 using that path.
+If exploration found **none** of: `UI-ARCHITECTURE.md`, component
+directories, or backend API type definitions — stop before writing
+`01-context.md`. Report which searches were attempted. Wait for a
+corrected path or explicit limited-evidence confirmation. If the user
+provides a corrected path, re-run Step 7 with it.
 
 ### Step 8: Compile Context
 
@@ -557,19 +552,15 @@ If this is a first invocation, write
 
 ### Step 8a: Diff Against Prior Ingest (Re-invocation Only)
 
-If Step 2a created a `.prev` file, diff `01-context.md.prev` against the
-compiled content. Focus on: acceptance criteria, upstream artifact changes,
-API endpoints, and affected components.
-
-Check for downstream artifacts (`02-ui-design.md`, `03-api-findings.md`,
-`04-pr-description.md`, `05-review-responses.md`, `sync-manifest.json`).
-If any exist, report which may be affected and warn about Jira sync
-implications. Present the diff summary and wait for the user to confirm.
-If they confirm, write the compiled content to `01-context.md` and delete
-`01-context.md.prev` and any temporary file. If they decline, discard the
-compiled content, delete `01-context.md.prev` and any temporary file,
-report that `01-context.md`
-was preserved, and stop.
+If Step 2a created a `.prev` file, diff it against the compiled content
+(acceptance criteria, API endpoints, affected components). Check for
+downstream artifacts (`02-ui-design.md`, `03-api-findings.md`,
+`sync-manifest.json`, etc.) and warn about Jira sync implications.
+Present the diff summary and wait for confirmation.
+**Confirm:** write compiled content to `01-context.md`, delete
+`01-context.md.prev` and any temp file.
+**Decline:** discard compiled content, delete `.prev` and temp files,
+report `01-context.md` preserved, and stop.
 
 ### Step 9: Report to User
 
