@@ -295,16 +295,28 @@ When writing the story testplan from matches across multiple artifacts,
 include all matched TCs in a single `testplan.md` with a Source line
 listing each contributing artifact.
 
-**Companion artifact filtering:** When a matched TC comes from a
-companion artifact (type `"companion"` in the published index), note
-its source artifact and purpose in the story testplan metadata. TCs
-from companion artifacts with a specialized execution context (e.g.,
-hardware qualification, security certification) are included as
-**qualification evidence references** — the `/plan` and `/code`
-phases treat these as validation requirements to be aware of, but
-they are not candidates for unit/integration test generation in the
-implementation story. The story's own Testing Approach covers the
-appropriate test scope for `[DEV]` work.
+**Qualification gate classification:** Any matched TC — whether from
+the primary testplan or a companion artifact — may require a
+specialized execution environment rather than this workflow's
+unit/integration test infrastructure. Classification is by the TC's
+own verification method, not by which document it came from:
+
+- TCs whose verification method is a specialized environment (e.g.,
+  hardware qualification requiring a physical device lab, security
+  certification requiring audit tooling, integration tests requiring
+  a dedicated cross-service staging environment not available in this
+  project's CI) are included in the story testplan with a
+  `Qualification gate` marker. The `/plan` and `/code` phases treat
+  these as external validation evidence — they are not candidates for
+  unit/integration test generation. They remain visible and tracked.
+- TCs whose verification method is standard automated testing
+  (unit, integration within the project's CI, or behavioral contract
+  tests) are normal implementation candidates.
+
+When a matched TC comes from a companion artifact, additionally note
+its source artifact and purpose in the story testplan metadata. The
+story's own Testing Approach covers the appropriate test scope for
+`[DEV]` work.
 
 ### Step 6: Explore the Codebase
 

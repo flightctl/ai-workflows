@@ -201,6 +201,7 @@ Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
 | TC-FR1-01 | {title} | Task 2 | |
 | TC-FR1-02 | {title} | Task 3 | |
 | TC-NFR1-01 | {title} | N/A | {rationale} |
+| TC-NFR3-01 | {title} | Qualification gate | hardware device lab |
 
 {Every TC ID from testplan.md must appear. Each must be assigned to a
  task, marked N/A with a rationale (e.g., "NFR verified by load test

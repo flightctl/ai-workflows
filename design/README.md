@@ -34,7 +34,7 @@ graph TD
 |-------|---------|---------|-------------|
 | Ingest | `/ingest` | Read PRD, explore codebase | `01-context.md` |
 | Research | `/research` | Investigate problem space, solutions, standards | `02-research.md` |
-| Design | `/draft` | Draft design document and testplan | `03-design.md`, `04-testplan.md`, `validation-index.json` |
+| Design | `/draft` | Draft design document and testplan | `03-design.md`, `04-testplan.md`, `04-{slug}.md` (optional companions), `validation-index.json` |
 | Decompose | `/decompose` | Break into epics and stories | `05-epics.md`, `06-stories/`, `07-coverage.md` |
 | Revise | `/revise` | Incorporate feedback | Updated design, testplan, and/or stories |
 | Publish | `/publish` | Post design doc and testplan as GitHub PR | `08-pr-description.md` |
