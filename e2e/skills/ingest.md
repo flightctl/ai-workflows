@@ -259,8 +259,10 @@ phases must not generate automated e2e test code for them. Instead,
 they are listed in the story testplan with a `Qualification gate`
 marker so downstream phases know these scenarios require their
 designated execution environment, not the project's e2e test
-infrastructure. TCs from the primary testplan are always candidates
-for e2e automation.
+infrastructure. TCs from the primary testplan are candidates for
+e2e automation unless they carry a `Qualification gate` marker
+(the primary testplan may include targeted integration, hardware,
+or security test cases that require specialized environments).
 
 **Write story-scoped testplan (Normal outcome only):**
 
