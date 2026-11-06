@@ -107,6 +107,11 @@ def safe_filename(name: Any, context: str = "filename") -> list[str]:
     # Reserved names
     if name.lower() in RESERVED_FILENAMES:
         errors.append(f"{context}: reserved filename: {name!r}")
+    # Format: lowercase alphanumeric with hyphens and extension
+    if not _SAFE_FILENAME_RE.match(name):
+        errors.append(
+            f"{context}: must be lowercase alphanumeric with "
+            f"extension: {name!r}")
     return errors
 
 
@@ -217,10 +222,6 @@ def validate_local_index(data: dict[str, Any]) -> list[str]:
             errors.extend(pub_errs)
         else:
             errors.extend(safe_filename(pub, f"{ctx}.published_as"))
-            if not _SAFE_FILENAME_RE.match(pub):
-                errors.append(
-                    f"{ctx}.published_as: must be lowercase "
-                    f"alphanumeric with extension: {pub!r}")
             if pub in seen_published:
                 errors.append(f"duplicate published_as filename: {pub}")
             else:
@@ -310,10 +311,6 @@ def validate_published_index(data: dict[str, Any]) -> list[str]:
             errors.extend(f_errs)
         else:
             errors.extend(safe_filename(f, f"{ctx}.file"))
-            if not _SAFE_FILENAME_RE.match(f):
-                errors.append(
-                    f"{ctx}.file: must be lowercase "
-                    f"alphanumeric with extension: {f!r}")
             if f in seen_files:
                 errors.append(f"duplicate file: {f}")
             else:
@@ -760,14 +757,14 @@ def _safe_write_output(dst: Path, content: str) -> int:
 
     Safety checks:
     - Rejects symlink at the final destination path.
-    - Walks each existing component of the parent directory and
-      rejects any that is a symlink (prevents symlink escape via
-      parent traversal).  Components are checked with lstat-level
-      is_symlink() — resolve() is NOT used because it follows
-      symlinks and would hide their presence.
-    - Uses O_CREAT|O_WRONLY|O_TRUNC without O_FOLLOW to write,
-      preventing a TOCTOU race where dst becomes a symlink between
-      the check and the write.
+    - Walks ALL ancestors of dst from dst.parent up to the
+      filesystem root.  Every existing component is checked with
+      is_symlink() (without resolve, which would follow links).
+      Non-existing intermediates are skipped but the walk continues
+      upward so that a symlink ancestor above a missing component
+      is still detected.
+    - Uses O_CREAT|O_WRONLY|O_TRUNC with O_NOFOLLOW to reject a
+      symlink final target at open time.
     """
     import os
 
@@ -777,30 +774,21 @@ def _safe_write_output(dst: Path, content: str) -> int:
               file=sys.stderr)
         return 1
 
-    # Walk existing parent components WITHOUT resolving away link
-    # identities.  Check is_symlink() on each real component.
+    # Walk ALL ancestors to root, checking every existing component.
+    # Do NOT stop at the first non-existing intermediate — a symlink
+    # ancestor above a missing component must still be caught
+    # (e.g. link/new/deeper/index.json where link→outside).
     try:
-        parent = dst.parent
-        # Collect path components from dst.parent upward until we
-        # reach a component that does not exist (for parents=True
-        # mkdir later).
-        parts_to_check: list[Path] = []
-        cur = parent
+        cur = dst.parent
         while True:
-            if cur.exists() or cur.is_symlink():
-                parts_to_check.append(cur)
-            else:
-                break
+            if cur.is_symlink():
+                print(f"ERROR: output parent contains symlink: "
+                      f"{cur}", file=sys.stderr)
+                return 1
             next_cur = cur.parent
             if next_cur == cur:
                 break  # filesystem root
             cur = next_cur
-
-        for component in parts_to_check:
-            if component.is_symlink():
-                print(f"ERROR: output parent contains symlink: "
-                      f"{component}", file=sys.stderr)
-                return 1
     except OSError as exc:
         print(f"ERROR: cannot check output path: {exc}",
               file=sys.stderr)
@@ -813,15 +801,20 @@ def _safe_write_output(dst: Path, content: str) -> int:
               f"{exc}", file=sys.stderr)
         return 1
 
-    # Write using os.open with no-follow semantics to prevent TOCTOU
-    # symlink race.  O_NOFOLLOW is available on Linux/macOS.
+    # Open with O_NOFOLLOW to reject a symlink final target.
     try:
         flags = os.O_CREAT | os.O_WRONLY | os.O_TRUNC
         if hasattr(os, "O_NOFOLLOW"):
             flags |= os.O_NOFOLLOW
         fd = os.open(str(dst), flags, 0o644)
         try:
-            os.write(fd, content.encode("utf-8"))
+            data = content.encode("utf-8")
+            written = 0
+            while written < len(data):
+                n = os.write(fd, data[written:])
+                if n == 0:
+                    raise OSError("write returned 0 bytes")
+                written += n
         finally:
             os.close(fd)
     except OSError as exc:

@@ -279,12 +279,24 @@ If the field also lists FR/NFR IDs alongside the marker (e.g.,
 but treat zero matches as Expected zero rather than Anomalous zero — the
 UI-design origin means missing testplan coverage is expected, not an error.
 
+**Extract relevant gates (before TC outcome).** If any feature-level
+validation artifact (primary or companion) has a
+`## Review and Qualification Gates` section, check each gate's
+requirement and IC mappings against the story's `PRD Requirements`
+and `Interface Changes`. Gates whose requirements or ICs overlap are
+relevant to this story. Collect all relevant gates with their source
+path, gate heading/name, mapped requirements and ICs, type, and
+reviewer/owner. This extraction runs BEFORE the TC outcome table
+below — a story with zero TCs but relevant gates still produces a
+retained validation artifact.
+
 | Outcome | Condition | Action |
 |---------|-----------|--------|
-| Normal | Matches found (in any artifact) | Write `testplan.md` **once** from `../templates/story-testplan.md` |
-| Expected zero | No matches and type is `[QE]`/`[DOCS]`/`[UX]`/`[CI]` | Note expected; delete stale story testplan if present |
+| Normal | TC matches found (in any artifact) | Write `testplan.md` **once** from `../templates/story-testplan.md` |
+| Gate-only | Zero TC matches but relevant gates found | Write `testplan.md` with only the Qualification Gates section (no TC sections). This is not an error — the story's validation is gate-based. |
+| Expected zero | No TC matches, no relevant gates, and type is `[QE]`/`[DOCS]`/`[UX]`/`[CI]` | Note expected; delete stale story testplan if present |
 | Expected zero | No matching `Validated by` IDs and PRD Requirements contains "Discovered during UI design" | Note UI-design origin; delete stale story testplan if present |
-| Anomalous zero | No matches and type is `[DEV]`/`[UI]` (or unknown) | Warn; delete stale story testplan if present |
+| Anomalous zero | No TC matches, no relevant gates, and type is `[DEV]`/`[UI]` (or unknown) | Warn; delete stale story testplan if present |
 
 No feature testplan (neither `validation-index.json` nor `testplan.md`):
 note and continue. If a story-level testplan already exists from a prior
@@ -297,15 +309,8 @@ until the upstream source is available."
 
 When writing the story testplan from matches across multiple artifacts,
 include all matched TCs in a single `testplan.md` with a Source line
-listing each contributing artifact.
-
-**Carry non-TC qualification gates:** If the feature-level testplan
-has a `## Review and Qualification Gates` section, check each gate's
-requirement mapping against the story's `PRD Requirements`. Gates
-whose requirements overlap are included in the story testplan's
-`## Qualification Gates` section even when no TC matches — they
-represent required validation evidence that `/plan` and `/validate`
-must track.
+listing each contributing artifact. Include the Qualification Gates
+section for any relevant gates found above.
 
 **Per-TC verification classification:** Classify each matched TC
 by its verification method, regardless of source artifact:

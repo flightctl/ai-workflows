@@ -341,10 +341,18 @@ satisfied:
 ### Step 8b: Test Plan Verification
 
 If `.artifacts/implement/{issue-key}/testplan.md` exists, independently
-verify that every **automatable** test case has been implemented. Test
-cases marked with a `Qualification gate` marker in the story testplan
-are **not** candidates for unit/integration test generation — they
-require their designated execution environment and are tracked as
+verify that every **automatable** test case has been implemented.
+
+**Unverified source handling:** If `testplan.md` contains
+`Freshness: unverified`, report the TC coverage as "unverified —
+source testplan not confirmed" rather than PASS. Coverage from
+unverified TCs is provisional, not normative. Do not block the
+validation report or AC-based work, but do not claim TC coverage
+is verified.
+
+Test cases marked with a `Qualification gate` marker in the story
+testplan are **not** candidates for unit/integration test generation —
+they require their designated execution environment and are tracked as
 external validation evidence. Exclude qualification-gate TCs from the
 coverage check; verify they are listed in the validation report's
 external evidence section instead.
@@ -361,7 +369,10 @@ catches it.
 If `testplan.md` does not exist and `02-plan.md` has no Test Plan
 Coverage section, skip this step entirely. However, if `02-plan.md`
 has TC mappings but `testplan.md` is missing, unreadable, or malformed
-(no parseable TC IDs), stop and report the inconsistency.
+(no parseable TC IDs and no Qualification Gates section), stop and
+report the inconsistency. A gate-only testplan (zero TC IDs but a
+`## Qualification Gates` section) is valid — skip the automated
+coverage check and proceed directly to step 4 below.
 
 1. Read `testplan.md` and extract all TC IDs. Separate them into
    three groups:

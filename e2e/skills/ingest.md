@@ -222,19 +222,31 @@ For non-`[QE]` stories, use `Validated by` TC IDs directly. If the
 `Validated by: None — ...`), fall back to requirement-heading
 matching as above.
 
-**Three-outcome gate:**
+**Extract relevant gates (before TC outcome).** If any feature-level
+validation artifact (primary or companion) has a
+`## Review and Qualification Gates` section, check each gate's
+requirement and IC mappings against the story's `PRD Requirements`
+and `Interface Changes`. Gates whose requirements or ICs overlap are
+relevant to this story. Collect all relevant gates with their source
+path, gate heading/name, mapped requirements and ICs, type, and
+reviewer/owner. This extraction runs BEFORE the outcome table
+below — a story with zero TCs but relevant gates still produces a
+retained validation artifact.
+
+**Outcome gate:**
 
 | Outcome | Condition | Action |
 |---------|-----------|--------|
 | **Normal** | Matching test cases found (in any artifact) | Write `.artifacts/e2e/{issue-key}/testplan.md` |
-| **Expected zero** | No matches AND story type is `[DOCS]`, `[UX]`, or `[CI]` | Note in context. |
-| **Anomalous zero** | No matches AND story type is `[QE]`, `[DEV]`, or `[UI]` | Warn the user: "Testplan exists but no test cases match this story's requirements. This may indicate a gap in the testplan or the story's requirement mapping." This is non-blocking. |
+| **Gate-only** | Zero TC matches but relevant gates found | Write `testplan.md` with only the Qualification Gates section (no TC sections). This is not an error — the story's validation is gate-based. |
+| **Expected zero** | No TC matches, no relevant gates, AND story type is `[DOCS]`, `[UX]`, or `[CI]` | Note in context. |
+| **Anomalous zero** | No TC matches, no relevant gates, AND story type is `[QE]`, `[DEV]`, or `[UI]` | Warn the user. This is non-blocking. |
 
 If the story type prefix is not listed above, treat it as anomalous
 zero (warn the user, continue without `testplan.md`).
 
-For non-normal outcomes (expected zero, anomalous zero, or no
-feature-level testplan): if
+For non-normal/non-gate-only outcomes (expected zero, anomalous zero,
+or no feature-level testplan): if
 `.artifacts/e2e/{issue-key}/testplan.md` exists from a prior ingest
 run, delete it. A stale story-scoped testplan
 would cause downstream gates to enforce obsolete coverage requirements.
@@ -246,17 +258,8 @@ feature and older designs may not have one.
 
 When writing the story testplan from matches across multiple artifacts,
 include all matched TCs in a single `testplan.md` with a Source line
-listing each contributing artifact.
-
-**Carry non-TC qualification gates:** If the feature-level testplan
-has a `## Review and Qualification Gates` section, check each gate's
-requirement mapping against the story's `PRD Requirements`. Gates
-whose requirements overlap with this story's requirements are
-included in the story testplan's `## Qualification Gates` section
-even when no TC matches — they represent required validation
-evidence that `/plan` and `/validate` must track. This ensures a
-story whose acceptance criteria are covered exclusively by a gate
-(no automatable TCs) still carries that obligation.
+listing each contributing artifact. Include the Qualification Gates
+section for any relevant gates found above.
 
 **Per-TC verification classification:** Classify each matched TC
 by its verification method, regardless of source artifact:

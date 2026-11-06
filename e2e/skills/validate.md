@@ -255,7 +255,16 @@ step catches it.
 If `testplan.md` does not exist and `02-plan.md` has no Test Plan
 Coverage section, skip this step entirely. However, if `02-plan.md`
 has TC mappings but `testplan.md` is missing, unreadable, or malformed
-(no parseable TC IDs), stop and report the inconsistency.
+(no parseable TC IDs and no Qualification Gates section), stop and
+report the inconsistency. A gate-only testplan (zero TC IDs but a
+`## Qualification Gates` section) is valid — skip the automated
+coverage check and proceed directly to step 4 below.
+
+**Unverified source handling:** If `testplan.md` contains
+`Freshness: unverified`, report the TC coverage as "unverified —
+source testplan not confirmed" rather than PASS. Coverage from
+unverified TCs is provisional, not normative. Do not block the
+validation report or AC-based work.
 
 1. Read `testplan.md` and extract all TC IDs. Separate them into
    three groups:
