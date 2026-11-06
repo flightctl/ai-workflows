@@ -405,9 +405,12 @@ coverage check and proceed directly to step 4 below.
      re-verify Step 8 AC and applicable Step 8b TC consistency on the
      new HEAD. If the review gate proposes production fixes, route them
      through the same post-fix cycle as Step 7.
-4. For manual verification and qualification gate TCs, record their
+4. For manual verification TCs, qualification gate TCs, and non-TC
+   qualification gates (from the `## Qualification Gates` section
+   of the story testplan — these have no TC IDs), record their
    status in the External Validation Evidence section (see report
-   template below).
+   template below). Use gate heading/source reference as identity
+   for non-TC entries instead of inventing TC IDs.
 5. Record results for the validation report.
 
 ### Step 9: Write Validation Report
@@ -500,28 +503,36 @@ Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
 
 ## External Validation Evidence
 
-{Include only if testplan.md contains qualification-gate TCs.
- Omit entirely if no qualification gates exist.
+{Include if testplan.md contains qualification-gate TCs, manual
+ verification TCs, or non-TC qualification gates (from the
+ `## Qualification Gates` section). Omit entirely if none exist.
 
- Qualification-gate TCs are excluded from the automated coverage
- check above — they require a designated execution environment.
- This section tracks their evidence status separately. A pending
- qualification gate does NOT count as passed.}
+ These entries are excluded from the automated coverage check —
+ they require a designated execution environment or human
+ verification. This section tracks their evidence status
+ separately. A pending or failed entry does NOT count as passed.}
 
-| TC ID | Title | Source Artifact | Verification Method | Evidence | Status |
-|-------|-------|-----------------|--------------------|---------| -------|
-| TC-NFR3-01 | {title} | {testplan.md or companion filename} | {designated environment} | {link to report or "pending"} | {not-started / pending / verified / failed} |
+| ID | Title | Source | Verification Method | Evidence | Status |
+|----|-------|--------|--------------------|---------| -------|
+| TC-NFR3-01 | {title} | {testplan.md or companion} | {designated environment} | {link or "pending"} | {not-started / pending / verified / failed} |
+| {gate heading} | {gate name} | {source path §section} | {gate type} | {link or "pending"} | {not-started / pending / verified / failed} |
 
-{Status values:
+{The ID column uses TC IDs for qualification-gate and manual-
+ verification TCs, and gate heading/source reference for non-TC
+ gates — do not invent TC IDs for non-TC entries.
+
+ Status values:
  - not-started: no evidence collection has begun
  - pending: evidence collection in progress
  - verified: evidence reviewed and accepted
  - failed: evidence shows the requirement is not met
 
- If all verified: "All qualification gates verified."
- If any pending or not-started: "N qualification gates awaiting
- external evidence — these are not discharged by automated test
- coverage."}
+ If all verified: "All external validation evidence verified."
+ If any failed: "N entries FAILED — required evidence shows
+ requirements not met." Overall result must be FAIL.
+ If any pending or not-started: "N entries awaiting external
+ evidence — these are not discharged by automated test
+ coverage." Overall result cannot be PASS.}
 
 ## Quality Review Findings
 
@@ -550,18 +561,21 @@ Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
 {Automated test coverage: PASS / FAIL — whether all automatable TC
  IDs have passing tests, coverage meets thresholds, and no regressions.
 
- External validation: COMPLETE / PENDING / NOT STARTED — whether all
- manual verification and qualification gate evidence has been provided.
+ External validation: COMPLETE / PENDING / FAILED / NOT STARTED —
+ whether all manual verification, qualification gate, and non-TC
+ gate evidence has been provided and accepted.
 
- Overall: PASS only when both automated coverage passes AND external
- validation is complete. If automated tests pass but qualification
- gates are pending or not started, report "PASS (automated) —
- awaiting external validation evidence for {N} gates."  If any
- required external gate has FAILED evidence, report "FAIL —
- external validation failed for {gate names}." Follow the
- project's existing gating policy for merge readiness — do not
- introduce unconditional merge permissions. Do not claim required
- acceptance passed when external evidence is outstanding or failed.}
+ Overall: PASS only when both automated coverage passes AND all
+ external validation entries are verified. Other outcomes:
+ - If automated tests pass but entries are pending/not-started:
+   "PASS (automated) — awaiting external validation for {N}
+   entries." Overall is NOT PASS.
+ - If any required entry has FAILED evidence: "FAIL — external
+   validation failed for {entry names}." Overall is FAIL.
+ - If automated tests fail: "FAIL — automated tests failed."
+ Follow the project's existing gating policy for merge readiness.
+ Do not claim acceptance passed when evidence is outstanding,
+ unverified, or failed.}
 ```
 
 ### Step 10: Present Results
