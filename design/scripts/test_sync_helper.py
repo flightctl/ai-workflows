@@ -5194,11 +5194,13 @@ class TestPlanCreationOrder(_TmpDirMixin, unittest.TestCase):
     # ── Cycle detection ────────────────────────────────────────
 
     def test_self_cycle(self) -> None:
-        """Story depends on itself → cycle."""
+        """Story depends on itself → self-reference (not merely a cycle)."""
         self._setup([(1,1,"a","DEV","Story 1.01",None,False)])
         items = [self._item(1,1,"a")]
         r = sync_helper.plan_creation_order(items, self.tmpdir, None)
-        self.assertTrue(any("cycle" in e.lower() for e in r["errors"]))
+        self.assertTrue(
+            any("self-reference" in e for e in r["errors"]),
+            f"Expected self-reference error, got: {r['errors']}")
         self.assertEqual(len(r["ordered"]), 0)
 
     def test_two_node_cycle(self) -> None:
@@ -6480,6 +6482,806 @@ class TestCLIFatalVsBlocked(_TmpDirMixin, unittest.TestCase):
         out = json.loads(r.stdout)
         ready_qids = [e["qid"] for e in out["ready"]]
         self.assertIn("story-1.01", ready_qids)
+
+
+# ---------------------------------------------------------------------------
+# Test: self-reference detection (R2)
+# ---------------------------------------------------------------------------
+
+class TestDetectSelfRefs(unittest.TestCase):
+    """Unit tests for _detect_self_refs helper."""
+
+    def test_direct_qid_match(self) -> None:
+        """Direct own-qid in refs → detected."""
+        result = sync_helper._detect_self_refs(
+            "story-1.01", ["story-1.01", "story-2.01"], [],
+            "", {})
+        self.assertEqual(result, ["story-1.01"])
+
+    def test_native_key_match(self) -> None:
+        """Native Jira key matching own key → detected."""
+        result = sync_helper._detect_self_refs(
+            "story-1.01", [], ["EDM-201"],
+            "EDM-201", {})
+        self.assertEqual(result, ["EDM-201"])
+
+    def test_resolved_alias_match(self) -> None:
+        """Ref resolving to own key via available map → detected."""
+        available = {"story-2.01": "EDM-201"}
+        result = sync_helper._detect_self_refs(
+            "story-1.01", ["story-2.01"], [],
+            "EDM-201", available)
+        self.assertEqual(result, ["story-2.01"])
+
+    def test_no_self_ref_peer(self) -> None:
+        """Legitimate peer ref with different key → not detected."""
+        available = {"story-2.01": "EDM-202"}
+        result = sync_helper._detect_self_refs(
+            "story-1.01", ["story-2.01"], ["PROJ-999"],
+            "EDM-201", available)
+        self.assertEqual(result, [])
+
+    def test_no_key_no_native_match(self) -> None:
+        """No own key: native keys cannot match → empty."""
+        result = sync_helper._detect_self_refs(
+            "story-1.01", ["story-2.01"], ["EDM-999"],
+            "", {})
+        self.assertEqual(result, [])
+
+    def test_dedup_multiple_self_refs(self) -> None:
+        """Multiple self-ref paths: deduplicated."""
+        available = {"story-1.01": "EDM-201"}
+        result = sync_helper._detect_self_refs(
+            "story-1.01",
+            ["story-1.01", "story-1.01"],
+            ["EDM-201"],
+            "EDM-201", available)
+        # story-1.01 appears once (direct), EDM-201 once (native)
+        self.assertEqual(len(result), 2)
+        self.assertIn("story-1.01", result)
+        self.assertIn("EDM-201", result)
+
+
+class TestSelfRefInPlanner(_TmpDirMixin, unittest.TestCase):
+    """Self-references must BLOCK the source in plan_creation_order."""
+
+    def test_new_story_self_dep_blocked(self) -> None:
+        """New story with Dependencies = own story → blocked."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="Story 1.01")
+        items = [{"type": "story", "category": "new",
+                  "epic_index": 1, "story_index": 1,
+                  "jira_key": None, "title": "",
+                  "file": "epic-1/story-01-api.md"}]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, None)
+        self.assertTrue(
+            any("self-reference" in e for e in r["errors"]),
+            f"Expected self-reference error, got: {r['errors']}")
+        self.assertEqual(len(r["ordered"]), 0)
+        self.assertGreater(len(r["blocked"]), 0)
+
+    def test_changed_story_mapped_self_ref_blocked(self) -> None:
+        """Changed story with own qid in deps (mapped key) → blocked."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="Story 1.01")
+        manifest = {"epics": [{"file": "epic-1-building.md",
+                    "jira_key": "T-100",
+                    "stories": [{"file": "story-01-api.md",
+                                 "jira_key": "T-101",
+                                 "content_hash": "old",
+                                 "synced_status": "active"}]}]}
+        items = [
+            {"type": "story", "category": "changed", "epic_index": 1,
+             "story_index": 1, "jira_key": "T-101", "title": "",
+             "file": "epic-1/story-01-api.md"},
+        ]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, manifest)
+        self.assertTrue(
+            any("self-reference" in e for e in r["errors"]),
+            f"Expected self-reference error, got: {r['errors']}")
+        self.assertGreater(len(r["blocked"]), 0)
+
+    def test_changed_story_native_key_self_ref(self) -> None:
+        """Changed story with own Jira key in deps → blocked."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="TE-101")
+        manifest = {"epics": [{"file": "epic-1-building.md",
+                    "jira_key": "TE-100",
+                    "stories": [{"file": "story-01-api.md",
+                                 "jira_key": "TE-101",
+                                 "content_hash": "old",
+                                 "synced_status": "active"}]}]}
+        items = [
+            {"type": "story", "category": "changed", "epic_index": 1,
+             "story_index": 1, "jira_key": "TE-101", "title": "",
+             "file": "epic-1/story-01-api.md"},
+        ]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, manifest)
+        self.assertTrue(
+            any("self-reference" in e for e in r["errors"]),
+            f"Expected self-reference error, got: {r['errors']}")
+
+    def test_reopened_story_self_ref_blocked(self) -> None:
+        """Reopened story with self-dep → blocked."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="Story 1.01")
+        manifest = {"epics": [{"file": "epic-1-building.md",
+                    "jira_key": "T-100",
+                    "stories": [{"file": "story-01-api.md",
+                                 "jira_key": "T-101",
+                                 "content_hash": "old",
+                                 "synced_status": "closed"}]}]}
+        items = [
+            {"type": "story", "category": "reopened", "epic_index": 1,
+             "story_index": 1, "jira_key": "T-101", "title": "",
+             "file": "epic-1/story-01-api.md"},
+        ]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, manifest)
+        self.assertTrue(
+            any("self-reference" in e for e in r["errors"]),
+            f"Expected self-reference error, got: {r['errors']}")
+
+    def test_docs_contributing_self_ref_blocked(self) -> None:
+        """DOCS story with Contributing = own story → blocked."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "docs-epic")
+        _make_docs_story(sd, 1, 1, "guide",
+                         deps="None",
+                         contributing_stories="Story 1.01")
+        items = [{"type": "story", "category": "new",
+                  "epic_index": 1, "story_index": 1,
+                  "jira_key": None, "title": "[DOCS] guide",
+                  "file": "epic-1/story-01-guide.md"}]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, None)
+        self.assertTrue(
+            any("self-reference" in e for e in r["errors"]),
+            f"Expected self-reference error, got: {r['errors']}")
+        self.assertEqual(len(r["ordered"]), 0)
+
+    def test_peer_ref_not_blocked(self) -> None:
+        """Legitimate peer dep (different story) → not blocked."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="Story 1.02")
+        _make_dev_story(sd, 1, 2, "lib", deps="None")
+        items = [
+            {"type": "story", "category": "new", "epic_index": 1,
+             "story_index": 1, "jira_key": None, "title": "",
+             "file": "epic-1/story-01-api.md"},
+            {"type": "story", "category": "new", "epic_index": 1,
+             "story_index": 2, "jira_key": None, "title": "",
+             "file": "epic-1/story-02-lib.md"},
+        ]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, None)
+        self.assertFalse(
+            any("self-reference" in e for e in r["errors"]),
+            "Peer ref must NOT produce self-reference error")
+        self.assertEqual(len(r["ordered"]), 2)
+
+    def test_mapped_cycle_preserved(self) -> None:
+        """Multi-story cycle (A→B→A) still detected as cycle, not self-ref."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "a", deps="Story 1.02")
+        _make_dev_story(sd, 1, 2, "b", deps="Story 1.01")
+        items = [
+            {"type": "story", "category": "new", "epic_index": 1,
+             "story_index": 1, "jira_key": None, "title": "",
+             "file": "epic-1/story-01-a.md"},
+            {"type": "story", "category": "new", "epic_index": 1,
+             "story_index": 2, "jira_key": None, "title": "",
+             "file": "epic-1/story-02-b.md"},
+        ]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, None)
+        self.assertTrue(any("cycle" in e.lower() for e in r["errors"]),
+                        "Multi-story cycle must produce cycle error")
+        self.assertEqual(len(r["ordered"]), 0)
+
+    def test_self_ref_no_mutation(self) -> None:
+        """Self-ref detection must not mutate the manifest."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="Story 1.01")
+        mf = Path(self.tmpdir) / "sync-manifest.json"
+        manifest = {"schema_version": 2, "feature_key": "F",
+                    "epics": [{"file": "epic-1-building.md",
+                               "jira_key": "EDM-101",
+                               "content_hash": "h",
+                               "synced_status": "active",
+                               "stories": []}]}
+        _write(mf, json.dumps(manifest, indent=2))
+        items = [{"type": "story", "category": "new",
+                  "epic_index": 1, "story_index": 1,
+                  "jira_key": None, "title": "",
+                  "file": "epic-1/story-01-api.md"}]
+        original = mf.read_bytes()
+        sync_helper.plan_creation_order(items, self.tmpdir, manifest)
+        self.assertEqual(mf.read_bytes(), original,
+                         "Manifest must not be mutated by planner")
+
+
+class TestSelfRefInRuntime(_TmpDirMixin, unittest.TestCase):
+    """Self-references must BLOCK in check_ref_availability."""
+
+    def test_runtime_self_ref_qid_blocked(self) -> None:
+        """Story referencing own qid → blocked at runtime."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="Story 1.01")
+        mf = Path(self.tmpdir) / "sync-manifest.json"
+        _write(mf, json.dumps({
+            "schema_version": 2, "feature_key": "F",
+            "epics": [{"file": "epic-1-building.md", "jira_key": "EDM-101",
+                        "content_hash": "h", "synced_status": "active",
+                        "stories": [{"file": "story-01-api.md",
+                                     "jira_key": "EDM-201",
+                                     "content_hash": "h2",
+                                     "synced_status": "active"}]}]}))
+        r = sync_helper.check_ref_availability(
+            ["story-1.01"], self.tmpdir, mf)
+        self.assertEqual(len(r["blocked"]), 1)
+        self.assertIn("self-reference", r["blocked"][0]["reason"])
+        self.assertEqual(len(r["ready"]), 0)
+
+    def test_runtime_self_ref_native_key_blocked(self) -> None:
+        """Story with own native key in deps → blocked at runtime."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="EDM-201")
+        mf = Path(self.tmpdir) / "sync-manifest.json"
+        _write(mf, json.dumps({
+            "schema_version": 2, "feature_key": "F",
+            "epics": [{"file": "epic-1-building.md", "jira_key": "EDM-101",
+                        "content_hash": "h", "synced_status": "active",
+                        "stories": [{"file": "story-01-api.md",
+                                     "jira_key": "EDM-201",
+                                     "content_hash": "h2",
+                                     "synced_status": "active"}]}]}))
+        r = sync_helper.check_ref_availability(
+            ["story-1.01"], self.tmpdir, mf)
+        self.assertEqual(len(r["blocked"]), 1)
+        self.assertIn("self-reference", r["blocked"][0]["reason"])
+        self.assertIn("EDM-201", r["blocked"][0]["missing"])
+
+    def test_runtime_docs_contributing_self_blocked(self) -> None:
+        """DOCS story Contributing self-ref → blocked at runtime."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "docs-epic")
+        _make_docs_story(sd, 1, 1, "guide",
+                         deps="None",
+                         contributing_stories="Story 1.01")
+        mf = Path(self.tmpdir) / "sync-manifest.json"
+        _write(mf, json.dumps({
+            "schema_version": 2, "feature_key": "F",
+            "epics": [{"file": "epic-1-docs-epic.md", "jira_key": "EDM-101",
+                        "content_hash": "h", "synced_status": "active",
+                        "stories": [{"file": "story-01-guide.md",
+                                     "jira_key": "EDM-301",
+                                     "content_hash": "h2",
+                                     "synced_status": "active"}]}]}))
+        r = sync_helper.check_ref_availability(
+            ["story-1.01"], self.tmpdir, mf)
+        self.assertEqual(len(r["blocked"]), 1)
+        self.assertIn("self-reference", r["blocked"][0]["reason"])
+
+    def test_runtime_peer_ref_ready(self) -> None:
+        """Legitimate peer ref (different story) → ready at runtime."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="Story 1.02")
+        _make_dev_story(sd, 1, 2, "lib", deps="None")
+        mf = Path(self.tmpdir) / "sync-manifest.json"
+        _write(mf, json.dumps({
+            "schema_version": 2, "feature_key": "F",
+            "epics": [{"file": "epic-1-building.md", "jira_key": "EDM-101",
+                        "content_hash": "h", "synced_status": "active",
+                        "stories": [
+                            {"file": "story-01-api.md",
+                             "jira_key": "EDM-201",
+                             "content_hash": "h2",
+                             "synced_status": "active"},
+                            {"file": "story-02-lib.md",
+                             "jira_key": "EDM-202",
+                             "content_hash": "h3",
+                             "synced_status": "active"}]}]}))
+        r = sync_helper.check_ref_availability(
+            ["story-1.01"], self.tmpdir, mf)
+        self.assertEqual(len(r["ready"]), 1)
+        self.assertEqual(len(r["blocked"]), 0)
+
+    def test_runtime_self_ref_no_mutation(self) -> None:
+        """Self-ref blocked: manifest not mutated."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="Story 1.01")
+        mf = Path(self.tmpdir) / "sync-manifest.json"
+        mf_data = json.dumps({
+            "schema_version": 2, "feature_key": "F",
+            "epics": [{"file": "epic-1-building.md", "jira_key": "EDM-101",
+                        "content_hash": "h", "synced_status": "active",
+                        "stories": [{"file": "story-01-api.md",
+                                     "jira_key": "EDM-201",
+                                     "content_hash": "h2",
+                                     "synced_status": "active"}]}]})
+        _write(mf, mf_data)
+        original = mf.read_bytes()
+        sync_helper.check_ref_availability(
+            ["story-1.01"], self.tmpdir, mf)
+        self.assertEqual(mf.read_bytes(), original)
+
+    def test_cli_self_ref_exit_nonzero(self) -> None:
+        """CLI check-ref-availability with self-ref → exit 1 with JSON."""
+        import subprocess
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="Story 1.01")
+        _write(Path(self.tmpdir) / "sync-manifest.json", json.dumps({
+            "schema_version": 2, "feature_key": "F",
+            "epics": [{"file": "epic-1-building.md", "jira_key": "EDM-101",
+                        "content_hash": "h", "synced_status": "active",
+                        "stories": [{"file": "story-01-api.md",
+                                     "jira_key": "EDM-201",
+                                     "content_hash": "h2",
+                                     "synced_status": "active"}]}]}))
+        r = subprocess.run(
+            [sys.executable, "-I", str(_SCRIPT),
+             "check-ref-availability", self.tmpdir, "story-1.01"],
+            capture_output=True, text=True, timeout=10)
+        self.assertEqual(r.returncode, 1)
+        out = json.loads(r.stdout)
+        self.assertEqual(len(out["blocked"]), 1)
+        self.assertIn("self-reference", out["blocked"][0]["reason"])
+
+    def test_cli_planner_self_ref_exit_nonzero(self) -> None:
+        """CLI plan-creation-order with self-ref → exit 1."""
+        import subprocess
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "api", deps="Story 1.01")
+        r = subprocess.run(
+            [sys.executable, "-I", str(_SCRIPT),
+             "plan-creation-order", self.tmpdir],
+            capture_output=True, text=True, timeout=10)
+        self.assertEqual(r.returncode, 1)
+        out = json.loads(r.stdout)
+        self.assertTrue(
+            any("self-reference" in e for e in out["errors"]),
+            f"Expected self-reference error, got: {out['errors']}")
+
+
+# ---------------------------------------------------------------------------
+# Test: Quality gate — Step 4 halts entire sync (R1)
+# ---------------------------------------------------------------------------
+
+class TestQualityGateConsumer(unittest.TestCase):
+    """Step 4 quality gate must halt entire sync before Step 5."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import re
+        sync_path = Path(__file__).resolve().parent.parent / "skills" / "sync.md"
+        cls._sync_md = sync_path.read_text(encoding="utf-8")
+        m4 = re.search(r"### Step 4:.*?(?=### Step 5:)", cls._sync_md, re.DOTALL)
+        assert m4, "Step 4 not found"
+        cls._step4 = m4.group()
+
+    def test_step4_halts_entire_sync(self) -> None:
+        """Step 4 failure stops the entire sync, not just the failing story."""
+        self.assertIn("stop the entire sync", self._step4.lower())
+
+    def test_step4_no_jira_writes_on_failure(self) -> None:
+        """Step 4 failure prevents proceeding to Step 5 (Jira writes)."""
+        self.assertIn("do not proceed to Step 5", self._step4)
+
+    def test_step4_fresh_approval_required(self) -> None:
+        """After correction, fresh preflight/preview/approval required."""
+        step4_lower = self._step4.lower()
+        self.assertIn("fresh", step4_lower)
+        self.assertIn("approval", step4_lower)
+
+    def test_step4_no_stale_approval_reuse(self) -> None:
+        """Step 4: stale approval must not be reused."""
+        self.assertIn("Do not reuse a stale approval", self._step4)
+
+    def test_step4_sync_does_not_edit_source(self) -> None:
+        """Step 4: sync does not edit story source files."""
+        self.assertIn("does not edit story source", self._step4)
+
+    def test_step4_distinct_from_runtime_independence(self) -> None:
+        """Step 4 gate is distinct from runtime independence."""
+        self.assertIn("independent eligible work", self._step4)
+
+    def test_step4_pass_continues(self) -> None:
+        """Step 4 section starts with validation instructions, implying
+        pass → continue to Step 5."""
+        self.assertIn("Validate", self._step4)
+        self.assertIn("Step 5", self._step4)
+
+
+# ---------------------------------------------------------------------------
+# Test: Preview cleanup — exact remnant removal (R4)
+# ---------------------------------------------------------------------------
+
+class TestPreviewCleanup(unittest.TestCase):
+    """Preview cleanup: exact Step 3 remnants removed, Step 8 preserved."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import re
+        sync_path = Path(__file__).resolve().parent.parent / "skills" / "sync.md"
+        cls._sync_md = sync_path.read_text(encoding="utf-8")
+        m3 = re.search(r"### Step 3:.*?(?=### Step 4:)", cls._sync_md, re.DOTALL)
+        assert m3, "Step 3 not found"
+        cls._step3 = m3.group()
+
+    def test_no_blocked_placeholder(self) -> None:
+        """The blocked-stories placeholder is removed from Step 3."""
+        self.assertNotIn(
+            "{If any stories are blocked, list them separately with reasons.}",
+            self._step3)
+
+    def test_no_blocked_suffix_in_create_total(self) -> None:
+        """The blocked count suffix is removed from create stories total."""
+        self.assertNotIn("({B} blocked)", self._step3)
+
+    def test_story_create_total_preserved(self) -> None:
+        """The story create total line is still present (without blocked)."""
+        self.assertIn("To create (stories):", self._step3)
+
+    def test_step8_blocked_reporting_preserved(self) -> None:
+        """Step 8 still reports blocked stories (not removed globally)."""
+        import re
+        m8 = re.search(r"### Step 8:.*", self._sync_md, re.DOTALL)
+        self.assertIsNotNone(m8)
+        step8 = m8.group()
+        self.assertIn("blocked", step8.lower())
+
+    def test_step3_epics_to_create_present(self) -> None:
+        """Epics to Create section still present in Step 3."""
+        self.assertIn("### Epics to Create", self._step3)
+
+
+# ---------------------------------------------------------------------------
+# Test: Guard recipe — per-guard temp capture (R3)
+# ---------------------------------------------------------------------------
+
+class TestGuardRecipeConsumer(unittest.TestCase):
+    """Guard recipe: per-guard temp capture, errexit-safe, cleanup."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import re
+        sync_path = Path(__file__).resolve().parent.parent / "skills" / "sync.md"
+        cls._sync_md = sync_path.read_text(encoding="utf-8")
+        ref_path = (Path(__file__).resolve().parent.parent
+                    / "references" / "sync-helper-usage.md")
+        cls._ref_md = ref_path.read_text(encoding="utf-8")
+        m6a = re.search(r"#### 6a:.*?(?=#### 6b:)", cls._sync_md, re.DOTALL)
+        assert m6a, "6a section not found"
+        cls._section_6a = m6a.group()
+        m6b = re.search(r"#### 6b:.*?(?=#### 6c:)", cls._sync_md, re.DOTALL)
+        assert m6b, "6b section not found"
+        cls._section_6b = m6b.group()
+        # Guard section from 6a
+        g_start = cls._section_6a.find("**Reference-availability guard.**")
+        g_end = cls._section_6a.find("For each new story")
+        assert g_start >= 0 and g_end > g_start
+        cls._guard_6a = cls._section_6a[g_start:g_end]
+        # Guard section from 6b
+        gb_start = cls._section_6b.find("**Reference-availability guard.**")
+        gb_end = cls._section_6b.find("For each story categorized")
+        assert gb_start >= 0 and gb_end > gb_start
+        cls._guard_6b = cls._section_6b[gb_start:gb_end]
+
+    def test_6a_uses_mktemp(self) -> None:
+        """Step 6a guard creates temp with mktemp."""
+        self.assertIn("mktemp", self._guard_6a)
+
+    def test_6a_no_fixed_filename(self) -> None:
+        """Step 6a guard does NOT use fixed ref_check_err.txt."""
+        self.assertNotIn("ref_check_err.txt", self._guard_6a)
+
+    def test_6a_cleanup_in_ready(self) -> None:
+        """Step 6a ready branch cleans up temp file."""
+        # Look in the full guard section for cleanup after ready
+        self.assertIn('rm -f', self._guard_6a)
+
+    def test_6a_cleanup_in_blocked(self) -> None:
+        """Step 6a blocked branch cleans up temp file."""
+        # Both ready and blocked branches have cleanup
+        clean_count = self._guard_6a.count('rm -f')
+        self.assertGreaterEqual(clean_count, 2,
+                                "Both ready and blocked must clean up temp")
+
+    def test_6a_fatal_reads_then_cleans(self) -> None:
+        """Step 6a catch-all reads stderr text then cleans temp."""
+        self.assertIn("cat", self._guard_6a)
+
+    def test_6b_mentions_per_guard_temp(self) -> None:
+        """Step 6b references per-guard temp creation."""
+        self.assertIn("mktemp", self._guard_6b)
+
+    def test_6b_mentions_cleanup(self) -> None:
+        """Step 6b references cleanup in all branches."""
+        self.assertIn("clean up temp", self._guard_6b.lower())
+
+    def test_helper_ref_uses_errexit_safe_capture(self) -> None:
+        """Helper reference uses || REF_EXIT=$? idiom."""
+        self.assertIn("|| REF_EXIT=$?", self._ref_md)
+
+    def test_helper_ref_uses_mktemp(self) -> None:
+        """Helper reference uses mktemp for temp capture."""
+        self.assertIn("mktemp", self._ref_md)
+
+    def test_helper_ref_no_bare_echo_dollar_question(self) -> None:
+        """Helper reference does NOT use bare 'echo $?' for status."""
+        # The old recipe used 'echo $?' — verify it's gone
+        guard_section_start = self._ref_md.find("## Reference-Availability Guard")
+        guard_section = self._ref_md[guard_section_start:]
+        self.assertNotIn("echo $?  # 0 = ready", guard_section)
+
+
+# ---------------------------------------------------------------------------
+# Test: Approval/order consistency (R5)
+# ---------------------------------------------------------------------------
+
+class TestApprovalOrderConsistency(unittest.TestCase):
+    """Sync Critical Rules and helper-reference consistency."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        sync_path = Path(__file__).resolve().parent.parent / "skills" / "sync.md"
+        cls._sync_md = sync_path.read_text(encoding="utf-8")
+        ref_path = (Path(__file__).resolve().parent.parent
+                    / "references" / "sync-helper-usage.md")
+        cls._ref_md = ref_path.read_text(encoding="utf-8")
+        revise_path = (Path(__file__).resolve().parent.parent
+                       / "skills" / "revise.md")
+        cls._revise_md = revise_path.read_text(encoding="utf-8")
+
+    def test_batch_rule_cross_epic_creation(self) -> None:
+        """Critical Rules batch rule mentions cross-epic creation batch."""
+        self.assertIn("cross-epic", self._sync_md.lower())
+
+    def test_batch_rule_explicit_approval_list(self) -> None:
+        """Critical Rules lists explicit approval points."""
+        # Should mention plan, epic, and story creation approvals
+        batch_line = ""
+        for line in self._sync_md.splitlines():
+            if "Batch by operation" in line:
+                batch_line = line
+                break
+        self.assertIn("plan", batch_line.lower())
+        self.assertIn("epic", batch_line.lower())
+
+    def test_helper_ref_no_epic_order_promise(self) -> None:
+        """Helper reference does NOT promise per-epic creation order."""
+        self.assertNotIn("in epic order", self._ref_md)
+        self.assertNotIn("Epic 1 stories before Epic 2", self._ref_md)
+
+    def test_helper_ref_dependency_first_order(self) -> None:
+        """Helper reference mentions dependency-first order."""
+        self.assertIn("dependency-first", self._ref_md)
+
+    def test_helper_ref_stable_identity(self) -> None:
+        """Helper reference: local numbers are identity, not creation readiness."""
+        self.assertIn("stable artifact identities", self._ref_md)
+
+    def test_revise_manifest_not_all_synced(self) -> None:
+        """Revise Step 1: manifest presence does NOT mean all artifacts synced."""
+        self.assertNotIn("means\n  epics/stories have been synced", self._revise_md)
+        self.assertNotIn("filenames are locked", self._revise_md)
+
+    def test_revise_manifest_partial(self) -> None:
+        """Revise Step 1: manifest may be partial."""
+        self.assertIn("may be partial", self._revise_md)
+
+    def test_revise_manifest_records_mappings(self) -> None:
+        """Revise Step 1: manifest records Jira key mappings."""
+        self.assertIn("Jira key mappings", self._revise_md)
+
+
+# ---------------------------------------------------------------------------
+# Test: Bash temp capture snippets (R3 verification)
+# ---------------------------------------------------------------------------
+
+class TestBashTempCapture(unittest.TestCase):
+    """Verify Bash temp-capture/cleanup snippets work correctly
+    under errexit."""
+
+    def test_mktemp_errexit_safe(self) -> None:
+        """mktemp with || exit captures allocation failure."""
+        import subprocess
+        script = textwrap.dedent("""\
+            set -euo pipefail
+            REF_ERR=$(mktemp) || { echo "FATAL" >&2; exit 1; }
+            echo "ready" > "$REF_ERR"
+            cat "$REF_ERR"
+            rm -f "$REF_ERR"
+            echo "done"
+        """)
+        r = subprocess.run(
+            ["bash", "-c", script],
+            capture_output=True, text=True, timeout=5)
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("done", r.stdout)
+
+    def test_errexit_safe_status_capture(self) -> None:
+        """|| REF_EXIT=$? captures nonzero exit under set -e."""
+        import subprocess
+        script = textwrap.dedent("""\
+            set -euo pipefail
+            REF_ERR=$(mktemp) || exit 1
+            REF_EXIT=0
+            python3 -c "import sys; sys.exit(1)" 2>"$REF_ERR" || REF_EXIT=$?
+            echo "REF_EXIT=$REF_EXIT"
+            rm -f "$REF_ERR"
+        """)
+        r = subprocess.run(
+            ["bash", "-c", script],
+            capture_output=True, text=True, timeout=5)
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("REF_EXIT=1", r.stdout)
+
+    def test_temp_file_cleaned_on_all_paths(self) -> None:
+        """Temp file is removed in every branch (ready/blocked/fatal)."""
+        import subprocess
+        script = textwrap.dedent("""\
+            set -euo pipefail
+            REF_ERR=$(mktemp) || exit 1
+            echo "captured" > "$REF_ERR"
+            # Read text then clean
+            REF_ERR_TEXT=$(cat "$REF_ERR")
+            rm -f "$REF_ERR"
+            # Verify file is gone
+            if [ -f "$REF_ERR" ]; then
+                echo "LEAKED"
+                exit 1
+            fi
+            echo "clean"
+        """)
+        r = subprocess.run(
+            ["bash", "-c", script],
+            capture_output=True, text=True, timeout=5)
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("clean", r.stdout)
+        self.assertNotIn("LEAKED", r.stdout)
+
+    def test_stderr_text_retained_before_cleanup(self) -> None:
+        """Fatal diagnostic text is readable before temp file removal."""
+        import subprocess
+        script = textwrap.dedent("""\
+            set -euo pipefail
+            REF_ERR=$(mktemp) || exit 1
+            REF_EXIT=0
+            python3 -c "import sys; print('FATAL_MSG', file=sys.stderr); sys.exit(1)" \\
+                2>"$REF_ERR" || REF_EXIT=$?
+            REF_ERR_TEXT=$(cat "$REF_ERR")
+            rm -f "$REF_ERR"
+            echo "exit=$REF_EXIT text=$REF_ERR_TEXT"
+        """)
+        r = subprocess.run(
+            ["bash", "-c", script],
+            capture_output=True, text=True, timeout=5)
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("exit=1", r.stdout)
+        self.assertIn("FATAL_MSG", r.stdout)
+
+
+# ---------------------------------------------------------------------------
+# Test: DOCS Contributing native key extraction
+# ---------------------------------------------------------------------------
+
+class TestDocsContribNativeKeyExtraction(unittest.TestCase):
+    """Contributing stories section extracts native Jira keys."""
+
+    def test_contributing_native_key_extracted(self) -> None:
+        """Native Jira key in Contributing → appears in native_keys."""
+        content = textwrap.dedent("""\
+            ---
+            ---
+            # Story 1.01: [DOCS] Guide
+
+            **As a** writer,
+            **I want to** document,
+            **So that** users understand.
+
+            ## Acceptance Criteria
+
+            - [ ] Done
+
+            ## Documentation Scope
+
+            API docs.
+
+            ## Documentation Inputs
+
+            **EDM-201 — API:** output.
+
+            ## Dependencies
+
+            None
+
+            ## Design Reference
+
+            Epic: Epic 1 — Docs
+            Contributing stories: EDM-201
+        """)
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.md', delete=False,
+                encoding='utf-8') as f:
+            f.write(content)
+            f.flush()
+            fp = Path(f.name)
+        try:
+            extraction = sync_helper.extract_required_refs(
+                fp, story_title="[DOCS] Guide")
+            self.assertIn("EDM-201", extraction["native_keys"],
+                          "Native key in Contributing must be extracted")
+        finally:
+            fp.unlink()
+
+    def test_contributing_story_ref_still_extracted(self) -> None:
+        """Story ref in Contributing → still in refs (unchanged)."""
+        content = textwrap.dedent("""\
+            ---
+            ---
+            # Story 1.01: [DOCS] Guide
+
+            As a writer.
+
+            ## Acceptance Criteria
+
+            - Done
+
+            ## Documentation Scope
+
+            Docs.
+
+            ## Documentation Inputs
+
+            Input.
+
+            ## Dependencies
+
+            None
+
+            ## Design Reference
+
+            Epic: Epic 1
+            Contributing stories: Story 2.01
+        """)
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.md', delete=False,
+                encoding='utf-8') as f:
+            f.write(content)
+            f.flush()
+            fp = Path(f.name)
+        try:
+            extraction = sync_helper.extract_required_refs(
+                fp, story_title="[DOCS] Guide")
+            self.assertIn("story-2.01", extraction["refs"])
+        finally:
+            fp.unlink()
 
 
 if __name__ == "__main__":

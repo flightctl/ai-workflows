@@ -44,8 +44,10 @@ Determine which artifacts exist and read them:
 - `.artifacts/design/{issue-key}/06-stories/` (epic and story files, if exist)
 - `.artifacts/design/{issue-key}/07-coverage.md` (coverage matrix, if exists)
 - `.artifacts/design/{issue-key}/04-testplan.md` (testplan, if exists)
-- `.artifacts/design/{issue-key}/sync-manifest.json` (if exists — means
-  epics/stories have been synced to Jira and filenames are locked)
+- `.artifacts/design/{issue-key}/sync-manifest.json` (if exists —
+  records Jira key mappings and content-hash checkpoints from
+  previous `/sync` runs; may be partial if sync was interrupted or
+  not all items were created)
 
 If the user edited `03-design.md` manually since the last workflow phase, read
 and follow `../../_shared/recipes/record-manual-edit.md` with `WORKFLOW=design`

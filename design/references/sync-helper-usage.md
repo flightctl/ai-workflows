@@ -62,10 +62,12 @@ Jira keys from the manifest:
 - `Stories 1.01, 2.01, 3.01` → resolve each → `EDM-XXXX, EDM-AAAA, EDM-BBBB`
 
 The manifest is built incrementally: each issue's key is recorded
-immediately after creation.  Since epics are created first and stories
-are created in epic order (Epic 1 stories before Epic 2 stories),
-dependencies — which reference earlier stories — are always resolvable
-by the time they're needed.
+immediately after creation.  Epics are created first (Step 5), then
+all new stories are created in a feature-wide dependency-first order
+planned by `plan-creation-order` (Step 6a) — each story's required
+keys are available from the manifest by the time it is created. The
+local numeric identifiers (Epic 1, Story 1.01) are
+stable artifact identities, not creation readiness indicators.
 
 If a reference cannot be resolved (the referenced item hasn't been
 created yet or failed to create), the helper leaves the local
@@ -223,11 +225,21 @@ every required reference has a Jira key.  Run `check-ref-availability`
 with the story's qualified ID:
 
 ```bash
+REF_ERR=$(mktemp) || { echo "FATAL: cannot create temp file" >&2; exit 1; }
+REF_EXIT=0
 REF_CHECK=$(python3 "$SYNC_HELPER" check-ref-availability \
   .artifacts/design/{issue-key}/ \
-  "story-{N}.{NN}")
-echo $?  # 0 = ready, 1 = blocked
+  "story-{N}.{NN}" 2>"$REF_ERR") || REF_EXIT=$?
+# REF_EXIT: 0 = ready, 1 = blocked or fatal
+# On ready/blocked: rm -f "$REF_ERR"
+# On catch-all fatal: REF_ERR_TEXT=$(cat "$REF_ERR"); rm -f "$REF_ERR"
 ```
+
+The `|| REF_EXIT=$?` idiom captures a nonzero exit without aborting
+under `set -e`.  Stderr is captured to a per-guard temp file created
+fresh for each story.  Apply the three-branch interpretation from
+`sync.md` Step 6a (ready → proceed; blocked → skip; catch-all →
+stop) and clean up `$REF_ERR` in every branch.
 
 The subcommand accepts one or more qualified IDs.  For each story it:
 

@@ -971,10 +971,58 @@ def extract_required_refs(
                     refs.append(f"story-{sref}")
                 for eref in _extract_epic_refs(contrib_text):
                     refs.append(f"epic-{eref}")
+                for jm in _JIRA_KEY_RE.finditer(contrib_text):
+                    native_keys.append(jm.group(1))
 
     result["refs"] = refs
     result["native_keys"] = native_keys
     return result
+
+
+def _detect_self_refs(
+    own_qid: str,
+    refs: list[str],
+    native_keys: list[str],
+    own_jira_key: str,
+    available: dict[str, str],
+) -> list[str]:
+    """Detect self-references among a story's extracted refs.
+
+    A self-reference is any ref that resolves to the story itself:
+
+    - Direct match: a qualified ref equal to *own_qid*.
+    - Native key match: a native Jira key equal to *own_jira_key*.
+    - Resolved alias: a qualified ref whose manifest-mapped Jira key
+      equals *own_jira_key*.
+
+    Must be called BEFORE available-key satisfaction shortcuts so that
+    mapped self-refs are not silently treated as satisfied dependencies.
+
+    Returns a deduplicated list of self-referencing identifiers (empty
+    if no self-references detected).
+    """
+    seen: set[str] = set()
+    self_refs: list[str] = []
+
+    for ref in refs:
+        if ref == own_qid:
+            if ref not in seen:
+                seen.add(ref)
+                self_refs.append(ref)
+        elif (own_jira_key
+              and ref in available
+              and available[ref] == own_jira_key):
+            if ref not in seen:
+                seen.add(ref)
+                self_refs.append(ref)
+
+    if own_jira_key:
+        for nk in native_keys:
+            if nk == own_jira_key and nk not in seen:
+                seen.add(nk)
+                self_refs.append(nk)
+
+    return self_refs
 
 
 def plan_creation_order(
@@ -1039,6 +1087,8 @@ def plan_creation_order(
     errors: list[str] = []
     # Track stories with unreadable/missing source files
     unreadable_sources: set[str] = set()
+    # Track native Jira keys per story for self-reference detection
+    native_keys_by_qid: dict[str, list[str]] = {}
 
     def _get_required_refs(
         item: dict[str, Any], qid: str,
@@ -1060,6 +1110,7 @@ def plan_creation_order(
         # Record native Jira keys as available
         for jkey in extraction["native_keys"]:
             available.setdefault(jkey, jkey)
+        native_keys_by_qid[qid] = extraction["native_keys"]
         return extraction["refs"]
 
     # ── Classify stories ────────────────────────────────────────
@@ -1089,6 +1140,18 @@ def plan_creation_order(
 
     for qid, item in needs_creation.items():
         raw_refs = _get_required_refs(item, qid)
+        # Self-reference detection (before available-key shortcuts)
+        own_key = item.get("jira_key", "") or available.get(qid, "")
+        self_refs = _detect_self_refs(
+            qid, raw_refs, native_keys_by_qid.get(qid, []),
+            own_key, available)
+        if self_refs:
+            errors.append(
+                f"{qid} contains invalid self-reference: "
+                f"{', '.join(self_refs)}")
+            has_unavailable_ref.add(qid)
+            deps_graph[qid] = []
+            continue
         unsatisfied: list[str] = []
         for ref_qid in raw_refs:
             if ref_qid in available:
@@ -1143,6 +1206,21 @@ def plan_creation_order(
     blocked_writes: list[dict[str, Any]] = []
     for qid, item in needs_write.items():
         raw_refs = _get_required_refs(item, qid)
+        # Self-reference detection (before available-key shortcuts)
+        own_key = item.get("jira_key", "") or available.get(qid, "")
+        self_refs = _detect_self_refs(
+            qid, raw_refs, native_keys_by_qid.get(qid, []),
+            own_key, available)
+        if self_refs:
+            blocked_writes.append({
+                "item": item, "missing": self_refs,
+                "reason": f"invalid self-reference: "
+                          f"{', '.join(self_refs)}"})
+            errors.append(
+                f"{qid} (category: {item.get('category', '?')}) "
+                f"contains invalid self-reference: "
+                f"{', '.join(self_refs)}")
+            continue
         missing: list[str] = []
         for ref_qid in raw_refs:
             if ref_qid in available:
@@ -1378,8 +1456,21 @@ def check_ref_availability(
                 "reason": extraction["error"]})
             continue
         refs = extraction["refs"]
+        native_keys = extraction["native_keys"]
+
+        # Self-reference detection (before available-key shortcuts)
+        own_key = available.get(qid, "")
+        self_refs = _detect_self_refs(
+            qid, refs, native_keys, own_key, available)
+        if self_refs:
+            blocked.append({
+                "qid": qid, "missing": self_refs,
+                "reason": f"invalid self-reference: "
+                          f"{', '.join(self_refs)}"})
+            continue
+
         # Native Jira keys are always available
-        for jkey in extraction["native_keys"]:
+        for jkey in native_keys:
             available.setdefault(jkey, jkey)
 
         # Check owning epic has a key (for creation)

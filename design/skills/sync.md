@@ -36,7 +36,7 @@ your responsibility.
 
 - **Dry-run first.** Always show what would be created, updated, or closed before doing anything.
 - **Explicit approval required.** Never modify Jira without the user saying "yes."
-- **Batch by operation.** Process epics first (confirm), then stories per epic (confirm). Not one giant batch.
+- **Batch by operation.** Process epics first (confirm), then all new stories in the dependency-first order across epics (confirm the ordered cross-epic creation batch), then per-epic update and close passes (confirm). Explicit approval is required for: the overall plan (Step 3), epic operations (Step 5), the ordered cross-epic new-story creation batch (Step 6a), and per-epic update/close passes (Steps 6b/6c).
 - **Idempotent.** Track what was synced in a manifest with content hashes. If re-run with no changes, do nothing.
 - **Manifest gate.** Before proceeding past Step 1, you **must** state aloud to the user what the manifest contains (or that none exists). This is mandatory — do not silently skip this acknowledgment. If a manifest exists and you cannot read it, stop and report the error.
 - **Jira-side duplicate check.** Before creating each epic or story, query Jira for existing children under the parent with a matching summary. If a match is found, stop and present the match to the user — do not create a duplicate. This is a safety net independent of the manifest.
@@ -245,8 +245,6 @@ story's references resolve before it is written to Jira:
 | 1 | Story {N}.{NN}: [{prefix}] {title} | Epic {X} | None |
 | 2 | Story {M}.{MM}: [{prefix}] {title} | Epic {Y} | Story {N}.{NN} |
 
-{If any stories are blocked, list them separately with reasons.}
-
 ### Epics to Create ({N} items)
 
 #### Epic {X}: {title} (`epic-{X}-{slug}.md`)
@@ -275,7 +273,7 @@ open)" so the status transition is visible.
 ### Unchanged ({N} items — skipped)
 
 ### Totals
-- To create (stories): {N} ({B} blocked)
+- To create (stories): {N}
 - To create (epics): {N}
 - To update: {N}
 - To close: {N}
@@ -299,14 +297,21 @@ surface falls within the `[DOCS]` story's documented scope. Determine
 this from the change plan's full item list (new, changed, removed,
 reopened), not only from existing references.
 
-If any `[DOCS]` story fails validation, present the findings and
-recommend `/revise` — sync must not modify story source files. Do
-not create or update a failing `[DOCS]` story in Jira.
+If any `[DOCS]` story fails validation, **stop the entire sync** —
+do not proceed to Step 5 or any Jira writes (epic creates, story
+creates, updates, reopens, closures), success checkpoints, or
+content checkpoints for this plan. Present the findings, recommend
+`/revise` to correct the source, and require a fresh
+preflight/preview/approval cycle after correction.
+Sync does not edit story source files.
+Do not reuse a stale approval from before the correction.
 
 Note: reference-availability checks for Dependencies and Contributing
 stories are handled by the Step 3 creation-order plan (preflight) and
 the Step 6a/6b reference-availability guards (runtime). Step 4
-validates `[DOCS]` quality criteria only.
+validates `[DOCS]` quality criteria only. This gate is distinct from
+valid runtime missing-reference failures in Steps 6a/6b, which skip
+only the affected story and continue independent eligible work.
 
 ### Step 5: Sync Epics
 
@@ -538,14 +543,18 @@ story, run the `check-ref-availability` subcommand against the current
 on-disk manifest with this story's qualified ID:
 
 ```bash
+REF_ERR=$(mktemp) || { echo "FATAL: cannot create temp file" >&2; exit 1; }
 REF_EXIT=0
 REF_CHECK=$(python3 "$SYNC_HELPER" check-ref-availability \
   .artifacts/design/{issue-key}/ \
-  "story-{N}.{NN}" 2>ref_check_err.txt) || REF_EXIT=$?
+  "story-{N}.{NN}" 2>"$REF_ERR") || REF_EXIT=$?
 ```
 
 The `|| REF_EXIT=$?` idiom captures a nonzero exit without aborting
-under `set -e`.
+under `set -e`.  Stderr is captured to a per-guard temp file
+(`$REF_ERR`) created fresh for this story.  Each branch (ready,
+blocked, catch-all) cleans up `$REF_ERR` before proceeding; the
+catch-all reads its text first for the fatal diagnostic report.
 
 The helper checks Dependencies (Story and Epic refs) and Contributing
 stories (for `[DOCS]` stories), verifies the owning epic has a key,
@@ -556,24 +565,26 @@ branches must match; any other outcome is a catch-all failure:
 
 1. **Ready:** `REF_EXIT` is 0, stdout is valid JSON, the `ready` list
    contains an entry whose `qid` equals THIS story's qualified ID, and
-   the `blocked` list does NOT contain this QID.  → Proceed to
-   `prepare`.
+   the `blocked` list does NOT contain this QID.  → Clean up: `rm -f
+   "$REF_ERR"`.  Proceed to `prepare`.
 2. **Blocked:** `REF_EXIT` is 1, stdout is valid JSON, the `blocked`
    list contains an entry whose `qid` equals THIS story's qualified ID
    with `missing` (list of unresolved ref IDs) and `reason` (string).
-   → **Skip** this story — do not call `prepare`, do not render a
-   description, do not create the Jira issue, do not record a manifest
-   checkpoint.  Record the story's qualified ID, the `missing` refs,
-   and the `reason` for the Step 8 report.  Continue with the next
-   story in the ordered list — do not abort independent eligible work.
+   → Clean up: `rm -f "$REF_ERR"`.  **Skip** this story —
+   do not call `prepare`, do not render a description,
+   do not create the Jira issue, do not record a manifest checkpoint.
+   Record the story's qualified ID, the `missing` refs, and the
+   `reason` for the Step 8 report.  Continue with the next story in
+   the ordered list — do not abort independent eligible work.
 3. **Catch-all failure** (every other outcome — including exit 0 with
    invalid JSON, exit 0 with this QID missing from `ready`, exit
    nonzero with no JSON, malformed or missing `ready`/`blocked` fields,
    this QID appearing in both lists, or unexpected exit codes):
-   **Stop the sync** and report stderr (`ref_check_err.txt`) and any
-   stdout.  Do not skip the story or continue with others — the
-   manifest state may be indeterminate.  Do not call `prepare`, render,
-   write to Jira, or record a manifest checkpoint.
+   Read the stderr text: `REF_ERR_TEXT=$(cat "$REF_ERR")`, then clean
+   up: `rm -f "$REF_ERR"`.  **Stop the sync** and report the captured
+   stderr text and any stdout.  Do not skip the story or continue with
+   others — the manifest state may be indeterminate.  Do not call
+   `prepare`, render, write to Jira, or record a manifest checkpoint.
 
 Keys recorded by earlier stories in this run (via `update-manifest`)
 are immediately visible to subsequent `check-ref-availability` calls
@@ -666,12 +677,14 @@ Process changed and reopened stories per epic.
 
 **Reference-availability guard.** Before calling `prepare` for a
 changed or reopened story, run the same `check-ref-availability` guard
-as in Step 6a with this story's qualified ID and the same `|| REF_EXIT=$?`
-capture idiom.  Apply the same three-branch result interpretation
-(ready → proceed; blocked → skip; catch-all → stop).  Do not call
-`prepare`, render a description, update or reopen the Jira issue, or
-record a manifest checkpoint for a blocked or failed story.  Do not
-retry a blocked story in the current run.
+as in Step 6a with this story's qualified ID: create a fresh per-guard
+temp (`REF_ERR=$(mktemp)`), capture stderr and exit status with the
+`|| REF_EXIT=$?` idiom, and apply the same three-branch result
+interpretation (ready → clean up temp, proceed; blocked → clean up
+temp, skip; catch-all → read stderr text, clean up temp, stop).  Do
+not call `prepare`, render a description, update or reopen the Jira
+issue, or record a manifest checkpoint for a blocked or failed story.
+Do not retry a blocked story in the current run.
 
 For each story categorized as **Changed** or **Reopened** (non-blocked),
 prepare the updated description and hash using the story `prepare`
