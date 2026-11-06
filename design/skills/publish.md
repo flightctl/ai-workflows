@@ -247,23 +247,37 @@ If `validation-index.json` does not exist but `04-testplan.md` does
 (legacy), build a normalized index first:
 
 ```bash
-python3 "$VALIDATION_INDEX_SCRIPT" build-legacy ".artifacts/design/{issue-key}"
+python3 "$VALIDATION_INDEX_SCRIPT" build-legacy ".artifacts/design/{issue-key}" ".artifacts/design/{issue-key}/validation-index.json"
 ```
 
-This writes `validation-index.json` with the single primary entry,
-then re-run `resolve --local` to get the normalized set.
+This writes `validation-index.json` with the single primary entry.
+Re-run `resolve --local` to get the normalized set.
 
 **Step 4b: Snapshot previous published state.** Before writing any
-files to the docs repo, capture the previously published artifact
-set so stale files can be identified after the new set is written:
+files to the docs repo, snapshot the previously published index so
+stale files can be identified after the new set is written.
+
+If `{docs_repo_path}/{release}/{feature}/validation-index.json`
+exists, copy it to a temp file:
 
 ```bash
-python3 "$VALIDATION_INDEX_SCRIPT" resolve --published "{docs_repo_path}/{release}/{feature}"
+cp "{docs_repo_path}/{release}/{feature}/validation-index.json" ".artifacts/design/{issue-key}/prev-published-index.json"
 ```
 
-If this returns a JSON array, save it as `{previous-set}`. If it
-exits non-zero (no prior index and no `testplan.md`), the previous
-set is empty.
+If it does not exist but `{docs_repo_path}/{release}/{feature}/testplan.md`
+exists (legacy single-testplan), write a minimal published snapshot:
+
+```json
+{
+  "schema_version": "1.0",
+  "primary_testplan": "testplan.md",
+  "artifacts": [{"file": "testplan.md", "type": "testplan"}]
+}
+```
+
+Save to `.artifacts/design/{issue-key}/prev-published-index.json`.
+
+If neither exists, there is no previous set — skip the snapshot.
 
 **Step 4c: Copy current artifacts.** If the current set is empty
 (no validation artifacts), skip to Step 4e.
@@ -287,21 +301,23 @@ git -C "{docs_repo_path}" add "{release}/{feature}/{published_as}"
 published index for downstream discovery:
 
 ```bash
-python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" --output "{docs_repo_path}/{release}/{feature}/validation-index.json"
+python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" "{docs_repo_path}/{release}/{feature}/validation-index.json"
 ```
 
 ```bash
 git -C "{docs_repo_path}" add "{release}/{feature}/validation-index.json"
 ```
 
-**Step 4e: Remove stale artifacts.** Compare the previous set
-(from Step 4b) against the current set to find retired artifacts:
+**Step 4e: Remove stale artifacts.** If a previous snapshot was
+captured in Step 4b, compare it against the newly written published
+index to find retired artifacts:
 
 ```bash
-python3 "$VALIDATION_INDEX_SCRIPT" diff --previous-json '{previous-set}' --current-json '{current-set}'
+python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-published-index.json" "{docs_repo_path}/{release}/{feature}/validation-index.json"
 ```
 
-The command outputs a JSON array of filenames to remove. For each:
+The command outputs a JSON object with `removed` listing filenames
+to delete. For each filename in `removed`:
 
 ```bash
 git -C "{docs_repo_path}" rm -- "{release}/{feature}/{stale-filename}"

@@ -467,14 +467,12 @@ verify its local file exists. A listed artifact whose local file is
 missing is an error — stop and report to the user. Do not delete
 published content based on a missing local file.
 
-**Build PREVIOUS set:** Resolve what was previously published:
-
-```bash
-python3 "$VALIDATION_INDEX_SCRIPT" resolve --published "{docs_repo_path}/{feature-dir}"
-```
-
-If no previous index or testplan exists in the docs repo, the
-previous set is empty.
+**Snapshot PREVIOUS state:** If
+`{docs_repo_path}/{feature-dir}/validation-index.json` exists, copy
+it to `.artifacts/design/{issue-key}/prev-published-index.json`. If
+it does not exist but `{docs_repo_path}/{feature-dir}/testplan.md`
+exists (legacy), build a snapshot. If neither exists, there is no
+previous set.
 
 **Skip sync entirely** if both current and previous sets are empty
 and publish-metadata has no `validation_artifacts` or
@@ -491,14 +489,25 @@ cp ".artifacts/design/{issue-key}/{local}" "{docs_repo_path}/{feature-dir}/{publ
 git -C "{docs_repo_path}" add "{feature-dir}/{published_as}"
 ```
 
-**Remove retired artifacts** — only those in the PREVIOUS set but
-NOT in the CURRENT set:
+**Update the published validation-index.json:** If the current set
+is non-empty, transform and write the updated index:
 
 ```bash
-python3 "$VALIDATION_INDEX_SCRIPT" diff --previous-json '{previous-set}' --current-json '{current-set}'
+python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" "{docs_repo_path}/{feature-dir}/validation-index.json"
 ```
 
-For each filename in the diff output:
+```bash
+git -C "{docs_repo_path}" add "{feature-dir}/validation-index.json"
+```
+
+**Remove retired artifacts** — if a previous snapshot exists, diff
+it against the newly written published index:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-published-index.json" "{docs_repo_path}/{feature-dir}/validation-index.json"
+```
+
+For each filename in the `removed` list:
 
 ```bash
 git -C "{docs_repo_path}" ls-files --error-unmatch "{feature-dir}/{stale-filename}"
@@ -509,17 +518,6 @@ If any other non-zero exit (unexpected git error), stop and report.
 
 If the current set is empty and the previous set had artifacts,
 also remove `validation-index.json` from the docs repo.
-
-**Update the published validation-index.json:** If the current set
-is non-empty, transform and write the updated index:
-
-```bash
-python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" --output "{docs_repo_path}/{feature-dir}/validation-index.json"
-```
-
-```bash
-git -C "{docs_repo_path}" add "{feature-dir}/validation-index.json"
-```
 
 **Update publish-metadata.json:** Read, update `validation_artifacts`
 to match the current published set, update `testplan_file_path` to

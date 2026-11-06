@@ -361,20 +361,22 @@ If the command exits non-zero and `04-testplan.md` exists, build a
 legacy index first with `build-legacy`. If neither index nor
 `04-testplan.md` exists, the current set is empty.
 
-**Build PREVIOUS set:** Resolve what was previously published:
-
-```bash
-python3 "$VALIDATION_INDEX_SCRIPT" resolve --published "{docs_repo_path}/{feature-dir}"
-```
+**Snapshot PREVIOUS state:** If
+`{docs_repo_path}/{feature-dir}/validation-index.json` exists, copy
+it to `.artifacts/design/{issue-key}/prev-published-index.json`. If
+it does not exist but `{docs_repo_path}/{feature-dir}/testplan.md`
+exists (legacy), build a snapshot. If neither exists, there is no
+previous set.
 
 If the previous set is empty and publish-metadata has no
 `validation_artifacts` or `testplan_file_path`, skip all sync below.
 
-If the previous set is non-empty but local `validation-index.json`
-does not exist (validation artifacts were published previously but no
-local index exists now), note to the user: "Validation artifacts were
-previously published but no local index exists. Re-run `/publish` to
-resync, or create a local index before proceeding."
+If the docs repo has published artifacts but local
+`validation-index.json` does not exist (artifacts were published
+previously but no local index exists now), note to the user:
+"Validation artifacts were previously published but no local index
+exists. Re-run `/publish` to resync, or create a local index before
+proceeding."
 
 **Validate current set:** For each artifact in the current set,
 verify its local file exists. A listed artifact whose local file is
@@ -392,14 +394,26 @@ cp ".artifacts/design/{issue-key}/{local}" "{docs_repo_path}/{feature-dir}/{publ
 git -C "{docs_repo_path}" add "{feature-dir}/{published_as}"
 ```
 
-**Remove retired artifacts** — only those in PREVIOUS but NOT in
-CURRENT:
+**Update published index:** If the current set is non-empty,
+transform and write the updated index:
 
 ```bash
-python3 "$VALIDATION_INDEX_SCRIPT" diff --previous-json '{previous-set}' --current-json '{current-set}'
+python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" "{docs_repo_path}/{feature-dir}/validation-index.json"
 ```
 
-For each stale filename:
+```bash
+git -C "{docs_repo_path}" add "{design_file_path}"
+git -C "{docs_repo_path}" add "{feature-dir}/validation-index.json"
+```
+
+**Remove retired artifacts** — if a previous snapshot exists, diff
+it against the newly written published index:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-published-index.json" "{docs_repo_path}/{feature-dir}/validation-index.json"
+```
+
+For each filename in the `removed` list:
 
 ```bash
 git -C "{docs_repo_path}" ls-files --error-unmatch "{feature-dir}/{stale-filename}"
@@ -410,18 +424,6 @@ exit (unexpected git error), stop and report.
 
 If the current set is empty and the previous set had artifacts,
 also remove `validation-index.json` from the docs repo.
-
-**Update published index and metadata:** If the current set is
-non-empty, transform and write the updated index:
-
-```bash
-python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" --output "{docs_repo_path}/{feature-dir}/validation-index.json"
-```
-
-```bash
-git -C "{docs_repo_path}" add "{design_file_path}"
-git -C "{docs_repo_path}" add "{feature-dir}/validation-index.json"
-```
 
 Update `publish-metadata.json`: set `validation_artifacts` to match
 the current published set, update `testplan_file_path` to the primary
