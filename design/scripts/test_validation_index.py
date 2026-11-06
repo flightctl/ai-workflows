@@ -414,10 +414,22 @@ class TestCLIResolve(unittest.TestCase):
             self.assertEqual(len(arts), 1)
             self.assertEqual(arts[0]["type"], "testplan")
 
-    def test_resolve_local_empty_exits_1(self):
+    def test_resolve_local_empty_exits_0(self):
+        """Empty directory: exit 0 with [] (success, not error)."""
         with tempfile.TemporaryDirectory() as td:
             r = _run_cli("resolve", "--local", td)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            arts = json.loads(r.stdout)
+            self.assertEqual(arts, [])
+
+    def test_resolve_local_malformed_exits_1(self):
+        """Malformed index: exit 1 (error, not empty fallback)."""
+        with tempfile.TemporaryDirectory() as td:
+            _write_json(Path(td) / "validation-index.json", {"bad": True})
+            _write(Path(td) / "04-testplan.md", "# Plan")
+            r = _run_cli("resolve", "--local", td)
             self.assertEqual(r.returncode, 1)
+            self.assertIn("ERROR", r.stderr)
 
     def test_resolve_published_with_index(self):
         with tempfile.TemporaryDirectory() as td:
@@ -431,6 +443,8 @@ class TestCLIResolve(unittest.TestCase):
                 ],
             }
             _write_json(Path(td) / "validation-index.json", pub)
+            _write(Path(td) / "testplan.md", "# Plan")
+            _write(Path(td) / "hw.md", "# HW")
             r = _run_cli("resolve", "--published", td)
             self.assertEqual(r.returncode, 0, r.stderr)
             arts = json.loads(r.stdout)
@@ -669,6 +683,8 @@ class TestResolvePublished(unittest.TestCase):
                 ],
             }
             _write_json(d / "validation-index.json", pub)
+            _write(d / "testplan.md", "# Plan")
+            _write(d / "hw.md", "# HW")
             arts = vi.resolve_published_artifacts(d)
             self.assertEqual(len(arts), 2)
 
@@ -922,7 +938,14 @@ class TestLifecycle(unittest.TestCase):
             self.assertEqual(d["removed"], ["hw.md"])
 
     def test_downstream_story_selection(self):
-        """Downstream consumer selects TCs from multi-artifact set."""
+        """Downstream consumer discovers artifacts via resolve API.
+
+        Verifies the production resolve_published_artifacts API returns
+        the correct artifact list including type metadata.  TC-level
+        selection (grep-based heading matching) is performed by the AI
+        agent following workflow instructions; this test verifies the
+        deterministic discovery contract only.
+        """
         with tempfile.TemporaryDirectory() as td:
             d = Path(td)
             pub = {
@@ -941,29 +964,29 @@ class TestLifecycle(unittest.TestCase):
             _write(d / "hw.md",
                    "### NFR-3\n#### TC-NFR3-01: HW qual")
 
-            # Resolve published artifacts via CLI
-            r = _run_cli("resolve", "--published", str(d))
-            self.assertEqual(r.returncode, 0)
-            arts = json.loads(r.stdout)
+            # Use production API to resolve artifacts
+            arts = vi.resolve_published_artifacts(d)
+            self.assertEqual(len(arts), 2)
 
-            # Simulate story TC selection
-            story_tcs = {"TC-FR1-01"}
-            found: dict[str, set[str]] = {}
-            for art in arts:
-                content = (d / art["file"]).read_text()
-                # Match TC IDs by heading pattern (actual consumer uses
-                # grep for TC heading lines, not substring)
-                for line in content.splitlines():
-                    if line.startswith("#### TC-"):
-                        tc_id = line.split(":")[0].replace("#### ", "")
-                        if tc_id in story_tcs:
-                            found.setdefault(art["file"], set()).add(tc_id)
+            # Verify type metadata is preserved for routing
+            types = {a["file"]: a["type"] for a in arts}
+            self.assertEqual(types["testplan.md"], "testplan")
+            self.assertEqual(types["hw.md"], "companion")
 
-            self.assertIn("testplan.md", found)
-            self.assertNotIn("hw.md", found)
+            # Verify primary testplan path API
+            primary = vi.primary_testplan_path(d)
+            self.assertEqual(primary, d / "testplan.md")
 
     def test_companion_not_named_testplan(self):
-        """Companion with non-testplan name routes correctly."""
+        """Companion with non-testplan slug validates and resolves.
+
+        Verifies the production API correctly validates and resolves
+        companion artifacts with non-testplan names. Comment routing
+        (matching PR comment paths to artifact files) is performed by
+        the AI agent using exact full-path matching per workflow
+        instructions; this test verifies the deterministic resolution
+        contract and companion metadata preservation.
+        """
         with tempfile.TemporaryDirectory() as td:
             d = Path(td)
             pub = {
@@ -976,16 +999,253 @@ class TestLifecycle(unittest.TestCase):
                 ],
             }
             _write_json(d / "validation-index.json", pub)
+            _write(d / "testplan.md", "# Plan")
+            _write(d / "security-cert.md", "# Security")
             arts = vi.resolve_published_artifacts(d)
+            self.assertEqual(len(arts), 2)
 
-            # Simulate routing by file path
-            comment_path = "v1/feature/security-cert.md"
-            target = None
-            for art in arts:
-                if comment_path.endswith(art["file"]):
-                    target = art
-            self.assertIsNotNone(target)
-            self.assertEqual(target["type"], "companion")
+            # Verify companion metadata is preserved
+            companion = [a for a in arts if a["type"] == "companion"][0]
+            self.assertEqual(companion["file"], "security-cert.md")
+            self.assertEqual(companion["purpose"], "Cert")
+
+            # Verify companion slug 'testplan' is still rejected
+            idx = _make_local_index()
+            idx["artifacts"].append({
+                "local": "04-testplan.md",
+                "published_as": "testplan-extra.md",
+                "type": "companion",
+                "purpose": "p", "audience": "a",
+            })
+            idx["artifacts"][-1]["local"] = "04-testplan.md"
+            errors = vi.validate_local_index(idx)
+            self.assertTrue(any("duplicate local" in e for e in errors))
+
+
+# ===========================================================================
+# 13. Safety: symlink rejection
+# ===========================================================================
+
+class TestSymlinkRejection(unittest.TestCase):
+    """Symlink artifacts are rejected to prevent escape attacks."""
+
+    def test_symlink_local_artifact_rejected(self):
+        """Symlink source file in local resolve → error."""
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            real = d / "real-testplan.md"
+            _write(real, "# Plan")
+            link = d / "04-testplan.md"
+            link.symlink_to(real)
+            idx = _make_local_index()
+            _write_json(d / "validation-index.json", idx)
+            with self.assertRaises(vi.ValidationIndexError) as ctx:
+                vi.resolve_artifacts(d)
+            self.assertIn("symlink", str(ctx.exception))
+
+    def test_symlink_index_rejected(self):
+        """Symlink index file in local resolve → error."""
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            real_dir = d / "real"
+            real_dir.mkdir()
+            idx = _make_local_index()
+            _write_json(real_dir / "validation-index.json", idx)
+            _write(real_dir / "04-testplan.md", "# Plan")
+            link = d / "art"
+            link.mkdir()
+            (link / "validation-index.json").symlink_to(
+                real_dir / "validation-index.json")
+            _write(link / "04-testplan.md", "# Plan")
+            with self.assertRaises(vi.ValidationIndexError) as ctx:
+                vi.resolve_artifacts(link)
+            self.assertIn("symlink", str(ctx.exception))
+
+    def test_symlink_published_artifact_rejected(self):
+        """Symlink file in published resolve → error."""
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            real = d / "real-plan.md"
+            _write(real, "# Plan")
+            link = d / "testplan.md"
+            link.symlink_to(real)
+            pub = {
+                "schema_version": "1.0",
+                "primary_testplan": "testplan.md",
+                "artifacts": [
+                    {"file": "testplan.md", "type": "testplan"},
+                ],
+            }
+            _write_json(d / "validation-index.json", pub)
+            with self.assertRaises(vi.ValidationIndexError) as ctx:
+                vi.resolve_published_artifacts(d)
+            self.assertIn("symlink", str(ctx.exception))
+
+    def test_symlink_legacy_rejected(self):
+        """Symlink 04-testplan.md in legacy fallback → error."""
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            real = d / "real.md"
+            _write(real, "# Plan")
+            link = d / "04-testplan.md"
+            link.symlink_to(real)
+            with self.assertRaises(vi.ValidationIndexError) as ctx:
+                vi.resolve_artifacts(d)
+            self.assertIn("symlink", str(ctx.exception))
+
+    def test_primary_path_symlink_rejected(self):
+        """Symlink primary testplan in docs repo → error."""
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            real = d / "real.md"
+            _write(real, "# Plan")
+            link = d / "testplan.md"
+            link.symlink_to(real)
+            pub = {
+                "schema_version": "1.0",
+                "primary_testplan": "testplan.md",
+                "artifacts": [
+                    {"file": "testplan.md", "type": "testplan"},
+                ],
+            }
+            _write_json(d / "validation-index.json", pub)
+            with self.assertRaises(vi.ValidationIndexError) as ctx:
+                vi.primary_testplan_path(d)
+            self.assertIn("symlink", str(ctx.exception))
+
+
+# ===========================================================================
+# 14. Safety: primary_testplan_path errors on missing listed file
+# ===========================================================================
+
+class TestPrimaryTestplanPath(unittest.TestCase):
+    """primary_testplan_path raises on missing listed primary."""
+
+    def test_listed_primary_missing_raises(self):
+        """Index valid but primary file missing → error, not None."""
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            pub = {
+                "schema_version": "1.0",
+                "primary_testplan": "testplan.md",
+                "artifacts": [
+                    {"file": "testplan.md", "type": "testplan"},
+                ],
+            }
+            _write_json(d / "validation-index.json", pub)
+            # Don't create testplan.md
+            with self.assertRaises(vi.ValidationIndexError) as ctx:
+                vi.primary_testplan_path(d)
+            self.assertIn("not found", str(ctx.exception))
+
+    def test_no_artifacts_returns_none(self):
+        """No index and no legacy file → None (not error)."""
+        with tempfile.TemporaryDirectory() as td:
+            result = vi.primary_testplan_path(Path(td))
+            self.assertIsNone(result)
+
+
+# ===========================================================================
+# 15. Safety: resolve_published verifies file existence
+# ===========================================================================
+
+class TestPublishedFileExistence(unittest.TestCase):
+    """resolve_published_artifacts verifies listed files exist."""
+
+    def test_missing_published_file_raises(self):
+        """Published index lists file that doesn't exist → error."""
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            pub = {
+                "schema_version": "1.0",
+                "primary_testplan": "testplan.md",
+                "artifacts": [
+                    {"file": "testplan.md", "type": "testplan"},
+                    {"file": "hw.md", "type": "companion",
+                     "purpose": "HW", "audience": "team"},
+                ],
+            }
+            _write_json(d / "validation-index.json", pub)
+            _write(d / "testplan.md", "# Plan")
+            # Don't create hw.md
+            with self.assertRaises(vi.ValidationIndexError) as ctx:
+                vi.resolve_published_artifacts(d)
+            self.assertIn("not found", str(ctx.exception))
+
+
+# ===========================================================================
+# 16. Safety: published index first-artifact ordering
+# ===========================================================================
+
+class TestPublishedOrdering(unittest.TestCase):
+    """Published index must have testplan as first artifact."""
+
+    def test_companion_first_rejected(self):
+        """Published index with companion first → validation error."""
+        data = {
+            "schema_version": "1.0",
+            "primary_testplan": "testplan.md",
+            "artifacts": [
+                {"file": "hw.md", "type": "companion",
+                 "purpose": "HW", "audience": "team"},
+                {"file": "testplan.md", "type": "testplan"},
+            ],
+        }
+        errors = vi.validate_published_index(data)
+        self.assertTrue(any("first artifact" in e for e in errors))
+
+
+# ===========================================================================
+# 17. cmd_diff input validation
+# ===========================================================================
+
+class TestDiffValidation(unittest.TestCase):
+    """cmd_diff validates inputs before diffing."""
+
+    def test_diff_rejects_non_object(self):
+        """Non-object input → error exit."""
+        with tempfile.TemporaryDirectory() as td:
+            _write(Path(td) / "old.json", '"just a string"')
+            _write_json(Path(td) / "new.json",
+                        {"artifacts": []})
+            r = _run_cli("diff",
+                         str(Path(td) / "old.json"),
+                         str(Path(td) / "new.json"))
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("must be a JSON object", r.stderr)
+
+    def test_diff_rejects_unsafe_filename(self):
+        """Unsafe filename in artifact → error exit."""
+        with tempfile.TemporaryDirectory() as td:
+            old = {"artifacts": [
+                {"file": "../escape.md", "type": "testplan"},
+            ]}
+            new = {"artifacts": [
+                {"file": "testplan.md", "type": "testplan"},
+            ]}
+            _write_json(Path(td) / "old.json", old)
+            _write_json(Path(td) / "new.json", new)
+            r = _run_cli("diff",
+                         str(Path(td) / "old.json"),
+                         str(Path(td) / "new.json"))
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("traversal", r.stderr)
+
+
+# ===========================================================================
+# 18. Filename safety: control characters
+# ===========================================================================
+
+class TestControlCharSafety(unittest.TestCase):
+    """safe_filename rejects control characters and null bytes."""
+
+    def test_null_byte(self):
+        errors = vi.safe_filename("test\x00.md", "test")
+        self.assertTrue(any("control" in e for e in errors))
+
+    def test_tab(self):
+        errors = vi.safe_filename("test\t.md", "test")
+        self.assertTrue(any("control" in e for e in errors))
 
 
 if __name__ == "__main__":

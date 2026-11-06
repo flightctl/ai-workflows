@@ -203,11 +203,16 @@ Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
 | TC-NFR1-01 | {title} | N/A | {rationale} |
 
 {Every TC ID from testplan.md must appear. Each must be assigned to a
- task or marked N/A with a rationale (e.g., "NFR verified by load test
- infrastructure, not unit/integration tests"). This is a set-diff gate:
- compute the difference between the set of TC IDs in testplan.md and
- the set assigned to tasks or marked N/A. If the difference is
- non-empty, the plan is incomplete — resolve before proceeding.}
+ task, marked N/A with a rationale (e.g., "NFR verified by load test
+ infrastructure, not unit/integration tests"), or listed as a
+ qualification gate (TCs with a `Qualification gate` marker).
+ Qualification-gate TCs are external validation evidence — they are NOT
+ assigned to implementation tasks but must appear in the table with
+ status `Qualification gate` and the designated execution environment as
+ rationale. This is a set-diff gate: compute the difference between the
+ set of TC IDs in testplan.md and the set assigned to tasks, marked N/A,
+ or listed as qualification gates. If the difference is non-empty, the
+ plan is incomplete — resolve before proceeding.}
 
 ## Scope Baseline
 
@@ -272,7 +277,7 @@ Before presenting the plan, verify:
 - [ ] No tasks modify code outside the story's scope
 - [ ] Task count is reasonable — if you have more than 10 tasks, consider whether the story needs re-scoping
 - [ ] The plan is achievable — no tasks depend on unavailable infrastructure or unmerged code
-- [ ] If story-scoped testplan exists: every TC ID is assigned to a task or marked N/A with rationale (Test Plan Coverage set-diff is clean)
+- [ ] If story-scoped testplan exists: every TC ID is assigned to a task, marked N/A with rationale, or listed as a qualification gate (Test Plan Coverage set-diff is clean)
 - [ ] Every ingest open question is a locked decision (specified or implementer default) or a product fork still listed
 - [ ] Open Questions contains only product forks, not pins/timeouts/names `/code` could default
 - [ ] Cited Reads stayed within the cap; `02-plan.md` has no pasted file bodies

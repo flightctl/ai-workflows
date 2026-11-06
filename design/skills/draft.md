@@ -223,8 +223,9 @@ absolute source-repo path to `.artifacts/design/{issue-key}/03-design.md`.
 
 Generate a behavioral testplan anchored to PRD requirements and derived
 through the design's Interface Changes (§5). The testplan validates that
-the design covers the PRD's specified behavior and that every interface
-change is exercised by at least one test case. This artifact is reviewed
+the design covers the PRD's specified behavior and that interface
+changes are exercised by test cases, review gates, or qualification
+gates as appropriate. This artifact is reviewed
 alongside the design document and does not reference stories (which do
 not exist yet).
 
@@ -395,8 +396,8 @@ Requirement Coverage Gaps section with rationale instead.
 Requirements covered exclusively by review or qualification gates
 (not test cases) should reference the gate in the Gaps section rather
 than being listed as uncovered. Every IC should be exercised by at
-least one test case. An IC with no test case is either a testplan gap
-or an unnecessary interface change in the design.
+least one test case or qualification gate. An IC with no coverage is
+either a testplan gap or an unnecessary interface change in the design.
 
 **Negative scenarios:** Include negative/error test cases where the PRD
 or design specifies error handling behavior. Do not invent error
@@ -565,11 +566,12 @@ Otherwise, omit this section entirely.}
 
 ### Interface Change Coverage Gaps
 
-{For each IC not exercised by any test case: why it lacks coverage and
- a recommendation. An untested IC is either a testplan gap or an
- unnecessary interface change in the design.
+{For each IC not exercised by any test case or qualification gate:
+ why it lacks coverage and a recommendation. An untested IC is either
+ a testplan gap or an unnecessary interface change in the design.
 
- If no gaps: "All interface changes are exercised by test cases."}
+ If no gaps: "All interface changes are exercised by test cases or
+ qualification gates."}
 
 ## Summary
 

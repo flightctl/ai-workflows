@@ -24,8 +24,8 @@ Usage:
   validation_index.py build-legacy DIR OUTPUT
 
 Exit codes:
-  0 -- success (or: resolve found artifacts)
-  1 -- validation/resolution error or no artifacts found
+  0 -- success (resolve: JSON array, may be empty []; other cmds: ok)
+  1 -- error (malformed data, missing listed files, I/O failure)
 """
 
 from __future__ import annotations
@@ -81,7 +81,7 @@ def safe_filename(name: Any, context: str = "filename") -> list[str]:
 
     Returns a list of error messages (empty = safe).
     Rejects: non-strings, empty, absolute paths, traversal (..),
-    slashes, reserved names, symlink-escape patterns.
+    slashes, reserved names, null bytes, control characters.
     """
     errors: list[str] = []
     if not isinstance(name, str):
@@ -92,6 +92,9 @@ def safe_filename(name: Any, context: str = "filename") -> list[str]:
         return errors
     if name != name.strip():
         errors.append(f"{context}: must not have leading/trailing whitespace")
+    # Null bytes and control characters
+    if "\x00" in name or any(ord(c) < 32 for c in name):
+        errors.append(f"{context}: control characters not allowed: {name!r}")
     # Path traversal / absolute / slashes
     pp = PurePosixPath(name)
     if pp.is_absolute():
@@ -104,6 +107,18 @@ def safe_filename(name: Any, context: str = "filename") -> list[str]:
     # Reserved names
     if name.lower() in RESERVED_FILENAMES:
         errors.append(f"{context}: reserved filename: {name!r}")
+    return errors
+
+
+def _reject_symlinks(path: Path, context: str = "path") -> list[str]:
+    """Reject symlinks to prevent symlink escape attacks.
+
+    Returns a list of error messages (empty = safe).
+    """
+    errors: list[str] = []
+    if path.is_symlink():
+        errors.append(
+            f"{context}: symlinks not allowed: {path}")
     return errors
 
 
@@ -327,8 +342,10 @@ def validate_published_index(data: dict[str, Any]) -> list[str]:
             f"exactly one artifact may have type 'testplan', "
             f"found {testplan_count}")
 
-    # primary_testplan must match the first artifact's file
+    # First artifact must be the testplan
     if artifacts and isinstance(artifacts[0], dict):
+        if artifacts[0].get("type") != "testplan":
+            errors.append("first artifact must have type 'testplan'")
         first_file = artifacts[0].get("file")
         if isinstance(primary, str) and first_file != primary:
             errors.append(
@@ -420,9 +437,17 @@ def resolve_artifacts(artifact_dir: Path) -> list[dict[str, Any]]:
     malformed).  Falls back to 04-testplan.md for legacy designs.
     Returns a list of artifact entries (local index format).
     Returns empty list if no artifacts found.
+
+    Raises ValidationIndexError on malformed index, missing listed
+    files, or symlink artifacts (symlinks are rejected to prevent
+    escape attacks).
     """
     index_path = artifact_dir / "validation-index.json"
     if index_path.is_file():
+        # Reject symlink index files
+        sym_errs = _reject_symlinks(index_path, "validation-index.json")
+        if sym_errs:
+            raise ValidationIndexError(sym_errs[0])
         try:
             data = json.loads(index_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
@@ -432,12 +457,16 @@ def resolve_artifacts(artifact_dir: Path) -> list[dict[str, Any]]:
         if errors:
             raise ValidationIndexError(
                 f"invalid validation-index.json: {'; '.join(errors)}")
-        # Verify listed files exist
+        # Verify listed files exist and are not symlinks
         missing = []
         for art in data["artifacts"]:
             local = art.get("local", "")
-            if not (artifact_dir / local).is_file():
+            art_path = artifact_dir / local
+            if not art_path.is_file():
                 missing.append(local)
+            elif art_path.is_symlink():
+                raise ValidationIndexError(
+                    f"artifact is a symlink (not allowed): {local}")
         if missing:
             raise ValidationIndexError(
                 f"listed artifacts not found on disk: "
@@ -447,6 +476,9 @@ def resolve_artifacts(artifact_dir: Path) -> list[dict[str, Any]]:
     # Legacy fallback: single 04-testplan.md
     legacy = artifact_dir / "04-testplan.md"
     if legacy.is_file():
+        sym_errs = _reject_symlinks(legacy, "04-testplan.md")
+        if sym_errs:
+            raise ValidationIndexError(sym_errs[0])
         return [{
             "local": "04-testplan.md",
             "published_as": "testplan.md",
@@ -465,9 +497,16 @@ def resolve_published_artifacts(
     malformed).  Falls back to testplan.md for legacy designs.
     Returns a list of artifact entries (published index format).
     Returns empty list if no artifacts found.
+
+    Raises ValidationIndexError on malformed index, missing listed
+    files, or symlink artifacts.
     """
     index_path = feature_dir / "validation-index.json"
     if index_path.is_file():
+        sym_errs = _reject_symlinks(index_path,
+                                     "published validation-index.json")
+        if sym_errs:
+            raise ValidationIndexError(sym_errs[0])
         try:
             data = json.loads(index_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
@@ -479,11 +518,29 @@ def resolve_published_artifacts(
             raise ValidationIndexError(
                 f"invalid published validation-index.json: "
                 f"{'; '.join(errors)}")
+        # Verify listed files exist and are not symlinks
+        missing = []
+        for art in data["artifacts"]:
+            fname = art.get("file", "")
+            art_path = feature_dir / fname
+            if not art_path.is_file():
+                missing.append(fname)
+            elif art_path.is_symlink():
+                raise ValidationIndexError(
+                    f"published artifact is a symlink "
+                    f"(not allowed): {fname}")
+        if missing:
+            raise ValidationIndexError(
+                f"listed published artifacts not found on disk: "
+                f"{', '.join(missing)}")
         return data["artifacts"]
 
     # Legacy fallback: single testplan.md
     legacy = feature_dir / "testplan.md"
     if legacy.is_file():
+        sym_errs = _reject_symlinks(legacy, "published testplan.md")
+        if sym_errs:
+            raise ValidationIndexError(sym_errs[0])
         return [{"file": "testplan.md", "type": "testplan"}]
 
     return []
@@ -495,10 +552,18 @@ def primary_testplan_path(
     """Return the path to the primary testplan in a docs-repo directory.
 
     Validates the index when present — fails closed on malformed.
-    Returns None if no validation artifacts are found.
+    Returns None if no validation artifacts are found (no index and
+    no legacy testplan.md).
+
+    Raises ValidationIndexError if the index lists a primary testplan
+    that does not exist on disk or is a symlink — this indicates a
+    corrupted published state, not an absent testplan.
     """
     index_path = feature_dir / "validation-index.json"
     if index_path.is_file():
+        sym_errs = _reject_symlinks(index_path, "validation-index.json")
+        if sym_errs:
+            raise ValidationIndexError(sym_errs[0])
         try:
             data = json.loads(index_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
@@ -512,11 +577,24 @@ def primary_testplan_path(
         primary = data.get("primary_testplan")
         if isinstance(primary, str) and primary:
             p = feature_dir / primary
-            return p if p.is_file() else None
+            if p.is_symlink():
+                raise ValidationIndexError(
+                    f"primary testplan is a symlink "
+                    f"(not allowed): {primary}")
+            if not p.is_file():
+                raise ValidationIndexError(
+                    f"primary testplan listed in index but not "
+                    f"found on disk: {primary}")
+            return p
         return None
 
     legacy = feature_dir / "testplan.md"
-    return legacy if legacy.is_file() else None
+    if legacy.is_file():
+        sym_errs = _reject_symlinks(legacy, "testplan.md")
+        if sym_errs:
+            raise ValidationIndexError(sym_errs[0])
+        return legacy
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -610,7 +688,12 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 
 def cmd_resolve(args: argparse.Namespace) -> int:
-    """Resolve validation artifacts from a directory."""
+    """Resolve validation artifacts from a directory.
+
+    Exit 0 with JSON array (may be empty []) on success.
+    Exit 1 on error (malformed index, missing listed files, etc.).
+    Callers distinguish empty-success from error by exit code.
+    """
     d = Path(args.local or args.published)
     if not d.is_dir():
         print(f"ERROR: directory not found: {d}", file=sys.stderr)
@@ -623,10 +706,6 @@ def cmd_resolve(args: argparse.Namespace) -> int:
             arts = resolve_published_artifacts(d)
     except ValidationIndexError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
-        return 1
-
-    if not arts:
-        print("[]")
         return 1
 
     print(json.dumps(arts, indent=2))
@@ -657,7 +736,11 @@ def cmd_transform(args: argparse.Namespace) -> int:
 
 
 def cmd_diff(args: argparse.Namespace) -> int:
-    """Compute artifact diff between two published indexes."""
+    """Compute artifact diff between two published indexes.
+
+    Validates both inputs as JSON objects before diffing.
+    Rejects non-object inputs and unsafe filenames in artifact entries.
+    """
     old_path = Path(args.old_index)
     new_path = Path(args.new_index)
 
@@ -672,6 +755,30 @@ def cmd_diff(args: argparse.Namespace) -> int:
     except (json.JSONDecodeError, OSError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
+
+    # Validate inputs are dicts with artifacts lists
+    for label, data in [("old", old), ("new", new)]:
+        if not isinstance(data, dict):
+            print(f"ERROR: {label} index must be a JSON object",
+                  file=sys.stderr)
+            return 1
+        arts = data.get("artifacts")
+        if arts is not None and not isinstance(arts, list):
+            print(f"ERROR: {label} index artifacts must be an array",
+                  file=sys.stderr)
+            return 1
+        # Validate filenames in artifacts are safe
+        if isinstance(arts, list):
+            for i, art in enumerate(arts):
+                if isinstance(art, dict):
+                    fname = art.get("file")
+                    if isinstance(fname, str):
+                        errs = safe_filename(fname,
+                                             f"{label}.artifacts[{i}].file")
+                        if errs:
+                            for e in errs:
+                                print(f"ERROR: {e}", file=sys.stderr)
+                            return 1
 
     result = diff_published(old, new)
     print(json.dumps(result, indent=2))

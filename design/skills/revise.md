@@ -357,9 +357,14 @@ Derive `{feature-dir}` from `design_file_path` in publish-metadata
 python3 "$VALIDATION_INDEX_SCRIPT" resolve --local ".artifacts/design/{issue-key}"
 ```
 
-If the command exits non-zero and `04-testplan.md` exists, build a
-legacy index first with `build-legacy`. If neither index nor
-`04-testplan.md` exists, the current set is empty.
+If the command exits 0, parse the JSON array (may be empty `[]`).
+If the command exits non-zero, a validation error occurred — **stop
+and report the error.** Do not fall back to legacy behavior when a
+malformed index is present.
+
+If the current set is empty and `04-testplan.md` exists (legacy
+layout without an index), build a legacy index first with
+`build-legacy`, then re-run `resolve --local`.
 
 **Snapshot PREVIOUS state:** If
 `{docs_repo_path}/{feature-dir}/validation-index.json` exists, copy
@@ -368,8 +373,9 @@ it does not exist but `{docs_repo_path}/{feature-dir}/testplan.md`
 exists (legacy), build a snapshot. If neither exists, there is no
 previous set.
 
-If the previous set is empty and publish-metadata has no
-`validation_artifacts` or `testplan_file_path`, skip all sync below.
+If both the current set and the previous set are empty and
+publish-metadata has no `validation_artifacts` or
+`testplan_file_path`, skip all sync below.
 
 If the docs repo has published artifacts but local
 `validation-index.json` does not exist (artifacts were published
@@ -379,9 +385,10 @@ exists. Re-run `/publish` to resync, or create a local index before
 proceeding."
 
 **Validate current set:** For each artifact in the current set,
-verify its local file exists. A listed artifact whose local file is
-missing is an error — stop and report. Do not delete published
-content based on a missing local file.
+verify its local file exists and is not a symlink. A listed
+artifact whose local file is missing or is a symlink is an error —
+stop and report. Do not delete published content based on a missing
+local file.
 
 **Copy ALL current artifacts** (not just previously tracked — handles
 new companions added during revision):
@@ -406,8 +413,12 @@ git -C "{docs_repo_path}" add "{design_file_path}"
 git -C "{docs_repo_path}" add "{feature-dir}/validation-index.json"
 ```
 
-**Remove retired artifacts** — if a previous snapshot exists, diff
-it against the newly written published index:
+**Remove retired artifacts:** Compute the change set before
+deleting anything. The comparison must use the new published index
+when one was written, or an empty artifact list when the current
+set is empty.
+
+If the current set is **non-empty** and a previous snapshot exists:
 
 ```bash
 python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-published-index.json" "{docs_repo_path}/{feature-dir}/validation-index.json"
@@ -422,8 +433,10 @@ git -C "{docs_repo_path}" ls-files --error-unmatch "{feature-dir}/{stale-filenam
 If tracked, remove it. If not tracked, skip. If any other non-zero
 exit (unexpected git error), stop and report.
 
-If the current set is empty and the previous set had artifacts,
-also remove `validation-index.json` from the docs repo.
+If the current set is **empty** and the previous set had artifacts,
+all previously published artifacts are stale. For each artifact in
+the previous snapshot, remove its file. Also remove the published
+`validation-index.json`.
 
 Update `publish-metadata.json`: set `validation_artifacts` to match
 the current published set, update `testplan_file_path` to the primary
