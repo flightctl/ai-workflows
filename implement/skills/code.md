@@ -321,8 +321,17 @@ section; extraction retains it until the prerequisite merges).
 **Test plan reconciliation (if story-scoped testplan exists):**
 
 After the self-review gate passes, check whether this task has TC IDs
-mapped to it in the Test Plan Coverage matrix of `02-plan.md`. If it
-does, verify each mapped TC ID before proceeding to commit:
+mapped to it in the Test Plan Coverage matrix of `02-plan.md`.
+
+**Unverified source deferral:** If `testplan.md` contains
+`Freshness: unverified` and the Test Plan Coverage status in
+`02-plan.md` has not been confirmed by the user, defer TC
+reconciliation — do not block the commit on TC coverage. AC-based
+work and existing tests proceed normally. Once the user confirms
+the retained TCs, this gate becomes mandatory for subsequent tasks.
+
+If the test plan is confirmed or verified, verify each mapped TC ID
+before proceeding to commit:
 
 1. For each mapped TC ID, locate its entry in `testplan.md`. If a
    mapped TC ID does not exist in the testplan, stop and report the

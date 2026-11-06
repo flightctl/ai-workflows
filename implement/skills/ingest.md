@@ -251,7 +251,7 @@ Jira story content. The design document and PRD are valuable context
 but not strictly required — the story's acceptance criteria are the
 primary contract.
 
-#### 5d: Discover Validation Artifacts and Filter to Story Scope
+### Step 5d: Discover Validation Artifacts and Filter to Story Scope
 
 **Artifact discovery:** Check for `validation-index.json` in the
 feature directory alongside `design.md`. If found, read it to get
@@ -295,8 +295,14 @@ retained validation artifact.
 | Normal | TC matches found (in any artifact) | Write `testplan.md` **once** from `../templates/story-testplan.md` |
 | Gate-only | Zero TC matches but relevant gates found | Write `testplan.md` with only the Qualification Gates section (no TC sections). This is not an error — the story's validation is gate-based. |
 | Expected zero | No TC matches, no relevant gates, and type is `[QE]`/`[DOCS]`/`[UX]`/`[CI]` | Note expected; delete stale story testplan if present |
-| Expected zero | No matching `Validated by` IDs and PRD Requirements contains "Discovered during UI design" | Note UI-design origin; delete stale story testplan if present |
+| Expected zero | No matching `Validated by` IDs, PRD Requirements contains "Discovered during UI design", and no relevant gates | Note UI-design origin; delete stale story testplan if present |
 | Anomalous zero | No TC matches, no relevant gates, and type is `[DEV]`/`[UI]` (or unknown) | Warn; delete stale story testplan if present |
+
+**Precedence:** When multiple outcome conditions match, Gate-only
+takes precedence over Expected zero. A story with zero TC matches
+but relevant qualification gates produces a gate-only testplan even
+if the story type or UI-design origin would otherwise indicate
+Expected zero.
 
 No feature testplan (neither `validation-index.json` nor `testplan.md`):
 note and continue. If a story-level testplan already exists from a prior

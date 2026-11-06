@@ -114,8 +114,9 @@ impact:
    from the Review and Qualification Gates table (gates may map ICs
    without any associated TC IDs).
    Verify: every story's `Interface Changes:` ICs exist in the
-   validation artifacts (as test case IC references or IC coverage gap
-   entries). Every story's `Validated by:` TCs exist in the validation
+   validation artifacts (as test case IC references, IC coverage gap
+   entries, or Review and Qualification Gates table IC mappings).
+   Every story's `Validated by:` TCs exist in the validation
    artifacts. Every IC referenced in the artifacts has at least one
    implementing story — an IC with no story is designed but
    unimplemented work. Every TC that references an IC has at least one

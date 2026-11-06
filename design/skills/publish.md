@@ -256,6 +256,15 @@ python3 "$VALIDATION_INDEX_SCRIPT" build-legacy ".artifacts/design/{issue-key}" 
 This writes `validation-index.json` with the single primary entry.
 Re-run `resolve --local` to get the normalized set.
 
+Remove any snapshot left by a previous run before capturing:
+
+```bash
+rm -f -- ".artifacts/design/{issue-key}/prev-published-index.json"
+```
+
+If the removal command fails (non-zero exit for a reason other than
+file-not-found), stop and report the error.
+
 **Snapshot previous published state.** Before writing any
 files to the docs repo, snapshot the previously published index so
 stale files can be identified after the new set is written.
@@ -282,13 +291,16 @@ Save to `.artifacts/design/{issue-key}/prev-published-index.json`.
 
 If neither exists, there is no previous set — skip the snapshot.
 
-**Validate the snapshot immediately after capture.** Before copying
-any current artifacts or overwriting the published index, validate
-the captured snapshot to ensure it is trustworthy for later removal
-decisions:
+**Validate the snapshot if one was captured.** Before copying any
+current artifacts or overwriting the published index, validate the
+captured snapshot to ensure it is trustworthy for later removal
+decisions. If no snapshot was captured (first publish), skip
+validation and proceed with an empty previous set.
 
 ```bash
-python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issue-key}/prev-published-index.json"
+if [ -f ".artifacts/design/{issue-key}/prev-published-index.json" ]; then
+  python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issue-key}/prev-published-index.json"
+fi
 ```
 
 If validation fails, **stop and report** — do not proceed with

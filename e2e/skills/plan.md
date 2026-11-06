@@ -274,8 +274,14 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
 | AC-2 | {brief} | S1 | Task 3 |
 | AC-3 | {brief} | C1 | Task 2 |
 
-{Every AC must appear in at least one scenario. Consolidated scenarios
- will appear in multiple AC rows — this is expected. Flag any gaps.}
+{Every AC must appear in at least one scenario or be covered by a
+ qualification gate with tracked evidence. Consolidated scenarios
+ will appear in multiple AC rows — this is expected. An AC covered
+ solely by a gate appears with status "Gate: {gate heading}" instead
+ of a scenario reference. Gate-covered ACs have pending evidence
+ until actual validation — planned gate coverage is not verified
+ coverage. Flag any gaps where an AC has neither a scenario nor a
+ gate.}
 
 ## Test Plan Coverage
 
@@ -330,7 +336,14 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
 {Gates use source path + gate heading as identity — no TC IDs.
  Status values: not-started, pending, verified, failed.
  All gates remain pending until actual evidence is provided;
- do not infer complete from automated test results.}
+ do not infer complete from automated test results.
+
+ Required Evidence must come from the source gate definition or
+ linked source document. If the source gate specifies criteria,
+ carry them verbatim. If the source does not specify criteria, set
+ Required Evidence to "criteria not specified in source —
+ clarification needed." Do not invent evidence requirements.
+ TC-based gates use the TC's Expected Results as criteria.}
 
 ## Risk Assessment
 

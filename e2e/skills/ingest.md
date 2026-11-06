@@ -190,7 +190,7 @@ location or proceed with only the Jira story content. The design
 document and PRD are valuable context but not strictly required — the
 story's acceptance criteria are the primary contract.
 
-#### 5d: Discover Validation Artifacts and Filter to Story Scope
+### Step 5d: Discover Validation Artifacts and Filter to Story Scope
 
 **Artifact discovery:** Check for `validation-index.json` in the
 feature directory alongside `design.md`. If found, read it to get

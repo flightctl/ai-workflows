@@ -371,8 +371,14 @@ Coverage section, skip this step entirely. However, if `02-plan.md`
 has TC mappings but `testplan.md` is missing, unreadable, or malformed
 (no parseable TC IDs and no Qualification Gates section), stop and
 report the inconsistency. A gate-only testplan (zero TC IDs but a
-`## Qualification Gates` section) is valid — skip the automated
-coverage check and proceed directly to step 4 below.
+`## Qualification Gates` section) is valid only when `02-plan.md`
+contains no TC mappings in its Test Plan Coverage section. If the
+plan still maps TCs but the testplan is gate-only, stop and report
+the inconsistency — re-ingest may have replaced TCs with gates
+while the plan retains stale mappings. The user must re-plan or
+confirm the removal before proceeding. When the gate-only plan is
+consistent, skip the automated coverage check and proceed directly
+to step 4 below.
 
 1. Read `testplan.md` and extract all TC IDs. Separate them into
    three groups:
@@ -382,7 +388,11 @@ coverage check and proceed directly to step 4 below.
      and report the testplan as malformed.
    - **Manual verification TCs** (`[Manual verification]` marker):
      verify the TC entry is present. These do not require
-     Preconditions/Steps/Expected Results sections.
+     Preconditions/Steps/Expected Results sections. When evidence
+     is provided, compare it against the TC's verification method
+     and any criteria from the source test case before marking the
+     entry as verified. Evidence that does not address the original
+     criteria remains pending, not verified.
    - **Qualification gate TCs** (`[Qualification gate]` marker):
      verify the TC entry is present. These do not require
      Preconditions/Steps/Expected Results sections.
@@ -396,7 +406,14 @@ coverage check and proceed directly to step 4 below.
      described scenario and assert the described outcomes.
    - Record the test file and test name for each TC ID.
 3. If any automatable TC ID lacks a corresponding test:
-   - Write the missing test following contract-based testing standards.
+   - If `testplan.md` contains `Freshness: unverified` and the Test
+     Plan Coverage in `02-plan.md` has not been confirmed by the user
+     (no "confirmed" status), do NOT write tests for the missing TCs.
+     Report the gap as provisional: "TC coverage gap — unconfirmed
+     source, awaiting user confirmation before gap-filling." AC-based
+     validation and existing tests continue normally.
+   - For confirmed or verified TCs: write the missing test following
+     contract-based testing standards.
    - Commit the test following the project's commit format.
    - Re-run Step 4 affected checks, Step 5 coverage when tests affect
      covered packages, Step 6 regression when production code changed,

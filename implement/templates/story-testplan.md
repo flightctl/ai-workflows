@@ -42,6 +42,7 @@ For manual verification TCs, use this format:
 | {requirement-id} | {interface-change-id} | {priority} | manual | {source-filename} |
 
 - **Verification method:** {what the human verifier checks}
+- **Original criteria:** {steps and expected results from the source TC, or "see source TC {tc-id} in {source-filename}"}
 - **Evidence status:** not-started
 
 ---
