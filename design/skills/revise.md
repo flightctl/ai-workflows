@@ -43,7 +43,18 @@ Determine which artifacts exist and read them:
 - `.artifacts/design/{issue-key}/05-epics.md` (epic metadata, if exists)
 - `.artifacts/design/{issue-key}/06-stories/` (epic and story files, if exist)
 - `.artifacts/design/{issue-key}/07-coverage.md` (coverage matrix, if exists)
-- `.artifacts/design/{issue-key}/04-testplan.md` (testplan, if exists)
+- **Validation artifacts:** Before reading any testplan or companion,
+  resolve the validation index:
+  ```bash
+  VALIDATION_INDEX_SCRIPT="${HOME}/.ai-workflows/design/scripts/validation_index.py"
+  python3 "$VALIDATION_INDEX_SCRIPT" resolve --local ".artifacts/design/{issue-key}"
+  ```
+  If exit 0, parse the JSON array to discover all artifact paths.
+  Read only the returned artifacts. If exit non-zero (malformed index,
+  missing files, symlinks), stop and report. If the result is empty
+  and `04-testplan.md` exists, fall back to reading it directly
+  (legacy). This resolution happens here so the correct artifact set
+  is known before any testplan content is read.
 - `.artifacts/design/{issue-key}/sync-manifest.json` (if exists — means
   epics/stories have been synced to Jira and filenames are locked)
 
@@ -129,7 +140,23 @@ After applying changes, verify:
   added, removed, or reassigned.
 - Do story dependencies still make sense?
 
-**If the testplan exists (`04-testplan.md`):**
+**If validation artifacts exist:**
+
+Resolve the validation index **before** reading any artifact files.
+Use the CLI helper to validate and resolve paths:
+
+```bash
+VALIDATION_INDEX_SCRIPT="${HOME}/.ai-workflows/design/scripts/validation_index.py"
+python3 "$VALIDATION_INDEX_SCRIPT" resolve --local ".artifacts/design/{issue-key}"
+```
+
+If the command exits 0, parse the JSON array to discover all
+validation artifacts. If it exits non-zero, stop and report the
+error. If the result is empty and `04-testplan.md` exists, fall
+back to reading it directly (legacy single-testplan behavior).
+
+For **each** validation artifact (primary testplan and any companions):
+
 - Before modifying any test cases, record the IC and requirement
   mappings of any TCs that will be removed, reassigned, or have their
   IC or requirement mapping changed (even if the TC ID is retained) —
@@ -146,19 +173,37 @@ After applying changes, verify:
   requirement IDs changed.
 - If test cases were added, removed, or modified, **or** if design
   Interface Changes (§5) were added, removed, or renamed: recompute the
-  testplan's Overview counts, Summary table, and Test Case Index per
+  artifact's Overview counts, Summary table, and Test Case Index per
   the counting rules in the draft skill's Step 9a: each parameterized
   row counts individually toward the total, priority, and automation
   counts; requirement and IC coverage ratios count distinct mapped
-  values once each; the Index has one row per TC ID. Example: a
-  three-row parameterized TC-FR1-01 (IC-2, high, automated) plus an
-  ordinary TC-FR1-02 (IC-2, medium, automated) = 4 total test cases,
-  2 TC IDs, 2 Index rows, FR-1 counted once for requirement coverage,
-  IC-2 counted once for IC coverage. Rebuild the Gaps section from the
-  current requirement-to-TC and IC-to-TC mappings. Adding, removing,
-  or renaming an IC changes the "Interface changes covered" totals or
-  the identifiers in the Interface Change Coverage Gaps even when no
-  test case is edited.
+  values once each; the Index has one row per TC ID. Rebuild the Gaps
+  section from the current requirement-to-TC and IC-to-TC mappings.
+
+**Cross-artifact consistency:** After updating all artifacts, verify
+that TC IDs are unique across the full artifact set. If a revision
+introduces a TC ID that conflicts with an existing ID in another
+artifact, resolve the conflict by reallocating the new ID above the
+feature-wide high-water mark for that requirement group.
+
+**Adding or removing companion plans during revision:**
+
+- **Adding:** If the user requests a new companion plan, create it
+  following the companion rules from the draft skill's Step 9e.
+  If `validation-index.json` does not exist and `04-testplan.md`
+  exists, first create the index: `python3 "$VALIDATION_INDEX_SCRIPT"
+  build-legacy ".artifacts/design/{issue-key}"
+  ".artifacts/design/{issue-key}/validation-index.json"`. If the
+  command fails, stop and report the error.
+  Update `validation-index.json` to include the new entry. After
+  adding, validate: `python3 "$VALIDATION_INDEX_SCRIPT" validate
+  --local ".artifacts/design/{issue-key}/validation-index.json"
+  --artifact-dir ".artifacts/design/{issue-key}"`. If validation
+  fails, correct the errors before proceeding.
+- **Removing:** If the user requests removing a companion, delete its
+  local file. Update `validation-index.json` to remove the entry.
+  During the docs-repo sync below, the published copy is removed.
+  Do not remove the primary testplan without explicit user confirmation.
 
 The remaining story cascades apply only when decomposition artifacts
 exist. If `.artifacts/design/{issue-key}/06-stories/` is absent (for
@@ -202,10 +247,11 @@ updates above are complete on their own.
   that lost their IC mapping during the IC update). Re-read each
   affected story file at
   `.artifacts/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md`
-  before modifying it. Collect all TC IDs from the updated testplan
-  that match this story — by IC overlap with the story's (now-updated)
-  `Interface Changes`, or by requirement overlap for cross-cutting TCs
-  with `Interface Change: —` — then write the updated `Validated by`
+  before modifying it. Collect all TC IDs **across all validation
+  artifacts** (primary testplan and companions) that match this
+  story — by IC overlap with the story's (now-updated) `Interface
+  Changes`, or by requirement overlap for cross-cutting TCs with
+  `Interface Change: —` — then write the updated `Validated by`
   line. If a story loses all its test cases, write:
   `Validated by: None — no behavioral test cases after testplan revision`.
 
@@ -278,55 +324,159 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=design`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{docs_repo_path}/{design_file_path}"`.
 
-**Testplan docs-repo sync:**
+**Validation artifact docs-repo sync:**
 
-**Skip all testplan sync steps below if any of these are true:**
-- `04-testplan.md` does not exist and `publish-metadata.json` does not
-  contain a `testplan_file_path` field (no testplan anywhere)
-- `04-testplan.md` exists but `publish-metadata.json` does NOT contain
-  `testplan_file_path` (testplan was created after initial publish) —
-  note to the user: "Testplan exists locally but was not included in
-  the original publish. Re-run `/publish` to include it in the docs
-  repo."
-
-**If `04-testplan.md` does NOT exist but `publish-metadata.json`
-contains `testplan_file_path`** (testplan was removed during revision),
-remove the published testplan from the docs repo if it is still tracked:
-
-Check whether the file is tracked:
+Resolve the shared validation index script:
 
 ```bash
-git -C "{docs_repo_path}" ls-files --error-unmatch "{testplan_file_path}"
+VALIDATION_INDEX_SCRIPT="${HOME}/.ai-workflows/design/scripts/validation_index.py"
 ```
 
-- If exit 0 (file is tracked), remove it:
+Derive `{feature-dir}` from `design_file_path` in publish-metadata
+(e.g., `v2.1/feature-slug` from `v2.1/feature-slug/design.md`).
+
+**Build CURRENT set:** Resolve the current local artifacts:
 
 ```bash
-git -C "{docs_repo_path}" rm "{testplan_file_path}"
+python3 "$VALIDATION_INDEX_SCRIPT" resolve --local ".artifacts/design/{issue-key}"
 ```
 
-- If exit 1 with "did not match any file(s) known to git" (file is not
-  tracked — already deleted by another process), skip the `git rm`.
-- If any other non-zero exit (unexpected git error), stop and report
-  the error to the user. Do not proceed with metadata cleanup until the
-  error is resolved.
+If the command exits 0, parse the JSON array (may be empty `[]`).
+If the command exits non-zero, a validation error occurred — **stop
+and report the error.** Do not fall back to legacy behavior when a
+malformed index is present.
 
-In either case, remove `testplan_file_path` from `publish-metadata.json`.
+If `validation-index.json` does not exist in
+`.artifacts/design/{issue-key}` and `04-testplan.md` exists (legacy
+layout), build a normalized index first with `build-legacy`, then
+re-run `resolve --local`.
 
-**If `04-testplan.md` exists and `publish-metadata.json` contains
-`testplan_file_path`**, copy the testplan to the docs repo:
+Before capture, remove any existing snapshot from a previous run:
 
 ```bash
-cp ".artifacts/design/{issue-key}/04-testplan.md" "{docs_repo_path}/{testplan_file_path}"
+rm -f -- ".artifacts/design/{issue-key}/prev-published-index.json"
+```
+
+If the removal command fails (non-zero exit other than file-not-found),
+stop and report the error.
+
+**Snapshot PREVIOUS state:** If
+`{docs_repo_path}/{feature-dir}/validation-index.json` exists, copy
+it to `.artifacts/design/{issue-key}/prev-published-index.json`. If
+it does not exist but `{docs_repo_path}/{feature-dir}/testplan.md`
+exists (legacy), create the minimal published snapshot:
+
+```json
+{
+  "schema_version": "1.0",
+  "primary_testplan": "testplan.md",
+  "artifacts": [{"file": "testplan.md", "type": "testplan"}]
+}
+```
+
+Save to `.artifacts/design/{issue-key}/prev-published-index.json`.
+If neither exists, there is no previous set — no snapshot is captured.
+
+**Validate the snapshot if one was captured.** Before copying any
+current artifacts or overwriting the published index, validate
+the captured snapshot. If no snapshot was captured (no previous
+published state), skip validation and continue with an empty
+previous set.
+
+```bash
+if [ -f ".artifacts/design/{issue-key}/prev-published-index.json" ]; then
+  python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issue-key}/prev-published-index.json"
+fi
+```
+
+If validation fails, **stop and report** — do not proceed with
+sync using a malformed previous snapshot. The snapshot must be
+corrected or removed before continuing.
+
+If both the current set and the previous set are empty and
+publish-metadata has no `validation_artifacts` or
+`testplan_file_path`, skip all sync below.
+
+If the docs repo has published artifacts but local
+`validation-index.json` does not exist (artifacts were published
+previously but no local index exists now), note to the user:
+"Validation artifacts were previously published but no local index
+exists. Re-run `/publish` to resync, or create a local index before
+proceeding."
+
+**Validate current set:** For each artifact in the current set,
+verify its local file exists and is not a symlink. A listed
+artifact whose local file is missing or is a symlink is an error —
+stop and report. Do not delete published content based on a missing
+local file.
+
+**Copy ALL current artifacts** (not just previously tracked — handles
+new companions added during revision):
+
+```bash
+cp ".artifacts/design/{issue-key}/{local}" "{docs_repo_path}/{feature-dir}/{published_as}"
+```
+
+```bash
+git -C "{docs_repo_path}" add "{feature-dir}/{published_as}"
+```
+
+**Update published index:** If the current set is non-empty,
+transform and write the updated index:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" "{docs_repo_path}/{feature-dir}/validation-index.json" --trusted-output-base "{docs_repo_path}"
 ```
 
 ```bash
 git -C "{docs_repo_path}" add "{design_file_path}"
+git -C "{docs_repo_path}" add "{feature-dir}/validation-index.json"
 ```
 
+**Remove retired artifacts:** Compute the change set before
+deleting anything. The comparison must use the new published index
+when one was written, or an empty artifact list when the current
+set is empty.
+
+If the current set is **non-empty** and a previous snapshot exists:
+
 ```bash
-git -C "{docs_repo_path}" add "{testplan_file_path}"
+python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-published-index.json" "{docs_repo_path}/{feature-dir}/validation-index.json"
 ```
+
+For each filename in the `removed` list:
+
+```bash
+git -C "{docs_repo_path}" ls-files --error-unmatch "{feature-dir}/{stale-filename}"
+```
+
+If tracked, stage its removal:
+
+```bash
+git -C "{docs_repo_path}" rm -- "{feature-dir}/{stale-filename}"
+```
+
+If not tracked (already removed), skip. If the check or removal
+produces an unexpected error, stop and report.
+
+If the current set is **empty** and the previous set had artifacts,
+validate the previous snapshot before removal:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issue-key}/prev-published-index.json"
+```
+
+If validation fails, stop and report. If it passes, for each
+listed artifact, check whether it is tracked and stage removal
+with `git -C "{docs_repo_path}" rm -- "{feature-dir}/{filename}"`.
+Skip untracked files. Remove the published `validation-index.json`
+only if the previous publication included one (skip for legacy-only
+snapshots that had only `testplan.md`). Use the same tracked-file
+check and `git rm` for the index removal.
+
+Update `publish-metadata.json`: set `validation_artifacts` to match
+the current published set, update `testplan_file_path` to the primary
+testplan's full published path (or remove if no primary testplan).
 
 ```bash
 git -C "{docs_repo_path}" commit -m "Design {issue-key}: revise — {brief description}"
@@ -352,10 +502,11 @@ Summarize what changed:
 - Coverage matrix: Updated to reflect new story mapping
 
 ### Testplan Changes
-- {TC-FR1-03 added — new IC in design §5}
-- {TC-NFR2-01 updated — expected result changed to match revised design}
-- {TC-FR2-02 removed — IC-4 removed from design}
-- {Omit this section if the testplan did not change or does not exist}
+- {TC-FR1-03 added in testplan.md — new IC in design §5}
+- {TC-NFR2-01 updated in testplan.md — expected result changed to match revised design}
+- {TC-FR2-02 removed from testplan.md — IC-4 removed from design}
+- {hw-validation.md added as companion — hardware qualification for NFR-3}
+- {Omit this section if no validation artifacts changed or exist}
 
 ### Consistency Updates
 - Section 9: Added open question about performance impact of new approach
@@ -389,6 +540,8 @@ The following artifacts were modified since the last sync. Re-run
 - `.artifacts/design/{issue-key}/06-stories/epic-*/story-*.md` (updated, if stories changed)
 - `.artifacts/design/{issue-key}/07-coverage.md` (updated, if coverage changed)
 - `.artifacts/design/{issue-key}/04-testplan.md` (updated, if testplan changed)
+- `.artifacts/design/{issue-key}/04-{slug}.md` (companion artifacts updated, if applicable)
+- `.artifacts/design/{issue-key}/validation-index.json` (updated, if artifacts added or removed)
 
 ## When This Phase Is Done
 

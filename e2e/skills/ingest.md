@@ -68,7 +68,7 @@ with the code.
 
 If `.artifacts/e2e/{issue-key}/01-context.md` already exists, this is a
 re-invocation. Copy the existing file to `01-context.md.prev` so it is
-preserved for the diff in Step 7a.
+preserved for the diff in Step 8a.
 
 ### Step 3: Fetch the Jira Story
 
@@ -94,8 +94,8 @@ Capture:
 - Acceptance criteria
 - Testing approach (if present — this is the primary implementation guidance for [QE] stories)
 - Implementation guidance (if present — may be sparse for [QE] stories)
-- Validated by (if present — TC IDs used for testplan filtering in Step 5d)
-- Design Reference (if present — PRD requirement IDs used for testplan filtering fallback in Step 5d)
+- Validated by (if present — TC IDs used for testplan filtering in Step 6)
+- Design Reference (if present — PRD requirement IDs used for testplan filtering fallback in Step 6)
 - Story type prefix — verify it is `[QE]`. If it is `[DEV]`, `[UI]`, or another prefix, warn the user that this workflow is designed for `[QE]` stories and ask whether to proceed.
 - Parent epic key
 - Story dependencies (linked issues — "depends on", "is blocked by")
@@ -183,17 +183,25 @@ Read these from the docs repo:
 2. **PRD** (`prd.md`) — the product requirements, with locked decisions
    reflected in the requirements text
 3. **Testplan** (`testplan.md`) — behavioral test cases mapped to PRD
-   requirements. If found, proceed to Step 5d for filtering.
+   requirements. If found, proceed to Step 6 for filtering.
 
 If the design document or PRD are not found, ask the user for their
 location or proceed with only the Jira story content. The design
 document and PRD are valuable context but not strictly required — the
 story's acceptance criteria are the primary contract.
 
-#### 5d: Filter Testplan to Story Scope
+### Step 6: Discover Validation Artifacts and Filter to Story Scope
 
-If `testplan.md` was found in Step 5c, filter it to the test cases
-relevant to this story's scope.
+**Artifact discovery:** Check for `validation-index.json` in the
+feature directory alongside `design.md`. If found, read it to get
+the list of published validation artifact filenames and identify the
+primary testplan. If `validation-index.json` does not exist (legacy
+design), fall back to looking for `testplan.md` directly.
+
+**Filter across all validation artifacts:** For each validation
+artifact file discovered above, apply the TC matching rules below.
+Collect matching TCs from ALL artifacts (primary testplan and any
+companions).
 
 The Jira story's description contains a `Validated by` line in its
 Design Reference section (captured in Step 3) listing TC IDs, and a
@@ -203,36 +211,76 @@ For `[QE]` stories, `Validated by` may not carry the full set of
 relevant TCs — `/decompose` assigns TCs via IC overlap, but `[QE]`
 stories typically don't implement ICs (they test the surface that
 `[DEV]` stories implement). To ensure complete coverage, always
-**union** the `Validated by` TC IDs with requirement-heading matches:
-extract PRD requirement IDs from the story's `PRD Requirements` line
-and collect all test cases whose requirement heading matches, then
-merge with the `Validated by` set (deduplicate).
+**union** the `Validated by` TC IDs with requirement-heading matches
+across all validation artifacts: extract PRD requirement IDs from the
+story's `PRD Requirements` line and collect all test cases whose
+requirement heading matches, then merge with the `Validated by` set
+(deduplicate).
 
 For non-`[QE]` stories, use `Validated by` TC IDs directly. If the
 `Validated by` line is missing, empty, or contains no TC IDs (e.g.,
 `Validated by: None — ...`), fall back to requirement-heading
 matching as above.
 
-**Three-outcome gate:**
+**Extract relevant gates (before TC outcome).** If any feature-level
+validation artifact (primary or companion) has a
+`## Review and Qualification Gates` section, check each gate's
+requirement and IC mappings against the story's `PRD Requirements`
+and `Interface Changes`. Gates whose requirements or ICs overlap are
+relevant to this story. Collect all relevant gates with their source
+path, gate heading/name, mapped requirements and ICs, type, and
+reviewer/owner. This extraction runs BEFORE the outcome table
+below — a story with zero TCs but relevant gates still produces a
+retained validation artifact.
+
+**Outcome gate:**
 
 | Outcome | Condition | Action |
 |---------|-----------|--------|
-| **Normal** | Matching test cases found | Write `.artifacts/e2e/{issue-key}/testplan.md` |
-| **Expected zero** | No matches AND story type is `[DOCS]`, `[UX]`, or `[CI]` | Note in context. |
-| **Anomalous zero** | No matches AND story type is `[QE]`, `[DEV]`, or `[UI]` | Warn the user: "Testplan exists but no test cases match this story's requirements. This may indicate a gap in the testplan or the story's requirement mapping." This is non-blocking. |
+| **Normal** | Matching test cases found (in any artifact) | Write `.artifacts/e2e/{issue-key}/testplan.md` |
+| **Gate-only** | Zero TC matches but relevant gates found | Write `testplan.md` with only the Qualification Gates section (no TC sections). This is not an error — the story's validation is gate-based. |
+| **Expected zero** | No TC matches, no relevant gates, AND story type is `[DOCS]`, `[UX]`, or `[CI]` | Note in context. |
+| **Anomalous zero** | No TC matches, no relevant gates, AND story type is `[QE]`, `[DEV]`, or `[UI]` | Warn the user. This is non-blocking. |
 
 If the story type prefix is not listed above, treat it as anomalous
 zero (warn the user, continue without `testplan.md`).
 
-For non-normal outcomes (expected zero, anomalous zero, or no
-feature-level testplan): if
+For non-normal/non-gate-only outcomes (expected zero, anomalous zero,
+or no feature-level testplan): if
 `.artifacts/e2e/{issue-key}/testplan.md` exists from a prior ingest
 run, delete it. A stale story-scoped testplan
 would cause downstream gates to enforce obsolete coverage requirements.
 
-If `testplan.md` was not found in the docs repo, note "No feature-level
-testplan available" and continue. This is not an error — the testplan is
-a newer feature and older designs may not have one.
+If no validation artifacts were found (neither `validation-index.json`
+nor `testplan.md` in the docs repo), note "No feature-level testplan
+available" and continue. This is not an error — the testplan is a newer
+feature and older designs may not have one.
+
+When writing the story testplan from matches across multiple artifacts,
+include all matched TCs in a single `testplan.md` with a Source line
+listing each contributing artifact. Include the Qualification Gates
+section for any relevant gates found above.
+
+**Per-TC verification classification:** Classify each matched TC
+by its verification method, regardless of source artifact:
+
+- **`Automation: automated`** — candidate for e2e test automation.
+  These are the default and require automated test scenarios.
+- **`Automation: manual`** — requires human verification (visual
+  checks, exploratory testing, UX evaluation). Listed in the story
+  testplan with a `[Manual verification]` marker. The `/plan` and
+  `/code` phases must not generate automated e2e test code for
+  these; `/validate` tracks them as manual verification evidence.
+- **`Qualification gate`** — requires a specialized execution
+  environment (hardware device lab, security audit tooling,
+  cross-service staging not available in CI). Listed with a
+  `[Qualification gate]` marker. The `/plan` and `/code` phases
+  must not generate automated e2e test code for these; `/validate`
+  tracks them as external validation evidence.
+
+When a matched TC comes from a companion artifact (type
+`"companion"` in the published index), additionally note its
+source artifact and purpose in the story testplan metadata.
 
 **Write story-scoped testplan (Normal outcome only):**
 
@@ -241,15 +289,17 @@ Write `.artifacts/e2e/{issue-key}/testplan.md`:
 ```markdown
 # Story Test Plan — {issue-key}
 
-- **Source:** {docs-repo-path}/testplan.md
+- **Source:** {comma-separated list of contributing source files}
 - **Story:** {issue-key} — {story-title}
-- **Test cases:** {count}
+- **Test cases:** {count of automatable + manual TCs}
+- **Manual verification:** {count or 0}
+- **Qualification gates:** {count or 0}
 
 ## TC-FR1-01: {scenario title}
 
-| Requirement | Interface Change | Priority | Automation |
-|-------------|-----------------|----------|------------|
-| FR-1 | IC-1 | high | automated |
+| Requirement | Interface Change | Priority | Automation | Source |
+|-------------|-----------------|----------|------------|--------|
+| FR-1 | IC-1 | high | automated | testplan.md |
 
 ### Preconditions
 
@@ -266,7 +316,24 @@ Write `.artifacts/e2e/{issue-key}/testplan.md`:
 
 ## TC-FR1-02: {scenario title}
 
-{... same structure for each test case ...}
+{... same structure for each automatable test case ...}
+
+## TC-NFR3-01: {scenario title} [Qualification gate]
+
+| Requirement | Interface Change | Priority | Verification |
+|-------------|-----------------|----------|--------------|
+| NFR-3 | IC-5 | high | hardware device lab |
+
+- **Source artifact:** {hw-validation.md or testplan.md}
+- **Designated environment:** {e.g., hardware device lab}
+- **Required evidence:** {e.g., device test report}
+- **Evidence status:** not-started
+
+{Qualification-gate TCs use the [Qualification gate] heading suffix
+ and a Verification column instead of Automation. Evidence status
+ values: not-started, pending, verified, failed. Include one section
+ per qualification-gate TC; omit the Qualification gates section
+ header if count is 0.}
 ```
 
 Each test case becomes an H2 heading with the same structure as the
@@ -276,14 +343,14 @@ the requirement-grouping layer and the Test Cases section are removed.
 The Requirement ID and Interface Change are included in the metadata
 table for traceability back to the feature-level testplan.
 
-### Step 6: Explore E2E Test Infrastructure
+### Step 7: Explore E2E Test Infrastructure
 
 This is the core discovery step. Unlike implementation ingestion, which
 explores production code, this step focuses on the project's e2e testing
 infrastructure. Thorough discovery here is critical — shallow exploration
 leads to tests that don't follow project patterns.
 
-#### 6a: Project Configuration
+#### 7a: Project Configuration
 
 Read project-level configuration:
 - `AGENTS.md`, `CLAUDE.md` — project conventions and AI guidance
@@ -292,7 +359,7 @@ Read project-level configuration:
 - `CONTRIBUTING.md` — PR and commit message conventions
 - `.github/PULL_REQUEST_TEMPLATE.md` — PR description template
 
-#### 6b: Repository Topology
+#### 7b: Repository Topology
 
 Determine whether the local clone is a fork or a direct clone. Parse
 `{owner}/{repo}` from the origin remote:
@@ -315,7 +382,7 @@ gh repo view {owner}/{repo} --json isFork,parent
   also ask for the upstream `{owner}/{repo}` so the Repository Topology
   section is complete for downstream sync steps
 
-#### 6c: E2E Test Framework and Runner
+#### 7c: E2E Test Framework and Runner
 
 Discover the testing framework and how tests are executed:
 
@@ -327,7 +394,7 @@ Discover the testing framework and how tests are executed:
 4. **Filtering:** What label/tag/focus mechanisms exist for CI selection?
 5. **Parallel execution:** Does the project support parallel test execution?
 
-#### 6d: Test Organization
+#### 7d: Test Organization
 
 Map the e2e test directory structure:
 
@@ -338,7 +405,7 @@ Map the e2e test directory structure:
    (e.g., `*_suite_test.go` + `*_test.go` in Go/Ginkgo)
 4. **Naming conventions:** How are test files and directories named?
 
-#### 6e: Test Infrastructure Abstractions
+#### 7e: Test Infrastructure Abstractions
 
 Discover what abstractions the project uses for test code to interact
 with the system under test. Projects vary widely — look for whichever
@@ -367,7 +434,7 @@ For whatever the project uses:
 If the project has no dedicated test infrastructure abstractions (tests
 interact with the system directly), note that — this is a valid pattern.
 
-#### 6f: Test Lifecycle
+#### 7f: Test Lifecycle
 
 Read 2-3 existing suite/test files to understand lifecycle patterns.
 Use whatever terminology the project's framework uses — common patterns
@@ -399,7 +466,7 @@ Also discover the **parallelism model** — if tests can run in parallel:
 
 If tests run sequentially or parallelism is not documented, note that.
 
-#### 6g: Auxiliary Services
+#### 7g: Auxiliary Services
 
 If the project manages external services for e2e tests, discover them.
 Not all projects do this — some test against pre-deployed environments
@@ -417,7 +484,7 @@ If the project does manage test services:
 If no auxiliary service management is found, note "Tests run against a
 pre-existing environment" or whatever the actual pattern is.
 
-#### 6h: Test Utilities
+#### 7h: Test Utilities
 
 Find test helper packages:
 
@@ -426,7 +493,7 @@ Find test helper packages:
 3. **Tracing/logging:** How tests set up observability
 4. **Test data:** Where test fixtures and example files live
 
-#### 6i: Test Conventions and Documentation
+#### 7i: Test Conventions and Documentation
 
 Read test-specific documentation:
 
@@ -439,7 +506,7 @@ Read test-specific documentation:
 If these files don't exist, note their absence — the project may document
 test conventions elsewhere (in the main AGENTS.md) or not at all.
 
-#### 6j: Reference Suite Selection
+#### 7j: Reference Suite Selection
 
 Based on the story's scope, identify the 1-2 existing test suites most
 similar to what needs to be written:
@@ -479,7 +546,7 @@ a broad surface (test infrastructure files, auxiliary configs, suite files, util
 CI workflows, test documentation), so premature convergence can miss
 critical patterns.
 
-### Step 7: Compile Context
+### Step 8: Compile Context
 
 > **Checkpoint:** Step 6 is the heaviest phase of ingestion (10 sub-steps
 > across test infrastructure, services, utilities, conventions, and reference suites).
@@ -489,7 +556,7 @@ critical patterns.
 
 Compile all findings into the structure below. If this is a re-invocation
 (Step 2a found an existing file), **do not write the file yet** — hold the
-compiled content and proceed to Step 7a first.
+compiled content and proceed to Step 8a first.
 
 If this is a first invocation, write
 `.artifacts/e2e/{issue-key}/01-context.md` with this structure:
@@ -668,12 +735,12 @@ If this is a first invocation, write
 {Sanitized skeleton of the reference suite's lifecycle — hook ordering,
  infrastructure initialization, parallelism integration, cleanup. Include
  the suite entry point, all lifecycle hooks, and a representative test
- block. Apply the keep/strip rules from Step 6j.}
+ block. Apply the keep/strip rules from Step 7j.}
 
 ```{language — use the project's language, e.g., go, python, typescript}
 {skeleton code here — actual hook names, actual method calls,
  with domain-specific logic replaced per the keep/strip rules
- in Step 6j}
+ in Step 7j}
 ```
 
 ## Repository Topology
@@ -723,7 +790,7 @@ If this is a first invocation, write
  (observation, not a question)}
 ```
 
-### Step 7a: Diff Against Prior Ingest (Re-invocation Only)
+### Step 8a: Diff Against Prior Ingest (Re-invocation Only)
 
 If Step 2a created a `.prev` file, compare `01-context.md.prev` against
 the newly compiled content. Focus the diff on:
@@ -742,7 +809,7 @@ Wait for the user to confirm before proceeding. If the user confirms, write
 the compiled content to `01-context.md` and clean up the `.prev` file. If
 the user declines, delete the `.prev` file and stop without overwriting.
 
-### Step 8: Report to User
+### Step 9: Report to User
 
 Present a brief summary:
 - Story scope and acceptance criteria
@@ -756,7 +823,7 @@ Present a brief summary:
   way that implies the user must answer them before proceeding.
 - Whether the context is sufficient to proceed to `/plan`
 
-If the user declined a re-invocation overwrite in Step 7a, report instead
+If the user declined a re-invocation overwrite in Step 8a, report instead
 what changes were found and that the existing context was preserved.
 
 ## Output

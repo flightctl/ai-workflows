@@ -12,7 +12,7 @@ affected code, and write `01-context.md` for `/plan`.
 
 - Jira is read-only. Capture, don't implement. Note unknowns explicitly.
 - Explore relevant areas only. Don't map the entire codebase. Focus on components the story will affect.
-- Re-invocation diffs before overwriting. If `01-context.md` already exists, preserve it before exploring. After compiling new context, diff against the previous version and present changes to the user before overwriting (see Steps 2a and 7a).
+- Re-invocation diffs before overwriting. If `01-context.md` already exists, preserve it before exploring. After compiling new context, diff against the previous version and present changes to the user before overwriting (see Steps 2a and 8a).
 - Ingest is an index. `/plan` opens cited files. Paths, section refs, signatures — not dumps.
 - Never Read the same path twice. Never Grep the same (path, pattern) pair twice.
 - Do not glob this workflow. Do not load `guidelines.md` or `gh-stack`.
@@ -78,7 +78,7 @@ committed with the code.
 
 If `.artifacts/implement/{issue-key}/01-context.md` already exists, this is a
 re-invocation. Copy the existing file to `01-context.md.prev` so it is
-preserved for the diff in Step 7a.
+preserved for the diff in Step 8a.
 
 ### Step 3: Fetch the Jira Story
 
@@ -91,7 +91,7 @@ Capture:
 - Acceptance criteria
 - Implementation guidance (if present)
 - Testing approach (if present)
-- `Validated by` TC IDs and `PRD Requirements` from the Design Reference (used to filter the testplan in Step 5d)
+- `Validated by` TC IDs and `PRD Requirements` from the Design Reference (used to filter the testplan in Step 6)
 - `Source` and `UI Design section` from the Design Reference (if present — used to resolve the UI design document filename in Step 5c)
 - Design refs
 - Story type prefix (`[DEV]`, `[UI]`, etc.)
@@ -191,7 +191,7 @@ Need:
 2. **UI design document** (filename from the `UI Design section` field) — UI-specific design context
    (present only for features that went through the ui-design workflow)
 3. **PRD** (`prd.md`) — FR/NFR this story covers
-4. **Testplan** (`testplan.md`) — candidate test cases for Step 5d
+4. **Testplan** (`testplan.md`) — candidate test cases for Step 6
 
 **Selecting the design source (polymorphic design reference):**
 
@@ -251,13 +251,22 @@ Jira story content. The design document and PRD are valuable context
 but not strictly required — the story's acceptance criteria are the
 primary contract.
 
-#### 5d: Filter Testplan to Story Scope
+### Step 6: Discover Validation Artifacts and Filter to Story Scope
 
-Match the story's `Validated by` TC IDs (captured in Step 3) against the
-testplan's test-case headings. If `Validated by` is missing, empty, or
-`None` (no TC IDs), fall back to requirement match: collect every test case
-whose requirement heading matches a `PRD Requirements` ID from the story's
-Design Reference.
+**Artifact discovery:** Check for `validation-index.json` in the
+feature directory alongside `design.md`. If found, read it to get
+the list of published validation artifact filenames and identify the
+primary testplan. If `validation-index.json` does not exist (legacy
+design), fall back to looking for `testplan.md` directly.
+
+**Filter across all validation artifacts:** For each validation
+artifact file discovered above, match the story's `Validated by`
+TC IDs (captured in Step 3) against the artifact's test-case
+headings. If `Validated by` is missing, empty, or `None` (no TC IDs),
+fall back to requirement match: collect every test case whose
+requirement heading matches a `PRD Requirements` ID from the story's
+Design Reference. Collect matching TCs from ALL artifacts (primary
+testplan and any companions).
 
 **UI-design-originated stories:** If `PRD Requirements` contains
 "Discovered during UI design" (set by ui-design `/sync` for stories that
@@ -270,18 +279,68 @@ If the field also lists FR/NFR IDs alongside the marker (e.g.,
 but treat zero matches as Expected zero rather than Anomalous zero — the
 UI-design origin means missing testplan coverage is expected, not an error.
 
+**Extract relevant gates (before TC outcome).** If any feature-level
+validation artifact (primary or companion) has a
+`## Review and Qualification Gates` section, check each gate's
+requirement and IC mappings against the story's `PRD Requirements`
+and `Interface Changes`. Gates whose requirements or ICs overlap are
+relevant to this story. Collect all relevant gates with their source
+path, gate heading/name, mapped requirements and ICs, type, and
+reviewer/owner. This extraction runs BEFORE the TC outcome table
+below — a story with zero TCs but relevant gates still produces a
+retained validation artifact.
+
 | Outcome | Condition | Action |
 |---------|-----------|--------|
-| Normal | Matches found | Write `testplan.md` **once** from `../templates/story-testplan.md` |
-| Expected zero | No matches and type is `[QE]`/`[DOCS]`/`[UX]`/`[CI]` | Note expected; delete stale story testplan if present |
-| Expected zero | No matching `Validated by` IDs and PRD Requirements contains "Discovered during UI design" | Note UI-design origin; delete stale story testplan if present |
-| Anomalous zero | No matches and type is `[DEV]`/`[UI]` (or unknown) | Warn; delete stale story testplan if present |
+| Normal | TC matches found (in any artifact) | Write `testplan.md` **once** from `../templates/story-testplan.md` |
+| Gate-only | Zero TC matches but relevant gates found | Write `testplan.md` with only the Qualification Gates section (no TC sections). This is not an error — the story's validation is gate-based. |
+| Expected zero | No TC matches, no relevant gates, and type is `[QE]`/`[DOCS]`/`[UX]`/`[CI]` | Note expected; delete stale story testplan if present |
+| Expected zero | No matching `Validated by` IDs, PRD Requirements contains "Discovered during UI design", and no relevant gates | Note UI-design origin; delete stale story testplan if present |
+| Anomalous zero | No TC matches, no relevant gates, and type is `[DEV]`/`[UI]` (or unknown) | Warn; delete stale story testplan if present |
 
-No feature testplan: note and continue. If a story-level testplan already
-exists from a prior ingest, emit a warning: "Source testplan not found —
-story testplan may be stale. Verify test coverage before proceeding."
+**Precedence:** When multiple outcome conditions match, Gate-only
+takes precedence over Expected zero. A story with zero TC matches
+but relevant qualification gates produces a gate-only testplan even
+if the story type or UI-design origin would otherwise indicate
+Expected zero.
 
-### Step 6: Explore the Codebase
+No feature testplan (neither `validation-index.json` nor `testplan.md`):
+note and continue. If a story-level testplan already exists from a prior
+ingest, mark it as **unverified** by prepending a metadata line
+`- **Freshness:** unverified — upstream source not found on re-ingest`
+to the story testplan header. Emit a warning: "Source testplan not
+found — retained story testplan marked as unverified. `/plan` and
+`/validate` should treat its TC coverage requirements as provisional
+until the upstream source is available."
+
+When writing the story testplan from matches across multiple artifacts,
+include all matched TCs in a single `testplan.md` with a Source line
+listing each contributing artifact. Include the Qualification Gates
+section for any relevant gates found above.
+
+**Per-TC verification classification:** Classify each matched TC
+by its verification method, regardless of source artifact:
+
+- **`Automation: automated`** — candidate for unit/integration test
+  implementation. These are the default.
+- **`Automation: manual`** — requires human verification (visual
+  checks, exploratory testing, UX evaluation). Listed in the story
+  testplan with a `[Manual verification]` marker. The `/plan` and
+  `/code` phases must not generate automated tests for these;
+  `/validate` tracks them as manual verification evidence.
+- **`Qualification gate`** — requires a specialized execution
+  environment (hardware device lab, security audit tooling,
+  cross-service staging not available in CI). Listed with a
+  `[Qualification gate]` marker. The `/plan` and `/code` phases
+  treat these as external validation evidence — they are not
+  candidates for unit/integration test generation.
+
+When a matched TC comes from a companion artifact, additionally note
+its source artifact and purpose in the story testplan metadata. The
+story's own Testing Approach covers the appropriate test scope for
+`[DEV]` work.
+
+### Step 7: Explore the Codebase
 
 Based on the story's scope, explore the areas of the codebase that will be
 affected.
@@ -295,7 +354,7 @@ affected.
 - Stack: `git branch --show-current`, `git log --oneline -8`, `gh stack view --json`. No `.git/` listing.
 - Topology: parse `{owner}/{repo}` from `git remote get-url origin` (never substitute a well-known upstream name). Then `gh repo view {owner}/{repo} --json isFork,parent`. If `gh` fails, ask the user whether this is a fork and, if so, for upstream `{owner}/{repo}`.
 
-**Validation cache:** If `.artifacts/implement/_validation-profile.md` exists and `.meta.json` hashes/mtimes still match, merge the profile into the in-memory context draft, skip config Reads, and do not Write `01-context.md` until Step 7 or Step 7a. Else one discovery pass: bounded Greps of present `AGENTS.md` and `CONTRIBUTING.md` (unless already in session) for lint/test/coverage commands, one Makefile grep, plus CI filenames via `git ls-files '.github/workflows/*.yml' '.github/workflows/*.yaml'`. For each listed workflow, Grep command-bearing keys (`run:`, `make`, lint/test targets) — not full workflow bodies. Then Write cache files **once**.
+**Validation cache:** If `.artifacts/implement/_validation-profile.md` exists and `.meta.json` hashes/mtimes still match, merge the profile into the in-memory context draft, skip config Reads, and do not Write `01-context.md` until Step 8 or Step 8a. Else one discovery pass: bounded Greps of present `AGENTS.md` and `CONTRIBUTING.md` (unless already in session) for lint/test/coverage commands, one Makefile grep, plus CI filenames via `git ls-files '.github/workflows/*.yml' '.github/workflows/*.yaml'`. For each listed workflow, Grep command-bearing keys (`run:`, `make`, lint/test targets) — not full workflow bodies. Then Write cache files **once**.
 
 Skip `AGENTS.md` and `CONTRIBUTING.md` Reads if already in session. Path-only for PR template unless the body is required.
 
@@ -352,18 +411,18 @@ Record components as path + signature + test path. `/plan` opens cited files.
 - **Cite what `/plan` would not guess** (path + one line; extra grep hits stay unread): sibling implementation in another component/language ("pattern only, do not import"); deploy/runtime surface if the story needs a tool on PATH or in an image (Containerfile/Dockerfile/packaging); neighboring unit **and** integration test paths if grep found them. List leftover `files_with_matches` hits under **Cited, not opened**.
 - **Open questions:** Fill or mark `N/A (reason)` for: inbound contract; story boundary vs dependency/successor; spec vs AC conflict (record both, do not pick); named knob missing in code; placement (existing package vs new); runtime dependency not on the current deploy path; shared-state predicate (CAS/lock/idempotency) if the story mutates shared records. Concrete question or N/A. No vague "how should errors work?"
 
-### Step 7: Compile Context
+### Step 8: Compile Context
 
 Compile all findings into `01-context.md`. If this is a re-invocation
 (Step 2a found an existing file), **do not write the file yet** — hold the
-compiled content and proceed to Step 7a first.
+compiled content and proceed to Step 8a first.
 
 If this is a first invocation: Read `../templates/01-context.md` **once**,
 fill it tightly (must-record bullets; 5–8 lines per component; signatures
 only; every open-question slot filled or N/A), Write `01-context.md`
 **once**.
 
-### Step 7a: Diff Against Prior Ingest (Re-invocation Only)
+### Step 8a: Diff Against Prior Ingest (Re-invocation Only)
 
 Diff compiled content vs `.prev`. Focus on:
 - Acceptance criteria
@@ -374,7 +433,7 @@ Diff compiled content vs `.prev`. Focus on:
 
 If `02-plan.md` or later artifacts exist, list them. Wait for confirmation. If confirmed, Write `01-context.md` **once** and delete `.prev`. If declined, delete `.prev` and stop without overwriting.
 
-### Step 8: Report
+### Step 9: Report
 
 8–12 lines. Do not paste `01-context.md`. Point at the file. Include:
 - Story scope and key ACs
@@ -386,7 +445,7 @@ If `02-plan.md` or later artifacts exist, list them. Wait for confirmation. If c
 - Open questions as `/plan` work, not blockers
 - Readiness for `/plan`
 
-If the user declined overwrite in 7a, report the diff and that existing context was kept.
+If the user declined overwrite in 8a, report the diff and that existing context was kept.
 
 ## Output
 

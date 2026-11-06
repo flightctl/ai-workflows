@@ -194,20 +194,78 @@ Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
 ## Test Plan Coverage
 
 {Include this section only if `.artifacts/implement/{issue-key}/testplan.md`
- exists. If no story-scoped testplan: omit this section entirely.}
+ exists. If no story-scoped testplan: omit this section entirely.
+
+ **Unverified source handling:** If `testplan.md` contains
+ `Freshness: unverified` (set by `/ingest` when the upstream
+ source was not found on re-ingest), present the TC list to the
+ user and require explicit confirmation that the retained TCs are
+ still applicable before using them as normative coverage
+ requirements. Until confirmed, mark Test Plan Coverage as
+ "unverified — awaiting user confirmation of retained TC
+ applicability." Do not block AC-based work or add extra approval
+ stages — the user may confirm and proceed, or discard the stale
+ testplan.
+
+ When the user confirms retained TCs, record the confirmation in
+ `02-plan.md` by changing the Test Plan Coverage status to
+ "confirmed — user verified TC applicability on {date}". This
+ record allows `/validate` to treat confirmed TCs as normative.
+ Confirmation does NOT restore `Freshness` to verified — the
+ upstream source remains absent.}
 
 | TC ID | Title | Covered by Task | Notes |
 |-------|-------|-----------------|-------|
 | TC-FR1-01 | {title} | Task 2 | |
 | TC-FR1-02 | {title} | Task 3 | |
 | TC-NFR1-01 | {title} | N/A | {rationale} |
+| TC-NFR2-01 | {title} | Manual verification | {verification method} |
+| TC-NFR3-01 | {title} | Qualification gate | hardware device lab |
 
 {Every TC ID from testplan.md must appear. Each must be assigned to a
- task or marked N/A with a rationale (e.g., "NFR verified by load test
- infrastructure, not unit/integration tests"). This is a set-diff gate:
- compute the difference between the set of TC IDs in testplan.md and
- the set assigned to tasks or marked N/A. If the difference is
- non-empty, the plan is incomplete — resolve before proceeding.}
+ task, marked N/A with a rationale (e.g., "NFR verified by load test
+ infrastructure, not unit/integration tests"), listed as a manual
+ verification (TCs with a `[Manual verification]` marker), or listed
+ as a qualification gate (TCs with a `[Qualification gate]` marker).
+ Manual-verification TCs require human verification (visual checks,
+ exploratory testing) — they are NOT assigned to implementation tasks
+ but must appear in the table with status `Manual verification` and
+ the verification method as rationale.
+ Qualification-gate TCs are external validation evidence — they are NOT
+ assigned to implementation tasks but must appear in the table with
+ status `Qualification gate` and the designated execution environment as
+ rationale. This is a set-diff gate: compute the difference between the
+ set of TC IDs in testplan.md and the set assigned to tasks, marked N/A,
+ listed as manual verification, or listed as qualification gates.
+ If the difference is non-empty, the plan is incomplete — resolve
+ before proceeding.
+
+ A gate-only testplan (zero TC IDs, only a Qualification Gates
+ section) is valid — omit the TC table and include only the
+ Qualification Gates section below.}
+
+## Qualification Gates
+
+{Include this section only if `testplan.md` contains a
+ `## Qualification Gates` section (gate-only or mixed plans).
+ Omit entirely if no gates exist.}
+
+| Gate | Source | Requirements | ICs | Type | Required Evidence | Status |
+|------|--------|-------------|-----|------|-------------------|--------|
+| {gate heading} | {source path, e.g., testplan.md §Review and Qualification Gates} | {FR-N, NFR-N} | {IC-N or —} | {type} | {required evidence} | not-started |
+
+{Gates use source path + gate heading as identity — no TC IDs.
+ Status values: not-started, pending, verified, failed.
+ All gates remain pending until actual evidence is provided;
+ do not infer complete from automated test results.
+
+ Required Evidence must come from the source gate definition or the
+ linked source document (design testplan or external specification).
+ If the source gate specifies criteria (e.g., "security audit report
+ from accredited lab"), carry them verbatim. If the source does not
+ specify criteria, set Required Evidence to "criteria not specified
+ in source — clarification needed" rather than inventing requirements.
+ TC-based gates use the TC's own Expected Results as criteria.}
 
 ## Scope Baseline
 
@@ -272,7 +330,7 @@ Before presenting the plan, verify:
 - [ ] No tasks modify code outside the story's scope
 - [ ] Task count is reasonable — if you have more than 10 tasks, consider whether the story needs re-scoping
 - [ ] The plan is achievable — no tasks depend on unavailable infrastructure or unmerged code
-- [ ] If story-scoped testplan exists: every TC ID is assigned to a task or marked N/A with rationale (Test Plan Coverage set-diff is clean)
+- [ ] If story-scoped testplan exists: every TC ID is assigned to a task, marked N/A with rationale, listed as manual verification, or listed as a qualification gate (Test Plan Coverage set-diff is clean)
 - [ ] Every ingest open question is a locked decision (specified or implementer default) or a product fork still listed
 - [ ] Open Questions contains only product forks, not pins/timeouts/names `/code` could default
 - [ ] Cited Reads stayed within the cap; `02-plan.md` has no pasted file bodies

@@ -223,10 +223,62 @@ absolute source-repo path to `.artifacts/design/{issue-key}/03-design.md`.
 
 Generate a behavioral testplan anchored to PRD requirements and derived
 through the design's Interface Changes (§5). The testplan validates that
-the design covers the PRD's specified behavior and that every interface
-change is exercised by at least one test case. This artifact is reviewed
+the design covers the PRD's specified behavior and that interface
+changes are exercised by test cases, review gates, or qualification
+gates as appropriate. This artifact is reviewed
 alongside the design document and does not reference stories (which do
 not exist yet).
+
+**Testplan scope — what belongs here:**
+
+The design testplan is a product acceptance and validation artifact,
+primarily E2E. Test cases exercise observable system surfaces — API
+endpoints, CLI commands, UI behaviors, device behavior, configuration
+effects — from the perspective of an operator, user, or external
+consumer. Include targeted integration, hardware-qualification, or
+security-certification test cases **only** when a design-level
+cross-component or operational contract genuinely requires separate
+verification at that level (e.g., a hardware validation plan requiring
+a physical device lab, a security audit trail for compliance
+certification). The presence of a cross-component boundary alone does
+not justify a separate integration plan; most cross-component behavior
+is observable through E2E surfaces.
+
+**What does NOT belong in the design testplan:**
+
+- Unit test cases, unit test matrices, or unit test strategy sections.
+  Unit and integration testing guidance belongs in `[DEV]` story-level
+  implementation (see `/decompose` and the Testing Approach section of
+  story files). Do not generate a `unit-testplan.md` or any unit-level
+  test artifact as a design deliverable.
+- Design review checklists, documentation checks, or architectural
+  review criteria. These are review gates, not executable test
+  scenarios.
+- Exhaustive Cartesian expansion of requirements × interfaces ×
+  fixture permutations. Each test case must justify its existence
+  through a distinct product outcome or risk. Merge near-identical
+  cases using parameterization rather than duplicating scenarios.
+  Reduce scope by merging redundant scenarios, not by imposing an
+  arbitrary hard case-count cap.
+
+**Coverage model:** Map requirements and ICs to test cases as a
+many-to-many relationship — one test case may validate multiple
+requirements or ICs, and one requirement or IC may be exercised by
+multiple test cases. The goal is complete coverage of distinct
+observable outcomes and risks, not a test case per requirement/IC
+combination.
+
+**Review and qualification gates:** Some requirements are validated by
+design-level review criteria (architectural review, documentation
+completeness checks) or qualification gates (compliance certification,
+hardware qualification sign-off) rather than executable test scenarios.
+These are NOT test cases — do not assign TC IDs, do not include them
+in TC counts or the Test Case Index. Instead, list them in a dedicated
+`## Review and Qualification Gates` section in the testplan Overview.
+Requirements covered exclusively by gates should reference the gate in
+the Requirement Coverage Gaps section rather than being listed as
+uncovered gaps (e.g., "FR-5 is validated by the architectural review
+gate — no executable test case is applicable").
 
 #### 9a: Derive Test Cases
 
@@ -336,13 +388,16 @@ Change field.
 - `manual` — the scenario requires human verification (visual checks,
   hardware interaction, exploratory testing)
 
-**Coverage target:** Every behavioral FR and NFR should have at least
-one test case. Documentation-only requirements are exempt (see the
+**Coverage target:** Every behavioral FR and NFR should be covered by
+at least one test case, review gate, or qualification gate.
+Documentation-only requirements are exempt (see the
 "Documentation-only requirements" rule) and belong in the
-Requirement Coverage Gaps section with rationale instead. Every IC
-should be exercised by at least one test case. An IC with no test
-case is either a testplan gap or an unnecessary interface change in
-the design.
+Requirement Coverage Gaps section with rationale instead.
+Requirements covered exclusively by review or qualification gates
+(not test cases) should reference the gate in the Gaps section rather
+than being listed as uncovered. Every IC should be exercised by at
+least one test case or qualification gate. An IC with no coverage is
+either a testplan gap or an unnecessary interface change in the design.
 
 **Negative scenarios:** Include negative/error test cases where the PRD
 or design specifies error handling behavior. Do not invent error
@@ -413,6 +468,29 @@ Write `.artifacts/design/{issue-key}/04-testplan.md`:
 - **Total test cases:** {N}
 - **Requirements covered:** {N} of {total FR + NFR count}
 - **Interface changes covered:** {N} of {total IC count}
+{If companion validation plans exist, add:
+- **Companion plans:** {companion-1-slug}.md ({purpose}), {companion-2-slug}.md ({purpose})
+Otherwise, omit the Companion plans line entirely.}
+
+{If any requirements are covered by review or qualification gates
+rather than executable test cases, add:
+
+## Review and Qualification Gates
+
+| Gate | Requirements | ICs | Type | Reviewer/Owner |
+|------|-------------|-----|------|----------------|
+| {gate name} | {FR-N, NFR-N} | {IC-N or —} | {architectural review / documentation check / compliance certification / hardware qualification} | {responsible party} |
+
+Include the IC mapping when the gate covers behavior exposed
+through an interface change. Use `—` when the gate covers a
+requirement with no direct IC (e.g., documentation completeness).
+These gates are NOT counted in the test case totals above. They
+represent non-executable validation criteria tracked separately
+from the testplan's test cases. Downstream consumers
+(`/decompose`, `/ingest`) use the requirement and IC mappings
+to carry gates through to story artifacts.
+
+Otherwise, omit this section entirely.}
 
 ## Test Case Index
 
@@ -480,18 +558,25 @@ Write `.artifacts/design/{issue-key}/04-testplan.md`:
 ### Requirement Coverage Gaps
 
 {For each PRD requirement with no test cases: why it lacks coverage and
- a recommendation (e.g., "FR-5 is satisfied by internal changes with no
- observable interface — no behavioral test case is applicable").
+ a recommendation. Requirements covered by a Review and Qualification
+ Gate should reference the gate (e.g., "FR-5 is validated by the
+ architectural review gate — no executable test case is applicable").
+ Requirements satisfied by internal changes with no observable
+ interface should note that (e.g., "FR-6 is satisfied by internal
+ changes with no observable interface — no behavioral test case is
+ applicable").
 
- If no gaps: "All PRD requirements have test cases."}
+ If no gaps: "All PRD requirements have test cases or are covered
+ by review/qualification gates."}
 
 ### Interface Change Coverage Gaps
 
-{For each IC not exercised by any test case: why it lacks coverage and
- a recommendation. An untested IC is either a testplan gap or an
- unnecessary interface change in the design.
+{For each IC not exercised by any test case or qualification gate:
+ why it lacks coverage and a recommendation. An untested IC is either
+ a testplan gap or an unnecessary interface change in the design.
 
- If no gaps: "All interface changes are exercised by test cases."}
+ If no gaps: "All interface changes are exercised by test cases or
+ qualification gates."}
 
 ## Summary
 
@@ -523,8 +608,9 @@ only in a parameter value into a single case with a variation table.
 
 Before presenting the testplan, verify:
 
-- [ ] Every FR and NFR has a test case or a documented Requirement Coverage Gap with rationale
-- [ ] Every IC from §5 has a test case or a documented Interface Change Coverage Gap with rationale
+- [ ] No test case targets unit-level or internal implementation verification — every scenario exercises an observable system surface (API, CLI, UI, device behavior, configuration effect) or a justified cross-component/operational contract
+- [ ] Every FR and NFR has a test case, a review/qualification gate, or a documented Requirement Coverage Gap with rationale — requirements covered by gates reference the gate in Gaps, not listed as uncovered
+- [ ] Every IC from §5 has a test case, a qualification gate, or a documented Interface Change Coverage Gap with rationale
 - [ ] Every non-`—` Interface Change value matches an IC defined in §5, and that IC's `Requirements` line includes the test case's requirement
 - [ ] Every `—` Interface Change value is used only for a requirement without a direct IC mapping
 - [ ] Every IC named in an Interface Change Coverage Gap entry exists in §5
@@ -556,9 +642,129 @@ values — it does not recompute counts or coverage after the fact.
 Provenance was already captured in Step 8 for the entire `/draft` phase —
 no additional provenance call is needed here.
 
-### Step 10: Present to User
+#### 9e: Companion Validation Plans (Optional)
 
-Show the user the complete design document and highlight:
+Generate a companion validation plan **only** when a design-level
+cross-component or operational contract genuinely requires a separate
+verification artifact with a distinct purpose, audience, or execution
+environment. Examples:
+
+- A hardware qualification plan requiring a physical device lab and a
+  separate execution team
+- A security certification plan whose audit trail must be preserved
+  independently for compliance review
+
+**When NOT to generate a companion:**
+
+- Do not generate companions to separate E2E from integration test
+  cases — the primary testplan covers both when they share the same
+  observable surfaces.
+- Do not generate empty template files for test levels that have no
+  applicable scenarios.
+- Do not duplicate scenario detail from the primary testplan into a
+  companion. The companion covers distinct scenarios; the primary
+  testplan's Overview section cross-references companion plans.
+
+**Companion file naming:** `04-{slug}.md`, where `{slug}` is a short
+kebab-case descriptor (e.g., `04-hw-validation.md`,
+`04-security-certification.md`). The slug must not be `testplan`
+(reserved for the primary artifact).
+
+**Companion format:** Each companion follows the same format as the
+primary testplan (Overview, Test Case Index, Test Cases grouped by
+requirement, Gaps, Summary) with these additions to the Overview:
+
+```markdown
+## Overview
+
+- **Feature:** {feature-key} — {feature-title}
+- **Purpose:** {why this companion exists as a separate artifact}
+- **Audience:** {who executes or reviews these scenarios}
+- **Primary testplan:** testplan.md
+- **Total test cases:** {N}
+- **Requirements covered:** {N} of {total FR + NFR count}
+- **Interface changes covered:** {N} of {total IC count}
+```
+
+**TC ID uniqueness:** Companion test cases use the same TC ID scheme
+(`TC-{req}-{NN}`) but IDs must be unique across ALL validation
+artifacts for this feature. Before assigning IDs in a companion,
+check ALL existing validation artifacts' (primary testplan and any
+previously written companions) highest sequence number for each
+requirement group and allocate above the feature-wide high-water
+mark. TC IDs are preserved when moving scenarios between artifacts
+(e.g., moving a test case from the primary testplan to a companion
+retains its original TC ID).
+
+**Self-review for companions:** Apply the same self-review checklist
+from Step 9c, plus verify:
+
+- [ ] Every companion TC ID is unique across the primary testplan and all companions
+- [ ] The companion's Purpose and Audience fields justify its separate existence
+- [ ] No scenario in the companion duplicates a scenario in the primary testplan
+
+Save each companion to `.artifacts/design/{issue-key}/04-{slug}.md`.
+
+### Step 10: Write Validation Index and Present Draft
+
+After writing the primary testplan and any companions, write the
+validation artifact index to
+`.artifacts/design/{issue-key}/validation-index.json`:
+
+```json
+{
+  "schema_version": "1.0",
+  "primary_testplan": "04-testplan.md",
+  "artifacts": [
+    {
+      "local": "04-testplan.md",
+      "published_as": "testplan.md",
+      "type": "testplan"
+    }
+  ]
+}
+```
+
+If companions were generated, add them to the `artifacts` array:
+
+```json
+{
+  "local": "04-hw-validation.md",
+  "published_as": "hw-validation.md",
+  "type": "companion",
+  "purpose": "Hardware qualification requiring physical device lab",
+  "audience": "Hardware QE team"
+}
+```
+
+Rules:
+- `primary_testplan` always names the primary artifact's local filename
+- The first entry in `artifacts` is always the primary testplan
+- `published_as` is the filename used when the artifact is copied to
+  the docs repo (no path prefix — the feature directory is implicit)
+- `type` is `"testplan"` for the primary, `"companion"` for others
+- Companion entries include `purpose` and `audience` fields
+- All `local` filenames must exist in the artifact directory
+- All `published_as` filenames must be unique
+
+When no companions exist, the index contains only the primary entry.
+
+Validate the written index:
+
+```bash
+VALIDATION_INDEX_SCRIPT="${HOME}/.ai-workflows/design/scripts/validation_index.py"
+python3 "$VALIDATION_INDEX_SCRIPT" validate --local ".artifacts/design/{issue-key}/validation-index.json" --artifact-dir ".artifacts/design/{issue-key}"
+```
+
+If validation fails (non-zero exit), fix the reported errors before
+proceeding. The validate subcommand checks schema version, artifact
+types, filename safety, uniqueness, companion requirements (purpose,
+audience), and that all listed local files exist on disk.
+
+This file is read by `/publish`, `/revise`, `/respond`, and
+`/decompose` to discover the full set of validation artifacts.
+
+**Present to User.** Show the user the complete design document and highlight:
 - Key architectural decisions and their rationale
 - Open questions that need resolution
 - Areas where multiple approaches were viable and why you chose the one you did
@@ -567,11 +773,14 @@ Show the user the complete design document and highlight:
 - Testplan summary — read from the Overview and Summary table already
   written in Step 9b: total test cases, requirement coverage, IC coverage
 - Any testplan gaps recorded in Step 9b (requirements or ICs without test cases)
+- If companion plans were generated, list each with its purpose and audience
 
 ## Output
 
 - `.artifacts/design/{issue-key}/03-design.md`
 - `.artifacts/design/{issue-key}/04-testplan.md`
+- `.artifacts/design/{issue-key}/04-{slug}.md` (companion plans, if any)
+- `.artifacts/design/{issue-key}/validation-index.json`
 - `.artifacts/design/{issue-key}/provenance.json`
 
 ## When This Phase Is Done
@@ -579,6 +788,7 @@ Show the user the complete design document and highlight:
 Report your results:
 - The design document has been written and saved
 - The testplan has been generated with {test-case-count} test cases covering {requirement-count} requirements and {interface-change-count} ICs
+- If companion plans were generated, list each with its test case count and purpose
 - Highlight key decisions, assumptions, and open questions
 - Note overall confidence in the document's completeness
 

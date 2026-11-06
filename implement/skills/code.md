@@ -321,8 +321,17 @@ section; extraction retains it until the prerequisite merges).
 **Test plan reconciliation (if story-scoped testplan exists):**
 
 After the self-review gate passes, check whether this task has TC IDs
-mapped to it in the Test Plan Coverage matrix of `02-plan.md`. If it
-does, verify each mapped TC ID before proceeding to commit:
+mapped to it in the Test Plan Coverage matrix of `02-plan.md`.
+
+**Unverified source deferral:** If `testplan.md` contains
+`Freshness: unverified` and the Test Plan Coverage status in
+`02-plan.md` has not been confirmed by the user, defer TC
+reconciliation — do not block the commit on TC coverage. AC-based
+work and existing tests proceed normally. Once the user confirms
+the retained TCs, this gate becomes mandatory for subsequent tasks.
+
+If the test plan is confirmed or verified, verify each mapped TC ID
+before proceeding to commit:
 
 1. For each mapped TC ID, locate its entry in `testplan.md`. If a
    mapped TC ID does not exist in the testplan, stop and report the
@@ -345,10 +354,16 @@ does, verify each mapped TC ID before proceeding to commit:
 This is a hard gate — the task cannot proceed to commit until every
 mapped TC ID has coverage. A TC ID may be treated as N/A only if the
 plan's Test Plan Coverage matrix already marks it N/A with a non-empty
-rationale — the code phase must not invent N/A exemptions that the
-plan did not authorize. The testplan is a floor, not a ceiling: tests
-discovered through TDD that are not tied to any TC ID are expected
-and encouraged.
+rationale. A TC ID marked `Qualification gate` in the plan is external
+validation evidence — it does not require a test in the implementation
+and is not counted toward the coverage gate. A TC ID marked `Manual
+verification` in the plan requires human verification — it does not
+require an automated test and is not counted toward the coverage gate;
+the procedure and evidence remain visible in the validation report.
+The code phase must not invent N/A, qualification-gate, or
+manual-verification exemptions that the plan did not authorize. The testplan is a floor, not a ceiling: tests discovered
+through TDD that are not tied to any TC ID are expected and
+encouraged.
 
 If no story-scoped testplan exists and `02-plan.md` has no Test Plan
 Coverage section, skip this check. However, if `02-plan.md` has TC

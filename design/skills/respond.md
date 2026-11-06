@@ -106,15 +106,60 @@ Group comments into categories:
 | **Testplan feedback** | Route to testplan change handling (see Step 4, "Applying testplan changes") |
 | **Out of scope** | Draft a reply explaining why |
 
-**Routing testplan comments:** Line-level review comments (from
-`gh api .../pulls/{pr-number}/comments`) include a `path` field. Comments
-with `path` ending in `testplan.md` are categorized as **Testplan
-feedback**. Top-level PR comments (from `gh pr view --json comments`) do
-not carry a `path`. For these, inspect the comment body: if it references
-test case IDs matching the pattern `TC-` followed by a requirement
-identifier, or discusses adding, modifying, or removing test cases,
-categorize as **Testplan feedback**. When uncertain, categorize as the
-next-best-fit category and let the user reclassify during Step 3.
+**Routing validation artifact comments:** Line-level review comments
+(from `gh api .../pulls/{pr-number}/comments`) include a `path` field
+containing the full feature-directory-relative path (e.g.,
+`v2.1/feature-slug/testplan.md`). Build the published artifact path
+map from `publish-metadata.json`:
+
+- If `validation_artifacts` exists, build a map from each artifact's
+  full published path (`{release}/{feature}/{file}`) to its local
+  filename. Use `design_file_path` from publish-metadata to derive
+  the `{release}/{feature}` prefix. Also read the local
+  `validation-index.json` to get the validated `published_as` →
+  `local` mapping — this ensures the local filename used for routing
+  matches the actual local artifact file.
+  If `validation-index.json` is listed but cannot be read, parsed, or
+  validated (via `resolve --local`), stop and report the error — do
+  not build a routing map from unvalidated metadata. If
+  `validation_artifacts` in metadata lists files that do not match the
+  local `validation-index.json` entries, stop and report the
+  inconsistency.
+- If `validation_artifacts` is absent, fall back to `testplan_file_path`
+  as the sole entry (maps to `04-testplan.md` locally).
+
+Route comments using exact full-path matching against this map — not
+basename matching, which would collide if multiple features share a
+review or if non-artifact files share a basename:
+
+- Comments with `path` exactly matching a published validation
+  artifact path are categorized as **Testplan feedback** and tagged
+  with the specific artifact's local filename for routing in Step 4.
+- Top-level PR comments (from `gh pr view --json comments`) do not
+  carry a `path`. For these, inspect the comment body: if it
+  references test case IDs matching the pattern `TC-` followed by a
+  requirement identifier, or discusses adding, modifying, or removing
+  test cases, categorize as **Testplan feedback**. To resolve which
+  artifact owns a referenced TC ID, search each validation artifact
+  for the exact TC ID heading (`#### TC-{id}:`). If the TC ID is
+  found in exactly one artifact, route to that artifact. If found in
+  none, flag the unknown TC ID to the user. Do not use substring
+  matching — require exact TC ID heading matches.
+- When a top-level comment references TC IDs from multiple artifacts,
+  or mentions artifact filenames explicitly, note all affected
+  artifacts and present per-artifact changes in Step 3.
+- When a comment could apply to multiple validation artifacts and the
+  intent is ambiguous (e.g., a top-level comment says "add a security
+  test case" but both a primary testplan and a security companion
+  exist), present the ambiguity to the user in Step 3 and ask which
+  artifact to modify. Do not guess or silently pick one.
+- Comments on files NOT in the validation artifact set (e.g.,
+  `design.md`, unrelated files) are routed to their normal categories
+  — they are not discarded or reclassified. Out-of-set comments
+  remain visible and correctly classified.
+
+When uncertain, categorize as the next-best-fit category and let the
+user reclassify during Step 3.
 
 ### Step 3: Propose Responses
 
@@ -141,8 +186,18 @@ Present each comment with a proposed response:
 > {quoted comment text}
 
 **Category:** Testplan feedback
+**Target artifact:** testplan.md (04-testplan.md)
 **Proposed response:** {suggested reply}
 **Testplan change needed:** {modify TC-FR2-01 expected result / add TC-FR2-03 / remove TC-FR1-02}
+**Cascade:** Update affected stories' Validated by in Design Reference
+
+### Comment 4 — {reviewer} (top-level, multi-artifact)
+> {quoted comment text referencing TC IDs from multiple artifacts}
+
+**Category:** Testplan feedback
+**Target artifacts:** testplan.md (TC-FR2-01), hw-validation.md (TC-NFR3-02)
+**Proposed response:** {suggested reply}
+**Changes needed:** {per-artifact changes}
 **Cascade:** Update affected stories' Validated by in Design Reference
 ```
 
@@ -211,9 +266,16 @@ discussion into a proposed resolution:
 #### Applying testplan changes
 
 When approved changes include testplan modifications (category: Testplan
-feedback), apply them in this order:
+feedback), apply them to the correct artifact file based on the **Target
+artifact** identified in Step 3. Each artifact is identified by its
+published filename (e.g., `testplan.md`) and maps to its local filename
+via `validation-index.json` (e.g., `04-testplan.md`). If
+`validation-index.json` does not exist, the sole artifact is
+`04-testplan.md` (legacy behavior).
 
-1. **Modify `04-testplan.md`.** Before making any changes:
+Apply changes in this order:
+
+1. **Modify the target artifact file.** Before making any changes:
    - Record the IC and requirement mappings of any test cases that
      will be removed, reassigned, or have their IC or requirement
      mapping changed (even if the TC ID is retained) — both are needed
@@ -224,9 +286,10 @@ feedback), apply them in this order:
      this mutation round (additions or ID-reassignments). For each
      such group, build a **reserved-ID high-water mark** before
      applying any edits in the batch: scan all current TC IDs under
-     that group's `### FR-*` / `### NFR-*` heading (including any
-     about to be removed — deletion never releases a reserved
-     sequence) and record the highest sequence number. If reliable
+     that group's `### FR-*` / `### NFR-*` heading **across all
+     validation artifacts** (including any about to be removed —
+     deletion never releases a reserved sequence) and record the
+     highest sequence number. If reliable
      context is available (e.g., prior document versions, review
      comments, or provenance metadata that names previously retired
      IDs), include any retired ID higher than the current maximum.
@@ -317,8 +380,9 @@ feedback), apply them in this order:
    - Re-read the story file at
      `.artifacts/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md`.
    - Rewrite the `Validated by` line from the **current** (post-
-     mutation) testplan state: collect all TC IDs that match this story
-     (by IC overlap or requirement-based fallback for `—` TCs),
+     mutation) state **across all validation artifacts** (primary
+     testplan and companions): collect all TC IDs that match this
+     story (by IC overlap or requirement-based fallback for `—` TCs),
      then write `Validated by: {comma-separated TC IDs}`. This ensures
      old stories lose stale references and new stories gain them.
    - If a story loses all its test cases, write:
@@ -388,47 +452,169 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 git -C "{docs_repo_path}" add "{design_file_path}"
 ```
 
-**Skip testplan docs-repo sync if any of these are true:**
-- `04-testplan.md` does not exist AND `publish-metadata.json` does not
-  contain a `testplan_file_path` field (no testplan anywhere)
-- `publish-metadata.json` does not contain a `testplan_file_path` field
-  (testplan was never published — changes are applied locally only; re-run
-  `/publish` to include the testplan in the docs repo)
+**Sync all validation artifacts to the docs repo.**
 
-**If `04-testplan.md` does NOT exist but `publish-metadata.json`
-contains `testplan_file_path`** (testplan was removed), remove the
-published testplan from the docs repo if it is still tracked:
-
-Check whether the file is tracked:
+Resolve the shared validation index script:
 
 ```bash
-git -C "{docs_repo_path}" ls-files --error-unmatch "{testplan_file_path}"
+VALIDATION_INDEX_SCRIPT="${HOME}/.ai-workflows/design/scripts/validation_index.py"
 ```
 
-- If exit 0 (file is tracked), remove it:
+Derive `{feature-dir}` from `design_file_path` in publish-metadata
+(e.g., `v2.1/feature-slug` from `v2.1/feature-slug/design.md`).
+
+**Build CURRENT set:** Resolve the current local artifacts:
 
 ```bash
-git -C "{docs_repo_path}" rm "{testplan_file_path}"
+python3 "$VALIDATION_INDEX_SCRIPT" resolve --local ".artifacts/design/{issue-key}"
 ```
 
-- If exit 1 with "did not match any file(s) known to git" (file is not
-  tracked — already deleted by another process), skip the `git rm`.
-- If any other non-zero exit (unexpected git error), stop and report
-  the error to the user. Do not proceed with metadata cleanup until the
-  error is resolved.
+If the command exits 0, parse the JSON array (may be empty `[]`).
+If the command exits non-zero, a validation error occurred — **stop
+and report the error.** Do not fall back to legacy behavior when a
+malformed index is present.
 
-In either case, remove `testplan_file_path` from `publish-metadata.json`.
+If `validation-index.json` does not exist in
+`.artifacts/design/{issue-key}` and `04-testplan.md` exists (legacy
+layout), build a normalized index first with `build-legacy`, then
+re-run `resolve --local`.
 
-**If both `04-testplan.md` exists and `publish-metadata.json` contains
-`testplan_file_path`**, copy the testplan to the docs repo:
+**Validate current set:** For each artifact in the current set,
+verify its local file exists and is not a symlink. A listed
+artifact whose local file is missing or is a symlink is an error —
+stop and report to the user. Do not delete published content based
+on a missing local file.
+
+**Snapshot PREVIOUS state:** Before capture, remove any existing
+`.artifacts/design/{issue-key}/prev-published-index.json`. If the
+removal fails (non-zero exit other than file-not-found), stop and
+report the error. Then: if
+`{docs_repo_path}/{feature-dir}/validation-index.json` exists, copy
+it to `.artifacts/design/{issue-key}/prev-published-index.json`. If
+it does not exist but `{docs_repo_path}/{feature-dir}/testplan.md`
+exists (legacy), create the minimal published snapshot:
+
+```json
+{
+  "schema_version": "1.0",
+  "primary_testplan": "testplan.md",
+  "artifacts": [{"file": "testplan.md", "type": "testplan"}]
+}
+```
+
+Save to `.artifacts/design/{issue-key}/prev-published-index.json`.
+If neither exists, no previous snapshot is captured.
+
+**Validate the snapshot if one was captured.** Before copying any
+current artifacts or overwriting the published index, validate the
+captured snapshot. If no snapshot was captured (no previous
+published state), skip validation and continue with an empty
+previous set.
 
 ```bash
-cp ".artifacts/design/{issue-key}/04-testplan.md" "{docs_repo_path}/{testplan_file_path}"
+if [ -f ".artifacts/design/{issue-key}/prev-published-index.json" ]; then
+  python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issue-key}/prev-published-index.json"
+fi
+```
+
+If validation fails, **stop and report** — do not proceed with
+sync using a malformed previous snapshot. The snapshot must be
+corrected or removed before continuing.
+
+**Skip sync entirely** if both current and previous sets are empty
+and publish-metadata has no `validation_artifacts` or
+`testplan_file_path`.
+
+**Copy ALL current artifacts** to the docs repo (not just previously
+tracked ones — this handles new companions added during respond).
+Before each copy, reject symlink destinations and verify that any
+existing destination file is in the previous validation set (an
+existing file not in the previous set is unowned and must not be
+overwritten):
+
+```bash
+cp ".artifacts/design/{issue-key}/{local}" "{docs_repo_path}/{feature-dir}/{published_as}"
 ```
 
 ```bash
-git -C "{docs_repo_path}" add "{testplan_file_path}"
+git -C "{docs_repo_path}" add "{feature-dir}/{published_as}"
 ```
+
+**Update the published validation-index.json:** If the current set
+is non-empty, transform and write the updated index:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" "{docs_repo_path}/{feature-dir}/validation-index.json" --trusted-output-base "{docs_repo_path}"
+```
+
+```bash
+git -C "{docs_repo_path}" add "{feature-dir}/validation-index.json"
+```
+
+**Remove retired artifacts:** Compute the change set before
+deleting anything. The comparison must use the new published index
+when one was written, or an empty artifact list when the current
+set is empty.
+
+If the current set is **non-empty** and a previous snapshot exists:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-published-index.json" "{docs_repo_path}/{feature-dir}/validation-index.json"
+```
+
+For each filename in the `removed` list:
+
+```bash
+git -C "{docs_repo_path}" ls-files --error-unmatch "{feature-dir}/{stale-filename}"
+```
+
+If tracked, stage its removal:
+
+```bash
+git -C "{docs_repo_path}" rm -- "{feature-dir}/{stale-filename}"
+```
+
+If not tracked (already removed), skip. If the check or removal
+produces an unexpected error, stop and report.
+
+If the current set is **empty** and the previous set had artifacts,
+present the exact filenames from the previous snapshot to the user
+and ask for explicit confirmation before proceeding:
+
+List the filenames:
+- For each artifact in the previous snapshot, show: `{feature-dir}/{filename}`
+- Show: `{feature-dir}/validation-index.json` (if the previous
+  publication included one)
+
+Ask the user: **"The following published validation artifacts will
+be removed. Confirm retirement, or restore the local artifact set
+and re-run."** The user must explicitly confirm removal of these
+specific filenames. Generic publish or review approval is not
+sufficient — the user must acknowledge that these files are
+intentionally being retired.
+
+If the user declines or does not confirm, stop cleanup — preserve
+published artifacts and metadata unchanged. Do not proceed with
+deletion or metadata updates.
+
+If the user confirms, validate the previous snapshot before removal:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issue-key}/prev-published-index.json"
+```
+
+If validation fails, stop and report. If it passes, for each
+listed artifact, check whether it is tracked and stage removal
+with `git -C "{docs_repo_path}" rm -- "{feature-dir}/{filename}"`.
+Skip untracked files. Remove the published `validation-index.json`
+only if the previous publication included one (skip for legacy-only
+snapshots that had only `testplan.md`). Use the same tracked-file
+check and `git rm` for the index removal.
+
+**Update publish-metadata.json:** Read, update `validation_artifacts`
+to match the current published set, update `testplan_file_path` to
+the primary testplan's full published path (or remove it if no
+primary testplan), and write back.
 
 ```bash
 git -C "{docs_repo_path}" commit -m "Design {issue-key}: address review feedback"
@@ -535,6 +721,8 @@ Summarize:
 - PR comments posted (with user approval)
 - `.artifacts/design/{issue-key}/03-design.md` (updated if needed)
 - `.artifacts/design/{issue-key}/04-testplan.md` (updated if testplan feedback was applied)
+- `.artifacts/design/{issue-key}/04-{slug}.md` (companion artifacts updated if feedback was applied)
+- `.artifacts/design/{issue-key}/validation-index.json` (updated if artifacts were added or removed)
 - `.artifacts/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md` (Validated by updated in Design Reference if testplan changed)
 - `.artifacts/design/{issue-key}/09-review-responses.md`
 

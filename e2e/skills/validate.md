@@ -234,38 +234,92 @@ covered:
 ### Step 7b: Test Plan Verification
 
 If `.artifacts/e2e/{issue-key}/testplan.md` exists, independently verify
-that every test case has been covered by the e2e tests. This check
-re-derives the required TC ID list from `testplan.md` directly — it does
-NOT rely on the plan's task-to-TC-ID mappings or `/code`'s per-task
-reconciliation for determining which tests exist. The only information
-carried forward from the plan is the N/A rationale for test cases marked
-inapplicable. This is an intentional independent verification: if the
+that every **automatable** test case has been covered by the e2e tests.
+Test cases marked with a `Qualification gate` marker in the story
+testplan are **not** candidates for e2e test automation — they require
+their designated execution environment (e.g., hardware lab, security
+audit tooling) and are tracked as external validation evidence, not
+automated test coverage. Exclude qualification-gate TCs from the
+coverage check; verify they are listed in the validation report's
+external evidence section instead.
+
+This check re-derives the required TC ID list from `testplan.md`
+directly — it does NOT rely on the plan's task-to-TC-ID mappings or
+`/code`'s per-task reconciliation for determining which tests exist.
+The only information carried forward from the plan is the N/A rationale
+for test cases marked inapplicable. This is an intentional independent
+verification: if the
 plan's bookkeeping or the code phase's gate drifted from reality, this
 step catches it.
 
 If `testplan.md` does not exist and `02-plan.md` has no Test Plan
 Coverage section, skip this step entirely. However, if `02-plan.md`
 has TC mappings but `testplan.md` is missing, unreadable, or malformed
-(no parseable TC IDs), stop and report the inconsistency.
+(no parseable TC IDs and no Qualification Gates section), stop and
+report the inconsistency. A gate-only testplan (zero TC IDs but a
+`## Qualification Gates` section) is valid only when `02-plan.md`
+contains no TC mappings in its Test Plan Coverage section. If TC
+mappings remain, stop and report the inconsistency — re-ingest may
+have replaced TCs with gates while the plan retains stale mappings.
+When consistent, skip the automated coverage check and proceed
+directly to step 4 below.
 
-1. Read `testplan.md` and extract all TC IDs. For each TC entry,
-   verify that Preconditions, Steps, and Expected Results sections
-   are present. If any entry is missing a required section, stop and
-   report the testplan as malformed.
-2. For each TC ID (except those the validate phase agrees are
-   legitimately N/A based on the rationale in the plan's Test Plan
-   Coverage matrix):
+**Unverified source handling:** If `testplan.md` contains
+`Freshness: unverified`, check whether the Test Plan Coverage
+section in `02-plan.md` records a confirmed status for the TCs.
+
+- **Confirmed TCs** (plan records user confirmation): treat as
+  normative despite unverified source freshness. Write gap-fill
+  tests for missing confirmed TCs, report TC coverage normally.
+  Source freshness remains unverified but confirmed TCs represent
+  the user's accepted validation contract.
+- **Unconfirmed TCs** (no confirmed status in plan): coverage is
+  provisional, not normative. Do not write mandatory gap-fill
+  tests. Report as "unverified — source testplan not confirmed."
+
+In both cases, do not block the validation report or AC-based
+work.
+
+1. Read `testplan.md` and extract all TC IDs. Separate them into
+   three groups:
+   - **Automatable TCs** (`Automation: automated` without a
+     `[Qualification gate]` marker): verify Preconditions, Steps,
+     and Expected Results sections are present. If missing, stop
+     and report the testplan as malformed.
+   - **Manual verification TCs** (`[Manual verification]` marker):
+     verify the TC entry is present. These do not require
+     Preconditions/Steps/Expected Results sections (they describe
+     human verification procedures).
+   - **Qualification gate TCs** (`[Qualification gate]` marker):
+     verify the TC entry is present. These do not require
+     Preconditions/Steps/Expected Results sections.
+2. For each **automatable** TC ID (except those the validate phase
+   agrees are legitimately N/A based on the rationale in the plan's
+   Test Plan Coverage matrix):
    - Search the e2e test files on the feature branch for a test
      scenario whose validations match the TC's Steps and Expected
      Results.
    - The match is behavioral, not textual — the test must exercise the
      described scenario and assert the described outcomes.
    - Record the test file and scenario name for each TC ID.
-3. If any TC ID lacks a corresponding test:
-   - Write the missing test following the reference suite's patterns.
+3. If any automatable TC ID lacks a corresponding test:
+   - If `testplan.md` contains `Freshness: unverified` and the Test
+     Plan Coverage in `02-plan.md` has not been confirmed (no
+     "confirmed" status), report the gap as provisional: "TC
+     coverage gap — unconfirmed source, not normative until
+     confirmed." Do not gate commits on unconfirmed TC gaps.
+   - For confirmed TCs (user-confirmed despite unverified source)
+     or verified TCs: write the missing test following the
+     reference suite's patterns. Confirmed TCs are normative —
+     their gaps are real and should be filled.
    - Commit the test following the project's commit format.
    - Re-run the relevant checks from Step 3.
-4. Record results for the validation report.
+4. For manual verification TCs, qualification gate TCs, and non-TC
+   qualification gates (from the `## Qualification Gates` section
+   of the story testplan — these have no TC IDs), record their
+   status in the External Validation Evidence section (see report
+   template below).
+5. Record results for the validation report.
 
 ### Step 8: Write Validation Report
 
@@ -334,10 +388,45 @@ Write `.artifacts/e2e/{issue-key}/05-validation-report.md`:
  - gap-filled: test scenario was written during validation
  - N/A: test case legitimately not applicable (rationale required)
 
- If all covered: "All test plan cases verified."
+ If all automatable TCs are covered: "All automatable test plan cases
+ verified." (Qualification-gate and manual-verification TCs are tracked
+ separately in External Validation Evidence.)
  If gaps were filled: "{N} test cases required additional tests during
  validation."
  If any N/A: list rationale for each.}
+
+## External Validation Evidence
+
+{Include if testplan.md contains qualification-gate TCs, manual
+ verification TCs, or non-TC qualification gates (from the
+ `## Qualification Gates` section). Omit entirely if none exist.
+
+ These entries are excluded from the automated coverage check —
+ they require a designated execution environment or human
+ verification. This section tracks their evidence status
+ separately. A pending or failed entry does NOT count as passed.}
+
+| ID | Title | Source | Verification Method | Evidence | Status |
+|----|-------|--------|--------------------|---------| -------|
+| TC-NFR3-01 | {title} | {testplan.md or companion} | {designated environment} | {link or "pending"} | {not-started / pending / verified / failed} |
+| {gate heading} | {gate name} | {source path §section} | {gate type} | {link or "pending"} | {not-started / pending / verified / failed} |
+
+{The ID column uses TC IDs for qualification-gate and manual-
+ verification TCs, and gate heading/source reference for non-TC
+ gates — do not invent TC IDs for non-TC entries.
+
+ Status values:
+ - not-started: no evidence collection has begun
+ - pending: evidence collection in progress
+ - verified: evidence reviewed and accepted
+ - failed: evidence shows the requirement is not met
+
+ If all verified: "All external validation evidence verified."
+ If any failed: "N entries FAILED — required evidence shows
+ requirements not met." Overall result must be FAIL.
+ If any pending or not-started: "N entries awaiting external
+ evidence — these are not discharged by automated test
+ coverage." Overall result cannot be PASS.}
 
 ## Quality Review Findings
 
@@ -363,10 +452,24 @@ Write `.artifacts/e2e/{issue-key}/05-validation-report.md`:
 
 ## Result
 
-{PASS — all checks pass, no anti-patterns, all acceptance criteria
- covered, no regressions.
- OR
- FAIL — with explanation of what still needs fixing.}
+{Automated e2e coverage: PASS / FAIL — whether all automatable TC IDs
+ have passing tests, no anti-patterns, and no regressions.
+
+ External validation: COMPLETE / PENDING / FAILED / NOT STARTED —
+ whether all manual verification, qualification gate, and non-TC
+ gate evidence has been provided and accepted.
+
+ Overall: PASS only when both automated coverage passes AND all
+ external validation entries are verified. Other outcomes:
+ - If automated tests pass but entries are pending/not-started:
+   "PASS (automated) — awaiting external validation for {N}
+   entries." Overall is NOT PASS.
+ - If any required entry has FAILED evidence: "FAIL — external
+   validation failed for {entry names}." Overall is FAIL.
+ - If automated tests fail: "FAIL — automated tests failed."
+ Follow the project's existing gating policy for merge readiness.
+ Do not claim acceptance passed when evidence is outstanding,
+ unverified, or failed.}
 ```
 
 ### Step 9: Present Results

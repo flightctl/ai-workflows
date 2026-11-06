@@ -36,17 +36,18 @@ full usage.
 
 ## Process
 
-### Prerequisites: Resolve Script Path
+### Prerequisites: Resolve Script Paths
 
 Before any `cd` or subshell that changes the working directory, resolve
-the shared script to an absolute path so it remains valid:
+shared scripts to absolute paths so they remain valid:
 
 ```bash
 PUBLISH_SCRIPT="${HOME}/.ai-workflows/_shared/scripts/publish.py"
+VALIDATION_INDEX_SCRIPT="${HOME}/.ai-workflows/design/scripts/validation_index.py"
 ```
 
-Use `$PUBLISH_SCRIPT` instead of the relative path in all subsequent
-commands.
+Use `$PUBLISH_SCRIPT` and `$VALIDATION_INDEX_SCRIPT` instead of the
+relative paths in all subsequent commands.
 
 ### Step 1: Read the Design Document
 
@@ -226,39 +227,210 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 git -C "{docs_repo_path}" add "{release}/{feature}/design.md"
 ```
 
-**Testplan publication:**
+**Validation artifact publication:**
 
-**If `04-testplan.md` does not exist:** check whether a previously
-published testplan exists at
-`{docs_repo_path}/{release}/{feature}/testplan.md`. If it does, remove
-it:
+Publication follows a strict snapshot-before-write order to avoid
+data loss when artifacts change between publishes.
+
+**Resolve current artifacts.** Resolve the local validation
+artifact set:
 
 ```bash
-git -C "{docs_repo_path}" rm -- "{release}/{feature}/testplan.md"
+python3 "$VALIDATION_INDEX_SCRIPT" resolve --local ".artifacts/design/{issue-key}"
 ```
 
-Commit with the design-only message (regardless of whether a stale
-testplan was removed) and skip to Step 5:
+If the command exits 0, parse the JSON array output as the current
+set (may be empty `[]`). If the command exits non-zero, a
+validation error occurred (malformed index, missing listed files) —
+**stop and report the error to the user.** Do not fall back to
+legacy behavior when a malformed index is present.
+
+If `validation-index.json` does not exist in
+`.artifacts/design/{issue-key}` and `04-testplan.md` exists (legacy
+layout), build a normalized index first:
 
 ```bash
+python3 "$VALIDATION_INDEX_SCRIPT" build-legacy ".artifacts/design/{issue-key}" ".artifacts/design/{issue-key}/validation-index.json"
+```
+
+This writes `validation-index.json` with the single primary entry.
+Re-run `resolve --local` to get the normalized set.
+
+Remove any snapshot left by a previous run before capturing:
+
+```bash
+rm -f -- ".artifacts/design/{issue-key}/prev-published-index.json"
+```
+
+If the removal command fails (non-zero exit for a reason other than
+file-not-found), stop and report the error.
+
+**Snapshot previous published state.** Before writing any
+files to the docs repo, snapshot the previously published index so
+stale files can be identified after the new set is written.
+
+If `{docs_repo_path}/{release}/{feature}/validation-index.json`
+exists, copy it to a temp file:
+
+```bash
+cp "{docs_repo_path}/{release}/{feature}/validation-index.json" ".artifacts/design/{issue-key}/prev-published-index.json"
+```
+
+If it does not exist but `{docs_repo_path}/{release}/{feature}/testplan.md`
+exists (legacy single-testplan), write a minimal published snapshot:
+
+```json
+{
+  "schema_version": "1.0",
+  "primary_testplan": "testplan.md",
+  "artifacts": [{"file": "testplan.md", "type": "testplan"}]
+}
+```
+
+Save to `.artifacts/design/{issue-key}/prev-published-index.json`.
+
+If neither exists, there is no previous set — skip the snapshot.
+
+**Validate the snapshot if one was captured.** Before copying any
+current artifacts or overwriting the published index, validate the
+captured snapshot to ensure it is trustworthy for later removal
+decisions. If no snapshot was captured (first publish), skip
+validation and proceed with an empty previous set.
+
+```bash
+if [ -f ".artifacts/design/{issue-key}/prev-published-index.json" ]; then
+  python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issue-key}/prev-published-index.json"
+fi
+```
+
+If validation fails, **stop and report** — do not proceed with
+publication using a malformed previous snapshot. The snapshot must
+be corrected or removed before continuing.
+
+### Step 5: Copy Current Artifacts
+
+If the current set is empty (no validation artifacts), skip to Step 7.
+
+For each entry in the current set, verify the local file exists
+before copying. A listed artifact whose local file is missing is an
+error — stop and report it to the user. Do not proceed with partial
+publication.
+
+Verify that no source file is a symlink. For each destination path,
+check:
+- If the destination is a symlink, stop and report.
+- If the destination already exists and the filename is NOT in the
+  previous validation set (from Step 4), stop and report — this
+  would overwrite an unowned file (e.g., `clarifications.md` from
+  PRD publication). Files that ARE in the previous set are owned
+  updates and may be overwritten.
+
+Copy each artifact to the docs repo:
+
+```bash
+cp ".artifacts/design/{issue-key}/{local}" "{docs_repo_path}/{release}/{feature}/{published_as}"
+```
+
+```bash
+git -C "{docs_repo_path}" add "{release}/{feature}/{published_as}"
+```
+
+### Step 6: Publish the Validation Index
+
+Transform and write the
+published index for downstream discovery:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" "{docs_repo_path}/{release}/{feature}/validation-index.json" --trusted-output-base "{docs_repo_path}"
+```
+
+```bash
+git -C "{docs_repo_path}" add "{release}/{feature}/validation-index.json"
+```
+
+### Step 7: Remove Stale Artifacts
+
+Compute the change set by comparing the previous snapshot (Step 4)
+against the current set. The comparison must use the new published
+index when one was written in Step 6, or an empty artifact list
+when the current set is empty.
+
+**If the current set is non-empty** and a previous snapshot exists,
+diff using the newly written published index:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-published-index.json" "{docs_repo_path}/{release}/{feature}/validation-index.json"
+```
+
+The command outputs a JSON object with `removed` listing filenames
+to delete. For each filename in `removed`:
+
+```bash
+git -C "{docs_repo_path}" rm -- "{release}/{feature}/{stale-filename}"
+```
+
+Do not remove files outside the feature directory or files not
+listed in the previous set.
+
+**If the current set is empty** and the previous set had artifacts,
+present the exact filenames from the previous snapshot to the user
+and ask for explicit confirmation before proceeding:
+
+List the filenames:
+- For each artifact in the previous snapshot, show: `{release}/{feature}/{filename}`
+- Show: `{release}/{feature}/validation-index.json` (if the previous
+  publication included one)
+
+Ask the user: **"The following published validation artifacts will
+be removed. Confirm retirement, or restore the local artifact set
+before proceeding."** The user must explicitly confirm removal of
+these specific filenames. Generic publish approval is not sufficient.
+
+If the user declines or does not confirm, stop — preserve published
+artifacts and metadata unchanged. The `/revise` fallback to `/publish`
+must not bypass this confirmation.
+
+If the user confirms, validate the previous snapshot before removal:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issue-key}/prev-published-index.json"
+```
+
+If validation fails, **stop and report** — do not delete files based
+on a malformed snapshot. If validation passes, remove each artifact
+listed in the snapshot:
+
+```bash
+git -C "{docs_repo_path}" rm -- "{release}/{feature}/{previous-artifact-file}"
+```
+
+If the previous snapshot was built from a published
+`validation-index.json` (not a legacy-only `testplan.md` snapshot),
+also remove the index:
+
+```bash
+git -C "{docs_repo_path}" rm -- "{release}/{feature}/validation-index.json"
+```
+
+Do not attempt to remove `validation-index.json` for a legacy-only
+snapshot — no index file exists to remove.
+
+If no previous snapshot exists (first publish with no artifacts),
+no removal is needed.
+
+### Step 8: Commit
+
+Commit with a message reflecting what was published:
+
+```bash
+# If validation artifacts were published:
+git -C "{docs_repo_path}" commit -m "Add design document and validation artifacts for {issue-key}: {title}"
+
+# If no validation artifacts (design-only):
 git -C "{docs_repo_path}" commit -m "Add design document for {issue-key}: {title}"
 ```
 
-**If `04-testplan.md` exists**, copy it to the docs repo:
-
-```bash
-cp ".artifacts/design/{issue-key}/04-testplan.md" "{docs_repo_path}/{release}/{feature}/testplan.md"
-```
-
-```bash
-git -C "{docs_repo_path}" add "{release}/{feature}/testplan.md"
-```
-
-```bash
-git -C "{docs_repo_path}" commit -m "Add design document and testplan for {issue-key}: {title}"
-```
-
-### Step 5: Push and Create PR
+### Step 9: Push and Create PR
 
 Push the branch using the shared script (run from the docs repo):
 
@@ -291,9 +463,11 @@ exist, write "General review — no specific items flagged."}
 
 ### Documents
 - `design.md` — technical design document
-{If `04-testplan.md` was published, add:
-- `testplan.md` — behavioral test cases mapped to PRD requirements
-Otherwise, omit the testplan bullet entirely.}
+{For each published validation artifact, add a bullet using the
+ file names from the published validation-index.json (Step 6):
+- `{primary_testplan}` — acceptance test cases mapped to PRD requirements
+- `{companion-file}` — {companion purpose}
+If no validation artifacts were published, omit these bullets entirely.}
 
 ### How to Review
 - Comment inline on specific sections
@@ -314,7 +488,7 @@ First, check whether a PR already exists for this branch:
 python3 "$PUBLISH_SCRIPT" check-existing --repo {owner}/{repo} --head {head-ref}
 ```
 
-If exit code is 5, a PR already exists — skip to Step 6 and report its
+If exit code is 5, a PR already exists — skip to Step 10 and report its
 URL. Parse the PR number from the returned JSON. If the command fails
 (non-zero exit other than 5), stop and report the error. If exit code
 is 0, create a new PR:
@@ -331,9 +505,16 @@ python3 "$PUBLISH_SCRIPT" create-pr \
 
 The script prints the PR URL on stdout. Parse the PR number from the URL path.
 
-### Step 6: Save Publish Metadata
+### Step 10: Save Metadata and Report
 
-If `04-testplan.md` was published:
+Save the core metadata using the shared script. If the primary
+testplan was published, include `testplan_file_path` for backwards
+compatibility with consumers that do not read `validation_artifacts`.
+Derive the primary testplan filename from the published
+`validation-index.json` written in Step 6 — read its
+`primary_testplan` value (e.g., `testplan.md` for the default, or a
+custom name if the index specifies one). For the legacy case where
+no index was written, fall back to the literal `testplan.md`:
 
 ```bash
 python3 "$PUBLISH_SCRIPT" save-metadata \
@@ -341,7 +522,7 @@ python3 "$PUBLISH_SCRIPT" save-metadata \
   release={release} \
   feature={feature} \
   design_file_path={release}/{feature}/design.md \
-  testplan_file_path={release}/{feature}/testplan.md \
+  testplan_file_path={release}/{feature}/{primary_testplan} \
   pr_number={pr-number} \
   branch={branch-name}
 ```
@@ -358,7 +539,38 @@ python3 "$PUBLISH_SCRIPT" save-metadata \
   branch={branch-name}
 ```
 
-### Step 7: Report to User
+**Add the validation artifact list.** After `save-metadata` writes
+the file, read it, add the `validation_artifacts` array, and write it
+back. This list is the authoritative record of all published
+validation artifacts:
+
+Read `.artifacts/design/{issue-key}/publish-metadata.json`, parse as
+JSON. Add a `validation_artifacts` key with the same array as the
+published `validation-index.json` (using `file`, `type`, and for
+companions, `purpose` and `audience`). Write the updated JSON back to
+the same file.
+
+Example resulting metadata:
+
+```json
+{
+  "branch": "design/EDM-1471",
+  "design_file_path": "v2.1/feature-slug/design.md",
+  "feature": "feature-slug",
+  "pr_number": "42",
+  "release": "v2.1",
+  "testplan_file_path": "v2.1/feature-slug/testplan.md",
+  "validation_artifacts": [
+    {"file": "testplan.md", "type": "testplan"},
+    {"file": "hw-validation.md", "type": "companion", "purpose": "Hardware qualification", "audience": "Hardware QE"}
+  ]
+}
+```
+
+When no validation artifacts were published, omit the
+`validation_artifacts` key entirely (legacy-only metadata).
+
+**Report to the user:**
 
 Present:
 - PR URL
@@ -369,8 +581,9 @@ Present:
 ## Output
 
 - `.artifacts/config.json` (workspace-level config, created if it didn't exist)
-- `.artifacts/design/{issue-key}/publish-metadata.json`
-- Design document committed and pushed to feature branch in the docs repo
+- `.artifacts/design/{issue-key}/publish-metadata.json` (includes `validation_artifacts` when artifacts were published)
+- Design document and validation artifacts committed and pushed to feature branch in the docs repo
+- `validation-index.json` published to docs repo feature directory for downstream discovery
 - Draft PR created against the docs repo
 - `.artifacts/design/{issue-key}/08-pr-description.md`
 

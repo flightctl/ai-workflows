@@ -54,6 +54,8 @@ discovery and ambiguous requests.
   -> fetches [QE] story from Jira
   -> verifies [DEV] dependencies are merged
   -> loads design document and PRD context
+  -> discovers validation artifacts (multi-doc index or legacy single testplan)
+  -> filters test cases to story scope; marks qualification gates
   -> explores e2e test infrastructure (framework, test abstractions, patterns)
   -> selects reference suite as pattern source
   -> discovers validation profile (test execution, lint commands)
