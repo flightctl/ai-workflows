@@ -267,6 +267,18 @@ multiple test cases. The goal is complete coverage of distinct
 observable outcomes and risks, not a test case per requirement/IC
 combination.
 
+**Review and qualification gates:** Some requirements are validated by
+design-level review criteria (architectural review, documentation
+completeness checks) or qualification gates (compliance certification,
+hardware qualification sign-off) rather than executable test scenarios.
+These are NOT test cases — do not assign TC IDs, do not include them
+in TC counts or the Test Case Index. Instead, list them in a dedicated
+`## Review and Qualification Gates` section in the testplan Overview.
+Requirements covered exclusively by gates should reference the gate in
+the Requirement Coverage Gaps section rather than being listed as
+uncovered gaps (e.g., "FR-5 is validated by the architectural review
+gate — no executable test case is applicable").
+
 #### 9a: Derive Test Cases
 
 For each PRD requirement (FR-N, NFR-N), derive test cases:
@@ -375,13 +387,16 @@ Change field.
 - `manual` — the scenario requires human verification (visual checks,
   hardware interaction, exploratory testing)
 
-**Coverage target:** Every behavioral FR and NFR should have at least
-one test case. Documentation-only requirements are exempt (see the
+**Coverage target:** Every behavioral FR and NFR should be covered by
+at least one test case, review gate, or qualification gate.
+Documentation-only requirements are exempt (see the
 "Documentation-only requirements" rule) and belong in the
-Requirement Coverage Gaps section with rationale instead. Every IC
-should be exercised by at least one test case. An IC with no test
-case is either a testplan gap or an unnecessary interface change in
-the design.
+Requirement Coverage Gaps section with rationale instead.
+Requirements covered exclusively by review or qualification gates
+(not test cases) should reference the gate in the Gaps section rather
+than being listed as uncovered. Every IC should be exercised by at
+least one test case. An IC with no test case is either a testplan gap
+or an unnecessary interface change in the design.
 
 **Negative scenarios:** Include negative/error test cases where the PRD
 or design specifies error handling behavior. Do not invent error
@@ -456,6 +471,21 @@ Write `.artifacts/design/{issue-key}/04-testplan.md`:
 - **Companion plans:** {companion-1-slug}.md ({purpose}), {companion-2-slug}.md ({purpose})
 Otherwise, omit the Companion plans line entirely.}
 
+{If any requirements are covered by review or qualification gates
+rather than executable test cases, add:
+
+## Review and Qualification Gates
+
+| Gate | Requirements | Type | Reviewer/Owner |
+|------|-------------|------|----------------|
+| {gate name} | {FR-N, NFR-N} | {architectural review / documentation check / compliance certification / hardware qualification} | {responsible party} |
+
+These gates are NOT counted in the test case totals above. They
+represent non-executable validation criteria tracked separately
+from the testplan's test cases.
+
+Otherwise, omit this section entirely.}
+
 ## Test Case Index
 
 | ID | Scenario | IC | Priority |
@@ -522,10 +552,16 @@ Otherwise, omit the Companion plans line entirely.}
 ### Requirement Coverage Gaps
 
 {For each PRD requirement with no test cases: why it lacks coverage and
- a recommendation (e.g., "FR-5 is satisfied by internal changes with no
- observable interface — no behavioral test case is applicable").
+ a recommendation. Requirements covered by a Review and Qualification
+ Gate should reference the gate (e.g., "FR-5 is validated by the
+ architectural review gate — no executable test case is applicable").
+ Requirements satisfied by internal changes with no observable
+ interface should note that (e.g., "FR-6 is satisfied by internal
+ changes with no observable interface — no behavioral test case is
+ applicable").
 
- If no gaps: "All PRD requirements have test cases."}
+ If no gaps: "All PRD requirements have test cases or are covered
+ by review/qualification gates."}
 
 ### Interface Change Coverage Gaps
 
@@ -566,7 +602,7 @@ only in a parameter value into a single case with a variation table.
 Before presenting the testplan, verify:
 
 - [ ] No test case targets unit-level or internal implementation verification — every scenario exercises an observable system surface (API, CLI, UI, device behavior, configuration effect) or a justified cross-component/operational contract
-- [ ] Every FR and NFR has a test case or a documented Requirement Coverage Gap with rationale
+- [ ] Every FR and NFR has a test case, a review/qualification gate, or a documented Requirement Coverage Gap with rationale — requirements covered by gates reference the gate in Gaps, not listed as uncovered
 - [ ] Every IC from §5 has a test case or a documented Interface Change Coverage Gap with rationale
 - [ ] Every non-`—` Interface Change value matches an IC defined in §5, and that IC's `Requirements` line includes the test case's requirement
 - [ ] Every `—` Interface Change value is used only for a requirement without a direct IC mapping
@@ -637,7 +673,7 @@ requirement, Gaps, Summary) with these additions to the Overview:
 - **Feature:** {feature-key} — {feature-title}
 - **Purpose:** {why this companion exists as a separate artifact}
 - **Audience:** {who executes or reviews these scenarios}
-- **Primary testplan:** [testplan.md](04-testplan.md) (local artifact reference)
+- **Primary testplan:** testplan.md
 - **Total test cases:** {N}
 - **Requirements covered:** {N} of {total FR + NFR count}
 - **Interface changes covered:** {N} of {total IC count}
@@ -646,8 +682,12 @@ requirement, Gaps, Summary) with these additions to the Overview:
 **TC ID uniqueness:** Companion test cases use the same TC ID scheme
 (`TC-{req}-{NN}`) but IDs must be unique across ALL validation
 artifacts for this feature. Before assigning IDs in a companion,
-check the primary testplan's highest sequence number for each
-requirement group and allocate above that high-water mark.
+check ALL existing validation artifacts' (primary testplan and any
+previously written companions) highest sequence number for each
+requirement group and allocate above the feature-wide high-water
+mark. TC IDs are preserved when moving scenarios between artifacts
+(e.g., moving a test case from the primary testplan to a companion
+retains its original TC ID).
 
 **Self-review for companions:** Apply the same self-review checklist
 from Step 9c, plus verify:
@@ -701,6 +741,19 @@ Rules:
 - All `published_as` filenames must be unique
 
 When no companions exist, the index contains only the primary entry.
+
+Validate the written index:
+
+```bash
+VALIDATION_INDEX_SCRIPT="${HOME}/.ai-workflows/design/scripts/validation_index.py"
+python3 "$VALIDATION_INDEX_SCRIPT" validate --local ".artifacts/design/{issue-key}/validation-index.json"
+```
+
+If validation fails (non-zero exit), fix the reported errors before
+proceeding. The validate subcommand checks schema version, artifact
+types, filename uniqueness, companion requirements (purpose, audience),
+and that all listed local files exist.
+
 This file is read by `/publish`, `/revise`, `/respond`, and
 `/decompose` to discover the full set of validation artifacts.
 

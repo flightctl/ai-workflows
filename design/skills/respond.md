@@ -107,22 +107,38 @@ Group comments into categories:
 | **Out of scope** | Draft a reply explaining why |
 
 **Routing validation artifact comments:** Line-level review comments
-(from `gh api .../pulls/{pr-number}/comments`) include a `path` field.
-Read the `validation_artifacts` list from `publish-metadata.json` (or
-fall back to the legacy `testplan_file_path` if absent) to build the
-set of published validation filenames.
+(from `gh api .../pulls/{pr-number}/comments`) include a `path` field
+containing the full feature-directory-relative path (e.g.,
+`v2.1/feature-slug/testplan.md`). Build the published artifact path
+map from `publish-metadata.json`:
 
-- Comments with `path` matching any published validation artifact
-  filename (e.g., `testplan.md`, `hw-validation.md`) are categorized
-  as **Testplan feedback** and tagged with the specific artifact
-  filename for routing in Step 4.
+- If `validation_artifacts` exists, build a map from each artifact's
+  full published path (`{release}/{feature}/{file}`) to its local
+  filename. Use `design_file_path` from publish-metadata to derive
+  the `{release}/{feature}` prefix.
+- If `validation_artifacts` is absent, fall back to `testplan_file_path`
+  as the sole entry.
+
+Route comments using exact full-path matching against this map — not
+basename matching, which would collide if multiple features share a
+review or if non-artifact files share a basename:
+
+- Comments with `path` exactly matching a published validation
+  artifact path are categorized as **Testplan feedback** and tagged
+  with the specific artifact's local filename for routing in Step 4.
 - Top-level PR comments (from `gh pr view --json comments`) do not
   carry a `path`. For these, inspect the comment body: if it
   references test case IDs matching the pattern `TC-` followed by a
   requirement identifier, or discusses adding, modifying, or removing
-  test cases, categorize as **Testplan feedback**. When a top-level
-  comment references TC IDs from multiple artifacts, or mentions
-  artifact filenames explicitly, note all affected artifacts.
+  test cases, categorize as **Testplan feedback**. To resolve which
+  artifact owns a referenced TC ID, search each validation artifact
+  for the exact TC ID heading (`#### TC-{id}:`). If the TC ID is
+  found in exactly one artifact, route to that artifact. If found in
+  none, flag the unknown TC ID to the user. Do not use substring
+  matching — require exact TC ID heading matches.
+- When a top-level comment references TC IDs from multiple artifacts,
+  or mentions artifact filenames explicitly, note all affected
+  artifacts and present per-artifact changes in Step 3.
 - When a comment could apply to multiple validation artifacts and the
   intent is ambiguous (e.g., a top-level comment says "add a security
   test case" but both a primary testplan and a security companion
@@ -130,7 +146,8 @@ set of published validation filenames.
   artifact to modify. Do not guess or silently pick one.
 - Comments on files NOT in the validation artifact set (e.g.,
   `design.md`, unrelated files) are routed to their normal categories
-  — they are not discarded or reclassified.
+  — they are not discarded or reclassified. Out-of-set comments
+  remain visible and correctly classified.
 
 When uncertain, categorize as the next-best-fit category and let the
 user reclassify during Step 3.
@@ -426,55 +443,88 @@ git -C "{docs_repo_path}" add "{design_file_path}"
 
 **Sync all validation artifacts to the docs repo.**
 
-Read `validation_artifacts` from `publish-metadata.json`. If absent,
-fall back to the legacy `testplan_file_path` field (treat as a single
-artifact with `file` = basename of `testplan_file_path`, `local` =
-`04-testplan.md`).
-
-**Skip sync entirely** if no validation artifacts are tracked in
-publish-metadata (no `validation_artifacts` key and no
-`testplan_file_path` key).
-
-**For each tracked artifact**, determine its local and published paths:
-
-- **If the local file exists**, copy it to the docs repo:
+Resolve the shared validation index script:
 
 ```bash
-cp ".artifacts/design/{issue-key}/{local}" "{docs_repo_path}/{feature-dir}/{published}"
+VALIDATION_INDEX_SCRIPT="${HOME}/.ai-workflows/design/scripts/validation_index.py"
+```
+
+Derive `{feature-dir}` from `design_file_path` in publish-metadata
+(e.g., `v2.1/feature-slug` from `v2.1/feature-slug/design.md`).
+
+**Build CURRENT set:** Resolve the current local artifacts:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" resolve --local ".artifacts/design/{issue-key}"
+```
+
+If the command exits non-zero and `04-testplan.md` exists, build a
+legacy index first with `build-legacy`. If neither index nor
+`04-testplan.md` exists, the current set is empty.
+
+**Validate current set:** For each artifact in the current set,
+verify its local file exists. A listed artifact whose local file is
+missing is an error — stop and report to the user. Do not delete
+published content based on a missing local file.
+
+**Build PREVIOUS set:** Resolve what was previously published:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" resolve --published "{docs_repo_path}/{feature-dir}"
+```
+
+If no previous index or testplan exists in the docs repo, the
+previous set is empty.
+
+**Skip sync entirely** if both current and previous sets are empty
+and publish-metadata has no `validation_artifacts` or
+`testplan_file_path`.
+
+**Copy ALL current artifacts** to the docs repo (not just previously
+tracked ones — this handles new companions added during respond):
+
+```bash
+cp ".artifacts/design/{issue-key}/{local}" "{docs_repo_path}/{feature-dir}/{published_as}"
 ```
 
 ```bash
-git -C "{docs_repo_path}" add "{feature-dir}/{published}"
+git -C "{docs_repo_path}" add "{feature-dir}/{published_as}"
 ```
 
-- **If the local file does NOT exist** (artifact was removed during
-  this respond round), remove the published copy from the docs repo:
+**Remove retired artifacts** — only those in the PREVIOUS set but
+NOT in the CURRENT set:
 
 ```bash
-git -C "{docs_repo_path}" ls-files --error-unmatch "{feature-dir}/{published}"
+python3 "$VALIDATION_INDEX_SCRIPT" diff --previous-json '{previous-set}' --current-json '{current-set}'
 ```
 
-If tracked, remove it:
+For each filename in the diff output:
 
 ```bash
-git -C "{docs_repo_path}" rm "{feature-dir}/{published}"
+git -C "{docs_repo_path}" ls-files --error-unmatch "{feature-dir}/{stale-filename}"
 ```
 
-If not tracked (already removed by another process), skip.
+If tracked, remove it. If not tracked (already removed), skip.
+If any other non-zero exit (unexpected git error), stop and report.
 
-**Update the published validation-index.json** to reflect the current
-artifact set. If an artifact was removed, remove its entry from the
-published index. If an artifact was added, add its entry. Write the
-updated index to the docs repo:
+If the current set is empty and the previous set had artifacts,
+also remove `validation-index.json` from the docs repo.
+
+**Update the published validation-index.json:** If the current set
+is non-empty, transform and write the updated index:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" --output "{docs_repo_path}/{feature-dir}/validation-index.json"
+```
 
 ```bash
 git -C "{docs_repo_path}" add "{feature-dir}/validation-index.json"
 ```
 
-**Update publish-metadata.json** to match the current state: update
-`validation_artifacts`, and update `testplan_file_path` (set to the
-primary testplan's published path, or remove it if the primary testplan
-was removed).
+**Update publish-metadata.json:** Read, update `validation_artifacts`
+to match the current published set, update `testplan_file_path` to
+the primary testplan's full published path (or remove it if no
+primary testplan), and write back.
 
 ```bash
 git -C "{docs_repo_path}" commit -m "Design {issue-key}: address review feedback"
