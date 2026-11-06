@@ -287,18 +287,24 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
 | TC-FR1-01 | {title} | C1 | |
 | TC-FR1-02 | {title} | S1 | |
 | TC-NFR1-01 | {title} | N/A | {rationale} |
+| TC-NFR2-01 | {title} | Manual verification | {verification method} |
 | TC-NFR3-01 | {title} | Qualification gate | hardware device lab |
 
 {Every TC ID from testplan.md must appear. Each must be assigned to a
- scenario, marked N/A with a rationale, or listed as a qualification
- gate (TCs with a `Qualification gate` marker). Qualification-gate TCs
- are external validation evidence — they are NOT assigned to e2e test
- scenarios but must appear in the table with status `Qualification gate`
- and the designated execution environment as rationale. This is a
- set-diff gate: compute the difference between the set of TC IDs in
- testplan.md and the set assigned to scenarios, marked N/A, or listed
- as qualification gates. If the difference is non-empty, the plan is
- incomplete — resolve before proceeding.}
+ scenario, marked N/A with a rationale, listed as a manual verification
+ (TCs with a `[Manual verification]` marker), or listed as a
+ qualification gate (TCs with a `[Qualification gate]` marker).
+ Manual-verification TCs require human verification — they are NOT
+ assigned to e2e test scenarios but must appear in the table with
+ status `Manual verification` and the verification method as rationale.
+ Qualification-gate TCs are external validation evidence — they are NOT
+ assigned to e2e test scenarios but must appear in the table with status
+ `Qualification gate` and the designated execution environment as
+ rationale. This is a set-diff gate: compute the difference between the
+ set of TC IDs in testplan.md and the set assigned to scenarios, marked
+ N/A, listed as manual verification, or listed as qualification gates.
+ If the difference is non-empty, the plan is incomplete — resolve
+ before proceeding.}
 
 ## Risk Assessment
 
@@ -332,7 +338,7 @@ Before presenting the plan, verify:
 - [ ] Each validation in a consolidated scenario is tagged with its source AC
 - [ ] Scenario identifiers and titles are unique across the plan (no duplicate C#/S# or repeated names)
 - [ ] The plan is achievable — no scenarios depend on unmerged features or unavailable test infrastructure methods
-- [ ] If story-scoped testplan exists: every TC ID is assigned to a scenario, marked N/A with rationale, or listed as a qualification gate (Test Plan Coverage set-diff is clean)
+- [ ] If story-scoped testplan exists: every TC ID is assigned to a scenario, marked N/A with rationale, listed as manual verification, or listed as a qualification gate (Test Plan Coverage set-diff is clean)
 
 ### Step 7: Present to User
 

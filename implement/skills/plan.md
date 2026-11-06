@@ -201,19 +201,26 @@ Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
 | TC-FR1-01 | {title} | Task 2 | |
 | TC-FR1-02 | {title} | Task 3 | |
 | TC-NFR1-01 | {title} | N/A | {rationale} |
+| TC-NFR2-01 | {title} | Manual verification | {verification method} |
 | TC-NFR3-01 | {title} | Qualification gate | hardware device lab |
 
 {Every TC ID from testplan.md must appear. Each must be assigned to a
  task, marked N/A with a rationale (e.g., "NFR verified by load test
- infrastructure, not unit/integration tests"), or listed as a
- qualification gate (TCs with a `Qualification gate` marker).
+ infrastructure, not unit/integration tests"), listed as a manual
+ verification (TCs with a `[Manual verification]` marker), or listed
+ as a qualification gate (TCs with a `[Qualification gate]` marker).
+ Manual-verification TCs require human verification (visual checks,
+ exploratory testing) — they are NOT assigned to implementation tasks
+ but must appear in the table with status `Manual verification` and
+ the verification method as rationale.
  Qualification-gate TCs are external validation evidence — they are NOT
  assigned to implementation tasks but must appear in the table with
  status `Qualification gate` and the designated execution environment as
  rationale. This is a set-diff gate: compute the difference between the
  set of TC IDs in testplan.md and the set assigned to tasks, marked N/A,
- or listed as qualification gates. If the difference is non-empty, the
- plan is incomplete — resolve before proceeding.}
+ listed as manual verification, or listed as qualification gates.
+ If the difference is non-empty, the plan is incomplete — resolve
+ before proceeding.}
 
 ## Scope Baseline
 
@@ -278,7 +285,7 @@ Before presenting the plan, verify:
 - [ ] No tasks modify code outside the story's scope
 - [ ] Task count is reasonable — if you have more than 10 tasks, consider whether the story needs re-scoping
 - [ ] The plan is achievable — no tasks depend on unavailable infrastructure or unmerged code
-- [ ] If story-scoped testplan exists: every TC ID is assigned to a task, marked N/A with rationale, or listed as a qualification gate (Test Plan Coverage set-diff is clean)
+- [ ] If story-scoped testplan exists: every TC ID is assigned to a task, marked N/A with rationale, listed as manual verification, or listed as a qualification gate (Test Plan Coverage set-diff is clean)
 - [ ] Every ingest open question is a locked decision (specified or implementer default) or a product fork still listed
 - [ ] Open Questions contains only product forks, not pins/timeouts/names `/code` could default
 - [ ] Cited Reads stayed within the cap; `02-plan.md` has no pasted file bodies

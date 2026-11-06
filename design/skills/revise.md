@@ -178,7 +178,7 @@ feature-wide high-water mark for that requirement group.
 **Adding or removing companion plans during revision:**
 
 - **Adding:** If the user requests a new companion plan, create it
-  following the companion rules from the draft skill's Step 10.
+  following the companion rules from the draft skill's Step 9e.
   Update `validation-index.json` to include the new entry.
 - **Removing:** If the user requests removing a companion, delete its
   local file. Update `validation-index.json` to remove the entry.
@@ -337,6 +337,18 @@ it to `.artifacts/design/{issue-key}/prev-published-index.json`. If
 it does not exist but `{docs_repo_path}/{feature-dir}/testplan.md`
 exists (legacy), build a snapshot. If neither exists, there is no
 previous set.
+
+**Validate the snapshot immediately after capture.** Before copying
+any current artifacts or overwriting the published index, validate
+the captured snapshot:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issue-key}/prev-published-index.json"
+```
+
+If validation fails, **stop and report** — do not proceed with
+sync using a malformed previous snapshot. The snapshot must be
+corrected or removed before continuing.
 
 If both the current set and the previous set are empty and
 publish-metadata has no `validation_artifacts` or
