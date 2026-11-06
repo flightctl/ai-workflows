@@ -197,7 +197,8 @@ Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
  exists. If no story-scoped testplan: omit this section entirely.
 
  **Unverified source handling:** If `testplan.md` contains
- `Freshness: unverified` (set by `/ingest` when the upstream
+ `Freshness: unverified` or `**Freshness:** unverified` (set by
+ `/ingest` when the upstream
  source was not found on re-ingest), present the TC list to the
  user and require explicit confirmation that the retained TCs are
  still applicable before using them as normative coverage
@@ -247,11 +248,20 @@ Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
  Qualification-gate TCs are external validation evidence — they are NOT
  assigned to implementation tasks but must appear in the table with
  status `Qualification gate` and the designated execution environment as
- rationale. This is a set-diff gate: compute the difference between the
- set of TC IDs in testplan.md and the set assigned to tasks, marked N/A,
- listed as manual verification, or listed as qualification gates.
- If the difference is non-empty, the plan is incomplete — resolve
- before proceeding.
+ rationale.
+
+ **Set-diff gate (verified/confirmed TCs only):** This gate applies
+ only when the testplan source is verified or the user has confirmed
+ retained TCs with a valid SHA-256 binding. Compute the difference
+ between the set of TC IDs in testplan.md and the set assigned to
+ tasks, marked N/A, listed as manual verification, or listed as
+ qualification gates. If the difference is non-empty, the plan is
+ incomplete — resolve before proceeding.
+
+ **Unconfirmed TCs (Freshness: unverified, no confirmation):** list
+ all TC IDs in the table but mark unmapped rows as provisional. Do
+ not mandate task assignments or block the plan on unconfirmed TC
+ gaps — AC-based quality work still proceeds.
 
  A gate-only testplan (zero TC IDs, only a Qualification Gates
  section) is valid — omit the TC table and include only the

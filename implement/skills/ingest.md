@@ -191,7 +191,9 @@ Need:
 2. **UI design document** (filename from the `UI Design section` field) — UI-specific design context
    (present only for features that went through the ui-design workflow)
 3. **PRD** (`prd.md`) — FR/NFR this story covers
-4. **Testplan** (`testplan.md`) — candidate test cases for Step 6
+4. **Testplan** — candidate test cases for Step 6. The primary
+   filename is discovered in Step 6 via the validation index; do not
+   assume `testplan.md` before discovery.
 
 **Selecting the design source (polymorphic design reference):**
 
@@ -285,10 +287,19 @@ validation artifact (primary or companion) has a
 requirement and IC mappings against the story's `PRD Requirements`
 and `Interface Changes`. Gates whose requirements or ICs overlap are
 relevant to this story. Collect all relevant gates with their source
-path, gate heading/name, mapped requirements and ICs, type, and
-reviewer/owner. This extraction runs BEFORE the TC outcome table
-below — a story with zero TCs but relevant gates still produces a
-retained validation artifact.
+path, gate heading/name, mapped requirements and ICs, type,
+Required Evidence (copy verbatim from the source gate's Required
+Evidence column; if missing, set to "criteria not specified in
+source — clarification needed"), and reviewer/owner. For TC-based
+gates, also copy the TC's Expected Results as evidence criteria.
+This extraction runs BEFORE the TC outcome table below — a story
+with zero TCs but relevant gates still produces a retained
+validation artifact.
+
+If the source location or any discovered validation artifact cannot be
+resolved or read, retain any prior story-scoped testplan and mark it
+`Freshness: unverified`. Report that the source could not be checked.
+Skip the outcome gate and story testplan write below.
 
 | Outcome | Condition | Action |
 |---------|-----------|--------|
@@ -304,11 +315,11 @@ but relevant qualification gates produces a gate-only testplan even
 if the story type or UI-design origin would otherwise indicate
 Expected zero.
 
-No feature testplan (neither `validation-index.json` nor `testplan.md`):
-note and continue. If a story-level testplan already exists from a prior
-ingest, mark it as **unverified** by prepending a metadata line
-`- **Freshness:** unverified — upstream source not found on re-ingest`
-to the story testplan header. Emit a warning: "Source testplan not
+If the source location was checked and no validation artifacts were
+found (neither `validation-index.json` nor `testplan.md` in the docs
+repo), note "No feature-level testplan available" and continue. If a
+story-level testplan already exists from a prior ingest, mark it
+`Freshness: unverified` and emit a warning: "Source testplan not
 found — retained story testplan marked as unverified. `/plan` and
 `/validate` should treat its TC coverage requirements as provisional
 until the upstream source is available."

@@ -59,6 +59,7 @@ For qualification-gate TCs, use this format:
 - **Source artifact:** {source-filename, e.g., testplan.md or hw-validation.md}
 - **Designated environment:** {e.g., hardware device lab, security audit tooling}
 - **Required evidence:** {what must be produced — test report, certification, sign-off}
+- **Expected Results:** {copy the source TC's Expected Results verbatim; if unavailable, "criteria not available from source — clarification needed"}
 - **Evidence status:** not-started
 
 The `[Qualification gate]` / `[Manual verification]` suffix in the

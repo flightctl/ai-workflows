@@ -477,9 +477,9 @@ rather than executable test cases, add:
 
 ## Review and Qualification Gates
 
-| Gate | Requirements | ICs | Type | Reviewer/Owner |
-|------|-------------|-----|------|----------------|
-| {gate name} | {FR-N, NFR-N} | {IC-N or —} | {architectural review / documentation check / compliance certification / hardware qualification} | {responsible party} |
+| Gate | Requirements | ICs | Type | Required Evidence | Reviewer/Owner |
+|------|-------------|-----|------|-------------------|----------------|
+| {gate name} | {FR-N, NFR-N} | {IC-N or —} | {architectural review / documentation check / compliance certification / hardware qualification} | {what evidence is needed — e.g., audit report, certification, sign-off} | {responsible party} |
 
 Include the IC mapping when the gate covers behavior exposed
 through an interface change. Use `—` when the gate covers a

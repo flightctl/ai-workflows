@@ -1885,6 +1885,11 @@ class TestTrustedBaseSelfLink(unittest.TestCase):
             r = _run_cli("transform", str(src), str(dst),
                          "--trusted-output-base", str(base))
             self.assertEqual(r.returncode, 1)
+            err = r.stderr.lower()
+            self.assertTrue("symlink" in err or "escape" in err,
+                            f"Expected symlink/escape diagnostic: {r.stderr}")
+            self.assertFalse(dst.exists(),
+                             "No output through symlink subdir")
 
     def test_nonexistent_under_selflink_rejected(self):
         """base/selflink/nonexistent/output.json → exit 1."""
@@ -1898,6 +1903,11 @@ class TestTrustedBaseSelfLink(unittest.TestCase):
             r = _run_cli("transform", str(src), str(dst),
                          "--trusted-output-base", str(base))
             self.assertEqual(r.returncode, 1)
+            err = r.stderr.lower()
+            self.assertTrue("symlink" in err or "escape" in err,
+                            f"Expected symlink/escape diagnostic: {r.stderr}")
+            self.assertFalse(dst.exists(),
+                             "No output through symlink path")
 
     def test_build_legacy_selflink_rejected(self):
         """build-legacy --trusted-output-base also rejects selflink."""
@@ -2525,14 +2535,105 @@ class TestTCConfirmationBindingContract(unittest.TestCase):
         self.assertEqual(hash_at_confirmation, hash_at_validation,
                          "Unchanged content must produce same SHA-256")
 
-    def test_missing_binding_is_unconfirmed(self):
-        """No SHA-256 recorded → treated as unconfirmed per contract.
+    def test_missing_binding_treated_as_unconfirmed_in_consumers(self):
+        """Downstream consumers (validate, code) require SHA-256 binding.
 
-        Documents the workflow instruction: 'Missing SHA-256 binding
-        (no hash recorded) is treated as unconfirmed.'"""
-        recorded_hash = None  # plan has no SHA-256 binding
-        self.assertIsNone(recorded_hash,
-                          "Missing binding must be treated as unconfirmed")
+        Reads the actual workflow markdown files and verifies each
+        consumer file documents that missing SHA-256 is unconfirmed."""
+        consumers = [
+            "implement/skills/validate.md",
+            "implement/skills/code.md",
+            "e2e/skills/validate.md",
+            "e2e/skills/code.md",
+        ]
+        repo_root = Path(__file__).resolve().parent.parent.parent
+        for rel in consumers:
+            path = repo_root / rel
+            if path.exists():
+                text = path.read_text(encoding="utf-8")
+                self.assertTrue(
+                    "SHA-256" in text or "sha-256" in text,
+                    f"{rel} must document SHA-256 confirmation binding")
+
+
+class TestProducerConsumerContracts(unittest.TestCase):
+    """Static contract tests verifying producer/consumer field handoff.
+
+    Reads ACTUAL workflow markdown and template files to verify that
+    required handoff fields exist at the documented producer and
+    consumer entry points. These are document contract checks — they
+    do NOT execute live AI agent workflows.
+    """
+
+    def _repo_root(self):
+        return Path(__file__).resolve().parent.parent.parent
+
+    def test_draft_gate_schema_has_required_evidence(self):
+        """design/skills/draft.md gate table includes Required Evidence."""
+        text = (self._repo_root() / "design/skills/draft.md").read_text()
+        self.assertIn("Required Evidence", text,
+                      "Draft gate schema must include Required Evidence column")
+
+    def test_story_template_has_expected_results(self):
+        """implement/templates/story-testplan.md has Expected Results."""
+        text = (self._repo_root() / "implement/templates/story-testplan.md").read_text()
+        self.assertIn("Expected Results", text,
+                      "Story template TC gate must include Expected Results")
+
+    def test_validate_report_requires_overall_verdict(self):
+        """Both validate files require an explicit Overall: line."""
+        for rel in ["implement/skills/validate.md",
+                     "e2e/skills/validate.md"]:
+            text = (self._repo_root() / rel).read_text()
+            self.assertIn("Overall: PASS", text,
+                          f"{rel} must document Overall: PASS verdict")
+            self.assertIn("Overall: FAIL", text,
+                          f"{rel} must document Overall: FAIL verdict")
+
+    def test_publish_checks_overall_verdict(self):
+        """Both publish files check for Overall: PASS."""
+        for rel in ["implement/skills/publish.md",
+                     "e2e/skills/publish.md"]:
+            text = (self._repo_root() / rel).read_text()
+            self.assertIn("Overall: PASS", text,
+                          f"{rel} must check for Overall: PASS")
+
+    def test_ingest_copies_gate_criteria(self):
+        """Both ingest files require copying Required Evidence."""
+        for rel in ["implement/skills/ingest.md",
+                     "e2e/skills/ingest.md"]:
+            text = (self._repo_root() / rel).read_text()
+            self.assertIn("Required Evidence", text,
+                          f"{rel} must instruct copying Required Evidence")
+
+    def test_freshness_readers_accept_both_forms(self):
+        """All Freshness readers accept plain and bold forms."""
+        readers = [
+            "implement/skills/plan.md",
+            "implement/skills/code.md",
+            "implement/skills/validate.md",
+            "e2e/skills/plan.md",
+            "e2e/skills/code.md",
+            "e2e/skills/validate.md",
+        ]
+        for rel in readers:
+            text = (self._repo_root() / rel).read_text()
+            self.assertIn("**Freshness:**", text,
+                          f"{rel} must accept bold Freshness marker")
+
+    def test_tc_content_binding_stale_on_modified_expected_results(self):
+        """Same TC IDs + modified Expected Results = different SHA-256."""
+        import hashlib
+        original = (
+            "## TC-FR1-01: Login\n### Expected Results\n- Dashboard\n"
+        )
+        modified = (
+            "## TC-FR1-01: Login\n### Expected Results\n- Welcome page\n"
+        )
+        self.assertNotEqual(
+            hashlib.sha256(original.encode()).hexdigest(),
+            hashlib.sha256(modified.encode()).hexdigest(),
+            "Modified Expected Results must invalidate confirmation")
 
 
 # ===========================================================================

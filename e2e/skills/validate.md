@@ -265,7 +265,8 @@ When consistent, skip the automated coverage check and proceed
 directly to step 4 below.
 
 **Unverified source handling:** If `testplan.md` contains
-`Freshness: unverified`, check whether the Test Plan Coverage
+`Freshness: unverified` (or the legacy bold form `**Freshness:**
+unverified`), check whether the Test Plan Coverage
 section in `02-plan.md` records a confirmed status for the TCs.
 
 - **Confirmed TCs** (plan records user confirmation, confirmed TC
@@ -487,7 +488,11 @@ Write `.artifacts/e2e/{issue-key}/05-validation-report.md`:
  - If automated tests fail: "FAIL — automated tests failed."
  Follow the project's existing gating policy for merge readiness.
  Do not claim acceptance passed when evidence is outstanding,
- unverified, or failed.}
+ unverified, or failed.
+
+ The report MUST end with an explicit verdict line on its own line:
+ `Overall: PASS`, `Overall: FAIL`, or the qualified form above.
+ `/publish` requires this exact line to determine readiness.}
 ```
 
 ### Step 9: Present Results
@@ -496,9 +501,16 @@ Summarize for the user:
 - Which checks passed and which failed
 - Anti-pattern check results (clean or what was fixed)
 - Acceptance criteria coverage (all covered, or which ones have gaps)
-- Test plan verification status (all covered / gaps filled / not applicable), if testplan exists
+- Test plan verification status (all automatable TCs covered / gaps
+  filled / not applicable), if testplan exists — distinguish
+  automatable coverage from overall readiness
+- External validation evidence status: how many entries are verified,
+  pending, not-started, or failed — these are not discharged by
+  automated test coverage
 - Any regressions found (and whether they were fixed)
-- Overall verdict: ready for `/publish` or not
+- Overall verdict: the `Overall:` line from the report (PASS only
+  when both automated coverage and all external evidence are
+  verified; otherwise state the specific gap)
 
 ## Output
 

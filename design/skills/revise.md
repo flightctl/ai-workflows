@@ -221,15 +221,25 @@ feature-wide high-water mark for that requirement group.
 - **Adding:** If the user requests a new companion plan, create it
   following the companion rules from the draft skill's Step 9e.
   If `validation-index.json` does not exist and `04-testplan.md`
-  exists, first create the index: `python3 "$VALIDATION_INDEX_SCRIPT"
-  build-legacy ".artifacts/design/{issue-key}"
-  ".artifacts/design/{issue-key}/validation-index.json"`. If the
-  command fails, stop and report the error.
+  exists, first create the index. Resolve the script path before
+  each command — do not assume `VALIDATION_INDEX_SCRIPT` survives
+  from a prior shell:
+
+  ```bash
+  VALIDATION_INDEX_SCRIPT="${HOME}/.ai-workflows/design/scripts/validation_index.py"
+  python3 "$VALIDATION_INDEX_SCRIPT" build-legacy ".artifacts/design/{issue-key}" ".artifacts/design/{issue-key}/validation-index.json"
+  ```
+
+  If the command fails, stop and report the error.
   Update `validation-index.json` to include the new entry. After
-  adding, validate: `python3 "$VALIDATION_INDEX_SCRIPT" validate
-  --local ".artifacts/design/{issue-key}/validation-index.json"
-  --artifact-dir ".artifacts/design/{issue-key}"`. If validation
-  fails, correct the errors before proceeding.
+  adding, validate:
+
+  ```bash
+  VALIDATION_INDEX_SCRIPT="${HOME}/.ai-workflows/design/scripts/validation_index.py"
+  python3 "$VALIDATION_INDEX_SCRIPT" validate --local ".artifacts/design/{issue-key}/validation-index.json" --artifact-dir ".artifacts/design/{issue-key}"
+  ```
+
+  If validation fails, correct the errors before proceeding.
 - **Removing:** If the user requests removing a companion, delete its
   local file. Update `validation-index.json` to remove the entry.
   During the docs-repo sync below, the published copy is removed.

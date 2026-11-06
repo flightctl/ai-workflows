@@ -19,7 +19,7 @@ review checkpoint before any test code is written.
 
 ## Critical Rules
 
-- **Every acceptance criterion must have at least one test scenario.** If an AC has no scenario, it's a coverage gap.
+- **Every acceptance criterion must be covered.** Each AC must have at least one test scenario, be covered by a manual TC with tracked evidence, or be covered by a qualification gate with tracked evidence. An AC with none of these is a coverage gap.
 - **Follow the reference suite's patterns.** The e2e infrastructure context from `/ingest` shows how tests are written in this project. Match those patterns exactly.
 - **Be specific.** Name the test files, test grouping blocks, test infrastructure methods, and labels. A plan that says "test the feature" without specifying how is too vague.
 - **Scenarios are the plan, not an afterthought.** The scenario breakdown is the primary output — not a task breakdown with scenarios appended.
@@ -268,11 +268,12 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
 
 ## Acceptance Criteria Coverage
 
-| AC | Description | Scenarios | Task |
-|----|-------------|-----------|------|
-| AC-1 | {brief} | C1 | Task 2 |
-| AC-2 | {brief} | S1 | Task 3 |
-| AC-3 | {brief} | C1 | Task 2 |
+| AC | Description | Coverage | Reference | Evidence Status |
+|----|-------------|----------|-----------|-----------------|
+| AC-1 | {brief} | C1 | Task 2 | — |
+| AC-2 | {brief} | S1 | Task 3 | — |
+| AC-3 | {brief} | Gate: {heading} | — | pending |
+| AC-4 | {brief} | Manual: TC-NFR2-01 | — | pending |
 
 {Every AC must appear in at least one scenario, be covered by a
  qualification gate with tracked evidence, or be covered by a manual
@@ -292,7 +293,8 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
  exists. If no story-scoped testplan: omit this section entirely.
 
  **Unverified source handling:** If `testplan.md` contains
- `Freshness: unverified`, present the TC list to the user and
+ `Freshness: unverified` (or the legacy bold form `**Freshness:**
+ unverified`), present the TC list to the user and
  require explicit confirmation that the retained TCs are still
  applicable before using them as normative coverage requirements.
  Until confirmed, mark Test Plan Coverage as "unverified —

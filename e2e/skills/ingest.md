@@ -182,8 +182,9 @@ Read these from the docs repo:
    architectural decisions and locked decisions incorporated as content
 2. **PRD** (`prd.md`) — the product requirements, with locked decisions
    reflected in the requirements text
-3. **Testplan** (`testplan.md`) — behavioral test cases mapped to PRD
-   requirements. If found, proceed to Step 6 for filtering.
+3. **Testplan** — behavioral test cases mapped to PRD requirements.
+   The primary filename is discovered in Step 6 via the validation
+   index; do not assume `testplan.md` before discovery.
 
 If the design document or PRD are not found, ask the user for their
 location or proceed with only the Jira story content. The design
@@ -228,10 +229,14 @@ validation artifact (primary or companion) has a
 requirement and IC mappings against the story's `PRD Requirements`
 and `Interface Changes`. Gates whose requirements or ICs overlap are
 relevant to this story. Collect all relevant gates with their source
-path, gate heading/name, mapped requirements and ICs, type, and
-reviewer/owner. This extraction runs BEFORE the outcome table
-below — a story with zero TCs but relevant gates still produces a
-retained validation artifact.
+path, gate heading/name, mapped requirements and ICs, type,
+Required Evidence (copy verbatim from the source gate's Required
+Evidence column; if missing, set to "criteria not specified in
+source — clarification needed"), and reviewer/owner. For TC-based
+gates, also copy the TC's Expected Results as evidence criteria.
+This extraction runs BEFORE the outcome table below — a story with
+zero TCs but relevant gates still produces a retained validation
+artifact.
 
 **Outcome gate:**
 

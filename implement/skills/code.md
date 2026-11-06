@@ -324,7 +324,8 @@ After the self-review gate passes, check whether this task has TC IDs
 mapped to it in the Test Plan Coverage matrix of `02-plan.md`.
 
 **Unverified source deferral:** If `testplan.md` contains
-`Freshness: unverified` and the Test Plan Coverage status in
+`Freshness: unverified` (or the legacy bold form `**Freshness:**
+unverified`) and the Test Plan Coverage status in
 `02-plan.md` has not been confirmed by the user, defer TC
 reconciliation — do not block the commit on TC coverage. AC-based
 work and existing tests proceed normally. Once the user confirms

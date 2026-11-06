@@ -260,7 +260,8 @@ dismissed findings in the implementation report (Discoveries section).
 **Test plan reconciliation (if story-scoped testplan exists):**
 
 **Unverified source deferral:** If `testplan.md` contains
-`Freshness: unverified` and the Test Plan Coverage status in
+`Freshness: unverified` (or the legacy bold form `**Freshness:**
+unverified`) and the Test Plan Coverage status in
 `02-plan.md` has not been confirmed by the user (no "confirmed"
 status with SHA-256 binding), defer TC reconciliation — do not
 block the commit on TC coverage. AC-based work and existing tests
