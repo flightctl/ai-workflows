@@ -348,6 +348,31 @@ Write `.artifacts/e2e/{issue-key}/05-validation-report.md`:
  validation."
  If any N/A: list rationale for each.}
 
+## External Validation Evidence
+
+{Include only if testplan.md contains qualification-gate TCs.
+ Omit entirely if no qualification gates exist.
+
+ Qualification-gate TCs are excluded from the automated coverage
+ check above — they require a designated execution environment.
+ This section tracks their evidence status separately. A pending
+ qualification gate does NOT count as passed.}
+
+| TC ID | Title | Source Artifact | Verification Method | Evidence | Status |
+|-------|-------|-----------------|--------------------|---------| -------|
+| TC-NFR3-01 | {title} | {testplan.md or companion filename} | {designated environment} | {link to report or "pending"} | {not-started / pending / verified / failed} |
+
+{Status values:
+ - not-started: no evidence collection has begun
+ - pending: evidence collection in progress
+ - verified: evidence reviewed and accepted
+ - failed: evidence shows the requirement is not met
+
+ If all verified: "All qualification gates verified."
+ If any pending or not-started: "N qualification gates awaiting
+ external evidence — these are not discharged by automated test
+ coverage."}
+
 ## Quality Review Findings
 
 {Findings from the code quality review gate (protocol criteria plus

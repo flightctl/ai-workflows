@@ -287,6 +287,7 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
 | TC-FR1-01 | {title} | C1 | |
 | TC-FR1-02 | {title} | S1 | |
 | TC-NFR1-01 | {title} | N/A | {rationale} |
+| TC-NFR3-01 | {title} | Qualification gate | hardware device lab |
 
 {Every TC ID from testplan.md must appear. Each must be assigned to a
  scenario, marked N/A with a rationale, or listed as a qualification

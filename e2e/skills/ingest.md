@@ -274,6 +274,7 @@ Write `.artifacts/e2e/{issue-key}/testplan.md`:
 - **Source:** {docs-repo-path}/testplan.md
 - **Story:** {issue-key} — {story-title}
 - **Test cases:** {count}
+- **Qualification gates:** {count or 0}
 
 ## TC-FR1-01: {scenario title}
 
@@ -296,7 +297,24 @@ Write `.artifacts/e2e/{issue-key}/testplan.md`:
 
 ## TC-FR1-02: {scenario title}
 
-{... same structure for each test case ...}
+{... same structure for each automatable test case ...}
+
+## TC-NFR3-01: {scenario title} [Qualification gate]
+
+| Requirement | Interface Change | Priority | Verification |
+|-------------|-----------------|----------|--------------|
+| NFR-3 | IC-5 | high | hardware device lab |
+
+- **Source artifact:** {hw-validation.md or testplan.md}
+- **Designated environment:** {e.g., hardware device lab}
+- **Required evidence:** {e.g., device test report}
+- **Evidence status:** not-started
+
+{Qualification-gate TCs use the [Qualification gate] heading suffix
+ and a Verification column instead of Automation. Evidence status
+ values: not-started, pending, verified, failed. Include one section
+ per qualification-gate TC; omit the Qualification gates section
+ header if count is 0.}
 ```
 
 Each test case becomes an H2 heading with the same structure as the

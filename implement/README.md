@@ -53,6 +53,8 @@ discovery and ambiguous requests.
 /ingest EDM-1234
   → fetches story from Jira
   → loads design document and PRD context
+  → discovers validation artifacts (multi-doc index or legacy single testplan)
+  → filters test cases to story scope; marks qualification gates
   → explores affected codebase areas
   → discovers validation profile (build, test, lint commands)
   → writes .artifacts/implement/EDM-1234/01-context.md
