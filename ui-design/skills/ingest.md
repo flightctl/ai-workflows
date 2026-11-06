@@ -269,120 +269,34 @@ proceed without a handoff (it is optional).
 
 If found, read it.
 
-**Screenshot inspection.** After reading the handoff text, check whether
-its Screenshots section references curated images (inline `![alt](ref)`
-embeds with `SS-N` IDs) or states that no screenshots are available.
+**Screenshot inspection.** Check the handoff's **Screenshot Index**
+for image references (`SS-N` IDs). Images are embedded inline at User
+Flows, State Matrix, and Persona-Specific Views sections.
 
-- **If screenshots are referenced:** Read the published
-  `screenshot-manifest.json` from the same directory as the handoff in
-  the docs repo. This manifest contains per-image SHA-256 checksums,
-  `context_revision`, `prototype_iteration`, captions, and alt text —
-  the consumer-facing identity record. If the manifest is missing, warn
-  the user and record `manifest: unavailable` per image.
+- **If referenced:** Read and follow
+  `${HOME}/.ai-workflows/_shared/recipes/screenshot-inspection.md` with
+  `HANDOFF_DIR` = the handoff's directory and
+  `MANIFEST_PATH` = `{HANDOFF_DIR}/screenshot-manifest.json`.
+  Warn if the manifest's `context_revision`/`prototype_iteration` differ
+  from the handoff header.
 
-  Determine the reference type from the handoff embeds:
+- **If none** (Screenshot Index says "None" or absent): Set
+  `HAS_SCREENSHOTS = false`. Record the reason if stated.
 
-  **Local references** (`screenshots/SS-N-desc.png` — `lfs` or `git`
-  mode): Locate the image file relative to the handoff directory. If the
-  file is a Git LFS pointer stub (starts with `version https://git-lfs`),
-  attempt to resolve the actual content via `git lfs smudge` or report
-  `inspection: lfs-unresolved` for that image — do not inspect the
-  pointer text as if it were an image.
+- **If deferred** (user authorizes skipping inspection): Set
+  `HAS_SCREENSHOTS = deferred`. Note reduced visual fidelity downstream.
 
-  **External references** (`https://...` URLs — `external` mode):
-  Retrieve the image bytes using the runtime's authorized binary
-  download capability (save to a temporary file, then open the file
-  with the image-reading tool). Do not assume any specific tool
-  parameter — use whichever download mechanism the runtime provides for
-  binary files. If the download or image read fails, record
-  `inspection: fetch-failed` for that image.
+**Provenance freshness check.** Look for `<!-- ai-workflow-provenance:`
+in the handoff. If absent, warn the user it may not be finalized and ask
+whether to proceed or wait. If they wait, skip the handoff.
 
-  For each resolved image (local file or fetched external):
+Extract: Component Mapping, State Matrix, Interaction Specs, Data
+Annotations (source types), Persona-Specific Views, Accessibility
+Requirements, Acceptance Criteria (Given/When/Then, AC-N), and
+Feasibility & Phasing (MVP vs Final Vision, implementation order).
 
-  1. **Verify identity.** If the manifest provides a `sha256` for this
-     ID, compute the SHA-256 of the actual image bytes and compare. If
-     they differ, record `identity: mismatched` and warn the user that
-     the published image does not match the manifest. If the manifest is
-     unavailable, record `identity: unverified`.
-
-  2. **Open and visually inspect** using the runtime's image reading
-     capability (the `Read` tool on the file path). Reading the markdown
-     table, file metadata, captions, or alt text alone is **not** image
-     inspection — the purpose is to observe the actual rendered layout,
-     visual hierarchy, spacing, color usage, component arrangement, and
-     state presentation in the image pixels.
-
-     If identity is `mismatched`, still record visual observations but
-     flag the image as stale/unverified — it must not be silently cited
-     as current design evidence. The user must decide whether to accept
-     the mismatched image or wait for the publisher to update it.
-
-  3. For each inspected image, record:
-     - The screenshot ID (`SS-N`)
-     - Identity status (`verified` / `mismatched` / `unverified`)
-     - A brief observation of what the image actually shows (layout,
-       component arrangement, visual state, notable visual details)
-     - Whether the image content is consistent with or contradicts the
-       handoff's written description for that screenshot
-     - Any visual details not captured in the written spec (spacing,
-       alignment, visual weight, color patterns)
-
-  4. If an image cannot be resolved, is unreadable, or the runtime does
-     not support image inspection:
-     - Record the screenshot ID and per-image status: `unavailable`,
-       `lfs-unresolved`, `fetch-failed`, or `inspection-not-supported`
-     - Report to the user which specific images could not be inspected
-       and the reason for each
-     - Do **not** claim the images were inspected or fabricate visual
-       observations from the caption or alt text
-     - Preserve observations from images that were successfully inspected
-     - Ask the user whether to proceed with partial/text-only context or
-       wait for full image access — this is a per-decision choice, not a
-       blanket pass/fail
-
-  5. Record the manifest's `context_revision` and `prototype_iteration`.
-     If these differ from the handoff's metadata header, warn the user
-     that screenshots may be from a different evaluation cycle.
-
-- **If no screenshots are available** (handoff says "None" or the
-  Screenshots section is absent): Record `HAS_SCREENSHOTS = false` in
-  the context. This is a legitimate case — do not treat it as an error
-  or assume it means Quick depth was used. Record the actual reason from
-  the handoff's Screenshots section if stated.
-
-- **User-authorized text-only path.** If the user explicitly authorizes
-  proceeding without image inspection (when screenshots exist but cannot
-  be inspected), record `HAS_SCREENSHOTS = deferred` and the reason.
-  Downstream phases will note reduced visual fidelity.
-
-**Provenance freshness check.** Before extracting content, look for a
-provenance footer (`<!-- ai-workflow-provenance:`) in the handoff file.
-If no provenance footer is found, warn the user:
-
-*"The UX handoff file (`{path}`) does not contain a provenance footer.
-This may indicate the handoff has not been finalized by the UX workflow.
-Proceed with this handoff, or wait for a finalized version?"*
-
-Wait for the user's response before continuing. If the user chooses to
-wait, skip the handoff and proceed without it (same as "not found").
-
-Extract and record:
-- **Component Mapping** — UI elements → design system components
-- **State Matrix** — component states (empty, loading, error, populated, etc.)
-- **Interaction Specs** — user flows, keyboard navigation, focus management
-- **Data Annotations** — per-element data source types (API, User input,
-  Configuration, Computed, Static, Unknown)
-- **Persona-Specific Views** — user group differences, permission-gated actions
-- **Accessibility Requirements** — WCAG, ARIA, keyboard, screen reader
-- **Acceptance Criteria** — Given/When/Then with AC-N numbering
-- **Feasibility & Phasing** — phasing information from the UX handoff:
-  MVP vs Final Vision scope, Supported vs Needs backend annotations,
-  and any phasing recommendations that affect implementation order.
-  This section informs `/plan`'s component prioritization and `/sync`'s
-  story scoping.
-
-If not found, record: *"No UX handoff artifact found. Proceeding with PRD,
-design document, and codebase context only."*
+If not found: *"No UX handoff artifact. Proceeding with PRD, design
+document, and codebase context only."*
 
 #### 5.4: Load Clarifications
 
@@ -416,27 +330,18 @@ the areas of the codebase that the UI work will affect. Focus on two domains:
    extended? Read their key files to understand current patterns — props,
    composition, and internal state.
 
-3. **Hook patterns:** What custom hooks exist? How does the project handle
-   data fetching (React Query, SWR, custom hooks, Redux thunks)? Where do
-   hooks live?
-
-4. **State management:** What state management approach does the project use?
-   (Redux, Zustand, Context, Jotai, local state only) Where is global state
-   defined? What patterns exist for derived/computed state?
-
-5. **Routing:** What router is used? (React Router, Next.js, TanStack Router)
-   How are routes organized? Where are lazy loading boundaries? What route
-   guards or auth checks exist?
-
-6. **Design system:** What component library is used? (PatternFly, MUI,
-   custom) Are there project-specific wrappers?
-
-7. **Testing patterns:** What test framework is used? (Jest, Vitest,
-   Playwright, Cypress) Where do tests live? What patterns do existing
-   component tests follow?
-
-8. **TypeScript patterns:** How are types organized? Are there shared type
-   definitions for API responses? What naming conventions are used?
+3. **Hook patterns:** Custom hooks, data fetching approach (React Query,
+   SWR, Redux thunks), hook locations
+4. **State management:** Approach (Redux, Zustand, Context, Jotai,
+   local), global state location, derived/computed state patterns
+5. **Routing:** Router (React Router, Next.js, TanStack), route
+   organization, lazy loading, guards
+6. **Design system:** Component library (PatternFly, MUI, custom),
+   project-specific wrappers
+7. **Testing patterns:** Framework (Jest, Vitest, Playwright, Cypress),
+   test location, existing component test patterns
+8. **TypeScript patterns:** Type organization, shared API type
+   definitions, naming conventions
 
 #### 7.2: Backend API Surface
 
@@ -454,35 +359,17 @@ the areas of the codebase that the UI work will affect. Focus on two domains:
    RBAC patterns exist on the API side?
 
 Use file search (glob), content search (grep), and targeted file reading.
-If these tools are unavailable or cannot execute (e.g., no file search
-tool, MCP errors, sandbox restrictions), stop and report which tools
-are missing before producing any codebase context — do not infer
-patterns from filenames or prior knowledge alone.
-Focus on 15–25 key files that establish the patterns and boundaries of change.
-If the last 3–5 files explored introduced no new patterns or constraints,
-exploration is likely complete. Note what remains uncertain in the Open
-Questions section.
+If tools are unavailable, stop and report before producing codebase
+context. Focus on 15-25 key files. Stop exploring when 3-5 consecutive
+files introduce no new patterns. Note remaining unknowns in Open Questions.
 
 #### No-Evidence Stop Gate
 
-If codebase exploration found **none** of the following — no
-`UI-ARCHITECTURE.md`, no component directories (e.g., `src/components/`),
-and no backend API type definitions — stop before writing `01-context.md`.
-
-Report to the user:
-
-*"Insufficient codebase evidence found. Searches attempted:*
-*- UI-ARCHITECTURE.md: {found / not found}*
-*- Component directories (src/components/, app/components/, etc.): {found / not found, list paths searched}*
-*- Backend API type definitions (OpenAPI specs, TypeScript interfaces, Go structs): {found / not found, list paths searched}*
-*
-*You can retry by providing a different codebase path, or proceed with
-limited context by confirming. Use `/ingest` again after correcting the
-codebase location."*
-
-Wait for the user's response. If they provide a corrected path, re-run
-Step 7 with the new path. Do not proceed to Step 8 unless the user
-explicitly confirms they want to continue with limited evidence.
+If codebase exploration found **none** of: `UI-ARCHITECTURE.md`,
+component directories (`src/components/` etc.), or backend API type
+definitions — stop before writing `01-context.md`. Report which searches
+were attempted and their results. Wait for the user to provide a
+corrected path or explicitly confirm proceeding with limited evidence.
 
 ### Step 8: Compile Context
 
@@ -558,44 +445,24 @@ If this is a first invocation, write
 ### Screenshot Observations
 
 - **Screenshots:** {`inspected` / `partial` / `none` / `deferred` / `unavailable`}
-- **Manifest revision:** {context_revision from published manifest, or "N/A"}
-- **Manifest iteration:** {prototype_iteration from published manifest, or "N/A"}
+- **Manifest revision:** {context_revision from manifest, or "N/A"}
+- **Manifest iteration:** {prototype_iteration from manifest, or "N/A"}
 
-{If inspected or partial: for each screenshot, record per-image status,
-identity verification, visual observation, and text/image consistency.}
+{If `inspected` or `partial`: one row per image from the inspection recipe.}
 
-| ID | Status | Identity | Ref | Expected SHA | Observed SHA | Observation | Spec Match | Notes |
-|----|--------|----------|-----|-------------|-------------|-------------|------------|-------|
-| SS-1 | inspected | verified | `screenshots/SS-1-desc.png` | `a1b2…` | `a1b2…` | {layout, state} | Yes/No | {detail} |
-| SS-2 | lfs-unresolved | unverified | `screenshots/SS-2-desc.png` | `d4e5…` | — | — | — | LFS stub |
+| ID | Status | Identity | Observation | Spec Match |
+|----|--------|----------|-------------|------------|
+| SS-1 | inspected | verified | {layout, state} | Yes/No |
 
-{Use `partial` when some images were inspected and others were not.
-Record observations for inspected images and per-image failure reasons
-for uninspected ones.}
-
-{If none: "No screenshots in the UX handoff. Reason: {reason from
-handoff Screenshots section, e.g., 'evaluation at Quick depth' or
-'evaluation did not produce screenshots'}. Visual context is derived
-from the written spec only."}
-
-{If deferred: "Screenshots exist but image inspection was deferred by
-user authorization. Reason: {reason}. Visual fidelity is reduced — the
-plan phase will note which decisions lack visual evidence."}
-
-{If unavailable: "Screenshots referenced but none could be inspected.
-Per-image status: {SS-1: fetch-failed, SS-2: inspection-not-supported,
-...}. Visual context is derived from the written spec only."}
+{If `none`: "No screenshots. Reason: {from Screenshot Index}."
+If `deferred`: "Deferred — reduced visual fidelity. Reason: {reason}."
+If `unavailable`: "Per-image: {SS-1: fetch-failed, …}."}
 
 ### Feasibility & Phasing
 
-{If available from the UX handoff: summarize the phasing information —
- which elements are MVP vs Final Vision, which are Supported by the
- current backend vs Needs backend work, and any phasing recommendations
- that affect implementation order. This informs /plan's component
- prioritization and /sync's story scoping.
-
- If not available: "No feasibility or phasing information available from
- the UX handoff."}
+{From UX handoff: MVP vs Final Vision, Supported vs Needs backend,
+ phasing recommendations. Informs /plan and /sync.
+ If unavailable: "No feasibility or phasing information available."}
 
 ### Locked Decisions
 
@@ -688,41 +555,22 @@ Per-image status: {SS-1: fetch-failed, SS-2: inspection-not-supported,
 
 ### Step 8a: Diff Against Prior Ingest (Re-invocation Only)
 
-If Step 2a created a `.prev` file, compare `01-context.md.prev` against
-the newly compiled content. Focus the diff on:
+If Step 2a created a `.prev` file, diff `01-context.md.prev` against the
+compiled content. Focus on: acceptance criteria, upstream artifact changes,
+API endpoints, and affected components.
 
-- Changes to the story's acceptance criteria
-- Changes in upstream artifacts (PRD requirements, design sections, UX handoff)
-- New or removed API endpoints
-- Changes to affected components
-
-Then check whether downstream artifacts exist (`02-ui-design.md`,
-`03-api-findings.md`, `04-pr-description.md`, `05-review-responses.md`,
-`sync-manifest.json`). If they do, tell the user:
-
-- Which artifacts exist and may be affected
-- Which specific changes are likely to affect them
-- If `sync-manifest.json` exists, warn that stories have already been
-  synced to Jira and re-ingesting may require manual Jira updates
-
-Wait for the user to confirm before proceeding. If the user confirms,
-write the compiled content to `01-context.md` and clean up the temp file.
-If the user declines, delete the temp file and stop without overwriting.
+Check for downstream artifacts (`02-ui-design.md`, `03-api-findings.md`,
+`04-pr-description.md`, `05-review-responses.md`, `sync-manifest.json`).
+If any exist, report which may be affected and warn about Jira sync
+implications. Wait for the user to confirm before overwriting. If they
+decline, delete the temp file and stop.
 
 ### Step 9: Report to User
 
-Present a brief summary:
-- What story was read and its scope
-- Which upstream artifacts were loaded (PRD, design doc, UX handoff)
-- Which codebase areas were explored (frontend + backend)
-- Key affected components identified
-- API endpoints relevant to the UI work
-- Any constraints or open questions discovered
-- Whether the context is sufficient to proceed to `/plan`
-
-If the user declined a re-invocation overwrite in Step 8a, report instead:
-- What changes were found (summary of the diff)
-- That the existing `01-context.md` was preserved unchanged
+Summarize: story scope, upstream artifacts loaded, codebase areas
+explored, affected components, relevant API endpoints, constraints,
+open questions, and readiness for `/plan`. If re-invocation was
+declined, report the diff summary and that `01-context.md` was preserved.
 
 ## Output
 
@@ -730,12 +578,4 @@ If the user declined a re-invocation overwrite in Step 8a, report instead:
 
 ## When This Phase Is Done
 
-Report your findings:
-- Story scope and acceptance criteria
-- Upstream artifacts loaded (and any that were missing)
-- Frontend architecture patterns discovered
-- Backend API endpoints relevant to the UI
-- Constraints and open questions
-- Assessment of readiness for `/plan`
-
-Then return to the invoking workflow router for completion guidance.
+Report findings then return to the invoking workflow router.

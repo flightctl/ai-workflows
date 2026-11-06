@@ -80,7 +80,7 @@ If the revision adds, replaces, or removes screenshots:
    that the visual content changed.
 
 **Adding screenshots to a previously text-only handoff.** If the handoff
-has `Screenshots: None` and the researcher provides images, the recorded
+has `Screenshot Index: None` and the researcher provides images, the recorded
 `screenshot_storage` policy of `none` is no longer valid. Tell the
 researcher that an explicit storage policy (`lfs`, `external`, or `git`)
 is required before the next `/publish`, then follow the curation

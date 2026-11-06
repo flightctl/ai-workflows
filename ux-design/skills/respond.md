@@ -152,9 +152,16 @@ handoff directory from the published handoff path:
 handoff_dir=$(dirname "{handoff_file_path}")
 ```
 
-If the authoring manifest does not exist or contains no screenshots, and
-`screenshot_storage` is `none`, skip screenshot handling entirely — do not
-touch asset paths.
+**Skip screenshot handling on initial text-only publishes** — when the
+authoring manifest does not exist or contains no screenshots, **and**
+`screenshot_storage` is `none`, **and** `publish-metadata.json` has no
+prior `screenshot_assets`. Do not touch asset paths.
+
+**Reconcile previous assets on updates.** When `publish-metadata.json`
+records prior `screenshot_assets`, always check for removals even if the
+current authoring manifest is empty or absent (transition to text-only).
+Use previous metadata for cleanup; do not overwrite metadata with empty
+values before using it for reconciliation.
 
 Otherwise, apply the same validation and storage gates as `/publish`:
 
@@ -184,7 +191,14 @@ Otherwise, apply the same validation and storage gates as `/publish`:
    git -C "{docs_repo_path}" rm -- "{handoff_dir}/screenshots/{removed_filename}"
    ```
 
-   Remove the entry from the published `screenshot-manifest.json`.
+   Remove the entry from the published `screenshot-manifest.json`. If
+   all screenshots are removed, also remove the consumer manifest:
+
+   ```bash
+   git -C "{docs_repo_path}" rm -- "{handoff_dir}/screenshot-manifest.json"
+   ```
+
+   Track each removed filename in a `removed_filenames` array.
 
 4. **Handle additions and updates** (`lfs` or `git` mode): copy each
    changed or new file individually and verify its SHA-256 matches the
@@ -195,18 +209,33 @@ Otherwise, apply the same validation and storage gates as `/publish`:
       "{docs_repo_path}/{handoff_dir}/screenshots/{filename}"
    ```
 
-5. **External mode:** For changed or added screenshots, require the
-   researcher to provide new immutable, revision-bound URLs. Retrieve
-   the image bytes from each URL, compute SHA-256, and verify against
-   the authoring manifest. Stop on mismatch. Rewrite **both** the
-   inline `![alt](ref)` embeds **and** the Screenshot Index entries in
-   the published handoff with the new URLs. For removals, delete the
-   embed and index entry. Preserve authoring references in
+   Track each copied filename in a `copied_filenames` array.
+
+5. **External mode — rewrite ALL current image references.** After
+   copying the freshly authored handoff over the published copy, the
+   published document contains local authoring refs (`screenshots/...`)
+   that must all be rewritten to external URLs:
+
+   - **Unchanged images** (current manifest `sha256` matches
+     `publish-metadata.json` `screenshot_assets` for that ID): reuse the
+     existing `published_path` URL from `publish-metadata.json`. Verify
+     the URL is still well-formed and immutable.
+   - **Changed or new images**: require the researcher to provide new
+     immutable, revision-bound URLs. Retrieve image bytes from each URL,
+     compute SHA-256, and verify against the authoring manifest. Stop on
+     mismatch.
+   - **Removed images**: delete the embed and Screenshot Index entry.
+
+   Rewrite **every** current `![alt](ref)` embed **and** Screenshot
+   Index `Ref` column in the published handoff with the correct external
+   URL. This ensures a text-only edit with unchanged images preserves
+   all external references. Preserve authoring references in
    `05-handoff.md` separately.
 
 6. **Regenerate the published consumer-facing manifest** at
    `{handoff_dir}/screenshot-manifest.json` with the current set of
-   published screenshots (no private paths).
+   published screenshots (no private paths). If all screenshots were
+   removed, skip this — the manifest was already deleted in step 3.
 
 7. **Update `publish-metadata.json`** `screenshot_assets` with the new
    checksums, paths, and entry set. Do not write metadata until the
@@ -223,40 +252,20 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ux-design`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{docs_repo_path}/{handoff_file_path}"`.
 
-**Build owned-path allowlist, stage, and commit** using the same
-procedure as `/publish` Step 4. Construct `owned_paths` from the
-handoff path plus only the paths actually written, copied, or removed
-in this run — no unconditional manifest or screenshot paths:
-
-```bash
-owned_paths=("{handoff_file_path}")
-# Add manifest only if it was regenerated:
-if [ -f "{docs_repo_path}/{handoff_dir}/screenshot-manifest.json" ]; then
-  owned_paths+=("{handoff_dir}/screenshot-manifest.json")
-fi
-# Add each changed/added file and each removed path...
-# (same array-building logic as /publish Step 4)
-
-for p in "${owned_paths[@]}"; do
-  if git -C "{docs_repo_path}" ls-files --error-unmatch "$p" >/dev/null 2>&1 \
-     || [ -f "{docs_repo_path}/$p" ]; then
-    git -C "{docs_repo_path}" add -- "$p"
-  fi
-done
-
-git -C "{docs_repo_path}" diff --cached --quiet -- "${owned_paths[@]}"
-rc=$?
-if [ "$rc" -eq 1 ]; then
-  git -C "{docs_repo_path}" commit --only \
-    -m "UX design {issue-key}: address review feedback" \
-    -- "${owned_paths[@]}"
-elif [ "$rc" -ne 0 ]; then
-  echo "Git error (exit $rc); stopping." >&2; exit "$rc"
-fi
-```
+**Build owned-path allowlist, stage, and commit.** Read and follow
+`../../_shared/recipes/screenshot-publish-stage.md` with:
+- `DOCS_REPO_PATH="{docs_repo_path}"`
+- `HANDOFF_FILE_PATH="{handoff_file_path}"`
+- `HANDOFF_DIR="{handoff_dir}"`
+- `COPIED_FILENAMES` = the `copied_filenames` array built above
+- `REMOVED_FILENAMES` = the `removed_filenames` array built above
+- `MANIFEST_WRITTEN="true"` if the consumer manifest was regenerated
+- `MANIFEST_REMOVED="true"` if the consumer manifest was removed (all screenshots deleted)
+- `COMMIT_MESSAGE="UX design {issue-key}: address review feedback"`
 
 Only update `publish-metadata.json` `screenshot_assets` after the commit
-and push succeed.
+and push succeed. Set `screenshot_storage` to `none` only after
+successful commit+push when all screenshots have been removed.
 
 ```bash
 git -C "{docs_repo_path}" push

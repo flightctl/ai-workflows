@@ -180,7 +180,7 @@ Before publishing, verify that every screenshot referenced in the handoff
 is available and has a valid identity record.
 
 Read `{source_repo_root}/.artifacts/ux-design/{issue-key}/screenshot-manifest.json`.
-If the file does not exist, check whether the handoff's Screenshots section
+If the file does not exist, check whether the handoff's Screenshot Index section
 says "None." If the handoff references screenshots but no manifest exists,
 stop and recommend re-running `/handoff` to generate the manifest.
 
@@ -197,7 +197,7 @@ For each entry in the manifest:
    update the manifest or re-curate.
 
 3. **Reference in handoff:** Verify the screenshot ID (e.g., `SS-1`) appears
-   in the handoff's Screenshots section. Warn about manifest entries not
+   in the handoff's Screenshot Index section. Warn about manifest entries not
    referenced in the handoff (orphaned assets) and about handoff references
    not in the manifest (broken references).
 
@@ -206,7 +206,7 @@ creating the branch and report the specific failures.
 
 ### Step 3b: Resolve Screenshot Storage Policy
 
-**Skip this step entirely** when the handoff's Screenshots section says
+**Skip this step entirely** when the handoff's Screenshot Index section says
 "None" and the authoring manifest does not exist or is empty. Set
 `screenshot_storage` to `none` in publish-metadata.json and proceed to
 Step 4 without prompting for a storage policy or touching asset paths.
@@ -308,13 +308,23 @@ mkdir -p "{destination_dir}"
 cp "{source_repo_root}/.artifacts/ux-design/{issue-key}/05-handoff.md" "{handoff_target}"
 ```
 
-**Skip screenshot handling** when the handoff's Screenshots section says
-"None" or the authoring manifest does not exist. Do not prompt for a
-storage policy, touch asset paths, or stage screenshot directories on
-text-only publishes.
+**Skip screenshot handling on initial text-only publishes** — when the
+handoff's Screenshot Index says "None" **and** no publish-metadata
+`screenshot_assets` exist from a prior publish. Do not prompt for a
+storage policy, touch asset paths, or stage screenshot directories.
+
+**Reconcile previous assets on updates.** When updating an existing
+publish (`publish-metadata.json` exists with `screenshot_assets`), always
+check for removals even if the current handoff has no screenshots. If
+the current authoring manifest is empty or absent but `screenshot_assets`
+records prior images: remove them (lfs/git: `git rm`; external: remove
+embeds/index entries), remove the consumer manifest, and set
+`screenshot_storage` to `none` **after** the commit and push succeed.
+Use previous metadata for cleanup; do not overwrite metadata with empty
+values before using it for reconciliation.
 
 **Copy screenshot assets** (only when the authoring manifest is non-empty
-and the Screenshots section contains image references):
+and the Screenshot Index section contains image references):
 
 **Pre-copy validation.** For each manifest entry, require `{filename}`
 to match `^SS-[0-9]+-[a-z0-9-]+\.png$`. Resolve each candidate
@@ -361,57 +371,16 @@ Provenance at publish time:
 - Only if the researcher explicitly declines provenance, pass `ALLOW_MISSING=yes` to
   strip the footer and record `provenance_kind: declined`.
 
-**Build owned-path allowlist and stage/commit.** Construct a Bash array
-of every path this publish created, modified, or owns. Use this single
-array for staging, change detection, and the commit pathspec.
-
-```bash
-owned_paths=("{handoff_file_path}")
-
-# Add only paths that were actually written in this run:
-if [ -f "{docs_repo_path}/{handoff_file_path_dir}/screenshot-manifest.json" ]; then
-  owned_paths+=("{handoff_file_path_dir}/screenshot-manifest.json")
-fi
-# For lfs/git mode — each copied screenshot by validated filename:
-for f in "${copied_filenames[@]}"; do
-  owned_paths+=("{handoff_file_path_dir}/screenshots/$f")
-done
-# For removals — each git-rm'd path (already staged by git rm):
-for f in "${removed_filenames[@]}"; do
-  owned_paths+=("{handoff_file_path_dir}/screenshots/$f")
-done
-```
-
-Stage the owned paths (skip absent optional paths):
-
-```bash
-for p in "${owned_paths[@]}"; do
-  if git -C "{docs_repo_path}" ls-files --error-unmatch "$p" >/dev/null 2>&1 \
-     || [ -f "{docs_repo_path}/$p" ]; then
-    git -C "{docs_repo_path}" add -- "$p"
-  fi
-done
-```
-
-Check for changes and commit using `--only` with the full allowlist:
-
-```bash
-git -C "{docs_repo_path}" diff --cached --quiet -- "${owned_paths[@]}"
-rc=$?
-if [ "$rc" -eq 0 ]; then
-  echo "No changes to owned paths; skipping commit."
-elif [ "$rc" -eq 1 ]; then
-  git -C "{docs_repo_path}" commit --only \
-    -m "{Add|Update} UX design handoff for {issue-key}" \
-    -- "${owned_paths[@]}"
-else
-  echo "Git error (exit $rc); stopping." >&2; exit "$rc"
-fi
-```
-
-This procedure handles text-only (array contains only the handoff),
-lfs/git (handoff + manifest + each image), external (handoff + manifest),
-and removal runs (handoff + manifest + removed paths) identically.
+**Build owned-path allowlist, stage, and commit.** Read and follow
+`../../_shared/recipes/screenshot-publish-stage.md` with:
+- `DOCS_REPO_PATH="{docs_repo_path}"`
+- `HANDOFF_FILE_PATH="{handoff_file_path}"`
+- `HANDOFF_DIR="{handoff_file_path_dir}"`
+- `COPIED_FILENAMES` = the array of screenshot filenames copied this run
+- `REMOVED_FILENAMES` = the array of screenshot filenames removed via `git rm`
+- `MANIFEST_WRITTEN="true"` if the consumer manifest was written/updated
+- `MANIFEST_REMOVED="true"` if the consumer manifest was removed (all screenshots deleted)
+- `COMMIT_MESSAGE="{Add|Update} UX design handoff for {issue-key}"`
 
 ### Step 5: Prepare PR Description for a New PR
 

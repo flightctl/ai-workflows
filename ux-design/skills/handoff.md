@@ -213,7 +213,7 @@ In either case, present the options and **wait for an explicit choice**:
 *2. Provide screenshots directly (the researcher supplies image files)*
 *3. Proceed with a text-only handoff (record this as a documented decision — `ui-design` will operate from written spec only)"*
 
-If the researcher chooses option 3, record in the Screenshots section:
+If the researcher chooses option 3, record in the Screenshot Index section:
 `Screenshots: None — {reason from evaluation depth}. Text-only handoff
 authorized by researcher.`
 
