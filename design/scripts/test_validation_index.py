@@ -1115,6 +1115,83 @@ class TestSymlinkRejection(unittest.TestCase):
 
 
 # ===========================================================================
+# 13b. Safety: dangling symlinks and directory-as-index
+# ===========================================================================
+
+class TestDanglingSymlinkAndDirectory(unittest.TestCase):
+    """Dangling symlinks and directories must fail closed, not fall
+    through to legacy behavior."""
+
+    def test_dangling_symlink_index_local(self):
+        """Dangling symlink validation-index.json → error, not legacy."""
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            (d / "validation-index.json").symlink_to("/nonexistent/target")
+            _write(d / "04-testplan.md", "# Plan")
+            with self.assertRaises(vi.ValidationIndexError) as ctx:
+                vi.resolve_artifacts(d)
+            self.assertIn("symlink", str(ctx.exception))
+
+    def test_dangling_symlink_index_published(self):
+        """Dangling symlink validation-index.json in published dir."""
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            (d / "validation-index.json").symlink_to("/nonexistent/target")
+            _write(d / "testplan.md", "# Plan")
+            with self.assertRaises(vi.ValidationIndexError) as ctx:
+                vi.resolve_published_artifacts(d)
+            self.assertIn("symlink", str(ctx.exception))
+
+    def test_dangling_symlink_index_primary_path(self):
+        """Dangling symlink validation-index.json in primary_testplan_path."""
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            (d / "validation-index.json").symlink_to("/nonexistent/target")
+            _write(d / "testplan.md", "# Plan")
+            with self.assertRaises(vi.ValidationIndexError) as ctx:
+                vi.primary_testplan_path(d)
+            self.assertIn("symlink", str(ctx.exception))
+
+    def test_directory_as_index_local(self):
+        """Directory named validation-index.json → error, not legacy."""
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            (d / "validation-index.json").mkdir()
+            _write(d / "04-testplan.md", "# Plan")
+            with self.assertRaises(vi.ValidationIndexError) as ctx:
+                vi.resolve_artifacts(d)
+            self.assertIn("not a regular file", str(ctx.exception))
+
+    def test_directory_as_index_published(self):
+        """Directory named validation-index.json in published dir."""
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            (d / "validation-index.json").mkdir()
+            _write(d / "testplan.md", "# Plan")
+            with self.assertRaises(vi.ValidationIndexError) as ctx:
+                vi.resolve_published_artifacts(d)
+            self.assertIn("not a regular file", str(ctx.exception))
+
+    def test_dangling_symlink_legacy_local(self):
+        """Dangling symlink 04-testplan.md → error, not empty."""
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            (d / "04-testplan.md").symlink_to("/nonexistent/plan")
+            with self.assertRaises(vi.ValidationIndexError) as ctx:
+                vi.resolve_artifacts(d)
+            self.assertIn("symlink", str(ctx.exception))
+
+    def test_dangling_symlink_legacy_published(self):
+        """Dangling symlink testplan.md in published dir → error."""
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            (d / "testplan.md").symlink_to("/nonexistent/plan")
+            with self.assertRaises(vi.ValidationIndexError) as ctx:
+                vi.resolve_published_artifacts(d)
+            self.assertIn("symlink", str(ctx.exception))
+
+
+# ===========================================================================
 # 14. Safety: primary_testplan_path errors on missing listed file
 # ===========================================================================
 

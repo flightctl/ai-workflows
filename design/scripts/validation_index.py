@@ -443,11 +443,16 @@ def resolve_artifacts(artifact_dir: Path) -> list[dict[str, Any]]:
     escape attacks).
     """
     index_path = artifact_dir / "validation-index.json"
+    # Check for dangling symlinks and directories BEFORE is_file —
+    # is_file returns False for both, which would silently fall through
+    # to legacy behavior instead of failing closed.
+    if index_path.is_symlink():
+        raise ValidationIndexError(
+            "validation-index.json is a symlink (not allowed)")
+    if index_path.exists() and not index_path.is_file():
+        raise ValidationIndexError(
+            "validation-index.json exists but is not a regular file")
     if index_path.is_file():
-        # Reject symlink index files
-        sym_errs = _reject_symlinks(index_path, "validation-index.json")
-        if sym_errs:
-            raise ValidationIndexError(sym_errs[0])
         try:
             data = json.loads(index_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
@@ -475,10 +480,10 @@ def resolve_artifacts(artifact_dir: Path) -> list[dict[str, Any]]:
 
     # Legacy fallback: single 04-testplan.md
     legacy = artifact_dir / "04-testplan.md"
+    if legacy.is_symlink():
+        raise ValidationIndexError(
+            "04-testplan.md is a symlink (not allowed)")
     if legacy.is_file():
-        sym_errs = _reject_symlinks(legacy, "04-testplan.md")
-        if sym_errs:
-            raise ValidationIndexError(sym_errs[0])
         return [{
             "local": "04-testplan.md",
             "published_as": "testplan.md",
@@ -502,11 +507,15 @@ def resolve_published_artifacts(
     files, or symlink artifacts.
     """
     index_path = feature_dir / "validation-index.json"
+    # Check dangling symlinks/directories BEFORE is_file
+    if index_path.is_symlink():
+        raise ValidationIndexError(
+            "published validation-index.json is a symlink (not allowed)")
+    if index_path.exists() and not index_path.is_file():
+        raise ValidationIndexError(
+            "published validation-index.json exists but is not "
+            "a regular file")
     if index_path.is_file():
-        sym_errs = _reject_symlinks(index_path,
-                                     "published validation-index.json")
-        if sym_errs:
-            raise ValidationIndexError(sym_errs[0])
         try:
             data = json.loads(index_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
@@ -523,12 +532,12 @@ def resolve_published_artifacts(
         for art in data["artifacts"]:
             fname = art.get("file", "")
             art_path = feature_dir / fname
-            if not art_path.is_file():
-                missing.append(fname)
-            elif art_path.is_symlink():
+            if art_path.is_symlink():
                 raise ValidationIndexError(
                     f"published artifact is a symlink "
                     f"(not allowed): {fname}")
+            if not art_path.is_file():
+                missing.append(fname)
         if missing:
             raise ValidationIndexError(
                 f"listed published artifacts not found on disk: "
@@ -537,10 +546,10 @@ def resolve_published_artifacts(
 
     # Legacy fallback: single testplan.md
     legacy = feature_dir / "testplan.md"
+    if legacy.is_symlink():
+        raise ValidationIndexError(
+            "published testplan.md is a symlink (not allowed)")
     if legacy.is_file():
-        sym_errs = _reject_symlinks(legacy, "published testplan.md")
-        if sym_errs:
-            raise ValidationIndexError(sym_errs[0])
         return [{"file": "testplan.md", "type": "testplan"}]
 
     return []
@@ -560,10 +569,14 @@ def primary_testplan_path(
     corrupted published state, not an absent testplan.
     """
     index_path = feature_dir / "validation-index.json"
+    # Check dangling symlinks/directories BEFORE is_file
+    if index_path.is_symlink():
+        raise ValidationIndexError(
+            "validation-index.json is a symlink (not allowed)")
+    if index_path.exists() and not index_path.is_file():
+        raise ValidationIndexError(
+            "validation-index.json exists but is not a regular file")
     if index_path.is_file():
-        sym_errs = _reject_symlinks(index_path, "validation-index.json")
-        if sym_errs:
-            raise ValidationIndexError(sym_errs[0])
         try:
             data = json.loads(index_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
@@ -589,10 +602,10 @@ def primary_testplan_path(
         return None
 
     legacy = feature_dir / "testplan.md"
+    if legacy.is_symlink():
+        raise ValidationIndexError(
+            "testplan.md is a symlink (not allowed)")
     if legacy.is_file():
-        sym_errs = _reject_symlinks(legacy, "testplan.md")
-        if sym_errs:
-            raise ValidationIndexError(sym_errs[0])
         return legacy
     return None
 
