@@ -228,6 +228,45 @@ change is exercised by at least one test case. This artifact is reviewed
 alongside the design document and does not reference stories (which do
 not exist yet).
 
+**Testplan scope — what belongs here:**
+
+The design testplan is a product acceptance and validation artifact,
+primarily E2E. Test cases exercise observable system surfaces — API
+endpoints, CLI commands, UI behaviors, device behavior, configuration
+effects — from the perspective of an operator, user, or external
+consumer. Include targeted integration, hardware-qualification, or
+security-certification test cases **only** when a design-level
+cross-component or operational contract genuinely requires separate
+verification at that level (e.g., a hardware validation plan requiring
+a physical device lab, a security audit trail for compliance
+certification). The presence of a cross-component boundary alone does
+not justify a separate integration plan; most cross-component behavior
+is observable through E2E surfaces.
+
+**What does NOT belong in the design testplan:**
+
+- Unit test cases, unit test matrices, or unit test strategy sections.
+  Unit and integration testing guidance belongs in `[DEV]` story-level
+  implementation (see `/decompose` and the Testing Approach section of
+  story files). Do not generate a `unit-testplan.md` or any unit-level
+  test artifact as a design deliverable.
+- Design review checklists, documentation checks, or architectural
+  review criteria. These are review gates, not executable test
+  scenarios.
+- Exhaustive Cartesian expansion of requirements × interfaces ×
+  fixture permutations. Each test case must justify its existence
+  through a distinct product outcome or risk. Merge near-identical
+  cases using parameterization rather than duplicating scenarios.
+  Reduce scope by merging redundant scenarios, not by imposing an
+  arbitrary hard case-count cap.
+
+**Coverage model:** Map requirements and ICs to test cases as a
+many-to-many relationship — one test case may validate multiple
+requirements or ICs, and one requirement or IC may be exercised by
+multiple test cases. The goal is complete coverage of distinct
+observable outcomes and risks, not a test case per requirement/IC
+combination.
+
 #### 9a: Derive Test Cases
 
 For each PRD requirement (FR-N, NFR-N), derive test cases:
@@ -413,6 +452,9 @@ Write `.artifacts/design/{issue-key}/04-testplan.md`:
 - **Total test cases:** {N}
 - **Requirements covered:** {N} of {total FR + NFR count}
 - **Interface changes covered:** {N} of {total IC count}
+{If companion validation plans exist, add:
+- **Companion plans:** {companion-1-slug}.md ({purpose}), {companion-2-slug}.md ({purpose})
+Otherwise, omit the Companion plans line entirely.}
 
 ## Test Case Index
 
@@ -523,6 +565,7 @@ only in a parameter value into a single case with a variation table.
 
 Before presenting the testplan, verify:
 
+- [ ] No test case targets unit-level or internal implementation verification — every scenario exercises an observable system surface (API, CLI, UI, device behavior, configuration effect) or a justified cross-component/operational contract
 - [ ] Every FR and NFR has a test case or a documented Requirement Coverage Gap with rationale
 - [ ] Every IC from §5 has a test case or a documented Interface Change Coverage Gap with rationale
 - [ ] Every non-`—` Interface Change value matches an IC defined in §5, and that IC's `Requirements` line includes the test case's requirement
@@ -556,6 +599,111 @@ values — it does not recompute counts or coverage after the fact.
 Provenance was already captured in Step 8 for the entire `/draft` phase —
 no additional provenance call is needed here.
 
+#### 9e: Companion Validation Plans (Optional)
+
+Generate a companion validation plan **only** when a design-level
+cross-component or operational contract genuinely requires a separate
+verification artifact with a distinct purpose, audience, or execution
+environment. Examples:
+
+- A hardware qualification plan requiring a physical device lab and a
+  separate execution team
+- A security certification plan whose audit trail must be preserved
+  independently for compliance review
+
+**When NOT to generate a companion:**
+
+- Do not generate companions to separate E2E from integration test
+  cases — the primary testplan covers both when they share the same
+  observable surfaces.
+- Do not generate empty template files for test levels that have no
+  applicable scenarios.
+- Do not duplicate scenario detail from the primary testplan into a
+  companion. The companion covers distinct scenarios; the primary
+  testplan's Overview section cross-references companion plans.
+
+**Companion file naming:** `04-{slug}.md`, where `{slug}` is a short
+kebab-case descriptor (e.g., `04-hw-validation.md`,
+`04-security-certification.md`). The slug must not be `testplan`
+(reserved for the primary artifact).
+
+**Companion format:** Each companion follows the same format as the
+primary testplan (Overview, Test Case Index, Test Cases grouped by
+requirement, Gaps, Summary) with these additions to the Overview:
+
+```markdown
+## Overview
+
+- **Feature:** {feature-key} — {feature-title}
+- **Purpose:** {why this companion exists as a separate artifact}
+- **Audience:** {who executes or reviews these scenarios}
+- **Primary testplan:** [testplan.md](04-testplan.md) (local artifact reference)
+- **Total test cases:** {N}
+- **Requirements covered:** {N} of {total FR + NFR count}
+- **Interface changes covered:** {N} of {total IC count}
+```
+
+**TC ID uniqueness:** Companion test cases use the same TC ID scheme
+(`TC-{req}-{NN}`) but IDs must be unique across ALL validation
+artifacts for this feature. Before assigning IDs in a companion,
+check the primary testplan's highest sequence number for each
+requirement group and allocate above that high-water mark.
+
+**Self-review for companions:** Apply the same self-review checklist
+from Step 9c, plus verify:
+
+- [ ] Every companion TC ID is unique across the primary testplan and all companions
+- [ ] The companion's Purpose and Audience fields justify its separate existence
+- [ ] No scenario in the companion duplicates a scenario in the primary testplan
+
+Save each companion to `.artifacts/design/{issue-key}/04-{slug}.md`.
+
+#### 9f: Write Validation Artifact Index
+
+After writing the primary testplan and any companions, write the
+validation artifact index to
+`.artifacts/design/{issue-key}/validation-index.json`:
+
+```json
+{
+  "schema_version": "1.0",
+  "primary_testplan": "04-testplan.md",
+  "artifacts": [
+    {
+      "local": "04-testplan.md",
+      "published_as": "testplan.md",
+      "type": "testplan"
+    }
+  ]
+}
+```
+
+If companions were generated, add them to the `artifacts` array:
+
+```json
+{
+  "local": "04-hw-validation.md",
+  "published_as": "hw-validation.md",
+  "type": "companion",
+  "purpose": "Hardware qualification requiring physical device lab",
+  "audience": "Hardware QE team"
+}
+```
+
+Rules:
+- `primary_testplan` always names the primary artifact's local filename
+- The first entry in `artifacts` is always the primary testplan
+- `published_as` is the filename used when the artifact is copied to
+  the docs repo (no path prefix — the feature directory is implicit)
+- `type` is `"testplan"` for the primary, `"companion"` for others
+- Companion entries include `purpose` and `audience` fields
+- All `local` filenames must exist in the artifact directory
+- All `published_as` filenames must be unique
+
+When no companions exist, the index contains only the primary entry.
+This file is read by `/publish`, `/revise`, `/respond`, and
+`/decompose` to discover the full set of validation artifacts.
+
 ### Step 10: Present to User
 
 Show the user the complete design document and highlight:
@@ -567,11 +715,14 @@ Show the user the complete design document and highlight:
 - Testplan summary — read from the Overview and Summary table already
   written in Step 9b: total test cases, requirement coverage, IC coverage
 - Any testplan gaps recorded in Step 9b (requirements or ICs without test cases)
+- If companion plans were generated, list each with its purpose and audience
 
 ## Output
 
 - `.artifacts/design/{issue-key}/03-design.md`
 - `.artifacts/design/{issue-key}/04-testplan.md`
+- `.artifacts/design/{issue-key}/04-{slug}.md` (companion plans, if any)
+- `.artifacts/design/{issue-key}/validation-index.json`
 - `.artifacts/design/{issue-key}/provenance.json`
 
 ## When This Phase Is Done
@@ -579,6 +730,7 @@ Show the user the complete design document and highlight:
 Report your results:
 - The design document has been written and saved
 - The testplan has been generated with {test-case-count} test cases covering {requirement-count} requirements and {interface-change-count} ICs
+- If companion plans were generated, list each with its test case count and purpose
 - Highlight key decisions, assumptions, and open questions
 - Note overall confidence in the document's completeness
 

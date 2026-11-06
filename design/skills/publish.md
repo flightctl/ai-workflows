@@ -226,36 +226,92 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 git -C "{docs_repo_path}" add "{release}/{feature}/design.md"
 ```
 
-**Testplan publication:**
+**Validation artifact publication:**
 
-**If `04-testplan.md` does not exist:** check whether a previously
-published testplan exists at
-`{docs_repo_path}/{release}/{feature}/testplan.md`. If it does, remove
-it:
+Read the validation artifact index at
+`.artifacts/design/{issue-key}/validation-index.json` if it exists.
+If the index does not exist, fall back to legacy behavior: check
+whether `04-testplan.md` exists and treat it as the sole artifact
+with `published_as: "testplan.md"`.
+
+**If no validation artifacts exist** (no index and no `04-testplan.md`):
+check whether previously published validation files exist in the docs
+repo feature directory. For each file listed in the existing
+`validation-index.json` in the docs repo (if present), or for
+`testplan.md` (legacy), remove it:
 
 ```bash
-git -C "{docs_repo_path}" rm -- "{release}/{feature}/testplan.md"
+git -C "{docs_repo_path}" rm -- "{release}/{feature}/{published-filename}"
 ```
 
-Commit with the design-only message (regardless of whether a stale
-testplan was removed) and skip to Step 5:
+Commit with the design-only message and skip to Step 5:
 
 ```bash
 git -C "{docs_repo_path}" commit -m "Add design document for {issue-key}: {title}"
 ```
 
-**If `04-testplan.md` exists**, copy it to the docs repo:
+**If validation artifacts exist**, copy each to the docs repo using
+the `published_as` filename from the index:
 
 ```bash
-cp ".artifacts/design/{issue-key}/04-testplan.md" "{docs_repo_path}/{release}/{feature}/testplan.md"
+cp ".artifacts/design/{issue-key}/{local}" "{docs_repo_path}/{release}/{feature}/{published_as}"
 ```
 
 ```bash
-git -C "{docs_repo_path}" add "{release}/{feature}/testplan.md"
+git -C "{docs_repo_path}" add "{release}/{feature}/{published_as}"
 ```
 
+Repeat for every entry in the `artifacts` array.
+
+**Publish the validation index** to make the artifact set discoverable
+by downstream consumers (implement, e2e) without hidden local metadata:
+
 ```bash
-git -C "{docs_repo_path}" commit -m "Add design document and testplan for {issue-key}: {title}"
+cp ".artifacts/design/{issue-key}/validation-index.json" "{docs_repo_path}/{release}/{feature}/validation-index.json"
+```
+
+Before writing the published copy, transform the index for the docs
+repo context: replace each `local` filename with the `published_as`
+value (since consumers in the docs repo see only published filenames)
+and replace `primary_testplan` with its `published_as` value. Write
+the transformed index:
+
+```json
+{
+  "schema_version": "1.0",
+  "primary_testplan": "testplan.md",
+  "artifacts": [
+    {
+      "file": "testplan.md",
+      "type": "testplan"
+    }
+  ]
+}
+```
+
+Companion entries retain their `type`, `purpose`, and `audience` fields.
+The `local` field is dropped (not meaningful in the docs repo).
+
+```bash
+git -C "{docs_repo_path}" add "{release}/{feature}/validation-index.json"
+```
+
+**Safe removal of stale artifacts:** If a `validation-index.json`
+already exists in the docs repo from a prior publish, compare its
+`artifacts` list against the current set. For each previously
+published artifact not present in the current index, remove it:
+
+```bash
+git -C "{docs_repo_path}" rm -- "{release}/{feature}/{stale-published-filename}"
+```
+
+Do not remove files outside the feature directory or files not listed
+in the previous index.
+
+Commit with a message reflecting the published artifacts:
+
+```bash
+git -C "{docs_repo_path}" commit -m "Add design document and validation artifacts for {issue-key}: {title}"
 ```
 
 ### Step 5: Push and Create PR
@@ -291,9 +347,10 @@ exist, write "General review — no specific items flagged."}
 
 ### Documents
 - `design.md` — technical design document
-{If `04-testplan.md` was published, add:
-- `testplan.md` — behavioral test cases mapped to PRD requirements
-Otherwise, omit the testplan bullet entirely.}
+{For each published validation artifact, add a bullet:
+- `testplan.md` — acceptance test cases mapped to PRD requirements
+- `{companion-published-name}` — {companion purpose}
+If no validation artifacts were published, omit these bullets entirely.}
 
 ### How to Review
 - Comment inline on specific sections
@@ -333,7 +390,9 @@ The script prints the PR URL on stdout. Parse the PR number from the URL path.
 
 ### Step 6: Save Publish Metadata
 
-If `04-testplan.md` was published:
+Save the core metadata using the shared script. If the primary
+testplan was published, include `testplan_file_path` for backwards
+compatibility with consumers that do not read `validation_artifacts`:
 
 ```bash
 python3 "$PUBLISH_SCRIPT" save-metadata \
@@ -358,6 +417,37 @@ python3 "$PUBLISH_SCRIPT" save-metadata \
   branch={branch-name}
 ```
 
+**Add the validation artifact list.** After `save-metadata` writes
+the file, read it, add the `validation_artifacts` array, and write it
+back. This list is the authoritative record of all published
+validation artifacts:
+
+Read `.artifacts/design/{issue-key}/publish-metadata.json`, parse as
+JSON. Add a `validation_artifacts` key with the same array as the
+published `validation-index.json` (using `file`, `type`, and for
+companions, `purpose` and `audience`). Write the updated JSON back to
+the same file.
+
+Example resulting metadata:
+
+```json
+{
+  "branch": "design/EDM-1471",
+  "design_file_path": "v2.1/feature-slug/design.md",
+  "feature": "feature-slug",
+  "pr_number": "42",
+  "release": "v2.1",
+  "testplan_file_path": "v2.1/feature-slug/testplan.md",
+  "validation_artifacts": [
+    {"file": "testplan.md", "type": "testplan"},
+    {"file": "hw-validation.md", "type": "companion", "purpose": "Hardware qualification", "audience": "Hardware QE"}
+  ]
+}
+```
+
+When no validation artifacts were published, omit the
+`validation_artifacts` key entirely (legacy-only metadata).
+
 ### Step 7: Report to User
 
 Present:
@@ -369,8 +459,9 @@ Present:
 ## Output
 
 - `.artifacts/config.json` (workspace-level config, created if it didn't exist)
-- `.artifacts/design/{issue-key}/publish-metadata.json`
-- Design document committed and pushed to feature branch in the docs repo
+- `.artifacts/design/{issue-key}/publish-metadata.json` (includes `validation_artifacts` when artifacts were published)
+- Design document and validation artifacts committed and pushed to feature branch in the docs repo
+- `validation-index.json` published to docs repo feature directory for downstream discovery
 - Draft PR created against the docs repo
 - `.artifacts/design/{issue-key}/08-pr-description.md`
 
