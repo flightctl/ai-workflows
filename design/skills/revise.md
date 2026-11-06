@@ -22,8 +22,8 @@ multiple rounds of revision.
 - **Preserve traceability.** If new content is added, note its source.
 - **Show your changes.** After revising, summarize what changed so the user can verify.
 - **No scope reduction.** Do not silently simplify, even when revising.
-- **Filename stability after sync.** If `sync-manifest.json` exists, epic and story filenames are locked — they serve as idempotency keys in Jira. Do not rename, renumber, or delete synced files. New stories must use the next available number. New epics must use the next available number (gaps are fine).
-- **Logical deletion via marker.** When the user wants to remove a synced story or epic, do not delete the file. Instead, add `status: removed` to the file's YAML frontmatter. The file stays on disk so `/sync` can detect the removal and close the corresponding Jira issue.
+- **Identity stability.** Epic and story filenames, numbers, and containing paths are fixed from creation — do not rename, renumber, or move files. New stories must use the next available number (above any existing or removed file's number in that epic; gaps are fine). New epics must likewise use the next available number. Do not rename or reparent an epic in a way that changes its existing stories' qualified identity or containing path.
+- **Logical deletion via marker.** When the user wants to remove a story or epic, do not delete the file. Instead, add `status: removed` to the file's YAML frontmatter. The file stays on disk and its number is reserved. For already-synced items, `/sync` detects the marker and closes the corresponding Jira issue. For never-synced items, `/sync` skips them — no Jira issue exists to close, but the file is retained and its number remains reserved.
 
 ## Process
 
@@ -44,8 +44,10 @@ Determine which artifacts exist and read them:
 - `.artifacts/design/{issue-key}/06-stories/` (epic and story files, if exist)
 - `.artifacts/design/{issue-key}/07-coverage.md` (coverage matrix, if exists)
 - `.artifacts/design/{issue-key}/04-testplan.md` (testplan, if exists)
-- `.artifacts/design/{issue-key}/sync-manifest.json` (if exists — means
-  epics/stories have been synced to Jira and filenames are locked)
+- `.artifacts/design/{issue-key}/sync-manifest.json` (if exists —
+  records Jira key mappings and content-hash checkpoints from
+  previous `/sync` runs; may be partial if sync was interrupted or
+  not all items were created)
 
 If the user edited `03-design.md` manually since the last workflow phase, read
 and follow `../../_shared/recipes/record-manual-edit.md` with `WORKFLOW=design`
@@ -67,31 +69,34 @@ The user's feedback may target:
 - Sizing corrections ("Epic 2 should be L, not M")
 - Ordering changes ("Story 2.1 should come before 1.3")
 
-**Pre-sync vs post-sync behavior:**
+**Identity stability:** Story and epic filenames, numbers, and
+containing paths are fixed from creation — do not rename, renumber,
+or move files regardless of whether `/sync` has been run. This
+matches criterion 7 in `/decompose` and ensures `/sync`'s filename-
+based idempotency is always safe.
 
-If `sync-manifest.json` does **not** exist (pre-sync), all restructuring
-operations are allowed — rename files, renumber, combine, split freely.
-
-If `sync-manifest.json` **exists** (post-sync), filenames are locked:
-- **Combining epics:** Do not delete synced epic files or move stories
-  to different directories. Keep synced story files at their original
-  paths — `/sync` uses filenames as idempotency keys and path changes
-  cause duplicate Jira creation. Instead, update the surviving epic's
-  content to reflect the combined scope and add `status: removed` to
-  the absorbed epic's YAML frontmatter so `/sync` will close it in
-  Jira. Add any net-new work as new story files using the next
-  available number in the target epic. If the user wants to reorganize
-  epics and stories in Jira, that is a manual Jira operation (move
-  stories between epics in Jira's UI). Note: stories under the absorbed
-  epic remain tracked in the manifest under their original epic.
-  `/sync` will continue to update them if their content changes, but
-  their Jira parent link still points to the now-closed epic. Move
-  them to the surviving epic in Jira's UI.
+- **Combining epics:** Do not delete epic files or move stories to
+  different directories. If any child work under the absorbed epic is
+  intended to remain active, do **not** mark the absorbed epic
+  `status: removed` — keep it as an active container and update its
+  content, scope, and implementation notes to reflect the
+  consolidation. Marking an epic `status: removed` retires it and
+  all its children: `/sync` will cascade-close already-synced active
+  children and skip never-synced ones. Only mark the epic removed
+  when all its child work is intentionally retired too. Add any
+  net-new work as new story files using the next available number in
+  the target epic. Physical merge or reparenting of retained stories
+  to a different epic directory is not supported by the current
+  file-authoritative model — manual Jira reparenting does not update
+  local file/manifest ownership used by `/sync` and is not a
+  workaround for retaining children under a removed source epic. If
+  the user requests a physical merge rather than logical
+  consolidation, flag the constraint and request clarification.
 - **Splitting stories:** Keep the original story file. Add new stories
-  with the next available number (e.g., if story-03 is the last, add
-  story-04 and story-05).
+  with the next available number (above any existing or removed
+  file's number in that epic).
 - **Reordering:** Update `05-epics.md` implementation notes to reflect
-  the new order. Do not rename files — the numbering no longer implies order.
+  the new order. Do not rename files — numbering does not imply order.
 
 Clarify with the user if the feedback is ambiguous before making changes.
 
@@ -128,6 +133,24 @@ After applying changes, verify:
 - Is the coverage matrix still accurate? Update it if stories were
   added, removed, or reassigned.
 - Do story dependencies still make sense?
+
+**`[DOCS]` story re-evaluation (if any `[DOCS]` story is affected):**
+
+Re-evaluate every affected `[DOCS]` story against all seven criteria
+in `decompose.md`. A `[DOCS]` story is affected when this revision
+changed: (a) the `[DOCS]` file itself, (b) a listed or newly relevant
+`[DEV]`/`[UI]` contributor's artifacts — including new, removed,
+renamed, or reopened stories whose user-facing surface falls within the `[DOCS]`
+story's scope, (c) design content that alters the story's reader,
+scope, AC, assumptions, or open-question markers — including resolved
+`[Open: §9.N]` items even without API/CLI shape changes, or (d) ICs
+covered by the story.
+
+For each affected `[DOCS]` story, re-read the file and update
+Documentation Inputs, Contributing stories, and Dependencies to
+reflect the current contributor set — but preserve any existing
+prerequisite dependencies (e.g., infrastructure stories) that are
+not part of the contributing-story inventory.
 
 **If the testplan exists (`04-testplan.md`):**
 - Before modifying any test cases, record the IC and requirement
@@ -189,7 +212,7 @@ updates above are complete on their own.
   - **Renamed IC:** Replace the old IC identifier with the new one in
     every story that lists it.
   - **Added IC:** Determine which stories implement the new IC using
-    the same criteria as `/decompose` Step 7a (the story delivers part
+    the same criteria as `/decompose`'s IC-mapping sub-step (the story delivers part
     or all of the behavior the IC describes). If ownership is unclear,
     ask the user which story should claim it.
 - If test cases were added, removed, or had their IC or requirement

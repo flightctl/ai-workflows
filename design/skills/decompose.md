@@ -29,7 +29,7 @@ must leave the system in a stable state.
 
 ## Process
 
-### Step 1: Read Source Material
+### Step 1: Load Source Material and Identify Feature
 
 Read these files:
 1. `.artifacts/design/{issue-key}/03-design.md` (design document)
@@ -44,12 +44,10 @@ run first.
 If the testplan doesn't exist, tell the user that `/draft` should be
 run first.
 
-### Step 2: Identify the Feature
-
 Read the Jira Feature issue key from the PRD or context. This Feature is the
 parent for all epics created by this workflow.
 
-### Step 3: Plan the Decomposition
+### Step 2: Plan the Decomposition
 
 Before writing, plan:
 
@@ -86,13 +84,13 @@ Before writing, plan:
    split into smaller epics before proceeding. Split by user-value
    slice, not technical layer.
 
-### Step 4: Write Epics
+### Step 3: Write Epics
 
 This step produces two things: a metadata index (`05-epics.md`) and one file
 per epic. Each epic file has a 1:1 correspondence with a Jira Epic issue —
 its content is what `/sync` will push to Jira.
 
-#### 4a: Write Epic Metadata
+#### 3a: Write Epic Metadata
 
 Write `.artifacts/design/{issue-key}/05-epics.md`:
 
@@ -114,7 +112,7 @@ Write `.artifacts/design/{issue-key}/05-epics.md`:
 {PRD Requirements column: list the primary requirements for quick reference.
  If an epic maps to more than ~8 requirements, list the most significant
  and add "See coverage matrix for full mapping." The coverage matrix
- (Step 8) is the authoritative source for requirement-to-story traceability.}
+ (Step 7) is the authoritative source for requirement-to-story traceability.}
 
 ## Dependency Order
 
@@ -129,7 +127,7 @@ Write `.artifacts/design/{issue-key}/05-epics.md`:
  that can proceed in parallel.}
 ```
 
-#### 4b: Write Epic Files
+#### 3b: Write Epic Files
 
 For each epic, write
 `.artifacts/design/{issue-key}/06-stories/epic-{N}-{slug}.md`:
@@ -161,7 +159,7 @@ Design sections: {§4.1 Architecture, §4.3 API Changes, or relevant subsections
 - Gaps in epic numbering are acceptable (e.g., if epic-2 is removed during
   revision, epic-1 and epic-3 remain — do not renumber to close the gap)
 
-### Step 5: Write Stories
+### Step 4: Write Stories
 
 For each epic, create a story directory and write one file per story. Each
 story file has a 1:1 correspondence with a Jira Story issue — its content
@@ -223,22 +221,21 @@ Validated by: {TC-FR1-01, TC-FR3-02}
 `Interface Changes` lists the ICs from the design's §5 that this story
 implements. `Validated by` lists the TCs from the testplan that validate
 the behavior this story delivers. These references are populated in
-Step 7 after stories are written.
+Step 6 after stories are written.
 
-**For `[DOCS]` stories** (see `[DOCS]` story requirements below for the
-Documentation Inputs section):
+**For `[DOCS]` stories** (see `[DOCS]` story quality criteria below):
 
 ```markdown
-# Story {N}.{NN}: [DOCS] {title}
+# Story {N}.{NN}: [DOCS] {product/feature/command — document title}
 
-**As a** {role},
-**I want to** {capability},
-**So that** {benefit}.
+**As a** {specific reader — e.g., fleet administrator, application developer},
+**I want to** {concrete task — what the reader will learn or accomplish},
+**So that** {benefit — why this documentation matters to the reader}.
 
 ## Acceptance Criteria
 
-- [ ] {documentation outcome — what the reader can learn or do, verifiable by reading the documentation}
-- [ ] {documentation outcome}
+- [ ] {reader-verifiable documentation outcome — what the reader can learn or do, verifiable by reading the documentation}
+- [ ] {reader-verifiable documentation outcome}
 
 ## Documentation Scope
 
@@ -248,7 +245,7 @@ Documentation Inputs section):
  up the ticket.
 
  Example: "This feature introduces a new CLI command for managing device
- rollbacks. Users need to understand when to use rollback vs. revert,
+ rollbacks. Operators need to understand when to use rollback vs. revert,
  the required preconditions, and how to verify success."}
 
 ## Documentation Inputs
@@ -268,6 +265,7 @@ Documentation Inputs section):
 Epic: Epic {N} — {epic title}
 PRD Requirements: {FR-1, NFR-1}
 Design section: {§4.3 API Changes, or specific subsection}
+Contributing stories: {Story 1.01, Story 1.02 — DEV/UI stories whose user-facing artifacts this DOCS story covers}
 ```
 
 **Naming conventions:**
@@ -288,36 +286,90 @@ the work:
 If unsure of the correct prefix, use `[DEV]` as the default and note it for
 user review.
 
-**`[DOCS]` story requirements:** `[DOCS]` stories use a different template
-than other story types (see above). They replace `Implementation Guidance`
-and `Testing Approach` with `Documentation Scope` and `Documentation Inputs`.
+**`[DOCS]` story quality criteria:** `[DOCS]` stories use a different
+template than other story types (see above). They replace `Implementation
+Guidance` and `Testing Approach` with `Documentation Scope` and
+`Documentation Inputs`. The criteria below define what a well-formed
+`[DOCS]` story contains at design time. These same criteria are used by
+the decomposition review (criterion #8), by `/revise` and `/respond`
+when changes affect `[DOCS]` stories, and by `/sync` as a pre-sync
+validation gate.
 
-The **Documentation Scope** section describes what the reader needs to
-understand about the feature — not how to write the docs or where to put
-them. Those decisions belong to the documentation author or workflow that
-picks up the ticket. See the template example above for illustration.
+1. **Searchable title.** The title must keep the `[DOCS]` prefix and
+   include recognizable product, feature, or command terms that make the
+   story findable in Jira search and backlog views — e.g.,
+   `[DOCS] Device rollback command reference` rather than
+   `[DOCS] Feature documentation`. Use terms already established by the
+   PRD or design; do not invent identifiers or version strings that are
+   not yet known.
 
-The **Documentation Inputs** section inventories every user-facing artifact
-introduced or changed by the feature, grouped by the implementation story
-that delivers it. At design time you have the complete picture of what's
-new and what changed. Capture it so the documentation author (human or AI)
-gets a concrete starting point — rather than reverse-engineering the
-user-visible surface from code diffs after implementation. Note that
-implementation may diverge from the design, so these inputs are guidance,
-not authority. The documentation author should verify against the actual
-implementation.
+2. **Explicit reader and task.** The persona/goal/benefit statement must
+   name the actual documentation reader (e.g., "fleet administrator,"
+   "application developer") and a concrete task — not a generic role
+   like "user" or a process-oriented goal like "have documentation."
 
-Group items under bold story headers (e.g., **Story 1.01 — {title}:**)
-followed by bullet points listing each user-facing artifact: new or changed
-API fields/resources, CLI output or behavior, configuration options, status
-values and their meanings, error messages, and UI elements. Give enough
-detail that the writer knows what to look for in the implementation.
+3. **Reader-verifiable acceptance criteria.** Each AC must describe a
+   documentation outcome verifiable by reading the published
+   documentation — what the reader can learn, look up, or accomplish by
+   following the documented procedure. Do not require implementation
+   artifacts (merged PRs, CI status) that do not exist at design time.
 
-Place each `[DOCS]` story after all stories it references so that all
-references are resolvable during `/sync`. For per-epic `[DOCS]` stories,
-place them as the last story within their own epic. For a cross-cutting
-`[DOCS]` story that spans multiple epics, place it as the last story in
-the last epic.
+4. **Documentation Scope.** Describes what the reader needs to understand
+   about the feature — not how to write the docs or where to put them.
+   Those decisions belong to the documentation author or workflow that
+   picks up the ticket. See the template example above for illustration.
+
+5. **Complete Documentation Inputs.** Inventories every user-facing
+   artifact introduced or changed by the feature, grouped by the
+   `[DEV]` or `[UI]` implementation story that delivers it. Include only
+   contributing story types that are relevant — a feature with no `[UI]`
+   stories should not reference UI stories, and vice versa. At design
+   time you have the complete picture of what's new and what changed.
+   Capture it so the documentation author (human or AI) gets a concrete
+   starting point — rather than reverse-engineering the user-visible
+   surface from code diffs after implementation.
+
+   Group items under bold story headers (e.g., **Story 1.01 — {title}:**)
+   followed by bullet points listing each user-facing artifact: new or
+   changed API fields/resources, CLI output or behavior, configuration
+   options, status values and their meanings, error messages, and UI
+   elements. Give enough detail that the writer knows what to look for in
+   the implementation.
+
+   **Fact/assumption distinction.** Mark each input's confidence level
+   using the design document's source markers:
+   - Items derived from the design document or PRD are **planned** (no
+     marker needed — they are the default).
+   - Items that fill gaps not specified by the PRD or design must be
+     marked `[Assumption]`.
+   - Items awaiting resolution of an open question must be marked
+     `[Open: §9.N]` referencing the design document's open question.
+
+   Implementation may diverge from the design, so these inputs are
+   guidance, not authority. The documentation author should verify
+   against the actual implementation.
+
+6. **Contributing stories reference.** The Design Reference section must
+   include a `Contributing stories` line listing every `[DEV]` and/or
+   `[UI]` story whose user-facing artifacts this `[DOCS]` story covers.
+   This must be consistent with the stories referenced in Documentation
+   Inputs. Use the canonical `Story N.NN` format.
+
+7. **Stable identity.** Once a story file is created, its qualified
+   identity — epic number, story number, filename, and containing
+   path — is fixed. Story content (title, AC, scope) may change; the
+   file must not be renamed, renumbered, or moved to a different epic.
+   New stories append strictly above the highest existing number in
+   their epic, including retained removed files; gaps are allowed and
+   retired numbers must not be reused. When planning the initial
+   decomposition, prefer placing `[DOCS]` stories after their
+   referenced contributors as a best-effort optimization for first-
+   sync resolution, but this ordering is never a later gate or
+   permission to renumber. `/sync` verifies that every story
+   referenced in Contributing stories AND Dependencies has a Jira key
+   in the manifest before rendering a `[DOCS]` story's description;
+   if any key is missing, the write is deferred to the next explicit
+   `/sync` invocation.
 
 **Story quality checks:**
 - For `[DEV]` stories: does this story add a capability AND testing for that capability? For a justified behavior-preserving prerequisite, does it restructure existing code AND include tests demonstrating preserved behavior?
@@ -341,20 +393,20 @@ the last epic.
   time and implementation time. Identifiers are robust.
 - If a story has more than ~8 acceptance criteria, examine whether it can
   be split along a natural boundary.
-- For `[DOCS]` stories: does the Documentation Scope describe what the
-  reader needs to understand without prescribing how to write or organize
-  the documentation?
-- For `[DOCS]` stories: does the Documentation Inputs section list every
-  user-facing artifact from the implementation stories, with enough detail
-  for a documentation author to know what to look for in the implementation?
+- For `[DOCS]` stories: does the story satisfy all seven `[DOCS]` story
+  quality criteria above (searchable title, explicit reader/task,
+  reader-verifiable AC, documentation scope, complete documentation
+  inputs with fact/assumption distinction, contributing stories
+  reference, stable identity)?
 
-**Filename stability:** Story filenames (e.g., `story-01-scaffold-build-pipeline.md`)
-serve as idempotency keys in the sync manifest. Once stories have been synced
-to Jira, their filenames must not change. When revising a decomposition,
-append new stories with the next available number rather than inserting or
-renumbering existing ones.
+**Identity stability:** Story filenames (e.g., `story-01-scaffold-build-pipeline.md`)
+serve as idempotency keys in the sync manifest. Once created, filenames
+and story numbers are fixed — they must not be renamed, renumbered, or
+moved regardless of whether `/sync` has been run. Append new stories with
+the next available number (above any existing or removed file's number);
+do not insert, reuse retired numbers, or renumber existing stories.
 
-### Step 6: Sizing Consistency Check
+### Step 5: Sizing Consistency Check
 
 After sizing all epics, verify plausibility:
 
@@ -371,14 +423,14 @@ After sizing all epics, verify plausibility:
    epics. Flag any mismatch to the user.
 
 3. Verify no epic is sized XXL. If any is, stop and require a split
-   before proceeding to Step 7.
+   before proceeding to Step 6.
 
-### Step 7: Add Implementation References to Stories
+### Step 6: Add Implementation References to Stories
 
-For each non-`[DOCS]` story written in Step 5, populate the `Interface
+For each non-`[DOCS]` story written in Step 4, populate the `Interface
 Changes` and `Validated by` fields in the Design Reference section.
 
-#### 7a: Map Stories to Interface Changes
+**Map stories to Interface Changes.**
 
 For each non-`[DOCS]` story, determine which Interface Changes (IC-N)
 from the design's §5 the story implements. Use the story's Design
@@ -389,7 +441,7 @@ A story implements an IC when it delivers part or all of the behavior
 that IC describes. One story may implement multiple ICs, and one IC
 may be implemented across multiple stories.
 
-#### 7b: Map Stories to Test Cases
+**Map stories to test cases.**
 
 For each non-`[DOCS]` story, determine which test cases from the
 testplan (read in Step 1) validate the behavior the story delivers.
@@ -408,7 +460,7 @@ For stories that implement ICs with no corresponding test cases
 story's `Validated by` line should read:
 `Validated by: None — {reason from testplan gaps}`
 
-#### 7c: Write References
+**Write references.**
 
 Re-read each non-`[DOCS]` story file. Update the `Interface Changes`
 and `Validated by` lines in the Design Reference section:
@@ -433,7 +485,7 @@ Interface Changes: None — behavior-preserving prerequisite
 Validated by: None — behavior-preserving prerequisite; existing tests verify preserved behavior
 ```
 
-### Step 8: Write Coverage Matrix
+### Step 7: Complete and Validate Artifacts
 
 Write `.artifacts/design/{issue-key}/07-coverage.md`:
 
@@ -462,22 +514,21 @@ Write `.artifacts/design/{issue-key}/07-coverage.md`:
  If none: "All stories trace to PRD requirements."}
 ```
 
-### Step 9: Verify Artifact Structure
-
-Quick sanity check before invoking the decomposition review. Verify:
+**Verify artifact structure.** Quick sanity check before invoking the
+decomposition review. Verify:
 
 1. `05-epics.md` exists and references all epic files
 2. Each epic file referenced in `05-epics.md` exists (e.g.,
    `06-stories/epic-1-{slug}.md`)
 3. Each epic has a corresponding story directory with story files
 4. `07-coverage.md` exists and contains at least one mapping row
-5. Testplan was loaded in Step 1 (confirmed — Step 1 blocks if missing)
+5. Testplan was loaded in Step 1 (confirmed — source loading blocks if missing)
 6. Every non-`[DOCS]` story file has `Interface Changes` and `Validated by` lines in its Design Reference section
 
 If structural issues are found, fix them before proceeding. Do not
 invoke a review on incomplete artifacts.
 
-### Step 10: Review Decomposition
+### Step 8: Review Decomposition
 
 Review the decomposition for structural quality and requirement
 coverage. This review operates independently from the design document —
@@ -501,7 +552,7 @@ subagent for independence. Load it with:
 - NOT the design document (`03-design.md`) — the reviewer evaluates
   the artifacts on their own merits
 
-Retain the subagent's ID for use in Step 12 — resuming the same
+Retain the subagent's ID for use in the re-review sub-step — resuming the same
 reviewer gives it memory of its previous findings and concerns,
 producing more coherent follow-up reviews.
 
@@ -516,64 +567,76 @@ severity definitions from the protocol. The subagent path provides
 stronger independence; the inline path still catches issues by forcing
 a perspective shift.
 
-### Step 11: Validate and Assess Findings
+### Step 9: Validate Findings, Verify Provenance, and Re-Review
 
-For each finding from Step 10:
+This step runs a validation procedure with two mandatory actions
+followed by a conditional re-review. Every validation cycle — including
+the first, and including cycles where the review produced zero
+findings — executes both actions before deciding whether re-review
+is needed. Cap at 2 review-fix rounds total across the entire step.
 
-1. **Validate the reference.** Confirm the cited artifact file and
-   section exist. Discard any finding that references a file or section
-   that does not exist.
+1. **Assess review findings.** For each finding from Step 8 (or from
+   a re-review iteration), apply these checks:
+   - **Validate the reference.** Confirm the cited artifact file and
+     section exist. Discard any finding that references a file or
+     section that does not exist.
+   - **Cross-check PRD claims.** For findings that assert a missing
+     requirement or inadequate coverage, verify the claim against the
+     actual PRD. Discard findings based on misidentified requirements.
+   - **Assess on value.** Does this finding genuinely improve the
+     decomposition? If yes: fix the issue immediately — re-read the
+     affected artifact file before modifying it, verify the fix, and
+     do not rename, renumber, or move story files (criterion 7). If
+     no: note why the finding was dismissed.
 
-2. **Cross-check PRD claims.** For findings that assert a missing
-   requirement or inadequate coverage, verify the claim against the
-   actual PRD. Discard findings based on misidentified requirements.
+   Only fix findings that add real value. Do not make changes for
+   structural preferences not grounded in the evaluation criteria.
 
-3. **Assess on value.** Does this finding genuinely improve the
-   decomposition? Would the artifacts be meaningfully better (clearer
-   acceptance criteria, more complete coverage, better dependency
-   ordering, more appropriate sizing) if the change were made?
+2. **Verify `[DOCS]` input provenance.** This runs unconditionally —
+   even when the review produced zero findings or all findings were
+   dismissed. The independent reviewer intentionally lacks the design
+   document and cannot verify this; it is author-only verification.
 
-   - If yes: fix the issue immediately. Re-read the affected artifact
-     file before modifying it. Verify the fix after applying it.
-   - If no: note why the finding was dismissed (structural preference,
-     no real improvement, would add churn without value).
+   For each `[DOCS]` story, check every unmarked item in Documentation
+   Inputs against the design document (`03-design.md`) and the PRD.
+   An item that traces to a specific design section or PRD requirement
+   is correctly unmarked (planned). An item that fills a gap not
+   specified by either document must be marked `[Assumption]`. An item
+   that depends on an unresolved open question must be marked
+   `[Open: §9.N]` — use the existing open-question identifier from
+   the design document; do not invent new identifiers for this purpose.
+   Fix any incorrect markers.
 
-Only fix findings that add real value. Do not make changes for
-structural preferences not grounded in the evaluation criteria.
+#### Re-review (if artifacts changed)
 
-### Step 12: Re-Review (if fixes were made)
+If either finding fixes (action 1) or provenance corrections (action 2)
+changed any decomposition artifacts, and the 2-round cap has not been
+reached, obtain a re-review:
 
-If Step 11 produced changes to the decomposition artifacts:
+**If a subagent was used in Step 8 and the runtime supports agent
+resumption:** Resume the same reviewer agent. Send it the updated
+artifacts and a summary of changes applied.
 
-1. Obtain a re-review of the updated artifacts:
+**If resumption is not available:** Spawn a new subagent loaded with
+the decomposition review protocol, the updated artifacts, the PRD
+(but NOT the design document), and a summary of the previous round's
+changes so it has full context.
 
-   **If a subagent was used in Step 10 and the runtime supports agent
-   resumption:** Resume the same reviewer agent. Send it the updated
-   artifacts and a summary of fixes applied. This gives the reviewer
-   memory of its original findings and lets it verify they were
-   addressed correctly.
+**If subagents are not available:** Re-read all decomposition artifact
+files before re-reviewing — do not rely on your cached understanding
+from the previous round. Evaluate the full artifact set (not just the
+delta from the last round).
 
-   **If resumption is not available:** Spawn a new subagent loaded with
-   the decomposition review protocol, the updated artifacts, the PRD
-   (but NOT the design document), and a summary of the previous round's
-   findings and fixes so it has full context.
+The re-review should focus on whether changes were applied correctly
+and whether they introduced new issues. If new issues are found, run
+the full validation procedure (actions 1 and 2) again on the new
+findings, then re-review again if more artifacts changed — subject to
+the same 2-round cap.
 
-   **If subagents are not available:** Re-read all decomposition artifact
-   files before re-reviewing — do not rely on your cached understanding
-   from the previous round. Evaluate the full artifact set (not just the
-   delta from the last round).
+If no artifacts were changed by either action in a cycle, the
+validation passes and Step 9 is complete.
 
-   The re-review should focus on:
-   - Whether fixes were applied correctly
-   - Whether fixes introduced new issues
-2. If new issues are found, fix them following the same validate-and-
-   assess procedure from Step 11
-3. Cap at 2 review-fix rounds total. Decomposition fixes are structural
-   and less likely than code fixes to need multiple iterations.
-
-If no fixes were needed in Step 11, the review passes immediately.
-
-### Step 13: Report Review Summary
+### Step 10: Summarize and Present
 
 ```markdown
 ## Decomposition Review Summary
@@ -588,15 +651,13 @@ If no fixes were needed in Step 11, the review passes immediately.
 list them with their file, section, and issue description.}
 ```
 
-### Step 14: Present to User
-
-Present the decomposition and highlight:
+**Present to the user.** Present the decomposition and highlight:
 - Number of epics and stories
 - Epic dependency order
 - Any coverage gaps
 - Stories that might need size adjustment (too large or too small)
 - Any assumptions or judgment calls in the decomposition
-- Decomposition review summary (from Step 13)
+- Decomposition review summary (from above)
 
 If the decomposition review gate reported FLAG, present the unfixed
 CRITICAL/HIGH findings and ask the user to decide how to handle them.

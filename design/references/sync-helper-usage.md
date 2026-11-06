@@ -42,6 +42,8 @@ your responsibility.
 | `render-description <file> <manifest> --type epic\|story [options]` | Render Jira-ready description with resolved refs |
 | `update-manifest <manifest> --operation create\|update\|close --file <f> --jira-key <K> --content-hash <H> [--item-type epic\|story] [--epic-file <E>] [options]` | Record one successful Jira operation (`--epic-file` required for stories) |
 | `compute-hash <file>` | Print SHA-256 of file content |
+| `plan-creation-order <artifacts-dir>` | Plan dependency-first creation order for new stories; output JSON with `ordered`, `blocked`, `errors`, `satisfied_keys`. Exit 0 if plan is valid; exit 1 if `errors` is non-empty (JSON is still printed). Fatal I/O or manifest errors also exit 1 but print only to stderr with no JSON. |
+| `check-ref-availability <artifacts-dir> <story-qid>...` | Check whether stories' referenced stories/epics have Jira keys; output JSON with `ready` and `blocked` lists. Exit 0 if all stories are ready; exit 1 if any story is blocked (JSON is still printed). Fatal manifest/I/O errors also exit 1 with stderr only and no JSON. |
 | `migrate-manifest <manifest>` | Upgrade v1 manifest to v2 in place |
 
 The `prepare` subcommand is preferred over separate `compute-hash` +
@@ -60,10 +62,12 @@ Jira keys from the manifest:
 - `Stories 1.01, 2.01, 3.01` → resolve each → `EDM-XXXX, EDM-AAAA, EDM-BBBB`
 
 The manifest is built incrementally: each issue's key is recorded
-immediately after creation.  Since epics are created first and stories
-are created in epic order (Epic 1 stories before Epic 2 stories),
-dependencies — which reference earlier stories — are always resolvable
-by the time they're needed.
+immediately after creation.  Epics are created first (Step 5), then
+all new stories are created in a feature-wide dependency-first order
+planned by `plan-creation-order` (Step 6a) — each story's required
+keys are available from the manifest by the time it is created. The
+local numeric identifiers (Epic 1, Story 1.01) are
+stable artifact identities, not creation readiness indicators.
 
 If a reference cannot be resolved (the referenced item hasn't been
 created yet or failed to create), the helper leaves the local
@@ -213,3 +217,59 @@ select the terminal/done-category transition.  If multiple terminal
 transitions are available, prefer "Done" over "Closed."  If no terminal
 transition is available from the current status, report the error and
 let the user handle it in Jira.
+
+## Reference-Availability Guard
+
+Before calling `prepare` for a story in Steps 6a or 6b, verify that
+every required reference has a Jira key.  Run `check-ref-availability`
+with the story's qualified ID:
+
+```bash
+REF_ERR=$(mktemp) || { echo "FATAL: cannot create temp file" >&2; exit 1; }
+REF_EXIT=0
+REF_CHECK=$(python3 "$SYNC_HELPER" check-ref-availability \
+  .artifacts/design/{issue-key}/ \
+  "story-{N}.{NN}" 2>"$REF_ERR") || REF_EXIT=$?
+REF_ERR_TEXT=$(cat "$REF_ERR")
+rm -f "$REF_ERR"
+```
+
+The `|| REF_EXIT=$?` idiom captures a nonzero exit without aborting
+under `set -e`.  The two lines after the helper call read stderr text
+and remove the temp file immediately — before branch interpretation
+— so cleanup cannot be forgotten on any exit path.  Apply the
+three-branch interpretation from `sync.md` Step 6a (ready → proceed;
+blocked → skip; catch-all → stop and report `REF_ERR_TEXT`).
+
+The subcommand accepts one or more qualified IDs.  For each story it:
+
+1. Reloads the manifest fresh from `sync-manifest.json`
+2. Reads the story's artifact file and extracts Dependencies (Story and
+   Epic refs) and Contributing stories (for `[DOCS]` stories only)
+3. Checks that native Jira keys are treated as available (external)
+4. Verifies the owning epic (`epic-{N}`) has a Jira key in the manifest
+5. Returns JSON with `ready` and `blocked` lists
+
+**Exit code:** 0 when all stories are ready; 1 when any story is
+blocked.
+
+**JSON output:**
+
+```json
+{
+  "ready": [
+    {"qid": "story-1.01", "refs": {"story-2.01": "EDM-201"}}
+  ],
+  "blocked": [
+    {"qid": "story-1.02", "missing": ["epic-3"], "reason": "..."}
+  ]
+}
+```
+
+**Invariants:**
+
+- Never mutates the manifest or source files
+- Contributing stories affect creation ORDER but do NOT add native Jira
+  blocking relationships
+- Keys recorded by `update-manifest` earlier in this run are immediately
+  visible (manifest is reloaded from disk on each call)
