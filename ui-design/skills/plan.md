@@ -48,6 +48,25 @@ context flag for the rest of this phase:
 All subsequent sections use `HAS_HANDOFF` to choose between UX-derived
 content and fallback guidance (PRD + design document + codebase context).
 
+**Determine screenshot availability.** Check the **Screenshot
+Observations** section of `01-context.md` for `Screenshots` status:
+
+| Status | `HAS_SCREENSHOTS` | Behavior |
+|--------|-------------------|----------|
+| `inspected` | `true` | Cite observations alongside written spec |
+| `partial` | `partial` | Cite inspected images; note missing ones |
+| `none` | `false` | Text-only design (not an error) |
+| `deferred` | `deferred` | Note reduced fidelity where visual evidence applies |
+| `unavailable` | `unavailable` | Note limitation explicitly per section |
+
+If Screenshot Observations or its status is absent: when
+`HAS_HANDOFF` is false, set `HAS_SCREENSHOTS = false` (text-only; no
+re-ingest needed). When `HAS_HANDOFF` is true, ask whether to rerun
+`/ingest` or continue with `HAS_SCREENSHOTS = unavailable`.
+
+Screenshots show visual presentation only — do not conflate with
+keyboard, accessibility, API, or runtime verification.
+
 Then open **cited sources only** from `01-context.md`:
 
 1. The UX handoff artifact — use the path recorded in the Upstream Artifacts
@@ -56,16 +75,12 @@ Then open **cited sources only** from `01-context.md`:
    design input.
 2. The design document — read only the sections cited in `01-context.md`
    (typically §4.3 API Changes, §4.7 RBAC, §5 Interface Changes).
-3. Cited source files from the codebase — read component files, hook files,
-   route definitions, and API client code as needed to verify patterns.
-   Cap at **≤15** cited source reads (bootstrap reads of `01-context.md`,
-   `AGENTS.md`, and `UI-ARCHITECTURE.md` do not count).
-4. Do not glob, repo-wide grep, or run Jira queries. Read the cited files
-   and the required upstream artifacts. Do not re-run ingest exploration.
-   If cited source files cannot be read (e.g., file read tools are
-   unavailable or return errors), stop and report which reads failed
-   before writing the plan — do not substitute assumptions for
-   unverified source content.
+3. Cited source files from the codebase — components, hooks, routes,
+   API client code. Cap at **≤15** reads (bootstrap reads of
+   `01-context.md`, `AGENTS.md`, `UI-ARCHITECTURE.md` don't count).
+4. No repo-wide glob/grep or Jira queries. Read only cited files and
+   required upstream artifacts. If reads fail, stop and report which
+   before writing — do not substitute assumptions.
 
 ### Step 2: Map UX Handoff to Design Decisions
 
@@ -75,6 +90,23 @@ Before writing, create a mental map. If `HAS_HANDOFF` is true:
 - Which interaction specs require new hooks or state?
 - Which persona-specific views require conditional rendering or permission gates?
 - Which acceptance criteria drive which components?
+
+If `HAS_SCREENSHOTS` is true or `partial`, cite inspected screenshot
+observations from `01-context.md` for layout and visible-state decisions:
+
+- Follow the eligibility table in
+  `../../_shared/recipes/screenshot-inspection.md` §5 using the
+  recorded status and Notes from `01-context.md`. Do not re-inspect.
+  Do not cite `unavailable` or `lfs-unresolved` images.
+- **Additive evidence** (visual detail not in prose): verified
+  `[Screenshot: SS-N — additive: {detail}]`; accepted-unverified
+  `[Screenshot: SS-N — accepted-unverified, additive: {detail}]`.
+- **Contradictions** (image vs spec): flag as
+  *"[Contradiction: SS-N vs §section] screenshot shows X, spec states
+  Y."* Do not resolve — let the user decide.
+
+If `HAS_SCREENSHOTS` is `deferred`: note *"Visual evidence deferred"*
+where visual context would apply. Do not fabricate observations.
 
 If `HAS_HANDOFF` is false:
 - Which design document interface changes (IC-N) affect the frontend?
@@ -508,6 +540,8 @@ Before presenting the UI design document, verify:
 - [ ] No vague language ("appropriate", "standard", "as needed" without specifics)
 - [ ] No scope reduction language ("v2", "simplified", "placeholder", "future enhancement")
 - [ ] Source markers trace decisions to UX handoff, design document, PRD, or codebase
+- [ ] Screenshot citations (`[Screenshot: SS-N]`) are present for layout and visual-state decisions when `HAS_SCREENSHOTS` is true or partial; deferred/unavailable decisions are noted when applicable
+- [ ] Contradictions between screenshots and written spec are flagged explicitly; additive visual details are cited as supplementary evidence, not as discrepancies
 - [ ] File paths are specific and follow the project's directory conventions
 - [ ] No `[Assumption: ...]` markers remain
 - [ ] The document is concise — no redundant sections or unnecessary repetition

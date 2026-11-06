@@ -187,17 +187,144 @@ and data-source classifications, and mark affected findings **unverified
 against the technical design**. `/handoff` does no codebase exploration of its
 own, so do not imply verification the phase cannot perform.
 
-### Step 5: Assemble the handoff artifact
+### Step 5: Curate Screenshots
 
-Combine the skill's output with Steps 2, 3, and 4 into the artifact below, and
-save it to `.artifacts/ux-design/{issue-key}/05-handoff.md`.
+Select screenshots that illustrate the approved design for implementation.
+These are curated references for the handoff consumer (`ui-design`), not a
+dump of all raw evaluation evidence.
+
+**Source.** The `/evaluate` phase captures screenshots into
+`.artifacts/ux-design/{issue-key}/04-eval-raw/screenshots/` at Standard
+and Full depth. Check whether screenshots exist in that directory.
+
+If no screenshots exist, determine why and require an explicit decision:
+
+- Read `04-evaluation.md` to confirm the evaluation depth used.
+- If the evaluation was Quick depth or URL-only: tell the researcher
+  screenshots are not available because the evaluation depth did not
+  capture them.
+- If the evaluation was Standard or Full but no screenshots were saved:
+  tell the researcher screenshots were expected but not produced.
+
+In either case, present the options and **wait for an explicit choice**:
+
+*"No screenshots are available for the handoff. Choose one:*
+*1. Re-run `/evaluate` at Standard or Full depth with screenshot capture*
+*2. Provide screenshots directly (the researcher supplies image files)*
+*3. Proceed with a text-only handoff (record this as a documented decision — `ui-design` will operate from written spec only)"*
+
+If the researcher chooses option 3, record in the Screenshot Index section:
+`Screenshots: None — {reason from evaluation depth}. Text-only handoff
+authorized by researcher.`
+
+Do not silently proceed to Step 6 without this choice. Skip the rest of
+this step only after the researcher confirms option 3.
+
+**Per-image capture provenance.** The evaluation header binds to the
+overall run but does not prove each file in `04-eval-raw/screenshots/`
+was captured during that run. A Quick evaluation or re-evaluation may
+leave old images. Verify each candidate individually:
+
+1. Read `04-eval-raw/screenshot-captures.json` (written by `/evaluate`).
+   Each entry records `filename`, `sha256`, `context_revision`,
+   `discovery_revision`, and `prototype_iteration`.
+2. For each candidate file in the screenshots directory, compute its
+   SHA-256 and check whether its filename **and** digest appear in the
+   capture index with all three bindings (`context_revision`,
+   `discovery_revision`, `prototype_iteration`) matching the current
+   context. Only images that match are verified as current-run captures.
+3. If the index is absent (older evaluate run that predates this
+   feature) or has an empty `captures` array (Quick/URL-only depth),
+   no screenshots can be verified as current. Treat this the same as
+   "no screenshots exist" — do not fall back to the evaluation header
+   or assume directory contents are current.
+4. If no images verify as current, present the three options above.
+
+**Researcher-supplied images.** When the researcher provides images
+directly (option 2), record the researcher-provided source path in the
+manifest entry's `source` field (authoring-private; omitted from the
+consumer manifest by `/publish`). Require the researcher to explicitly
+confirm that each supplied image reflects the current context revision,
+discovery revision, and prototype iteration. Record this confirmation
+alongside the source. Do not assume currency from the file alone.
+
+**Selection criteria.** From the verified current-context screenshots,
+select images that show:
+
+1. The **primary user flow** in its populated/happy-path state
+2. Each **alternate state** relevant to implementation (empty, loading, error,
+   partial — choose the states present in the State Matrix)
+3. Any **persona-specific view** that differs visually from the default
+4. **Responsive breakpoints** if the design adapts to screen size
+
+Do not include redundant screenshots that show the same state from
+different evaluation runs.
+
+**Curated directory.** Copy selected screenshots to
+`.artifacts/ux-design/{issue-key}/screenshots/` with stable filenames:
+
+```
+screenshots/
+  SS-1-{short-description}.png     (e.g., SS-1-fleet-list-populated.png)
+  SS-2-{short-description}.png     (e.g., SS-2-fleet-list-empty.png)
+  ...
+```
+
+Use the `SS-N` prefix as the stable identifier referenced throughout the
+handoff. The short description is lowercase-hyphenated and describes the
+flow or state. Keep filenames under 80 characters.
+
+**Screenshot manifest.** Write
+`.artifacts/ux-design/{issue-key}/screenshot-manifest.json` recording each
+curated screenshot. The manifest enables consumers and the publish phase to
+validate references, detect visual-only changes, and verify asset identity
+without re-inspecting the images:
+
+```json
+{
+  "issue_key": "{issue-key}",
+  "context_revision": "{current context revision}",
+  "prototype_iteration": "{iteration evaluated}",
+  "screenshots": [
+    {
+      "id": "SS-1",
+      "filename": "SS-1-fleet-list-populated.png",
+      "sha256": "{hex digest of the image file}",
+      "caption": "{One sentence describing what the screenshot shows}",
+      "alt_text": "{Accessible description of the visual content}",
+      "flow": "{Which user flow or state this illustrates}",
+      "state": "{populated | empty | loading | error | partial | responsive | persona-specific}",
+      "source": "{path to the source screenshot in 04-eval-raw/screenshots/}"
+    }
+  ]
+}
+```
+
+Compute `sha256` by hashing the curated image file's bytes:
+
+```bash
+sha256sum ".artifacts/ux-design/{issue-key}/screenshots/{filename}" | cut -d' ' -f1
+```
+
+If `sha256sum` is unavailable, use `shasum -a 256` on the same file
+and record the full digest. If neither command is available or hashing
+fails, stop and ask the researcher to provide a SHA-256 tool.
+
+If the handoff is regenerated after a new evaluation cycle, re-curate
+screenshots from the updated evaluation and regenerate the manifest. The
+prior manifest is overwritten.
+
+### Step 6: Assemble the handoff artifact
+
+Combine the skill's output with Steps 2, 3, 4, and 5 into the artifact
+below, and save it to `.artifacts/ux-design/{issue-key}/05-handoff.md`.
 Preserve the skill's Given/When/Then acceptance criteria format — it is
 more precise than a flat table and `ui-design` can consume it.
 
 Then move the skill's raw output into the namespace and clean up the repo
 root as described in Step 1.
 
-### Step 6: Capture Provenance
+### Step 7: Capture Provenance
 
 `05-handoff.md` is a planning document published to the docs repo (via
 `/publish`), so it carries the same provenance contract as `prd`/`design`.
@@ -241,7 +368,18 @@ Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 
 ### User Flows
 
-{Step-by-step flows from skill output}
+{Step-by-step flows from skill output.
+
+When screenshots are available, embed the primary-flow screenshot
+adjacent to the flow it illustrates:
+
+![SS-1: {alt_text from manifest}](screenshots/SS-1-{description}.png)
+*{caption from manifest} — Prototype iteration {N}, context revision {R}*
+
+Place each embed immediately after the flow step(s) it depicts. Use the
+resolved reference for the storage mode: a relative path for `lfs`/`git`
+mode, or the external HTTPS URL for `external` mode. Both must render as
+visible images in standard Markdown viewers.}
 
 ### Keyboard Navigation
 
@@ -305,6 +443,29 @@ deferred — the researcher confirms this split}
 
 {If the full design is deliverable as-is, state: "No phasing required — the
 technical design supports the full design."}
+
+## Screenshot Index
+
+{From Step 5. If no screenshots were captured, record the researcher's
+explicit text-only decision: `Screenshots: None — {reason}. Text-only
+handoff authorized by researcher.`}
+
+{If screenshots are available, this section is the identity/metadata
+index. Each screenshot is embedded **once** at the relevant flow or
+state section above (User Flows, State Matrix, or Persona-Specific
+Views) using `![SS-N: {alt_text}]({ref})` with a caption. This index
+provides the SHA-256 checksums and revision metadata for tooling and
+consumer identity verification — it is not a duplicate gallery.}
+
+| ID | Ref | SHA-256 | Caption | State | Embedded at |
+|----|-----|---------|---------|-------|-------------|
+| SS-1 | `screenshots/SS-1-{desc}.png` | `{12 hex}…` | {caption} | {state} | §User Flows |
+
+**Context revision:** {revision} | **Prototype iteration:** {N}
+
+**Note for `ui-design`:** Open and visually inspect each image at its
+embed location during `/ingest`. Do not treat this index as a substitute
+for image inspection.
 
 ## Open Questions
 

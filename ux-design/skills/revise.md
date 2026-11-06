@@ -40,6 +40,7 @@ The user's feedback may target:
 - State coverage gaps
 - Acceptance criteria adjustments
 - Research context clarifications
+- Screenshot additions, replacements, or removals
 
 Clarify with the user if the feedback is ambiguous before making changes.
 
@@ -50,17 +51,58 @@ Edit the handoff spec:
 - For directional feedback: propose concrete changes and confirm before applying
 - For new information: add it to the appropriate sections
 
-After writing the updated `05-handoff.md`, read and follow
-`../../_shared/recipes/capture-provenance-event.md` with `WORKFLOW=ux-design`,
-`ISSUE_KEY={issue-key}`, `PHASE=revise`, `AUTHORING_MODE=skill`.
+### Step 3a: Handle Screenshot Changes
+
+If the revision adds, replaces, or removes screenshots:
+
+1. **Adding:** Assign a new `SS-N` ID (next unused integer). Copy the
+   image into `.artifacts/ux-design/{issue-key}/screenshots/` using stable
+   naming. Compute its SHA-256 and add the entry to
+   `screenshot-manifest.json`. Add both an inline `![alt](ref)` embed at
+   the relevant flow/state section and a row in the Screenshot Index of
+   `05-handoff.md`.
+
+2. **Replacing:** Replace the file in `screenshots/`, update the
+   manifest's `sha256` field and the Screenshot Index SHA-256, and update the embed's alt text and caption
+   if the visual content changed. Note the visual change in the revision
+   summary. The manifest checksum ensures `/publish` detects the update
+   even when the filename is unchanged.
+
+3. **Removing:** Delete the file from `screenshots/`, remove its manifest
+   entry, remove the inline `![alt](ref)` embed **and** the Screenshot
+   Index row from `05-handoff.md`. If a PR has been published, `/publish`
+   will remove the file from the published Git/LFS tree on the next
+   update.
+
+4. **Image-only change** (same ID, same filename, visually different
+   content): Replace the file, update the manifest's `sha256` and the Screenshot Index SHA-256, and note
+   the change. The checksum difference signals `/publish` and `ui-design`
+   that the visual content changed.
+
+**Adding screenshots to a previously text-only handoff.** If the handoff
+has `Screenshot Index: None` and the researcher provides images, the recorded
+`screenshot_storage` policy of `none` is no longer valid. Tell the
+researcher that an explicit storage policy (`lfs`, `external`, or `git`)
+is required before the next `/publish`, then follow the curation
+procedure from `/handoff` Step 5.
 
 ### Step 4: Consistency Check
 
-After applying changes, verify:
+**Provenance capture (unconditional).** After all textual and screenshot
+changes are written to `05-handoff.md` and the manifest (Steps 3 and
+3a), capture provenance regardless of whether the revision involved
+screenshots. Text-only revisions must also capture provenance:
+
+Read and follow `../../_shared/recipes/capture-provenance-event.md` with
+`WORKFLOW=ux-design`, `ISSUE_KEY={issue-key}`, `PHASE=revise`,
+`AUTHORING_MODE=skill`.
+
+After capturing provenance, verify:
 - Do acceptance criteria still trace to research findings?
 - Does the component mapping still align with the prototype?
 - Are interaction specs consistent with evaluation findings?
 - Are there contradictions with locked research decisions?
+- Do screenshot references in the handoff match the manifest?
 
 ### Step 5: Present Changes
 

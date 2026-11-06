@@ -99,12 +99,16 @@ delete or overwrite other phase artifacts during ingest.
 mkdir -p ".artifacts/ui-design/{workspace-id}"
 ```
 
-### Step 2a: Check for Prior Ingest
+### Step 2a: Resolve Workspace Paths and Check for Prior Ingest
 
-If `.artifacts/ui-design/{workspace-id}/01-context.md` already exists, this
-is a re-invocation. Copy the existing file to
-`.artifacts/ui-design/{workspace-id}/01-context.md.prev` so it is preserved
-for the diff in Step 8a.
+Resolve once against Step 2's invocation directory; retain across
+later `cwd` changes. No hardcoded prefix or Git-root requirement.
+
+- `ARTIFACT_DIR` = `.artifacts/ui-design/{workspace-id}`
+- `CONTEXT_PATH` = `{ARTIFACT_DIR}/01-context.md`
+- `BACKUP_PATH` = `{ARTIFACT_DIR}/01-context.md.prev`
+
+If `{CONTEXT_PATH}` exists, copy it to `{BACKUP_PATH}` for Step 8a.
 
 ### Step 3: Read the [UI] Story
 
@@ -267,36 +271,47 @@ fall back to `05-handoff.md` (the private artifact name). If multiple
 match, present them to the user and ask which is current. If none,
 proceed without a handoff (it is optional).
 
-If found, read it.
+If found, read candidate text to locate the provenance footer (reading
+the file is okay; extracting content or opening images is not until
+provenance is confirmed).
 
-**Provenance freshness check.** Before extracting content, look for a
-provenance footer (`<!-- ai-workflow-provenance:`) in the handoff file.
-If no provenance footer is found, warn the user:
+**Provenance freshness check (gate).** Look for
+`<!-- ai-workflow-provenance:` in the handoff. If absent, warn the user
+and ask whether to proceed or wait.
 
-*"The UX handoff file (`{path}`) does not contain a provenance footer.
-This may indicate the handoff has not been finalized by the UX workflow.
-Proceed with this handoff, or wait for a finalized version?"*
+- **Proceed:** continue to Screenshot inspection below.
+- **Wait or skip:** mark handoff not-used, clear only newly
+  compiled/provisional UX data (prior `{CONTEXT_PATH}` stays
+  until Step 8a), record the deferral reason, **skip all remaining
+  5.3 work** (inspection + extraction). Plan cannot cite skipped
+  UX evidence.
 
-Wait for the user's response before continuing. If the user chooses to
-wait, skip the handoff and proceed without it (same as "not found").
+**Screenshot inspection.** Check the handoff's **Screenshot Index**
+for image references (`SS-N` IDs).
 
-Extract and record:
-- **Component Mapping** — UI elements → design system components
-- **State Matrix** — component states (empty, loading, error, populated, etc.)
-- **Interaction Specs** — user flows, keyboard navigation, focus management
-- **Data Annotations** — per-element data source types (API, User input,
-  Configuration, Computed, Static, Unknown)
-- **Persona-Specific Views** — user group differences, permission-gated actions
-- **Accessibility Requirements** — WCAG, ARIA, keyboard, screen reader
-- **Acceptance Criteria** — Given/When/Then with AC-N numbering
-- **Feasibility & Phasing** — phasing information from the UX handoff:
-  MVP vs Final Vision scope, Supported vs Needs backend annotations,
-  and any phasing recommendations that affect implementation order.
-  This section informs `/plan`'s component prioritization and `/sync`'s
-  story scoping.
+- **If referenced:** Read and follow
+  `../../_shared/recipes/screenshot-inspection.md` with
+  `HANDOFF_DIR` = the handoff's directory,
+  `MANIFEST_PATH` = `{HANDOFF_DIR}/screenshot-manifest.json`, and
+  `HANDOFF_FILE` = the handoff file path.
+  Set Screenshots status: `inspected` (all), `partial` (some), or
+  `unavailable` (none). Preserve per-image status and user decisions.
 
-If not found, record: *"No UX handoff artifact found. Proceeding with PRD,
-design document, and codebase context only."*
+- **If none** (Screenshot Index says "None" or is absent, and no
+  inline image embeds exist): Set `HAS_SCREENSHOTS = false`. If the
+  index says "None" or is absent but inline embeds are present, report
+  the inconsistency; if the user chooses limited continuation, record
+  `HAS_SCREENSHOTS = unavailable` with the decision — not `false`.
+
+- **If deferred** (user authorizes skipping inspection): Set
+  `HAS_SCREENSHOTS = deferred`. Note reduced visual fidelity downstream.
+
+Extract: Component Mapping, State Matrix, Interaction Specs, Data
+Annotations, Persona-Specific Views, Accessibility Requirements,
+Acceptance Criteria (AC-N), and Feasibility & Phasing.
+
+If not found: *"No UX handoff artifact. Proceeding with PRD, design
+document, and codebase context."*
 
 #### 5.4: Load Clarifications
 
@@ -330,27 +345,18 @@ the areas of the codebase that the UI work will affect. Focus on two domains:
    extended? Read their key files to understand current patterns — props,
    composition, and internal state.
 
-3. **Hook patterns:** What custom hooks exist? How does the project handle
-   data fetching (React Query, SWR, custom hooks, Redux thunks)? Where do
-   hooks live?
-
-4. **State management:** What state management approach does the project use?
-   (Redux, Zustand, Context, Jotai, local state only) Where is global state
-   defined? What patterns exist for derived/computed state?
-
-5. **Routing:** What router is used? (React Router, Next.js, TanStack Router)
-   How are routes organized? Where are lazy loading boundaries? What route
-   guards or auth checks exist?
-
-6. **Design system:** What component library is used? (PatternFly, MUI,
-   custom) Are there project-specific wrappers?
-
-7. **Testing patterns:** What test framework is used? (Jest, Vitest,
-   Playwright, Cypress) Where do tests live? What patterns do existing
-   component tests follow?
-
-8. **TypeScript patterns:** How are types organized? Are there shared type
-   definitions for API responses? What naming conventions are used?
+3. **Hook patterns:** Custom hooks, data fetching approach (React Query,
+   SWR, Redux thunks), hook locations
+4. **State management:** Approach (Redux, Zustand, Context, Jotai,
+   local), global state location, derived/computed state patterns
+5. **Routing:** Router (React Router, Next.js, TanStack), route
+   organization, lazy loading, guards
+6. **Design system:** Component library (PatternFly, MUI, custom),
+   project-specific wrappers
+7. **Testing patterns:** Framework (Jest, Vitest, Playwright, Cypress),
+   test location, existing component test patterns
+8. **TypeScript patterns:** Type organization, shared API type
+   definitions, naming conventions
 
 #### 7.2: Backend API Surface
 
@@ -368,35 +374,17 @@ the areas of the codebase that the UI work will affect. Focus on two domains:
    RBAC patterns exist on the API side?
 
 Use file search (glob), content search (grep), and targeted file reading.
-If these tools are unavailable or cannot execute (e.g., no file search
-tool, MCP errors, sandbox restrictions), stop and report which tools
-are missing before producing any codebase context — do not infer
-patterns from filenames or prior knowledge alone.
-Focus on 15–25 key files that establish the patterns and boundaries of change.
-If the last 3–5 files explored introduced no new patterns or constraints,
-exploration is likely complete. Note what remains uncertain in the Open
-Questions section.
+If tools are unavailable, stop and report before producing codebase
+context. Focus on 15-25 key files. Stop exploring when 3-5 consecutive
+files introduce no new patterns. Note remaining unknowns in Open Questions.
 
 #### No-Evidence Stop Gate
 
-If codebase exploration found **none** of the following — no
-`UI-ARCHITECTURE.md`, no component directories (e.g., `src/components/`),
-and no backend API type definitions — stop before writing `01-context.md`.
-
-Report to the user:
-
-*"Insufficient codebase evidence found. Searches attempted:*
-*- UI-ARCHITECTURE.md: {found / not found}*
-*- Component directories (src/components/, app/components/, etc.): {found / not found, list paths searched}*
-*- Backend API type definitions (OpenAPI specs, TypeScript interfaces, Go structs): {found / not found, list paths searched}*
-*
-*You can retry by providing a different codebase path, or proceed with
-limited context by confirming. Use `/ingest` again after correcting the
-codebase location."*
-
-Wait for the user's response. If they provide a corrected path, re-run
-Step 7 with the new path. Do not proceed to Step 8 unless the user
-explicitly confirms they want to continue with limited evidence.
+If exploration found **none** of `UI-ARCHITECTURE.md`, component
+directories, or API type definitions — stop before writing
+`01-context.md`. Report searches attempted; wait for a corrected path
+or explicit limited-evidence confirmation. On corrected path, re-run
+Step 7.
 
 ### Step 8: Compile Context
 
@@ -413,8 +401,8 @@ non-Jira input (Step 1), fill the Story Summary with substitute values:
 where `{source description}` is the path or label the user provided.
 Skip the Linked Stories table if no Jira data is available.
 
-If this is a first invocation, write
-`.artifacts/ui-design/{workspace-id}/01-context.md` with this structure:
+If this is a first invocation, write `{CONTEXT_PATH}` with this
+structure:
 
 ```markdown
 # UI Design Context — {workspace-id}
@@ -454,31 +442,36 @@ If this is a first invocation, write
 
 - **Design:** {resolved path in docs repo}
 
-{Summary of design sections relevant to the UI — API changes, data model,
- interface changes, architecture, RBAC/tenancy. Reference specific section
- numbers (§4.3, §5, etc.) so /plan can cite them.}
+{Design sections relevant to UI — API, data model, interfaces,
+ architecture, RBAC. Reference §numbers for /plan.}
 
 ### UX Handoff Summary
 
 - **Handoff:** {resolved path in docs repo, or "Not available"}
 
-{If available: summary of component mapping, key interaction specs, data
- annotation source types, persona-specific views, accessibility
- requirements, and acceptance criteria count.
+{If available: component mapping, interaction specs, data annotations,
+ persona views, accessibility, AC count. If not: "No UX handoff
+ artifact. This [UI] story operates from PRD and design context only."}
 
- If not available: "No UX handoff artifact. This [UI] story operates from
- PRD and design document context only."}
+### Screenshot Observations
+
+- **Screenshots:** {`inspected` / `partial` / `none` / `deferred` / `unavailable`}
+- **Manifest revision:** {context_revision from manifest, or "N/A"}
+- **Manifest iteration:** {prototype_iteration from manifest, or "N/A"}
+
+{If `inspected`/`partial`: one row per image per the inspection recipe schema.}
+
+| ID | Status | Identity | Ref | Expected SHA | Observed SHA | Observation | Spec Match | Notes |
+|----|--------|----------|-----|-------------|-------------|-------------|------------|-------|
+| SS-1 | inspected | verified | `screenshots/SS-1-desc.png` | `a1b2…` | `a1b2…` | {layout, state} | Yes/No | — |
+
+{`none`/`deferred`/`unavailable`: one-line reason and per-image status.}
 
 ### Feasibility & Phasing
 
-{If available from the UX handoff: summarize the phasing information —
- which elements are MVP vs Final Vision, which are Supported by the
- current backend vs Needs backend work, and any phasing recommendations
- that affect implementation order. This informs /plan's component
- prioritization and /sync's story scoping.
-
- If not available: "No feasibility or phasing information available from
- the UX handoff."}
+{From UX handoff: MVP vs Final Vision, Supported vs Needs backend,
+ phasing recommendations. Informs /plan and /sync.
+ If unavailable: "No feasibility or phasing information available."}
 
 ### Locked Decisions
 
@@ -500,8 +493,7 @@ If this is a first invocation, write
 
 ### Component Patterns
 
-{How components are organized in this project. Directory structure,
- naming conventions, composition patterns.}
+{Directory structure, naming conventions, composition patterns.}
 
 ### Affected Components
 
@@ -515,23 +507,19 @@ If this is a first invocation, write
 
 ### Hook Patterns
 
-{Existing custom hooks relevant to this work. Data-fetching patterns,
- cache strategies, error handling conventions.}
+{Custom hooks relevant to this work. Data-fetching, caching, errors.}
 
 ### State Management Patterns
 
-{How state is organized — slices/stores, selectors, actions. What
- belongs in global state vs. local state in this project.}
+{Slices/stores, selectors, actions. Global vs. local state.}
 
 ### Route Structure
 
-{Current routing setup relevant to the story — file-based or config-based,
- lazy loading patterns, route guard patterns.}
+{Routing setup — file-based or config-based, lazy loading, guards.}
 
 ### Testing Conventions
 
-{Test framework, directory structure, naming conventions, what existing
- component tests look like, coverage expectations.}
+{Framework, directory structure, naming conventions, coverage.}
 
 ## Backend API Context
 
@@ -547,65 +535,44 @@ If this is a first invocation, write
 
 #### {Method} {path}
 - **Purpose:** {what it does}
-- **Request:** {params, query, body — key fields only}
+- **Request:** {params, query, body — key fields}
 - **Response:** {key fields and types}
-- **Pagination:** {if applicable — cursor, offset, page-based}
-- **Notes:** {filtering, sorting, known limitations}
+- **Pagination/Notes:** {cursor/offset, filtering, limitations}
 
 ### API Type Definitions
 
-{Key TypeScript interfaces or type definitions for API responses that
- the frontend uses. Show structure, not full code.}
+{Key TypeScript interfaces or types for API responses the frontend
+ uses. Show structure, not full code.}
 
 ## Constraints and Considerations
 
-{Technical constraints discovered during exploration — restricted imports,
- generated files, design system requirements, performance constraints,
- browser support, existing patterns the design should follow.}
+{Restricted imports, generated files, design system requirements,
+ performance constraints, browser support, existing patterns.}
 
 ## Open Questions
 
-{Things you couldn't determine from the codebase or upstream artifacts
- that the plan phase will need to resolve.}
+{Items unresolved from codebase or upstream artifacts that /plan needs.}
 ```
 
 ### Step 8a: Diff Against Prior Ingest (Re-invocation Only)
 
-If Step 2a created a `.prev` file, compare `01-context.md.prev` against
-the newly compiled content. Focus the diff on:
-
-- Changes to the story's acceptance criteria
-- Changes in upstream artifacts (PRD requirements, design sections, UX handoff)
-- New or removed API endpoints
-- Changes to affected components
-
-Then check whether downstream artifacts exist (`02-ui-design.md`,
-`03-api-findings.md`, `04-pr-description.md`, `05-review-responses.md`,
-`sync-manifest.json`). If they do, tell the user:
-
-- Which artifacts exist and may be affected
-- Which specific changes are likely to affect them
-- If `sync-manifest.json` exists, warn that stories have already been
-  synced to Jira and re-ingesting may require manual Jira updates
-
-Wait for the user to confirm before proceeding. If the user confirms,
-write the compiled content to `01-context.md` and clean up the temp file.
-If the user declines, delete the temp file and stop without overwriting.
+If Step 2a created `{BACKUP_PATH}`, diff it against the compiled
+content (acceptance criteria, upstream artifact changes, API endpoints,
+affected components). Check for downstream artifacts
+(`02-ui-design.md`, `03-api-findings.md`, `sync-manifest.json`, etc.)
+and warn about sync implications. Present the diff and wait for
+confirmation.
+**Confirm:** write compiled content to `{CONTEXT_PATH}`, delete
+`{BACKUP_PATH}` and any temp file.
+**Decline:** discard compiled content, delete `{BACKUP_PATH}` and temp
+files, report `{CONTEXT_PATH}` preserved, and stop.
 
 ### Step 9: Report to User
 
-Present a brief summary:
-- What story was read and its scope
-- Which upstream artifacts were loaded (PRD, design doc, UX handoff)
-- Which codebase areas were explored (frontend + backend)
-- Key affected components identified
-- API endpoints relevant to the UI work
-- Any constraints or open questions discovered
-- Whether the context is sufficient to proceed to `/plan`
-
-If the user declined a re-invocation overwrite in Step 8a, report instead:
-- What changes were found (summary of the diff)
-- That the existing `01-context.md` was preserved unchanged
+Summarize: story scope, upstream artifacts loaded, codebase areas
+explored, affected components, relevant API endpoints, constraints,
+open questions, and readiness for `/plan`. If re-invocation was
+declined, report the diff summary and that `01-context.md` was preserved.
 
 ## Output
 
@@ -613,12 +580,4 @@ If the user declined a re-invocation overwrite in Step 8a, report instead:
 
 ## When This Phase Is Done
 
-Report your findings:
-- Story scope and acceptance criteria
-- Upstream artifacts loaded (and any that were missing)
-- Frontend architecture patterns discovered
-- Backend API endpoints relevant to the UI
-- Constraints and open questions
-- Assessment of readiness for `/plan`
-
-Then return to the invoking workflow router for completion guidance.
+Report findings then return to the invoking workflow router.

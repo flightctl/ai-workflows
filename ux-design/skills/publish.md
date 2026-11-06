@@ -174,7 +174,105 @@ different value before continuing.
 Use only the resolved `destination_dir`, `handoff_target`, and
 `handoff_file_path` for filesystem operations and the provenance target below.
 
-### Step 4: Create or Update Branch and Commit
+### Step 4: Validate Screenshot References
+
+Before publishing, verify that every screenshot referenced in the handoff
+is available and has a valid identity record.
+
+Read `{source_repo_root}/.artifacts/ux-design/{issue-key}/screenshot-manifest.json`.
+Check the handoff's Screenshot Index section. If the handoff references
+screenshots but the manifest is missing or has no screenshot entries,
+stop and recommend re-running `/handoff` to generate the manifest.
+
+For each entry in the manifest:
+
+1. **File exists:** Verify the screenshot file at
+   `{source_repo_root}/.artifacts/ux-design/{issue-key}/screenshots/{filename}`
+   exists and is a regular file (not a symlink to a path outside the
+   artifact directory).
+
+2. **Checksum matches:** Compute the SHA-256 of the file and compare it to
+   the manifest's `sha256` field. If they differ, warn the researcher that
+   the image has changed since the manifest was written and ask whether to
+   update the manifest or re-curate.
+
+3. **Reference in handoff:** Verify the screenshot ID (e.g., `SS-1`) appears
+   in the handoff's Screenshot Index section. Warn about manifest entries not
+   referenced in the handoff (orphaned assets) and about handoff references
+   not in the manifest (broken references).
+
+If any screenshot is missing or has a broken reference, stop before
+creating the branch and report the specific failures.
+
+### Step 5: Resolve Screenshot Storage Policy
+
+**Skip this step entirely** when the handoff's Screenshot Index section says
+"None" and the authoring manifest does not exist or is empty. Resolve
+`screenshot_storage` to `none` **in memory only** — do not write it to
+`publish-metadata.json` yet. Previous metadata and assets must remain
+intact for the reconciliation check in Step 6; persist `none` only after
+a successful commit+push. Proceed to Step 6 without prompting for a
+storage policy or touching asset paths.
+
+**Inverse mismatch guard.** If the Screenshot Index says "None" or
+text-only but the authoring manifest is **nonempty**, stop and ask the
+researcher to reconcile (reference the images or clear the authoring
+manifest) before publishing. Do not automatically delete evidence;
+prior published consumer data remains available for Step 6 cleanup.
+
+When the handoff contains screenshot references, determine how assets
+will be stored. The explicit repository or researcher policy is
+authoritative — do not infer storage mode from filesystem configuration
+alone.
+
+**Policy resolution order:**
+
+1. **Recorded policy.** If the `publish-metadata.json` for this handoff
+   already contains a `screenshot_storage` field **and its value is not
+   `none`**, use it. A previously recorded `none` is not valid
+   authorization when the handoff now contains images — fall through to
+   check repository policy or ask the researcher.
+
+2. **Repository-level policy.** Check for a `screenshot_storage` key in
+   `{docs_repo_path}/.workflows/ux-design/config.json` first. If it has
+   no valid value, check `{docs_repo_path}/.workflows/config.json`.
+   Valid values are `lfs`, `external`, or `git`. Use the first valid
+   value as the explicit repository policy.
+
+3. **No valid policy.** If neither source provides a valid policy, stop
+   before copying any assets and present the available options to the
+   researcher:
+
+   *"The docs repo has no configured screenshot storage policy. Choose how
+   screenshot assets should be stored:*
+
+   *- **lfs** — Store images via Git LFS. Requires LFS to be initialized
+   in the docs repo (the researcher must run `git lfs install` and add
+   tracking patterns; this workflow does not enable LFS automatically).*
+
+   *- **external** — Reference images via stable, immutable external URLs.
+   You will provide a revision-bound URL for each screenshot. URLs must
+   not be mutable 'latest' links or time-expiring presigned URLs.*
+
+   *- **git** — Commit images as ordinary Git objects. This increases
+   repository size with each revision. Only appropriate for small asset
+   sets in repos that explicitly accept binary commits."*
+
+   Wait for the researcher's explicit choice. Do not default to any mode.
+
+**Important constraints:**
+
+- `.gitattributes` containing LFS patterns demonstrates that the docs repo
+  *can* use LFS but does not constitute a storage policy choice for this
+  handoff. Do not silently copy/commit images because LFS patterns exist.
+- Do not auto-enable LFS tracking. If the researcher selects `lfs` but the
+  docs repo has no LFS initialization or matching tracking patterns, stop
+  and tell them to configure LFS first.
+- Do not invent an external upload provider, endpoint, or credentials.
+- Store the resolved policy in `publish-metadata.json` so subsequent
+  `/publish`, `/revise`, and `/respond` updates reuse the same mode.
+
+### Step 6: Create or Update Branch and Commit
 
 All git operations run against the **docs repo**. Use
 `git -C "{docs_repo_path}"` for all commands.
@@ -219,6 +317,52 @@ mkdir -p "{destination_dir}"
 cp "{source_repo_root}/.artifacts/ux-design/{issue-key}/05-handoff.md" "{handoff_target}"
 ```
 
+**Skip screenshot handling on initial text-only publishes** — when the
+handoff's Screenshot Index says "None" **and** no publish-metadata
+`screenshot_assets` exist from a prior publish. Do not prompt for a
+storage policy, touch asset paths, or stage screenshot directories.
+
+**Reconcile previous assets on updates.** When updating an existing
+publish (`publish-metadata.json` exists with `screenshot_assets`), always
+check for removals even if the current handoff has no screenshots. If
+the current authoring manifest is empty or absent but `screenshot_assets`
+records prior images: remove them (lfs/git: `git rm`; external: remove
+embeds/index entries), `git rm` the tracked consumer manifest, and set
+`screenshot_storage` to `none` **after** the commit and push succeed.
+Use previous metadata for cleanup; do not overwrite metadata with empty
+values before using it for reconciliation.
+
+**Copy screenshot assets** (only when the authoring manifest is non-empty
+and the Screenshot Index section contains image references):
+
+**Pre-copy validation.** For each manifest entry, require `{filename}`
+to match `^SS-[0-9]+-[a-z0-9-]+\.png$`. Resolve each candidate
+destination `{destination_dir}/screenshots/{filename}` and verify it is
+inside `{docs_repo_root}`. If `screenshots/` exists, confirm it is not
+a symlink escaping the repo. Stop before copying if any check fails.
+
+**`lfs` or `git` mode:** Create `{destination_dir}/screenshots/`, copy
+each file individually, verify each copy's SHA-256 matches the manifest.
+For `lfs`, also confirm LFS is initialized and tracking covers the path.
+
+**`external` mode:** No file copies. Require immutable HTTPS URLs per
+screenshot. Retrieve each URL's bytes, verify SHA-256 against the
+manifest, and stop on mismatch. Rewrite embeds and index in the published
+handoff; preserve authoring references in `05-handoff.md`.
+
+**Reconcile removals** (update publishes only). Compare previous
+`screenshot_assets` against the current manifest. For removed IDs:
+`lfs`/`git` — validate removal path and `git rm`; `external` — remove
+embed/index entries. If all screenshots removed, also `git rm` the
+tracked consumer manifest and set `screenshot_storage` to `none` after
+commit.
+
+**Publish consumer manifest.** When any screenshots remain after
+removals, write `{destination_dir}/screenshot-manifest.json` with `id`,
+`sha256`, `caption`, `alt_text`, `flow`, `state`, `published_ref`, plus
+`issue_key`, `context_revision`, `prototype_iteration`. Omit the
+authoring `source` field.
+
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ux-design`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{handoff_target}"`.
@@ -237,33 +381,18 @@ Provenance at publish time:
 - Only if the researcher explicitly declines provenance, pass `ALLOW_MISSING=yes` to
   strip the footer and record `provenance_kind: declined`.
 
-```bash
-git -C "{docs_repo_path}" add -- "{handoff_file_path}"
-```
+**Build owned-path allowlist, stage, and commit.** Read and follow
+`../../_shared/recipes/screenshot-publish-stage.md` with:
+- `DOCS_REPO_PATH="{docs_repo_path}"`
+- `HANDOFF_FILE_PATH="{handoff_file_path}"`
+- `HANDOFF_DIR` = the repo-relative parent directory of `{handoff_file_path}` (i.e., `dirname "{handoff_file_path}"`)
+- `COPIED_FILENAMES` = the array of screenshot filenames copied this run
+- `REMOVED_FILENAMES` = the array of screenshot filenames removed via `git rm`
+- `MANIFEST_WRITTEN="true"` if the consumer manifest was written/updated
+- `MANIFEST_REMOVED="true"` if the consumer manifest was removed (all screenshots deleted)
+- `COMMIT_MESSAGE="{Add|Update} UX design handoff for {issue-key}"`
 
-For a new PR, commit the new handoff file:
-
-```bash
-git -C "{docs_repo_path}" commit --only -m "Add UX design handoff for {issue-key}" -- "{handoff_file_path}"
-```
-
-For an existing PR, compare the rendered handoff with the branch version. If
-there is a change, commit only this path; if it is unchanged, do not create an
-empty commit.
-
-```bash
-git -C "{docs_repo_path}" diff --cached --quiet -- "{handoff_file_path}"
-```
-
-An exit status of `0` means the file is unchanged: skip the commit and push. An
-exit status of `1` means it changed: create the update commit below. For any
-other status, stop and report the Git error.
-
-```bash
-git -C "{docs_repo_path}" commit --only -m "Update UX design handoff for {issue-key}" -- "{handoff_file_path}"
-```
-
-### Step 5: Prepare PR Description for a New PR
+### Step 7: Prepare PR Description for a New PR
 
 When updating an existing PR, keep its existing description and skip the rest
 of this step. Do not rewrite the PR body as part of a handoff-only update.
@@ -292,9 +421,9 @@ Prepare the PR description and save it to
 - Approve when the handoff spec is implementation-ready
 ```
 
-### Step 6: Push and Create PR
+### Step 8: Push and Create PR
 
-**For an existing PR**, push the update to its existing branch only when Step 4
+**For an existing PR**, push the update to its existing branch only when Step 6
 created a commit. Keep the existing PR number, URL, and draft or ready status;
 do not run `gh pr create`.
 
@@ -358,7 +487,7 @@ subprocess.run(
 PY
 ```
 
-### Step 7: Save Publish Metadata
+### Step 9: Save Publish Metadata
 
 For a new PR, write
 `{source_repo_root}/.artifacts/ux-design/{issue-key}/publish-metadata.json`:
@@ -372,13 +501,34 @@ resolved paths used to derive the canonical handoff directory.
   "upstream_prd_path": "{repo-relative-prd-path}",
   "upstream_design_path": "{repo-relative-design-path}",
   "pr_number": "{pr-number}",
-  "branch": "{branch-name}"
+  "branch": "{branch-name}",
+  "screenshot_storage": "{lfs | external | git | none}",
+  "screenshot_assets": [
+    {
+      "id": "SS-1",
+      "filename": "{filename}",
+      "sha256": "{hex digest at publish time}",
+      "published_path": "{repo-relative path or external URL}"
+    }
+  ]
 }
 ```
 
-For an existing PR, retain its metadata. Do not change the PR number or branch.
+- `screenshot_storage`: the storage mode used for this publish. `none` when
+  the handoff has no screenshots.
+- `screenshot_assets`: one entry per published screenshot, enabling
+  `/respond` and subsequent publishes to detect visual-only changes by
+  comparing the current file's SHA-256 against the recorded value. For
+  `external` mode, `published_path` is the external URL; for `lfs` or
+  `git`, it is the repo-relative path.
 
-### Step 8: Report to Researcher
+For an existing PR, retain the PR number, branch, and other identity metadata.
+After a successful update commit and push, update `screenshot_storage` and
+replace `screenshot_assets` with the current published entries. If no
+screenshots remain, set `screenshot_storage` to `none` and
+`screenshot_assets` to an empty array `[]`.
+
+### Step 10: Report to Researcher
 
 Present the existing PR URL when updating, or the new PR URL when publishing
 for the first time. Also report:

@@ -36,6 +36,8 @@ graph TD
 | Docs repository (configured) | For `/ingest`, `/publish` | Load upstream PRD, design doc, UX handoff; publish UI design |
 | GitHub CLI (`gh`) | For `/publish`, `/respond` | Create PRs, post review comments |
 | Git | Yes | Branch management, commits |
+| Runtime image-reading capability | For screenshot inspection | Open and inspect image files |
+| Runtime binary-download capability | For external screenshot inspection | Retrieve image bytes from URLs |
 
 ## Inputs
 
@@ -47,6 +49,7 @@ The workflow draws from multiple published sources — never from another workfl
 | Context path | User-provided filesystem path (non-Jira flow only) | No — used when starting from a local document |
 | Description | User-provided text (non-Jira flow only) | No — used when starting from a textual description |
 | UX handoff (`handoff.md`) | Docs repo (from `ux-design` workflow) | No — optional for purely technical work |
+| UX screenshots (`screenshots/` or external URLs) | Docs repo (repo-local files or immutable external HTTPS refs alongside `handoff.md`) | No — present only when evaluation captured screenshots |
 | PRD (`prd.md`) | Docs repo (from `prd` workflow) | Yes |
 | Design document (`design.md`) | Docs repo (from `design` workflow) | Yes |
 | `AGENTS.md` / `UI-ARCHITECTURE.md` | Project root | If available |
@@ -80,6 +83,8 @@ Jira).
 /ui-design:ingest EDM-1234
   → fetches the [UI] story from Jira
   → follows references to load UX handoff, PRD, design doc from docs repo
+  → if UX handoff has screenshots, opens and visually inspects each image
+  → records screenshot observations (visual details, text/image consistency)
   → reads AGENTS.md, UI-ARCHITECTURE.md
   → explores UI codebase (components, hooks, routes, state, tests)
   → explores backend API (types, endpoints, OpenAPI specs)

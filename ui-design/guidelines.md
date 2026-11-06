@@ -11,6 +11,12 @@
 - **Persona-aware decomposition is required.** When the UX handoff identifies multiple user groups with distinct views or permissions, the component architecture must address conditional rendering, permission gates, and shared vs. persona-specific components explicitly.
 - **Data annotations drive API review.** Every `Unknown` or `API` source type in the UX handoff's Data Annotations table must be resolved to a specific API endpoint and field — or flagged as a gap.
 - **Accessibility is architectural.** ARIA roles, keyboard navigation, and focus management are designed alongside components, not bolted on later.
+- **Screenshots are visual evidence, not runtime verification.** When UX
+  handoff screenshots are available, cite them for layout and visual-state
+  decisions. Screenshots show rendered presentation; they do not verify
+  keyboard navigation, accessibility compliance, API behavior, or runtime
+  state management. Flag text/image discrepancies rather than silently
+  choosing one source or inventing behavior to reconcile them.
 - **Tests validate behavior, not implementation.** The testing strategy describes what user-facing behaviors to verify, using the project's existing test framework and patterns.
 
 ## Shared Content Rules
@@ -21,6 +27,7 @@ artifacts and published output from this workflow.
 ## Hard Limits
 
 - No fabricated requirements. Every component, hook, and route must trace to a UX handoff element, design document constraint, PRD requirement, or user direction.
+- No fabricated visual observations. When screenshots cannot be inspected (tool unavailability, unreadable files), report the limitation — do not invent observations from captions, alt text, or filenames.
 - No publishing (creating PRs, posting comments) without explicit user approval.
 - No Jira modifications without explicit user approval and a dry-run preview first.
 - **No scope reduction.** Never silently simplify, defer to "v2", use "placeholder", or say "future enhancement" to reduce scope. If scope won't fit, propose a split — don't reduce.

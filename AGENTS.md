@@ -97,6 +97,8 @@ _shared/
     phase-override-resolution.md  # Project-level phase override lookup and activation
     record-manual-edit.md         # Tier 3 manual-edit attribution (wraps capture recipe)
     render-provenance-footer.md   # Render durable footer into docs-repo markdown before commit
+    screenshot-inspection.md      # Screenshot identity verification and visual inspection (used by ui-design)
+    screenshot-publish-stage.md   # Owned-path allowlist, staging, and commit for screenshot publishes (used by ux-design)
     self-review-gate.md           # Pre-PR self-review quality gate (used by bugfix, implement, e2e, cve-fix)
     validation-gate.md            # Pre-commit build/test/lint discovery gate (used by bugfix)
 ```

@@ -143,17 +143,135 @@ git -C "{docs_repo_path}" pull --ff-only
 cp ".artifacts/ux-design/{issue-key}/05-handoff.md" "{docs_repo_path}/{handoff_file_path}"
 ```
 
+**Update screenshot assets if changed.** Read
+`.artifacts/ux-design/{issue-key}/screenshot-manifest.json` and
+`.artifacts/ux-design/{issue-key}/publish-metadata.json`. Derive the
+handoff directory from the published handoff path:
+
+```bash
+handoff_dir=$(dirname "{handoff_file_path}")
+```
+
+**Skip screenshot handling on initial text-only publishes** — when the
+authoring manifest does not exist or contains no screenshots, **and**
+`screenshot_storage` is `none`, **and** `publish-metadata.json` has no
+prior `screenshot_assets`. Do not touch asset paths.
+
+**Reconcile previous assets on updates.** When `publish-metadata.json`
+records prior `screenshot_assets`, always check for removals even if the
+current authoring manifest is empty or absent (transition to text-only).
+Use previous metadata for cleanup; do not overwrite metadata with empty
+values before using it for reconciliation.
+
+Otherwise, apply the same validation and storage gates as `/publish`:
+
+1. **Validate containment** of every planned destination path before
+   copying, using the same filename-pattern and symlink checks as
+   `/publish` Step 6.
+
+2. **Verify current local bytes** before change detection. For each
+   entry in the authoring manifest, compute the SHA-256 of the actual
+   local file at `.artifacts/.../screenshots/{filename}` and confirm it
+   matches the manifest's `sha256`. If they differ, the manifest is
+   stale — stop and ask the researcher to re-curate or update the
+   manifest before proceeding.
+
+   **Detect changes, additions, and removals:**
+   - For each verified manifest entry, compare its `sha256` against the
+     corresponding `screenshot_assets` entry in `publish-metadata.json`.
+     Changed checksum → updated image.
+   - Manifest entries absent from `publish-metadata.json` → newly added.
+   - `publish-metadata.json` entries absent from the current manifest →
+     removed.
+
+3. **Handle removals** (`lfs` or `git` mode): remove the deleted file
+   from the docs repo and stage the removal:
+
+   ```bash
+   git -C "{docs_repo_path}" rm -- "{handoff_dir}/screenshots/{removed_filename}"
+   ```
+
+   Remove the entry from the published `screenshot-manifest.json`. If
+   all screenshots are removed, also remove the consumer manifest:
+
+   ```bash
+   git -C "{docs_repo_path}" rm -- "{handoff_dir}/screenshot-manifest.json"
+   ```
+
+   Track each removed filename in a `removed_filenames` array.
+
+4. **Handle additions and updates** (`lfs` or `git` mode): copy each
+   changed or new file individually and verify its SHA-256 matches the
+   authoring manifest:
+
+   ```bash
+   cp ".artifacts/ux-design/{issue-key}/screenshots/{filename}" \
+      "{docs_repo_path}/{handoff_dir}/screenshots/{filename}"
+   ```
+
+   Track each copied filename in a `copied_filenames` array.
+
+5. **External mode — rewrite ALL current image references.** After
+   copying the freshly authored handoff over the published copy, the
+   published document contains local authoring refs (`screenshots/...`)
+   that must all be rewritten to external URLs:
+
+   - **Unchanged images** (current manifest `sha256` matches
+     `publish-metadata.json` `screenshot_assets` for that ID): reuse the
+     existing `published_path` URL from `publish-metadata.json`. Verify
+     the URL is still well-formed and immutable.
+   - **Changed or new images**: require the researcher to provide new
+     immutable, revision-bound URLs. Retrieve image bytes from each URL,
+     compute SHA-256, and verify against the authoring manifest. Stop on
+     mismatch.
+   - **Removed images**: delete the embed and Screenshot Index entry.
+     External hosted bytes are not deleted by this workflow.
+
+   Rewrite **every** current `![alt](ref)` embed **and** Screenshot
+   Index `Ref` column in the published handoff with the correct external
+   URL. This ensures a text-only edit with unchanged images preserves
+   all external references. Preserve authoring references in
+   `05-handoff.md` separately.
+
+   **Final-image removal in external mode.** If all images are removed,
+   `git rm` the consumer manifest (`{handoff_dir}/screenshot-manifest.json`)
+   and pass `MANIFEST_REMOVED="true"` to the staging recipe. This applies
+   to all storage modes, not only `lfs`/`git`.
+
+6. **Regenerate the published consumer-facing manifest** at
+   `{handoff_dir}/screenshot-manifest.json` with the current set of
+   published screenshots (no private paths). If all screenshots were
+   removed (any storage mode), skip — the manifest was removed above.
+
+7. **Update `publish-metadata.json`** `screenshot_assets` with the new
+   checksums, paths, and entry set. Do not write metadata until the
+   commit and push succeed (Step below).
+
+**Capture provenance and render footer** after all screenshot updates are
+applied to the handoff, so the footer reflects the final content:
+
+Read and follow `../../_shared/recipes/capture-provenance-event.md` with
+`WORKFLOW=ux-design`, `ISSUE_KEY={issue-key}`, `PHASE=respond`,
+`AUTHORING_MODE=skill`.
+
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ux-design`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{docs_repo_path}/{handoff_file_path}"`.
 
-```bash
-git -C "{docs_repo_path}" add "{handoff_file_path}"
-```
+**Build owned-path allowlist, stage, and commit.** Read and follow
+`../../_shared/recipes/screenshot-publish-stage.md` with:
+- `DOCS_REPO_PATH="{docs_repo_path}"`
+- `HANDOFF_FILE_PATH="{handoff_file_path}"`
+- `HANDOFF_DIR="{handoff_dir}"`
+- `COPIED_FILENAMES` = the `copied_filenames` array built above
+- `REMOVED_FILENAMES` = the `removed_filenames` array built above
+- `MANIFEST_WRITTEN="true"` if the consumer manifest was regenerated
+- `MANIFEST_REMOVED="true"` if the consumer manifest was removed (all screenshots deleted)
+- `COMMIT_MESSAGE="UX design {issue-key}: address review feedback"`
 
-```bash
-git -C "{docs_repo_path}" commit --only -m "UX design {issue-key}: address review feedback" -- "{handoff_file_path}"
-```
+Only update `publish-metadata.json` `screenshot_assets` after the commit
+and push succeed. Set `screenshot_storage` to `none` only after
+successful commit+push when all screenshots have been removed.
 
 ```bash
 git -C "{docs_repo_path}" push

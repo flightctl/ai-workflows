@@ -147,10 +147,13 @@ context, use the stable key agreed during `/ingest` (for example,
     prototype/                 (generated prototype files, from the skill)
   04-evaluation.md             (heuristic eval report, readiness assessment)
   04-eval-raw/                 (raw skill reports, mirrored from the eval skills)
+    screenshots/               (raw evaluation screenshots — private evidence)
   history/                     (prior context snapshots, prototypes, evaluations)
   05-handoff.md                (implementation spec, component mapping, AC)
+  screenshots/                 (curated screenshots for handoff, with stable SS-N IDs)
+  screenshot-manifest.json     (asset index: IDs, checksums, captions, source paths)
   06-pr-description.md         (generated PR body for /publish)
-  publish-metadata.json        (PR number, branch, canonical handoff and source paths)
+  publish-metadata.json        (PR number, branch, handoff/source paths, storage policy)
   provenance.json              (authoring provenance log)
 ```
 
@@ -178,7 +181,36 @@ It contains:
 - **Acceptance criteria** — testable, traced to research findings
 - **Feasibility and phasing** — design reality-checked against the technical
   design, with a final-vision/MVP split when constraints require it
+- **Screenshots** — curated images of the rendered prototype showing primary
+  flows and important alternate/error states, with stable IDs (`SS-N`),
+  meaningful captions, alt text, and revision metadata; absent when the
+  researcher authorized a text-only handoff (screenshots may still be
+  supplied or captured even at Quick depth)
 - **Research context** — why decisions were made
+
+The authoring `screenshot-manifest.json` (in `.artifacts/`) records each
+screenshot's SHA-256 checksum, source path, caption, and the prototype
+iteration and context revision it was captured from. A consumer-facing
+manifest (published alongside the handoff in the docs repo) omits private
+source paths and enables `ui-design` to verify asset identity and detect
+visual-only changes.
+
+### Screenshot Storage Policy
+
+The `/publish` phase requires an explicit storage policy before copying
+or committing screenshot assets. Configuration locations (checked in
+order):
+
+1. `publish-metadata.json` → `screenshot_storage` (per-handoff, set on
+   first publish)
+2. `{docs_repo}/.workflows/ux-design/config.json` → `screenshot_storage`
+   (workflow-specific; checked first)
+3. `{docs_repo}/.workflows/config.json` → `screenshot_storage`
+   (shared fallback; checked only if workflow-specific has no valid value)
+
+Valid values: `lfs`, `external`, `git`. The value `none` is recorded for
+text-only publishes and is not valid authorization for image commits.
+`.gitattributes` LFS patterns indicate capability, not authorization.
 
 ## UXD Marketplace Skills
 
