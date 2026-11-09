@@ -236,15 +236,19 @@ updates above are complete on their own.
   `Validated by: None — no behavioral test cases after testplan revision`.
 
 **`[DOCS]` reconciliation after cascades.** After the IC and testplan
-story cascades above complete, re-read every affected `[DOCS]` story
-and reconcile its Documentation Inputs, Contributing stories, and
-Dependencies against the current contributor set. Contributors may
-have been logically retired during this revision (including through
-parent epic removal discovered after the initial DOCS pass). Update
-the `[DOCS]` story's inputs and contributor references to reflect
-the post-cascade state — but preserve unrelated prerequisite
-Dependencies, existing IDs/paths, and existing removal/restore
-approval semantics.
+story cascades above complete, recompute the affected `[DOCS]` set
+from the resulting post-cascade state — do not rely on the initial
+affected set computed before the cascades, which may miss `[DOCS]`
+stories newly affected by IC reassignment, contributor retirement
+(including through parent epic removal), or testplan changes
+discovered during the cascade.  For each `[DOCS]` story in the
+recomputed set, re-read the file and reconcile its Documentation
+Inputs, Contributing stories, and Dependencies against the current
+contributor set.  Preserve unrelated prerequisite Dependencies,
+existing IDs/paths, and existing removal/restore approval semantics.
+After all reconciliation edits, reapply the canonical seven `[DOCS]`
+criteria from `decompose.md` to each edited `[DOCS]` story before
+proceeding to Step 5.
 
 ### Step 5: Update Artifacts
 

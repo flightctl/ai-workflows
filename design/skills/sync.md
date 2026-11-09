@@ -214,16 +214,19 @@ success may proceed to the preview.  Apply this three-branch
 interpretation **before** presenting the preview or proceeding to
 Step 4:
 
-1. **Exit 0 + valid JSON with `status` absent or equal to
-   `"success"` + non-empty `ordered` or no new stories:** the plan
-   is valid.  Continue to the preflight check below.
-2. **Exit 1 + valid JSON with non-empty `errors`:** structured
-   planning errors.  **STOP** — present per-story diagnostics and
-   recommend `/revise` to fix the decomposition.  Do not proceed to
-   preview, approval, writes, or checkpoints.
-3. **Any other result** — empty output, malformed JSON, missing
-   expected fields, unexpected exit code, or inconsistent
-   status/schema: **STOP**.  Report `PLAN_EXIT`,
+1. **Exit 0 + valid JSON containing all four required fields
+   (`ordered`, `blocked`, `errors`, `satisfied_keys`) with correct
+   types (lists/dict) + `errors` empty + `blocked` empty:** the plan
+   is valid — `ordered` may be empty when no new stories need
+   creation.  Continue to the preflight check below.
+2. **Exit 1 + valid JSON containing all four required fields with
+   non-empty `errors`:** structured planning errors.  **STOP** —
+   present per-story diagnostics and recommend `/revise` to fix the
+   decomposition.  Do not proceed to preview, approval, writes, or
+   checkpoints.
+3. **Any other result** — empty output, malformed JSON, missing or
+   wrong-type required fields, unexpected exit code, or exit 1
+   without parseable JSON: **STOP**.  Report `PLAN_EXIT`,
    `PLAN_ERR_TEXT`, and the raw `PLAN_JSON` (if any) as fatal
    diagnostics.  Do not proceed to preview, approval, writes, or
    checkpoints.

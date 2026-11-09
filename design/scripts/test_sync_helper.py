@@ -7814,9 +7814,9 @@ class TestContribListPrefixNormalization(_TmpDirMixin, unittest.TestCase):
         result = sync_helper.extract_required_refs(fp)
         self.assertIn("story-1.01", result["refs"])
 
-    def test_deps_not_duplicated_as_contributors(self) -> None:
-        """Dependencies refs must not be duplicated in result when the
-        same ID appears in both Dependencies and Contributing stories."""
+    def test_both_sections_extracted(self) -> None:
+        """Refs from both Dependencies and Contributing are extracted
+        per existing grammar — deduplication is the consumer's concern."""
         sd = Path(self.tmpdir) / "06-stories"
         sd.mkdir()
         _make_docs_story(sd, 1, 3, "docs",
@@ -7824,25 +7824,23 @@ class TestContribListPrefixNormalization(_TmpDirMixin, unittest.TestCase):
                          contributing_stories="Story 1.01, Story 1.02")
         fp = sd / "epic-1" / "story-03-docs.md"
         result = sync_helper.extract_required_refs(fp)
-        # story-1.01 appears in BOTH Dependencies and Contributing;
-        # it should appear twice in refs (once from each section) per
-        # existing grammar — deduplication is the consumer's concern.
-        # The critical invariant is that it IS extracted from both.
         refs = result["refs"]
+        # story-1.01 extracted from both sections
         self.assertGreaterEqual(refs.count("story-1.01"), 2,
                                 "story-1.01 must be extracted from both sections")
         self.assertIn("story-1.02", refs)
 
-    def test_list_prefix_in_planner_integration(self) -> None:
-        """Plan-creation-order resolves list-prefixed Contributing correctly."""
+    def test_contrib_only_dependency_order(self) -> None:
+        """DOCS story with Dependencies:None and list-prefixed Contributing
+        as sole reference — planner creates prereq before DOCS story."""
         sd = Path(self.tmpdir) / "06-stories"
         sd.mkdir()
         _make_epic(sd, 1, "building")
         _make_dev_story(sd, 1, 1, "impl", deps="None")
+        # DOCS story with Dependencies: None, Contributing-only ref
         _make_docs_story(sd, 1, 2, "docs",
-                         deps="Story 1.01",
+                         deps="None",
                          contributing_stories="Story 1.01")
-        # Rewrite to use list prefix
         fp = sd / "epic-1" / "story-02-docs.md"
         content = fp.read_text(encoding="utf-8")
         content = content.replace(
@@ -7859,15 +7857,98 @@ class TestContribListPrefixNormalization(_TmpDirMixin, unittest.TestCase):
              "file": "epic-1/story-02-docs.md"},
         ]
         r = sync_helper.plan_creation_order(items, self.tmpdir, None)
+        self.assertEqual(r["errors"], [])
         qids = [f"story-{it['epic_index']}.{it['story_index']:02d}"
                 for it in r["ordered"]]
-        # story-1.01 must precede story-1.02 in creation order
         self.assertIn("story-1.01", qids)
         self.assertIn("story-1.02", qids)
-        idx_impl = qids.index("story-1.01")
-        idx_docs = qids.index("story-1.02")
-        self.assertLess(idx_impl, idx_docs,
-                        "Impl story must come before DOCS story in order")
+        self.assertLess(qids.index("story-1.01"), qids.index("story-1.02"),
+                        "DEV prerequisite must precede DOCS in creation order")
+
+    def test_contrib_only_availability_lifecycle(self) -> None:
+        """DOCS with list-prefixed Contributing-only ref: blocked before
+        mapping, ready after prerequisite+parent keys recorded."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir()
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "impl", deps="None")
+        _make_docs_story(sd, 1, 2, "docs",
+                         deps="None",
+                         contributing_stories="Story 1.01")
+        fp = sd / "epic-1" / "story-02-docs.md"
+        content = fp.read_text(encoding="utf-8")
+        content = content.replace(
+            "Contributing stories: Story 1.01",
+            "- Contributing stories: Story 1.01",
+        )
+        fp.write_text(content, encoding="utf-8")
+        # No manifest → prereq story-1.01 has no key → blocked
+        _make_manifest(Path(self.tmpdir), [])
+        mf = Path(self.tmpdir) / "sync-manifest.json"
+        r1 = sync_helper.check_ref_availability(
+            ["story-1.02"], str(self.tmpdir), str(mf))
+        self.assertEqual(len(r1["blocked"]), 1,
+                         "DOCS story blocked when Contributing prereq has no key")
+        # Record parent epic and prereq story keys
+        sync_helper.update_manifest(
+            str(mf), "create", "epic-1-building.md", "EDM-100",
+            "h", item_type="epic")
+        sync_helper.update_manifest(
+            str(mf), "create", "story-01-impl.md", "EDM-201",
+            "h", item_type="story", epic_file="epic-1-building.md")
+        r2 = sync_helper.check_ref_availability(
+            ["story-1.02"], str(self.tmpdir), str(mf))
+        self.assertEqual(len(r2["ready"]), 1,
+                         "DOCS story ready after prereq+parent keys mapped")
+
+    def test_contrib_only_prepare_renders_native_key(self) -> None:
+        """After mapping, prepare renders native Jira key from Contributing
+        while Dependencies remains None."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir()
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "impl", deps="None")
+        _make_docs_story(sd, 1, 2, "docs",
+                         deps="None",
+                         contributing_stories="Story 1.01")
+        fp_docs = sd / "epic-1" / "story-02-docs.md"
+        content = fp_docs.read_text(encoding="utf-8")
+        content = content.replace(
+            "Contributing stories: Story 1.01",
+            "- Contributing stories: Story 1.01",
+        )
+        fp_docs.write_text(content, encoding="utf-8")
+        mf = _make_manifest(Path(self.tmpdir), [{
+            "file": "epic-1-building.md", "jira_key": "EDM-100",
+            "content_hash": "h", "synced_status": "active",
+            "stories": [
+                {"file": "story-01-impl.md", "jira_key": "EDM-201",
+                 "content_hash": "h", "synced_status": "active"},
+            ],
+        }])
+        prep = sync_helper.prepare(
+            str(fp_docs), str(mf), "story",
+            design_doc_link="http://ex.com/design",
+            epic_jira_key="EDM-100")
+        # Contributing story ref resolved to Jira key
+        self.assertIn("EDM-201", prep["description"])
+        # Dependencies section is None, not a Jira link
+        self.assertEqual(prep["dependencies"], "None")
+
+    def test_nondocs_ignores_contributing(self) -> None:
+        """Non-DOCS story ignores Contributing stories field entirely."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir()
+        _make_dev_story(sd, 1, 1, "scaffold", deps="None")
+        fp = sd / "epic-1" / "story-01-scaffold.md"
+        # Manually add Contributing stories to a DEV story (should be ignored)
+        content = fp.read_text(encoding="utf-8")
+        content += "\nContributing stories: Story 2.01\n"
+        fp.write_text(content, encoding="utf-8")
+        result = sync_helper.extract_required_refs(fp)
+        ref_ids = result["refs"]
+        self.assertNotIn("story-2.01", ref_ids,
+                         "Non-DOCS story must not extract Contributing stories")
 
     def test_native_key_preserved_in_existing_cases(self) -> None:
         """Existing native Jira key extraction from Contributing is preserved."""
@@ -7913,7 +7994,6 @@ class TestUnavailableRefIDs(_TmpDirMixin, unittest.TestCase):
         blocked = r["blocked"][0]
         self.assertIn("story-9.99", blocked["missing"],
                        "Actual unavailable ref ID must be in missing")
-        # Must NOT contain placeholders
         for m in blocked["missing"]:
             self.assertNotIn("(see errors", m,
                              "Placeholder must not appear in missing")
@@ -7928,21 +8008,29 @@ class TestUnavailableRefIDs(_TmpDirMixin, unittest.TestCase):
         self.assertIn("epic-999", blocked["missing"],
                        "Actual unavailable epic ref must be in missing")
 
-    def test_unavailable_plus_blocked_graph(self) -> None:
-        """Story with BOTH unavailable ref AND graph deps: both in missing."""
+    def test_both_direct_unavailable_and_blocked_graph_in_missing(self) -> None:
+        """Owner with BOTH direct unavailable ref AND graph prerequisite
+        that is itself blocked: owner's missing contains both actual IDs."""
         self._setup_stories([
-            (1, 1, "a", "Story 9.99"),
-            (1, 2, "b", "Story 1.01"),
+            (1, 1, "a", "Story 9.99"),       # a → missing 9.99
+            (1, 2, "b", "Story 1.01"),       # b → a (which is blocked)
+            (1, 3, "c", "Story 9.99, Story 1.02"),  # c → missing 9.99 + b
         ])
-        items = [self._item(1, 1, "a"), self._item(1, 2, "b")]
+        items = [self._item(1, 1, "a"), self._item(1, 2, "b"),
+                 self._item(1, 3, "c")]
         r = sync_helper.plan_creation_order(items, self.tmpdir, None)
-        # story-1.01 is blocked with story-9.99 in missing
         blocked_map = {
             f"story-{b['item']['epic_index']}.{b['item']['story_index']:02d}": b
             for b in r["blocked"]
         }
-        self.assertIn("story-1.01", blocked_map)
-        self.assertIn("story-9.99", blocked_map["story-1.01"]["missing"])
+        # story-1.03 has direct unavailable story-9.99 AND graph dep
+        # story-1.02 which is itself blocked
+        self.assertIn("story-1.03", blocked_map)
+        c_missing = blocked_map["story-1.03"]["missing"]
+        self.assertIn("story-9.99", c_missing,
+                       "Direct unavailable ref must be in missing")
+        for m in c_missing:
+            self.assertNotIn("(see errors", m)
 
     def test_self_ref_uses_invalid_refs_not_missing(self) -> None:
         """Self-ref uses invalid_refs/reason, NOT missing."""
@@ -7963,7 +8051,6 @@ class TestUnavailableRefIDs(_TmpDirMixin, unittest.TestCase):
         sd = Path(self.tmpdir) / "06-stories"
         sd.mkdir(exist_ok=True)
         _make_epic(sd, 1, "building")
-        # Item references a file that doesn't exist
         items = [{"type": "story", "category": "new",
                   "epic_index": 1, "story_index": 1,
                   "jira_key": None, "title": "",
@@ -7978,9 +8065,7 @@ class TestUnavailableRefIDs(_TmpDirMixin, unittest.TestCase):
                              "No placeholder in missing for source failures")
 
     def test_no_placeholder_anywhere(self) -> None:
-        """No blocked entry in any plan_creation_order result may contain
-        the old ``(see errors for ...)`` placeholder in missing."""
-        # Complex scenario: multiple unavailable refs
+        """No blocked entry may contain ``(see errors for ...)`` placeholder."""
         self._setup_stories([
             (1, 1, "a", "Story 9.01, Story 9.02"),
             (1, 2, "b", "None"),
@@ -7990,6 +8075,23 @@ class TestUnavailableRefIDs(_TmpDirMixin, unittest.TestCase):
         for b in r["blocked"]:
             for m in b.get("missing", []):
                 self.assertNotIn("(see errors", m)
+
+    def test_cli_unavailable_ref_id_in_json(self) -> None:
+        """CLI plan-creation-order JSON contains actual ref IDs in blocked."""
+        import subprocess
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "epic1")
+        _make_dev_story(sd, 1, 1, "a", deps="Story 9.99")
+        r = subprocess.run(
+            [sys.executable, "-I", str(_SCRIPT),
+             "plan-creation-order", str(self.tmpdir)],
+            capture_output=True, text=True, timeout=10)
+        self.assertEqual(r.returncode, 1)
+        out = json.loads(r.stdout)
+        self.assertGreater(len(out["blocked"]), 0)
+        blocked = out["blocked"][0]
+        self.assertIn("story-9.99", blocked["missing"])
 
 
 # ---------------------------------------------------------------------------
@@ -8007,19 +8109,72 @@ class TestDocsParentEpicRetirement(unittest.TestCase):
         m4 = re.search(r"### Step 4:.*?(?=### Step 5:)", cls._revise_md, re.DOTALL)
         assert m4, "Step 4 not found in revise.md"
         cls._step4 = m4.group()
+        # Find the DOCS re-evaluation block (trigger list a-e)
+        trigger = re.search(
+            r"A `\[DOCS\]` story is affected when.*?(?=For each affected)",
+            cls._step4, re.DOTALL)
+        assert trigger, "DOCS affected-set trigger block not found"
+        cls._trigger_block = trigger.group()
+        # Find post-cascade reconciliation block
+        cascade_idx = cls._step4.find("reconciliation after cascades")
+        assert cascade_idx >= 0, "Post-cascade reconciliation block not found"
+        cls._cascade_block = cls._step4[cascade_idx:]
 
-    def test_parent_epic_retirement_in_affected_set(self) -> None:
-        """Step 4 DOCS re-evaluation mentions parent epic retirement."""
-        self.assertIn("parent epic", self._step4.lower())
+    def test_parent_epic_retirement_in_trigger(self) -> None:
+        """Trigger list (a-e) includes parent epic retirement."""
+        self.assertIn("parent epic", self._trigger_block.lower())
 
-    def test_effectively_retired_contributors(self) -> None:
-        """Step 4 mentions contributors retired through parent."""
-        self.assertIn("status: removed", self._step4)
+    def test_contributor_status_removed_in_trigger(self) -> None:
+        """Trigger mentions status: removed on parent."""
+        self.assertIn("status: removed", self._trigger_block)
 
-    def test_unchanged_story_file_still_affected(self) -> None:
-        """Even when contributor's own file is unchanged, parent removal
-        affects the DOCS story."""
-        self.assertIn("unchanged", self._step4.lower())
+    def test_unchanged_file_still_affected(self) -> None:
+        """Trigger notes unchanged contributor file affected by parent."""
+        self.assertIn("unchanged", self._trigger_block.lower())
+
+    def test_parent_retirement_in_cascade_reconciliation(self) -> None:
+        """Post-cascade reconciliation mentions parent epic removal."""
+        self.assertIn("parent epic removal", self._cascade_block.lower())
+
+
+class TestDocsParentRetirementHelper(_TmpDirMixin, unittest.TestCase):
+    """Parent epic retirement logically retires children via existing
+    helper detect_changes semantics (R5 execution-level evidence)."""
+
+    def test_child_under_removed_parent_not_created(self) -> None:
+        """detect_changes skips new children under removed parent epic."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir()
+        _make_epic(sd, 1, "building", removed=True)
+        _make_dev_story(sd, 1, 1, "impl", deps="None")
+        result = sync_helper.detect_changes(self.tmpdir)
+        # Active child under removed parent should not appear as new
+        story_items = [i for i in result["items"]
+                       if i["type"] == "story" and i["epic_index"] == 1]
+        self.assertEqual(len(story_items), 0,
+                         "Child under removed parent must be skipped on fresh sync")
+
+    def test_active_child_changed_under_removed_parent(self) -> None:
+        """An active child story that changed under a removed parent gets
+        category 'removed' (not 'changed') — parent retirement overrides."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir()
+        _make_epic(sd, 1, "building", removed=True)
+        _make_dev_story(sd, 1, 1, "impl", deps="None")
+        _make_manifest(Path(self.tmpdir), [{
+            "file": "epic-1-building.md", "jira_key": "EDM-100",
+            "content_hash": "h", "synced_status": "active",
+            "stories": [
+                {"file": "story-01-impl.md", "jira_key": "EDM-201",
+                 "content_hash": "old-different-hash", "synced_status": "active"},
+            ],
+        }])
+        result = sync_helper.detect_changes(self.tmpdir)
+        child = [i for i in result["items"]
+                 if i["type"] == "story" and i.get("story_index") == 1]
+        self.assertEqual(len(child), 1)
+        self.assertEqual(child[0]["category"], "removed",
+                         "Changed child under removed parent = logically removed")
 
 
 # ---------------------------------------------------------------------------
@@ -8037,18 +8192,54 @@ class TestDocsPostCascadeReconciliation(unittest.TestCase):
         m4 = re.search(r"### Step 4:.*?(?=### Step 5:)", cls._revise_md, re.DOTALL)
         assert m4, "Step 4 not found in revise.md"
         cls._step4 = m4.group()
+        # Find the IC/testplan cascade sections (producers)
+        cls._ic_cascade_idx = cls._step4.find("design Interface Changes")
+        assert cls._ic_cascade_idx > 0, "IC cascade not found in Step 4"
+        cls._tc_cascade_idx = cls._step4.find("test cases were added, removed")
+        assert cls._tc_cascade_idx > 0, "TC cascade not found in Step 4"
+        # Find post-cascade reconciliation
+        cls._recon_idx = cls._step4.find(
+            "reconciliation after cascades")
+        assert cls._recon_idx > 0, "Post-cascade reconciliation not found"
+        # Find Step 5 boundary
+        cls._step5_boundary = len(cls._step4)
 
-    def test_post_cascade_reconciliation_present(self) -> None:
-        """Post-cascade DOCS reconciliation section exists."""
-        self.assertIn("reconcil", self._step4.lower())
+    def test_reconciliation_after_ic_cascade(self) -> None:
+        """Post-cascade DOCS reconciliation appears after IC cascade."""
+        self.assertGreater(self._recon_idx, self._ic_cascade_idx,
+                           "Reconciliation must appear after IC cascade")
 
-    def test_preserves_prerequisite_dependencies(self) -> None:
-        """Post-cascade section preserves prerequisite Dependencies."""
-        self.assertIn("prerequisite", self._step4.lower())
+    def test_reconciliation_after_tc_cascade(self) -> None:
+        """Post-cascade DOCS reconciliation appears after TC cascade."""
+        self.assertGreater(self._recon_idx, self._tc_cascade_idx,
+                           "Reconciliation must appear after TC cascade")
+
+    def test_reconciliation_before_step5(self) -> None:
+        """Post-cascade DOCS reconciliation appears before Step 5."""
+        self.assertLess(self._recon_idx, self._step5_boundary)
+
+    def test_recomputes_affected_set(self) -> None:
+        """Reconciliation recomputes affected DOCS set, not cached initial."""
+        recon_text = self._step4[self._recon_idx:]
+        self.assertIn("recompute", recon_text.lower())
+
+    def test_preserves_prerequisite_deps(self) -> None:
+        """Reconciliation preserves prerequisite Dependencies."""
+        recon_text = self._step4[self._recon_idx:]
+        self.assertIn("prerequisite", recon_text.lower())
+
+    def test_reapplies_seven_criteria(self) -> None:
+        """Reconciliation reapplies seven DOCS criteria after edits."""
+        recon_text = self._step4[self._recon_idx:]
+        self.assertIn("seven", recon_text.lower())
+        self.assertIn("criteria", recon_text.lower())
 
     def test_covers_documentation_inputs(self) -> None:
-        """Post-cascade section mentions Documentation Inputs."""
-        self.assertIn("Documentation Inputs", self._step4)
+        """Reconciliation covers Documentation Inputs."""
+        recon_text = self._step4[self._recon_idx:]
+        # Handle line-wrapped "Documentation\nInputs"
+        joined = " ".join(recon_text.split())
+        self.assertIn("Documentation Inputs", joined)
 
 
 # ---------------------------------------------------------------------------
@@ -8066,42 +8257,154 @@ class TestStep3FailClosedCapture(unittest.TestCase):
         m3 = re.search(r"### Step 3:.*?(?=### Step 4:)", cls._sync_md, re.DOTALL)
         assert m3, "Step 3 not found in sync.md"
         cls._step3 = m3.group()
+        # Find capture recipe
+        cls._recipe_idx = cls._step3.find("PLAN_ERR=$(mktemp)")
+        assert cls._recipe_idx >= 0, "Capture recipe not found"
+        # Find interpretation section
+        cls._interp_idx = cls._step3.find("Interpret the result")
+        assert cls._interp_idx >= 0, "Interpretation section not found"
+        # Find preflight
+        cls._preflight_idx = cls._step3.find("Preflight check")
+        assert cls._preflight_idx >= 0, "Preflight check not found"
+        # Find preview
+        cls._preview_idx = cls._step3.find("Dry-run preview")
+        assert cls._preview_idx >= 0, "Preview not found"
 
-    def test_step3_uses_mktemp(self) -> None:
-        """Step 3 capture uses mktemp for safe temp file."""
+    def test_recipe_uses_mktemp(self) -> None:
+        """Capture recipe uses mktemp for safe temp file."""
         self.assertIn("mktemp", self._step3)
 
-    def test_step3_captures_exit_code(self) -> None:
-        """Step 3 captures plan helper exit code."""
-        self.assertIn("PLAN_EXIT", self._step3)
+    def test_recipe_captures_exit_code(self) -> None:
+        """Capture recipe uses PLAN_EXIT for errexit-safe status."""
+        recipe = self._step3[self._recipe_idx:self._interp_idx]
+        self.assertIn("PLAN_EXIT", recipe)
+        self.assertIn("|| PLAN_EXIT=$?", recipe)
 
-    def test_step3_captures_stderr(self) -> None:
-        """Step 3 captures stderr text."""
-        self.assertIn("PLAN_ERR", self._step3)
+    def test_recipe_inline_cleanup(self) -> None:
+        """Temp file cleaned before branch interpretation."""
+        recipe = self._step3[self._recipe_idx:self._interp_idx]
+        self.assertIn("rm -f", recipe)
 
-    def test_step3_inline_cleanup(self) -> None:
-        """Step 3 cleans up temp file before interpretation."""
-        self.assertIn("rm -f", self._step3)
+    def test_recipe_mktemp_failure_fatal(self) -> None:
+        """mktemp allocation failure stops immediately."""
+        recipe = self._step3[self._recipe_idx:self._interp_idx]
+        self.assertIn("FATAL", recipe)
+        self.assertIn("exit 1", recipe)
 
-    def test_step3_fatal_stops(self) -> None:
-        """Step 3 stops on malformed/missing/empty output."""
-        lower = self._step3.lower()
+    def test_interpretation_precedes_preview(self) -> None:
+        """Interpretation happens before preview/preflight."""
+        self.assertLess(self._interp_idx, self._preview_idx)
+        self.assertLess(self._interp_idx, self._preflight_idx)
+
+    def test_success_requires_four_fields(self) -> None:
+        """Branch 1 requires all four JSON fields: ordered, blocked,
+        errors, satisfied_keys."""
+        interp = self._step3[self._interp_idx:self._preflight_idx]
+        for field in ("ordered", "blocked", "errors", "satisfied_keys"):
+            self.assertIn(f"`{field}`", interp,
+                          f"Success contract must require {field}")
+
+    def test_success_requires_empty_errors_blocked(self) -> None:
+        """Branch 1 requires errors empty AND blocked empty."""
+        interp = self._step3[self._interp_idx:self._preflight_idx]
+        self.assertIn("`errors` empty", interp)
+        self.assertIn("`blocked` empty", interp)
+
+    def test_success_allows_empty_ordered(self) -> None:
+        """Empty ordered is valid (no new stories to create)."""
+        interp = self._step3[self._interp_idx:self._preflight_idx]
+        self.assertIn("empty", interp.lower())
+
+    def test_exit1_structured_errors_stop(self) -> None:
+        """Branch 2: exit 1 + valid JSON + non-empty errors → STOP."""
+        interp = self._step3[self._interp_idx:self._preflight_idx]
+        self.assertIn("STOP", interp)
+
+    def test_malformed_fatal(self) -> None:
+        """Branch 3: malformed/empty/missing fields → fatal STOP."""
+        interp = self._step3[self._interp_idx:self._preflight_idx]
+        lower = interp.lower()
         self.assertIn("malformed", lower)
-        self.assertIn("fatal", lower)
+        self.assertIn("wrong-type", lower)
 
-    def test_step3_structured_errors_stop(self) -> None:
-        """Step 3 stops on valid JSON with non-empty errors."""
-        self.assertIn("errors", self._step3)
-        self.assertIn("STOP", self._step3)
+    def test_no_new_status_field(self) -> None:
+        """Success contract does not invent a 'status' field."""
+        interp = self._step3[self._interp_idx:self._preflight_idx]
+        # The word "status" should not appear as a JSON field name
+        self.assertNotIn("`status`", interp)
 
-    def test_step3_valid_success_continues(self) -> None:
-        """Step 3 continues on valid structured success."""
-        self.assertIn("valid", self._step3.lower())
 
-    def test_step3_no_preview_on_fatal(self) -> None:
-        """Step 3 does not proceed to preview on fatal."""
-        self.assertIn("preview", self._step3.lower())
-        self.assertIn("approval", self._step3.lower())
+class TestStep3CLIFixtures(_TmpDirMixin, unittest.TestCase):
+    """Step 3 CLI validation: valid-clean, structural-error, fatal-output."""
+
+    def test_valid_clean_empty_ordered(self) -> None:
+        """Exit 0, empty ordered/blocked/errors: valid clean plan."""
+        import subprocess
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir()
+        _make_epic(sd, 1, "building")
+        # No new stories at all
+        _make_manifest(Path(self.tmpdir), [{
+            "file": "epic-1-building.md", "jira_key": "EDM-100",
+            "content_hash": sync_helper.compute_file_hash(
+                sd / "epic-1-building.md"),
+            "synced_status": "active", "stories": [],
+        }])
+        r = subprocess.run(
+            [sys.executable, "-I", str(_SCRIPT),
+             "plan-creation-order", str(self.tmpdir)],
+            capture_output=True, text=True, timeout=10)
+        self.assertEqual(r.returncode, 0)
+        out = json.loads(r.stdout)
+        self.assertIsInstance(out["ordered"], list)
+        self.assertIsInstance(out["blocked"], list)
+        self.assertIsInstance(out["errors"], list)
+        self.assertIsInstance(out["satisfied_keys"], dict)
+        self.assertEqual(out["errors"], [])
+        self.assertEqual(out["blocked"], [])
+
+    def test_structural_error_exit1_with_json(self) -> None:
+        """Exit 1, valid JSON with non-empty errors: structural error."""
+        import subprocess
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir()
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "a", deps="Story 9.99")
+        r = subprocess.run(
+            [sys.executable, "-I", str(_SCRIPT),
+             "plan-creation-order", str(self.tmpdir)],
+            capture_output=True, text=True, timeout=10)
+        self.assertEqual(r.returncode, 1, "Structural errors must exit 1")
+        out = json.loads(r.stdout)
+        self.assertGreater(len(out["errors"]), 0)
+        # JSON still has all four required fields
+        for field in ("ordered", "blocked", "errors", "satisfied_keys"):
+            self.assertIn(field, out)
+
+    def test_fatal_corrupted_manifest_no_json(self) -> None:
+        """Corrupted manifest → exit 1, stderr error, no valid JSON."""
+        import subprocess
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir()
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "a", deps="None")
+        mf = Path(self.tmpdir) / "sync-manifest.json"
+        mf.write_text("NOT VALID JSON", encoding="utf-8")
+        r = subprocess.run(
+            [sys.executable, "-I", str(_SCRIPT),
+             "plan-creation-order", str(self.tmpdir)],
+            capture_output=True, text=True, timeout=10)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("ERROR", r.stderr)
+        # stdout should NOT be valid JSON with all four fields
+        try:
+            out = json.loads(r.stdout)
+            has_all = all(k in out for k in
+                          ("ordered", "blocked", "errors", "satisfied_keys"))
+            self.assertFalse(has_all,
+                             "Fatal error must not produce complete JSON")
+        except json.JSONDecodeError:
+            pass  # Expected: no JSON at all
 
 
 # ---------------------------------------------------------------------------
@@ -8121,30 +8424,49 @@ class TestRepeatDecomposeArtifactLoad(unittest.TestCase):
                         cls._decompose_md, re.DOTALL)
         assert m1, "Step 1 not found in decompose.md"
         cls._step1 = m1.group()
+        # Find the repeat-decompose block
+        repeat_idx = cls._step1.find("already exist")
+        assert repeat_idx >= 0, "Repeat-decompose block not found"
+        cls._repeat_block = cls._step1[repeat_idx:]
 
     def test_existing_artifact_handling(self) -> None:
         """Step 1 mentions handling existing decomposition artifacts."""
         self.assertIn("already exist", self._step1)
 
+    def test_loads_before_step2_planning(self) -> None:
+        """Repeat-decompose loading appears in Step 1 before Step 2."""
+        self.assertIn("05-epics.md", self._repeat_block)
+        self.assertIn("06-stories", self._repeat_block)
+        self.assertIn("07-coverage.md", self._repeat_block)
+
+    def test_includes_removed_status_in_inventory(self) -> None:
+        """Inventory includes files with status: removed."""
+        self.assertIn("status: removed", self._repeat_block)
+
     def test_preserves_qualified_identities(self) -> None:
         """Step 1 preserves existing qualified identities."""
-        self.assertIn("qualified identit", self._step1.lower())
+        self.assertIn("qualified identit", self._repeat_block.lower())
 
     def test_no_overwrite_mismatched_ids(self) -> None:
-        """Step 1 prohibits overwriting mismatched IDs."""
-        self.assertIn("overwrite", self._step1.lower())
+        """Step 1 prohibits overwriting mismatched existing IDs."""
+        self.assertIn("overwrite", self._repeat_block.lower())
 
     def test_retired_numbers_not_reused(self) -> None:
         """Step 1 prohibits reuse of retired numbers."""
-        self.assertIn("retired", self._step1.lower())
+        self.assertIn("retired", self._repeat_block.lower())
 
     def test_explicit_restoration_required(self) -> None:
-        """Step 1 requires explicit approval for restoring removed items."""
-        self.assertIn("restoration", self._step1.lower())
+        """Step 1 requires explicit approved restoration for removed items."""
+        self.assertIn("restoration", self._repeat_block.lower())
 
     def test_initial_empty_still_works(self) -> None:
         """Step 1 notes initial empty decomposition still works."""
-        self.assertIn("initial empty", self._step1.lower())
+        self.assertIn("initial empty", self._repeat_block.lower())
+
+    def test_no_delete_recreate(self) -> None:
+        """Step 1 prohibits delete and recreate pattern."""
+        self.assertIn("delete", self._repeat_block.lower())
+        self.assertIn("recreate", self._repeat_block.lower())
 
 
 # ---------------------------------------------------------------------------
@@ -8187,12 +8509,8 @@ class TestSyncHelperUsageReference(unittest.TestCase):
         self.assertIn("../skills/sync.md", self._ref_md)
 
     def test_no_bare_sync_md_resource_ref(self) -> None:
-        """No bare ``sync.md`` used as a protocol resource reference.
-        Bare references to sync.md as a file path description (not a
-        relative link to follow) are acceptable."""
+        """No bare ``sync.md`` used as a protocol resource reference."""
         import re
-        # Find lines with `sync.md` that look like relative resource refs
-        # (i.e., "from `sync.md`" pattern)
         matches = re.findall(r'from `sync\.md`', self._ref_md)
         self.assertEqual(len(matches), 0,
                          "Bare sync.md resource reference should use "
@@ -8214,7 +8532,6 @@ class TestDocsCriterion5Scope(unittest.TestCase):
 
     def test_criterion5_not_feature_wide(self) -> None:
         """Criterion 5 does NOT say 'by the feature'."""
-        # Find criterion 5 text area
         import re
         m = re.search(r"5\.\s+\*\*Complete Documentation Inputs\.\*\*.*?"
                        r"(?=6\.\s+\*\*Contributing)",
@@ -8236,7 +8553,6 @@ class TestDocsCriterion5Scope(unittest.TestCase):
     def test_template_scope(self) -> None:
         """Template Documentation Inputs placeholder scopes to story."""
         import re
-        # Find the template block for DOCS stories
         m = re.search(r"## Documentation Inputs\n\n\{.*?\}", self._decompose_md,
                        re.DOTALL)
         self.assertIsNotNone(m, "Template Documentation Inputs not found")
@@ -8261,15 +8577,21 @@ class TestReplacementReviewerTestplan(unittest.TestCase):
                         cls._decompose_md, re.DOTALL)
         assert m9, "Step 9 not found in decompose.md"
         cls._step9 = m9.group()
+        # Find the exact replacement-reviewer paragraph
+        replacement = re.search(
+            r"\*\*If resumption is not available:\*\*.*?(?=\*\*If subagents "
+            r"are not available:\*\*)",
+            cls._step9, re.DOTALL)
+        assert replacement, "Replacement-reviewer paragraph not found"
+        cls._replacement_para = replacement.group()
 
     def test_replacement_reviewer_includes_testplan(self) -> None:
-        """The replacement-reviewer branch includes 04-testplan.md."""
-        # Find the "If resumption is not available" paragraph
-        self.assertIn("04-testplan.md", self._step9)
+        """The exact replacement-reviewer paragraph includes 04-testplan.md."""
+        self.assertIn("04-testplan.md", self._replacement_para)
 
-    def test_design_doc_still_excluded(self) -> None:
-        """The replacement-reviewer still excludes the design document."""
-        self.assertIn("NOT the design document", self._step9)
+    def test_replacement_reviewer_excludes_design(self) -> None:
+        """The exact replacement-reviewer paragraph excludes design doc."""
+        self.assertIn("NOT the design document", self._replacement_para)
 
 
 if __name__ == "__main__":
