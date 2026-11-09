@@ -513,10 +513,18 @@ class TestRunGate(unittest.TestCase):
         self.assertEqual(r["gate"], "pass")
 
     def test_tracked_artifacts_modified_fails(self):
+        """Gate blocks when a tracked file under .artifacts/ is modified.
+
+        Report is written outside the repo to avoid confounding untracked
+        report with the tracked-edit finding.
+        """
+        # Clear .gitignore so .artifacts is not ignored
         gi = os.path.join(self.repo, ".gitignore")
         with open(gi, "w") as f:
             f.write("# no ignores\n")
-        subprocess.run(["git", "add", ".gitignore"], check=True, capture_output=True)
+        subprocess.run(["git", "add", ".gitignore"], check=True,
+                       capture_output=True)
+        # Track a file under .artifacts
         d = os.path.join(self.repo, ".artifacts", "t")
         os.makedirs(d, exist_ok=True)
         tf = os.path.join(d, "cfg.md")
@@ -526,11 +534,23 @@ class TestRunGate(unittest.TestCase):
         subprocess.run(["git", "commit", "-m", "tracked artifact"],
                        check=True, capture_output=True)
         head = get_head(self.repo)
-        rpt = write_report(self.repo, "PASS", head)
+        # Write report OUTSIDE repo so it doesn't dirty the worktree
+        ext_report = os.path.join(tempfile.mkdtemp(), "report.md")
+        with open(ext_report, "w") as f:
+            f.write(f"## Result\n\nPASS\n\n## Validated Commit\n\n{head}\n")
+        # Verify gate passes with clean tracked artifact
+        r_clean = validation_gate.run_gate(ext_report)
+        self.assertEqual(r_clean["gate"], "pass",
+                         "gate should pass before tracked artifact is edited")
+        # Now modify the tracked artifact
         with open(tf, "w") as f:
             f.write("modified\n")
-        r = validation_gate.run_gate(rpt)
+        r = validation_gate.run_gate(ext_report)
         self.assertEqual(r["gate"], "fail")
+        # Verify the dirty detail names the actual tracked file
+        dirty_detail = str(r["checks"][-1].get("detail", ""))
+        self.assertIn("cfg.md", dirty_detail)
+        os.unlink(ext_report)
 
     def test_post_self_review_commit(self):
         head = get_head(self.repo)
@@ -1107,6 +1127,120 @@ class TestPreExistingDetection(unittest.TestCase):
         paths = parse_status_z(out)
         self.assertIn(fname, paths)
         os.unlink(fname)
+
+
+    def test_ignored_target_absent_from_status(self):
+        """An existing ignored file is absent from git status but can be
+        detected by git check-ignore. This tests the git mechanism that
+        review.md Step 3.2b relies on (not end-to-end LLM execution)."""
+        # Create an ignored file
+        with open("ignored_data.log", "w") as f:
+            f.write("user data\n")
+        gi = os.path.join(self.repo, ".gitignore")
+        with open(gi, "a") as f:
+            f.write("ignored_data.log\n")
+        subprocess.run(["git", "add", ".gitignore"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "ignore rule"],
+                       check=True, capture_output=True)
+        # Verify: git status does NOT show the ignored file
+        out = subprocess.run(
+            ["git", "status", "--porcelain", "-z",
+             "--untracked-files=all", "--ignore-submodules=none"],
+            capture_output=True, check=True).stdout
+        paths = parse_status_z(out)
+        self.assertNotIn("ignored_data.log", paths,
+                         "ignored file should not appear in status")
+        # Verify: git check-ignore catches it
+        r = subprocess.run(
+            ["git", "check-ignore", "--", "ignored_data.log"],
+            capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0,
+                         "check-ignore should detect the ignored file")
+        # Verify user bytes are untouched
+        with open("ignored_data.log") as f:
+            self.assertEqual(f.read(), "user data\n")
+
+    def test_submodule_root_blocks_nested_target(self):
+        """Dirty submodule root in status blocks a nested target path.
+
+        Tests git mechanism: outer status shows submodule root, not inner
+        files. A target inside the dirty submodule must be blocked by
+        path-component prefix matching (review.md Step 3.2a).
+        """
+        # Create submodule source
+        sub_src = tempfile.mkdtemp()
+        subprocess.run(["git", "init", "--bare", sub_src],
+                       check=True, capture_output=True)
+        sub_work = tempfile.mkdtemp()
+        subprocess.run(["git", "init", sub_work],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "-C", sub_work, "config",
+                        "user.email", "t@t"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "-C", sub_work, "config",
+                        "user.name", "T"],
+                       check=True, capture_output=True)
+        with open(os.path.join(sub_work, "sub.txt"), "w") as f:
+            f.write("sub content\n")
+        subprocess.run(["git", "-C", sub_work, "add", "."],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "-C", sub_work, "commit", "-m", "init"],
+                       check=True, capture_output=True)
+        branch = subprocess.run(
+            ["git", "-C", sub_work, "branch", "--show-current"],
+            capture_output=True, text=True, check=True).stdout.strip()
+        subprocess.run(["git", "-C", sub_work, "config",
+                        "protocol.file.allow", "always"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "-C", sub_work, "remote", "add",
+                        "origin", sub_src],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "-C", sub_work, "push", "origin", branch],
+                       check=True, capture_output=True)
+        # Add submodule
+        env = {**os.environ,
+               "GIT_CONFIG_COUNT": "1",
+               "GIT_CONFIG_KEY_0": "protocol.file.allow",
+               "GIT_CONFIG_VALUE_0": "always"}
+        subprocess.run(["git", "-C", self.repo, "submodule", "add",
+                        sub_src, "mysub"],
+                       check=True, capture_output=True, env=env)
+        subprocess.run(["git", "commit", "-m", "add sub"],
+                       check=True, capture_output=True)
+        # Dirty the submodule
+        with open(os.path.join(self.repo, "mysub", "sub.txt"), "a") as f:
+            f.write("dirty\n")
+        # Status shows "mysub" as dirty (not "mysub/sub.txt")
+        out = subprocess.run(
+            ["git", "status", "--porcelain", "-z",
+             "--untracked-files=all", "--ignore-submodules=none"],
+            capture_output=True, check=True).stdout
+        paths = parse_status_z(out)
+        self.assertIn("mysub", paths,
+                       "dirty submodule root should appear in status")
+        self.assertNotIn("mysub/sub.txt", paths,
+                          "inner file should NOT appear in outer status")
+        # A target "mysub/file.go" should be blocked by path-component
+        # prefix matching: "mysub" is a component of "mysub/file.go"
+        target = "mysub/file.go"
+        blocked = any(
+            target == p or target.startswith(p + "/")
+            for p in paths
+        )
+        self.assertTrue(blocked,
+                        "target inside dirty submodule should be blocked")
+        # But "mysubfoo" should NOT be blocked (no path-component match)
+        not_blocked = any(
+            "mysubfoo" == p or "mysubfoo".startswith(p + "/")
+            for p in paths
+        )
+        self.assertFalse(not_blocked,
+                          "unrelated prefix should not collide")
+        # User bytes preserved
+        with open(os.path.join(self.repo, "mysub", "sub.txt")) as f:
+            self.assertIn("dirty", f.read())
+        subprocess.run(["rm", "-rf", sub_src, sub_work], check=False)
 
 
 if __name__ == "__main__":

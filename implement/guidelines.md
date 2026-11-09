@@ -59,8 +59,11 @@ If the documented requirement is kept:
 
 If the documented requirement is superseded:
 - This workflow is Jira-read-only: the user must update the canonical
-  requirement source through its approved process.
-- `/revise` must align the implementation plan before coding resumes.
+  requirement source through its approved process first.
+- The user then runs `/ingest` to refresh `01-context.md` (ingest
+  preserves the old context and shows a diff before overwriting).
+- After the refreshed context is confirmed, `/revise` aligns the
+  implementation plan before coding resumes.
 - Update tests to match the resolved requirement.
 
 Both `/implement:review` and `/respond` follow this policy. Neither
@@ -75,6 +78,13 @@ resolves the conflict. Neither phase may modify Jira.
 - **Read before writing.** Before modifying any file, read it first. Before writing tests for a package, read existing tests in that package to match patterns.
 - **Deviation transparency.** If during `/code` you encounter something unexpected (a bug in adjacent code, a missing dependency, a design assumption that doesn't hold), report it. Apply deviation rules (see `skills/code.md`) but never silently change approach.
 - Flag assumptions explicitly. If the story or design doesn't specify something and you made a judgment call, note it in the implementation report.
+- **Artifact directory must be excluded from version control.** Before
+  `/validate` or `/publish` writes reports to `.artifacts/`, verify
+  the path is gitignored in the project (`git check-ignore -q
+  .artifacts/` exits 0). If not, stop and explain that the project
+  must exclude `.artifacts/` via `.gitignore` or a local exclude
+  before validation can write there — do not auto-edit ignore files,
+  commit artifacts, or path-exempt unignored outputs.
 
 ## Quality
 

@@ -96,9 +96,10 @@ documented-requirement conflict policy in `../guidelines.md`. If the
 feedback conflicts with a documented requirement, stop before changing
 code: identify the source and requirement, explain the conflict, and
 ask the user. If the requirement is superseded, direct the user to
-update the canonical source and `/revise` the plan before coding
-resumes. If the requirement is kept, explain the rationale. Tests
-follow the resolved requirement.
+update the canonical source, then `/ingest` to refresh `01-context.md`
+(ingest preserves old context and shows a diff), then `/revise` to
+align the plan before coding resumes. If the requirement is kept,
+explain the rationale. Tests follow the resolved requirement.
 
 If the feedback is ambiguous, materially expands scope, or requires a
 pending scope decision, follow the existing clarification and `/revise`
@@ -110,14 +111,30 @@ if declining or adjusting the requested approach.
 For an in-scope change with no unresolved conflicts:
 
 1. Identify the files that will need modification or creation.
-2. **Pre-edit isolation check.** Before making any edits, compare every
-   target path against the pre-existing paths from Step 1 — including
-   both sides of renames and directory prefixes of untracked entries.
-   If any target path matches a pre-existing entry (exact path match,
-   or the target is inside a pre-existing untracked directory), **stop
-   and report the conflict** before editing. Do not modify a file that
-   has pre-existing changes. Explain which files conflict and suggest
-   the user commit or stash their changes first.
+2. **Pre-edit isolation check.** Before making any edits:
+
+   a. Compare every target path against the pre-existing paths from
+      Step 1: exact path match, or any recorded pre-existing path is a
+      path-component prefix of the target (e.g., a dirty submodule root
+      `mysub` blocks target `mysub/file.go`, but `foo` does not block
+      `foobar`). Include both sides of renames.
+
+   b. Check for existing ignored files at target paths:
+
+      ```bash
+      git check-ignore -- {target paths}
+      ```
+
+      If any target path is reported as ignored AND the file exists on
+      disk, stop — it may be user-owned data excluded from version
+      control. A clean tracked file that matches a `.gitignore` pattern
+      is NOT an ignored file and is safe to edit. A nonexistent path
+      matching an ignore pattern is not pre-existing user data.
+
+   If any check finds a conflict, **stop and report** before editing.
+   Explain which paths conflict and how to resolve (handle the
+   pre-existing work via `/code` or user-approved `/revise`, then
+   re-invoke `/implement:review`).
 3. Read every file that will be modified.
 4. Edit only what the feedback requires. Keep changes minimal and focused.
 5. If the change affects behavior, add or update tests for the changed

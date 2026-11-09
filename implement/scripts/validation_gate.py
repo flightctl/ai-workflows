@@ -127,10 +127,7 @@ def parse_report(report_path):
         if first_line is None:
             _append_error(info, "'## Result' section is empty")
         else:
-            if re.match(r'^PASS(?:\s|$|[^A-Za-z0-9])', first_line):
-                info["result_value"] = first_line
-            else:
-                info["result_value"] = first_line
+            info["result_value"] = first_line
 
     # --- Validated Commit section ---
     commit_matches = re.findall(
@@ -343,7 +340,9 @@ def run_gate(report_path):
                               if not is_clean else "ok"})
     if not is_clean:
         return {"gate": "fail",
-                "reason": "worktree is not clean — run /validate",
+                "reason": "worktree is not clean — resolve uncommitted "
+                          "changes via /code, /implement:review, or "
+                          "user-approved /revise, then run /validate",
                 "head": head, "validated_commit": validated,
                 "checks": checks}
 

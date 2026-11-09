@@ -73,11 +73,14 @@ Verify readiness:
    python3 "$GATE_SCRIPT" --report .artifacts/implement/{issue-key}/05-validation-report.md
    ```
 
-   If exit code is 1, report the JSON failure reason and recommend
-   `/validate`. If exit code is 2 or other (script crash), report the
-   raw stderr — do not parse it as a JSON verdict. Do not auto-launch
-   `/validate`. A dirty worktree stops here with a recommendation to
-   run `/validate`; the agent does not offer to commit or stash.
+   If exit code is 1, report the JSON failure reason. For a dirty
+   worktree, report the paths and explain that uncommitted changes
+   must be resolved outside `/publish` — via `/code`,
+   `/implement:review` for feedback, or user-approved `/revise` — then
+   `/validate` must pass on the clean state before retrying `/publish`.
+   For stale/missing/failed reports, recommend `/validate`. If exit
+   code is 2 or other (script crash), report the raw stderr. Do not
+   auto-launch `/validate`, auto-stage, commit, or stash.
 
 3. Verify the feature branch exists and has commits:
 

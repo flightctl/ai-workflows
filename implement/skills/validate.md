@@ -143,6 +143,9 @@ PR state.
 
 ### Step 3: Resolve Local Base and Verify Clean Worktree
 
+Record `PASS_START_HEAD` for this pass: `git rev-parse HEAD` (store
+the literal value in agent context, not a shell variable).
+
 Read the Local Base from the `## Branch` section of `02-plan.md`.
 Verify the ref resolves:
 
@@ -169,11 +172,10 @@ report the affected paths. Do not auto-commit, stash, reset, or delete
 them. The implementation must be completed and committed through normal
 `/code` or user-approved `/revise` handling before rerunning `/validate`.
 
-Initialize `PIPELINE_ROUNDS_REMAINING = MAX_ROUNDS` (default 3).
-Every fix committed in Steps 4–9 consumes one round from this shared
-budget. At zero without a clean pass, stop with FLAG. Step 7's
-self-review gate shares this budget; do not reset it on return to
-Step 3.
+On first Step 3 entry, set `PIPELINE_ROUNDS_REMAINING = 3` (never
+reset on return). One pass = Steps 3–9. Decremented only in Step 9,
+once per pass. Step 7 passes `PIPELINE_ROUNDS_REMAINING` as
+`MAX_ROUNDS` to the self-review gate.
 
 ### Step 4: Run Pre-PR Checks
 
@@ -283,7 +285,7 @@ Run the self-review gate. Read and follow
 | Parameter | Value |
 |-----------|-------|
 | DIFF_COMMAND | `git diff {local-base}...HEAD` |
-| MAX_ROUNDS | `3` |
+| MAX_ROUNDS | `PIPELINE_ROUNDS_REMAINING` |
 | CONTEXT_FILES | `.artifacts/implement/{issue-key}/01-context.md`, `.artifacts/implement/{issue-key}/02-plan.md` (if they exist) |
 | SUPPLEMENTARY_CRITERIA | Full-branch validation review — last quality gate before PR. Evaluate: (1) **Backward compatibility** — public APIs, error formats, configuration, wire protocols changed? Backward-compatible or is the break documented and justified? (2) **Completeness across call sites** — pattern applied in one location but needed in similar locations is a bug. (3) **Scope baseline compliance** — if `02-plan.md` has a Scope Baseline section, compare against all baseline fields (Intended Feature Changes, Known Supporting Refactoring, Affected Interfaces and Components, Expected Delivery Boundaries). Material unapproved work outside any field — including unapproved new behavior within an already-affected component — is HIGH scope drift; do not auto-fix, report unfixed so gate returns FLAG. Ordinary correctness fixes and small cohesive supporting cleanup within boundaries are not scope drift. A pending scope decision already in the plan must be resolved before publishing. |
 
@@ -292,17 +294,13 @@ FLAG findings, record a complete `## Pending Scope Decision` in
 `02-plan.md` per the Scope-First Remediation Policy and recommend
 `/revise`.
 
-If the gate made code fixes (the gate edits but does not commit —
-shared recipe lines 174-176): re-run affected Step 4 pre-PR checks,
-Step 5 coverage analysis when fixes touch covered packages, and full
-Step 6 regression check when fixes change production code. Then commit.
-After committing, re-run Step 3 (clean worktree, base), the scope
-comparison, and the self-review gate on the new committed HEAD. This
-re-run consumes remaining rounds from the original MAX_ROUNDS budget —
-do not reset the counter. The cycle ends successfully only when the
-committed clean HEAD passes re-review without further code fixes. If
-MAX_ROUNDS is exhausted before a clean pass, stop with FLAG — do not
-write the validation report or advance to Step 8.
+If the gate made code fixes (edits but does not commit): re-run
+affected Step 4 checks, Step 5 coverage when fixes touch covered
+packages, and Step 6 regression when fixes change production code.
+Commit. Re-run Step 3, scope comparison, and re-review on new HEAD.
+The self-review gate's iteration limit is the current
+`PIPELINE_ROUNDS_REMAINING`. The Step 9 pass-level budget governs
+the outer pipeline cycle.
 
 The validation report (Step 9) must reflect the final committed and
 reviewed HEAD.
@@ -388,10 +386,20 @@ has TC mappings but `testplan.md` is missing, unreadable, or malformed
 
 ### Step 9: Write Validation Report
 
-**Final candidate verification.** If Steps 4–8b committed fixes,
-decrement `PIPELINE_ROUNDS_REMAINING` and return to Step 3. At zero,
-stop FLAG. Dirty worktree at final check → stop, no PASS/auto-stage.
-Record `git rev-parse HEAD` only after clean unchanged pass.
+**Final candidate verification.** Compare `git rev-parse HEAD` to
+`PASS_START_HEAD` (recorded at this pass's Step 3 entry). Also verify
+the worktree is clean (`git status --porcelain -z
+--ignore-submodules=none` has no non-ignored output). Then:
+
+- Dirty worktree: stop, report paths, no PASS/auto-stage/commit.
+- HEAD differs from `PASS_START_HEAD` (fixes committed this pass):
+  decrement `PIPELINE_ROUNDS_REMAINING` once. At zero → stop FLAG.
+  Otherwise return to Step 3 (counter not reset; earlier passes not
+  re-counted).
+- HEAD unchanged and clean: write PASS for this exact SHA.
+
+Example: budget 3. Pass 1 fixes → 2, return. Pass 2 fixes → 1.
+Pass 3 clean → PASS (no decrement).
 
 Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
 
