@@ -41,6 +41,19 @@ Read `.artifacts/config.json` to get the docs repo path and
 number and `{branch-name}`. If either file doesn't exist, tell the user
 that `/publish` should be run first.
 
+**Unconditional pending gate.** If `publish-metadata.json` contains
+a `pending_attempt` record, recover the prior attempt before
+fetching or processing any new feedback. Follow §4 of
+`../../_shared/recipes/screenshot-publish-stage.md`: if already
+pushed, skip to metadata finalization; if not yet pushed, push
+first. If recovery requires PR creation (an operation outside
+`/respond` established permissions), direct the researcher to run
+`/publish` for that step. If prerequisites cannot be verified
+(missing config, metadata, PR identity, or unavailable tool),
+stop with clear directions — do not fabricate success, post new
+replies, or write log entries. Return after recovery; process
+new feedback in a separate invocation.
+
 Determine `{source_repo_root}` with `git rev-parse --show-toplevel`. Normalize
 `docs_repo_path` before using it: expand `~`, resolve a relative value against
 `{source_repo_root}`, then use `Path.resolve()` to get an absolute path. This
@@ -114,15 +127,9 @@ Wait for the user to approve, modify, or reject each response.
 
 **If "Handoff change needed: Yes":**
 
-**Pending attempt check (early).** If `publish-metadata.json` contains
-a `pending_attempt` record, follow §4 of
-`../../_shared/recipes/screenshot-publish-stage.md` **now** — before
-any file copy, `git rm`, new commit, handoff update, or provenance
-capture. Recover the old attempt first: if already pushed, skip to
-metadata finalization; if not yet pushed, skip to the push step.
-Validation failure → stop. Process new approved feedback in a separate
-invocation after recovery. Never post or log replies claiming edits
-that were not published.
+The unconditional pending gate in Step 1 ensures prior attempts
+are recovered before reaching this point. Never post or log replies
+claiming edits that were not published.
 
 Update `.artifacts/ux-design/{issue-key}/05-handoff.md` with approved changes.
 

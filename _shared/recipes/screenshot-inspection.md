@@ -79,7 +79,33 @@ Retrieve image bytes using the runtime's binary download capability
 
 ### 4. Verify identity and inspect
 
-For each resolved matched image from §3:
+**Unresolved matched pairs.** Some matched pairs from §2 may fail
+resolution in §3 (fetch-failed, lfs-unresolved, missing file,
+unsupported image capability). For each unresolved pair, record a
+full 9-column row immediately:
+
+   | Field | Value |
+   |-------|-------|
+   | `id` | Screenshot ID (`SS-N`) |
+   | `status` | Failure status from §3 (`lfs-unresolved` / `fetch-failed` / `inspection-not-supported`) |
+   | `identity` | `—` |
+   | `ref` | Published reference (local path or URL) |
+   | `expected_sha` | SHA-256 from manifest (or `—`) |
+   | `observed_sha` | `—` |
+   | `observation` | `—` (not observed — do **not** fabricate from caption or alt text) |
+   | `spec_match` | `—` |
+   | `notes` | Failure reason (e.g., "Git LFS pointer not resolved", "HTTP 404") |
+
+Report which IDs could not be resolved. Prompt the user: repair the
+source so images can be resolved, wait for access, or explicitly
+authorize partial continuation (text-only for unresolved IDs —
+inspected observations from successfully resolved images are
+retained). An unresolved status **never** becomes eligible for
+citation (§5 Rule 1) even when the user authorizes partial
+continuation; partial acceptance allows the workflow to proceed but
+does not override status-based eligibility.
+
+**For each resolved matched image from §3:**
 
 1. **Verify identity.** If the manifest provides `sha256`, compute the
    SHA-256 of the actual image bytes and compare. Record
@@ -114,11 +140,10 @@ For each resolved matched image from §3:
    `[Screenshot: SS-N — accepted-unverified]`. Do not silently accept
    missing manifests or identity mismatches.
 
-4. **If unresolvable:** Record the ID and per-image status per the
-   schema above. Report which images could not be inspected. Do **not**
-   fabricate observations from captions or alt text. Ask the user
-   whether to proceed with partial/text-only context or wait for full
-   image access.
+4. **Inspection failure during resolved processing.** If a resolved
+   image cannot be visually inspected at this stage (e.g., unsupported
+   format after successful download), record it using the unresolved
+   pair schema above with status `inspection-not-supported`.
 
 5. **Check revision binding (separate from identity).** Byte-identity
    verification (step 4.1) and revision-binding validity are
@@ -142,10 +167,19 @@ For each resolved matched image from §3:
    unrecognizable binding as vacuously `matched`.
 
    When any binding is `mismatched` or `unknown`, prompt the user
-   **per image** to accept or reject and persist the decision in
-   Notes (e.g., `binding: mismatched, ctx_rev expected=r3 actual=r2,
-   decision=accepted`). A verified SHA cannot clear a binding
-   mismatch. See §5 Eligibility for citation rules.
+   **per image** with a separate named decision for each affected
+   binding. Persist each decision in Notes alongside its
+   expected/actual/status (e.g.,
+   `context_revision: mismatched, expected=r3 actual=r2, decision=accepted;
+   prototype_iteration: unknown, expected=i2 actual=—, decision=accepted`).
+   When the manifest is absent, both bindings are `unknown` and each
+   needs its own explicit acceptance. One utterance explicitly
+   accepting both may record both decisions; an ambiguous aggregate
+   legacy decision must not imply all bindings accepted. Missing,
+   rejected, deferred, or unprompted decisions remain ineligible
+   (fail-closed). Accepted-unverified labels carry through to §5.
+   A verified SHA cannot clear a binding mismatch. See §5
+   Eligibility for citation rules.
 
 ### 5. Eligibility and citation rules
 

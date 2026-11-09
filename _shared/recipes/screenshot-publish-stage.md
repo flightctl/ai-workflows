@@ -168,7 +168,16 @@ it into the consumer-facing published manifest.
    or re-derive ownership.
 2. Verify the current branch matches `pending_attempt.branch`.
    Verify the docs repo remote URL matches `pending_attempt.docs_repo_remote`.
-3. Classify remote branch state (`git ls-remote origin {branch}`):
+3. **Pre-push PR revalidation.** When `pending_attempt.pr_number` is
+   known (not `null`), fetch the live PR state before pushing. Verify
+   the PR is open, its head branch matches `pending_attempt.branch`,
+   and its head repository matches the canonical identity derived
+   from `pending_attempt.docs_repo_remote`. If the PR is closed,
+   merged, has a changed head branch or head repository, is missing,
+   or the lookup tool is unavailable, stop without pushing or writing
+   final metadata — retain `pending_attempt`. This is a pre-push
+   revalidation, not a cross-service atomic guarantee.
+4. Classify remote branch state (`git ls-remote origin {branch}`):
    - **Remote SHA equals `pending_attempt.commit_sha`:** Already
      pushed. Skip push; proceed to metadata finalization.
    - **Remote SHA equals `pending_attempt.expected_base` (or branch
@@ -191,11 +200,19 @@ invocation, stop.
    set `screenshot_storage` to `candidate_screenshot_storage`,
    set `screenshot_assets` to `candidate_screenshot_assets`.
 2. Remove `pending_attempt` from `publish-metadata.json`.
-3. **PR identity.** For an existing PR, keep its `pr_number`. For a
-   new PR (`pr_number` is `null`): derive `{owner}/{repo}` from
+3. **PR identity.** For an existing PR (`pr_number` is known),
+   revalidate: fetch the live PR state and verify it is open with
+   head branch and head repository matching the frozen
+   `pending_attempt` record and canonical `docs_repo_remote` identity.
+   Closed, merged, changed head, missing PR, or unavailable tool →
+   stop without writing final metadata; retain `pending_attempt`.
+   For a new PR (`pr_number` is `null`): derive `{owner}/{repo}` from
    `docs_repo_remote`, then look up PRs with head `branch` and base
-   `base_branch` in that repo. Reuse a matching open PR; preserve
-   its draft/ready status. If a matching PR is closed or merged
+   `base_branch` in that repo. For each candidate, verify the PR's
+   head repository full name matches the canonical `{owner}/{repo}`
+   from `docs_repo_remote` — a different fork with the same branch
+   name is not a match. Reuse a matching open PR; preserve its
+   draft/ready status. If a matching PR is closed or merged
    (terminal), stop — do not create a replacement; report to the
    researcher. If no matching PR exists and the original intent was
    new publication, create it as a draft. A known PR identity is

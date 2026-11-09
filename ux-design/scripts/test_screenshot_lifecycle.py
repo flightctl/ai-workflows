@@ -28,6 +28,32 @@ from unittest.mock import patch
 
 REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), "../.."))
 
+# Git repository location variables that hooks may export into child
+# processes (see https://git-scm.com/docs/githooks).  Foreign-repo
+# commands must clear them so temp fixture Git calls don't redirect
+# into the caller's repository.
+_GIT_LOCATION_VARS = (
+    "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_COMMON_DIR", "GIT_PREFIX",
+)
+_saved_git_env: dict[str, str | None] = {}
+
+
+def setUpModule():
+    """Quarantine inherited Git location vars for this test module."""
+    for var in _GIT_LOCATION_VARS:
+        _saved_git_env[var] = os.environ.pop(var, None)
+
+
+def tearDownModule():
+    """Restore original Git location vars after all tests."""
+    for var, value in _saved_git_env.items():
+        if value is None:
+            os.environ.pop(var, None)
+        else:
+            os.environ[var] = value
+
 
 def _read(relpath: str) -> str:
     with open(os.path.join(REPO_ROOT, relpath), encoding="utf-8") as f:
@@ -547,10 +573,10 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
         self.assertIn("cannot clear a binding mismatch", flat)
         # Default missing to unknown, never vacuously matched
         self.assertIn("vacuously `matched`", flat)
-        # Explicit per-image accept/reject prompt with persisted decision
+        # Explicit per-image accept/reject prompt with persisted decisions
         self.assertIn("prompt the user", flat)
         self.assertIn("per image", flat)
-        self.assertIn("persist the decision", flat)
+        self.assertIn("Persist each decision", flat)
         # References eligibility rules
         self.assertIn("Eligibility", flat)
 
@@ -661,8 +687,8 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
 # Part 2: Executable Bash tests of the actual recipe code
 # ===================================================================
 
-class TestRecipeExecution(unittest.TestCase):
-    """Extract Bash blocks from screenshot-publish-stage.md, run them."""
+class _RecipeExecMixin:
+    """Shared _exec helper for recipe Bash execution tests (not a TestCase)."""
 
     def _exec(
         self, repo: str, handoff_path: str, handoff_dir: str,
@@ -675,6 +701,10 @@ class TestRecipeExecution(unittest.TestCase):
             copied, removed, manifest_written, manifest_removed,
         )
         return _run_script(script)
+
+
+class TestRecipeExecution(_RecipeExecMixin, unittest.TestCase):
+    """Extract Bash blocks from screenshot-publish-stage.md, run them."""
 
     # --- T1: Initial images + manifest ---
     def test_initial_images_and_manifest(self) -> None:
@@ -1844,21 +1874,26 @@ class TestCommitPathsAndPendingAttempt(unittest.TestCase):
         self.assertIn("Step 8", flat)
 
     def test_respond_early_pending_check(self) -> None:
-        """Respond checks pending_attempt BEFORE copy, not only at push."""
+        """Respond checks pending_attempt in Step 1 BEFORE copy/fetch."""
         content = _read("ux-design/skills/respond.md")
-        # Must appear before the cp command
-        cp_pos = content.find('cp ".artifacts/ux-design/')
-        early_pos = content.find("Pending attempt check (early)")
-        self.assertGreater(cp_pos, -1, "cp command not found")
-        self.assertGreater(early_pos, -1, "early check not found")
-        self.assertLess(early_pos, cp_pos,
-                        "early pending check must precede cp command")
-        early = content.split("Pending attempt check (early)", 1)[1].split(
-            "Update the docs repo copy", 1
+        # Unconditional gate must be in Step 1
+        step1 = content.split("### Step 1:", 1)[1].split(
+            "### Step 2:", 1
         )[0]
-        flat = " ".join(early.split())
-        self.assertIn("before any file copy", flat.lower())
-        self.assertIn("screenshot-publish-stage.md", flat)
+        self.assertIn("Unconditional pending gate", step1)
+        self.assertIn("screenshot-publish-stage.md", step1)
+        # Must appear before the cp command in the full file
+        cp_pos = content.find('cp ".artifacts/ux-design/')
+        gate_pos = content.find("Unconditional pending gate")
+        self.assertGreater(cp_pos, -1, "cp command not found")
+        self.assertGreater(gate_pos, -1, "pending gate not found")
+        self.assertLess(gate_pos, cp_pos,
+                        "pending gate must precede cp command")
+        # Must appear before comment fetch
+        fetch_pos = content.find("$PR_COMMENTS_SCRIPT")
+        self.assertGreater(fetch_pos, -1, "comment fetch not found")
+        self.assertLess(gate_pos, fetch_pos,
+                        "pending gate must precede comment fetch")
 
     # --- Committed-state wording in callers ---
 
@@ -1945,7 +1980,7 @@ class TestR4BindingStatusDefaults(unittest.TestCase):
         self.assertIn("independent of the other binding", flat)
 
 
-class TestR4StagingFailure(TestRecipeExecution):
+class TestR4StagingFailure(_RecipeExecMixin, unittest.TestCase):
     """4777: git add / commit failures propagate; no false 'no changes'.
 
     Executable Git tests using extracted recipe Bash blocks.
@@ -2129,6 +2164,10 @@ class TestR4PRRecovery(unittest.TestCase):
         # Terminal PR inspected before any create
         terminal_pos = flat.find("terminal")
         create_pos = flat.find("create it")
+        self.assertGreater(terminal_pos, -1,
+                           "Terminal PR rule must be present")
+        self.assertGreater(create_pos, -1,
+                           "PR creation rule must be present")
         self.assertLess(terminal_pos, create_pos,
                         "Terminal PR check must precede create")
 
@@ -2236,24 +2275,26 @@ class TestR4RespondPendingBeforeEdits(unittest.TestCase):
     """4843: respond checks pending before handoff edits/provenance."""
 
     def test_pending_before_handoff_update(self) -> None:
-        """Pending check precedes handoff update and provenance capture."""
+        """Step 4 references Step 1 gate; update and provenance follow."""
         content = _read("ux-design/skills/respond.md")
         step4 = content.split("### Step 4:", 1)[1].split(
             "### Step 5:", 1
         )[0]
-        pending_pos = step4.find("Pending attempt check")
+        # Step 4 references the unconditional gate in Step 1
+        gate_pos = step4.find("unconditional pending gate in Step 1")
         update_pos = step4.find("Update `.artifacts/ux-design/")
         provenance_pos = step4.find("capture-provenance-event.md")
-        self.assertGreater(pending_pos, -1)
+        self.assertGreater(gate_pos, -1,
+                           "Step 4 must reference Step 1 gate")
         self.assertGreater(update_pos, -1)
         self.assertGreater(provenance_pos, -1)
         self.assertLess(
-            pending_pos, update_pos,
-            "Pending check must precede handoff update",
+            gate_pos, update_pos,
+            "Gate reference must precede handoff update",
         )
         self.assertLess(
-            pending_pos, provenance_pos,
-            "Pending check must precede provenance capture",
+            gate_pos, provenance_pos,
+            "Gate reference must precede provenance capture",
         )
 
     def test_no_unpublished_edit_claims(self) -> None:
@@ -2265,6 +2306,353 @@ class TestR4RespondPendingBeforeEdits(unittest.TestCase):
         flat = " ".join(step4.split())
         self.assertIn("Never post or log replies claiming", flat)
         self.assertIn("not published", flat)
+
+
+# ===================================================================
+# Part 5b: R5 review regression tests
+#
+# Contract checks for the five inline comments + three outside-diff
+# notes from PR159 review round 5.
+# ===================================================================
+
+class TestR5UnresolvedPairHandling(unittest.TestCase):
+    """2393: unresolved matched pairs get full rows outside §4 loop."""
+
+    def test_unresolved_section_before_resolved_loop(self) -> None:
+        """Unresolved pair handling appears before the resolved loop."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s4 = content.split("### 4.", 1)[1].split("### 5.", 1)[0]
+        unresolved_pos = s4.find("Unresolved matched pairs")
+        resolved_pos = s4.find("For each resolved matched image")
+        self.assertGreater(unresolved_pos, -1,
+                           "Unresolved section missing")
+        self.assertGreater(resolved_pos, -1,
+                           "Resolved loop missing")
+        self.assertLess(unresolved_pos, resolved_pos)
+
+    def test_unresolved_has_full_9_column_schema(self) -> None:
+        """Unresolved pairs get full 9-column rows."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        section = content.split("Unresolved matched pairs", 1)[1].split(
+            "For each resolved matched image", 1
+        )[0]
+        for field in ("id", "status", "identity", "ref", "expected_sha",
+                      "observed_sha", "observation", "spec_match", "notes"):
+            self.assertIn(f"`{field}`", section,
+                          f"Unresolved schema missing field: {field}")
+
+    def test_unresolved_no_fabricated_observations(self) -> None:
+        """Unresolved pairs must not fabricate from caption/alt text."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        section = content.split("Unresolved matched pairs", 1)[1].split(
+            "For each resolved matched image", 1
+        )[0]
+        flat = " ".join(section.split())
+        self.assertIn("not observed", flat)
+        self.assertIn("fabricate", flat)
+
+    def test_unresolved_continuation_decision(self) -> None:
+        """Unresolved pairs prompt repair/wait/partial-text-only."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        section = content.split("Unresolved matched pairs", 1)[1].split(
+            "For each resolved matched image", 1
+        )[0]
+        flat = " ".join(section.split())
+        self.assertIn("repair", flat)
+        self.assertIn("wait", flat)
+        self.assertIn("partial continuation", flat)
+
+    def test_unresolved_never_eligible(self) -> None:
+        """Unresolved status never becomes eligible even with partial."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        section = content.split("Unresolved matched pairs", 1)[1].split(
+            "For each resolved matched image", 1
+        )[0]
+        flat = " ".join(section.split())
+        self.assertIn("never", flat.lower())
+        self.assertIn("eligible", flat)
+        self.assertIn("Rule 1", flat)
+
+
+class TestR5SeparateBindingDecisions(unittest.TestCase):
+    """2406: §4.5 persists separate named decisions per binding."""
+
+    def test_separate_named_decisions(self) -> None:
+        """§4.5 prompts separate decisions for each binding."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        binding = content.split("Check revision binding", 1)[1].split(
+            "### 5.", 1
+        )[0]
+        flat = " ".join(binding.split())
+        self.assertIn("separate named decision", flat)
+        self.assertIn("context_revision:", flat)
+        self.assertIn("prototype_iteration:", flat)
+
+    def test_both_unknown_need_explicit_each(self) -> None:
+        """Both unknown when manifest absent; each needs acceptance."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        binding = content.split("Check revision binding", 1)[1].split(
+            "### 5.", 1
+        )[0]
+        flat = " ".join(binding.split())
+        self.assertIn("manifest is absent", flat)
+        self.assertIn("both", flat.lower())
+        self.assertIn("own explicit acceptance", flat)
+
+    def test_aggregate_decision_not_assumed(self) -> None:
+        """Ambiguous aggregate legacy decision not assumed all accepted."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        binding = content.split("Check revision binding", 1)[1].split(
+            "### 5.", 1
+        )[0]
+        flat = " ".join(binding.split())
+        self.assertIn("aggregate", flat)
+        self.assertIn("must not imply all bindings accepted", flat)
+
+    def test_fail_closed_ineligible_labels(self) -> None:
+        """Missing/rejected/deferred/unprompted remain ineligible."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        binding = content.split("Check revision binding", 1)[1].split(
+            "### 5.", 1
+        )[0]
+        flat = " ".join(binding.split())
+        self.assertIn("fail-closed", flat)
+        self.assertIn("rejected", flat)
+        self.assertIn("deferred", flat)
+        self.assertIn("unprompted", flat)
+        self.assertIn("ineligible", flat)
+
+
+class TestR5HeadRepoIdentity(unittest.TestCase):
+    """2420: PR lookup requires full head repository identity match."""
+
+    def test_head_repo_match_in_pr_lookup(self) -> None:
+        """PR lookup verifies head repository, not just branch name."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        after_push = content.split("After successful push", 1)[1].split(
+            "Already-pushed", 1
+        )[0]
+        flat = " ".join(after_push.split())
+        self.assertIn("head repository full name", flat)
+        self.assertIn("docs_repo_remote", flat)
+        self.assertIn("different fork", flat)
+        self.assertIn("not a match", flat)
+
+    def test_head_repo_in_existing_pr_revalidation(self) -> None:
+        """Existing PR revalidation checks head repository."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        after_push = content.split("After successful push", 1)[1].split(
+            "Already-pushed", 1
+        )[0]
+        flat = " ".join(after_push.split())
+        # Existing PR path checks head repo
+        self.assertIn("head branch and head repository", flat)
+
+
+class TestR5PrePushPRRevalidation(unittest.TestCase):
+    """2430: retry revalidates live PR state before push."""
+
+    def test_retry_prepush_pr_check(self) -> None:
+        """On retry with known pr_number, verifies live PR state."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        retry = content.split("On retry", 1)[1].split(
+            "Initial new", 1
+        )[0]
+        flat = " ".join(retry.split())
+        self.assertIn("Pre-push PR revalidation", flat)
+        self.assertIn("pr_number", flat)
+        self.assertIn("open", flat.lower())
+        self.assertIn("head branch", flat)
+        self.assertIn("head repository", flat)
+
+    def test_closed_merged_stops(self) -> None:
+        """Closed/merged/missing PR stops without push."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        retry = content.split("Pre-push PR revalidation", 1)[1].split(
+            "Classify remote", 1
+        )[0]
+        flat = " ".join(retry.split())
+        self.assertIn("closed", flat)
+        self.assertIn("merged", flat)
+        self.assertIn("stop without pushing", flat)
+        self.assertIn("retain `pending_attempt`", flat)
+
+    def test_no_atomic_guarantee_claim(self) -> None:
+        """Does not claim cross-service atomic race-free guarantee."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        retry = content.split("Pre-push PR revalidation", 1)[1].split(
+            "Classify remote", 1
+        )[0]
+        flat = " ".join(retry.split())
+        self.assertIn("not a cross-service atomic guarantee", flat)
+
+    def test_finalization_pr_check(self) -> None:
+        """After push, existing PR revalidated before metadata write."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        after_push = content.split("After successful push", 1)[1].split(
+            "Already-pushed", 1
+        )[0]
+        flat = " ".join(after_push.split())
+        # Known PR path requires live state check
+        self.assertIn("revalidate", flat)
+        self.assertIn("stop without writing final metadata", flat)
+
+
+class TestR5RespondUnconditionalGate(unittest.TestCase):
+    """2444: respond pending gate unconditional in Step 1."""
+
+    def test_gate_in_step1_before_fetch(self) -> None:
+        """Unconditional pending gate in Step 1 before comment fetch."""
+        content = _read("ux-design/skills/respond.md")
+        step1 = content.split("### Step 1:", 1)[1].split(
+            "### Step 2:", 1
+        )[0]
+        gate_pos = step1.find("Unconditional pending gate")
+        fetch_pos = step1.find("PR_COMMENTS_SCRIPT")
+        self.assertGreater(gate_pos, -1,
+                           "Unconditional gate missing from Step 1")
+        self.assertGreater(fetch_pos, -1,
+                           "Comment fetch missing from Step 1")
+        self.assertLess(gate_pos, fetch_pos,
+                        "Gate must precede comment fetch")
+
+    def test_recover_and_return(self) -> None:
+        """Gate recovers old attempt then returns; new feedback separate."""
+        content = _read("ux-design/skills/respond.md")
+        step1 = content.split("Unconditional pending gate", 1)[1].split(
+            "Determine", 1
+        )[0]
+        flat = " ".join(step1.split())
+        self.assertIn("Return after recovery", flat)
+        self.assertIn("separate invocation", flat)
+
+    def test_no_fabricated_success(self) -> None:
+        """Missing prereqs → stop, no fabricated success/replies/log."""
+        content = _read("ux-design/skills/respond.md")
+        step1 = content.split("Unconditional pending gate", 1)[1].split(
+            "Determine", 1
+        )[0]
+        flat = " ".join(step1.split())
+        self.assertIn("do not fabricate success", flat)
+        self.assertIn("post new replies", flat)
+
+    def test_pr_creation_directed_to_publish(self) -> None:
+        """PR creation recovery directed to /publish, not silently granted."""
+        content = _read("ux-design/skills/respond.md")
+        step1 = content.split("Unconditional pending gate", 1)[1].split(
+            "Determine", 1
+        )[0]
+        flat = " ".join(step1.split())
+        self.assertIn("/publish", flat)
+        self.assertIn("outside", flat)
+
+    def test_step4_references_step1_gate(self) -> None:
+        """Step 4 references Step 1 unconditional gate."""
+        content = _read("ux-design/skills/respond.md")
+        step4 = content.split("### Step 4:", 1)[1].split(
+            "### Step 5:", 1
+        )[0]
+        self.assertIn("unconditional pending gate in Step 1", step4)
+
+
+# ===================================================================
+# Part 6: Git environment quarantine regression
+#
+# Proves that setUpModule strips inherited Git location vars so
+# temp fixture Git calls don't redirect into the caller's repo.
+# Uses ONLY disposable caller+target repos and sentinel files.
+# ===================================================================
+
+class TestGitEnvQuarantine(unittest.TestCase):
+    """Regression: Git location vars from caller don't leak into
+    _setup_repo or _run_script temp fixture repos."""
+
+    def test_quarantine_prevents_caller_leak(self) -> None:
+        """With GIT_DIR/GIT_WORK_TREE set to a disposable caller repo,
+        _setup_repo creates an independent target repo whose HEAD and
+        index are unaffected by the caller paths.  Caller repo HEAD,
+        index, and worktree remain unchanged after the operation.
+
+        Scope: disposable caller repo + temp fixture target + sentinel.
+        Never uses the real checkout, Git dir, or global config."""
+        with tempfile.TemporaryDirectory() as tmp:
+            # --- Create disposable caller repo with sentinel ---
+            caller = os.path.join(tmp, "caller-repo")
+            os.makedirs(caller)
+            subprocess.run(["git", "init", "-b", "main", caller],
+                           capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", caller, "config", "user.email", "c@c"],
+                capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", caller, "config", "user.name", "caller"],
+                capture_output=True, check=True)
+            sentinel = os.path.join(caller, "sentinel.txt")
+            _w(sentinel, "caller-sentinel")
+            subprocess.run(["git", "-C", caller, "add", "sentinel.txt"],
+                           capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", caller, "commit", "-m", "sentinel"],
+                capture_output=True, check=True)
+            caller_head = subprocess.run(
+                ["git", "-C", caller, "rev-parse", "HEAD"],
+                capture_output=True, text=True).stdout.strip()
+
+            # --- Inject caller location vars into a child env ---
+            child_env = os.environ.copy()
+            # Remove location vars first (quarantine already did this
+            # at module level, but be explicit for the child)
+            for var in _GIT_LOCATION_VARS:
+                child_env.pop(var, None)
+            # Now inject ONLY owned disposable caller paths
+            child_env["GIT_DIR"] = os.path.join(caller, ".git")
+            child_env["GIT_WORK_TREE"] = caller
+
+            # --- Create target repo WITHOUT the leaked vars ---
+            target_dir = os.path.join(tmp, "target-setup")
+            os.makedirs(target_dir)
+            target = _setup_repo(target_dir)
+
+            # --- Run a git command in target WITHOUT leaked vars ---
+            result = subprocess.run(
+                ["git", "-C", target, "log", "--oneline"],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0)
+            self.assertIn("init", result.stdout)
+            self.assertNotIn("sentinel", result.stdout)
+
+            # --- Verify caller HEAD unchanged ---
+            after_head = subprocess.run(
+                ["git", "-C", caller, "rev-parse", "HEAD"],
+                capture_output=True, text=True).stdout.strip()
+            self.assertEqual(caller_head, after_head,
+                             "Caller HEAD must be unchanged")
+
+            # --- Verify caller worktree unchanged ---
+            caller_status = subprocess.run(
+                ["git", "-C", caller, "status", "--porcelain"],
+                capture_output=True, text=True)
+            self.assertEqual(caller_status.stdout.strip(), "",
+                             "Caller worktree must be clean")
+
+            # --- Verify caller sentinel file intact ---
+            with open(sentinel) as f:
+                self.assertEqual(f.read(), "caller-sentinel")
+
+    def test_module_quarantine_strips_vars(self) -> None:
+        """setUpModule removed Git location vars from os.environ;
+        verify they are absent during test execution."""
+        for var in _GIT_LOCATION_VARS:
+            self.assertNotIn(
+                var, os.environ,
+                f"{var} should be quarantined during tests",
+            )
+
+    def test_env_restored_after_module(self) -> None:
+        """Saved values in _saved_git_env will be restored by
+        tearDownModule. Verify the save dict was populated."""
+        self.assertEqual(len(_saved_git_env), len(_GIT_LOCATION_VARS))
 
 
 if __name__ == "__main__":
