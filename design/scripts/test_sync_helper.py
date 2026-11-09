@@ -8838,9 +8838,10 @@ class TestObsoleteWorkRetirement(unittest.TestCase):
         cls._step2 = m2.group()
 
     def test_retirement_via_status_removed(self) -> None:
-        """Work no longer retained is marked status: removed, not deleted."""
+        """Individually retired work is marked status: removed, not deleted."""
         self.assertIn("status: removed", self._step2)
-        self.assertIn("no longer", self._step2.lower())
+        self.assertIn("individually", self._step2.lower())
+        self.assertIn("explicitly retires", self._step2.lower())
 
     def test_epic_stays_active_if_children_retained(self) -> None:
         """Epic stays active if any child stories are retained."""
@@ -9305,6 +9306,246 @@ class TestGuidelinesRetirementEncoding(unittest.TestCase):
         lower = self._guidelines.lower()
         self.assertIn("body line", lower)
         self.assertIn("not detected", lower)
+
+
+# ---------------------------------------------------------------------------
+# R1: Parent-only retirement preserves child marker distinction
+# ---------------------------------------------------------------------------
+
+class TestParentOnlyRetirementContract(unittest.TestCase):
+    """Step 2 distinguishes a child's own removal marker from inherited
+    inactivity via a removed parent (R1).
+
+    Contract tests verify the decompose.md instruction text contains the
+    required distinction so that parent-only retirement does not
+    materialize child ``status: removed`` markers.
+    """
+
+    _step2: str
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import re
+        decompose_path = (Path(__file__).resolve().parent.parent
+                          / "skills" / "decompose.md")
+        text = decompose_path.read_text(encoding="utf-8")
+        m2 = re.search(r"### Step 2:.*?(?=### Step 3:)", text, re.DOTALL)
+        assert m2, "Step 2 not found in decompose.md"
+        cls._step2 = m2.group()
+
+    def _joined(self) -> str:
+        return " ".join(self._step2.lower().split())
+
+    def test_assessment_distinguishes_own_vs_inherited(self) -> None:
+        """Assessment distinguishes child's own disposition from inherited."""
+        text = self._joined()
+        self.assertIn("own disposition", text)
+        self.assertIn("inherited inactivity", text)
+
+    def test_reconcile_marks_parent_only(self) -> None:
+        """Reconcile instructs marking parent only, not child stories."""
+        text = self._joined()
+        self.assertIn("mark the parent only", text)
+
+    def test_reconcile_children_inherit_without_own_markers(self) -> None:
+        """Children inherit parent's inactive status without own markers."""
+        text = self._joined()
+        self.assertIn("children inherit the parent's inactive status "
+                      "through cascade without needing their own markers",
+                      text)
+
+    def test_reconcile_preserves_child_content(self) -> None:
+        """Reconcile preserves each child's original frontmatter and body."""
+        text = self._joined()
+        self.assertIn("preserve each child's original frontmatter and body",
+                      text)
+
+    def test_reconcile_only_explicit_individual_retirement(self) -> None:
+        """Reconcile adds status:removed only for individually retired items."""
+        text = self._joined()
+        self.assertIn("individually and explicitly retires", text)
+
+
+class TestParentOnlyRetirementHelper(_TmpDirMixin, unittest.TestCase):
+    """detect_changes preserves unmarked child file bytes when only the
+    parent epic is retired (R1 helper counterexample).
+
+    Parent removed → unmarked child suppressed (category 'removed')
+    but file content untouched.  Already individually removed sibling
+    stays unchanged.  Approved parent restoration → unmarked child
+    reopens, individually removed sibling stays exactly unchanged.
+    """
+
+    def test_unmarked_child_bytes_preserved_under_removed_parent(self) -> None:
+        """Parent removed, child unmarked: file bytes unchanged."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir()
+        _make_epic(sd, 1, "building", removed=True)
+        child = _make_dev_story(sd, 1, 1, "impl")
+        child_bytes_before = child.read_bytes()
+        child_hash_before = sync_helper.compute_file_hash(child)
+
+        _make_manifest(Path(self.tmpdir), [{
+            "file": "epic-1-building.md", "jira_key": "EDM-100",
+            "content_hash": "old-hash", "synced_status": "active",
+            "stories": [{
+                "file": "story-01-impl.md", "jira_key": "EDM-201",
+                "content_hash": "old-hash", "synced_status": "active",
+            }],
+        }])
+        result = sync_helper.detect_changes(self.tmpdir)
+
+        # Child suppressed via parent cascade
+        stories = [i for i in result["items"] if i["type"] == "story"]
+        self.assertEqual(len(stories), 1)
+        self.assertEqual(stories[0]["category"], "removed",
+                         "Unmarked child under removed parent must be suppressed")
+        # File bytes must be exactly unchanged
+        self.assertEqual(child.read_bytes(), child_bytes_before,
+                         "Child file bytes must not be modified by detect_changes")
+        self.assertEqual(sync_helper.compute_file_hash(child), child_hash_before,
+                         "Child content hash must remain unchanged")
+
+    def test_individually_removed_sibling_stays_unchanged(self) -> None:
+        """Individually removed sibling stays 'unchanged' (already closed)."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir()
+        _make_epic(sd, 1, "building", removed=True)
+        _make_dev_story(sd, 1, 1, "impl")
+        sibling = _make_dev_story(sd, 1, 2, "other", removed=True)
+        sibling_bytes = sibling.read_bytes()
+
+        _make_manifest(Path(self.tmpdir), [{
+            "file": "epic-1-building.md", "jira_key": "EDM-100",
+            "content_hash": "old-hash", "synced_status": "active",
+            "stories": [
+                {"file": "story-01-impl.md", "jira_key": "EDM-201",
+                 "content_hash": "old-hash", "synced_status": "active"},
+                {"file": "story-02-other.md", "jira_key": "EDM-202",
+                 "content_hash": "old-hash", "synced_status": "closed"},
+            ],
+        }])
+        result = sync_helper.detect_changes(self.tmpdir)
+
+        story2 = [i for i in result["items"]
+                  if i["type"] == "story" and i.get("story_index") == 2]
+        self.assertEqual(len(story2), 1)
+        self.assertEqual(story2[0]["category"], "unchanged",
+                         "Individually removed+closed sibling stays unchanged")
+        self.assertEqual(sibling.read_bytes(), sibling_bytes,
+                         "Individually removed sibling bytes must be exact")
+
+    def test_restoration_reopens_unmarked_not_individually_removed(self) -> None:
+        """Approved parent restoration → unmarked child reopens,
+        individually removed sibling stays exactly unchanged."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir()
+        _make_epic(sd, 1, "building", removed=False)  # restored
+        child = _make_dev_story(sd, 1, 1, "impl")
+        sibling = _make_dev_story(sd, 1, 2, "other", removed=True)
+        sibling_bytes = sibling.read_bytes()
+
+        _make_manifest(Path(self.tmpdir), [{
+            "file": "epic-1-building.md", "jira_key": "EDM-100",
+            "content_hash": "old-hash", "synced_status": "closed",
+            "stories": [
+                {"file": "story-01-impl.md", "jira_key": "EDM-201",
+                 "content_hash": "old-hash", "synced_status": "closed"},
+                {"file": "story-02-other.md", "jira_key": "EDM-202",
+                 "content_hash": "old-hash", "synced_status": "closed"},
+            ],
+        }])
+        result = sync_helper.detect_changes(self.tmpdir)
+
+        # Unmarked child reopens under restored parent
+        story1 = [i for i in result["items"]
+                  if i["type"] == "story" and i.get("story_index") == 1]
+        self.assertEqual(len(story1), 1)
+        self.assertEqual(story1[0]["category"], "reopened",
+                         "Unmarked child under restored parent must reopen")
+        # Individually removed sibling stays unchanged
+        story2 = [i for i in result["items"]
+                  if i["type"] == "story" and i.get("story_index") == 2]
+        self.assertEqual(len(story2), 1)
+        self.assertEqual(story2[0]["category"], "unchanged",
+                         "Individually removed sibling stays unchanged on restore")
+        self.assertEqual(sibling.read_bytes(), sibling_bytes,
+                         "Individually removed sibling bytes exact after restore")
+
+
+# ---------------------------------------------------------------------------
+# R2: Step 7 active epic requires effectively active child
+# ---------------------------------------------------------------------------
+
+class TestActiveEpicChildGateContract(unittest.TestCase):
+    """Step 7 check 3 requires at least one effectively active child story,
+    not merely a directory containing historical removed files (R2)."""
+
+    _step7: str
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import re
+        decompose_path = (Path(__file__).resolve().parent.parent
+                          / "skills" / "decompose.md")
+        text = decompose_path.read_text(encoding="utf-8")
+        m7 = re.search(r"### Step 7:.*?(?=### Step 8:)", text, re.DOTALL)
+        assert m7, "Step 7 not found in decompose.md"
+        cls._step7 = m7.group()
+
+    def _joined(self) -> str:
+        return " ".join(self._step7.lower().split())
+
+    def test_requires_effectively_active_child(self) -> None:
+        """Check 3 requires at least one effectively active child story."""
+        self.assertIn("at least one effectively active", self._joined())
+
+    def test_removed_only_directory_insufficient(self) -> None:
+        """Directory with only status:removed files does not satisfy check."""
+        self.assertIn("does not satisfy this check", self._joined())
+
+    def test_retired_epic_exception_preserved(self) -> None:
+        """Retired epic from partial run may lack child directory."""
+        self.assertIn("retired epic from a partial run", self._joined())
+
+
+# ---------------------------------------------------------------------------
+# R3: Step 9 Action 2 provenance scoped to effectively active DOCS
+# ---------------------------------------------------------------------------
+
+class TestDocsProvenanceScopeContract(unittest.TestCase):
+    """Step 9 Action 2 limits provenance corrections to effectively active
+    DOCS stories only; retired/parent-inactive histories are not rewritten
+    against the current design (R3)."""
+
+    _step9: str
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import re
+        decompose_path = (Path(__file__).resolve().parent.parent
+                          / "skills" / "decompose.md")
+        text = decompose_path.read_text(encoding="utf-8")
+        m9 = re.search(r"### Step 9:.*?(?=### Step 10:)", text, re.DOTALL)
+        assert m9, "Step 9 not found in decompose.md"
+        cls._step9 = m9.group()
+
+    def _joined(self) -> str:
+        return " ".join(self._step9.lower().split())
+
+    def test_provenance_scoped_to_active_docs(self) -> None:
+        """Action 2 checks only effectively active DOCS stories."""
+        self.assertIn("effectively active `[docs]` story", self._joined())
+
+    def test_retired_docs_not_rewritten(self) -> None:
+        """Retired/parent-inactive DOCS markers not rewritten."""
+        text = self._joined()
+        self.assertIn("retained for identity audit", text)
+        self.assertIn("not rewritten against the current design", text)
+
+    def test_unconditional_verification_preserved(self) -> None:
+        """Action 2 still runs unconditionally (even zero findings)."""
+        self.assertIn("runs unconditionally", self._step9)
 
 
 if __name__ == "__main__":

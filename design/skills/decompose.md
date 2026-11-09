@@ -123,7 +123,10 @@ story loaded in Step 1, match its qualified ID, path, and
 requirement mapping against the current verified PRD/design and the
 epic plan above. Explicitly determine whether each story is
 retained in the active plan or intentionally retired, with the
-requirement mapping or reason for each decision.
+requirement mapping or reason for each decision.  Distinguish a
+child's own disposition from inherited inactivity: a child whose
+parent epic is being retired is not itself individually retired
+unless the plan separately drops that child.
 
 A retained epic alone is not sufficient input for reconciliation —
 account for its child stories individually. Use current known
@@ -146,13 +149,18 @@ or status enum is required.
 
 On a repeat `/decompose` only (existing artifacts were loaded in
 Step 1): compare the retained inventory from Step 1 against the
-plan produced above. For each existing file that is no longer
-retained by the new plan, add `status: removed` to its YAML
+plan produced above. For each artifact that the plan individually
+and explicitly retires, add `status: removed` to its YAML
 frontmatter (the `---`-delimited block at the very start of the
 file — this is what `read_frontmatter` and `has_removed_status`
-examine; a plain Markdown body line is not recognized). Merge
-into any existing frontmatter; do not clobber other fields or
-prepend a second frontmatter block. If the file has no
+examine; a plain Markdown body line is not recognized).  When
+only a parent epic is retired, mark the parent only — do not
+add `status: removed` to its child stories; children inherit the
+parent's inactive status through cascade without needing their
+own markers.  Preserve each child's original frontmatter and
+body unless the current plan separately retires that child.
+Merge into any existing frontmatter; do not clobber other fields
+or prepend a second frontmatter block. If the file has no
 frontmatter, add a valid opening and closing `---` block before
 the first Markdown heading. Example:
 
@@ -628,9 +636,11 @@ decomposition review. Verify:
 2. Each epic file referenced in `05-epics.md` exists (e.g.,
    `06-stories/epic-1-{slug}.md`)
 3. Each active epic (no `status: removed`) has a corresponding
-   story directory with story files — a retired epic from a
-   partial run may lack a child directory and is retained as an
-   identity record
+   story directory containing at least one effectively active
+   child story (no own `status: removed` and parent epic active)
+   — a directory containing only `status: removed` files does not
+   satisfy this check.  A retired epic from a partial run may
+   lack a child directory and is retained as an identity record
 4. `07-coverage.md` exists and contains at least one mapping row
 5. Testplan was loaded in Step 1 (confirmed — source loading blocks if missing)
 6. Every active non-`[DOCS]` story file (no `status: removed`,
@@ -710,8 +720,12 @@ is needed. Cap at 2 review-fix rounds total across the entire step.
    dismissed. The independent reviewer intentionally lacks the design
    document and cannot verify this; it is author-only verification.
 
-   For each `[DOCS]` story, check every unmarked item in Documentation
-   Inputs against the design document (`03-design.md`) and the PRD.
+   For each effectively active `[DOCS]` story (no own
+   `status: removed` and parent epic active), check every unmarked
+   item in Documentation Inputs against the design document
+   (`03-design.md`) and the PRD.  Retired or parent-inactive
+   `[DOCS]` stories are retained for identity audit but their
+   historical markers are not rewritten against the current design.
    An item that traces to a specific design section or PRD requirement
    is correctly unmarked (planned). An item that fills a gap not
    specified by either document must be marked `[Assumption]`. An item
