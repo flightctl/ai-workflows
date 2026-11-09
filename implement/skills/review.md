@@ -121,28 +121,38 @@ Do not run the full validation suite — save expensive checks for `/validate`.
 
 ### Step 6: Stage and Commit
 
-Stage only the files changed by this feedback request:
+Stage only the files changed by this feedback request. Never use
+`git add .`, `git add -A`, or `git add -u` — these would capture
+pre-existing changes. Stage each file individually:
 
 ```bash
 git add {specific files changed in Steps 3-5}
 ```
 
-**Isolation check.** Before committing, verify that the staged changes do
-not include any pre-existing changes recorded in Step 1:
+**Isolation check.** Before committing, compare the staged set against
+the pre-existing state from Step 1:
 
-```bash
-git diff --cached --name-only
-```
+1. List staged files:
 
-Compare this list against the pre-existing paths from Step 1. If any
-pre-existing path appears in the staged set AND the staging includes
-hunks from that file that were not made by this phase, stop and report
-the conflict. Do not commit mixed work.
+   ```bash
+   git diff --cached --name-only
+   ```
 
-If pre-existing changes exist in files this phase also modified, check
-whether the hunks can be isolated (e.g., changes are in different parts
-of the file). If the hunks cannot be safely separated, stop and describe
-the conflict to the user rather than staging unrelated work.
+2. For each staged file, check if it had pre-existing changes (appeared
+   in the Step 1 status output). If it did not, the file is safe.
+
+3. If a file had pre-existing changes AND was also modified by this
+   phase, the file contains mixed hunks. Use `git diff --cached {file}`
+   to inspect the staged diff. If the staged diff contains hunks that
+   were NOT made by this phase (pre-existing modifications are now
+   staged alongside review changes), **stop and report the conflict**.
+   Do not commit mixed work. Use `git reset HEAD {file}` to unstage
+   only the conflicting file and explain the situation to the user.
+
+4. If pre-existing changes in a file are in entirely separate regions
+   and `git add -p {file}` could select only this phase's hunks, note
+   this option to the user but do not attempt partial staging
+   automatically — let the user decide.
 
 Commit using the discovered commit convention from the **Commit Format**
 section of `01-context.md`:

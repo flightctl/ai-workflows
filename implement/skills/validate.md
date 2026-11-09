@@ -298,7 +298,7 @@ committed clean HEAD passes re-review without further code fixes. If
 MAX_ROUNDS is exhausted before a clean pass, stop with FLAG — do not
 write the validation report or advance to Step 8.
 
-The validation report (Step 9) must reflect the final committed and
+The validation report (Step 10) must reflect the final committed and
 reviewed HEAD.
 
 ### Step 8: Acceptance Criteria Verification

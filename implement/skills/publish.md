@@ -80,13 +80,17 @@ Verify readiness:
    python3 "$GATE_SCRIPT" --report .artifacts/implement/{issue-key}/05-validation-report.md
    ```
 
-   The script exits 0 on pass and 1 on failure, printing a JSON result
-   with the failure reason. If the gate fails for any reason — missing
-   report, malformed report, failed result, stale SHA (including a
-   legacy PASS report without a `## Validated Commit` section), SHA
-   mismatch, or dirty worktree — stop and recommend `/validate`. Do not
-   auto-launch `/validate`. Report the specific failure reason from the
-   gate output.
+   The script exits 0 on pass and 1 on gate failure, printing a JSON
+   result with the failure reason. If exit code is 1, report the
+   specific failure reason from the JSON output and recommend
+   `/validate`. If the exit code is neither 0 nor 1 (script crash,
+   import error, missing dependency), report the raw error output and
+   recommend checking the Python environment before retrying. Do not
+   auto-launch `/validate`.
+
+   Gate failure reasons include: missing report, malformed report,
+   failed result, stale SHA (including a legacy PASS report without a
+   `## Validated Commit` section), SHA mismatch, or dirty worktree.
 
    If the gate script is not available (e.g., not installed), perform
    the checks manually:

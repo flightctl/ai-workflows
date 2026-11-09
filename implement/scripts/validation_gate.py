@@ -156,7 +156,15 @@ def check_worktree_clean(artifacts_prefix):
     """Check for staged, unstaged, and untracked changes.
 
     Returns (is_clean, dirty_paths) where dirty_paths is a list of
-    paths that are dirty, excluding those under artifacts_prefix.
+    paths that are dirty, excluding untracked/ignored files under
+    artifacts_prefix. Tracked files under artifacts_prefix that show
+    as modified ARE reported — only truly untracked artifacts (workflow
+    working state in a gitignored directory) are exempt.
+
+    Porcelain status codes:
+      '??' = untracked (exempt if under artifacts_prefix)
+      '!!' = ignored   (exempt if under artifacts_prefix)
+      Any other XY = tracked file change (never exempt)
     """
     rc, out, err = run_git(
         "status", "--porcelain", "--untracked-files=normal",
@@ -170,9 +178,15 @@ def check_worktree_clean(artifacts_prefix):
     dirty = []
     for line in out.splitlines():
         # porcelain format: XY PATH or XY PATH -> PATH
+        status_code = line[:2]
         path = line[3:].split(" -> ")[-1].strip()
-        if not path.startswith(artifacts_prefix):
-            dirty.append(line.strip())
+        if path.startswith(artifacts_prefix):
+            # Only exempt untracked (??) or ignored (!!) artifacts.
+            # Tracked files under .artifacts/ that show as modified,
+            # staged, or deleted are real dirty state.
+            if status_code in ("??", "!!"):
+                continue
+        dirty.append(line.strip())
 
     return len(dirty) == 0, dirty
 

@@ -411,6 +411,29 @@ class TestRunGate(unittest.TestCase):
         result = validation_gate.run_gate(report_path)
         self.assertEqual(result["gate"], "pass")
 
+    def test_tracked_artifacts_not_ignored(self):
+        """Gate fails when a tracked file under .artifacts/ is modified."""
+        # Create and commit a file under .artifacts (making it tracked)
+        artifacts_dir = os.path.join(self.repo, ".artifacts", "tracked")
+        os.makedirs(artifacts_dir, exist_ok=True)
+        tracked_file = os.path.join(artifacts_dir, "config.md")
+        with open(tracked_file, "w") as f:
+            f.write("original\n")
+        subprocess.run(["git", "add", ".artifacts/tracked/config.md"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "add tracked artifact"],
+                       check=True, capture_output=True)
+
+        head = get_head(self.repo)
+        report_path = write_report(self.repo, "PASS", head)
+
+        # Modify the tracked file — this should NOT be ignored
+        with open(tracked_file, "w") as f:
+            f.write("modified\n")
+        result = validation_gate.run_gate(report_path)
+        self.assertEqual(result["gate"], "fail")
+        self.assertIn("not clean", result["reason"])
+
     def test_post_self_review_new_commit(self):
         """Gate fails when a new commit is made after validated commit."""
         head = get_head(self.repo)
