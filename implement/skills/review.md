@@ -142,18 +142,32 @@ Do not run the full validation suite — save expensive checks for `/validate`.
 
 ### Step 6: Stage and Commit
 
-Commit only the files changed by this feedback request using
-`git commit --only`, which creates a commit from exactly the named
-paths without disturbing pre-existing staged content in the index:
+Stage ONLY the specific files changed by this feedback request,
+including any newly created test or code files. This explicit staging
+is required because `git commit --only` needs new files in the index:
 
 ```bash
-git commit --only -m "{issue-key}: {brief description of feedback change}" -- {paths changed in Steps 3-5}
+git add -- {explicit paths changed in Steps 3-5}
+```
+
+Verify the staged diff contains only this phase's changes:
+
+```bash
+git diff --cached -- {same explicit paths}
+```
+
+Then commit using `--only` on the same paths, which creates a commit
+from exactly those paths without disturbing other pre-existing staged
+content:
+
+```bash
+git commit --only -m "{issue-key}: {brief description}" -- {same explicit paths}
 ```
 
 Use the commit format from the **Commit Format** section of
 `01-context.md`. Never use `git add .`, `git add -A`, or `git add -u`
-before committing — those would capture pre-existing changes. Never
-use `git reset` on user-staged content.
+— those would capture pre-existing changes. Never use `git reset` on
+user-staged content.
 
 After committing, verify that pre-existing state is preserved:
 

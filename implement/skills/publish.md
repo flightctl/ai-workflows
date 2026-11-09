@@ -182,31 +182,29 @@ Confirm with the user before proceeding.
 
 ### Step 3b: Pre-Push Freshness Re-Check
 
-Immediately before pushing, re-run the validation freshness gate to
-ensure the validated state has not changed since Step 2:
+Immediately before pushing, re-run the validation freshness gate:
 
 ```bash
 python3 "$GATE_SCRIPT" --report .artifacts/implement/{issue-key}/05-validation-report.md
 ```
 
 If exit code is 1 (gate failure), report the JSON reason and recommend
-`/validate`. If the exit code is neither 0 nor 1 (script crash), report
-the raw error output. If the gate script is not available, stop and
-report an installation problem. Any non-zero exit blocks the push.
+`/validate`. If exit code is neither 0 nor 1 (script crash), report
+the raw stderr — do not parse it as a JSON verdict. If the gate script
+is not available, stop and report an installation problem. Any non-zero
+exit blocks the push.
+
+On success, record the candidate SHA as `PUSHED_SHA` before pushing:
+
+```bash
+PUSHED_SHA=$(git rev-parse HEAD)
+```
 
 ### Step 4: Push Branch
 
 ```bash
 python3 "$PUBLISH_SCRIPT" push --remote origin --branch {branch-name}
 ```
-
-Record the pushed SHA:
-
-```bash
-git rev-parse HEAD
-```
-
-Store this as `PUSHED_SHA` for verification before PR creation.
 
 ### Step 5: Create PR Description
 
@@ -248,23 +246,24 @@ In either case, save the result to
 
 ### Step 5b: Pre-PR Freshness Gate
 
-Immediately before creating the PR, verify that the current HEAD still
-equals `PUSHED_SHA` from Step 4 and that the remote branch points to
-the same commit:
+Immediately before creating the PR, run the pre-PR gate to verify
+HEAD, report, and the live remote branch all agree on `PUSHED_SHA`:
 
 ```bash
-git rev-parse HEAD
+python3 "$GATE_SCRIPT" \
+  --report .artifacts/implement/{issue-key}/05-validation-report.md \
+  --expected-sha "$PUSHED_SHA" \
+  --remote origin \
+  --branch {branch-name}
 ```
 
-```bash
-git rev-parse origin/{branch-name}
-```
-
-Both must equal `PUSHED_SHA`. If HEAD has changed (an intervening
-commit), stop — the new state was not pushed. If `origin/{branch-name}`
-differs from `PUSHED_SHA` (remote was updated externally), stop and
-report the discrepancy. The gate ensures the PR is created against
-exactly the state that was pushed and validated.
+This runs the full validation gate (report PASS, SHA match, clean
+worktree) AND verifies that local HEAD equals `PUSHED_SHA` AND queries
+`git ls-remote --exit-code` to confirm the remote branch points to
+exactly `PUSHED_SHA`. Any failure — HEAD drift, remote drift, dirty
+worktree, stale report — blocks PR creation. If exit code is 1, report
+the JSON reason. If exit code is 2 or other (script crash), report
+raw stderr. If the gate script is missing, stop.
 
 ### Step 6: Create Draft PR
 

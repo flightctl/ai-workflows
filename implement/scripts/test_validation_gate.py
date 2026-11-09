@@ -356,10 +356,10 @@ class TestParseReport(unittest.TestCase):
             info = validation_gate.parse_report(f.name)
         os.unlink(f.name)
         self.assertIsNone(info["validated_commit"])
-        self.assertIn("multiple SHA values", info["parse_error"])
+        self.assertIn("exactly one", info["parse_error"])
 
-    def test_sha_with_unexpected_prose_rejected(self):
-        """SHA mixed with unexpected non-template text is rejected."""
+    def test_sha_with_extra_prose_rejected(self):
+        """SHA plus prose line is rejected (must be exactly one line)."""
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".md", delete=False,
         ) as f:
@@ -377,10 +377,10 @@ class TestParseReport(unittest.TestCase):
             info = validation_gate.parse_report(f.name)
         os.unlink(f.name)
         self.assertIsNone(info["validated_commit"])
-        self.assertIn("unexpected non-SHA content", info["parse_error"])
+        self.assertIn("exactly one", info["parse_error"])
 
-    def test_sha_with_template_placeholder_accepted(self):
-        """SHA alongside template placeholder text is accepted."""
+    def test_template_placeholder_leftover_rejected(self):
+        """Leftover {placeholder} text in Validated Commit is rejected."""
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".md", delete=False,
         ) as f:
@@ -391,16 +391,34 @@ class TestParseReport(unittest.TestCase):
 
                 ## Validated Commit
 
-                abcdef1234567890abcdef1234567890abcdef12
+                {full commit SHA from git rev-parse HEAD}
             """))
             f.flush()
             info = validation_gate.parse_report(f.name)
         os.unlink(f.name)
-        self.assertIsNone(info["parse_error"])
-        self.assertEqual(
-            info["validated_commit"],
-            "abcdef1234567890abcdef1234567890abcdef12",
-        )
+        self.assertIsNone(info["validated_commit"])
+        self.assertIn("does not contain a valid", info["parse_error"])
+
+    def test_json_like_conflicting_sha_rejected(self):
+        """JSON-like text embedding a SHA is rejected (not a bare SHA line)."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False,
+        ) as f:
+            f.write(textwrap.dedent("""\
+                ## Result
+
+                PASS
+
+                ## Validated Commit
+
+                {"sha": "abcdef1234567890abcdef1234567890abcdef12"}
+            """))
+            f.flush()
+            info = validation_gate.parse_report(f.name)
+        os.unlink(f.name)
+        # The JSON string is a single line but not a bare 40-char hex SHA
+        self.assertIsNone(info["validated_commit"])
+        self.assertIsNotNone(info["parse_error"])
 
     def test_non_utf8_report_fails_closed(self):
         """Report with non-UTF-8 content fails with actionable error."""
@@ -830,6 +848,69 @@ class TestReviewCommitIsolation(unittest.TestCase):
         self.assertEqual(status_map["file_b.txt"][1], "M",
                          "file_b.txt should still have unstaged changes")
 
+        # Verify the commit only has review_target.txt
+        committed = subprocess.run(
+            ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"],
+            capture_output=True, text=True, check=True)
+        self.assertEqual(committed.stdout.strip(), "review_target.txt")
+
+        # Verify file content in commit
+        content = subprocess.run(
+            ["git", "show", "HEAD:review_target.txt"],
+            capture_output=True, text=True, check=True)
+        self.assertEqual(content.stdout, "review change\n")
+
+        # Verify file_a content is still the user's staged version on disk
+        with open("file_a.txt") as f:
+            self.assertEqual(f.read(), "user staged change\n")
+        with open("file_b.txt") as f:
+            self.assertEqual(f.read(), "user unstaged change\n")
+
+    def test_new_file_committed_preserving_unrelated(self):
+        """New (untracked) feedback file can be committed while preserving
+        unrelated staged and unstaged state — the documented review.md
+        pattern: git add -- {paths}, git commit --only -- {paths}."""
+        # Create a tracked file
+        with open("existing.txt", "w") as f:
+            f.write("original\n")
+        subprocess.run(["git", "add", "existing.txt"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "add existing"],
+                       check=True, capture_output=True)
+
+        # Pre-existing: stage a change
+        with open("existing.txt", "w") as f:
+            f.write("user staged\n")
+        subprocess.run(["git", "add", "existing.txt"],
+                       check=True, capture_output=True)
+
+        # Simulate review creating a NEW file (doesn't exist in git yet)
+        with open("new_review_file.py", "w") as f:
+            f.write("# new test code\ndef test(): pass\n")
+
+        # Documented pattern: git add then commit --only
+        subprocess.run(["git", "add", "--", "new_review_file.py"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "commit", "--only", "-m",
+                        "review: add new file", "--", "new_review_file.py"],
+                       check=True, capture_output=True)
+
+        # Verify: new file is in the commit
+        committed = subprocess.run(
+            ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"],
+            capture_output=True, text=True, check=True)
+        self.assertEqual(committed.stdout.strip(), "new_review_file.py")
+
+        # Verify: existing.txt is STILL staged
+        status = subprocess.run(["git", "status", "--porcelain"],
+                                capture_output=True, text=True, check=True)
+        status_map = {}
+        for line in status.stdout.strip().splitlines():
+            status_map[line[3:]] = line[:2]
+        self.assertIn("existing.txt", status_map)
+        self.assertEqual(status_map["existing.txt"][0], "M",
+                         "existing.txt should still be staged")
+
     def test_mixed_target_file_blocks(self):
         """When a review target file has pre-existing changes, the review
         phase should block before making edits, not after."""
@@ -856,6 +937,151 @@ class TestReviewCommitIsolation(unittest.TestCase):
         # The review phase should stop HERE (before editing) because
         # target.txt has pre-existing changes.  We verify the detection
         # mechanism works — the phase behavioral check is in review.md.
+
+
+class TestPrePRGate(unittest.TestCase):
+    """Test the pre-PR publication gate with live remote verification.
+
+    Uses a local bare remote to test the production run_pre_pr_gate()
+    code path.
+    """
+
+    def setUp(self):
+        self.repo = make_temp_repo()
+        self.orig_dir = os.getcwd()
+        os.chdir(self.repo)
+        # Create a local bare remote
+        self.bare = tempfile.mkdtemp()
+        subprocess.run(["git", "clone", "--bare", self.repo, self.bare],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "remote", "add", "test-remote", self.bare],
+                       check=True, capture_output=True)
+        # Create feature branch
+        subprocess.run(["git", "checkout", "-b", "feature-x"],
+                       check=True, capture_output=True)
+        with open("feature.txt", "w") as f:
+            f.write("feature code\n")
+        subprocess.run(["git", "add", "feature.txt"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "feature"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "push", "test-remote", "feature-x"],
+                       check=True, capture_output=True)
+
+    def tearDown(self):
+        os.chdir(self.orig_dir)
+        subprocess.run(["rm", "-rf", self.repo], check=False)
+        subprocess.run(["rm", "-rf", self.bare], check=False)
+
+    def test_pre_pr_success(self):
+        """Pre-PR gate passes when everything matches."""
+        head = get_head(self.repo)
+        report_path = write_report(self.repo, "PASS", head)
+        result = validation_gate.run_pre_pr_gate(
+            report_path, head, "test-remote", "feature-x")
+        self.assertEqual(result["gate"], "pass")
+
+    def test_pre_pr_remote_ahead(self):
+        """Pre-PR gate fails when remote has been updated externally."""
+        head = get_head(self.repo)
+        report_path = write_report(self.repo, "PASS", head)
+        # Push a new commit to the bare remote from a temp clone
+        clone = tempfile.mkdtemp()
+        subprocess.run(["git", "clone", self.bare, clone],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "-C", clone, "config", "user.email", "t@t"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "-C", clone, "config", "user.name", "T"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "-C", clone, "checkout", "feature-x"],
+                       check=True, capture_output=True)
+        with open(os.path.join(clone, "extra.txt"), "w") as f:
+            f.write("external change\n")
+        subprocess.run(["git", "-C", clone, "add", "extra.txt"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "-C", clone, "commit", "-m", "external"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "-C", clone, "push", "origin", "feature-x"],
+                       check=True, capture_output=True)
+        subprocess.run(["rm", "-rf", clone], check=False)
+
+        # Now gate should fail — remote is ahead
+        result = validation_gate.run_pre_pr_gate(
+            report_path, head, "test-remote", "feature-x")
+        self.assertEqual(result["gate"], "fail")
+        self.assertIn("remote", result["reason"].lower())
+
+    def test_pre_pr_remote_ref_missing(self):
+        """Pre-PR gate fails when remote branch does not exist."""
+        head = get_head(self.repo)
+        report_path = write_report(self.repo, "PASS", head)
+        result = validation_gate.run_pre_pr_gate(
+            report_path, head, "test-remote", "nonexistent-branch")
+        self.assertEqual(result["gate"], "fail")
+        self.assertIn("cannot verify", result["reason"])
+
+    def test_pre_pr_local_dirty_after_push(self):
+        """Pre-PR gate fails when worktree is dirty after push."""
+        head = get_head(self.repo)
+        report_path = write_report(self.repo, "PASS", head)
+        # Dirty the worktree
+        with open("dirty.txt", "w") as f:
+            f.write("uncommitted\n")
+        result = validation_gate.run_pre_pr_gate(
+            report_path, head, "test-remote", "feature-x")
+        self.assertEqual(result["gate"], "fail")
+        self.assertIn("not clean", result["reason"])
+
+    def test_pre_pr_new_local_commit_not_pushed(self):
+        """Pre-PR gate fails when local HEAD differs from expected pushed SHA."""
+        pushed_sha = get_head(self.repo)
+        # Make a new local commit (not pushed)
+        with open("local-only.txt", "w") as f:
+            f.write("not pushed\n")
+        subprocess.run(["git", "add", "local-only.txt"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "local only"],
+                       check=True, capture_output=True)
+        new_head = get_head(self.repo)
+        # Even with a fresh report for new_head, gate must fail because
+        # expected_sha is the old pushed SHA
+        report_path = write_report(self.repo, "PASS", new_head)
+        result = validation_gate.run_pre_pr_gate(
+            report_path, pushed_sha, "test-remote", "feature-x")
+        self.assertEqual(result["gate"], "fail")
+        self.assertIn("does not match the pushed", result["reason"])
+
+    def test_pre_pr_cli_invocation(self):
+        """Production CLI with --expected-sha runs the pre-PR path."""
+        head = get_head(self.repo)
+        report_path = write_report(self.repo, "PASS", head)
+        result = subprocess.run(
+            ["python3", "-I", os.path.join(self.orig_dir, "implement",
+             "scripts", "validation_gate.py"),
+             "--report", report_path,
+             "--expected-sha", head,
+             "--remote", "test-remote",
+             "--branch", "feature-x"],
+            capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        parsed = json.loads(result.stdout)
+        self.assertEqual(parsed["gate"], "pass")
+
+    def test_pre_pr_cli_remote_fail(self):
+        """Production CLI with missing remote branch exits 1 with JSON."""
+        head = get_head(self.repo)
+        report_path = write_report(self.repo, "PASS", head)
+        result = subprocess.run(
+            ["python3", "-I", os.path.join(self.orig_dir, "implement",
+             "scripts", "validation_gate.py"),
+             "--report", report_path,
+             "--expected-sha", head,
+             "--remote", "test-remote",
+             "--branch", "no-such-branch"],
+            capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1)
+        parsed = json.loads(result.stdout)
+        self.assertEqual(parsed["gate"], "fail")
 
 
 if __name__ == "__main__":

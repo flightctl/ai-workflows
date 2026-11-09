@@ -382,11 +382,12 @@ has TC mappings but `testplan.md` is missing, unreadable, or malformed
 
 ### Step 9: Final Candidate Verification
 
-If Steps 4–8b committed fixes, re-run Steps 3–8b on the current HEAD
-(consuming the original MAX_ROUNDS — do not reset). If re-runs produce
-further edits, loop. Write the report only when the full pipeline passes
-on an unchanged clean committed HEAD. Do not relabel old results with a
-new SHA. After the clean pass, record `git rev-parse HEAD`.
+If Steps 4–8b committed fixes, re-run Steps 3–8b (consuming original
+MAX_ROUNDS). Loop if re-runs edit. Verify clean worktree (`git status
+--porcelain -z --ignore-submodules=none`) and record `git rev-parse
+HEAD`. If HEAD changed since the last check pass, return to the
+pipeline. Write the report only for the exact unchanged candidate
+whose full pipeline passed — never relabel old results.
 
 ### Step 10: Write Validation Report
 

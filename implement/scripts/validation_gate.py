@@ -7,9 +7,13 @@ Used by /publish to enforce the validation freshness contract.
 
 Usage:
   validation_gate.py --report PATH
+  validation_gate.py --report PATH --expected-sha SHA --remote NAME --branch NAME
 
 Arguments:
-  --report PATH   Path to 05-validation-report.md
+  --report PATH         Path to 05-validation-report.md
+  --expected-sha SHA    Pushed commit SHA (enables pre-PR remote check)
+  --remote NAME         Git remote for live branch verification
+  --branch NAME         Branch name for live remote verification
 
 Exit codes:
   0  Gate passed — report is valid PASS for exact current HEAD, worktree clean
@@ -129,42 +133,24 @@ def parse_report(report_path):
         if not body:
             _append_error(info, "'## Validated Commit' section is empty")
         else:
-            # Collect all non-empty lines; require exactly one that is a
-            # valid 40-char hex SHA.  Reject sections with extra content
-            # lines (prose, multiple SHAs, template placeholders).
+            # Require exactly ONE non-empty line that is a full 40-char
+            # hex SHA.  Any extra lines — prose, template placeholders,
+            # additional SHAs — are rejected.
             lines = [ln.strip() for ln in body.splitlines() if ln.strip()]
-            sha_lines = [ln for ln in lines
-                         if re.fullmatch(r'[0-9a-f]{40}', ln)]
-
-            if len(sha_lines) == 0:
+            if len(lines) != 1:
+                _append_error(
+                    info,
+                    f"'## Validated Commit' must contain exactly one "
+                    f"non-empty line (found {len(lines)})",
+                )
+            elif not re.fullmatch(r'[0-9a-f]{40}', lines[0]):
                 _append_error(
                     info,
                     f"'## Validated Commit' does not contain a valid "
-                    f"40-character SHA (found: {body[:60]!r})",
-                )
-            elif len(sha_lines) > 1:
-                _append_error(
-                    info,
-                    f"'## Validated Commit' contains multiple SHA values "
-                    f"({len(sha_lines)} found) — must be exactly one",
+                    f"40-character SHA (found: {lines[0][:60]!r})",
                 )
             else:
-                # Exactly one SHA found.  Check that all other non-empty
-                # lines (if any) are clearly template/comment text that
-                # starts with '{' (template placeholder).  Reject any
-                # unexpected non-SHA content that could be ambiguous.
-                non_sha = [ln for ln in lines
-                           if not re.fullmatch(r'[0-9a-f]{40}', ln)]
-                unexpected = [ln for ln in non_sha
-                              if not ln.startswith('{')]
-                if unexpected:
-                    _append_error(
-                        info,
-                        f"'## Validated Commit' contains unexpected "
-                        f"non-SHA content: {unexpected[0][:60]!r}",
-                    )
-                else:
-                    info["validated_commit"] = sha_lines[0]
+                info["validated_commit"] = lines[0]
 
     return info
 
@@ -379,6 +365,106 @@ def run_gate(report_path):
     }
 
 
+def run_pre_pr_gate(report_path, expected_sha, remote, branch):
+    """Pre-PR publication gate: validates report + HEAD + remote consistency.
+
+    Checks that:
+    1. The standard validation gate passes (report PASS, SHA match, clean)
+    2. Local HEAD equals expected_sha (the recorded pushed commit)
+    3. Live git ls-remote confirms the remote branch points to expected_sha
+
+    Returns a result dict with gate="pass"|"fail".
+    """
+    # First run the standard gate
+    base_result = run_gate(report_path)
+    if base_result["gate"] != "pass":
+        return base_result
+
+    head = base_result["head"]
+    checks = base_result["checks"]
+
+    # Verify HEAD matches expected pushed SHA
+    if head != expected_sha:
+        checks.append({
+            "name": "expected_sha_match",
+            "pass": False,
+            "detail": f"HEAD={head}, expected={expected_sha}",
+        })
+        return {
+            "gate": "fail",
+            "reason": (
+                f"HEAD ({head[:12]}) does not match the pushed commit "
+                f"({expected_sha[:12]}) — push first or re-validate"
+            ),
+            "head": head,
+            "validated_commit": base_result.get("validated_commit"),
+            "checks": checks,
+        }
+
+    checks.append({
+        "name": "expected_sha_match",
+        "pass": True,
+        "detail": "ok",
+    })
+
+    # Live remote check via git ls-remote
+    rc, out_bytes, err = run_git(
+        "ls-remote", "--exit-code", remote, f"refs/heads/{branch}",
+    )
+
+    if rc != 0:
+        detail = f"ls-remote failed (exit {rc}): {err}" if err else \
+                 f"ref refs/heads/{branch} not found on {remote}"
+        checks.append({
+            "name": "remote_branch_match",
+            "pass": False,
+            "detail": detail,
+        })
+        return {
+            "gate": "fail",
+            "reason": f"cannot verify remote branch {branch} on {remote}"
+                      f" — {detail}",
+            "head": head,
+            "validated_commit": base_result.get("validated_commit"),
+            "checks": checks,
+        }
+
+    # Parse ls-remote output: "<sha>\trefs/heads/<branch>"
+    remote_sha = out_bytes.decode("utf-8", errors="replace").split()[0] \
+        if out_bytes else ""
+
+    if remote_sha != expected_sha:
+        checks.append({
+            "name": "remote_branch_match",
+            "pass": False,
+            "detail": f"remote={remote_sha}, expected={expected_sha}",
+        })
+        return {
+            "gate": "fail",
+            "reason": (
+                f"remote {remote} branch {branch} points to "
+                f"{remote_sha[:12]}, not pushed commit "
+                f"{expected_sha[:12]} — push or re-validate"
+            ),
+            "head": head,
+            "validated_commit": base_result.get("validated_commit"),
+            "checks": checks,
+        }
+
+    checks.append({
+        "name": "remote_branch_match",
+        "pass": True,
+        "detail": "ok",
+    })
+
+    return {
+        "gate": "pass",
+        "head": head,
+        "validated_commit": base_result.get("validated_commit"),
+        "checks": checks,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Validation freshness gate for /publish",
@@ -388,11 +474,41 @@ def main():
         required=True,
         help="Path to 05-validation-report.md",
     )
+    parser.add_argument(
+        "--expected-sha",
+        help="Expected pushed commit SHA (enables pre-PR gate mode)",
+    )
+    parser.add_argument(
+        "--remote",
+        help="Git remote name for live branch check (required with --expected-sha)",
+    )
+    parser.add_argument(
+        "--branch",
+        help="Branch name for live remote check (required with --expected-sha)",
+    )
     args = parser.parse_args()
 
-    result = run_gate(args.report)
-    print(json.dumps(result, indent=2))
-    sys.exit(0 if result["gate"] == "pass" else 1)
+    pre_pr = args.expected_sha is not None
+    if pre_pr:
+        if not args.remote or not args.branch:
+            parser.error("--remote and --branch are required with --expected-sha")
+        if not re.fullmatch(r'[0-9a-f]{40}', args.expected_sha):
+            parser.error("--expected-sha must be a 40-character hex SHA")
+
+    try:
+        if pre_pr:
+            result = run_pre_pr_gate(
+                args.report, args.expected_sha, args.remote, args.branch,
+            )
+        else:
+            result = run_gate(args.report)
+        print(json.dumps(result, indent=2))
+        sys.exit(0 if result["gate"] == "pass" else 1)
+    except Exception as exc:
+        # Script crash — not a gate verdict. Print to stderr so callers
+        # don't parse it as JSON.
+        print(f"validation_gate: internal error: {exc}", file=sys.stderr)
+        sys.exit(2)
 
 
 if __name__ == "__main__":
