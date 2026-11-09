@@ -25,7 +25,7 @@ lightweight dispatcher.
 4. **Code** (`/code`) — `code.md`
    Write tests and code via TDD, committing incrementally.
 
-5. **Review** (`/review`) — `review.md`
+5. **Review** (`/implement:review`) — `review.md`
    Apply user-supplied feedback to the current local implementation.
    Optional and repeatable after `/code`.
 

@@ -161,23 +161,12 @@ scope:
   correction, not expansion.
 
 **Documented-requirement conflict check.** For each code change request,
-also check whether the requested change conflicts with documented
-requirements — the Jira acceptance criteria in `01-context.md`, linked
-design/PRD requirements, and the approved plan in `02-plan.md`. Follow
-the documented-requirement conflict policy in `../guidelines.md`. If a
-conflict is found:
-
-1. Identify the exact source document and requirement text.
-2. Explain the conflict and its behavioral effect.
-3. Do not apply the code change or post a PR response until the user
-   resolves the conflict.
-4. If the documented requirement is kept: prepare an evidence-based
-   response supporting the requirement for user approval before posting.
-5. If the documented requirement is superseded: the implement workflow is
-   Jira-read-only. The user must update the canonical requirement source
-   through its approved process. Direct the user to `/revise` to align
-   the implementation plan before coding resumes. Update tests to match
-   the resolved requirement.
+also check whether it conflicts with documented requirements. Read and
+follow the documented-requirement conflict policy in `../guidelines.md`.
+Do not apply the code change or post a PR response until the user
+resolves any conflict. For `/respond` specifically: if the documented
+requirement is kept, prepare an evidence-based response supporting the
+requirement for user approval before posting.
 
 Classify each comment's scope impact and requirement-conflict status
 before proceeding to Step 4.

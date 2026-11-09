@@ -39,7 +39,7 @@ graph TD
 | Plan | `/plan` | Design implementation approach and test strategy | `02-plan.md` |
 | Revise | `/revise` | Incorporate feedback into the plan | Updated `02-plan.md` |
 | Code | `/code` | Write tests and code via TDD | `03-test-report.md`, `04-impl-report.md` |
-| Review | `/review` | Apply user-supplied feedback to implementation | Local commits (no artifact) |
+| Review | `/implement:review` | Apply user-supplied feedback to implementation | Local commits (no artifact) |
 | Validate | `/validate` | Run tests, lint, coverage analysis | `05-validation-report.md` |
 | Publish | `/publish` | Push branch, create draft PR | `06-pr-description.md` |
 | Respond | `/respond` | Address reviewer comments | `07-review-responses.md` |
@@ -49,8 +49,9 @@ dispatcher resolves any project override, loads only that phase, and passes
 along the command context. After the phase reports its result,
 `skills/completion.md` supplies the shared next-step guidance without loading
 the full controller. The controller remains the entry point for workflow
-discovery and ambiguous requests. The `/review` phase is optional and
-repeatable between `/code` and `/validate` for applying direct user feedback.
+discovery and ambiguous requests. The `/implement:review` phase is optional
+and repeatable between `/code` and `/validate` for applying direct user
+feedback.
 
 ## Typical Flow
 
@@ -80,12 +81,12 @@ repeatable between `/code` and `/validate` for applying direct user feedback.
   → updates 02-plan.md with task completion status
   → writes 03-test-report.md, 04-impl-report.md
 
-/review (optional, repeatable)
+/implement:review (optional, repeatable)
   → user provides direct feedback in command context
   → assesses against scope, requirements, and plan
   → applies focused change, runs scoped tests and lint
   → commits locally (does not push)
-  → recommends another /review or /validate
+  → recommends another /implement:review or /validate
 
 /validate
   → runs full validation suite (discovered during /ingest)
@@ -176,7 +177,7 @@ implement/
     ├── plan.md                 # /plan command
     ├── revise.md               # /revise command
     ├── code.md                 # /code command
-    ├── review.md               # /review command
+    ├── review.md               # /implement:review command
     ├── validate.md             # /validate command
     ├── publish.md              # /publish command
     └── respond.md              # /respond command

@@ -298,7 +298,7 @@ committed clean HEAD passes re-review without further code fixes. If
 MAX_ROUNDS is exhausted before a clean pass, stop with FLAG — do not
 write the validation report or advance to Step 8.
 
-The validation report (Step 10) must reflect the final committed and
+The validation report (Step 9) must reflect the final committed and
 reviewed HEAD.
 
 ### Step 8: Acceptance Criteria Verification
@@ -380,16 +380,18 @@ has TC mappings but `testplan.md` is missing, unreadable, or malformed
      through the same post-fix cycle as Step 7.
 4. Record results for the validation report.
 
-### Step 9: Final Candidate Verification
+### Step 9: Write Validation Report
 
-If Steps 4–8b committed fixes, re-run Steps 3–8b (consuming original
-MAX_ROUNDS). Loop if re-runs edit. Verify clean worktree (`git status
---porcelain -z --ignore-submodules=none`) and record `git rev-parse
-HEAD`. If HEAD changed since the last check pass, return to the
-pipeline. Write the report only for the exact unchanged candidate
-whose full pipeline passed — never relabel old results.
-
-### Step 10: Write Validation Report
+**Final candidate verification.** Before writing the report, verify
+the current HEAD is the exact candidate whose checks passed. If Steps
+4–8b committed any fixes, return to Step 3 and re-run the full pipeline
+(Steps 3–8b), consuming the original MAX_ROUNDS budget — do not reset
+it. If re-runs produce further edits, return to Step 3 again. If
+MAX_ROUNDS is exhausted before a clean pass, stop with FLAG. If the
+worktree is dirty at the final check (`git status --porcelain -z
+--ignore-submodules=none` produces output), stop and report — do not
+write PASS or auto-stage. Record the validated SHA only after a clean
+unchanged pass: `git rev-parse HEAD`.
 
 Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
 
@@ -508,23 +510,10 @@ Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
 
 ## Validated Commit
 
-{Full 40-character commit SHA from `git rev-parse HEAD` at report-write
- time, after all fix cycles have completed and the final candidate has
- passed all checks with a clean worktree. This SHA identifies the exact
- committed state that was validated. /publish uses it to verify that no
- changes have been made since validation.}
+Write exactly one line containing only the 40-character lowercase hex
+SHA from `git rev-parse HEAD`. No backticks, labels, prefixes, or
+additional text. Example: `a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2`.
 ```
-
-### Step 11: Present Results
-
-Summarize for the user:
-- Which checks passed and which failed
-- Coverage assessment (behavioral, not numeric)
-- Acceptance criteria status (all satisfied, or which ones have gaps)
-- Test plan verification status (all covered / gaps filled / not applicable), if testplan exists
-- Any tests added during validation
-- Any regressions found (and whether they were fixed)
-- Overall verdict: ready for `/publish` or not
 
 ## Output
 
@@ -535,10 +524,12 @@ Summarize for the user:
 ## When This Phase Is Done
 
 Report your results:
-- Validation check results (all pass / some fail)
-- Coverage assessment
-- Acceptance criteria status
-- Regression status
-- Overall verdict
+- Which checks passed and which failed
+- Coverage assessment (behavioral, not numeric)
+- Acceptance criteria status (all satisfied, or which ones have gaps)
+- Test plan verification status (if testplan exists)
+- Any tests added during validation
+- Any regressions found (and whether they were fixed)
+- Overall verdict: ready for `/publish` or not
 
 Then return to the invoking workflow router for completion guidance.

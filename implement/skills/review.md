@@ -19,7 +19,7 @@ self-contained — there is no open-review session or session artifact.
 ## Critical Rules
 
 - **One request per invocation.** Apply only the feedback in this command's
-  context. The user may invoke this phase again for more feedback.
+  context. The user may invoke `/implement:review` again for more feedback.
 - **No full validation.** Run affected tests and scoped lint/format checks.
   Do not run the full test suite, coverage analysis, full regression checks,
   or the self-review gate. The user runs `/validate` after feedback is
@@ -37,6 +37,13 @@ self-contained — there is no open-review session or session artifact.
 ## Process
 
 ### Step 1: Read Context and Check Entry Conditions
+
+Determine the issue key from the command context. If the user provided
+an issue key or the command was invoked within a session that has an
+active implement workflow, use that key. If multiple
+`.artifacts/implement/` directories exist and the context does not
+identify which one, ask the user to specify. Do not pick an arbitrary
+artifact directory.
 
 Read:
 1. `.artifacts/implement/{issue-key}/02-plan.md` — required. If it does not
@@ -63,14 +70,17 @@ Check blocking conditions:
    and explain that this phase requires direct feedback to apply. Do
    not search for or fetch external feedback.
 
-4. Record pre-existing worktree state:
+4. Record pre-existing worktree state using NUL-delimited output for
+   stable path parsing, including all untracked files and submodules:
 
    ```bash
-   git status --porcelain --untracked-files=normal
+   git status --porcelain -z --untracked-files=all --ignore-submodules=none
    ```
 
-   Record all paths and their status codes. These are pre-existing changes
-   that this phase must not touch. If the command fails, stop and report.
+   Parse the NUL-delimited entries. For each entry, record the two-character
+   status code and path. For renames (`R`) and copies (`C`), record both
+   the source and destination paths. These are pre-existing changes that
+   this phase must not touch. If the command fails, stop and report.
 
 ### Step 2: Assess Feedback
 
@@ -80,41 +90,28 @@ Assess the user's feedback against:
 - Scope Baseline (when present in the plan)
 - Existing code contracts and project conventions
 
-**Documented-requirement conflict rule.** Follow the documented-requirement
-conflict policy in `../guidelines.md`. Compare the feedback with the Jira
-acceptance criteria, linked design/PRD requirements, and approved plan. If
-the feedback conflicts with a documented requirement:
-
-1. Identify the exact source document and requirement text.
-2. Explain the conflict and its behavioral effect.
-3. Ask whether the documented requirement remains authoritative or is
-   intentionally superseded.
-4. Do not apply the conflicting code change until the user resolves the
-   conflict.
-5. If the requirement is superseded: the implement workflow is Jira-read-only.
-   The user must update the canonical requirement source through its approved
-   process. Direct the user to `/revise` to align the implementation plan
-   before coding resumes. Update tests to match the resolved requirement.
-
-If the feedback is ambiguous, materially expands scope, or requires a pending
-scope decision, follow the existing clarification and `/revise` paths instead
-of silently applying it.
-
-Explain the technical reasoning if declining or adjusting the requested
-approach.
+**Documented-requirement conflict rule.** Read and follow the
+documented-requirement conflict policy in `../guidelines.md`. If the
+feedback conflicts with a documented requirement, stop before changing
+code: identify the source and requirement, explain the conflict, and
+ask the user. If the requirement is superseded, direct the user to
+update the canonical source and `/revise` the plan before coding
+resumes. If the requirement is kept, explain the rationale. Tests
+follow the resolved requirement.
 
 ### Step 3: Apply the Change
 
 For an in-scope change with no unresolved conflicts:
 
-1. Identify the files that will need modification.
-2. **Pre-edit isolation check.** Before making any edits, compare the
-   target file list against the pre-existing paths from Step 1. If any
-   target file has pre-existing staged or unstaged changes, **stop and
-   report the conflict** before editing. Do not modify a file that has
-   pre-existing changes — the hunks cannot be safely separated later.
-   Explain which files conflict and suggest the user commit or stash
-   their changes first.
+1. Identify the files that will need modification or creation.
+2. **Pre-edit isolation check.** Before making any edits, compare every
+   target path against the pre-existing paths from Step 1 — including
+   both sides of renames and directory prefixes of untracked entries.
+   If any target path matches a pre-existing entry (exact path match,
+   or the target is inside a pre-existing untracked directory), **stop
+   and report the conflict** before editing. Do not modify a file that
+   has pre-existing changes. Explain which files conflict and suggest
+   the user commit or stash their changes first.
 3. Read every file that will be modified.
 4. Edit only what the feedback requires. Keep changes minimal and focused.
 5. If the change affects behavior, add or update tests for the changed
@@ -143,8 +140,7 @@ Do not run the full validation suite — save expensive checks for `/validate`.
 ### Step 6: Stage and Commit
 
 Stage ONLY the specific files changed by this feedback request,
-including any newly created test or code files. This explicit staging
-is required because `git commit --only` needs new files in the index:
+including any newly created test or code files:
 
 ```bash
 git add -- {explicit paths changed in Steps 3-5}
@@ -169,16 +165,16 @@ Use the commit format from the **Commit Format** section of
 — those would capture pre-existing changes. Never use `git reset` on
 user-staged content.
 
-After committing, verify that pre-existing state is preserved:
+After committing, verify that pre-existing state is preserved using
+the same snapshot format as Step 1:
 
 ```bash
-git status --porcelain --untracked-files=normal
+git status --porcelain -z --untracked-files=all --ignore-submodules=none
 ```
 
-Compare against the Step 1 baseline. All pre-existing staged and
-unstaged paths must still appear with their original status codes.
-If any pre-existing path is missing or its status changed, stop and
-report the discrepancy.
+Compare parsed paths against the Step 1 baseline. All pre-existing
+paths must still appear with their original status codes. If any
+pre-existing path is missing or its status changed, stop and report.
 
 Do not push.
 

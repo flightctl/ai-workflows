@@ -63,9 +63,9 @@ If the documented requirement is superseded:
 - `/revise` must align the implementation plan before coding resumes.
 - Update tests to match the resolved requirement.
 
-Both `/review` and `/respond` follow this policy. Neither phase may
-apply a conflicting change or post a response before the user resolves
-the conflict. Neither phase may modify Jira.
+Both `/implement:review` and `/respond` follow this policy. Neither
+phase may apply a conflicting change or post a response before the user
+resolves the conflict. Neither phase may modify Jira.
 
 ## Safety
 

@@ -36,14 +36,34 @@ import re
 import subprocess
 import sys
 
+# Script directory — used by tests to locate the CLI entry point
+# regardless of the process's current working directory.
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+_GIT_TIMEOUT = 30  # seconds — bounds network calls (ls-remote) and local ops
+
 
 def run_git(*args):
-    """Run a git command and return (returncode, stdout_bytes, stderr)."""
-    result = subprocess.run(
-        ["git"] + list(args),
-        capture_output=True,
+    """Run a git command and return (returncode, stdout_bytes, stderr).
+
+    Disables interactive credential prompts and enforces a timeout so
+    the gate never hangs in an agent-driven flow.
+    """
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+    try:
+        result = subprocess.run(
+            ["git"] + list(args),
+            capture_output=True,
+            timeout=_GIT_TIMEOUT,
+            env=env,
+        )
+    except subprocess.TimeoutExpired:
+        return 124, b"", f"git command timed out after {_GIT_TIMEOUT}s"
+    return (
+        result.returncode,
+        result.stdout,
+        result.stderr.decode("utf-8", errors="replace").strip(),
     )
-    return result.returncode, result.stdout, result.stderr.decode("utf-8", errors="replace").strip()
 
 
 def get_head_sha():
@@ -107,14 +127,10 @@ def parse_report(report_path):
         if first_line is None:
             _append_error(info, "'## Result' section is empty")
         else:
-            # Require canonical PASS token: line must start with exactly
-            # "PASS" followed by end-of-line, whitespace, or " —"/" -".
-            # Rejects PASSING, PASSPORT, PASS123 etc.
             if re.match(r'^PASS(?:\s|$|[^A-Za-z0-9])', first_line):
                 info["result_value"] = first_line
             else:
-                info["result_value"] = first_line  # store for error msg
-                # Not a canonical PASS — will be caught by is_pass check
+                info["result_value"] = first_line
 
     # --- Validated Commit section ---
     commit_matches = re.findall(
@@ -133,9 +149,6 @@ def parse_report(report_path):
         if not body:
             _append_error(info, "'## Validated Commit' section is empty")
         else:
-            # Require exactly ONE non-empty line that is a full 40-char
-            # hex SHA.  Any extra lines — prose, template placeholders,
-            # additional SHAs — are rejected.
             lines = [ln.strip() for ln in body.splitlines() if ln.strip()]
             if len(lines) != 1:
                 _append_error(
@@ -147,7 +160,8 @@ def parse_report(report_path):
                 _append_error(
                     info,
                     f"'## Validated Commit' does not contain a valid "
-                    f"40-character SHA (found: {lines[0][:60]!r})",
+                    f"40-character lowercase hex SHA "
+                    f"(found: {lines[0][:60]!r})",
                 )
             else:
                 info["validated_commit"] = lines[0]
@@ -194,8 +208,6 @@ def check_worktree_clean():
     if not out_bytes:
         return True, []
 
-    # Parse NUL-delimited porcelain output.
-    # Format: XY<space>PATH<NUL> or XY<space>PATH<NUL>DEST<NUL> for renames
     entries = out_bytes.decode("utf-8", errors="replace").split("\0")
 
     dirty = []
@@ -209,19 +221,35 @@ def check_worktree_clean():
         xy = entry[:2]
         path = entry[3:]
 
-        # Skip rename destination (consumed as second NUL field)
-        if xy[0] == 'R' or xy[0] == 'C':
-            i += 2  # skip the "to" path
+        if xy[0] in ('R', 'C'):
+            i += 2
         else:
             i += 1
 
-        # Only exempt git-ignored entries (!!)
         if xy == "!!":
             continue
 
         dirty.append(f"{xy} {path}")
 
     return len(dirty) == 0, dirty
+
+
+def _parse_ls_remote_exact(out_bytes, expected_ref):
+    """Parse ls-remote output and return SHA for the exact ref match.
+
+    Returns (sha, error).  sha is None on error.
+    """
+    if not out_bytes:
+        return None, "empty ls-remote output"
+    text = out_bytes.decode("utf-8", errors="replace")
+    for line in text.strip().splitlines():
+        parts = line.split("\t", 1)
+        if len(parts) != 2:
+            continue
+        sha, ref = parts
+        if ref == expected_ref and re.fullmatch(r'[0-9a-f]{40}', sha):
+            return sha, None
+    return None, f"no exact match for {expected_ref} in ls-remote output"
 
 
 def run_gate(report_path):
@@ -238,131 +266,70 @@ def run_gate(report_path):
                          "detail": "git rev-parse HEAD failed"}],
         }
 
-    # 1. Parse the report
     report = parse_report(report_path)
 
     if not report["exists"]:
-        checks.append({
-            "name": "report_exists",
-            "pass": False,
-            "detail": "validation report does not exist",
-        })
-        return {
-            "gate": "fail",
-            "reason": "validation report missing — run /validate",
-            "head": head,
-            "checks": checks,
-        }
+        checks.append({"name": "report_exists", "pass": False,
+                        "detail": "validation report does not exist"})
+        return {"gate": "fail",
+                "reason": "validation report missing — run /validate",
+                "head": head, "checks": checks}
 
     checks.append({"name": "report_exists", "pass": True, "detail": "ok"})
 
-    # 2. Check for parse errors (malformed, missing sections, duplicates)
     if report["parse_error"]:
-        checks.append({
-            "name": "report_format",
-            "pass": False,
-            "detail": report["parse_error"],
-        })
-        return {
-            "gate": "fail",
-            "reason": f"validation report malformed: {report['parse_error']}"
-                      " — run /validate",
-            "head": head,
-            "checks": checks,
-        }
+        checks.append({"name": "report_format", "pass": False,
+                        "detail": report["parse_error"]})
+        return {"gate": "fail",
+                "reason": f"validation report malformed: "
+                          f"{report['parse_error']} — run /validate",
+                "head": head, "checks": checks}
 
     checks.append({"name": "report_format", "pass": True, "detail": "ok"})
 
-    # 3. Check Result is canonical PASS
     result_text = report["result_value"] or ""
     is_pass = bool(re.match(r'^PASS(?:\s|$|[^A-Za-z0-9])', result_text))
-
-    checks.append({
-        "name": "result_pass",
-        "pass": is_pass,
-        "detail": f"result: {result_text[:80]}" if result_text else "empty",
-    })
-
+    checks.append({"name": "result_pass", "pass": is_pass,
+                    "detail": f"result: {result_text[:80]}"
+                              if result_text else "empty"})
     if not is_pass:
-        return {
-            "gate": "fail",
-            "reason": f"validation result is not PASS"
-                      f" (found: {result_text[:80]!r}) — run /validate",
-            "head": head,
-            "validated_commit": report["validated_commit"],
-            "checks": checks,
-        }
+        return {"gate": "fail",
+                "reason": f"validation result is not PASS "
+                          f"(found: {result_text[:80]!r}) — run /validate",
+                "head": head,
+                "validated_commit": report["validated_commit"],
+                "checks": checks}
 
-    # 4. Check Validated Commit matches HEAD
     validated = report["validated_commit"]
     sha_match = validated == head
-
-    checks.append({
-        "name": "sha_match",
-        "pass": sha_match,
-        "detail": (
-            f"validated={validated}, head={head}"
-            if not sha_match
-            else "ok"
-        ),
-    })
-
+    checks.append({"name": "sha_match", "pass": sha_match,
+                    "detail": f"validated={validated}, head={head}"
+                              if not sha_match else "ok"})
     if not sha_match:
-        return {
-            "gate": "fail",
-            "reason": (
-                f"validated commit ({validated[:12]}) does not match "
-                f"HEAD ({head[:12]}) — run /validate"
-            ),
-            "head": head,
-            "validated_commit": validated,
-            "checks": checks,
-        }
+        return {"gate": "fail",
+                "reason": f"validated commit ({validated[:12]}) does not "
+                          f"match HEAD ({head[:12]}) — run /validate",
+                "head": head, "validated_commit": validated,
+                "checks": checks}
 
-    # 5. Check worktree is clean
     is_clean, dirty_paths = check_worktree_clean()
-
     if is_clean is None:
-        checks.append({
-            "name": "worktree_clean",
-            "pass": False,
-            "detail": f"check failed: {dirty_paths}",
-        })
-        return {
-            "gate": "fail",
-            "reason": "cannot verify worktree state",
-            "head": head,
-            "validated_commit": validated,
-            "checks": checks,
-        }
-
-    checks.append({
-        "name": "worktree_clean",
-        "pass": is_clean,
-        "detail": (
-            f"dirty paths: {dirty_paths}"
-            if not is_clean
-            else "ok"
-        ),
-    })
-
+        checks.append({"name": "worktree_clean", "pass": False,
+                        "detail": f"check failed: {dirty_paths}"})
+        return {"gate": "fail", "reason": "cannot verify worktree state",
+                "head": head, "validated_commit": validated,
+                "checks": checks}
+    checks.append({"name": "worktree_clean", "pass": is_clean,
+                    "detail": f"dirty paths: {dirty_paths}"
+                              if not is_clean else "ok"})
     if not is_clean:
-        return {
-            "gate": "fail",
-            "reason": "worktree is not clean — commit or stash changes, "
-                      "then run /validate",
-            "head": head,
-            "validated_commit": validated,
-            "checks": checks,
-        }
+        return {"gate": "fail",
+                "reason": "worktree is not clean — run /validate",
+                "head": head, "validated_commit": validated,
+                "checks": checks}
 
-    # All checks passed
-    return {
-        "gate": "pass",
-        "head": head,
-        "validated_commit": validated,
-        "checks": checks,
-    }
+    return {"gate": "pass", "head": head,
+            "validated_commit": validated, "checks": checks}
 
 
 def run_pre_pr_gate(report_path, expected_sha, remote, branch):
@@ -375,7 +342,6 @@ def run_pre_pr_gate(report_path, expected_sha, remote, branch):
 
     Returns a result dict with gate="pass"|"fail".
     """
-    # First run the standard gate
     base_result = run_gate(report_path)
     if base_result["gate"] != "pass":
         return base_result
@@ -383,130 +349,99 @@ def run_pre_pr_gate(report_path, expected_sha, remote, branch):
     head = base_result["head"]
     checks = base_result["checks"]
 
-    # Verify HEAD matches expected pushed SHA
     if head != expected_sha:
-        checks.append({
-            "name": "expected_sha_match",
-            "pass": False,
-            "detail": f"HEAD={head}, expected={expected_sha}",
-        })
-        return {
-            "gate": "fail",
-            "reason": (
-                f"HEAD ({head[:12]}) does not match the pushed commit "
-                f"({expected_sha[:12]}) — push first or re-validate"
-            ),
-            "head": head,
-            "validated_commit": base_result.get("validated_commit"),
-            "checks": checks,
-        }
+        checks.append({"name": "expected_sha_match", "pass": False,
+                        "detail": f"HEAD={head}, expected={expected_sha}"})
+        return {"gate": "fail",
+                "reason": f"HEAD ({head[:12]}) does not match the pushed "
+                          f"commit ({expected_sha[:12]}) — push first or "
+                          f"re-validate",
+                "head": head,
+                "validated_commit": base_result.get("validated_commit"),
+                "checks": checks}
+    checks.append({"name": "expected_sha_match", "pass": True,
+                    "detail": "ok"})
 
-    checks.append({
-        "name": "expected_sha_match",
-        "pass": True,
-        "detail": "ok",
-    })
-
-    # Live remote check via git ls-remote
+    # Live remote check — use -- to prevent remote name as git option
+    expected_ref = f"refs/heads/{branch}"
     rc, out_bytes, err = run_git(
-        "ls-remote", "--exit-code", remote, f"refs/heads/{branch}",
+        "ls-remote", "--exit-code", "--", remote, expected_ref,
     )
 
     if rc != 0:
-        detail = f"ls-remote failed (exit {rc}): {err}" if err else \
-                 f"ref refs/heads/{branch} not found on {remote}"
-        checks.append({
-            "name": "remote_branch_match",
-            "pass": False,
-            "detail": detail,
-        })
-        return {
-            "gate": "fail",
-            "reason": f"cannot verify remote branch {branch} on {remote}"
-                      f" — {detail}",
-            "head": head,
-            "validated_commit": base_result.get("validated_commit"),
-            "checks": checks,
-        }
+        detail = (f"ls-remote failed (exit {rc}): {err}" if err
+                  else f"ref {expected_ref} not found on {remote}")
+        checks.append({"name": "remote_branch_match", "pass": False,
+                        "detail": detail})
+        return {"gate": "fail",
+                "reason": f"cannot verify remote branch {branch} on "
+                          f"{remote} — {detail}",
+                "head": head,
+                "validated_commit": base_result.get("validated_commit"),
+                "checks": checks}
 
-    # Parse ls-remote output: "<sha>\trefs/heads/<branch>"
-    remote_sha = out_bytes.decode("utf-8", errors="replace").split()[0] \
-        if out_bytes else ""
+    remote_sha, parse_err = _parse_ls_remote_exact(out_bytes, expected_ref)
+    if remote_sha is None:
+        checks.append({"name": "remote_branch_match", "pass": False,
+                        "detail": parse_err})
+        return {"gate": "fail",
+                "reason": f"cannot verify remote branch {branch} on "
+                          f"{remote} — {parse_err}",
+                "head": head,
+                "validated_commit": base_result.get("validated_commit"),
+                "checks": checks}
 
     if remote_sha != expected_sha:
-        checks.append({
-            "name": "remote_branch_match",
-            "pass": False,
-            "detail": f"remote={remote_sha}, expected={expected_sha}",
-        })
-        return {
-            "gate": "fail",
-            "reason": (
-                f"remote {remote} branch {branch} points to "
-                f"{remote_sha[:12]}, not pushed commit "
-                f"{expected_sha[:12]} — push or re-validate"
-            ),
-            "head": head,
+        checks.append({"name": "remote_branch_match", "pass": False,
+                        "detail": f"remote={remote_sha}, "
+                                  f"expected={expected_sha}"})
+        return {"gate": "fail",
+                "reason": f"remote {remote} branch {branch} points to "
+                          f"{remote_sha[:12]}, not pushed commit "
+                          f"{expected_sha[:12]} — push or re-validate",
+                "head": head,
+                "validated_commit": base_result.get("validated_commit"),
+                "checks": checks}
+
+    checks.append({"name": "remote_branch_match", "pass": True,
+                    "detail": "ok"})
+
+    return {"gate": "pass", "head": head,
             "validated_commit": base_result.get("validated_commit"),
-            "checks": checks,
-        }
-
-    checks.append({
-        "name": "remote_branch_match",
-        "pass": True,
-        "detail": "ok",
-    })
-
-    return {
-        "gate": "pass",
-        "head": head,
-        "validated_commit": base_result.get("validated_commit"),
-        "checks": checks,
-    }
+            "checks": checks}
 
 
 def main():
     parser = argparse.ArgumentParser(
         description="Validation freshness gate for /publish",
     )
-    parser.add_argument(
-        "--report",
-        required=True,
-        help="Path to 05-validation-report.md",
-    )
-    parser.add_argument(
-        "--expected-sha",
-        help="Expected pushed commit SHA (enables pre-PR gate mode)",
-    )
-    parser.add_argument(
-        "--remote",
-        help="Git remote name for live branch check (required with --expected-sha)",
-    )
-    parser.add_argument(
-        "--branch",
-        help="Branch name for live remote check (required with --expected-sha)",
-    )
+    parser.add_argument("--report", required=True,
+                        help="Path to 05-validation-report.md")
+    parser.add_argument("--expected-sha",
+                        help="Pushed commit SHA (pre-PR gate mode)")
+    parser.add_argument("--remote",
+                        help="Git remote for live branch check")
+    parser.add_argument("--branch",
+                        help="Branch name for live remote check")
     args = parser.parse_args()
 
     pre_pr = args.expected_sha is not None
     if pre_pr:
         if not args.remote or not args.branch:
-            parser.error("--remote and --branch are required with --expected-sha")
+            parser.error(
+                "--remote and --branch are required with --expected-sha")
         if not re.fullmatch(r'[0-9a-f]{40}', args.expected_sha):
             parser.error("--expected-sha must be a 40-character hex SHA")
 
     try:
         if pre_pr:
             result = run_pre_pr_gate(
-                args.report, args.expected_sha, args.remote, args.branch,
-            )
+                args.report, args.expected_sha, args.remote, args.branch)
         else:
             result = run_gate(args.report)
         print(json.dumps(result, indent=2))
         sys.exit(0 if result["gate"] == "pass" else 1)
     except Exception as exc:
-        # Script crash — not a gate verdict. Print to stderr so callers
-        # don't parse it as JSON.
         print(f"validation_gate: internal error: {exc}", file=sys.stderr)
         sys.exit(2)
 

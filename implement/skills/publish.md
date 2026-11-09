@@ -39,17 +39,18 @@ The script provides subcommands: `preflight`, `push`, `check-existing`,
 
 ## Process
 
-### Prerequisites: Resolve Script Path
+### Prerequisites: Resolve Script Paths
 
-Before running any subcommands, resolve the shared script to an
-absolute path so it remains valid regardless of working directory:
+Before running any subcommands, resolve both shared scripts to absolute
+paths so they remain valid regardless of working directory:
 
 ```bash
 PUBLISH_SCRIPT="${HOME}/.ai-workflows/_shared/scripts/publish.py"
+GATE_SCRIPT="${HOME}/.ai-workflows/implement/scripts/validation_gate.py"
 ```
 
-Use `$PUBLISH_SCRIPT` instead of the relative path in all subsequent
-commands.
+Use `$PUBLISH_SCRIPT` and `$GATE_SCRIPT` in all subsequent commands. If
+either script is not available, stop and report an installation problem.
 
 ### Step 1: Pre-Flight Checks
 
@@ -66,35 +67,17 @@ Verify readiness:
      unresolved dependency.
 
 2. Run the validation freshness gate. This gate is fail-closed — all
-   conditions must pass.
-
-   Resolve the gate script to an absolute path:
-
-   ```bash
-   GATE_SCRIPT="${HOME}/.ai-workflows/implement/scripts/validation_gate.py"
-   ```
-
-   Run the gate against the validation report:
+   conditions must pass:
 
    ```bash
    python3 "$GATE_SCRIPT" --report .artifacts/implement/{issue-key}/05-validation-report.md
    ```
 
-   The script exits 0 on pass and 1 on gate failure, printing a JSON
-   result with the failure reason. If exit code is 1, report the
-   specific failure reason from the JSON output and recommend
-   `/validate`. If the exit code is neither 0 nor 1 (script crash,
-   import error, missing dependency), report the raw error output and
-   recommend checking the Python environment before retrying. Do not
-   auto-launch `/validate`.
-
-   Gate failure reasons include: missing report, malformed report,
-   failed result, stale SHA (including a legacy PASS report without a
-   `## Validated Commit` section), SHA mismatch, or dirty worktree.
-
-   If the gate script is not available (e.g., not installed), stop and
-   report an installation problem — the script is required for
-   publication. Do not proceed without the gate check.
+   If exit code is 1, report the JSON failure reason and recommend
+   `/validate`. If exit code is 2 or other (script crash), report the
+   raw stderr — do not parse it as a JSON verdict. Do not auto-launch
+   `/validate`. A dirty worktree stops here with a recommendation to
+   run `/validate`; the agent does not offer to commit or stash.
 
 3. Verify the feature branch exists and has commits:
 
@@ -110,17 +93,14 @@ Verify readiness:
 
    If there are no commits ahead of the Local Base, there's nothing to publish.
 
-4. Run the shared pre-flight checks:
+4. Run the shared pre-flight checks for authentication:
 
    ```bash
    python3 "$PUBLISH_SCRIPT" preflight --platform github
    ```
 
    Parse the output to confirm `auth_ok=true`. If `auth_ok=false`, stop
-   and tell the user to authenticate first. Check for
-   `has_uncommitted=true`, `has_staged=true`, or `has_untracked=true`.
-   If there are uncommitted or untracked changes, ask the user how to
-   proceed.
+   and tell the user to authenticate first.
 
 ### Step 2: Cross-Cutting Review
 
@@ -180,7 +160,7 @@ git log --oneline {local-base}..HEAD
 
 Confirm with the user before proceeding.
 
-### Step 3b: Pre-Push Freshness Re-Check
+### Step 4: Pre-Push Freshness Re-Check
 
 Immediately before pushing, re-run the validation freshness gate:
 
@@ -189,24 +169,24 @@ python3 "$GATE_SCRIPT" --report .artifacts/implement/{issue-key}/05-validation-r
 ```
 
 If exit code is 1 (gate failure), report the JSON reason and recommend
-`/validate`. If exit code is neither 0 nor 1 (script crash), report
-the raw stderr — do not parse it as a JSON verdict. If the gate script
-is not available, stop and report an installation problem. Any non-zero
-exit blocks the push.
+`/validate`. If exit code is 2 or other (script crash), report the raw
+stderr. Any non-zero exit blocks the push.
 
-On success, record the candidate SHA as `PUSHED_SHA` before pushing:
+On success, record the exact candidate SHA that will be pushed. Use
+this literal 40-character value in Step 7 — do not rely on a shell
+variable surviving across agent calls:
 
 ```bash
-PUSHED_SHA=$(git rev-parse HEAD)
+git rev-parse HEAD
 ```
 
-### Step 4: Push Branch
+### Step 5: Push Branch
 
 ```bash
 python3 "$PUBLISH_SCRIPT" push --remote origin --branch {branch-name}
 ```
 
-### Step 5: Create PR Description
+### Step 6: Create PR Description
 
 Check the **PR Conventions** section of `01-context.md`:
 
@@ -244,28 +224,28 @@ In either case, save the result to
 - [ ] AC-2: {description}
 ```
 
-### Step 5b: Pre-PR Freshness Gate
+### Step 7: Pre-PR Freshness Gate
 
-Immediately before creating the PR, run the pre-PR gate to verify
-HEAD, report, and the live remote branch all agree on `PUSHED_SHA`:
+Immediately before creating the PR, run the pre-PR gate using the
+literal SHA recorded in Step 4 (substitute the actual 40-character
+value — do not rely on a shell variable):
 
 ```bash
 python3 "$GATE_SCRIPT" \
   --report .artifacts/implement/{issue-key}/05-validation-report.md \
-  --expected-sha "$PUSHED_SHA" \
+  --expected-sha {literal-pushed-sha} \
   --remote origin \
   --branch {branch-name}
 ```
 
-This runs the full validation gate (report PASS, SHA match, clean
-worktree) AND verifies that local HEAD equals `PUSHED_SHA` AND queries
-`git ls-remote --exit-code` to confirm the remote branch points to
-exactly `PUSHED_SHA`. Any failure — HEAD drift, remote drift, dirty
-worktree, stale report — blocks PR creation. If exit code is 1, report
-the JSON reason. If exit code is 2 or other (script crash), report
-raw stderr. If the gate script is missing, stop.
+This runs the full validation gate AND verifies that local HEAD equals
+the pushed SHA AND queries `git ls-remote --exit-code` to confirm the
+remote branch points to exactly that commit. Any failure — HEAD drift,
+remote drift, dirty worktree, stale report — blocks PR creation. If
+exit code is 1, report the JSON reason. If exit code is 2 or other
+(script crash), report raw stderr. If the gate script is missing, stop.
 
-### Step 6: Create Draft PR
+### Step 8: Create Draft PR
 
 Check the **Repository Topology** section of `01-context.md` to determine
 whether this is a fork-based workflow.
@@ -277,7 +257,7 @@ python3 "$PUBLISH_SCRIPT" check-existing --repo {upstream-owner}/{repo} --head {
 ```
 
 If exit code is 5, a PR already exists — parse the PR number and URL
-from the returned JSON output, then skip to Step 7 and use those values
+from the returned JSON output, then skip to Step 9 and use those values
 in the metadata. If the command fails (non-zero exit other than 5),
 stop and report the error. If exit code is 0, create a new PR.
 
@@ -318,7 +298,7 @@ providing the user with a GitHub compare URL:
 - Fork-based: `https://github.com/{upstream-owner}/{repo}/compare/{pr-target}...{fork-owner}:{branch-name}?expand=1`
 - Direct clone: `https://github.com/{upstream-owner}/{repo}/compare/{pr-target}...{branch-name}?expand=1`
 
-### Step 7: Save Publish Metadata
+### Step 9: Save Publish Metadata
 
 Read `{owner}/{repo}` from the **Origin** field of the Repository
 Topology section of `01-context.md`. If the repo is a fork, also read
@@ -355,7 +335,7 @@ python3 "$PUBLISH_SCRIPT" save-metadata \
   jira_key={issue-key}
 ```
 
-### Step 8: Report to User
+### Step 10: Report to User
 
 Present:
 - PR URL (the full `https://github.com/...` link, not just `owner/repo#number`)
