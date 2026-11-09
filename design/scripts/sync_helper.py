@@ -25,6 +25,9 @@ Subcommands:
   check-ref-availability  Check whether stories' referenced
                           stories/epics have Jira keys; output JSON
                           with ``ready`` and ``blocked`` lists.
+  compute-cascade-closures  Compute cascade child closures that
+                            parent epic closures will perform;
+                            output JSON with ``cascades`` list.
 
 Environment variables:
   None required.  All inputs come from command-line arguments and local
@@ -535,6 +538,7 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
                 "content_hash": compute_file_hash(ef),
                 "old_hash": None,
                 "synced_status": None,
+                "source_active": True,
             })
 
         for sf in story_files:
@@ -557,6 +561,7 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
                 "content_hash": compute_file_hash(sf),
                 "old_hash": None,
                 "synced_status": None,
+                "source_active": True,
             })
 
         summary = _compute_summary(items)
@@ -610,6 +615,7 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
                 "content_hash": current_hash,
                 "old_hash": m_hash,
                 "synced_status": m_status,
+                "source_active": not removed,
             })
         else:
             if removed:
@@ -640,6 +646,7 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
                 "content_hash": current_hash,
                 "old_hash": None,
                 "synced_status": None,
+                "source_active": True,
             })
 
     # Build set of epic indices whose epics are effectively removed/closed.
@@ -773,6 +780,7 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
                 "content_hash": current_hash,
                 "old_hash": m_hash,
                 "synced_status": m_status,
+                "source_active": not removed and not parent_removed,
             })
         else:
             if removed or parent_removed:
@@ -788,6 +796,7 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
                 "content_hash": compute_file_hash(sf),
                 "old_hash": None,
                 "synced_status": None,
+                "source_active": True,
             })
 
     # Orphaned manifest entries: active entries with no file on disk
@@ -805,6 +814,7 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
                     "content_hash": None,
                     "old_hash": epic_entry.get("content_hash"),
                     "synced_status": m_status,
+                    "source_active": False,
                 })
 
     for epic_file, stories_map in story_lookup.items():
@@ -826,6 +836,7 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
                         "content_hash": None,
                         "old_hash": story_entry.get("content_hash"),
                         "synced_status": m_status,
+                        "source_active": False,
                     })
 
     summary = _compute_summary(items)
@@ -872,6 +883,95 @@ def _compute_summary(items: list[dict[str, Any]]) -> dict[str, int]:
         if cat in counts:
             counts[cat] += 1
     return counts
+
+
+# ---------------------------------------------------------------------------
+# Cascade closure preview
+# ---------------------------------------------------------------------------
+
+
+def compute_cascade_closures(
+    items: list[dict[str, Any]],
+    manifest: dict[str, Any] | None,
+    close_orphans: bool = False,
+) -> dict[str, Any]:
+    """Compute child closures that parent epic closures will cascade.
+
+    For each epic being closed (category ``"removed"``, or ``"orphaned"``
+    when *close_orphans* is True), finds manifest-active child stories
+    that are not already individually categorized as closing in *items*.
+    These are the cascade closures that Step 5c will perform but that
+    the detect-changes plan alone does not surface.
+
+    Returns a dict with:
+
+    - ``cascades``: list of cascade closure dicts.  Each entry has
+      ``file``, ``jira_key``, ``title``, ``parent_epic_file``,
+      ``parent_jira_key``, and ``parent_reason``.
+
+    The caller uses this to include cascade closures in the Step 3
+    preview, adjust To Close and Unchanged counts, and ensure the
+    approval covers all operations Step 5c will perform.
+    """
+    if manifest is None:
+        return {"cascades": []}
+
+    # Identify closing parent epics
+    closing_parents: dict[str, str] = {}  # epic_file -> reason
+    for item in items:
+        if item.get("type") != "epic":
+            continue
+        cat = item.get("category", "")
+        if cat == "removed":
+            closing_parents[item["file"]] = "removed"
+        elif cat == "orphaned" and close_orphans:
+            closing_parents[item["file"]] = "orphaned"
+
+    if not closing_parents:
+        return {"cascades": []}
+
+    # Build set of story files already individually closing
+    individually_closing: set[str] = set()
+    for item in items:
+        if item.get("type") != "story":
+            continue
+        cat = item.get("category", "")
+        if cat == "removed":
+            individually_closing.add(item["file"])
+        elif cat == "orphaned" and close_orphans:
+            individually_closing.add(item["file"])
+
+    # Find cascade closures from manifest
+    cascades: list[dict[str, Any]] = []
+    for epic in manifest.get("epics", []):
+        epic_file = epic.get("file", "")
+        if epic_file not in closing_parents:
+            continue
+        epic_idx = _parse_epic_index(epic_file)
+        for story in epic.get("stories", []):
+            if story.get("synced_status") != "active":
+                continue  # Already closed in manifest
+            story_file = story.get("file", "")
+            # Build qualified file path (same format as detect_changes)
+            if epic_idx is not None:
+                qualified_file = f"epic-{epic_idx}/{story_file}"
+            else:
+                qualified_file = (
+                    f"{epic_file.replace('.md', '')}/{story_file}")
+
+            if qualified_file in individually_closing:
+                continue  # Already counted as to-close
+
+            cascades.append({
+                "file": qualified_file,
+                "jira_key": story.get("jira_key", ""),
+                "title": story.get("title", ""),
+                "parent_epic_file": epic_file,
+                "parent_jira_key": epic.get("jira_key", ""),
+                "parent_reason": closing_parents[epic_file],
+            })
+
+    return {"cascades": cascades}
 
 
 # ---------------------------------------------------------------------------
@@ -2210,6 +2310,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="Qualified story IDs (e.g. story-1.01 story-2.03).",
     )
 
+    # compute-cascade-closures
+    p_cascade = sub.add_parser(
+        "compute-cascade-closures",
+        help="Compute cascade child closures for parent epic closures.",
+    )
+    p_cascade.add_argument(
+        "artifacts_dir",
+        help="Path to .artifacts/design/{issue-key}/ directory.",
+    )
+    p_cascade.add_argument(
+        "--close-orphans", action="store_true",
+        help="Treat all orphaned epics as closing parents.",
+    )
+
     # migrate-manifest
     p_migrate = sub.add_parser(
         "migrate-manifest",
@@ -2316,6 +2430,18 @@ def main(argv: list[str] | None = None) -> int:
         print()
         if result.get("blocked"):
             return EXIT_ERROR
+        return EXIT_SUCCESS
+
+    elif args.command == "compute-cascade-closures":
+        change_plan = detect_changes(args.artifacts_dir)
+        manifest_path = Path(args.artifacts_dir) / "sync-manifest.json"
+        manifest = load_manifest(manifest_path)
+        result = compute_cascade_closures(
+            change_plan["items"], manifest,
+            close_orphans=args.close_orphans,
+        )
+        json.dump(result, sys.stdout, indent=2)
+        print()
         return EXIT_SUCCESS
 
     elif args.command == "migrate-manifest":

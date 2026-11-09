@@ -257,6 +257,31 @@ writes (including epic creation in Step 5) with an invalid plan. Do
 not silently create extra issues to satisfy references or proceed
 with `[unresolved]` placeholders.
 
+**Cascade closure preview.** If the change plan includes parent
+epics being closed (category `"removed"` or `"orphaned"` where the
+user chose closure in Step 1), compute cascade child closures so the
+preview truthfully reflects all operations Step 5c will perform:
+
+```bash
+CASCADE_JSON=$(python3 "$SYNC_HELPER" compute-cascade-closures \
+  .artifacts/design/{issue-key}/ [--close-orphans])
+```
+
+Add `--close-orphans` only if the user selected option (a) for
+orphaned items in Step 1. The helper returns JSON with a `cascades`
+list: manifest-active child stories under each closing parent epic
+that are not already individually categorized as `"removed"` in the
+change plan. Each entry includes `file`, `jira_key`, `title`,
+`parent_epic_file`, `parent_jira_key`, and `parent_reason`.
+
+Include cascade closures in the **To Close** section of the preview
+below. Adjust the To Close and Unchanged totals: add the cascade
+count to To Close, and subtract from Unchanged any cascade items
+that were categorized as `"unchanged"` in the change plan. Do not
+double-count items that appear both as individually removed and as
+cascade targets. Ignored orphan parents (user chose (b) in Step 1)
+must not produce cascades.
+
 **Dry-run preview.** Present all planned operations:
 
 ```markdown
@@ -292,12 +317,17 @@ story's references resolve before it is written to Jira:
 For items with `category: "reopened"`, prefix with "Reopened (closed →
 open)" so the status transition is visible.
 
-### To Close ({N} items)
+### To Close ({N} items, including {C} cascade closures)
 
 | Jira Key | Local File | Title |
 |----------|------------|-------|
 | {jira_key} | `{file}` | {title} |
 | {jira_key} | *(orphaned — no artifact file)* | {title} |
+| {jira_key} | `{file}` *(cascade: parent {parent_jira_key})* | {title} |
+
+Cascade items are children of closing parent epics that Step 5c will
+close before the parent. The parent's close approval covers them.
+If no cascades exist, omit the cascade count and rows.
 
 ### Unchanged ({N} items — skipped)
 
@@ -316,9 +346,23 @@ first — do not modify the decomposition during sync.
 
 ### Step 4: Validate `[DOCS]` Stories Before Sync
 
-Before proceeding to Jira operations, validate every `[DOCS]` story
-that is **new**, **changed**, or **reopened** in the change plan
-against all seven criteria in `decompose.md`. Also include any
+Before proceeding to Jira operations, validate `[DOCS]` stories
+against the quality criteria below. Only stories whose source is
+effectively active are eligible for the quality gate — check the
+`source_active` field in the change plan items (from detect-changes).
+A story with `source_active: false` has an inactive source (own
+`status: removed` or parent epic removed/closed without approved
+restoration) and is excluded from quality validation — it is
+historical and will not be written to Jira as active content. If
+`source_active` cannot be determined (no identifiable parent epic),
+treat the story as ineligible (fail closed). Restored parent
+epics (category `"reopened"`) are active; their children are
+eligible. Individually removed stories remain ineligible
+regardless of parent status.
+
+Validate every eligible (source-active) `[DOCS]` story that is
+**new**, **changed**, or **reopened** in the change plan against all
+seven criteria in `decompose.md`. Also include any eligible
 `[DOCS]` story whose own hash is unchanged but whose contributor set
 changed: a listed contributor was modified, removed, renamed, or
 reopened, or a new/changed/reopened `[DEV]`/`[UI]` story's user-facing
