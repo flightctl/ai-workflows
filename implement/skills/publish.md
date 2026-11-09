@@ -189,13 +189,10 @@ ensure the validated state has not changed since Step 2:
 python3 "$GATE_SCRIPT" --report .artifacts/implement/{issue-key}/05-validation-report.md
 ```
 
-If the gate fails (exit code 1), stop and recommend `/validate`. This
-catch is necessary because time may pass between user confirmation and
-the push — an intervening commit, stash pop, or file edit would
-invalidate the validation.
-
-If the gate script is not available, stop and report an installation
-problem.
+If exit code is 1 (gate failure), report the JSON reason and recommend
+`/validate`. If the exit code is neither 0 nor 1 (script crash), report
+the raw error output. If the gate script is not available, stop and
+report an installation problem. Any non-zero exit blocks the push.
 
 ### Step 4: Push Branch
 

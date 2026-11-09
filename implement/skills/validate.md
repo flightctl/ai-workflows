@@ -382,30 +382,11 @@ has TC mappings but `testplan.md` is missing, unreadable, or malformed
 
 ### Step 9: Final Candidate Verification
 
-If Steps 4–8b committed any fixes since the last clean full-check pass,
-the current HEAD is not yet verified. Re-run the applicable pipeline on
-it: Steps 3 (clean worktree/base), 4 (pre-PR checks), 5 (coverage on
-affected packages), 6 (regression), 7 (scope comparison and self-review
-gate consuming the original MAX_ROUNDS budget — do not reset rounds),
-and 8/8b (AC and testplan). If any of these re-run steps themselves
-produce edits or commits, return to the top of this step — do not
-advance to the report. The cycle ends only when the full applicable
-pipeline passes on an unchanged committed HEAD with a clean worktree.
-
-Do not write a PASS report by relabeling earlier check results with a
-new SHA — the report must describe the exact final candidate whose
-checks actually ran and passed.
-
-After the pipeline passes without changes, verify the worktree is
-still clean and record the validated SHA:
-
-```bash
-git status --porcelain --untracked-files=normal
-```
-
-```bash
-git rev-parse HEAD
-```
+If Steps 4–8b committed fixes, re-run Steps 3–8b on the current HEAD
+(consuming the original MAX_ROUNDS — do not reset). If re-runs produce
+further edits, loop. Write the report only when the full pipeline passes
+on an unchanged clean committed HEAD. Do not relabel old results with a
+new SHA. After the clean pass, record `git rev-parse HEAD`.
 
 ### Step 10: Write Validation Report
 
