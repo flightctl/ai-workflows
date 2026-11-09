@@ -116,6 +116,32 @@ Before writing, plan:
    split into smaller epics before proceeding. Split by user-value
    slice, not technical layer.
 
+#### Per-story retention assessment (repeat `/decompose` only)
+
+On a repeat `/decompose`, before reconciliation: for each existing
+story loaded in Step 1, match its qualified ID, path, and
+requirement mapping against the current verified PRD/design and the
+epic plan above. Explicitly determine whether each story is
+retained in the active plan or intentionally retired, with the
+requirement mapping or reason for each decision.
+
+A retained epic alone is not sufficient input for reconciliation —
+account for its child stories individually. Use current known
+planned work only; do not anticipate future implementation facts.
+Unclassified or ambiguous identity must not default to removal or
+repurposing; complete the planning assessment or seek clarification
+under existing rules before any status mutations.
+
+Already-retired files (with `status: removed` discovered in
+Step 1) stay retired unless explicit approved restoration is
+required. Do not silently restore, move, or copy old IDs when
+requirements return. Any retained child requires its original
+parent epic to be active.
+
+These are ordinary planning notes that feed the reconciliation
+sub-step below — no new persistent retention artifact, manifest,
+or status enum is required.
+
 #### Reconcile retained inventory against the new plan
 
 On a repeat `/decompose` only (existing artifacts were loaded in
@@ -593,10 +619,16 @@ decomposition review. Verify:
 1. `05-epics.md` exists and references all epic files
 2. Each epic file referenced in `05-epics.md` exists (e.g.,
    `06-stories/epic-1-{slug}.md`)
-3. Each epic has a corresponding story directory with story files
+3. Each active epic (no `status: removed`) has a corresponding
+   story directory with story files — a retired epic from a
+   partial run may lack a child directory and is retained as an
+   identity record
 4. `07-coverage.md` exists and contains at least one mapping row
 5. Testplan was loaded in Step 1 (confirmed — source loading blocks if missing)
-6. Every non-`[DOCS]` story file has `Interface Changes` and `Validated by` lines in its Design Reference section
+6. Every active non-`[DOCS]` story file (no `status: removed`,
+   parent epic active) has `Interface Changes` and `Validated by`
+   lines in its Design Reference section — retired partial stories
+   are retained for identity audit only
 
 If structural issues are found, fix them before proceeding. Do not
 invoke a review on incomplete artifacts.

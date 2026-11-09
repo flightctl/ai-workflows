@@ -8858,6 +8858,78 @@ class TestObsoleteWorkHelper(_TmpDirMixin, unittest.TestCase):
         self.assertEqual(len(story_items), 0,
                          "Never-synced removed story must be skipped")
 
+    def test_mixed_retention_same_epic(self) -> None:
+        """Two stories in same epic with different retention decisions.
+
+        Regression proof: active epic, one story retained (active), one
+        retired (status: removed).  Only the obsolete story is classified
+        for retirement; parent epic stays active; paths are stable.
+        """
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir()
+        _make_epic(sd, 1, "building")
+        active_sf = _make_dev_story(sd, 1, 1, "scaffold", deps="None")
+        retired_sf = _make_dev_story(sd, 1, 2, "obsolete", deps="None",
+                                     removed=True)
+        _make_manifest(Path(self.tmpdir), [{
+            "file": "epic-1-building.md", "jira_key": "EDM-100",
+            "content_hash": "old-hash", "synced_status": "active",
+            "stories": [
+                {"file": "story-01-scaffold.md", "jira_key": "EDM-201",
+                 "content_hash": "old-hash-1", "synced_status": "active"},
+                {"file": "story-02-obsolete.md", "jira_key": "EDM-202",
+                 "content_hash": "old-hash-2", "synced_status": "active"},
+            ],
+        }])
+        result = sync_helper.detect_changes(self.tmpdir)
+        # Parent epic stays active (changed, not removed)
+        epic_items = [i for i in result["items"]
+                      if i["type"] == "epic" and i["epic_index"] == 1]
+        self.assertEqual(len(epic_items), 1)
+        self.assertNotEqual(epic_items[0]["category"], "removed",
+                            "Parent epic must stay active")
+        # Active story: changed (content differs from manifest)
+        s1 = [i for i in result["items"]
+              if i["type"] == "story" and i.get("story_index") == 1]
+        self.assertEqual(len(s1), 1)
+        self.assertEqual(s1[0]["category"], "changed",
+                         "Retained story must be 'changed'")
+        # Retired story: removed
+        s2 = [i for i in result["items"]
+              if i["type"] == "story" and i.get("story_index") == 2]
+        self.assertEqual(len(s2), 1)
+        self.assertEqual(s2[0]["category"], "removed",
+                         "Retired story must be 'removed'")
+        # Both files still exist on disk (paths stable)
+        self.assertTrue(active_sf.exists(), "Retained story file must exist")
+        self.assertTrue(retired_sf.exists(), "Retired story file must exist")
+
+    def test_retired_epic_no_child_dir_accepted(self) -> None:
+        """Retired epic without child directory is accepted by detect_changes.
+
+        A partial run may create an epic file but never generate its
+        story directory.  detect_changes must not crash or error; the
+        retired epic is an identity record.
+        """
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir()
+        # Active epic with stories — required structure
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "scaffold", deps="None")
+        # Retired epic — only the file, no child directory
+        _make_epic(sd, 2, "legacy", removed=True)
+        self.assertFalse((sd / "epic-2").is_dir(),
+                         "Retired epic must NOT have child directory")
+        result = sync_helper.detect_changes(self.tmpdir)
+        # Active epic appears; retired epic (never synced) is skipped
+        epic_items = [i for i in result["items"]
+                      if i["type"] == "epic"]
+        active_epics = [e for e in epic_items if e["epic_index"] == 1]
+        self.assertEqual(len(active_epics), 1, "Active epic must appear")
+        retired_epics = [e for e in epic_items if e["epic_index"] == 2]
+        self.assertEqual(len(retired_epics), 0,
+                         "Never-synced retired epic must be skipped")
+
 
 # ---------------------------------------------------------------------------
 # F3: Restoration/DOCS trigger in revise.md
@@ -8993,6 +9065,16 @@ class TestActiveCoverageContract(unittest.TestCase):
     def test_step7_no_mask_coverage_gap(self) -> None:
         """Step 7 forbids masking coverage gaps with retired work."""
         self.assertIn("Do not mask", self._step7)
+
+    def test_step7_structure_gate_active_epics(self) -> None:
+        """Step 7 check 3 limits directory/story-file requirement to active epics."""
+        self.assertIn("Each active epic", self._step7)
+        # Retired epic from partial run explicitly allowed without child dir
+        self.assertIn("identity record", self._step7.lower())
+
+    def test_step7_ic_tc_gate_active_stories(self) -> None:
+        """Step 7 check 6 limits IC/TC reference requirement to active stories."""
+        self.assertIn("Every active non-", self._step7)
 
     def test_review_criterion1_active_only(self) -> None:
         """Review criterion 1 requires effectively active stories."""
@@ -9130,10 +9212,28 @@ class TestDecomposeRetirementOrder(unittest.TestCase):
         self.assertIn("do not decide", lower)
 
     def test_reconciliation_after_planning(self) -> None:
-        """Retirement reconciliation appears in Step 2, after planning."""
+        """Retention planning completes before reconciliation writes markers.
+
+        Move-sensitive: fails if reconciliation moves ahead of retention
+        planning in the source.  Both positions are found in the same
+        bounded Step 2 slice.
+        """
+        retention_pos = self._step2.lower().find("per-story retention")
+        reconcile_pos = self._step2.lower().find("reconcile retained inventory")
+        self.assertGreaterEqual(retention_pos, 0,
+            "Per-story retention assessment must exist in Step 2")
+        self.assertGreaterEqual(reconcile_pos, 0,
+            "Reconciliation must exist in Step 2")
+        self.assertLess(retention_pos, reconcile_pos,
+            "Per-story retention planning must complete before "
+            "reconciliation/marker writes")
+
+    def test_story_level_retention_in_step2(self) -> None:
+        """Step 2 includes per-story retention decisions before reconciliation."""
         lower = self._step2.lower()
-        self.assertIn("reconcile", lower)
-        self.assertIn("no longer", lower)
+        self.assertIn("per-story retention", lower)
+        self.assertIn("each existing\nstory", lower)
+        self.assertIn("individually", lower)
 
     def test_reconciliation_specifies_frontmatter(self) -> None:
         """Reconciliation specifies YAML frontmatter encoding."""
