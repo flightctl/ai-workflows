@@ -65,10 +65,40 @@ Verify readiness:
      prerequisite has merged. An old PASS report cannot override an
      unresolved dependency.
 
-2. Read `.artifacts/implement/{issue-key}/05-validation-report.md`. Check
-   that the `## Result` section contains `PASS`. If the file doesn't exist,
-   the `## Result` section is missing, or it contains `FAIL`, tell the user
-   that `/validate` should be run (or re-run) first.
+2. Run the validation freshness gate. This gate is fail-closed — all
+   conditions must pass.
+
+   Resolve the gate script to an absolute path:
+
+   ```bash
+   GATE_SCRIPT="${HOME}/.ai-workflows/implement/scripts/validation_gate.py"
+   ```
+
+   Run the gate against the validation report:
+
+   ```bash
+   python3 "$GATE_SCRIPT" --report .artifacts/implement/{issue-key}/05-validation-report.md
+   ```
+
+   The script exits 0 on pass and 1 on failure, printing a JSON result
+   with the failure reason. If the gate fails for any reason — missing
+   report, malformed report, failed result, stale SHA (including a
+   legacy PASS report without a `## Validated Commit` section), SHA
+   mismatch, or dirty worktree — stop and recommend `/validate`. Do not
+   auto-launch `/validate`. Report the specific failure reason from the
+   gate output.
+
+   If the gate script is not available (e.g., not installed), perform
+   the checks manually:
+   - The report exists and is readable.
+   - Exactly one `## Result` section exists and starts with `PASS`.
+   - Exactly one `## Validated Commit` section exists and contains a
+     valid 40-character SHA.
+   - The validated commit SHA equals `git rev-parse HEAD`.
+   - `git status --porcelain --untracked-files=normal` shows no changes
+     outside `.artifacts/`.
+
+   Any check failure blocks publication. Stop and recommend `/validate`.
 
 3. Verify the feature branch exists and has commits:
 
@@ -120,20 +150,21 @@ how to handle them.
 If the gate reported PASS **without making any code fixes** (candidate
 unchanged), proceed directly to Step 3.
 
-If the gate made code fixes, re-run the validation profile's required
-checks on the post-fix working-tree candidate **before** staging or
-committing. If checks fail or produce further unreviewed code changes,
-stop and present the gap to the user — hand back to the existing
-`/validate` and review workflow rather than entering an unbounded
-automatic cycle. Once checks pass on the unchanged post-fix candidate,
-commit the gate fixes:
+If the gate made code fixes — regardless of whether it also ran checks
+inline — the validated commit no longer matches HEAD once the fixes are
+committed. Commit the gate fixes:
 
 ```bash
 git add {fixed files}
 git commit -m "{issue-key}: address cross-cutting review findings"
 ```
 
-Then proceed to Step 3.
+After committing, **stop and recommend `/validate`**. Do not proceed to
+Step 3. The self-review commit changed HEAD, so the validation report's
+`## Validated Commit` no longer matches the current state. A fresh
+`/validate` must run the full check suite on the new candidate and write
+a new report before `/publish` can proceed. The user invokes `/publish`
+again after `/validate` passes.
 
 ### Step 3: Confirm Details
 
@@ -152,6 +183,23 @@ git log --oneline {local-base}..HEAD
   `01-context.md` (typically `{issue-key}: {story title}`)
 
 Confirm with the user before proceeding.
+
+### Step 3b: Pre-Push Freshness Re-Check
+
+Immediately before pushing, re-run the validation freshness gate to
+ensure the validated state has not changed since Step 2:
+
+```bash
+python3 "$GATE_SCRIPT" --report .artifacts/implement/{issue-key}/05-validation-report.md
+```
+
+If the gate fails (exit code 1), stop and recommend `/validate`. This
+catch is necessary because time may pass between user confirmation and
+the push — an intervening commit, stash pop, or file edit would
+invalidate the validation.
+
+If the gate script is not available, perform the manual checks from
+Step 2. Any failure blocks the push.
 
 ### Step 4: Push Branch
 

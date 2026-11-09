@@ -380,7 +380,16 @@ has TC mappings but `testplan.md` is missing, unreadable, or malformed
      through the same post-fix cycle as Step 7.
 4. Record results for the validation report.
 
-### Step 9: Write Validation Report
+### Step 9: Final Candidate Verification
+
+If Steps 4–8b committed any fixes, re-run Steps 3, 4, and 6 on the
+current HEAD. If checks fail, fix, commit, and repeat. The report must
+describe the exact candidate whose full checks passed on an unchanged
+clean worktree — do not relabel old results with a new SHA.
+
+Record the validated SHA: `git rev-parse HEAD`.
+
+### Step 10: Write Validation Report
 
 Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
 
@@ -496,9 +505,17 @@ Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
  criteria satisfied, no regressions.
  OR
  FAIL — with explanation of what still needs fixing.}
+
+## Validated Commit
+
+{Full 40-character commit SHA from `git rev-parse HEAD` at report-write
+ time, after all fix cycles have completed and the final candidate has
+ passed all checks with a clean worktree. This SHA identifies the exact
+ committed state that was validated. /publish uses it to verify that no
+ changes have been made since validation.}
 ```
 
-### Step 10: Present Results
+### Step 11: Present Results
 
 Summarize for the user:
 - Which checks passed and which failed

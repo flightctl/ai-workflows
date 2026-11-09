@@ -39,6 +39,34 @@ artifacts and published output from this workflow.
 - No committing to `main` directly. Use a feature branch.
 - No force-push or destructive git operations.
 
+## Documented Requirement Conflicts
+
+When user feedback or reviewer comments conflict with documented
+requirements (Jira acceptance criteria, linked design/PRD requirements,
+or the approved implementation plan), the workflow must:
+
+1. Identify the exact source document and requirement text.
+2. Explain the conflict and its behavioral effect.
+3. Ask whether the documented requirement remains authoritative or is
+   intentionally superseded.
+4. Do not apply the conflicting code change or post a PR response until
+   the user resolves the conflict.
+
+If the documented requirement is kept:
+- Explain the rationale to the user.
+- For `/respond`: prepare an evidence-based response supporting the
+  requirement for user approval before posting.
+
+If the documented requirement is superseded:
+- This workflow is Jira-read-only: the user must update the canonical
+  requirement source through its approved process.
+- `/revise` must align the implementation plan before coding resumes.
+- Update tests to match the resolved requirement.
+
+Both `/review` and `/respond` follow this policy. Neither phase may
+apply a conflicting change or post a response before the user resolves
+the conflict. Neither phase may modify Jira.
+
 ## Safety
 
 - Show your work before finalizing. After `/plan`, present the task breakdown for review — do not assume it's ready.

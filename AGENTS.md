@@ -18,7 +18,7 @@ This repository contains reusable AI coding workflows and focused skills that ca
 - **design** — Design-and-decompose workflow (ingest, research, draft, decompose, revise, publish, respond, sync)
 - **docs-writer** — Documentation creation workflow (gather, plan, draft, validate, apply, mr)
 - **e2e** — Story-to-tests workflow for [QE] stories (ingest, plan, revise, code, validate, publish, respond)
-- **implement** — Story-to-code workflow (ingest, plan, revise, code, validate, publish, respond)
+- **implement** — Story-to-code workflow (ingest, plan, revise, code, review, validate, publish, respond)
 - **ui-implement** — Story-to-code workflow for UI/front-end [UI] stories (ingest, plan, revise, code, validate, publish, respond)
 - **kcs** — KCS Solution article workflow (gather, draft, validate, handoff)
 - **prd** — Requirements-to-PRD workflow (ingest, clarify, draft, revise, publish, respond)
