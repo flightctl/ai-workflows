@@ -9744,8 +9744,8 @@ class TestQualityEligibilityContract(unittest.TestCase):
         self.assertIn("excluded from quality validation", lower)
 
     def test_step4_fail_closed_unknown_parent(self) -> None:
-        """Step 4 treats unknown parent as ineligible (fail closed)."""
-        self.assertIn("fail closed", self._step4.lower())
+        """Step 4 STOPs sync when source activity cannot be determined."""
+        self.assertIn("stop the sync", self._step4.lower())
 
     def test_step4_restored_parent_eligible(self) -> None:
         """Step 4 recognizes reopened parents as active."""
@@ -10195,6 +10195,429 @@ class TestCascadePreviewSourceConsistency(_TmpDirMixin, unittest.TestCase):
                       "must appear in cascade when parent is removed")
         # EDM-201 unchanged → also in cascade
         self.assertIn("EDM-201", cascade_keys)
+
+
+# ---------------------------------------------------------------------------
+# Gap A: DOCS-specific source_active fixtures
+# ---------------------------------------------------------------------------
+
+class TestDocsQualityEligibility(_TmpDirMixin, unittest.TestCase):
+    """DOCS-specific fixtures for source_active quality gate (gap A)."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.artifacts = Path(self.tmpdir) / "art"
+        self.stories_dir = self.artifacts / "06-stories"
+        self.stories_dir.mkdir(parents=True)
+
+    def test_unchanged_docs_under_removed_parent_ineligible(self) -> None:
+        """DOCS story unchanged but under removed parent: source_active
+        False.  Quality gate must NOT pull this historical DOCS into
+        validation even if a contributor changed."""
+        _make_epic(self.stories_dir, 1, "building", removed=True)
+        sf = _make_docs_story(
+            self.stories_dir, 1, 2, "api-docs",
+            contributing_stories="Story 1.01")
+        sf_hash = sync_helper.compute_file_hash(sf)
+        # Also create a changed contributor (story 1.01)
+        _make_dev_story(self.stories_dir, 1, 1, "scaffold")
+        _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "oldhash", "synced_status": "active",
+            "stories": [
+                {"file": "story-01-scaffold.md", "jira_key": "EDM-201",
+                 "content_hash": "DIFFERENT", "synced_status": "active"},
+                {"file": "story-02-api-docs.md", "jira_key": "EDM-202",
+                 "content_hash": sf_hash, "synced_status": "active"},
+            ],
+        }])
+        result = sync_helper.detect_changes(self.artifacts)
+        docs = next(i for i in result["items"]
+                    if i["file"].endswith("story-02-api-docs.md"))
+        # DOCS is unchanged (hash matches)
+        self.assertEqual(docs["category"], "unchanged")
+        # But source_active is False because parent is removed
+        self.assertFalse(docs["source_active"],
+                         "Historical DOCS under removed parent must NOT "
+                         "be source_active — quality gate must skip it")
+
+    def test_active_docs_under_reopened_parent_eligible(self) -> None:
+        """DOCS story under reopened parent: source_active True.
+        Restored parent makes its children eligible for quality gate."""
+        _make_epic(self.stories_dir, 1, "building")
+        _make_docs_story(
+            self.stories_dir, 1, 2, "api-docs",
+            contributing_stories="Story 1.01")
+        _make_dev_story(self.stories_dir, 1, 1, "scaffold")
+        _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "oldhash", "synced_status": "closed",
+            "stories": [
+                {"file": "story-01-scaffold.md", "jira_key": "EDM-201",
+                 "content_hash": "oldhash", "synced_status": "closed"},
+                {"file": "story-02-api-docs.md", "jira_key": "EDM-202",
+                 "content_hash": "oldhash", "synced_status": "closed"},
+            ],
+        }])
+        result = sync_helper.detect_changes(self.artifacts)
+        epic = next(i for i in result["items"] if i["type"] == "epic")
+        docs = next(i for i in result["items"]
+                    if i["file"].endswith("story-02-api-docs.md"))
+        self.assertEqual(epic["category"], "reopened")
+        self.assertTrue(epic["source_active"])
+        self.assertEqual(docs["category"], "reopened")
+        self.assertTrue(docs["source_active"],
+                         "DOCS under reopened parent must be source_active")
+
+
+# ---------------------------------------------------------------------------
+# Gap B: cascade synced_status default and identity matching
+# ---------------------------------------------------------------------------
+
+class TestCascadeStatusDefault(_TmpDirMixin, unittest.TestCase):
+    """cascade uses same synced_status default as detect_changes (gap B)."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.artifacts = Path(self.tmpdir) / "art"
+        self.stories_dir = self.artifacts / "06-stories"
+        self.stories_dir.mkdir(parents=True)
+
+    def test_missing_synced_status_treated_as_active(self) -> None:
+        """Manifest story entry with no synced_status field is treated
+        as active (same default as detect_changes .get('synced_status',
+        'active')), and appears in cascade closures."""
+        _make_epic(self.stories_dir, 1, "building", removed=True)
+        sf = _make_dev_story(self.stories_dir, 1, 1, "scaffold")
+        sf_hash = sync_helper.compute_file_hash(sf)
+        # Manifest entry deliberately omits synced_status
+        manifest = {
+            "schema_version": 2, "feature_key": "F-1",
+            "synced_at": "2026-01-01T00:00:00Z",
+            "epics": [{
+                "file": "epic-1-building.md", "jira_key": "EDM-101",
+                "content_hash": "oldhash", "synced_status": "active",
+                "stories": [{
+                    "file": "story-01-scaffold.md", "jira_key": "EDM-201",
+                    "title": "[DEV] Scaffold",
+                    "content_hash": sf_hash,
+                    # NO synced_status field
+                }],
+            }],
+        }
+        mp = self.artifacts / "sync-manifest.json"
+        _write(mp, json.dumps(manifest, indent=2))
+        plan = sync_helper.detect_changes(self.artifacts)
+        result = sync_helper.compute_cascade_closures(
+            plan["items"], manifest)
+        cascade_keys = {c["jira_key"] for c in result["cascades"]}
+        self.assertIn("EDM-201", cascade_keys,
+                      "Missing synced_status must default to active")
+
+    def test_cascade_uses_detect_changes_file_identity(self) -> None:
+        """Cascade qualified_file matches detect_changes items path."""
+        _make_epic(self.stories_dir, 1, "building", removed=True)
+        sf = _make_dev_story(self.stories_dir, 1, 1, "scaffold")
+        sf_hash = sync_helper.compute_file_hash(sf)
+        _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "oldhash", "synced_status": "active",
+            "stories": [{
+                "file": "story-01-scaffold.md", "jira_key": "EDM-201",
+                "title": "[DEV] Scaffold", "content_hash": sf_hash,
+                "synced_status": "active",
+            }],
+        }])
+        manifest = sync_helper.load_manifest(
+            self.artifacts / "sync-manifest.json")
+        plan = sync_helper.detect_changes(self.artifacts)
+        result = sync_helper.compute_cascade_closures(
+            plan["items"], manifest)
+        # Get the actual file path from detect_changes items
+        story_item = next(i for i in plan["items"]
+                          if i["type"] == "story")
+        cascade_file = result["cascades"][0]["file"]
+        self.assertEqual(cascade_file, story_item["file"],
+                         "Cascade file must match detect_changes identity")
+
+
+class TestCascadeJiraKeyValidation(_TmpDirMixin, unittest.TestCase):
+    """cascade must validate Jira keys — no blank approved ops (gap B)."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.artifacts = Path(self.tmpdir) / "art"
+        self.stories_dir = self.artifacts / "06-stories"
+        self.stories_dir.mkdir(parents=True)
+
+    def test_missing_child_jira_key_emits_error(self) -> None:
+        """Manifest child without jira_key produces error, not cascade."""
+        _make_epic(self.stories_dir, 1, "building", removed=True)
+        sf = _make_dev_story(self.stories_dir, 1, 1, "scaffold")
+        sf_hash = sync_helper.compute_file_hash(sf)
+        manifest = {
+            "schema_version": 2, "feature_key": "F-1",
+            "synced_at": "2026-01-01", "epics": [{
+                "file": "epic-1-building.md", "jira_key": "EDM-101",
+                "content_hash": "oldhash", "synced_status": "active",
+                "stories": [{
+                    "file": "story-01-scaffold.md",
+                    "jira_key": "",  # blank
+                    "content_hash": sf_hash,
+                    "synced_status": "active",
+                }],
+            }],
+        }
+        mp = self.artifacts / "sync-manifest.json"
+        _write(mp, json.dumps(manifest, indent=2))
+        plan = sync_helper.detect_changes(self.artifacts)
+        result = sync_helper.compute_cascade_closures(
+            plan["items"], manifest)
+        self.assertEqual(len(result["cascades"]), 0,
+                         "Blank jira_key child must NOT be in cascades")
+        self.assertIn("errors", result)
+        self.assertTrue(len(result["errors"]) > 0)
+
+    def test_missing_parent_jira_key_emits_error(self) -> None:
+        """Manifest parent without jira_key produces error."""
+        _make_epic(self.stories_dir, 1, "building", removed=True)
+        sf = _make_dev_story(self.stories_dir, 1, 1, "scaffold")
+        sf_hash = sync_helper.compute_file_hash(sf)
+        manifest = {
+            "schema_version": 2, "feature_key": "F-1",
+            "synced_at": "2026-01-01", "epics": [{
+                "file": "epic-1-building.md", "jira_key": "",
+                "content_hash": "oldhash", "synced_status": "active",
+                "stories": [{
+                    "file": "story-01-scaffold.md", "jira_key": "EDM-201",
+                    "content_hash": sf_hash, "synced_status": "active",
+                }],
+            }],
+        }
+        mp = self.artifacts / "sync-manifest.json"
+        _write(mp, json.dumps(manifest, indent=2))
+        plan = sync_helper.detect_changes(self.artifacts)
+        result = sync_helper.compute_cascade_closures(
+            plan["items"], manifest)
+        self.assertEqual(len(result["cascades"]), 0)
+        self.assertIn("errors", result)
+
+
+# ---------------------------------------------------------------------------
+# Gap C: close_orphans=True full preview union
+# ---------------------------------------------------------------------------
+
+class TestCascadeOrphanUnion(_TmpDirMixin, unittest.TestCase):
+    """close_orphans=True: removed parent cascades + orphan union (gap C)."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.artifacts = Path(self.tmpdir) / "art"
+        self.stories_dir = self.artifacts / "06-stories"
+        self.stories_dir.mkdir(parents=True)
+
+    def test_close_orphans_true_removed_still_cascades(self) -> None:
+        """close_orphans flag does not suppress removed-parent cascades."""
+        _make_epic(self.stories_dir, 1, "building", removed=True)
+        sf = _make_dev_story(self.stories_dir, 1, 1, "child")
+        sf_hash = sync_helper.compute_file_hash(sf)
+        _make_manifest(self.artifacts, [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "oldhash", "synced_status": "active",
+            "stories": [{
+                "file": "story-01-child.md", "jira_key": "EDM-201",
+                "title": "Child", "content_hash": sf_hash,
+                "synced_status": "active",
+            }],
+        }])
+        manifest = sync_helper.load_manifest(
+            self.artifacts / "sync-manifest.json")
+        plan = sync_helper.detect_changes(self.artifacts)
+        result = sync_helper.compute_cascade_closures(
+            plan["items"], manifest, close_orphans=True)
+        cascade_keys = {c["jira_key"] for c in result["cascades"]}
+        self.assertIn("EDM-201", cascade_keys,
+                      "Removed parent must cascade regardless of "
+                      "close_orphans flag")
+
+    def test_close_orphans_true_full_union(self) -> None:
+        """close_orphans=True: orphan child already individually closing
+        means 0 additional cascades for that parent, but removed parent
+        cascade is separate."""
+        _make_epic(self.stories_dir, 1, "real", removed=True)
+        sf = _make_dev_story(self.stories_dir, 1, 1, "child")
+        sf_hash = sync_helper.compute_file_hash(sf)
+        (self.stories_dir / "epic-2").mkdir(parents=True)
+        # epic-2 is orphaned (no epic file); its child is also orphaned
+        _make_manifest(self.artifacts, [
+            {"file": "epic-1-real.md", "jira_key": "EDM-101",
+             "content_hash": "oldhash", "synced_status": "active",
+             "stories": [{
+                 "file": "story-01-child.md", "jira_key": "EDM-201",
+                 "title": "Child", "content_hash": sf_hash,
+                 "synced_status": "active",
+             }]},
+            {"file": "epic-2-orphan.md", "jira_key": "EDM-102",
+             "content_hash": "h", "synced_status": "active",
+             "title": "Orphan",
+             "stories": [{
+                 "file": "story-01-orphchild.md", "jira_key": "EDM-301",
+                 "title": "OrphChild", "content_hash": "h",
+                 "synced_status": "active",
+             }]},
+        ])
+        manifest = sync_helper.load_manifest(
+            self.artifacts / "sync-manifest.json")
+        plan = sync_helper.detect_changes(self.artifacts)
+        result = sync_helper.compute_cascade_closures(
+            plan["items"], manifest, close_orphans=True)
+        cascade_keys = {c["jira_key"] for c in result["cascades"]}
+        # EDM-201 is cascade from removed parent (unchanged active child)
+        self.assertIn("EDM-201", cascade_keys,
+                      "Unchanged child of removed parent in cascade")
+        # EDM-301 is orphan child; with close_orphans=True it's
+        # individually_closing, so should NOT be in cascade
+        self.assertNotIn("EDM-301", cascade_keys,
+                         "Orphan child already individually closing "
+                         "should NOT be in cascade")
+
+
+# ---------------------------------------------------------------------------
+# Gap D: cascade recipe fail-closed capture contract
+# ---------------------------------------------------------------------------
+
+class TestCascadeRecipeContract(unittest.TestCase):
+    """Step 3 cascade recipe uses fail-closed capture pattern (gap D)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import re
+        sync_path = Path(__file__).resolve().parent.parent / "skills" / "sync.md"
+        cls._sync_md = sync_path.read_text(encoding="utf-8")
+        m3 = re.search(r"### Step 3:.*?(?=### Step 4:)", cls._sync_md, re.DOTALL)
+        assert m3, "Step 3 not found"
+        cls._step3 = m3.group()
+
+    def test_errexit_safe_capture(self) -> None:
+        """Cascade recipe uses || CASC_EXIT=$? errexit-safe idiom."""
+        self.assertIn("|| CASC_EXIT=$?", self._step3)
+
+    def test_per_call_temp_capture(self) -> None:
+        """Cascade recipe uses mktemp for stderr capture."""
+        self.assertIn("CASC_ERR=$(mktemp)", self._step3)
+
+    def test_immediate_temp_cleanup(self) -> None:
+        """Temp file removed immediately after read."""
+        self.assertIn("rm -f \"$CASC_ERR\"", self._step3)
+
+    def test_typed_json_validation(self) -> None:
+        """Recipe validates cascades list in result."""
+        self.assertIn("cascades", self._step3)
+        self.assertIn("valid JSON", self._step3)
+
+    def test_errors_key_check(self) -> None:
+        """Recipe checks for errors key in cascade output."""
+        self.assertIn("errors", self._step3)
+
+    def test_stop_on_fatal(self) -> None:
+        """Recipe STOPs on unexpected exit / malformed output."""
+        lower = self._step3.lower()
+        self.assertIn("casc_exit", lower)
+        self.assertIn("casc_err_text", lower)
+
+    def test_no_literal_bracket_arg(self) -> None:
+        """No literal [--close-orphans] — actual instructions specify
+        when to add the flag."""
+        self.assertNotIn("[--close-orphans]", self._step3)
+
+    def test_close_orphans_conditional(self) -> None:
+        """close-orphans is conditional on Step 1 user choice."""
+        self.assertIn("--close-orphans", self._step3)
+        self.assertIn("option (a)", self._step3)
+
+
+class TestCascadeCLINegative(_TmpDirMixin, unittest.TestCase):
+    """CLI compute-cascade-closures negative paths (gap D)."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.artifacts = Path(self.tmpdir) / "art"
+        self.stories_dir = self.artifacts / "06-stories"
+        self.stories_dir.mkdir(parents=True)
+
+    def test_cli_errors_in_output(self) -> None:
+        """CLI output includes errors key when manifest has blank keys."""
+        _make_epic(self.stories_dir, 1, "building", removed=True)
+        sf = _make_dev_story(self.stories_dir, 1, 1, "scaffold")
+        sf_hash = sync_helper.compute_file_hash(sf)
+        manifest = {
+            "schema_version": 2, "feature_key": "F-1",
+            "synced_at": "2026-01-01", "epics": [{
+                "file": "epic-1-building.md", "jira_key": "EDM-101",
+                "content_hash": "oldhash", "synced_status": "active",
+                "stories": [{
+                    "file": "story-01-scaffold.md", "jira_key": "",
+                    "content_hash": sf_hash, "synced_status": "active",
+                }],
+            }],
+        }
+        _write(self.artifacts / "sync-manifest.json",
+               json.dumps(manifest, indent=2))
+        out = StringIO()
+        with mock.patch("sys.stdout", out):
+            exit_code = sync_helper.main([
+                "compute-cascade-closures", str(self.artifacts)])
+        self.assertEqual(exit_code, 0)
+        data = json.loads(out.getvalue())
+        self.assertIn("errors", data)
+        self.assertTrue(len(data["errors"]) > 0)
+        self.assertEqual(len(data["cascades"]), 0)
+
+
+# ---------------------------------------------------------------------------
+# Gap E: Step 5c cascade scope guard contract
+# ---------------------------------------------------------------------------
+
+class TestCascadeScopeGuardContract(unittest.TestCase):
+    """Step 5c must verify cascade set matches approved preview (gap E)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import re
+        sync_path = Path(__file__).resolve().parent.parent / "skills" / "sync.md"
+        cls._sync_md = sync_path.read_text(encoding="utf-8")
+        m5c = re.search(r"#### 5c:.*?(?=Present all epic)", cls._sync_md, re.DOTALL)
+        assert m5c, "Step 5c not found"
+        cls._step5c = m5c.group()
+
+    def test_cascade_scope_guard_present(self) -> None:
+        """Step 5c has a cascade scope guard before child writes."""
+        self.assertIn("Cascade scope guard", self._step5c)
+
+    def test_guard_compares_approved_set(self) -> None:
+        """Guard compares against approved cascade set."""
+        self.assertIn("approved", self._step5c.lower())
+        self.assertIn("compute-cascade-closures", self._step5c)
+
+    def test_guard_stops_on_expansion(self) -> None:
+        """Guard STOPs if new unapproved children would expand writes."""
+        self.assertIn("stop", self._step5c.lower())
+        # Text wraps across line: "fresh\npreview/approval"
+        flat = " ".join(self._step5c.lower().split())
+        self.assertIn("fresh preview/approval", flat)
+
+    def test_closed_resume_permitted(self) -> None:
+        """Already-closed children are skipped on resume (not blocked)."""
+        self.assertIn("closed", self._step5c.lower())
+        self.assertIn("resume", self._step5c.lower())
+
+    def test_original_child_failure_preserved(self) -> None:
+        """Original stop-on-child-failure rule still present."""
+        self.assertIn("stop the cascade immediately", self._step5c)
+
+    def test_checkpoint_recovery_preserved(self) -> None:
+        """Close-checkpoint recovery rule still present."""
+        self.assertIn("close-checkpoint recovery", self._step5c.lower())
 
 
 if __name__ == "__main__":

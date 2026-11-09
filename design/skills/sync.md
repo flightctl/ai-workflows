@@ -260,18 +260,40 @@ with `[unresolved]` placeholders.
 **Cascade closure preview.** If the change plan includes parent
 epics being closed (category `"removed"` or `"orphaned"` where the
 user chose closure in Step 1), compute cascade child closures so the
-preview truthfully reflects all operations Step 5c will perform:
+preview truthfully reflects all operations Step 5c will perform.
+Capture output and status using the same fail-closed pattern as the
+plan-creation-order call above:
 
 ```bash
-CASCADE_JSON=$(python3 "$SYNC_HELPER" compute-cascade-closures \
-  .artifacts/design/{issue-key}/ [--close-orphans])
+CASC_ERR=$(mktemp) || { echo "FATAL: cannot create temp file" >&2; exit 1; }
+CASC_EXIT=0
+CASC_JSON=$(python3 "$SYNC_HELPER" compute-cascade-closures \
+  .artifacts/design/{issue-key}/ 2>"$CASC_ERR") || CASC_EXIT=$?
+CASC_ERR_TEXT=$(cat "$CASC_ERR")
+rm -f "$CASC_ERR"
 ```
 
-Add `--close-orphans` only if the user selected option (a) for
-orphaned items in Step 1. The helper returns JSON with a `cascades`
-list: manifest-active child stories under each closing parent epic
-that are not already individually categorized as `"removed"` in the
-change plan. Each entry includes `file`, `jira_key`, `title`,
+Add `--close-orphans` after the artifacts path only if the user
+selected option (a) for orphaned items in Step 1. Omit it when the
+user chose (b) ignore — ignored orphan parents must not produce
+cascades.
+
+**Interpret the result (fail-closed).** Apply before the dry-run
+preview:
+
+1. **Exit 0 + valid JSON with a `cascades` list (may be empty) and
+   no `errors` key (or `errors` empty):** cascade data is valid.
+   Continue to the preview.
+2. **Exit 0 + valid JSON with non-empty `errors` list:** manifest
+   integrity problem (e.g., closing parent or child lacks a Jira
+   key). **STOP** — present the diagnostics. Do not proceed to
+   preview, approval, or writes.
+3. **Any other result** — nonzero exit, empty output, malformed
+   JSON, or missing `cascades` field: **STOP**. Report `CASC_EXIT`,
+   `CASC_ERR_TEXT`, and raw `CASC_JSON` (if any) as fatal
+   diagnostics.
+
+Each cascade entry includes `file`, `jira_key`, `title`,
 `parent_epic_file`, `parent_jira_key`, and `parent_reason`.
 
 Include cascade closures in the **To Close** section of the preview
@@ -280,7 +302,8 @@ count to To Close, and subtract from Unchanged any cascade items
 that were categorized as `"unchanged"` in the change plan. Do not
 double-count items that appear both as individually removed and as
 cascade targets. Ignored orphan parents (user chose (b) in Step 1)
-must not produce cascades.
+must not produce cascades — this is enforced by omitting
+`--close-orphans` in the helper call.
 
 **Dry-run preview.** Present all planned operations:
 
@@ -355,7 +378,8 @@ A story with `source_active: false` has an inactive source (own
 restoration) and is excluded from quality validation — it is
 historical and will not be written to Jira as active content. If
 `source_active` cannot be determined (no identifiable parent epic),
-treat the story as ineligible (fail closed). Restored parent
+**stop the sync** and report the anomaly — do not silently exclude
+the story from quality or proceed to writes. Restored parent
 epics (category `"reopened"`) are active; their children are
 eligible. Individually removed stories remain ineligible
 regardless of parent status.
@@ -480,6 +504,18 @@ update` from the helper reference.
 retry or skip.
 
 #### 5c: Close Removed and Selected Orphaned Epics
+
+**Cascade scope guard.** Before starting child closures, verify
+that the set of manifest-active children under each closing parent
+matches the cascade closures approved in the Step 3 preview. Re-read
+the manifest and compare against the approved cascade set (from
+`compute-cascade-closures`). If new manifest-active children
+appeared since approval (e.g., a concurrent operation added a child
+between approval and execution), **stop** and require a fresh
+preview/approval cycle — do not silently expand the approved writes.
+Children whose manifest entry already has `synced_status: "closed"`
+(from a resumed partial cascade) may be skipped per the resume rule
+below.
 
 For each epic categorized as **Removed** (file has `status: removed`)
 or **Orphaned** where the user chose to close it in Step 1:

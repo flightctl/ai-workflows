@@ -780,7 +780,8 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
                 "content_hash": current_hash,
                 "old_hash": m_hash,
                 "synced_status": m_status,
-                "source_active": not removed and not parent_removed,
+                "source_active": (not removed and not parent_removed
+                                 and epic_idx is not None),
             })
         else:
             if removed or parent_removed:
@@ -941,37 +942,67 @@ def compute_cascade_closures(
         elif cat == "orphaned" and close_orphans:
             individually_closing.add(item["file"])
 
+    # Build reverse lookup: (epic_index, story_filename) → actual
+    # qualified file from items (matches detect_changes identity).
+    _item_files: dict[tuple[int | None, str], str] = {}
+    for item in items:
+        if item.get("type") != "story":
+            continue
+        eidx = item.get("epic_index")
+        parts = item["file"].rsplit("/", 1)
+        story_fname = parts[-1] if len(parts) > 1 else item["file"]
+        _item_files[(eidx, story_fname)] = item["file"]
+
     # Find cascade closures from manifest
     cascades: list[dict[str, Any]] = []
+    errors: list[str] = []
     for epic in manifest.get("epics", []):
         epic_file = epic.get("file", "")
         if epic_file not in closing_parents:
             continue
         epic_idx = _parse_epic_index(epic_file)
+        parent_jira_key = epic.get("jira_key") or ""
+        if not parent_jira_key:
+            errors.append(
+                f"closing parent epic '{epic_file}' has no Jira key "
+                f"in manifest — cannot identify cascade operations")
+            continue
         for story in epic.get("stories", []):
-            if story.get("synced_status") != "active":
+            # Use same default as detect_changes (.get with "active")
+            if story.get("synced_status", "active") != "active":
                 continue  # Already closed in manifest
             story_file = story.get("file", "")
-            # Build qualified file path (same format as detect_changes)
-            if epic_idx is not None:
-                qualified_file = f"epic-{epic_idx}/{story_file}"
-            else:
-                qualified_file = (
-                    f"{epic_file.replace('.md', '')}/{story_file}")
+            child_jira_key = story.get("jira_key") or ""
+            if not child_jira_key:
+                errors.append(
+                    f"manifest child '{story_file}' under "
+                    f"'{epic_file}' has no Jira key — cannot "
+                    f"identify cascade close operation")
+                continue
+            # Use actual detect_changes path when available;
+            # fall back to reconstruction for orphaned children
+            qualified_file = _item_files.get(
+                (epic_idx, story_file),
+                f"epic-{epic_idx}/{story_file}"
+                if epic_idx is not None
+                else f"{epic_file.replace('.md', '')}/{story_file}")
 
             if qualified_file in individually_closing:
                 continue  # Already counted as to-close
 
             cascades.append({
                 "file": qualified_file,
-                "jira_key": story.get("jira_key", ""),
+                "jira_key": child_jira_key,
                 "title": story.get("title", ""),
                 "parent_epic_file": epic_file,
-                "parent_jira_key": epic.get("jira_key", ""),
+                "parent_jira_key": parent_jira_key,
                 "parent_reason": closing_parents[epic_file],
             })
 
-    return {"cascades": cascades}
+    result: dict[str, Any] = {"cascades": cascades}
+    if errors:
+        result["errors"] = errors
+    return result
 
 
 # ---------------------------------------------------------------------------
