@@ -58,6 +58,12 @@ handoff to add the missing embeds, or explicitly authorize partial
 continuation (text-only for those IDs). Never silently omit a declared
 ID or claim all images were inspected when embeds are missing.
 
+If the user repairs the handoff (adds missing embeds), rerun §2
+matching for the repaired IDs. Replace previous `unavailable` rows
+with fresh matched results and recalculate all aggregate totals
+before proceeding to §3. Do not append duplicate rows — each
+declared ID appears exactly once in the output.
+
 ### 3. Resolve image references
 
 For each matched pair from §2, determine the reference type:
@@ -69,8 +75,13 @@ candidate against `{HANDOFF_DIR}` and verify the resolved path remains
 inside `{HANDOFF_DIR}`. If the path is a symlink, verify its target is
 also inside `{HANDOFF_DIR}`. Stop and report any reference that
 escapes. Then locate the image file relative to `{HANDOFF_DIR}`. If the file
-is a Git LFS pointer stub (starts with `version https://git-lfs`),
-attempt `git lfs smudge` or record `inspection: lfs-unresolved`.
+does not exist at the resolved path (after passing containment
+checks), record the pair as unresolved with `status: unavailable`
+and `notes: "file not found at resolved path"`. This is a missing-
+file resolution failure, distinct from the traversal/symlink escape
+hard stop. If the file is a Git LFS pointer stub (starts with
+`version https://git-lfs`), attempt `git lfs smudge` or record
+`inspection: lfs-unresolved`.
 
 **External references** (`https://...` URLs -- `external` mode):
 Retrieve image bytes using the runtime's binary download capability
@@ -87,7 +98,7 @@ full 9-column row immediately:
    | Field | Value |
    |-------|-------|
    | `id` | Screenshot ID (`SS-N`) |
-   | `status` | Failure status from §3 (`lfs-unresolved` / `fetch-failed` / `inspection-not-supported`) |
+   | `status` | Failure status from §3 (`unavailable` / `lfs-unresolved` / `fetch-failed` / `inspection-not-supported`) |
    | `identity` | `—` |
    | `ref` | Published reference (local path or URL) |
    | `expected_sha` | SHA-256 from manifest (or `—`) |
@@ -104,6 +115,12 @@ retained). An unresolved status **never** becomes eligible for
 citation (§5 Rule 1) even when the user authorizes partial
 continuation; partial acceptance allows the workflow to proceed but
 does not override status-based eligibility.
+
+If the user repairs the source or access is restored, rerun §3
+resolution and §4 identity/inspection for the previously unresolved
+IDs. Replace previous unresolved rows with fresh results and
+recalculate aggregate totals. Do not append duplicate rows — each
+declared ID appears exactly once in the output.
 
 **For each resolved matched image from §3:**
 

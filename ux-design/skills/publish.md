@@ -33,11 +33,11 @@ If `{source_repo_root}/.artifacts/ux-design/{issue-key}/publish-metadata.json`
 exists, read it. **Pending attempt check (early).** If it contains
 `pending_attempt`, validate its schema and follow
 `../../_shared/recipes/screenshot-publish-stage.md` §4 before any copy,
-commit, or authoring-revision gate. Resolve config/checkout
-non-mutatingly before §4; no branch creation, pull, or file copy first.
-Already pushed, PR known → Step 9. Already pushed, `pr_number`
-null → Step 8 (PR creation only). Not pushed → Step 8. Failure → stop.
-Do not overwrite existing `pending_attempt` before validation.
+commit, or authoring-revision gate. Resolve config non-mutatingly
+before §4; no branch creation, pull, or file copy first.
+Already pushed, PR known → Step 9 (use frozen upstream paths from
+`pending_attempt`). Already pushed, `pr_number` null → Step 8.
+Not pushed → Step 8. Failure → stop.
 **If no pending**, treat as an update. Keep its PR number, branch, and
 handoff path; do not create a second PR. If the metadata lacks its PR
 number, branch, or handoff path, stop and ask the researcher to repair.
@@ -485,8 +485,9 @@ PY
 For a new PR, write
 `{source_repo_root}/.artifacts/ux-design/{issue-key}/publish-metadata.json`:
 Store `handoff_file_path`, `upstream_prd_path`, and `upstream_design_path`
-relative to the docs repo root, with `/` separators. The upstream paths are the
-resolved paths used to derive the canonical handoff directory.
+relative to the docs repo root, with `/` separators. On
+`pending_attempt` recovery, use its frozen path values; verify they
+exist at `commit_sha` per the shared recipe §4.
 
 ```json
 {

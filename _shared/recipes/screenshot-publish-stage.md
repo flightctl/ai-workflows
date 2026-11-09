@@ -155,10 +155,31 @@ ownership or adopting unknown ahead commits.
 | `handoff_file_path` | Repo-relative handoff path |
 | `candidate_screenshot_storage` | Storage mode for this attempt |
 | `candidate_screenshot_assets` | Array of `{id, filename, sha256, published_path}` entries |
+| `upstream_prd_path` | Repo-relative path to PRD (first-publish; `null` on updates) |
+| `upstream_design_path` | Repo-relative path to design doc (first-publish; `null` on updates) |
+| `push_destination` | Validated push target (`{owner}/{repo}` canonical form) |
 | `timestamp` | ISO 8601 when the attempt was recorded |
 
 The `pending_attempt` record is private authoring state — do not copy
 it into the consumer-facing published manifest.
+
+**Push destination validation.** Before recording `expected_base` or
+pushing, resolve effective push destination(s):
+`git remote get-url --push --all origin`. This expands `pushInsteadOf`
+rules to reveal actual targets. Validate:
+
+1. Exactly one push URL exists (single approved destination).
+2. Its canonical `{owner}/{repo}` identity matches
+   `docs_repo_remote`. SSH/HTTPS equivalents of the same repository
+   are valid. Credential-bearing URLs must not be persisted or logged.
+3. If multiple push URLs exist, the identity does not match, or
+   resolution fails, stop — do not push or adopt the unverified
+   destination.
+
+Record the canonical identity as `push_destination`. Use this
+validated destination for the initial `expected_base` snapshot
+(`git ls-remote` against the push URL, not the fetch tracking ref),
+retry classification, and post-push verification.
 
 **On retry (when `pending_attempt` exists).** Before any file copy,
 `git rm`, or new commit:
@@ -168,16 +189,25 @@ it into the consumer-facing published manifest.
    or re-derive ownership.
 2. Verify the current branch matches `pending_attempt.branch`.
    Verify the docs repo remote URL matches `pending_attempt.docs_repo_remote`.
+   Re-resolve the effective push destination
+   (`git remote get-url --push --all origin`) and verify its
+   canonical identity matches `pending_attempt.push_destination`.
+   Changed or unverifiable push destination → stop.
 3. **Pre-push PR revalidation.** When `pending_attempt.pr_number` is
    known (not `null`), fetch the live PR state before pushing. Verify
    the PR is open, its head branch matches `pending_attempt.branch`,
    and its head repository matches the canonical identity derived
-   from `pending_attempt.docs_repo_remote`. If the PR is closed,
-   merged, has a changed head branch or head repository, is missing,
-   or the lookup tool is unavailable, stop without pushing or writing
-   final metadata — retain `pending_attempt`. This is a pre-push
-   revalidation, not a cross-service atomic guarantee.
-4. Classify remote branch state (`git ls-remote origin {branch}`):
+   from `pending_attempt.docs_repo_remote`, and its base branch
+   matches `pending_attempt.base_branch`. If the PR is closed,
+   merged, has a changed head branch, head repository, or base
+   branch, is missing, or the lookup tool is unavailable, stop
+   without pushing or writing final metadata — retain
+   `pending_attempt`. A retargeted base branch requires researcher
+   approval reconciliation; do not automatically retarget the PR
+   back. This is a pre-push revalidation, not a cross-service
+   atomic guarantee.
+4. Classify remote branch state against the validated push
+   destination (`git ls-remote "$(git remote get-url --push origin)" {branch}`):
    - **Remote SHA equals `pending_attempt.commit_sha`:** Already
      pushed. Skip push; proceed to metadata finalization.
    - **Remote SHA equals `pending_attempt.expected_base` (or branch
@@ -193,8 +223,8 @@ local branch to be at a known synced base (equal to
 local branch is ahead of the remote by commits not created by this
 invocation, stop.
 
-**After successful push.** Verify the remote ref matches
-`pending_attempt.commit_sha` exactly (`git ls-remote`). Then:
+**After successful push.** Verify the remote ref at the validated
+push destination matches `pending_attempt.commit_sha` exactly. Then:
 
 1. Finalize metadata from `pending_attempt` candidate values:
    set `screenshot_storage` to `candidate_screenshot_storage`,
@@ -202,10 +232,11 @@ invocation, stop.
 2. Remove `pending_attempt` from `publish-metadata.json`.
 3. **PR identity.** For an existing PR (`pr_number` is known),
    revalidate: fetch the live PR state and verify it is open with
-   head branch and head repository matching the frozen
+   head branch, head repository, and base branch matching the frozen
    `pending_attempt` record and canonical `docs_repo_remote` identity.
-   Closed, merged, changed head, missing PR, or unavailable tool →
-   stop without writing final metadata; retain `pending_attempt`.
+   Closed, merged, changed head, changed base, missing PR, or
+   unavailable tool → stop without writing final metadata; retain
+   `pending_attempt`.
    For a new PR (`pr_number` is `null`): derive `{owner}/{repo}` from
    `docs_repo_remote`, then look up PRs with head `branch` and base
    `base_branch` in that repo. For each candidate, verify the PR's
@@ -218,6 +249,13 @@ invocation, stop.
    new publication, create it as a draft. A known PR identity is
    required before writing metadata. Record `pr_number`, `branch`,
    and `handoff_file_path`.
+
+For first-publish recovery where path-resolution steps are
+skipped, verify `upstream_prd_path` and `upstream_design_path`
+from the frozen `pending_attempt` exist at `commit_sha` (not the
+mutable worktree) before metadata finalization. Missing, unsafe, or
+unverifiable paths → stop, retain `pending_attempt`; do not
+fabricate or derive from current discovery.
 
 Write steps 1–3 atomically — if the write fails, retain
 `pending_attempt` so the next retry can re-finalize without a new

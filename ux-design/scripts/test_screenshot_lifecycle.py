@@ -28,26 +28,47 @@ from unittest.mock import patch
 
 REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), "../.."))
 
-# Git repository location variables that hooks may export into child
-# processes (see https://git-scm.com/docs/githooks).  Foreign-repo
-# commands must clear them so temp fixture Git calls don't redirect
-# into the caller's repository.
+# Git-local environment variables verified against
+# ``git rev-parse --local-env-vars`` (Git 2.54).  Repository location
+# vars may be exported by hooks into child processes; command-scope
+# config vars (COUNT/KEY_n/VALUE_n and PARAMETERS) override file-based
+# config values (see https://git-scm.com/docs/git-config).
+# GIT_CONFIG_GLOBAL and GIT_CONFIG_NOSYSTEM are intentionally excluded:
+# T19 uses them as test fixtures; they control global/system config
+# scope, not local repository identity or command-scope overrides.
 _GIT_LOCATION_VARS = (
+    # Repository location
     "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE",
     "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
     "GIT_COMMON_DIR", "GIT_PREFIX",
+    # Repository-specific overrides
+    "GIT_IMPLICIT_WORK_TREE", "GIT_GRAFT_FILE",
+    "GIT_NO_REPLACE_OBJECTS", "GIT_REPLACE_REF_BASE",
+    "GIT_SHALLOW_FILE",
+    # Command-scope configuration overrides
+    "GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS", "GIT_CONFIG",
 )
 _saved_git_env: dict[str, str | None] = {}
 
 
 def setUpModule():
-    """Quarantine inherited Git location vars for this test module."""
+    """Quarantine inherited Git-local vars for this test module.
+
+    Strips all Git-local environment variables (per
+    ``git rev-parse --local-env-vars``) and indexed
+    GIT_CONFIG_KEY_n/VALUE_n payloads so temp fixture Git calls
+    don't redirect into the caller's repository or inherit
+    command-scope configuration overrides."""
     for var in _GIT_LOCATION_VARS:
         _saved_git_env[var] = os.environ.pop(var, None)
+    # Also clear indexed config payloads (GIT_CONFIG_KEY_n, VALUE_n)
+    for key in list(os.environ):
+        if key.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")):
+            _saved_git_env[key] = os.environ.pop(key)
 
 
 def tearDownModule():
-    """Restore original Git location vars after all tests."""
+    """Restore original Git-local vars after all tests."""
     for var, value in _saved_git_env.items():
         if value is None:
             os.environ.pop(var, None)
@@ -1809,7 +1830,7 @@ class TestCommitPathsAndPendingAttempt(unittest.TestCase):
             "Already-pushed", 1
         )[0]
         flat = " ".join(section.split())
-        self.assertIn("Verify the remote ref matches", flat)
+        self.assertIn("Verify the remote ref", flat)
         self.assertIn("commit_sha", flat)
         self.assertIn("candidate_screenshot_storage", flat)
         self.assertIn("candidate_screenshot_assets", flat)
@@ -2211,7 +2232,7 @@ class TestR4PendingBeforeMetadata(unittest.TestCase):
         )[0]
         flat = " ".join(pending_block.split())
         self.assertIn("no branch creation", flat)
-        self.assertIn("overwrite", flat)
+        self.assertIn("file copy", flat)
 
     def test_handoff_read_after_pending_check(self) -> None:
         """Handoff read does not block pending recovery — metadata and
@@ -2463,8 +2484,8 @@ class TestR5HeadRepoIdentity(unittest.TestCase):
             "Already-pushed", 1
         )[0]
         flat = " ".join(after_push.split())
-        # Existing PR path checks head repo
-        self.assertIn("head branch and head repository", flat)
+        # Existing PR path checks head repo and base branch
+        self.assertIn("head branch, head repository, and base branch", flat)
 
 
 class TestR5PrePushPRRevalidation(unittest.TestCase):
@@ -2601,12 +2622,13 @@ class TestR5RespondUnconditionalGate(unittest.TestCase):
 # ===================================================================
 
 class TestGitEnvQuarantine(unittest.TestCase):
-    """Regression: Git location vars from caller don't leak into
+    """Regression: Git-local vars from caller don't leak into
     _setup_repo or _run_script temp fixture repos.
 
     Uses isolated child Python processes launched with a poisoned env
-    (all 7 Git location vars pointing at a disposable caller repo).
-    Never touches the real checkout, .git dir, index, or global config."""
+    (Git-local vars pointing at a disposable caller repo, plus
+    command-scope config overrides).  Never touches the real checkout,
+    .git dir, index, or global config."""
 
     def _make_caller_repo(self, tmp: str) -> tuple[str, str, str]:
         """Create a disposable caller repo with sentinel; return
@@ -2654,8 +2676,8 @@ class TestGitEnvQuarantine(unittest.TestCase):
                 if k not in _GIT_LOCATION_VARS}
 
     def test_quarantine_in_poisoned_child(self) -> None:
-        """Launch child Python with all 7 Git location vars pointing at
-        a disposable caller repo.  Child calls setUpModule, runs
+        """Launch child Python with Git-local vars pointing at a
+        disposable caller repo.  Child calls setUpModule, runs
         _setup_repo + _run_script in a temp target, calls tearDownModule,
         and returns BEFORE/AFTER diagnostics.
 
@@ -2793,12 +2815,460 @@ class TestGitEnvQuarantine(unittest.TestCase):
                 "Control: GIT_DIR must leak without quarantine")
 
     def test_module_quarantine_strips_vars(self) -> None:
-        """setUpModule removed Git location vars from os.environ;
+        """setUpModule removed Git-local vars from os.environ;
         verify they are absent during test execution."""
         for var in _GIT_LOCATION_VARS:
             self.assertNotIn(
                 var, os.environ,
                 f"{var} should be quarantined during tests")
+
+    def test_command_scope_config_quarantined(self) -> None:
+        """Regression: inherited GIT_CONFIG_COUNT/KEY_n/VALUE_n overrides
+        fixture config without quarantine; with quarantine, fixture value
+        applies.  Restoration verified.
+
+        Scope: disposable caller + temp fixture; never real checkout."""
+        import json
+        with tempfile.TemporaryDirectory() as tmp:
+            caller, sentinel, caller_head = self._make_caller_repo(tmp)
+            child_env = self._poisoned_env(caller)
+            # Inject command-scope config override
+            child_env["GIT_CONFIG_COUNT"] = "1"
+            child_env["GIT_CONFIG_KEY_0"] = "user.name"
+            child_env["GIT_CONFIG_VALUE_0"] = "poisoned-override"
+
+            child_script = textwrap.dedent('''\
+                import json, os, sys, subprocess as sp, tempfile
+                sys.path.insert(0, os.environ["TEST_MODULE_DIR"])
+                import test_screenshot_lifecycle as mod
+
+                results = {}
+
+                # BEFORE: command-scope override active
+                results["before_count"] = os.environ.get("GIT_CONFIG_COUNT")
+                results["before_key0"] = os.environ.get("GIT_CONFIG_KEY_0")
+                results["before_val0"] = os.environ.get("GIT_CONFIG_VALUE_0")
+
+                # Show override in effect on a temp repo
+                with tempfile.TemporaryDirectory() as t:
+                    repo = os.path.join(t, "probe")
+                    os.makedirs(repo)
+                    sp.run(["git", "init", "-b", "main", repo],
+                           capture_output=True, check=True)
+                    sp.run(["git", "-C", repo, "config",
+                            "user.name", "fixture-value"],
+                           capture_output=True, check=True)
+                    name = sp.run(
+                        ["git", "-C", repo, "config", "user.name"],
+                        capture_output=True, text=True).stdout.strip()
+                    results["before_name"] = name
+
+                mod.setUpModule()
+
+                # AFTER SETUP: override cleared
+                results["after_count"] = os.environ.get("GIT_CONFIG_COUNT")
+                results["after_key0"] = os.environ.get("GIT_CONFIG_KEY_0")
+                results["after_val0"] = os.environ.get("GIT_CONFIG_VALUE_0")
+
+                with tempfile.TemporaryDirectory() as t:
+                    repo = os.path.join(t, "probe2")
+                    os.makedirs(repo)
+                    sp.run(["git", "init", "-b", "main", repo],
+                           capture_output=True, check=True)
+                    sp.run(["git", "-C", repo, "config",
+                            "user.name", "fixture-value"],
+                           capture_output=True, check=True)
+                    name = sp.run(
+                        ["git", "-C", repo, "config", "user.name"],
+                        capture_output=True, text=True).stdout.strip()
+                    results["after_name"] = name
+
+                mod.tearDownModule()
+
+                # AFTER TEARDOWN: override restored
+                results["restored_count"] = os.environ.get("GIT_CONFIG_COUNT")
+                results["restored_key0"] = os.environ.get("GIT_CONFIG_KEY_0")
+                results["restored_val0"] = os.environ.get("GIT_CONFIG_VALUE_0")
+
+                print(json.dumps(results))
+            ''')
+
+            child = subprocess.run(
+                ["python3", "-c", child_script],
+                capture_output=True, text=True, env=child_env,
+                cwd=tmp,
+            )
+            self.assertEqual(child.returncode, 0,
+                             f"Child failed:\n{child.stderr}")
+            diag = json.loads(child.stdout.strip())
+
+            # BEFORE: override active — poisoned value overrides file config
+            self.assertEqual(diag["before_count"], "1")
+            self.assertEqual(diag["before_key0"], "user.name")
+            self.assertEqual(diag["before_val0"], "poisoned-override")
+            self.assertEqual(
+                diag["before_name"], "poisoned-override",
+                "COUNT/KEY/VALUE must override file config without quarantine")
+
+            # AFTER SETUP: quarantined — fixture value applies
+            self.assertIsNone(diag["after_count"])
+            self.assertIsNone(diag["after_key0"])
+            self.assertIsNone(diag["after_val0"])
+            self.assertEqual(
+                diag["after_name"], "fixture-value",
+                "Fixture config must apply after quarantine")
+
+            # AFTER TEARDOWN: restored
+            self.assertEqual(diag["restored_count"], "1")
+            self.assertEqual(diag["restored_key0"], "user.name")
+            self.assertEqual(diag["restored_val0"], "poisoned-override")
+
+            # Caller repo untouched
+            clean = self._clean_verify_env()
+            after_head = subprocess.run(
+                ["git", "-C", caller, "rev-parse", "HEAD"],
+                capture_output=True, text=True, env=clean,
+            ).stdout.strip()
+            self.assertEqual(caller_head, after_head,
+                             "Caller HEAD must be unchanged")
+
+
+# ===================================================================
+# Part 7: R6 review regressions — focused source-contract checks
+#
+# Structural assertions for the five inline findings + one outside-diff
+# note from PR159 review round 6.
+# ===================================================================
+
+class TestR6InspectionRepairRerun(unittest.TestCase):
+    """4516373704: repair/access-restored rerun replaces rows."""
+
+    def test_s2_rerun_after_repair(self) -> None:
+        """§2 instructs rerun matching for repaired embeds."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s2 = content.split("### 2.", 1)[1].split("### 3.", 1)[0]
+        flat = " ".join(s2.split())
+        self.assertIn("rerun §2", flat)
+        self.assertIn("Replace previous", flat)
+        self.assertIn("Do not append duplicate rows", flat)
+
+    def test_s4_rerun_after_repair(self) -> None:
+        """§4 instructs rerun resolution/inspection for repaired IDs."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s4 = content.split("### 4.", 1)[1].split("### 5.", 1)[0]
+        flat = " ".join(s4.split())
+        self.assertIn("rerun §3", flat)
+        self.assertIn("Replace previous unresolved rows", flat)
+        self.assertIn("Do not append duplicate rows", flat)
+        self.assertIn("exactly once", flat)
+
+
+class TestR6MissingFileUnavailable(unittest.TestCase):
+    """4516373708: missing local file gets canonical unavailable status."""
+
+    def test_s3_unavailable_for_missing_file(self) -> None:
+        """§3 records unavailable when local file is missing."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s3 = content.split("### 3.", 1)[1].split("### 4.", 1)[0]
+        flat = " ".join(s3.split())
+        self.assertIn("unavailable", flat)
+        self.assertIn("file not found", flat)
+        # Distinct from traversal hard stop
+        self.assertIn("distinct from the traversal", flat)
+
+    def test_s4_unresolved_schema_includes_unavailable(self) -> None:
+        """§4 unresolved pair status list includes unavailable."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        section = content.split("Unresolved matched pairs", 1)[1].split(
+            "For each resolved matched image", 1
+        )[0]
+        self.assertIn("`unavailable`", section)
+
+
+class TestR6LiveBaseCheck(unittest.TestCase):
+    """4516373714: live base branch validated before push/finalize."""
+
+    def test_prepush_checks_base_branch(self) -> None:
+        """Pre-push PR revalidation includes base_branch."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        retry = content.split("Pre-push PR revalidation", 1)[1].split(
+            "Classify remote", 1
+        )[0]
+        flat = " ".join(retry.split())
+        self.assertIn("base branch", flat)
+        self.assertIn("base_branch", flat)
+
+    def test_retarget_stops_no_auto_revert(self) -> None:
+        """Retargeted base requires researcher reconciliation."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        retry = content.split("Pre-push PR revalidation", 1)[1].split(
+            "Classify remote", 1
+        )[0]
+        flat = " ".join(retry.split())
+        self.assertIn("retargeted", flat)
+        self.assertIn("reconciliation", flat)
+        self.assertIn("do not automatically retarget", flat)
+
+    def test_finalization_checks_base_branch(self) -> None:
+        """Post-push finalization includes base branch check."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        after_push = content.split("After successful push", 1)[1].split(
+            "Already-pushed", 1
+        )[0]
+        flat = " ".join(after_push.split())
+        self.assertIn("base branch matching", flat)
+        self.assertIn("changed base", flat)
+
+
+class TestR6PushDestination(unittest.TestCase):
+    """4516373721: push destination resolved and validated."""
+
+    def test_recipe_has_push_dest_validation(self) -> None:
+        """Recipe §4 has push destination validation section."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        flat = " ".join(content.split())
+        self.assertIn("Push destination validation", flat)
+        self.assertIn("get-url --push --all", flat)
+        self.assertIn("pushInsteadOf", flat)
+
+    def test_pending_has_push_destination_field(self) -> None:
+        """pending_attempt record includes push_destination."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("Pending attempt record", 1)[1]
+        self.assertIn("`push_destination`", section)
+
+    def test_single_approved_destination(self) -> None:
+        """Recipe requires exactly one push URL."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("Push destination validation", 1)[1].split(
+            "On retry", 1
+        )[0]
+        flat = " ".join(section.split())
+        self.assertIn("Exactly one push URL", flat)
+        self.assertIn("multiple push URLs", flat)
+        self.assertIn("stop", flat.lower())
+
+    def test_ssh_https_equivalence(self) -> None:
+        """SSH/HTTPS equivalents of same repo are valid identity."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("Push destination validation", 1)[1].split(
+            "On retry", 1
+        )[0]
+        self.assertIn("SSH/HTTPS equivalents", section)
+
+    def test_no_credential_persistence(self) -> None:
+        """Credential-bearing URLs must not be persisted or logged."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("Push destination validation", 1)[1].split(
+            "On retry", 1
+        )[0]
+        flat = " ".join(section.split())
+        self.assertIn("Credential-bearing URLs must not be persisted", flat)
+
+    def test_retry_revalidates_push_dest(self) -> None:
+        """On retry, push destination is re-resolved and revalidated."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        retry = content.split("On retry", 1)[1].split(
+            "Pre-push PR", 1
+        )[0]
+        flat = " ".join(retry.split())
+        self.assertIn("get-url --push --all", flat)
+        self.assertIn("push_destination", flat)
+
+    def test_ls_remote_queries_push_url(self) -> None:
+        """Retry classification queries push URL, not fetch URL."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        classify = content.split("Classify remote branch state", 1)[1].split(
+            "Already pushed", 1
+        )[0]
+        flat = " ".join(classify.split())
+        self.assertIn("push destination", flat)
+        self.assertIn("get-url --push", flat)
+
+
+class TestR6PushDestinationGitProof(_RecipeExecMixin, unittest.TestCase):
+    """4516373721 Git proof: fetch/push URL divergence and --push --all.
+
+    Uses disposable bare remotes; never touches real checkout."""
+
+    def test_fetch_vs_push_url_divergence(self) -> None:
+        """origin can have different fetch and push URLs;
+        get-url --push returns the push URL, get-url returns fetch."""
+        with tempfile.TemporaryDirectory() as tmp:
+            # Two bare repos
+            fetch_bare = os.path.join(tmp, "fetch-remote.git")
+            push_bare = os.path.join(tmp, "push-remote.git")
+            repo = _setup_repo(tmp)
+            subprocess.run(["git", "clone", "--bare", repo, fetch_bare],
+                           capture_output=True, check=True)
+            subprocess.run(["git", "clone", "--bare", repo, push_bare],
+                           capture_output=True, check=True)
+
+            # Configure origin with different fetch and push URLs
+            subprocess.run(
+                ["git", "-C", repo, "remote", "add", "origin", fetch_bare],
+                capture_output=True, check=True,
+            )
+            subprocess.run(
+                ["git", "-C", repo, "remote", "set-url",
+                 "--push", "origin", push_bare],
+                capture_output=True, check=True,
+            )
+
+            # get-url returns fetch URL
+            fetch_url = subprocess.run(
+                ["git", "-C", repo, "remote", "get-url", "origin"],
+                capture_output=True, text=True,
+            ).stdout.strip()
+            self.assertEqual(fetch_url, fetch_bare)
+
+            # get-url --push returns push URL
+            push_url = subprocess.run(
+                ["git", "-C", repo, "remote", "get-url",
+                 "--push", "origin"],
+                capture_output=True, text=True,
+            ).stdout.strip()
+            self.assertEqual(push_url, push_bare)
+
+            # ls-remote origin queries FETCH url
+            subprocess.run(
+                ["git", "-C", repo, "push", "origin", "main"],
+                capture_output=True, check=True,
+            )
+            # Push went to push_bare, not fetch_bare
+            push_head = subprocess.run(
+                ["git", "-C", push_bare, "rev-parse", "main"],
+                capture_output=True, text=True,
+            ).stdout.strip()
+            expected = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True,
+            ).stdout.strip()
+            self.assertEqual(push_head, expected,
+                             "Push must target push URL, not fetch URL")
+
+            # Querying push URL directly for expected_base
+            ls_push = subprocess.run(
+                ["git", "ls-remote", push_bare, "refs/heads/main"],
+                capture_output=True, text=True,
+            )
+            self.assertIn(expected, ls_push.stdout,
+                          "ls-remote against push URL shows pushed commit")
+
+    def test_multiple_push_urls_all(self) -> None:
+        """get-url --push --all returns all push URLs."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            bare1 = os.path.join(tmp, "remote1.git")
+            bare2 = os.path.join(tmp, "remote2.git")
+            subprocess.run(["git", "clone", "--bare", repo, bare1],
+                           capture_output=True, check=True)
+            subprocess.run(["git", "clone", "--bare", repo, bare2],
+                           capture_output=True, check=True)
+
+            subprocess.run(
+                ["git", "-C", repo, "remote", "add", "origin", bare1],
+                capture_output=True, check=True,
+            )
+            # Explicitly set initial push URL, then add second
+            subprocess.run(
+                ["git", "-C", repo, "remote", "set-url",
+                 "--push", "origin", bare1],
+                capture_output=True, check=True,
+            )
+            subprocess.run(
+                ["git", "-C", repo, "remote", "set-url",
+                 "--push", "--add", "origin", bare2],
+                capture_output=True, check=True,
+            )
+
+            # --push --all returns both
+            result = subprocess.run(
+                ["git", "-C", repo, "remote", "get-url",
+                 "--push", "--all", "origin"],
+                capture_output=True, text=True,
+            )
+            urls = result.stdout.strip().splitlines()
+            self.assertGreaterEqual(
+                len(urls), 2,
+                "Multiple push URLs must be returned")
+
+
+class TestR6UpstreamPathRecovery(unittest.TestCase):
+    """4516373728: frozen upstream paths in pending for Step 9 recovery."""
+
+    def test_pending_has_upstream_path_fields(self) -> None:
+        """pending_attempt record includes upstream path fields."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("Pending attempt record", 1)[1]
+        self.assertIn("`upstream_prd_path`", section)
+        self.assertIn("`upstream_design_path`", section)
+
+    def test_finalization_verifies_frozen_paths(self) -> None:
+        """Finalization verifies upstream paths at committed SHA."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        after_push = content.split("After successful push", 1)[1].split(
+            "Already-pushed", 1
+        )[0]
+        flat = " ".join(after_push.split())
+        self.assertIn("upstream_prd_path", flat)
+        self.assertIn("upstream_design_path", flat)
+        self.assertIn("commit_sha", flat)
+        self.assertIn("not the mutable worktree", flat)
+
+    def test_missing_paths_stop(self) -> None:
+        """Missing or unverifiable frozen paths stop recovery."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        after_push = content.split("After successful push", 1)[1].split(
+            "Already-pushed", 1
+        )[0]
+        flat = " ".join(after_push.split())
+        self.assertIn("unverifiable", flat)
+        self.assertIn("stop", flat.lower())
+        self.assertIn("retain `pending_attempt`", flat)
+        self.assertIn("do not", flat.lower())
+
+    def test_publish_uses_frozen_paths_on_recovery(self) -> None:
+        """Publish Step 1 routes recovery to use frozen pending paths."""
+        content = _read("ux-design/skills/publish.md")
+        step1 = content.split("### Step 1:", 1)[1].split(
+            "### Step 2:", 1
+        )[0]
+        flat = " ".join(step1.split())
+        self.assertIn("frozen upstream paths", flat)
+        self.assertIn("pending_attempt", flat)
+
+    def test_publish_step9_recovery_uses_pending(self) -> None:
+        """Step 9 on recovery uses frozen path values from pending."""
+        content = _read("ux-design/skills/publish.md")
+        step9 = content.split("Step 9:", 1)[1].split("Step 10:", 1)[0]
+        flat = " ".join(step9.split())
+        self.assertIn("pending_attempt", flat)
+        self.assertIn("frozen path values", flat)
+        self.assertIn("commit_sha", flat)
+
+
+class TestR6QuarantineExtended(unittest.TestCase):
+    """5830643581: quarantine covers Git-local set, not just location."""
+
+    def test_quarantine_includes_config_vars(self) -> None:
+        """_GIT_LOCATION_VARS includes command-scope config overrides."""
+        self.assertIn("GIT_CONFIG_COUNT", _GIT_LOCATION_VARS)
+        self.assertIn("GIT_CONFIG_PARAMETERS", _GIT_LOCATION_VARS)
+        self.assertIn("GIT_CONFIG", _GIT_LOCATION_VARS)
+
+    def test_quarantine_includes_repo_overrides(self) -> None:
+        """_GIT_LOCATION_VARS includes repository-specific overrides."""
+        self.assertIn("GIT_IMPLICIT_WORK_TREE", _GIT_LOCATION_VARS)
+        self.assertIn("GIT_GRAFT_FILE", _GIT_LOCATION_VARS)
+        self.assertIn("GIT_NO_REPLACE_OBJECTS", _GIT_LOCATION_VARS)
+        self.assertIn("GIT_REPLACE_REF_BASE", _GIT_LOCATION_VARS)
+        self.assertIn("GIT_SHALLOW_FILE", _GIT_LOCATION_VARS)
+
+    def test_quarantine_excludes_global_scope_controls(self) -> None:
+        """GIT_CONFIG_GLOBAL/NOSYSTEM excluded — T19 uses as fixtures."""
+        self.assertNotIn("GIT_CONFIG_GLOBAL", _GIT_LOCATION_VARS)
+        self.assertNotIn("GIT_CONFIG_NOSYSTEM", _GIT_LOCATION_VARS)
 
 
 if __name__ == "__main__":
