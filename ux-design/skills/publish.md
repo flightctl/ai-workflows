@@ -29,21 +29,22 @@ single path component.
 
 ### Step 1: Read the Handoff Spec
 
-Read `{source_repo_root}/.artifacts/ux-design/{issue-key}/05-handoff.md`.
-
-If the file doesn't exist, tell the researcher that `/handoff` should be run first.
-
 If `{source_repo_root}/.artifacts/ux-design/{issue-key}/publish-metadata.json`
 exists, read it. **Pending attempt check (early).** If it contains
 `pending_attempt`, validate its schema and follow
 `../../_shared/recipes/screenshot-publish-stage.md` §4 before any copy,
 commit, or authoring-revision gate. Resolve config/checkout
 non-mutatingly before §4; no branch creation, pull, or file copy first.
-Already pushed → Step 9. Not pushed → Step 8. Failure → stop.
-An existing `pending_attempt` must not be overwritten before validation.
+Already pushed, PR known → Step 9. Already pushed, `pr_number`
+null → Step 8 (PR creation only). Not pushed → Step 8. Failure → stop.
+Do not overwrite existing `pending_attempt` before validation.
 **If no pending**, treat as an update. Keep its PR number, branch, and
 handoff path; do not create a second PR. If the metadata lacks its PR
 number, branch, or handoff path, stop and ask the researcher to repair.
+
+Read `{source_repo_root}/.artifacts/ux-design/{issue-key}/05-handoff.md`.
+
+If the file doesn't exist, tell the researcher that `/handoff` should be run first.
 
 Read `{source_repo_root}/.artifacts/ux-design/{issue-key}/00-context.md` and
 verify that the context is `enriched` and the handoff

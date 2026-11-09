@@ -1734,8 +1734,9 @@ class TestCommitPathsAndPendingAttempt(unittest.TestCase):
         content = _read("_shared/recipes/screenshot-publish-stage.md")
         section = content.split("Pending attempt record", 1)[1]
         for field in ("commit_sha", "branch", "expected_base",
-                      "owned_paths", "pr_number", "timestamp",
-                      "docs_repo_remote", "handoff_file_path",
+                      "owned_paths", "pr_number", "base_branch",
+                      "timestamp", "docs_repo_remote",
+                      "handoff_file_path",
                       "candidate_screenshot_storage",
                       "candidate_screenshot_assets"):
             self.assertIn(f"`{field}`", section,
@@ -1953,7 +1954,8 @@ class TestR4StagingFailure(TestRecipeExecution):
 
     def test_git_add_ignored_file_stops(self) -> None:
         """git add on a .gitignore'd handoff path fails; recipe exits
-        nonzero, HEAD unchanged, no false 'no changes' success."""
+        nonzero, HEAD unchanged, no false 'no changes' success.
+        Unrelated staged and unstaged files survive."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = _setup_repo(tmp)
             d = os.path.join(repo, "feat/PROJ-IGN")
@@ -1969,6 +1971,13 @@ class TestR4StagingFailure(TestRecipeExecution):
                 capture_output=True, check=True,
             )
             _w(os.path.join(d, "handoff.md"), "# Ignored\n")
+            # Seed unrelated staged + unstaged
+            _w(os.path.join(repo, "unrel-staged.txt"), "s")
+            subprocess.run(
+                ["git", "-C", repo, "add", "unrel-staged.txt"],
+                capture_output=True, check=True,
+            )
+            _w(os.path.join(repo, "unrel-dirty.txt"), "d")
             head_before = subprocess.run(
                 ["git", "-C", repo, "rev-parse", "HEAD"],
                 capture_output=True, text=True,
@@ -1982,6 +1991,9 @@ class TestR4StagingFailure(TestRecipeExecution):
                 r.returncode, 0,
                 "Recipe must fail when git add fails on ignored file",
             )
+            # No false 'no changes' success message
+            self.assertNotIn("No changes", r.stdout)
+            self.assertNotIn("skipping commit", r.stdout)
             head_after = subprocess.run(
                 ["git", "-C", repo, "rev-parse", "HEAD"],
                 capture_output=True, text=True,
@@ -1990,15 +2002,30 @@ class TestR4StagingFailure(TestRecipeExecution):
                 head_before, head_after,
                 "HEAD must not change when staging fails",
             )
+            # Unrelated files survive
+            st = subprocess.run(
+                ["git", "-C", repo, "status", "--porcelain"],
+                capture_output=True, text=True,
+            )
+            self.assertIn("unrel-staged.txt", st.stdout)
+            self.assertIn("unrel-dirty.txt", st.stdout)
 
     def test_git_add_index_lock_stops(self) -> None:
         """git add with index.lock present fails; recipe exits nonzero,
-        HEAD unchanged."""
+        HEAD unchanged, no false 'no changes' output.
+        Unrelated staged and unstaged files survive."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = _setup_repo(tmp)
             d = os.path.join(repo, "feat/PROJ-LK")
             os.makedirs(d)
             _w(os.path.join(d, "handoff.md"), "# Lock test\n")
+            # Seed unrelated staged + unstaged
+            _w(os.path.join(repo, "unrel-staged.txt"), "s")
+            subprocess.run(
+                ["git", "-C", repo, "add", "unrel-staged.txt"],
+                capture_output=True, check=True,
+            )
+            _w(os.path.join(repo, "unrel-dirty.txt"), "d")
             lock = os.path.join(repo, ".git", "index.lock")
             _w(lock, "")
             head_before = subprocess.run(
@@ -2014,6 +2041,9 @@ class TestR4StagingFailure(TestRecipeExecution):
                 r.returncode, 0,
                 "Recipe must fail when index is locked",
             )
+            # No false 'no changes' success message
+            self.assertNotIn("No changes", r.stdout)
+            self.assertNotIn("skipping commit", r.stdout)
             head_after = subprocess.run(
                 ["git", "-C", repo, "rev-parse", "HEAD"],
                 capture_output=True, text=True,
@@ -2023,6 +2053,13 @@ class TestR4StagingFailure(TestRecipeExecution):
                 "HEAD must not change when staging fails",
             )
             os.unlink(lock)
+            # Unrelated files survive after lock removed
+            st = subprocess.run(
+                ["git", "-C", repo, "status", "--porcelain"],
+                capture_output=True, text=True,
+            )
+            self.assertIn("unrel-staged.txt", st.stdout)
+            self.assertIn("unrel-dirty.txt", st.stdout)
 
 
 class TestR4RetryRemoteClassification(unittest.TestCase):
@@ -2077,6 +2114,33 @@ class TestR4PRRecovery(unittest.TestCase):
         self.assertIn("terminal", flat)
         self.assertIn("stop", flat.lower())
 
+    def test_pr_lookup_uses_repo_head_base(self) -> None:
+        """PR lookup uses all three identity inputs: repo (from
+        docs_repo_remote), head (branch), and base (base_branch).
+        Prose contract, NOT live API execution."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        after_push = content.split("After successful push", 1)[1].split(
+            "Already-pushed", 1
+        )[0]
+        flat = " ".join(after_push.split())
+        self.assertIn("docs_repo_remote", flat)
+        self.assertIn("`branch`", flat)
+        self.assertIn("`base_branch`", flat)
+        # Terminal PR inspected before any create
+        terminal_pos = flat.find("terminal")
+        create_pos = flat.find("create it")
+        self.assertLess(terminal_pos, create_pos,
+                        "Terminal PR check must precede create")
+
+    def test_pr_recovery_preserves_draft_status(self) -> None:
+        """Reusing an existing open PR preserves its draft/ready status."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        after_push = content.split("After successful push", 1)[1].split(
+            "Already-pushed", 1
+        )[0]
+        flat = " ".join(after_push.split())
+        self.assertIn("draft/ready status", flat)
+
 
 class TestR4PendingBeforeMetadata(unittest.TestCase):
     """4818: publish detects pending before completed metadata checks."""
@@ -2108,7 +2172,37 @@ class TestR4PendingBeforeMetadata(unittest.TestCase):
         )[0]
         flat = " ".join(pending_block.split())
         self.assertIn("no branch creation", flat)
-        self.assertIn("overwritten before validation", flat)
+        self.assertIn("overwrite", flat)
+
+    def test_handoff_read_after_pending_check(self) -> None:
+        """Handoff read does not block pending recovery — metadata and
+        pending check appear before the handoff file read."""
+        content = _read("ux-design/skills/publish.md")
+        step1 = content.split("### Step 1:", 1)[1].split(
+            "### Step 2:", 1
+        )[0]
+        pending_pos = step1.find("Pending attempt check (early)")
+        handoff_pos = step1.find("05-handoff.md")
+        self.assertGreater(pending_pos, -1, "Pending check missing")
+        self.assertGreater(handoff_pos, -1, "Handoff read missing")
+        self.assertLess(
+            pending_pos, handoff_pos,
+            "Pending check must precede handoff read",
+        )
+
+    def test_null_pr_routes_to_step8(self) -> None:
+        """Already-pushed with null pr_number routes to Step 8 (create
+        PR) not Step 9 (metadata only)."""
+        content = _read("ux-design/skills/publish.md")
+        step1 = content.split("### Step 1:", 1)[1].split(
+            "### Step 2:", 1
+        )[0]
+        flat = " ".join(step1.split())
+        self.assertIn("pr_number", flat)
+        self.assertIn("null", flat.lower())
+        self.assertIn("Step 8", flat)
+        # Distinguish known-PR route from null-PR route
+        self.assertIn("PR known", flat)
 
 
 class TestR4StoragePolicyDeferred(unittest.TestCase):

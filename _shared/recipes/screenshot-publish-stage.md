@@ -150,6 +150,7 @@ ownership or adopting unknown ahead commits.
 | `expected_base` | Remote branch SHA before push, or `null` for first push |
 | `owned_paths` | Array of paths included in the commit |
 | `pr_number` | PR number (existing PR) or `null` (new PR) |
+| `base_branch` | Target branch name for the PR (e.g., `main`) |
 | `docs_repo_remote` | Docs repo remote URL (from config) |
 | `handoff_file_path` | Repo-relative handoff path |
 | `candidate_screenshot_storage` | Storage mode for this attempt |
@@ -191,13 +192,15 @@ invocation, stop.
    set `screenshot_assets` to `candidate_screenshot_assets`.
 2. Remove `pending_attempt` from `publish-metadata.json`.
 3. **PR identity.** For an existing PR, keep its `pr_number`. For a
-   new PR (`pr_number` is `null`): look up the recorded repo and
-   `branch` for an existing open PR; reuse if found. If none exists
-   and the original intent was new publication, create it. If a
-   matching PR is closed/merged (terminal), stop — do not replace;
-   report to the researcher. A known PR identity is required before
-   writing metadata. Record `pr_number`, `branch`, and
-   `handoff_file_path`.
+   new PR (`pr_number` is `null`): derive `{owner}/{repo}` from
+   `docs_repo_remote`, then look up PRs with head `branch` and base
+   `base_branch` in that repo. Reuse a matching open PR; preserve
+   its draft/ready status. If a matching PR is closed or merged
+   (terminal), stop — do not create a replacement; report to the
+   researcher. If no matching PR exists and the original intent was
+   new publication, create it as a draft. A known PR identity is
+   required before writing metadata. Record `pr_number`, `branch`,
+   and `handoff_file_path`.
 
 Write steps 1–3 atomically — if the write fails, retain
 `pending_attempt` so the next retry can re-finalize without a new
