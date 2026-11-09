@@ -6,19 +6,17 @@ commit that matches the current HEAD, and that the worktree is clean.
 Used by /publish to enforce the validation freshness contract.
 
 Usage:
-  validation_gate.py --report PATH [--artifacts-prefix PREFIX]
+  validation_gate.py --report PATH
 
 Arguments:
-  --report PATH             Path to 05-validation-report.md
-  --artifacts-prefix PREFIX Prefix of paths to ignore in worktree checks
-                            (default: .artifacts/)
+  --report PATH   Path to 05-validation-report.md
 
 Exit codes:
   0  Gate passed — report is valid PASS for exact current HEAD, worktree clean
   1  Gate failed — prints structured JSON describing the failure reason
-  2  Usage error
+  2  Usage error or script crash (not a gate verdict — check stderr)
 
-Output (stdout):
+Output (stdout, exit 0 or 1 only):
   JSON object with fields:
     gate:    "pass" | "fail"
     reason:  human-readable explanation (absent when gate=pass)
@@ -36,13 +34,12 @@ import sys
 
 
 def run_git(*args):
-    """Run a git command and return (returncode, stdout, stderr)."""
+    """Run a git command and return (returncode, stdout_bytes, stderr)."""
     result = subprocess.run(
         ["git"] + list(args),
         capture_output=True,
-        text=True,
     )
-    return result.returncode, result.stdout.strip(), result.stderr.strip()
+    return result.returncode, result.stdout, result.stderr.decode("utf-8", errors="replace").strip()
 
 
 def get_head_sha():
@@ -50,7 +47,7 @@ def get_head_sha():
     rc, out, _ = run_git("rev-parse", "HEAD")
     if rc != 0 or not out:
         return None
-    return out
+    return out.decode("utf-8").strip()
 
 
 def parse_report(report_path):
@@ -82,11 +79,14 @@ def parse_report(report_path):
     try:
         with open(report_path, encoding="utf-8") as f:
             content = f.read()
+    except UnicodeDecodeError as e:
+        info["parse_error"] = f"report is not valid UTF-8: {e}"
+        return info
     except OSError as e:
         info["parse_error"] = f"cannot read report: {e}"
         return info
 
-    # Extract ## Result sections
+    # --- Result section ---
     result_matches = re.findall(
         r'^## Result\s*\n(.*?)(?=\n## |\Z)',
         content,
@@ -95,20 +95,24 @@ def parse_report(report_path):
     info["result_count"] = len(result_matches)
 
     if len(result_matches) == 0:
-        info["parse_error"] = "no '## Result' section found"
+        _append_error(info, "no '## Result' section found")
     elif len(result_matches) > 1:
-        info["parse_error"] = "multiple '## Result' sections found"
+        _append_error(info, "multiple '## Result' sections found")
     else:
-        # Extract first non-empty line as the result value
-        for line in result_matches[0].strip().splitlines():
-            stripped = line.strip()
-            if stripped:
-                info["result_value"] = stripped
-                break
-        if info["result_value"] is None:
-            info["parse_error"] = "'## Result' section is empty"
+        first_line = _first_nonempty_line(result_matches[0])
+        if first_line is None:
+            _append_error(info, "'## Result' section is empty")
+        else:
+            # Require canonical PASS token: line must start with exactly
+            # "PASS" followed by end-of-line, whitespace, or " —"/" -".
+            # Rejects PASSING, PASSPORT, PASS123 etc.
+            if re.match(r'^PASS(?:\s|$|[^A-Za-z0-9])', first_line):
+                info["result_value"] = first_line
+            else:
+                info["result_value"] = first_line  # store for error msg
+                # Not a canonical PASS — will be caught by is_pass check
 
-    # Extract ## Validated Commit sections
+    # --- Validated Commit section ---
     commit_matches = re.findall(
         r'^## Validated Commit\s*\n(.*?)(?=\n## |\Z)',
         content,
@@ -117,81 +121,124 @@ def parse_report(report_path):
     info["commit_count"] = len(commit_matches)
 
     if len(commit_matches) == 0:
-        if info["parse_error"] is None:
-            info["parse_error"] = "no '## Validated Commit' section found"
-        else:
-            info["parse_error"] += "; no '## Validated Commit' section found"
+        _append_error(info, "no '## Validated Commit' section found")
     elif len(commit_matches) > 1:
-        err = "multiple '## Validated Commit' sections found"
-        if info["parse_error"] is None:
-            info["parse_error"] = err
-        else:
-            info["parse_error"] += f"; {err}"
+        _append_error(info, "multiple '## Validated Commit' sections found")
     else:
-        # Extract the SHA — expect a 40-char hex string on its own line
-        for line in commit_matches[0].strip().splitlines():
-            stripped = line.strip()
-            if re.fullmatch(r'[0-9a-f]{40}', stripped):
-                info["validated_commit"] = stripped
-                break
-        if info["validated_commit"] is None:
-            # Check for short SHA or other non-full-SHA content
-            text = commit_matches[0].strip()
-            if text:
-                err = (
+        body = commit_matches[0].strip()
+        if not body:
+            _append_error(info, "'## Validated Commit' section is empty")
+        else:
+            # Collect all non-empty lines; require exactly one that is a
+            # valid 40-char hex SHA.  Reject sections with extra content
+            # lines (prose, multiple SHAs, template placeholders).
+            lines = [ln.strip() for ln in body.splitlines() if ln.strip()]
+            sha_lines = [ln for ln in lines
+                         if re.fullmatch(r'[0-9a-f]{40}', ln)]
+
+            if len(sha_lines) == 0:
+                _append_error(
+                    info,
                     f"'## Validated Commit' does not contain a valid "
-                    f"40-character SHA (found: {text[:60]!r})"
+                    f"40-character SHA (found: {body[:60]!r})",
+                )
+            elif len(sha_lines) > 1:
+                _append_error(
+                    info,
+                    f"'## Validated Commit' contains multiple SHA values "
+                    f"({len(sha_lines)} found) — must be exactly one",
                 )
             else:
-                err = "'## Validated Commit' section is empty"
-            if info["parse_error"] is None:
-                info["parse_error"] = err
-            else:
-                info["parse_error"] += f"; {err}"
+                # Exactly one SHA found.  Check that all other non-empty
+                # lines (if any) are clearly template/comment text that
+                # starts with '{' (template placeholder).  Reject any
+                # unexpected non-SHA content that could be ambiguous.
+                non_sha = [ln for ln in lines
+                           if not re.fullmatch(r'[0-9a-f]{40}', ln)]
+                unexpected = [ln for ln in non_sha
+                              if not ln.startswith('{')]
+                if unexpected:
+                    _append_error(
+                        info,
+                        f"'## Validated Commit' contains unexpected "
+                        f"non-SHA content: {unexpected[0][:60]!r}",
+                    )
+                else:
+                    info["validated_commit"] = sha_lines[0]
 
     return info
 
 
-def check_worktree_clean(artifacts_prefix):
-    """Check for staged, unstaged, and untracked changes.
+def _append_error(info, msg):
+    """Append to parse_error, joining with '; '."""
+    if info["parse_error"] is None:
+        info["parse_error"] = msg
+    else:
+        info["parse_error"] += f"; {msg}"
 
-    Returns (is_clean, dirty_paths) where dirty_paths is a list of
-    paths that are dirty, excluding untracked/ignored files under
-    artifacts_prefix. Tracked files under artifacts_prefix that show
-    as modified ARE reported — only truly untracked artifacts (workflow
-    working state in a gitignored directory) are exempt.
 
-    Porcelain status codes:
-      '??' = untracked (exempt if under artifacts_prefix)
-      '!!' = ignored   (exempt if under artifacts_prefix)
-      Any other XY = tracked file change (never exempt)
+def _first_nonempty_line(text):
+    """Return the first non-empty stripped line, or None."""
+    for line in text.strip().splitlines():
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    return None
+
+
+def check_worktree_clean():
+    """Check for staged, unstaged, untracked, and submodule changes.
+
+    Uses -z for NUL-delimited output (stable parsing) and
+    --ignore-submodules=none to surface dirty submodules regardless of
+    config.  Only files reported as ignored (!!) by git are exempt.
+    All other entries — including untracked files — are treated as dirty.
+
+    Returns (is_clean, dirty_entries) where dirty_entries is a list of
+    human-readable status strings for dirty paths.
     """
-    rc, out, err = run_git(
-        "status", "--porcelain", "--untracked-files=normal",
+    rc, out_bytes, err = run_git(
+        "status", "--porcelain", "-z",
+        "--untracked-files=normal",
+        "--ignore-submodules=none",
     )
     if rc != 0:
         return None, [f"git status failed: {err}"]
 
-    if not out:
+    if not out_bytes:
         return True, []
 
+    # Parse NUL-delimited porcelain output.
+    # Format: XY<space>PATH<NUL> or XY<space>PATH<NUL>DEST<NUL> for renames
+    entries = out_bytes.decode("utf-8", errors="replace").split("\0")
+
     dirty = []
-    for line in out.splitlines():
-        # porcelain format: XY PATH or XY PATH -> PATH
-        status_code = line[:2]
-        path = line[3:].split(" -> ")[-1].strip()
-        if path.startswith(artifacts_prefix):
-            # Only exempt untracked (??) or ignored (!!) artifacts.
-            # Tracked files under .artifacts/ that show as modified,
-            # staged, or deleted are real dirty state.
-            if status_code in ("??", "!!"):
-                continue
-        dirty.append(line.strip())
+    i = 0
+    while i < len(entries):
+        entry = entries[i]
+        if len(entry) < 3:
+            i += 1
+            continue
+
+        xy = entry[:2]
+        path = entry[3:]
+
+        # Skip rename destination (consumed as second NUL field)
+        if xy[0] == 'R' or xy[0] == 'C':
+            i += 2  # skip the "to" path
+        else:
+            i += 1
+
+        # Only exempt git-ignored entries (!!)
+        if xy == "!!":
+            continue
+
+        dirty.append(f"{xy} {path}")
 
     return len(dirty) == 0, dirty
 
 
-def run_gate(report_path, artifacts_prefix=".artifacts/"):
+def run_gate(report_path):
     """Run the full validation gate. Returns a result dict."""
     checks = []
     head = get_head_sha()
@@ -240,9 +287,9 @@ def run_gate(report_path, artifacts_prefix=".artifacts/"):
 
     checks.append({"name": "report_format", "pass": True, "detail": "ok"})
 
-    # 3. Check Result is PASS
+    # 3. Check Result is canonical PASS
     result_text = report["result_value"] or ""
-    is_pass = result_text.startswith("PASS")
+    is_pass = bool(re.match(r'^PASS(?:\s|$|[^A-Za-z0-9])', result_text))
 
     checks.append({
         "name": "result_pass",
@@ -287,7 +334,7 @@ def run_gate(report_path, artifacts_prefix=".artifacts/"):
         }
 
     # 5. Check worktree is clean
-    is_clean, dirty_paths = check_worktree_clean(artifacts_prefix)
+    is_clean, dirty_paths = check_worktree_clean()
 
     if is_clean is None:
         checks.append({
@@ -341,14 +388,9 @@ def main():
         required=True,
         help="Path to 05-validation-report.md",
     )
-    parser.add_argument(
-        "--artifacts-prefix",
-        default=".artifacts/",
-        help="Prefix for paths to ignore in worktree checks (default: .artifacts/)",
-    )
     args = parser.parse_args()
 
-    result = run_gate(args.report, args.artifacts_prefix)
+    result = run_gate(args.report)
     print(json.dumps(result, indent=2))
     sys.exit(0 if result["gate"] == "pass" else 1)
 

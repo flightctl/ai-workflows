@@ -92,17 +92,9 @@ Verify readiness:
    failed result, stale SHA (including a legacy PASS report without a
    `## Validated Commit` section), SHA mismatch, or dirty worktree.
 
-   If the gate script is not available (e.g., not installed), perform
-   the checks manually:
-   - The report exists and is readable.
-   - Exactly one `## Result` section exists and starts with `PASS`.
-   - Exactly one `## Validated Commit` section exists and contains a
-     valid 40-character SHA.
-   - The validated commit SHA equals `git rev-parse HEAD`.
-   - `git status --porcelain --untracked-files=normal` shows no changes
-     outside `.artifacts/`.
-
-   Any check failure blocks publication. Stop and recommend `/validate`.
+   If the gate script is not available (e.g., not installed), stop and
+   report an installation problem — the script is required for
+   publication. Do not proceed without the gate check.
 
 3. Verify the feature branch exists and has commits:
 
@@ -202,14 +194,22 @@ catch is necessary because time may pass between user confirmation and
 the push — an intervening commit, stash pop, or file edit would
 invalidate the validation.
 
-If the gate script is not available, perform the manual checks from
-Step 2. Any failure blocks the push.
+If the gate script is not available, stop and report an installation
+problem.
 
 ### Step 4: Push Branch
 
 ```bash
 python3 "$PUBLISH_SCRIPT" push --remote origin --branch {branch-name}
 ```
+
+Record the pushed SHA:
+
+```bash
+git rev-parse HEAD
+```
+
+Store this as `PUSHED_SHA` for verification before PR creation.
 
 ### Step 5: Create PR Description
 
@@ -248,6 +248,26 @@ In either case, save the result to
 - [ ] AC-1: {description}
 - [ ] AC-2: {description}
 ```
+
+### Step 5b: Pre-PR Freshness Gate
+
+Immediately before creating the PR, verify that the current HEAD still
+equals `PUSHED_SHA` from Step 4 and that the remote branch points to
+the same commit:
+
+```bash
+git rev-parse HEAD
+```
+
+```bash
+git rev-parse origin/{branch-name}
+```
+
+Both must equal `PUSHED_SHA`. If HEAD has changed (an intervening
+commit), stop — the new state was not pushed. If `origin/{branch-name}`
+differs from `PUSHED_SHA` (remote was updated externally), stop and
+report the discrepancy. The gate ensures the PR is created against
+exactly the state that was pushed and validated.
 
 ### Step 6: Create Draft PR
 

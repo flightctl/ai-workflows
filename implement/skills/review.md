@@ -50,7 +50,20 @@ Check blocking conditions:
    an unmerged prerequisite dependency, stop and recommend `/revise`. Do not
    apply feedback while a scope decision is pending.
 
-2. Record pre-existing worktree state:
+2. Verify the current branch is a feature branch, not `main` or `master`:
+
+   ```bash
+   git branch --show-current
+   ```
+
+   If on `main` or `master`, stop and recommend creating or checking out
+   a feature branch first.
+
+3. If the user did not provide feedback in the command context, stop
+   and explain that this phase requires direct feedback to apply. Do
+   not search for or fetch external feedback.
+
+4. Record pre-existing worktree state:
 
    ```bash
    git status --porcelain --untracked-files=normal
@@ -94,12 +107,20 @@ approach.
 
 For an in-scope change with no unresolved conflicts:
 
-1. Read every file that will be modified.
-2. Edit only what the feedback requires. Keep changes minimal and focused.
-3. If the change affects behavior, add or update tests for the changed
+1. Identify the files that will need modification.
+2. **Pre-edit isolation check.** Before making any edits, compare the
+   target file list against the pre-existing paths from Step 1. If any
+   target file has pre-existing staged or unstaged changes, **stop and
+   report the conflict** before editing. Do not modify a file that has
+   pre-existing changes — the hunks cannot be safely separated later.
+   Explain which files conflict and suggest the user commit or stash
+   their changes first.
+3. Read every file that will be modified.
+4. Edit only what the feedback requires. Keep changes minimal and focused.
+5. If the change affects behavior, add or update tests for the changed
    behavior through public interfaces. Follow the same contract-based
    testing standards as `/code`.
-4. Preserve all pre-existing uncommitted changes (recorded in Step 1).
+6. Preserve all pre-existing uncommitted changes (recorded in Step 1).
 
 ### Step 4: Run Affected Tests
 
@@ -121,45 +142,29 @@ Do not run the full validation suite — save expensive checks for `/validate`.
 
 ### Step 6: Stage and Commit
 
-Stage only the files changed by this feedback request. Never use
-`git add .`, `git add -A`, or `git add -u` — these would capture
-pre-existing changes. Stage each file individually:
+Commit only the files changed by this feedback request using
+`git commit --only`, which creates a commit from exactly the named
+paths without disturbing pre-existing staged content in the index:
 
 ```bash
-git add {specific files changed in Steps 3-5}
+git commit --only -m "{issue-key}: {brief description of feedback change}" -- {paths changed in Steps 3-5}
 ```
 
-**Isolation check.** Before committing, compare the staged set against
-the pre-existing state from Step 1:
+Use the commit format from the **Commit Format** section of
+`01-context.md`. Never use `git add .`, `git add -A`, or `git add -u`
+before committing — those would capture pre-existing changes. Never
+use `git reset` on user-staged content.
 
-1. List staged files:
-
-   ```bash
-   git diff --cached --name-only
-   ```
-
-2. For each staged file, check if it had pre-existing changes (appeared
-   in the Step 1 status output). If it did not, the file is safe.
-
-3. If a file had pre-existing changes AND was also modified by this
-   phase, the file contains mixed hunks. Use `git diff --cached {file}`
-   to inspect the staged diff. If the staged diff contains hunks that
-   were NOT made by this phase (pre-existing modifications are now
-   staged alongside review changes), **stop and report the conflict**.
-   Do not commit mixed work. Use `git reset HEAD {file}` to unstage
-   only the conflicting file and explain the situation to the user.
-
-4. If pre-existing changes in a file are in entirely separate regions
-   and `git add -p {file}` could select only this phase's hunks, note
-   this option to the user but do not attempt partial staging
-   automatically — let the user decide.
-
-Commit using the discovered commit convention from the **Commit Format**
-section of `01-context.md`:
+After committing, verify that pre-existing state is preserved:
 
 ```bash
-git commit -m "{issue-key}: {brief description of feedback change}"
+git status --porcelain --untracked-files=normal
 ```
+
+Compare against the Step 1 baseline. All pre-existing staged and
+unstaged paths must still appear with their original status codes.
+If any pre-existing path is missing or its status changed, stop and
+report the discrepancy.
 
 Do not push.
 
