@@ -4673,7 +4673,8 @@ class TestR10Wave2Fixes(unittest.TestCase):
 
     def test_f2_canonical_reader_two_repo_regression(self) -> None:
         """Extracted canonical reader runs from SourceRepo CWD but
-        queries DocsRepo remote via -C, returning DocsRepo result."""
+        queries DocsRepo remote via -C, returning DocsRepo result.
+        Negative control: stripping -C makes it resolve the wrong repo."""
         with tempfile.TemporaryDirectory() as tmp:
             # --- Set up DocsRepo with a bare remote ---
             docs_repo = os.path.join(tmp, "docs-repo")
@@ -4736,38 +4737,47 @@ class TestR10Wave2Fixes(unittest.TestCase):
                 ["git", "-C", src_repo, "remote", "add", "origin",
                  src_bare],
                 capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", src_repo, "push", "-u", "origin", "main"],
+                capture_output=True, check=True)
+            src_sha = subprocess.run(
+                ["git", "-C", src_repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True).stdout.strip()
+            self.assertNotEqual(docs_sha, src_sha,
+                                "Test requires distinct SHAs")
 
-            # Extract canonical reader from recipe and run from
-            # SourceRepo CWD targeting DocsRepo via -C
-            script = textwrap.dedent(f"""\
-                #!/usr/bin/env bash
-                set -uo pipefail
-                DOCS_REPO_PATH="{docs_repo}"
-                push_url="{docs_bare}"
-                _lr_out=""
-                if ! _lr_out=$(git -C "$DOCS_REPO_PATH" ls-remote \\
-                    --heads "$push_url" "refs/heads/main" 2>/dev/null); then
-                  echo "FAIL: ls-remote failed" >&2; exit 1
-                fi
-                exact_sha=""
-                while IFS=$'\\t' read -r sha ref; do
-                  [ -z "$sha" ] && continue
-                  if [ "$ref" = "refs/heads/main" ]; then
-                    exact_sha="$sha"
-                  fi
-                done <<< "$_lr_out"
-                echo "$exact_sha"
-            """)
-            r = subprocess.run(
-                ["bash", "-c", script],
-                capture_output=True, text=True,
-                cwd=src_repo,  # CWD is SourceRepo
-            )
+            # Use url.*.insteadOf mapping so -C context matters:
+            # same fake URL resolves to different bare repos per CWD
+            fake_url = "fake://repo.example.com/"
+            subprocess.run(
+                ["git", "-C", docs_repo, "config",
+                 f"url.{docs_bare}/.insteadOf", fake_url],
+                capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", src_repo, "config",
+                 f"url.{src_bare}/.insteadOf", fake_url],
+                capture_output=True, check=True)
+
+            # Positive: extracted reader with -C targets DocsRepo
+            script = _extract_exact_reader_script(
+                fake_url, "main", docs_repo)
+            r = _run_script(script, cwd=src_repo)
             self.assertEqual(r.returncode, 0, r.stderr)
-            queried = r.stdout.strip()
-            self.assertEqual(
-                queried, docs_sha,
-                "Reader must return DocsRepo SHA, not SourceRepo")
+            self.assertIn(f"EXACT_SHA={docs_sha}", r.stdout,
+                          "Reader must return DocsRepo SHA via -C")
+
+            # Negative control: strip -C so CWD (SourceRepo) context
+            # resolves fake URL to src_bare — returns src SHA
+            no_c_script = script.replace(
+                'git -C "$DOCS_REPO_PATH" ls-remote',
+                'git ls-remote')
+            nr = _run_script(no_c_script, cwd=src_repo)
+            self.assertEqual(nr.returncode, 0, nr.stderr)
+            self.assertIn(f"EXACT_SHA={src_sha}", nr.stdout,
+                          "Without -C, must resolve to SourceRepo SHA")
+            self.assertNotIn(
+                f"EXACT_SHA={docs_sha}", nr.stdout,
+                "Without -C, reader must not return DocsRepo SHA")
 
     # --- F3 (4518863315): host preservation in PR lookup ---
 
@@ -4781,6 +4791,32 @@ class TestR10Wave2Fixes(unittest.TestCase):
         self.assertIn("[HOST/]OWNER/REPO", flat)
         self.assertIn("preserving non-default host", flat)
         self.assertIn("docs_repo_remote", flat)
+
+    # --- F3b: respond fetch/reply commands use GH_HOST/GH_REPO prefix ---
+
+    def test_f3b_respond_fetch_reply_scoped_host(self) -> None:
+        """Respond fetch and reply commands prefix GH_HOST/GH_REPO so
+        the helper's gh calls target the frozen docs repo host."""
+        content = _read("ux-design/skills/respond.md")
+        blocks = _extract_bash_blocks(content)
+        # Derive instructions present
+        self.assertIn("repo_host", content)
+        self.assertIn("repo_identifier", content)
+        # fetch block (block 1) has GH_HOST prefix
+        fetch_block = blocks[1]
+        self.assertIn('GH_HOST="{repo_host}"', fetch_block)
+        self.assertIn('GH_REPO="{repo_identifier}"', fetch_block)
+        self.assertIn("fetch --owner", fetch_block)
+        # reply blocks (11, 12) have GH_HOST prefix
+        for idx in (11, 12):
+            reply_block = blocks[idx]
+            self.assertIn('GH_HOST="{repo_host}"', reply_block,
+                          f"Block {idx} missing GH_HOST prefix")
+            self.assertIn('GH_REPO="{repo_identifier}"', reply_block,
+                          f"Block {idx} missing GH_REPO prefix")
+        # log block (13) does NOT call gh — no prefix needed
+        log_block = blocks[13]
+        self.assertNotIn("GH_HOST", log_block)
 
     # --- F4 (4518863322): ingest template excluded embeds/continuation ---
 
@@ -4811,36 +4847,70 @@ class TestR10Wave2Fixes(unittest.TestCase):
 
     def test_f5_respond_mkdir_before_copy(self) -> None:
         """Respond creates screenshots directory before copying first
-        image into a text-only docs repo."""
+        image into a text-only docs repo.  Extracts the actual bash
+        block from respond.md rather than hand-copying commands."""
         with tempfile.TemporaryDirectory() as tmp:
-            # Set up a text-only docs repo (no screenshots dir)
-            repo = _setup_repo(tmp)
-            handoff_dir = os.path.join(repo, "feat/PROJ-MK")
-            os.makedirs(handoff_dir)
-            _w(os.path.join(handoff_dir, "handoff.md"), "# Text\n")
-
-            # Extract the documented copy snippet from respond.md
-            # and execute it: mkdir -p then cp
-            src_dir = os.path.join(tmp, "artifacts", "screenshots")
-            os.makedirs(src_dir)
-            fixture = os.path.join(src_dir, "SS-1-new.png")
+            # Set up a source repo CWD with curated artifacts
+            src_repo = os.path.join(tmp, "source-repo")
+            os.makedirs(src_repo)
+            issue_key = "PROJ-MK"
+            art_dir = os.path.join(
+                src_repo, f".artifacts/ux-design/{issue_key}/screenshots")
+            os.makedirs(art_dir)
+            fixture = os.path.join(art_dir, "SS-1-new.png")
             _w(fixture, "fixture-image-bytes")
 
-            script = textwrap.dedent(f"""\
-                #!/usr/bin/env bash
-                set -euo pipefail
-                mkdir -p "{handoff_dir}/screenshots"
-                cp "{fixture}" "{handoff_dir}/screenshots/SS-1-new.png"
-            """)
+            # Set up a text-only docs repo (no screenshots dir)
+            docs_repo = _setup_repo(tmp)
+            handoff_dir_rel = f"feat/{issue_key}"
+            handoff_abs = os.path.join(docs_repo, handoff_dir_rel)
+            os.makedirs(handoff_abs)
+            _w(os.path.join(handoff_abs, "handoff.md"), "# Text\n")
+
+            # Extract actual bash block 9 from respond.md (mkdir + cp)
+            respond_md = _read("ux-design/skills/respond.md")
+            blocks = _extract_bash_blocks(respond_md)
+            copy_block = blocks[9]  # mkdir -p + cp block
+            # Instantiate placeholders
+            copy_block = copy_block.replace(
+                "{docs_repo_path}", docs_repo)
+            copy_block = copy_block.replace(
+                "{handoff_dir}", handoff_dir_rel)
+            copy_block = copy_block.replace(
+                "{issue-key}", issue_key)
+            copy_block = copy_block.replace(
+                "{filename}", "SS-1-new.png")
+            script = f"#!/usr/bin/env bash\nset -euo pipefail\n{copy_block}"
+
+            # Positive: extracted script creates dir and copies
             r = subprocess.run(
                 ["bash", "-c", script],
-                capture_output=True, text=True, cwd=repo,
+                capture_output=True, text=True,
+                cwd=src_repo,
             )
             self.assertEqual(r.returncode, 0, r.stderr)
-            dest = os.path.join(handoff_dir, "screenshots", "SS-1-new.png")
+            dest = os.path.join(
+                handoff_abs, "screenshots", "SS-1-new.png")
             self.assertTrue(os.path.isfile(dest), "Image not copied")
             with open(dest) as f:
                 self.assertEqual(f.read(), "fixture-image-bytes")
+
+            # Negative control: without mkdir -p, cp fails on fresh dest
+            handoff_abs2 = os.path.join(docs_repo, "feat/PROJ-NEG")
+            os.makedirs(handoff_abs2)
+            no_mkdir = copy_block.replace(
+                f'mkdir -p "{docs_repo}', f'# mkdir -p "{docs_repo}')
+            no_mkdir = no_mkdir.replace(handoff_dir_rel, "feat/PROJ-NEG")
+            neg_script = (
+                f"#!/usr/bin/env bash\nset -euo pipefail\n{no_mkdir}")
+            nr = subprocess.run(
+                ["bash", "-c", neg_script],
+                capture_output=True, text=True,
+                cwd=src_repo,
+            )
+            self.assertNotEqual(
+                nr.returncode, 0,
+                "Without mkdir -p, cp into missing dir must fail")
 
     # --- F6 (4518863345): NO predicate includes reference changes ---
 

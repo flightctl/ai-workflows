@@ -68,9 +68,19 @@ applying review feedback and recommend `/handoff` to regenerate it. Resume
 `/respond` after the updated handoff is approved so reviewer feedback is applied
 to the current design context.
 
-Derive validated `{repo_identifier}` in `[HOST/]OWNER/REPO` form
-from `docs_repo_remote`, preserving non-default host and port.
-Use this identifier for all PR lookup, view, and reply operations.
+Derive validated `{repo_host}`, `{owner}`, `{repo}`, and
+`{repo_identifier}` (`[HOST/]OWNER/REPO`) from the frozen
+`docs_repo_remote`, preserving non-default host and port.
+Use these for all PR lookup, view, and reply operations.
+Prefix every `$PR_COMMENTS_SCRIPT` invocation (fetch and reply)
+with command-scoped environment so the helper's `gh` calls target
+the correct host without ambient defaults:
+
+```text
+GH_HOST="{repo_host}" GH_REPO="{repo_identifier}" python3 "$PR_COMMENTS_SCRIPT" …
+```
+
+Do not export these variables globally or modify the helper script.
 
 Resolve `{AI_WORKFLOWS_ROOT}` as the git root of the ai-workflows install
 (typically `git rev-parse --show-toplevel` from the workflow directory, or
@@ -89,7 +99,7 @@ review comments, top-level comments, and reviews in a single call and outputs
 a unified JSON array to stdout:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" fetch --owner {owner} --repo {repo} --pr {pr-number} --responses-log .artifacts/ux-design/{issue-key}/responses.jsonl --include-review-threads
+GH_HOST="{repo_host}" GH_REPO="{repo_identifier}" python3 "$PR_COMMENTS_SCRIPT" fetch --owner {owner} --repo {repo} --pr {pr-number} --responses-log .artifacts/ux-design/{issue-key}/responses.jsonl --include-review-threads
 ```
 
 The `--responses-log` flag excludes comment IDs already addressed in prior
@@ -350,13 +360,13 @@ Route each comment by its `type` field from the fetch output.
 For a `line_comment`, reply in-thread using the comment's `id`:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/ux-design/{issue-key}/tmp-reply.md --comment-id {id}
+GH_HOST="{repo_host}" GH_REPO="{repo_identifier}" python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/ux-design/{issue-key}/tmp-reply.md --comment-id {id}
 ```
 
 For a `review` or `top_level` comment, post a top-level reply:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/ux-design/{issue-key}/tmp-reply.md
+GH_HOST="{repo_host}" GH_REPO="{repo_identifier}" python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/ux-design/{issue-key}/tmp-reply.md
 ```
 
 If the reply command fails, report the error and continue without
