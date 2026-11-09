@@ -140,11 +140,6 @@ git -C "{docs_repo_path}" status --porcelain
 If the output is not empty, stop — uncommitted changes must be resolved
 before publishing.
 
-Resolve and validate the effective push destination per
-`../../_shared/recipes/screenshot-publish-stage.md` §4 push
-destination validation. Snapshot `expected_base` against the
-validated push URL before creating the owned commit.
-
 **If updating an existing PR**, validate the stored `branch` using the branch
 checks below. Require the stored `handoff_file_path` to equal the canonical path
 derived above, and require `pr_number` to contain only decimal digits. Read the
@@ -177,6 +172,16 @@ git -C "{docs_repo_path}" check-ref-format --branch "{branch-name}"
 If either command fails, ask the researcher for a valid branch name. Also reject
 `main` and the selected `{base-branch}` as the feature branch name; ask for a
 different value before continuing.
+
+Resolve and validate the effective push destination per
+`../../_shared/recipes/screenshot-publish-stage.md` §4 push
+destination validation, using the confirmed `{branch-name}`.
+**New publication only:** verify the branch is absent on the validated
+push URL (`git ls-remote --heads`); collision → stop, ask for a
+different branch or reconcile — do not adopt another PR. Existing
+approved update: stored branch must match its frozen remote SHA (not
+null). Snapshot `expected_base` against the validated push URL before
+creating the owned commit.
 
 Use only the resolved `destination_dir`, `handoff_target`, and
 `handoff_file_path` for filesystem operations and the provenance target below.
@@ -422,13 +427,13 @@ Keep its PR number, URL, and draft/ready status; do not run
 failed, this retries without re-running Steps 4–7.
 
 ```bash
-git -C "{docs_repo_path}" push origin "{branch-name}"
+git -C "{docs_repo_path}" push origin "HEAD:refs/heads/{branch-name}"
 ```
 
 **For a new PR**, push the branch and create a draft PR:
 
 ```bash
-git -C "{docs_repo_path}" push -u origin "{branch-name}"
+git -C "{docs_repo_path}" push -u origin "HEAD:refs/heads/{branch-name}"
 ```
 
 Create a draft PR:
@@ -528,27 +533,15 @@ from the mutable authoring manifest. Do not create a new commit or PR.
 
 ### Step 10: Report to Researcher
 
-Present the existing PR URL when updating, or the new PR URL when publishing
-for the first time. Also report:
-- Docs repo and branch name
-- File location in the docs repo
-- Whether the existing PR was updated, was already current, or a new draft PR
-  was created
-- Next steps (share with reviewers, then use `/respond` when comments arrive)
+Present the PR URL, docs repo, branch, file location, whether updated
+or newly created, and next steps (share with reviewers, use `/respond`).
 
 ## Output
 
-- `{source_repo_root}/.artifacts/ux-design/{issue-key}/06-pr-description.md`
-- `{source_repo_root}/.artifacts/ux-design/{issue-key}/publish-metadata.json`
-- Handoff spec committed and pushed to feature branch in the docs repo
-- Existing PR updated or draft PR created against the docs repo
+- `06-pr-description.md` and `publish-metadata.json` in source artifacts
+- Handoff committed and pushed; PR created or updated in docs repo
 
 ## When This Phase Is Done
 
-Report your results:
-- PR URL and branch name, and whether it was updated, already current, or newly
-  created
-- Docs repo and file location
-- Suggested next steps
-
+Report PR URL, branch, file location, status, and next steps.
 Then **re-read the controller** (`controller.md`) for next-step guidance.

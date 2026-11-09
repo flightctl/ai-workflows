@@ -3468,13 +3468,67 @@ class TestR7NullPRLookupOrder(unittest.TestCase):
 class TestR7RespondExplicitPush(_RecipeExecMixin, unittest.TestCase):
     """4517026897 outside: respond uses explicit remote + refspec."""
 
-    def test_respond_explicit_push_command(self) -> None:
-        """respond.md push uses explicit origin + refs/heads refspec."""
+    @staticmethod
+    def _push_commands_from_blocks(md_content: str) -> list[str]:
+        """Extract git push command lines from all bash blocks."""
+        blocks = _extract_bash_blocks(md_content)
+        cmds: list[str] = []
+        for block in blocks:
+            for line in block.splitlines():
+                stripped = line.strip()
+                if stripped.startswith("git") and "push" in stripped:
+                    cmds.append(stripped)
+        return cmds
+
+    def test_respond_all_push_commands_explicit(self) -> None:
+        """Every git push in respond.md bash blocks uses explicit
+        origin remote AND HEAD:refs/heads refspec."""
         content = _read("ux-design/skills/respond.md")
-        flat = " ".join(content.split())
-        self.assertIn('push origin "HEAD:refs/heads/{branch}"', flat)
-        self.assertNotIn("git push\n", content.split("```bash")[
-            -1].split("```")[0])
+        cmds = self._push_commands_from_blocks(content)
+        self.assertGreater(len(cmds), 0, "No push commands found")
+        for cmd in cmds:
+            self.assertIn("origin", cmd,
+                          f"Push missing explicit remote: {cmd}")
+            self.assertRegex(
+                cmd, r'HEAD:refs/heads/',
+                f"Push missing HEAD:refs/heads refspec: {cmd}")
+
+    def test_publish_all_push_commands_explicit(self) -> None:
+        """Every git push in publish.md bash blocks uses explicit
+        origin remote AND HEAD:refs/heads refspec (including -u)."""
+        content = _read("ux-design/skills/publish.md")
+        cmds = self._push_commands_from_blocks(content)
+        self.assertGreater(len(cmds), 0, "No push commands found")
+        for cmd in cmds:
+            self.assertIn("origin", cmd,
+                          f"Push missing explicit remote: {cmd}")
+            self.assertRegex(
+                cmd, r'HEAD:refs/heads/',
+                f"Push missing HEAD:refs/heads refspec: {cmd}")
+
+    def test_bare_push_rejected(self) -> None:
+        """Regression: bare 'git push' or branch-only push without
+        explicit remote+refspec must not appear in any bash block."""
+        for label, path in [
+            ("respond", "ux-design/skills/respond.md"),
+            ("publish", "ux-design/skills/publish.md"),
+        ]:
+            content = _read(path)
+            blocks = _extract_bash_blocks(content)
+            for i, block in enumerate(blocks):
+                for line in block.splitlines():
+                    stripped = line.strip()
+                    if not (stripped.startswith("git") and "push" in stripped):
+                        continue
+                    # Must not be bare push (no args after push)
+                    after_push = stripped.split("push", 1)[1].strip()
+                    self.assertNotEqual(
+                        after_push, "",
+                        f"{label} block {i}: bare 'git push' found")
+                    # Must have HEAD:refs/heads refspec
+                    self.assertIn(
+                        "HEAD:refs/heads/", stripped,
+                        f"{label} block {i}: branch-only push: {stripped}")
 
     def test_respond_no_default_selection(self) -> None:
         """respond.md forbids push.default/pushRemote target selection."""
@@ -3608,6 +3662,264 @@ class TestR6QuarantineExtended(unittest.TestCase):
         """GIT_CONFIG_GLOBAL/NOSYSTEM excluded — T19 uses as fixtures."""
         self.assertNotIn("GIT_CONFIG_GLOBAL", _GIT_LOCATION_VARS)
         self.assertNotIn("GIT_CONFIG_NOSYSTEM", _GIT_LOCATION_VARS)
+
+
+# ===================================================================
+# Part 8: R8 review regressions — 7 inline + 2 outside accepted fixes
+#
+# Contract checks for accepted prose changes and limited Git proof
+# for branch collision and explicit push refspec.
+# ===================================================================
+
+class TestR8DuplicateSSNID(unittest.TestCase):
+    """4517441945: detect duplicate SS-NIDs before matching."""
+
+    def test_duplicate_id_check_before_matching(self) -> None:
+        """§2 checks for duplicate IDs before matching step."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s2 = content.split("### 2.", 1)[1].split("### 3.", 1)[0]
+        dup_pos = s2.find("Duplicate ID check")
+        match_pos = s2.find("Match each declared")
+        self.assertGreater(dup_pos, -1, "Duplicate check missing")
+        self.assertGreater(match_pos, -1, "Matching step missing")
+        self.assertLess(dup_pos, match_pos)
+
+    def test_duplicate_stops_requires_repair(self) -> None:
+        """Duplicate IDs stop and require handoff repair."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s2 = content.split("Duplicate ID check", 1)[1].split(
+            "Match each declared", 1)[0]
+        flat = " ".join(s2.split())
+        self.assertIn("stop", flat.lower())
+        self.assertIn("repair", flat)
+        self.assertIn("ambiguous", flat)
+
+    def test_distinct_ids_sharing_ref_valid(self) -> None:
+        """Distinct unique IDs sharing same ref remain valid."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s2 = content.split("Duplicate ID check", 1)[1].split(
+            "Match each declared", 1)[0]
+        self.assertIn("Distinct unique IDs", s2)
+
+
+class TestR8ObservedSHAAlways(unittest.TestCase):
+    """4517441959: always compute observed SHA from resolved bytes."""
+
+    def test_always_compute_observed_sha(self) -> None:
+        """§4.1 always computes SHA regardless of manifest."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s4 = content.split("Verify identity", 1)[1].split(
+            "Open and visually inspect", 1)[0]
+        flat = " ".join(s4.split())
+        self.assertIn("Always compute", flat)
+        self.assertIn("regardless", flat)
+        self.assertIn("observed_sha", flat)
+
+    def test_absent_manifest_unverified(self) -> None:
+        """Absent manifest → unverified, not impossible/verified."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s4 = content.split("1. **Verify identity.**", 1)[1].split(
+            "**Identity exception decision.**", 1)[0]
+        flat = " ".join(s4.split())
+        self.assertIn("unverified", flat)
+        self.assertIn('not "impossible comparison"', flat)
+
+    def test_absent_manifest_no_clear_prefix_mismatch(self) -> None:
+        """Absent manifest must not clear stale prefix mismatch."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s4 = content.split("Verify identity", 1)[1].split(
+            "Open and visually inspect", 1)[0]
+        flat = " ".join(s4.split())
+        self.assertIn("must not clear", flat)
+        self.assertIn("prefix mismatch", flat)
+
+
+class TestR8PrefixValidation(unittest.TestCase):
+    """4517441967: SHA prefix requires exactly 12 hex chars."""
+
+    def test_exact_12_hex_required(self) -> None:
+        """Index prefix must be exactly 12 hex characters."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        prefix = content.split("Index checksum prefix", 1)[1].split(
+            "Open and visually inspect", 1)[0]
+        flat = " ".join(prefix.split())
+        self.assertIn("exactly 12", flat)
+        self.assertIn("hex", flat)
+        self.assertIn("{12 hex}", flat)
+
+    def test_ellipsis_not_validated(self) -> None:
+        """Trailing ellipsis not part of validated checksum."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        prefix = content.split("Index checksum prefix", 1)[1].split(
+            "Open and visually inspect", 1)[0]
+        flat = " ".join(prefix.split())
+        self.assertIn("ellipsis", flat)
+        self.assertIn("not part of the validated", flat)
+
+    def test_malformed_prefix_rejected(self) -> None:
+        """One-char/malformed/missing prefixes cannot verify."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        prefix = content.split("Index checksum prefix", 1)[1].split(
+            "Open and visually inspect", 1)[0]
+        flat = " ".join(prefix.split())
+        self.assertIn("malformed", flat)
+        self.assertIn("cannot verify", flat)
+
+    def test_case_handled_consistently(self) -> None:
+        """Prefix comparison uses consistent case (lowercase)."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        prefix = content.split("Index checksum prefix", 1)[1].split(
+            "Open and visually inspect", 1)[0]
+        flat = " ".join(prefix.split())
+        self.assertIn("lowercase", flat)
+
+    def test_handoff_template_sha_cell(self) -> None:
+        """Handoff template SHA cell uses {12 hex}… format."""
+        content = _read("ux-design/skills/handoff.md")
+        self.assertIn('`{12 hex}…`', content)
+
+
+class TestR8IdentityExceptionDecision(unittest.TestCase):
+    """4517441974: per-image identity exception, separate from bindings."""
+
+    def test_identity_exception_prompt(self) -> None:
+        """§4.1 prompts for identity exception decision."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s4 = content.split("Identity exception decision", 1)
+        self.assertEqual(len(s4), 2, "Identity exception section missing")
+        flat = " ".join(s4[1].split("Index checksum prefix", 1)[0].split())
+        self.assertIn("per-image", flat)
+        self.assertIn("independent from", flat)
+        self.assertIn("binding decisions", flat)
+
+    def test_one_decision_covers_all_reasons(self) -> None:
+        """One identity decision covers all identity reasons."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s4 = content.split("Identity exception decision", 1)[1].split(
+            "Index checksum prefix", 1)[0]
+        flat = " ".join(s4.split())
+        self.assertIn("One identity decision covers all", flat)
+
+    def test_no_new_acceptance_schema(self) -> None:
+        """No new acceptance schema; 9 columns unchanged."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s4 = content.split("Identity exception decision", 1)[1].split(
+            "Index checksum prefix", 1)[0]
+        flat = " ".join(s4.split())
+        self.assertIn("9 output columns unchanged", flat)
+
+
+class TestR8BranchCollisionCheck(unittest.TestCase):
+    """4517441987: new publication checks branch absence on remote."""
+
+    def test_publish_branch_collision_check(self) -> None:
+        """Publish checks feature branch absent on push URL (new pub)."""
+        content = _read("ux-design/skills/publish.md")
+        step3 = content.split("### Step 3:", 1)[1].split(
+            "### Step 4:", 1)[0]
+        flat = " ".join(step3.split())
+        self.assertIn("ls-remote", flat)
+        self.assertIn("collision", flat)
+        self.assertIn("stop", flat.lower())
+
+    def test_existing_update_matches_frozen_sha(self) -> None:
+        """Existing approved update must match frozen remote SHA."""
+        content = _read("ux-design/skills/publish.md")
+        step3 = content.split("### Step 3:", 1)[1].split(
+            "### Step 4:", 1)[0]
+        flat = " ".join(step3.split())
+        self.assertIn("frozen remote SHA", flat)
+
+    def test_branch_collision_git_proof(self) -> None:
+        """Git proof: ls-remote detects existing branch on remote."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            bare = os.path.join(tmp, "remote.git")
+            subprocess.run(["git", "clone", "--bare", repo, bare],
+                           capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", repo, "remote", "add", "origin", bare],
+                capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", repo, "push", "-u", "origin", "main"],
+                capture_output=True, check=True)
+            # Create feature branch on remote
+            subprocess.run(
+                ["git", "-C", repo, "checkout", "-b", "ux/FEAT-1"],
+                capture_output=True, check=True)
+            _w(os.path.join(repo, "feat.txt"), "x")
+            subprocess.run(["git", "-C", repo, "add", "feat.txt"],
+                           capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", repo, "commit", "-m", "feat"],
+                capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", repo, "push", "origin",
+                 "HEAD:refs/heads/ux/FEAT-1"],
+                capture_output=True, check=True)
+            # ls-remote detects existing branch
+            ls = subprocess.run(
+                ["git", "ls-remote", "--heads", bare,
+                 "refs/heads/ux/FEAT-1"],
+                capture_output=True, text=True)
+            self.assertIn("ux/FEAT-1", ls.stdout,
+                          "ls-remote must detect existing branch")
+            # ls-remote returns empty for absent branch
+            ls2 = subprocess.run(
+                ["git", "ls-remote", "--heads", bare,
+                 "refs/heads/ux/FEAT-999"],
+                capture_output=True, text=True)
+            self.assertEqual(ls2.stdout.strip(), "",
+                             "ls-remote must return empty for absent")
+
+
+class TestR8SnapshotAfterBranch(unittest.TestCase):
+    """4517442004: snapshot after branch selection, before commit."""
+
+    def test_snapshot_after_check_ref_format(self) -> None:
+        """Push dest validation appears after check-ref-format."""
+        content = _read("ux-design/skills/publish.md")
+        step3 = content.split("### Step 3:", 1)[1].split(
+            "### Step 4:", 1)[0]
+        ref_pos = step3.find("check-ref-format")
+        dest_pos = step3.find("push destination")
+        self.assertGreater(ref_pos, -1)
+        self.assertGreater(dest_pos, -1)
+        self.assertLess(ref_pos, dest_pos,
+                        "Dest validation must follow check-ref-format")
+
+    def test_snapshot_before_owned_commit(self) -> None:
+        """expected_base snapshot is before owned commit."""
+        content = _read("ux-design/skills/publish.md")
+        step3 = content.split("### Step 3:", 1)[1].split(
+            "### Step 4:", 1)[0]
+        flat = " ".join(step3.split())
+        self.assertIn("before creating the owned commit", flat)
+
+
+class TestR8RespondPreStage(unittest.TestCase):
+    """4517442013: respond prepares dest/branch/base before staging."""
+
+    def test_prestage_before_stage_recipe(self) -> None:
+        """Pre-stage validation precedes staging recipe invocation."""
+        content = _read("ux-design/skills/respond.md")
+        step4 = content.split("### Step 4:", 1)[1].split(
+            "### Step 5:", 1)[0]
+        pre_pos = step4.find("Pre-stage destination validation")
+        stage_pos = step4.find("Build owned-path allowlist")
+        self.assertGreater(pre_pos, -1, "Pre-stage section missing")
+        self.assertGreater(stage_pos, -1, "Stage section missing")
+        self.assertLess(pre_pos, stage_pos)
+
+    def test_freezes_branch_and_push_url(self) -> None:
+        """Pre-stage freezes branch, push URL, and expected_base."""
+        content = _read("ux-design/skills/respond.md")
+        section = content.split("Pre-stage destination validation", 1)
+        self.assertEqual(len(section), 2)
+        flat = " ".join(section[1].split("Build owned-path", 1)[0].split())
+        self.assertIn("branch", flat)
+        self.assertIn("push URL", flat)
+        self.assertIn("expected_base", flat)
 
 
 if __name__ == "__main__":

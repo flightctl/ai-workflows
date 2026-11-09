@@ -277,6 +277,11 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ux-design`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{docs_repo_path}/{handoff_file_path}"`.
 
+**Pre-stage destination validation.** Before staging, resolve and
+validate the push destination per
+`../../_shared/recipes/screenshot-publish-stage.md` §4. Freeze the
+validated `{branch}`, push URL, and `expected_base` in memory.
+
 **Build owned-path allowlist, stage, and commit.** Read and follow
 `../../_shared/recipes/screenshot-publish-stage.md` with:
 - `DOCS_REPO_PATH="{docs_repo_path}"`
@@ -307,16 +312,15 @@ rely on `push.default`, `branch.*.pushRemote`, or
 git -C "{docs_repo_path}" push origin "HEAD:refs/heads/{branch}"
 ```
 
-Only update `publish-metadata.json` `screenshot_assets` after the push
-succeeds — finalize from `pending_attempt.candidate_screenshot_storage`
-and `candidate_screenshot_assets`; clear `pending_attempt` in the same
+Only update `publish-metadata.json` after push succeeds — finalize from
+`pending_attempt.candidate_screenshot_storage` and
+`candidate_screenshot_assets`; clear `pending_attempt` in the same
 write. If push failed, preserve previous metadata unchanged. Set
 `screenshot_storage` to `none` only after successful push when all
-screenshots have been removed.
+screenshots are removed.
 If push succeeded but metadata write fails, retain `pending_attempt`
-and re-finalize from its candidate values on the next invocation —
-never from the mutable authoring manifest. Do not create a new
-commit.
+and re-finalize from its candidate values — never from the mutable
+authoring manifest. Do not create a new commit.
 
 **If "Handoff change needed: No":**
 
@@ -326,11 +330,11 @@ is comment-only (clarification, acknowledgment, or pushback).
 **In both cases:**
 
 Write each approved reply to
-`.artifacts/ux-design/{issue-key}/tmp-reply.md` using the host's file-writing
-capability. Do not use a shell heredoc because reply content can contain the
-delimiter string.
+`.artifacts/ux-design/{issue-key}/tmp-reply.md` using the host's
+file-writing capability (not a shell heredoc — content may contain
+the delimiter).
 
-Route each comment based on its `type` field from the fetch output.
+Route each comment by its `type` field from the fetch output.
 
 For a `line_comment`, reply in-thread using the comment's `id`:
 
@@ -344,8 +348,8 @@ For a `review` or `top_level` comment, post a top-level reply:
 python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/ux-design/{issue-key}/tmp-reply.md
 ```
 
-If the reply command fails, report the error and continue to the next comment
-without logging the failed reply.
+If the reply command fails, report the error and continue without
+logging the failed reply.
 
 After each successful reply, record its `id` so later respond rounds skip it:
 
@@ -353,10 +357,9 @@ After each successful reply, record its `id` so later respond rounds skip it:
 python3 "$PR_COMMENTS_SCRIPT" log --responses-log .artifacts/ux-design/{issue-key}/responses.jsonl --comment-id {id}
 ```
 
-If logging fails, stop before posting another reply to avoid duplicate replies
-on the next respond round.
+If logging fails, stop before posting another reply to avoid duplicates.
 
-Delete the temporary reply file after a successful post and log:
+Delete the temporary reply file after successful post and log:
 
 ```bash
 rm .artifacts/ux-design/{issue-key}/tmp-reply.md
@@ -364,21 +367,14 @@ rm .artifacts/ux-design/{issue-key}/tmp-reply.md
 
 ### Step 5: Report to User
 
-Summarize:
-- How many comments were addressed
-- How many handoff spec changes were made
-- Whether any comments remain unresolved
+Summarize comments addressed, changes made, and unresolved items.
 
 ## Output
 
-- PR comments posted (with user approval)
+- PR comments posted (with approval)
 - `.artifacts/ux-design/{issue-key}/05-handoff.md` (updated if needed)
 
 ## When This Phase Is Done
 
-Report your results:
-- Comments addressed and responses posted
-- Handoff spec changes made
-- Outstanding items
-
+Report changes, replies posted, outstanding items.
 Then **re-read the controller** (`controller.md`) for next-step guidance.

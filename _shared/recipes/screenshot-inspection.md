@@ -29,7 +29,15 @@ per image.
 
 Read `{HANDOFF_FILE}`'s **Screenshot Index** section and collect all
 declared `SS-N` IDs with their declared ref paths and SHA-256
-prefixes (when the index records them). Match each declared
+prefixes (when the index records them).
+
+**Duplicate ID check.** Before matching, verify every declared SS-N
+ID is unique within the index. If any ID appears more than once,
+stop and require the researcher to repair the handoff — duplicate
+IDs make matching ambiguous and cannot be partially overridden.
+Distinct unique IDs that share the same ref path remain valid.
+
+Match each declared
 ID to an actual image embed (`![...](...)` in the handoff body) by
 **both** the ID and its declared ref path. Consume each embed at most
 once — distinct IDs with the same ref may each match their own embed of
@@ -134,22 +142,41 @@ appears exactly once in the output.
 
 **For each resolved matched image from §3:**
 
-1. **Verify identity.** If the manifest provides `sha256`, compute the
-   SHA-256 of the actual image bytes and compare. Record
-   `identity: verified`, `identity: mismatched`, or `identity: unverified`
-   (when manifest is unavailable).
+1. **Verify identity.** Always compute the SHA-256 of the actual
+   resolved image bytes and record it as `observed_sha`, regardless
+   of whether the manifest is present. If the manifest provides
+   `sha256`, compare the observed hash against it: match →
+   `identity: verified`; mismatch → `identity: mismatched`. If the
+   manifest is absent or has no digest for this image, identity is
+   `unverified` (not "impossible comparison" and never "verified").
+   An absent manifest must not clear a stale observed prefix mismatch.
+
+   **Identity exception decision.** When identity is `mismatched` or
+   `unverified`, prompt the researcher for an explicit per-image
+   identity exception decision, independent from the named
+   `context_revision`/`prototype_iteration` binding decisions in
+   step 5. One identity decision covers all its listed identity
+   reasons (byte mismatch, absent manifest, invalid prefix). Reject
+   or defer keeps the image ineligible; explicit acceptance records
+   `accepted-unverified` per existing citation rules. Do not invent
+   a new acceptance schema — 9 output columns unchanged.
 
    **Index checksum prefix.** When the Screenshot Index declares a
-   SHA-256 prefix for this ID, compare the prefix against **both**
-   the full manifest digest and the computed actual-bytes hash. A
-   valid nonempty hex prefix matching both is consistent — identity
-   may be `verified` only when all other gates also pass. A
-   stale or mismatched prefix (does not match either digest) is an
-   identity exception: record `identity: mismatched` and apply the
-   same independent acceptance / accepted-unverified rules as byte
-   identity. A missing or invalid (non-hex) prefix cannot be
-   silently treated as verified; preserve existing text-only or
-   unverified decision paths.
+   SHA-256 prefix for this ID, the prefix must be exactly 12
+   lowercase hex characters (matching the template `{12 hex}…`).
+   A trailing display ellipsis (`…`) is not part of the validated
+   checksum. Reject one-character, malformed, or missing prefixes —
+   they cannot verify identity. Handle case consistently (normalize
+   to lowercase before comparison). Compare a valid 12-hex prefix
+   against **both** the full manifest digest and the computed
+   actual-bytes hash. Matching both is consistent — identity may be
+   `verified` only when all other gates also pass. A stale or
+   mismatched prefix (does not match either digest) is an identity
+   exception: record `identity: mismatched` and apply the same
+   independent accepted-unverified rules as byte identity. A
+   missing or invalid prefix cannot be silently treated as verified;
+   preserve existing unverified decision paths. Retain the separate
+   full 64-character digest comparison.
 
 2. **Open and visually inspect** using the runtime's image reading
    capability (the `Read` tool on the file path). Reading markdown,
