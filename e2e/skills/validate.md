@@ -579,6 +579,18 @@ Write `.artifacts/e2e/{issue-key}/05-validation-report.md`:
 
 ## Validated Identity
 
+Verify the working tree is clean before recording identity:
+
+```bash
+git status --porcelain
+```
+
+If output is non-empty, the candidate has uncommitted changes after
+gap-fill or reassessment. Stop — do not record a PASS or bind
+identity to a HEAD that does not include all changes. Commit or
+discard the changes first, then return here to record identity on
+the clean HEAD.
+
 Record after the last code commit during validation, before
 writing the final result:
 

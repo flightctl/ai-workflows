@@ -4020,5 +4020,65 @@ class TestSourceDiscoveryMarkerContract(unittest.TestCase):
                 f"{rel} must state Source-Discovery blocks PASS")
 
 
+class TestValidateCleanWorktreeGuards(unittest.TestCase):
+    """Static contract: e2e validate has clean-worktree checks at BOTH
+    required positions — before tests AND before final identity binding.
+
+    Document-level checks reading actual e2e/skills/validate.md section
+    ordering, not live agent execution."""
+
+    def _repo_root(self):
+        return Path(__file__).resolve().parent.parent.parent
+
+    def test_e2e_validate_has_pretest_clean_check(self):
+        """e2e validate has a clean-worktree guard before test execution."""
+        text = (self._repo_root() /
+                "e2e/skills/validate.md").read_text(encoding="utf-8")
+        # Pre-test check: "clean before running any validation"
+        self.assertIn(
+            "clean before running any validation", text,
+            "e2e/validate must have pre-test clean-worktree guard")
+
+    def test_e2e_validate_has_identity_clean_check(self):
+        """e2e validate has a clean-worktree guard before identity binding.
+
+        The guard must appear INSIDE the ## Validated Identity section,
+        before the identity fields are recorded."""
+        text = (self._repo_root() /
+                "e2e/skills/validate.md").read_text(encoding="utf-8")
+        identity_pos = text.find("## Validated Identity")
+        self.assertGreater(identity_pos, 0,
+                           "e2e/validate must have ## Validated Identity")
+        result_pos = text.find("## Result", identity_pos)
+        self.assertGreater(result_pos, identity_pos,
+                           "## Result must follow ## Validated Identity")
+        # The clean check must be between ## Validated Identity and
+        # ## Result (i.e., inside the identity section)
+        identity_section = text[identity_pos:result_pos]
+        self.assertIn(
+            "git status --porcelain", identity_section,
+            "## Validated Identity section must contain "
+            "git status --porcelain clean check")
+        self.assertIn(
+            "uncommitted", identity_section,
+            "## Validated Identity section must mention uncommitted "
+            "changes as a stop condition")
+
+    def test_identity_clean_check_before_branch_head(self):
+        """The clean check appears before the identity fields."""
+        text = (self._repo_root() /
+                "e2e/skills/validate.md").read_text(encoding="utf-8")
+        identity_pos = text.find("## Validated Identity")
+        identity_section = text[identity_pos:]
+        clean_pos = identity_section.find("git status --porcelain")
+        head_pos = identity_section.find("**Branch HEAD:**")
+        self.assertGreater(clean_pos, 0,
+                           "Must have clean check in identity section")
+        self.assertGreater(head_pos, 0,
+                           "Must have Branch HEAD field")
+        self.assertLess(clean_pos, head_pos,
+                        "Clean check must come before Branch HEAD field")
+
+
 if __name__ == "__main__":
     unittest.main()

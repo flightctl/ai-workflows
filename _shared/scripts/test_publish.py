@@ -953,15 +953,20 @@ class TestPushExpectedSHAWithGit(unittest.TestCase):
             ["git", "-C", self._repo, "config", "user.name", "Test"],
             check=True, capture_output=True,
         )
-        # Isolate temp repo from real global signing/hooks config
+        # Isolate temp repo from real global signing/hooks config.
+        # Setting local core.hooksPath to an empty dir overrides any
+        # global hooksPath — --unset-all only clears the local value
+        # and still inherits global config.
         subprocess.run(
             ["git", "-C", self._repo, "config", "commit.gpgsign", "false"],
             check=True, capture_output=True,
         )
+        self._empty_hooks = os.path.join(self._tmpdir, "empty-hooks")
+        os.makedirs(self._empty_hooks, exist_ok=True)
         subprocess.run(
-            ["git", "-C", self._repo, "config", "--unset-all",
-             "core.hooksPath"],
-            capture_output=True,  # may fail if unset; that's fine
+            ["git", "-C", self._repo, "config", "core.hooksPath",
+             self._empty_hooks],
+            check=True, capture_output=True,
         )
         # Create an initial commit
         dummy = os.path.join(self._repo, "file.txt")
@@ -1090,6 +1095,68 @@ class TestPushExpectedSHAWithGit(unittest.TestCase):
             os.chdir(old_cwd)
         self.assertEqual(code, 0)
         self.assertEqual(self._remote_sha(branch), sha)
+
+
+class TestPushFixtureIsolation(unittest.TestCase):
+    """Verify temp Git repos are isolated from hostile global config."""
+
+    def test_commit_succeeds_with_hostile_global_hooks(self) -> None:
+        """Fixture's first commit works even with a global hooksPath
+        pointing to a pre-commit hook that always fails."""
+        tmpdir = tempfile.mkdtemp(prefix="publish_hostile_")
+        try:
+            # Create a hostile hooks directory with a failing pre-commit
+            hostile_dir = os.path.join(tmpdir, "hostile-hooks")
+            os.makedirs(hostile_dir)
+            hook = os.path.join(hostile_dir, "pre-commit")
+            with open(hook, "w") as f:
+                f.write("#!/bin/sh\nexit 1\n")
+            os.chmod(hook, 0o755)
+
+            # Create repo with the SAME isolation as TestPushExpectedSHAWithGit
+            repo = os.path.join(tmpdir, "repo")
+            subprocess.run(["git", "init", repo], check=True,
+                           capture_output=True)
+            subprocess.run(
+                ["git", "-C", repo, "config", "user.email", "t@t.com"],
+                check=True, capture_output=True)
+            subprocess.run(
+                ["git", "-C", repo, "config", "user.name", "T"],
+                check=True, capture_output=True)
+            subprocess.run(
+                ["git", "-C", repo, "config", "commit.gpgsign", "false"],
+                check=True, capture_output=True)
+            # Local override: empty hooks dir beats hostile global
+            empty_hooks = os.path.join(tmpdir, "empty-hooks")
+            os.makedirs(empty_hooks, exist_ok=True)
+            subprocess.run(
+                ["git", "-C", repo, "config", "core.hooksPath",
+                 empty_hooks],
+                check=True, capture_output=True)
+
+            # Simulate hostile global config via GIT_CONFIG_GLOBAL
+            global_cfg = os.path.join(tmpdir, "hostile-global")
+            with open(global_cfg, "w") as f:
+                f.write(f"[core]\n\thooksPath = {hostile_dir}\n")
+
+            dummy = os.path.join(repo, "file.txt")
+            with open(dummy, "w") as f:
+                f.write("content\n")
+            subprocess.run(
+                ["git", "-C", repo, "add", "file.txt"],
+                check=True, capture_output=True)
+
+            # Commit with hostile global — local override must protect
+            env = {**os.environ, "GIT_CONFIG_GLOBAL": global_cfg}
+            r = subprocess.run(
+                ["git", "-C", repo, "commit", "-m", "test"],
+                capture_output=True, text=True, env=env)
+            self.assertEqual(
+                r.returncode, 0,
+                f"Commit failed despite local hooks isolation: {r.stderr}")
+        finally:
+            import shutil
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 # ---------------------------------------------------------------------------
