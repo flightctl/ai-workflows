@@ -332,9 +332,10 @@ work and existing tests proceed normally. Once the user confirms
 the retained TCs, this gate becomes mandatory for subsequent tasks.
 
 If the plan records a confirmation with a SHA-256 hash, compute
-the current `testplan.md` SHA-256 and compare against the recorded
-hash. If the hash differs (e.g., after a re-ingest), the
-confirmation is invalid — treat as unconfirmed and defer TC
+the current story-scoped testplan SHA-256 (`sha256sum
+.artifacts/implement/{issue-key}/testplan.md`) and compare against
+the recorded hash. If the hash differs (e.g., after a re-ingest),
+the confirmation is invalid — treat as unconfirmed and defer TC
 reconciliation until the user re-confirms. Missing SHA-256
 binding (no hash recorded) is treated as unconfirmed.
 

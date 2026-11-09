@@ -266,9 +266,10 @@ unverified`) and the Test Plan Coverage status in
 status with SHA-256 binding), defer TC reconciliation — do not
 block the commit on TC coverage. AC-based work and existing tests
 proceed normally. If the plan records a confirmation with a
-SHA-256 hash, compute the current `testplan.md` SHA-256 and
-compare. If the hash differs, treat as unconfirmed and defer.
-Missing SHA-256 binding is treated as unconfirmed.
+SHA-256 hash, compute the current story-scoped testplan SHA-256
+(`sha256sum .artifacts/e2e/{issue-key}/testplan.md`) and compare.
+If the hash differs, treat as unconfirmed and defer. Missing
+SHA-256 binding is treated as unconfirmed.
 
 After the self-review gate passes, check whether this task's scenario(s)
 have TC IDs mapped to them in the Test Plan Coverage matrix of

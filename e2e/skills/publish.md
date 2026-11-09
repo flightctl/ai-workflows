@@ -113,7 +113,16 @@ present the findings to the user. Do not proceed until the user decides
 how to handle them.
 
 If the gate made code fixes, re-run the validation profile's required
-checks to verify the post-fix state. Once checks pass, commit:
+checks to verify the post-fix state. Additionally, reassess whether
+external qualification evidence still applies — if review fixes
+changed an e2e test that was executed in a qualification environment,
+the earlier evidence may no longer reflect the changed test's
+behavior. When the applicability of prior evidence is unknown or
+stale for an affected test, return to `/validate` to re-collect
+evidence before proceeding. Unaffected evidence (for tests not
+changed by the review) may be retained with its existing basis.
+
+Once checks pass, commit:
 
 ```bash
 git add {fixed files}

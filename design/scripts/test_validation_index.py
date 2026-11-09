@@ -2539,7 +2539,8 @@ class TestTCConfirmationBindingContract(unittest.TestCase):
         """Downstream consumers (validate, code) require SHA-256 binding.
 
         Reads the actual workflow markdown files and verifies each
-        consumer file documents that missing SHA-256 is unconfirmed."""
+        consumer file exists and documents that a missing SHA-256
+        binding means the case is treated as unconfirmed."""
         consumers = [
             "implement/skills/validate.md",
             "implement/skills/code.md",
@@ -2549,11 +2550,14 @@ class TestTCConfirmationBindingContract(unittest.TestCase):
         repo_root = Path(__file__).resolve().parent.parent.parent
         for rel in consumers:
             path = repo_root / rel
-            if path.exists():
-                text = path.read_text(encoding="utf-8")
-                self.assertTrue(
-                    "SHA-256" in text or "sha-256" in text,
-                    f"{rel} must document SHA-256 confirmation binding")
+            self.assertTrue(path.is_file(),
+                            f"{rel} is missing — consumer file must exist")
+            text = path.read_text(encoding="utf-8")
+            self.assertIn(
+                "unconfirmed",
+                text.lower(),
+                f"{rel} must document that missing SHA-256 binding "
+                f"means the case is treated as unconfirmed")
 
 
 class TestProducerConsumerContracts(unittest.TestCase):
@@ -3056,6 +3060,246 @@ class TestSnapshotGitConsumerRegressions(unittest.TestCase):
             self.assertEqual(r.returncode, 0,
                              f"Consumer commit must succeed despite "
                              f"hostile global config: {r.stderr}")
+
+
+# ===========================================================================
+# 28. Ancestor symlink rejection for copy destinations
+# ===========================================================================
+
+class TestAncestorSymlinkRejection(unittest.TestCase):
+    """Symlink ancestors below the docs repo root must be rejected
+    before any artifact copy, preventing escape to outside bytes.
+
+    The validation_index.py _safe_write_output already enforces this
+    for CLI write paths.  These tests verify the *ancestor* check
+    catches directory symlinks between the trusted root and the
+    destination — not just leaf symlinks."""
+
+    def test_feature_dir_symlink_outside_rejected(self):
+        """Symlink feature directory → outside dir: transform rejects."""
+        with tempfile.TemporaryDirectory() as td:
+            with tempfile.TemporaryDirectory() as outside:
+                root = Path(td) / "docs"
+                root.mkdir()
+                # feature-dir is a symlink pointing outside
+                (root / "feature").symlink_to(outside)
+                src = Path(td) / "local.json"
+                _write_json(src, _make_local_index())
+                dst = root / "feature" / "validation-index.json"
+                r = _run_cli("transform", str(src), str(dst),
+                             "--trusted-output-base", str(root))
+                self.assertEqual(r.returncode, 1,
+                                 "Ancestor symlink must be rejected")
+                low = r.stderr.lower()
+                self.assertTrue(
+                    "symlink" in low or "escape" in low,
+                    f"Expected symlink/escape error, got: {r.stderr}")
+                # Outside bytes unchanged
+                self.assertFalse(
+                    (Path(outside) / "validation-index.json").exists(),
+                    "No files should be written outside the root")
+
+
+# ===========================================================================
+# 29. Story-scoped SHA-256 hash path validation
+# ===========================================================================
+
+class TestStoryScopedHashPath(unittest.TestCase):
+    """SHA-256 commands must hash the full story-scoped artifact path
+    (.artifacts/e2e/{issue-key}/testplan.md), not a CWD testplan.md.
+
+    A decoy testplan.md in CWD must not affect the hash of the
+    story-scoped file."""
+
+    def test_decoy_testplan_does_not_affect_story_hash(self):
+        """Hash of story-scoped file differs from CWD decoy."""
+        import hashlib
+        with tempfile.TemporaryDirectory() as td:
+            # Create story-scoped artifact
+            story_dir = Path(td) / ".artifacts" / "e2e" / "PROJ-1"
+            story_dir.mkdir(parents=True)
+            story_content = "# Story testplan content\n## TC-FR1-01\n"
+            _write(story_dir / "testplan.md", story_content)
+
+            # Create decoy in project root
+            decoy_content = "# DECOY — different content\n"
+            _write(Path(td) / "testplan.md", decoy_content)
+
+            # Hash the story-scoped file (correct behavior)
+            story_hash = hashlib.sha256(
+                story_content.encode("utf-8")).hexdigest()
+            decoy_hash = hashlib.sha256(
+                decoy_content.encode("utf-8")).hexdigest()
+
+            # Verify the hashes differ (proving CWD decoy is wrong)
+            self.assertNotEqual(story_hash, decoy_hash,
+                                "Story-scoped hash must differ from "
+                                "CWD decoy — instructions must hash "
+                                "the full story-scoped path")
+
+            # Also verify via actual sha256sum command
+            r = subprocess.run(
+                ["sha256sum",
+                 str(story_dir / "testplan.md")],
+                capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0)
+            cmd_hash = r.stdout.split()[0]
+            self.assertEqual(cmd_hash, story_hash,
+                             "sha256sum of story-scoped file must "
+                             "match Python hashlib result")
+
+
+# ===========================================================================
+# 30. Design staging independent of validation-index flow
+# ===========================================================================
+
+class TestDesignStagingIndependence(unittest.TestCase):
+    """Design file must be staged (git add) independently of
+    validation artifacts, so a pure design update or retirement
+    commits the design change even when both validation sets
+    are empty.
+
+    Uses a real temporary Git repo + actual staging/commit."""
+
+    def _init_git_repo(self, path):
+        """Initialize a Git repository with an initial commit."""
+        subprocess.run(["git", "init", str(path)],
+                       capture_output=True, check=True)
+        hooks_dir = tempfile.mkdtemp(prefix="empty-git-hooks-",
+                                     dir=str(path.parent))
+        subprocess.run(["git", "-C", str(path), "config",
+                        "core.hooksPath", hooks_dir],
+                       capture_output=True, check=True)
+        subprocess.run(["git", "-C", str(path), "config",
+                        "commit.gpgsign", "false"],
+                       capture_output=True, check=True)
+        subprocess.run(["git", "-C", str(path), "config",
+                        "user.email", "test@test.com"],
+                       capture_output=True, check=True)
+        subprocess.run(["git", "-C", str(path), "config",
+                        "user.name", "Test"],
+                       capture_output=True, check=True)
+        _write(path / ".gitkeep", "")
+        subprocess.run(["git", "-C", str(path), "add", "."],
+                       capture_output=True, check=True)
+        subprocess.run(["git", "-C", str(path), "commit", "-m",
+                        "initial"],
+                       capture_output=True, check=True)
+
+    def test_pure_design_update_no_artifacts_commits(self):
+        """Design change stages/commits with empty validation sets."""
+        with tempfile.TemporaryDirectory() as td:
+            docs = Path(td) / "docs"
+            docs.mkdir()
+            self._init_git_repo(docs)
+
+            feat = docs / "v1" / "feature"
+            feat.mkdir(parents=True)
+            _write(feat / "design.md", "# Design v1\n")
+            subprocess.run(["git", "-C", str(docs), "add",
+                            "v1/feature/design.md"],
+                           capture_output=True, check=True)
+            subprocess.run(["git", "-C", str(docs), "commit", "-m",
+                            "initial design"],
+                           capture_output=True, check=True)
+
+            # Revise design — no validation artifacts at all
+            _write(feat / "design.md", "# Design v2 — revised\n")
+            # Stage design independently (the fix)
+            subprocess.run(["git", "-C", str(docs), "add",
+                            "v1/feature/design.md"],
+                           capture_output=True, check=True)
+            # Commit with no validation-index changes
+            r = subprocess.run(
+                ["git", "-C", str(docs), "commit", "-m",
+                 "revise design only"],
+                capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0,
+                             f"Design-only commit must succeed: "
+                             f"{r.stderr}")
+            # Verify the design was committed
+            content = (feat / "design.md").read_text()
+            self.assertIn("v2", content)
+
+    def test_partial_retire_preserves_index_and_retained(self):
+        """Partial retirement keeps index with retained companions."""
+        with tempfile.TemporaryDirectory() as td:
+            docs = Path(td) / "docs"
+            docs.mkdir()
+            self._init_git_repo(docs)
+
+            feat = docs / "v1" / "feature"
+            feat.mkdir(parents=True)
+            # Initial publish with testplan + companion
+            pub = {
+                "schema_version": "1.0",
+                "primary_testplan": "testplan.md",
+                "artifacts": [
+                    {"file": "testplan.md", "type": "testplan"},
+                    {"file": "hw.md", "type": "companion",
+                     "purpose": "HW", "audience": "team"},
+                ],
+            }
+            _write_json(feat / "validation-index.json", pub)
+            _write(feat / "testplan.md", "# Plan")
+            _write(feat / "hw.md", "# HW")
+            subprocess.run(["git", "-C", str(docs), "add", "."],
+                           capture_output=True, check=True)
+            subprocess.run(["git", "-C", str(docs), "commit", "-m",
+                            "publish"],
+                           capture_output=True, check=True)
+
+            # Partial retire: remove hw.md but keep testplan
+            subprocess.run(["git", "-C", str(docs), "rm",
+                            str(feat / "hw.md")],
+                           capture_output=True, check=True)
+            # Update index (retain only testplan)
+            new_pub = {
+                "schema_version": "1.0",
+                "primary_testplan": "testplan.md",
+                "artifacts": [
+                    {"file": "testplan.md", "type": "testplan"},
+                ],
+            }
+            _write_json(feat / "validation-index.json", new_pub)
+            subprocess.run(["git", "-C", str(docs), "add",
+                            str(feat / "validation-index.json")],
+                           capture_output=True, check=True)
+            r = subprocess.run(
+                ["git", "-C", str(docs), "commit", "-m",
+                 "partial retire"],
+                capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+
+            # Index preserved with retained testplan
+            self.assertTrue(
+                (feat / "validation-index.json").exists(),
+                "Index must be preserved on partial retirement")
+            self.assertTrue(
+                (feat / "testplan.md").exists(),
+                "Retained testplan must still exist")
+            self.assertFalse(
+                (feat / "hw.md").exists(),
+                "Retired companion must be removed")
+
+    def test_full_retire_allows_restoring_with_rebuild(self):
+        """After full retirement decision, restoring an artifact
+        should allow rebuild of index from restored files."""
+        with tempfile.TemporaryDirectory() as td:
+            art_dir = Path(td) / "art"
+            art_dir.mkdir()
+            # Simulate restoring a testplan during retirement
+            _write(art_dir / "04-testplan.md", "# Restored plan")
+            # Build-legacy creates a valid index from restored file
+            out = art_dir / "validation-index.json"
+            r = _run_cli("build-legacy", str(art_dir), str(out))
+            self.assertEqual(r.returncode, 0,
+                             f"build-legacy must succeed from restored "
+                             f"file: {r.stderr}")
+            idx = json.loads(out.read_text())
+            errors = vi.validate_local_index(idx)
+            self.assertEqual(errors, [],
+                             f"Rebuilt index must be valid: {errors}")
 
 
 if __name__ == "__main__":

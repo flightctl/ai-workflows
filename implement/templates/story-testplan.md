@@ -16,8 +16,10 @@ One `## {tc-id}` section per filtered story test case:
 | {requirement-id} | {interface-change-id} | {priority} | {automation} | {source-filename} |
 
 {For TCs from companion artifacts, Source names the companion file
- (e.g., hw-validation.md). For primary testplan TCs, Source is
- testplan.md. The Source column preserves TC origin for traceability.}
+ (e.g., hw-validation.md). For primary testplan TCs, Source is the
+ filename discovered via the validation index (e.g., testplan.md)
+ — use the actual discovered primary filename, not a hardcoded
+ literal. The Source column preserves TC origin for traceability.}
 
 ### Preconditions
 

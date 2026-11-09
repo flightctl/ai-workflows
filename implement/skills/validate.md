@@ -349,15 +349,21 @@ unverified`), check whether the Test Plan Coverage
 section in `02-plan.md` records a confirmed status for the TCs.
 
 - **Confirmed TCs** (plan records user confirmation, confirmed TC
-  IDs, and SHA-256 of `testplan.md` at confirmation time): compute
-  the current `testplan.md` SHA-256 and compare against the recorded
-  hash. If they match, treat confirmed TCs as normative despite
-  unverified source freshness. Write gap-fill tests for missing
-  confirmed TCs, report TC coverage normally. If the hash differs,
-  the confirmation is stale — treat as unconfirmed. Missing SHA-256
-  binding (no hash recorded) is treated as unconfirmed.
-- **Unconfirmed TCs** (no confirmed status in plan): coverage is
-  provisional, not normative. Do not write mandatory gap-fill
+  IDs, and SHA-256 of `.artifacts/implement/{issue-key}/testplan.md`
+  at confirmation time): compute the current SHA-256 of the
+  story-scoped testplan (`sha256sum
+  .artifacts/implement/{issue-key}/testplan.md`) and compare against
+  the recorded hash. A TC is effectively confirmed only when ALL of:
+  (1) the plan records a "confirmed" status with a SHA-256 binding,
+  (2) the current story-scoped testplan hash matches the recorded
+  hash, and (3) the TC ID appears in the confirmed list. If the
+  hash differs, the confirmation is stale — treat as unconfirmed.
+  Missing SHA-256 binding (no hash recorded) is treated as
+  unconfirmed. Write gap-fill tests only for effectively confirmed
+  TCs; report TC coverage normally for those.
+- **Unconfirmed TCs** (no confirmed status in plan, or missing
+  SHA-256 binding, or stale hash): coverage is provisional, not
+  normative. Do not write mandatory gap-fill
   tests, do not gate commits or block AC-based work on unconfirmed
   TC gaps. Report as "unverified — source testplan not confirmed."
 

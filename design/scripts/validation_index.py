@@ -794,17 +794,24 @@ def _safe_write_output(dst: Path, content: str,
     - Rejects symlink at the final destination path (pre-open check).
     - Walks ancestors of dst from dst.parent upward (to
       *trusted_base* or the filesystem root) using lexical boundary.
-    - Requires O_NOFOLLOW availability as a platform capability gate;
-      returns error when unavailable.
+    - Requires O_NOFOLLOW availability as a deliberate POSIX
+      capability gate; returns error when unavailable. Final-target
+      symlink safety for the write itself comes from the secure
+      tempfile (mkstemp) plus os.replace() semantics — rename
+      replaces a symlink at dst rather than writing through it.
     - Resolved containment check rejects paths escaping the base.
     """
     import os
 
-    # Require O_NOFOLLOW for atomic symlink protection at open time.
+    # Deliberate POSIX capability gate: require O_NOFOLLOW
+    # availability.  The actual final-target symlink safety comes from
+    # mkstemp (secure tempfile creation) plus os.replace() (rename
+    # replaces a symlink at dst, never follows it).  This gate is a
+    # platform-capability policy, not a flag passed to the final open.
     if not hasattr(os, "O_NOFOLLOW"):
         print("ERROR: O_NOFOLLOW not available on this platform; "
-              "cannot safely write output without atomic symlink "
-              "protection", file=sys.stderr)
+              "cannot safely write output without POSIX symlink "
+              "protection capabilities", file=sys.stderr)
         return 1
 
     # Reject symlink at the destination itself

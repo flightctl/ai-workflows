@@ -299,20 +299,28 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
  applicable before using them as normative coverage requirements.
  Until confirmed, mark Test Plan Coverage as "unverified —
  awaiting user confirmation." Do not block AC-based work.
+ Retained TCs that are unconfirmed are provisional — they may
+ keep unmapped rows in the table and are exempt from the set-diff
+ gate (changes to unconfirmed TCs are not enforced until
+ confirmation). Once the user confirms, the normal disposition
+ and set-diff requirements apply.
 
  When the user confirms, record in this section:
  - Status: "confirmed — user verified TC applicability on {date}"
  - Confirmed TC IDs: the exact list of TC IDs confirmed
- - Content binding: SHA-256 of the `testplan.md` bytes at
-   confirmation time (computed as `sha256sum testplan.md`)
+ - Content binding: SHA-256 of the story-scoped
+   `.artifacts/e2e/{issue-key}/testplan.md` bytes at confirmation
+   time (computed as
+   `sha256sum .artifacts/e2e/{issue-key}/testplan.md`)
 
  This binding is required: `/code` and `/validate` compare the
- current `testplan.md` SHA-256 against the recorded hash before
- treating confirmed TCs as normative. If the hash differs (e.g.,
- after re-ingest replaces the testplan), the confirmation is
- invalid — mark "unverified — TC content changed since
- confirmation" and require the user to re-confirm. Missing
- binding (no SHA-256 recorded) is treated as unconfirmed.}
+ current `.artifacts/e2e/{issue-key}/testplan.md` SHA-256 against
+ the recorded hash before treating confirmed TCs as normative.
+ If the hash differs (e.g., after re-ingest replaces the
+ testplan), the confirmation is invalid — mark "unverified — TC
+ content changed since confirmation" and require the user to
+ re-confirm. Missing binding (no SHA-256 recorded) is treated
+ as unconfirmed.}
 
 | TC ID | Title | Covered by Scenario | Notes |
 |-------|-------|---------------------|-------|

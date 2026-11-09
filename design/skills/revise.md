@@ -208,7 +208,11 @@ For **each** validation artifact (primary testplan and any companions):
   row counts individually toward the total, priority, and automation
   counts; requirement and IC coverage ratios count distinct mapped
   values once each; the Index has one row per TC ID. Rebuild the Gaps
-  section from the current requirement-to-TC and IC-to-TC mappings.
+  section from the current requirement-to-TC and IC-to-TC mappings
+  and the Review and Qualification Gates mappings. For requirements
+  or ICs covered only by gates, reference the gate rather than
+  listing them as uncovered. Treat ICs covered by qualification
+  gates as covered — do not report a gap for gate-covered ICs.
 
 **Cross-artifact consistency:** After updating all artifacts, verify
 that TC IDs are unique across the full artifact set. If a revision
@@ -467,10 +471,18 @@ stop and report. Do not delete published content based on a missing
 local file.
 
 **Copy ALL current artifacts** (not just previously tracked — handles
-new companions added during revision). Before each copy, reject
-symlink destinations and verify that any existing destination file
-is in the previous validation set (an existing file not in the
-previous set is unowned and must not be overwritten):
+new companions added during revision). Before each copy:
+- Reject symlink destinations (the published_as filename itself).
+- Reject any symlink ancestor in the destination path between the
+  configured `{docs_repo_path}` root and the target file. Walk each
+  path component of `{feature-dir}/{published_as}` below
+  `{docs_repo_path}` and verify it is not a symlink. If any ancestor
+  is a symlink, stop and report — the destination could escape the
+  docs checkout. Symlinks and aliases at or above `{docs_repo_path}`
+  itself are permitted (the checkout root may be an alias).
+- Verify that any existing destination file is in the previous
+  validation set (an existing file not in the previous set is
+  unowned and must not be overwritten).
 
 ```bash
 cp ".artifacts/design/{issue-key}/{local}" "{docs_repo_path}/{feature-dir}/{published_as}"
@@ -478,6 +490,14 @@ cp ".artifacts/design/{issue-key}/{local}" "{docs_repo_path}/{feature-dir}/{publ
 
 ```bash
 git -C "{docs_repo_path}" add "{feature-dir}/{published_as}"
+```
+
+**Stage the design file** independently of validation artifacts —
+a pure design update or retirement must commit the design change
+even when both validation sets are empty:
+
+```bash
+git -C "{docs_repo_path}" add "{design_file_path}"
 ```
 
 **Update published index:** If the current set is non-empty,
@@ -488,7 +508,6 @@ python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/vali
 ```
 
 ```bash
-git -C "{docs_repo_path}" add "{design_file_path}"
 git -C "{docs_repo_path}" add "{feature-dir}/validation-index.json"
 ```
 
@@ -532,14 +551,27 @@ artifact is intended (the user may choose to retire all, restore
 specific files, or abort). An empty current set caused by missing
 local sources (rather than explicit user intent) must not silently
 remove published content — stop and report the missing sources
-instead of proceeding to retirement. Once the user confirms the
-named retirements, for each confirmed artifact, check whether it
-is tracked and stage removal with
+instead of proceeding to retirement.
+
+**If the user restores any artifact** instead of confirming its
+retirement, rebuild the valid local set from the restored files:
+re-run `build-legacy` or re-create `validation-index.json` to
+reflect the retained artifacts, then restart resolution and
+validation from Step 4. Do not continue with the empty-set
+retirement flow when files have been restored — the restored
+files must be validated and synced as a non-empty set. If the
+restored files cannot yield a valid primary testplan, stop and
+preserve published files until the user resolves the issue.
+
+Once the user confirms the named retirements (all remaining
+after any restorations), for each confirmed artifact, check
+whether it is tracked and stage removal with
 `git -C "{docs_repo_path}" rm -- "{feature-dir}/{filename}"`.
 Skip untracked files. Remove the published `validation-index.json`
-only if the previous publication included one (skip for legacy-only
-snapshots that had only `testplan.md`). Use the same tracked-file
-check and `git rm` for the index removal.
+only if **all** previously published artifacts are retired. If
+any artifacts are retained (partial retirement), preserve the
+index with its retained entries. Use the same tracked-file
+check and `git rm` for the index removal when applicable.
 
 Update `publish-metadata.json`: set `validation_artifacts` to match
 the current published set, update `testplan_file_path` to the primary

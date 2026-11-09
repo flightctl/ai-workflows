@@ -123,8 +123,16 @@ map from `publish-metadata.json`:
   validated (via `resolve --local`), stop and report the error — do
   not build a routing map from unvalidated metadata. If
   `validation_artifacts` in metadata lists files that do not match the
-  local `validation-index.json` entries, stop and report the
-  inconsistency.
+  local `validation-index.json` entries:
+  - If the local index has **zero** artifacts (empty set) while
+    metadata lists previously published artifacts, this is a proposed
+    **empty-set retirement** — do not stop on inconsistency. Retain
+    the previous validated set for comment routing and proceed to sync;
+    the retirement confirmation step will require explicit approval of
+    each named file removal before any deletion occurs.
+  - If the local index is **non-empty** but its entries do not match
+    metadata, stop and report the inconsistency — a mismatched
+    non-empty set is a genuine error.
 - If `validation_artifacts` is absent, fall back to `testplan_file_path`
   as the sole entry (maps to `04-testplan.md` locally).
 
@@ -503,13 +511,21 @@ exists (legacy), create the minimal published snapshot:
 ```
 
 Save to `.artifacts/design/{issue-key}/prev-published-index.json`.
-If neither exists, no previous snapshot is captured.
+If neither exists, there is no previous set — skip the snapshot
+and continue with an empty previous set.
+
+**Distinguish absent from failed.** When copying an existing
+published index or building a legacy snapshot, check that the copy
+or write succeeded. If a published `validation-index.json` or
+legacy `testplan.md` exists at the source but the snapshot file
+could not be created (I/O error, permission denied), **stop and
+report** — do not continue with an empty previous set when a
+prior publication exists. An empty previous set is correct only
+when no prior published state exists.
 
 **Validate the snapshot if one was captured.** Before copying any
 current artifacts or overwriting the published index, validate the
-captured snapshot. If no snapshot was captured (no previous
-published state), skip validation and continue with an empty
-previous set.
+captured snapshot.
 
 ```bash
 if [ -f ".artifacts/design/{issue-key}/prev-published-index.json" ]; then
@@ -527,10 +543,16 @@ and publish-metadata has no `validation_artifacts` or
 
 **Copy ALL current artifacts** to the docs repo (not just previously
 tracked ones — this handles new companions added during respond).
-Before each copy, reject symlink destinations and verify that any
-existing destination file is in the previous validation set (an
-existing file not in the previous set is unowned and must not be
-overwritten):
+Before each copy:
+- Reject any symlink ancestor in the destination path between
+  `{docs_repo_path}` and the target file. If any path component
+  below the docs repo root is a symlink, stop and report — the
+  destination could escape the docs checkout. Symlinks at or above
+  `{docs_repo_path}` itself are permitted.
+- Reject symlink destinations (the published filename itself).
+- Verify that any existing destination file is in the previous
+  validation set (an existing file not in the previous set is
+  unowned and must not be overwritten).
 
 ```bash
 cp ".artifacts/design/{issue-key}/{local}" "{docs_repo_path}/{feature-dir}/{published_as}"

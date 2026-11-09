@@ -250,6 +250,17 @@ artifact.
 If the story type prefix is not listed above, treat it as anomalous
 zero (warn the user, continue without `testplan.md`).
 
+**Validate the published index before selecting an outcome.** If a
+`validation-index.json` exists in the source location, validate it
+using `resolve --published` before treating its contents as
+authoritative. If the index is present but malformed or contains an
+empty artifacts list, treat it as unresolvable — retain any prior
+story-scoped testplan, mark it `Freshness: unverified`, and skip
+the outcome gate and story testplan write below. A present but
+invalid index is distinct from an absent index: do not fall back
+to legacy `testplan.md` discovery when a `validation-index.json`
+exists but fails validation.
+
 If the source location or any discovered validation artifact cannot be
 resolved or read, retain any prior story-scoped testplan and mark it
 `Freshness: unverified`. Report that the source could not be checked.

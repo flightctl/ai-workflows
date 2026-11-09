@@ -472,8 +472,9 @@ Write `.artifacts/design/{issue-key}/04-testplan.md`:
 - **Companion plans:** {companion-1-slug}.md ({purpose}), {companion-2-slug}.md ({purpose})
 Otherwise, omit the Companion plans line entirely.}
 
-{If any requirements are covered by review or qualification gates
-rather than executable test cases, add:
+{If any review or qualification gates apply to requirements or ICs,
+include this section regardless of whether those requirements also
+have executable test cases:
 
 ## Review and Qualification Gates
 

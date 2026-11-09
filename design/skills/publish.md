@@ -289,13 +289,22 @@ exists (legacy single-testplan), write a minimal published snapshot:
 
 Save to `.artifacts/design/{issue-key}/prev-published-index.json`.
 
-If neither exists, there is no previous set — skip the snapshot.
+If neither exists, there is no previous set — skip the snapshot
+and proceed with an empty previous set.
+
+**Distinguish absent from failed.** When copying an existing
+published index or building a legacy snapshot, check that the copy
+or write succeeded. If a published `validation-index.json` or
+legacy `testplan.md` exists at the source but the snapshot file
+could not be created (I/O error, permission denied), **stop and
+report** — do not proceed with an empty previous set when a prior
+publication exists. An empty previous set is correct only when
+no prior published state exists (first publish).
 
 **Validate the snapshot if one was captured.** Before copying any
 current artifacts or overwriting the published index, validate the
 captured snapshot to ensure it is trustworthy for later removal
-decisions. If no snapshot was captured (first publish), skip
-validation and proceed with an empty previous set.
+decisions.
 
 ```bash
 if [ -f ".artifacts/design/{issue-key}/prev-published-index.json" ]; then
@@ -318,7 +327,12 @@ publication.
 
 Verify that no source file is a symlink. For each destination path,
 check:
-- If the destination is a symlink, stop and report.
+- If any ancestor in the destination path between `{docs_repo_path}`
+  and the target file is a symlink, stop and report — the
+  destination could escape the docs checkout. Symlinks at or above
+  `{docs_repo_path}` itself are permitted (the checkout root may
+  be an alias).
+- If the destination itself is a symlink, stop and report.
 - If the destination already exists and the filename is NOT in the
   previous validation set (from Step 4), stop and report — this
   would overwrite an unowned file (e.g., `clarifications.md` from
@@ -363,7 +377,17 @@ python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-publ
 ```
 
 The command outputs a JSON object with `removed` listing filenames
-to delete. For each filename in `removed`:
+to delete. If the `removed` list is non-empty, present the exact
+filenames to the user and confirm each removal before proceeding.
+This prevents silent deletion when legacy normalization produces a
+reduced artifact set (e.g., a local index is missing but
+`04-testplan.md` remains — legacy fallback yields one artifact,
+silently losing a previously published companion). An earlier
+explicit named-artifact approval (from a prior `/revise` or
+`/publish` step that named these specific files) counts as
+confirmation; generic update approval does not.
+
+For each confirmed filename in `removed`:
 
 ```bash
 git -C "{docs_repo_path}" rm -- "{release}/{feature}/{stale-filename}"
