@@ -5162,6 +5162,12 @@ class TestPlanCreationOrder(_TmpDirMixin, unittest.TestCase):
                 "jira_key": key, "title": title,
                 "file": f"epic-{eidx}/story-{sidx:02d}-{slug}.md"}
 
+    def _epic_item(self, eidx, cat="new", key=None):
+        """Epic item matching the file _setup creates."""
+        return {"type": "epic", "category": cat,
+                "epic_index": eidx, "jira_key": key,
+                "file": f"epic-{eidx}-epic{eidx}.md"}
+
     def _qids(self, result):
         return [f"story-{it['epic_index']}.{it['story_index']:02d}"
                 for it in result["ordered"]]
@@ -5173,7 +5179,8 @@ class TestPlanCreationOrder(_TmpDirMixin, unittest.TestCase):
         self._setup([(1,1,"a","DEV","None",None,False),
                      (1,2,"b","DEV","Story 1.01",None,False),
                      (1,3,"c","DEV","Story 1.02",None,False)])
-        items = [self._item(1,i,["a","b","c"][i-1]) for i in [1,2,3]]
+        items = [self._epic_item(1)] + [
+            self._item(1,i,["a","b","c"][i-1]) for i in [1,2,3]]
         r = sync_helper.plan_creation_order(items, self.tmpdir, None)
         self.assertEqual(self._qids(r),
                          ["story-1.01","story-1.02","story-1.03"])
@@ -5185,7 +5192,8 @@ class TestPlanCreationOrder(_TmpDirMixin, unittest.TestCase):
         needs later epic's story — must still sort correctly)."""
         self._setup([(1,1,"client","DEV","Story 2.01",None,False),
                      (2,1,"api","DEV","None",None,False)])
-        items = [self._item(1,1,"client"), self._item(2,1,"api")]
+        items = [self._epic_item(1), self._epic_item(2),
+                 self._item(1,1,"client"), self._item(2,1,"api")]
         r = sync_helper.plan_creation_order(items, self.tmpdir, None)
         self.assertEqual(self._qids(r), ["story-2.01","story-1.01"])
         self.assertEqual(r["errors"], [])
@@ -5196,7 +5204,8 @@ class TestPlanCreationOrder(_TmpDirMixin, unittest.TestCase):
                      (1,2,"client","DEV","Story 1.01",None,False)])
         manifest = {"epics": [{"file": "epic-1-epic1.md", "jira_key": "T-100",
                     "stories": [{"file": "story-01-api.md","jira_key":"T-101"}]}]}
-        items = [self._item(1,1,"api","unchanged","T-101"),
+        items = [self._epic_item(1, key="T-100"),
+                 self._item(1,1,"api","unchanged","T-101"),
                  self._item(1,2,"client")]
         r = sync_helper.plan_creation_order(items, self.tmpdir, manifest)
         self.assertEqual(len(r["ordered"]), 1)
@@ -5210,7 +5219,7 @@ class TestPlanCreationOrder(_TmpDirMixin, unittest.TestCase):
         the Dependencies section of the DOCS PREP output."""
         self._setup([(1,1,"api","DEV","None",None,False),
                      (1,2,"docs","DOCS","None","Story 1.01",False)])
-        items = [self._item(1,1,"api"),
+        items = [self._epic_item(1), self._item(1,1,"api"),
                  self._item(1,2,"docs",title="[DOCS] docs docs")]
         r = sync_helper.plan_creation_order(items, self.tmpdir, None)
         self.assertEqual(self._qids(r)[0], "story-1.01",
@@ -5228,7 +5237,7 @@ class TestPlanCreationOrder(_TmpDirMixin, unittest.TestCase):
     def test_self_cycle(self) -> None:
         """Story depends on itself → self-reference (not merely a cycle)."""
         self._setup([(1,1,"a","DEV","Story 1.01",None,False)])
-        items = [self._item(1,1,"a")]
+        items = [self._epic_item(1), self._item(1,1,"a")]
         r = sync_helper.plan_creation_order(items, self.tmpdir, None)
         self.assertTrue(
             any("self-reference" in e for e in r["errors"]),
@@ -5239,7 +5248,7 @@ class TestPlanCreationOrder(_TmpDirMixin, unittest.TestCase):
         """A↔B mutual dependency → cycle, both blocked."""
         self._setup([(1,1,"a","DEV","Story 1.02",None,False),
                      (1,2,"b","DEV","Story 1.01",None,False)])
-        items = [self._item(1,1,"a"), self._item(1,2,"b")]
+        items = [self._epic_item(1), self._item(1,1,"a"), self._item(1,2,"b")]
         r = sync_helper.plan_creation_order(items, self.tmpdir, None)
         self.assertTrue(any("cycle" in e.lower() for e in r["errors"]))
         self.assertEqual(len(r["blocked"]), 2)
@@ -5249,7 +5258,8 @@ class TestPlanCreationOrder(_TmpDirMixin, unittest.TestCase):
         self._setup([(1,1,"a","DEV","Story 1.02",None,False),
                      (1,2,"b","DEV","Story 1.01",None,False),
                      (1,3,"c","DEV","Story 1.01",None,False)])
-        items = [self._item(1,i,["a","b","c"][i-1]) for i in [1,2,3]]
+        items = [self._epic_item(1)] + [
+            self._item(1,i,["a","b","c"][i-1]) for i in [1,2,3]]
         r = sync_helper.plan_creation_order(items, self.tmpdir, None)
         cycle_errors = [e for e in r["errors"] if "cycle" in e.lower()]
         downstream_errors = [e for e in r["errors"] if "blocked" in e.lower()]
@@ -5339,7 +5349,8 @@ class TestPlanCreationOrder(_TmpDirMixin, unittest.TestCase):
         self._setup([(1,1,"a","DEV","None",None,False),
                      (2,1,"b","DEV","None",None,False),
                      (2,2,"c","DEV","Story 1.01, Story 2.01",None,False)])
-        items = [self._item(1,1,"a"), self._item(2,1,"b"),
+        items = [self._epic_item(1), self._epic_item(2),
+                 self._item(1,1,"a"), self._item(2,1,"b"),
                  self._item(2,2,"c")]
         r = sync_helper.plan_creation_order(items, self.tmpdir, None)
         ids = self._qids(r)
@@ -5351,8 +5362,9 @@ class TestPlanCreationOrder(_TmpDirMixin, unittest.TestCase):
         self._setup([(1,1,"a","DEV","None",None,False),
                      (1,2,"b","DEV","None",None,False),
                      (2,1,"c","DEV","None",None,False)])
-        items_fwd = [self._item(1,1,"a"),self._item(1,2,"b"),self._item(2,1,"c")]
-        items_rev = list(reversed(items_fwd))
+        epics = [self._epic_item(1), self._epic_item(2)]
+        items_fwd = epics + [self._item(1,1,"a"),self._item(1,2,"b"),self._item(2,1,"c")]
+        items_rev = epics + list(reversed([self._item(1,1,"a"),self._item(1,2,"b"),self._item(2,1,"c")]))
         r1 = sync_helper.plan_creation_order(items_fwd, self.tmpdir, None)
         r2 = sync_helper.plan_creation_order(items_rev, self.tmpdir, None)
         self.assertEqual(self._qids(r1), self._qids(r2))
@@ -5493,7 +5505,8 @@ class TestPlanCreationOrderEpicRefs(_TmpDirMixin, unittest.TestCase):
     def test_epic_ref_nonexistent_fails(self) -> None:
         """Dependencies: Epic 999 → error."""
         self._setup([(1, 1, "a", "DEV", "Epic 999", None, False)])
-        items = [self._item(1, 1, "a")]
+        items = [self._epic_item(1, "epic1"),
+                 self._item(1, 1, "a")]
         r = sync_helper.plan_creation_order(items, self.tmpdir, None)
         self.assertTrue(any("epic-999" in e for e in r["errors"]))
         self.assertEqual(len(r["ordered"]), 0)
@@ -5535,7 +5548,8 @@ class TestPlanCreationOrderEpicRefs(_TmpDirMixin, unittest.TestCase):
     def test_native_jira_key_in_deps_available(self) -> None:
         """Dependencies: PROJ-123 → accepted as available, not local target."""
         self._setup([(1, 1, "a", "DEV", "PROJ-123", None, False)])
-        items = [self._item(1, 1, "a")]
+        items = [self._epic_item(1, "epic1"),
+                 self._item(1, 1, "a")]
         r = sync_helper.plan_creation_order(items, self.tmpdir, None)
         self.assertEqual(r["errors"], [])
         self.assertEqual(len(r["ordered"]), 1)
@@ -5547,7 +5561,8 @@ class TestPlanCreationOrderEpicRefs(_TmpDirMixin, unittest.TestCase):
             (1, 1, "api", "DEV", "None", None, False),
             (1, 2, "client", "DEV", "PROJ-123, Story 1.01", None, False),
         ])
-        items = [self._item(1, 1, "api"), self._item(1, 2, "client")]
+        items = [self._epic_item(1, "epic1"),
+                 self._item(1, 1, "api"), self._item(1, 2, "client")]
         r = sync_helper.plan_creation_order(items, self.tmpdir, None)
         self.assertEqual(r["errors"], [])
         qids = self._qids(r)
@@ -5674,6 +5689,11 @@ class TestUnavailableRefExclusion(_TmpDirMixin, unittest.TestCase):
                 "jira_key": None, "title": "",
                 "file": f"epic-{eidx}/story-{sidx:02d}-{slug}.md"}
 
+    def _epic_item(self, eidx):
+        return {"type": "epic", "category": "new",
+                "epic_index": eidx, "jira_key": None,
+                "file": f"epic-{eidx}-epic{eidx}.md"}
+
     def _qids(self, result):
         return [f"story-{it['epic_index']}.{it['story_index']:02d}"
                 for it in result["ordered"]]
@@ -5681,7 +5701,7 @@ class TestUnavailableRefExclusion(_TmpDirMixin, unittest.TestCase):
     def test_unavailable_owner_excluded(self) -> None:
         """Story with dep on nonexistent target → not in ordered."""
         self._setup([(1, 1, "a", "Story 9.99")])
-        items = [self._item(1, 1, "a")]
+        items = [self._epic_item(1), self._item(1, 1, "a")]
         r = sync_helper.plan_creation_order(items, self.tmpdir, None)
         self.assertEqual(len(r["ordered"]), 0,
                          "Story with unavailable ref must not be in ordered")
@@ -5695,8 +5715,8 @@ class TestUnavailableRefExclusion(_TmpDirMixin, unittest.TestCase):
             (1, 2, "b", "Story 1.01"),
             (1, 3, "c", "None"),
         ])
-        items = [self._item(1, 1, "a"), self._item(1, 2, "b"),
-                 self._item(1, 3, "c")]
+        items = [self._epic_item(1), self._item(1, 1, "a"),
+                 self._item(1, 2, "b"), self._item(1, 3, "c")]
         r = sync_helper.plan_creation_order(items, self.tmpdir, None)
         qids = self._qids(r)
         # Only story-1.03 (no deps) should be in ordered
@@ -5718,7 +5738,8 @@ class TestUnavailableRefExclusion(_TmpDirMixin, unittest.TestCase):
             (2, 1, "b", "None"),
             (2, 2, "c", "Story 2.01"),
         ])
-        items = [self._item(1, 1, "a"), self._item(2, 1, "b"),
+        items = [self._epic_item(1), self._epic_item(2),
+                 self._item(1, 1, "a"), self._item(2, 1, "b"),
                  self._item(2, 2, "c")]
         r = sync_helper.plan_creation_order(items, self.tmpdir, None)
         qids = self._qids(r)
@@ -5729,7 +5750,7 @@ class TestUnavailableRefExclusion(_TmpDirMixin, unittest.TestCase):
     def test_unavailable_epic_ref_excludes_owner(self) -> None:
         """Epic 999 ref → owner excluded from ordered."""
         self._setup([(1, 1, "a", "Epic 999")])
-        items = [self._item(1, 1, "a")]
+        items = [self._epic_item(1), self._item(1, 1, "a")]
         r = sync_helper.plan_creation_order(items, self.tmpdir, None)
         self.assertEqual(len(r["ordered"]), 0)
         self.assertTrue(any("epic-999" in e for e in r["errors"]))
@@ -6585,7 +6606,10 @@ class TestSelfRefInPlanner(_TmpDirMixin, unittest.TestCase):
         sd.mkdir(exist_ok=True)
         _make_epic(sd, 1, "building")
         _make_dev_story(sd, 1, 1, "api", deps="Story 1.01")
-        items = [{"type": "story", "category": "new",
+        items = [{"type": "epic", "category": "new",
+                  "epic_index": 1, "jira_key": None,
+                  "file": "epic-1-building.md"},
+                 {"type": "story", "category": "new",
                   "epic_index": 1, "story_index": 1,
                   "jira_key": None, "title": "",
                   "file": "epic-1/story-01-api.md"}]
@@ -6689,6 +6713,8 @@ class TestSelfRefInPlanner(_TmpDirMixin, unittest.TestCase):
         _make_dev_story(sd, 1, 1, "api", deps="Story 1.02")
         _make_dev_story(sd, 1, 2, "lib", deps="None")
         items = [
+            {"type": "epic", "category": "new", "epic_index": 1,
+             "jira_key": None, "file": "epic-1-building.md"},
             {"type": "story", "category": "new", "epic_index": 1,
              "story_index": 1, "jira_key": None, "title": "",
              "file": "epic-1/story-01-api.md"},
@@ -6710,6 +6736,8 @@ class TestSelfRefInPlanner(_TmpDirMixin, unittest.TestCase):
         _make_dev_story(sd, 1, 1, "a", deps="Story 1.02")
         _make_dev_story(sd, 1, 2, "b", deps="Story 1.01")
         items = [
+            {"type": "epic", "category": "new", "epic_index": 1,
+             "jira_key": None, "file": "epic-1-building.md"},
             {"type": "story", "category": "new", "epic_index": 1,
              "story_index": 1, "jira_key": None, "title": "",
              "file": "epic-1/story-01-a.md"},
