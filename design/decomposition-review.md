@@ -63,7 +63,11 @@ expected and should not be flagged as a clarity problem.
 ## Evaluation Criteria
 
 Evaluate the decomposition against these categories, prioritized by
-impact:
+impact. Coverage and completeness checks (criteria 1–8) apply to
+effectively active stories — those with no `status: removed` marker
+whose parent epic is also active. Retained removed files are
+available for identity and traceability audit (criterion 9) but do
+not satisfy or violate active coverage requirements.
 
 1. **Requirement Coverage** — Does the coverage matrix (`07-coverage.md`)
    map every FR and NFR from the PRD to effectively active stories? A

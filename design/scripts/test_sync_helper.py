@@ -8907,47 +8907,51 @@ class TestDocsRestorationHelper(_TmpDirMixin, unittest.TestCase):
     """detect_changes handles parent restoration correctly (F3)."""
 
     def test_child_active_when_parent_restored(self) -> None:
-        """Unmarked child under active (restored) parent is active."""
+        """Unmarked child reopens when parent restored from closed.
+
+        Both parent and child were previously cascade-closed (synced_status
+        "closed"). Parent is now locally active (no removed marker) —
+        approved restoration. Unmarked child should reopen."""
         sd = Path(self.tmpdir) / "06-stories"
         sd.mkdir()
-        # Parent epic is active (restored — no removed marker)
+        # Parent epic locally active (restored — no removed marker)
         _make_epic(sd, 1, "building", removed=False)
+        # Child story locally active (no removed marker)
         _make_dev_story(sd, 1, 1, "impl", deps="None")
+        # Sibling individually removed — should stay removed
+        _make_dev_story(sd, 1, 2, "other", deps="None", removed=True)
         _make_manifest(Path(self.tmpdir), [{
             "file": "epic-1-building.md", "jira_key": "EDM-100",
-            "content_hash": "old-hash", "synced_status": "active",
+            "content_hash": "old-hash", "synced_status": "closed",
             "stories": [
                 {"file": "story-01-impl.md", "jira_key": "EDM-201",
+                 "content_hash": "old-hash", "synced_status": "closed"},
+                {"file": "story-02-other.md", "jira_key": "EDM-202",
                  "content_hash": "old-hash", "synced_status": "closed"},
             ],
         }])
         result = sync_helper.detect_changes(self.tmpdir)
-        story_items = [i for i in result["items"]
-                       if i["type"] == "story" and i["epic_index"] == 1]
-        self.assertEqual(len(story_items), 1)
-        self.assertEqual(story_items[0]["category"], "reopened",
-                         "Unmarked child under active parent reopens")
-
-    def test_individually_removed_child_stays_removed(self) -> None:
-        """Child with own status: removed stays removed even if parent active."""
-        sd = Path(self.tmpdir) / "06-stories"
-        sd.mkdir()
-        _make_epic(sd, 1, "building", removed=False)
-        _make_dev_story(sd, 1, 1, "impl", deps="None", removed=True)
-        _make_manifest(Path(self.tmpdir), [{
-            "file": "epic-1-building.md", "jira_key": "EDM-100",
-            "content_hash": "old-hash", "synced_status": "active",
-            "stories": [
-                {"file": "story-01-impl.md", "jira_key": "EDM-201",
-                 "content_hash": "old-hash", "synced_status": "active"},
-            ],
-        }])
-        result = sync_helper.detect_changes(self.tmpdir)
-        story_items = [i for i in result["items"]
-                       if i["type"] == "story" and i["epic_index"] == 1]
-        self.assertEqual(len(story_items), 1)
-        self.assertEqual(story_items[0]["category"], "removed",
-                         "Individually removed child stays removed")
+        # Parent epic should reopen
+        epic_items = [i for i in result["items"]
+                      if i["type"] == "epic" and i["epic_index"] == 1]
+        self.assertEqual(len(epic_items), 1)
+        self.assertEqual(epic_items[0]["category"], "reopened",
+                         "Restored parent epic reopens")
+        # Unmarked child should reopen
+        story1 = [i for i in result["items"]
+                  if i["type"] == "story" and i.get("story_index") == 1]
+        self.assertEqual(len(story1), 1)
+        self.assertEqual(story1[0]["category"], "reopened",
+                         "Unmarked child under restored parent reopens")
+        # Individually removed sibling: locally removed, already closed
+        # in Jira (synced_status "closed") → unchanged (stays closed).
+        # This proves individual retirement persists despite parent
+        # restoration — the sibling is not blindly reopened.
+        story2 = [i for i in result["items"]
+                  if i["type"] == "story" and i.get("story_index") == 2]
+        self.assertEqual(len(story2), 1)
+        self.assertNotEqual(story2[0]["category"], "reopened",
+                            "Individually removed sibling must NOT reopen")
 
 
 # ---------------------------------------------------------------------------
@@ -8999,6 +9003,27 @@ class TestActiveCoverageContract(unittest.TestCase):
         """Review criterion 1 mentions retired stories retained for audit."""
         self.assertIn("identity", self._criterion1.lower())
         self.assertIn("audit", self._criterion1.lower())
+
+    def test_review_shared_active_scope(self) -> None:
+        """Evaluation criteria preamble scopes criteria 1-8 to active stories."""
+        import re
+        m = re.search(r"## Evaluation Criteria\n\n.*?(?=1\.\s+\*\*Requirement)",
+                      self._review_md, re.DOTALL)
+        self.assertIsNotNone(m, "Evaluation criteria preamble not found")
+        preamble = m.group().lower()
+        self.assertIn("effectively active", preamble)
+        self.assertIn("criteria 1", preamble)
+        self.assertIn("criterion 9", preamble)
+
+    def test_review_retained_files_not_violating(self) -> None:
+        """Shared scope states retained files do not violate active coverage."""
+        import re
+        m = re.search(r"## Evaluation Criteria\n\n.*?(?=1\.\s+\*\*Requirement)",
+                      self._review_md, re.DOTALL)
+        self.assertIsNotNone(m)
+        # Join whitespace for line-wrapped text
+        preamble = " ".join(m.group().lower().split())
+        self.assertIn("do not satisfy or violate", preamble)
 
 
 if __name__ == "__main__":
