@@ -340,15 +340,17 @@ work.
      described scenario and assert the described outcomes.
    - Record the test file and scenario name for each TC ID.
 3. If any automatable TC ID lacks a corresponding test:
-   - If `testplan.md` contains `Freshness: unverified` and the Test
-     Plan Coverage in `02-plan.md` has not been confirmed (no
-     "confirmed" status), report the gap as provisional: "TC
-     coverage gap — unconfirmed source, not normative until
-     confirmed." Do not gate commits on unconfirmed TC gaps.
-   - For confirmed TCs (user-confirmed despite unverified source)
-     or verified TCs: write the missing test following the
-     reference suite's patterns. Confirmed TCs are normative —
-     their gaps are real and should be filled.
+   - If the TC is NOT effectively confirmed (see criteria above:
+     hash present + current story-scoped testplan hash matches
+     recorded hash + TC ID in confirmed list) AND `testplan.md`
+     contains `Freshness: unverified`, report the gap as
+     provisional: "TC coverage gap — unconfirmed source, not
+     normative until confirmed." Do not gate commits on
+     unconfirmed TC gaps.
+   - For effectively confirmed TCs or verified-source TCs: write
+     the missing test following the reference suite's patterns.
+     These TCs are normative — their gaps are real and should be
+     filled.
    - Commit the test following the project's commit format.
    - Re-run the relevant checks from Step 3.
 4. For manual verification TCs, qualification gate TCs, and non-TC

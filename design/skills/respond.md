@@ -124,12 +124,16 @@ map from `publish-metadata.json`:
   not build a routing map from unvalidated metadata. If
   `validation_artifacts` in metadata lists files that do not match the
   local `validation-index.json` entries:
-  - If the local index has **zero** artifacts (empty set) while
-    metadata lists previously published artifacts, this is a proposed
-    **empty-set retirement** — do not stop on inconsistency. Retain
-    the previous validated set for comment routing and proceed to sync;
-    the retirement confirmation step will require explicit approval of
-    each named file removal before any deletion occurs.
+  - If the resolved current set has **zero** artifacts (empty `[]`
+    from `resolve --local` because both `validation-index.json` and
+    legacy `04-testplan.md` are absent) while metadata lists
+    previously published artifacts, this is a proposed **empty-set
+    retirement** — do not stop on inconsistency. Retain the previous
+    validated set for comment routing and proceed to sync; the
+    retirement confirmation step will require explicit approval of
+    each named file removal before any deletion occurs. A present
+    but malformed or empty-content index is NOT this case — that
+    triggers the resolve failure stop above.
   - If the local index is **non-empty** but its entries do not match
     metadata, stop and report the inconsistency — a mismatched
     non-empty set is a genuine error.
@@ -537,6 +541,33 @@ If validation fails, **stop and report** — do not proceed with
 sync using a malformed previous snapshot. The snapshot must be
 corrected or removed before continuing.
 
+**Removal preflight (non-empty current set with previous snapshot):**
+Before copying any artifacts or overwriting the published index,
+identify proposed removals so the user can approve them first.
+Transform the current local index to a candidate published index
+under `.artifacts`:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" ".artifacts/design/{issue-key}/candidate-published-index.json" --trusted-output-base "{docs_repo_path}"
+```
+
+Diff the previous snapshot against the candidate:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-published-index.json" ".artifacts/design/{issue-key}/candidate-published-index.json"
+```
+
+If the `removed` list is non-empty, present the exact filenames to the
+user and require named confirmation of each removal before proceeding.
+An earlier explicit named-artifact approval (from a prior `/revise` or
+`/respond` step that named these specific files) counts as confirmation;
+generic update approval does not. If the user declines, stop — preserve
+published artifacts and metadata unchanged. Clean up the candidate file
+after the preflight completes.
+
+If no previous snapshot was captured or the current set is empty, skip
+this preflight.
+
 **Skip sync entirely** if both current and previous sets are empty
 and publish-metadata has no `validation_artifacts` or
 `testplan_file_path`.
@@ -578,11 +609,17 @@ deleting anything. The comparison must use the new published index
 when one was written, or an empty artifact list when the current
 set is empty.
 
-If the current set is **non-empty** and a previous snapshot exists:
+If the current set is **non-empty** and a previous snapshot exists,
+execute the removals confirmed during the removal preflight. Re-diff
+using the final published index to verify the set is unchanged:
 
 ```bash
 python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-published-index.json" "{docs_repo_path}/{feature-dir}/validation-index.json"
 ```
+
+The `removed` list must match the preflight result. If the sets
+differ, stop and report before deleting. Do not re-prompt — the user
+already approved these filenames in the preflight.
 
 For each filename in the `removed` list:
 

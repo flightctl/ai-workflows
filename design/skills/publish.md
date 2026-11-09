@@ -316,6 +316,34 @@ If validation fails, **stop and report** — do not proceed with
 publication using a malformed previous snapshot. The snapshot must
 be corrected or removed before continuing.
 
+**Removal preflight (non-empty current set with previous snapshot):**
+Before copying any artifacts or overwriting the published index,
+identify proposed removals so the user can approve them first.
+Transform the current local index to a candidate published index
+under `.artifacts`:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" ".artifacts/design/{issue-key}/candidate-published-index.json" --trusted-output-base "{docs_repo_path}"
+```
+
+Diff the previous snapshot against the candidate:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-published-index.json" ".artifacts/design/{issue-key}/candidate-published-index.json"
+```
+
+If the `removed` list is non-empty, present the exact filenames to the
+user and require named confirmation of each removal before proceeding.
+An earlier explicit named-artifact approval (from a prior `/revise` or
+`/publish` step that named these specific files) counts as confirmation;
+generic update approval does not. If the user declines, stop — preserve
+published artifacts and metadata unchanged. Clean up the candidate file
+after the preflight completes (it is not published directly).
+
+If no previous snapshot was captured (first publish) or the current set
+is empty, skip this preflight — first-publish has no removals, and the
+empty-set retirement flow in Step 7 handles its own confirmation.
+
 ### Step 5: Copy Current Artifacts
 
 If the current set is empty (no validation artifacts), skip to Step 7.
@@ -370,22 +398,19 @@ index when one was written in Step 6, or an empty artifact list
 when the current set is empty.
 
 **If the current set is non-empty** and a previous snapshot exists,
-diff using the newly written published index:
+execute the removals that were already confirmed during the removal
+preflight (Step 4). Re-diff using the final published index to
+verify the removal set is unchanged:
 
 ```bash
 python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-published-index.json" "{docs_repo_path}/{release}/{feature}/validation-index.json"
 ```
 
-The command outputs a JSON object with `removed` listing filenames
-to delete. If the `removed` list is non-empty, present the exact
-filenames to the user and confirm each removal before proceeding.
-This prevents silent deletion when legacy normalization produces a
-reduced artifact set (e.g., a local index is missing but
-`04-testplan.md` remains — legacy fallback yields one artifact,
-silently losing a previously published companion). An earlier
-explicit named-artifact approval (from a prior `/revise` or
-`/publish` step that named these specific files) counts as
-confirmation; generic update approval does not.
+The `removed` list must match the preflight result. If the sets
+differ (unexpected — would indicate a transform inconsistency),
+stop and report before deleting anything. Do not re-prompt for
+confirmation — the user already approved these specific filenames
+in the preflight.
 
 For each confirmed filename in `removed`:
 

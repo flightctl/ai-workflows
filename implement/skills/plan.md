@@ -213,7 +213,7 @@ Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
  "confirmed — user verified TC applicability on {date}" and listing
  the confirmed TC IDs. Additionally, record the SHA-256 of the
  `testplan.md` bytes at confirmation time (computed as
- `sha256sum testplan.md`).
+ `sha256sum .artifacts/implement/{issue-key}/testplan.md`).
 
  If a later re-ingest replaces `testplan.md` with different content,
  `/code` and `/validate` must compute the current `testplan.md`

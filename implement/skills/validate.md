@@ -426,17 +426,18 @@ to step 4 below.
      described scenario and assert the described outcomes.
    - Record the test file and test name for each TC ID.
 3. If any automatable TC ID lacks a corresponding test:
-   - If `testplan.md` contains `Freshness: unverified` and the Test
-     Plan Coverage in `02-plan.md` has not been confirmed by the user
-     (no "confirmed" status), do NOT write tests for the missing TCs.
-     Report the gap as provisional: "TC coverage gap — unconfirmed
-     source, not normative until confirmed." AC-based validation and
-     existing tests continue normally. Do not gate commits on
-     unconfirmed TC gaps.
-   - For confirmed TCs (user-confirmed in plan despite unverified
-     source) or verified TCs: write the missing test following
-     contract-based testing standards. Confirmed TCs are normative —
-     their gaps are real and should be filled.
+   - If the TC is NOT effectively confirmed (see criteria above:
+     hash present + current story-scoped testplan hash matches
+     recorded hash + TC ID in confirmed list) AND `testplan.md`
+     contains `Freshness: unverified`, do NOT write tests for the
+     missing TCs. Report the gap as provisional: "TC coverage gap —
+     unconfirmed source, not normative until confirmed." AC-based
+     validation and existing tests continue normally. Do not gate
+     commits on unconfirmed TC gaps.
+   - For effectively confirmed TCs or verified-source TCs: write
+     the missing test following contract-based testing standards.
+     These TCs are normative — their gaps are real and should be
+     filled.
    - Commit the test following the project's commit format.
    - Re-run Step 4 affected checks, Step 5 coverage when tests affect
      covered packages, Step 6 regression when production code changed,

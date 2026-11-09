@@ -2539,8 +2539,8 @@ class TestTCConfirmationBindingContract(unittest.TestCase):
         """Downstream consumers (validate, code) require SHA-256 binding.
 
         Reads the actual workflow markdown files and verifies each
-        consumer file exists and documents that a missing SHA-256
-        binding means the case is treated as unconfirmed."""
+        consumer file exists and contains a clause that explicitly
+        links missing SHA-256 binding to unconfirmed treatment."""
         consumers = [
             "implement/skills/validate.md",
             "implement/skills/code.md",
@@ -2553,11 +2553,26 @@ class TestTCConfirmationBindingContract(unittest.TestCase):
             self.assertTrue(path.is_file(),
                             f"{rel} is missing — consumer file must exist")
             text = path.read_text(encoding="utf-8")
+            low = text.lower()
+            # Assert the file contains both the SHA-256 binding concept
+            # and the unconfirmed consequence in the same context
             self.assertIn(
-                "unconfirmed",
-                text.lower(),
-                f"{rel} must document that missing SHA-256 binding "
-                f"means the case is treated as unconfirmed")
+                "sha-256", low,
+                f"{rel} must reference SHA-256 binding")
+            self.assertIn(
+                "unconfirmed", low,
+                f"{rel} must reference unconfirmed treatment")
+            # Assert the specific clause linking missing binding to
+            # unconfirmed — normalize whitespace for cross-line matches
+            import re as _re
+            normalized = _re.sub(r'\s+', ' ', low)
+            self.assertTrue(
+                "missing sha-256 binding" in normalized
+                or "no sha-256 recorded" in normalized
+                or "no hash recorded" in normalized
+                or "binding is missing" in normalized,
+                f"{rel} must contain a clause that missing/absent "
+                f"SHA-256 binding leads to unconfirmed treatment")
 
 
 class TestProducerConsumerContracts(unittest.TestCase):
@@ -3067,13 +3082,16 @@ class TestSnapshotGitConsumerRegressions(unittest.TestCase):
 # ===========================================================================
 
 class TestAncestorSymlinkRejection(unittest.TestCase):
-    """Symlink ancestors below the docs repo root must be rejected
-    before any artifact copy, preventing escape to outside bytes.
+    """CLI index-writer guard: symlink ancestors below the docs repo
+    root must be rejected by the transform command, preventing writes
+    that escape the trusted output directory.
 
-    The validation_index.py _safe_write_output already enforces this
-    for CLI write paths.  These tests verify the *ancestor* check
-    catches directory symlinks between the trusted root and the
-    destination — not just leaf symlinks."""
+    The validation_index.py _safe_write_output enforces this for CLI
+    write paths. These tests verify the *ancestor* check catches
+    directory symlinks between the trusted root and the destination.
+    The workflow instructions additionally require ancestor checks
+    before artifact copy (cp commands) — that is a static document
+    contract verified separately, not exercised here."""
 
     def test_feature_dir_symlink_outside_rejected(self):
         """Symlink feature directory → outside dir: transform rejects."""
@@ -3106,10 +3124,12 @@ class TestAncestorSymlinkRejection(unittest.TestCase):
 
 class TestStoryScopedHashPath(unittest.TestCase):
     """SHA-256 commands must hash the full story-scoped artifact path
-    (.artifacts/e2e/{issue-key}/testplan.md), not a CWD testplan.md.
+    (.artifacts/{workflow}/{issue-key}/testplan.md), not a CWD
+    testplan.md.
 
-    A decoy testplan.md in CWD must not affect the hash of the
-    story-scoped file."""
+    Verifies both the CLI behavior (sha256sum with story-scoped path
+    produces the correct hash) and that the documented inline commands
+    in consumer files reference story-scoped paths."""
 
     def test_decoy_testplan_does_not_affect_story_hash(self):
         """Hash of story-scoped file differs from CWD decoy."""
@@ -3137,7 +3157,7 @@ class TestStoryScopedHashPath(unittest.TestCase):
                                 "CWD decoy — instructions must hash "
                                 "the full story-scoped path")
 
-            # Also verify via actual sha256sum command
+            # Also verify via actual sha256sum command on story file
             r = subprocess.run(
                 ["sha256sum",
                  str(story_dir / "testplan.md")],
@@ -3147,6 +3167,39 @@ class TestStoryScopedHashPath(unittest.TestCase):
             self.assertEqual(cmd_hash, story_hash,
                              "sha256sum of story-scoped file must "
                              "match Python hashlib result")
+
+    def test_documented_commands_use_story_scoped_paths(self):
+        """All sha256sum commands in consumer files use story-scoped paths.
+
+        Extracts sha256sum references from the 6 plan/code/validate
+        consumer files and asserts each references .artifacts/ (the
+        story-scoped directory), not a bare testplan.md."""
+        import re
+        consumers = [
+            ("implement/skills/plan.md", "implement"),
+            ("implement/skills/code.md", "implement"),
+            ("implement/skills/validate.md", "implement"),
+            ("e2e/skills/plan.md", "e2e"),
+            ("e2e/skills/code.md", "e2e"),
+            ("e2e/skills/validate.md", "e2e"),
+        ]
+        repo_root = Path(__file__).resolve().parent.parent.parent
+        for rel, workflow in consumers:
+            path = repo_root / rel
+            self.assertTrue(path.is_file(),
+                            f"{rel} must exist as a consumer file")
+            text = path.read_text(encoding="utf-8")
+            # Find all sha256sum mentions
+            hits = [m for m in re.finditer(
+                r"sha256sum\s+([^\s`)]+)", text)]
+            if not hits:
+                continue  # File may reference SHA-256 concept only
+            for m in hits:
+                arg = m.group(1)
+                self.assertIn(
+                    ".artifacts/", arg,
+                    f"{rel}: sha256sum argument '{arg}' must use "
+                    f"story-scoped .artifacts/ path, not bare filename")
 
 
 # ===========================================================================
@@ -3300,6 +3353,126 @@ class TestDesignStagingIndependence(unittest.TestCase):
             errors = vi.validate_local_index(idx)
             self.assertEqual(errors, [],
                              f"Rebuilt index must be valid: {errors}")
+
+
+# ===========================================================================
+# 32. Gap-fill predicate uses computed effective confirmation state
+# ===========================================================================
+
+class TestGapFillPredicateUsesEffectiveState(unittest.TestCase):
+    """Static regression: both validate.md files' item 3 gap-fill
+    decision must reference the computed effective confirmation state
+    (hash present + current hash matches + TC ID listed), not just
+    the raw 'confirmed' status word.
+
+    This ensures a raw-confirmed record with a missing or stale hash
+    falls into the provisional branch, not the normative gap-fill."""
+
+    def _repo_root(self):
+        return Path(__file__).resolve().parent.parent.parent
+
+    def test_e2e_validate_gap_fill_references_effective_state(self):
+        """e2e/skills/validate.md item 3 must reference effective
+        confirmation criteria, not raw status."""
+        text = (self._repo_root() / "e2e/skills/validate.md").read_text()
+        # Find the gap-fill decision section (item 3)
+        self.assertIn(
+            "effectively confirmed",
+            text,
+            "e2e validate item 3 must reference 'effectively confirmed'")
+        # Must NOT rely solely on raw "no confirmed status"
+        self.assertNotIn(
+            'has not been confirmed (no\n     "confirmed" status)',
+            text,
+            "e2e validate must not use raw status check in gap-fill")
+
+    def test_implement_validate_gap_fill_references_effective_state(self):
+        """implement/skills/validate.md item 3 must reference effective
+        confirmation criteria, not raw status."""
+        text = (self._repo_root() / "implement/skills/validate.md").read_text()
+        self.assertIn(
+            "effectively confirmed",
+            text,
+            "implement validate item 3 must reference 'effectively confirmed'")
+        self.assertNotIn(
+            'has not been confirmed by the user\n     (no "confirmed" status)',
+            text,
+            "implement validate must not use raw status check in gap-fill")
+
+
+# ===========================================================================
+# 33. Removal preflight before artifact copy in publish/respond/revise
+# ===========================================================================
+
+class TestRemovalPreflightOrder(unittest.TestCase):
+    """Static regression: publish, respond, and revise must compute
+    removal diffs and obtain user confirmation BEFORE copying current
+    artifacts to the docs repo (overwriting published files).
+
+    Verifies the candidate-published-index preflight appears before
+    the cp/copy command in each sync section."""
+
+    def _repo_root(self):
+        return Path(__file__).resolve().parent.parent.parent
+
+    def _assert_preflight_before_copy(self, rel):
+        text = (self._repo_root() / rel).read_text()
+        preflight_pos = text.find("candidate-published-index.json")
+        self.assertGreater(
+            preflight_pos, -1,
+            f"{rel} must contain candidate-published-index preflight")
+        # Find the validation artifact copy command (uses {local} and
+        # {published_as} placeholders, distinct from the design doc
+        # copy which uses literal filenames)
+        copy_pos = text.find('{local}')
+        self.assertGreater(
+            copy_pos, -1,
+            f"{rel} must contain validation artifact copy command")
+        self.assertLess(
+            preflight_pos, copy_pos,
+            f"{rel}: removal preflight (candidate transform + diff) "
+            f"must appear BEFORE validation artifact copy commands")
+
+    def test_publish_preflight_order(self):
+        self._assert_preflight_before_copy("design/skills/publish.md")
+
+    def test_respond_preflight_order(self):
+        self._assert_preflight_before_copy("design/skills/respond.md")
+
+    def test_revise_preflight_order(self):
+        self._assert_preflight_before_copy("design/skills/revise.md")
+
+
+# ===========================================================================
+# 34. Respond empty-set retirement via absent sources, not invalid index
+# ===========================================================================
+
+class TestRespondEmptySetRetirementRoute(unittest.TestCase):
+    """Static regression: respond.md zero-artifact retirement path must
+    describe the case where resolve succeeds with empty [] because both
+    index AND legacy primary are absent — not a present but empty/invalid
+    index (which hits the resolve failure stop)."""
+
+    def test_empty_set_describes_absent_sources(self):
+        repo_root = Path(__file__).resolve().parent.parent.parent
+        text = (repo_root / "design/skills/respond.md").read_text()
+        # Find the zero-artifact retirement section
+        section_start = text.find("zero** artifacts")
+        self.assertGreater(section_start, -1,
+                           "Must contain zero-artifacts section")
+        section = text[section_start:section_start + 800]
+        low = section.lower()
+        # Must clarify this is from resolved empty [], not present
+        # invalid index
+        self.assertTrue(
+            "resolve" in low or "absent" in low,
+            "Zero-artifact section must reference resolve/absent "
+            "sources, not present invalid index")
+        # Must explicitly exclude present but malformed index
+        self.assertTrue(
+            "malformed" in low or "not this case" in low,
+            "Must clarify that present malformed/invalid index "
+            "is NOT this case")
 
 
 if __name__ == "__main__":
