@@ -10040,6 +10040,72 @@ class TestCascadeClosurePreview(_TmpDirMixin, unittest.TestCase):
         self.assertEqual(len(data["cascades"]), 1)
         self.assertEqual(data["cascades"][0]["jira_key"], "EDM-201")
 
+    def test_approved_union_covers_individual_plus_cascade(self) -> None:
+        """Counterexample: removed parent EDM-101, individually removed
+        active child EDM-201, unchanged active child EDM-202.
+
+        compute_cascade_closures returns only {EDM-202} (excludes
+        individually removed child).  detect_changes items list
+        EDM-201 as 'removed'.  The approved union is {EDM-201, EDM-202}.
+        Both EDM-201 and EDM-202 are manifest-active at Step 5c time.
+
+        Confirms the data supports the union: individually listed
+        children + cascade supplement = full approved scope.
+        """
+        _make_epic(self.stories_dir, 1, "building", removed=True)
+        sf1 = _make_dev_story(self.stories_dir, 1, 1, "scaffold",
+                              removed=True)
+        sf2 = _make_dev_story(self.stories_dir, 1, 2, "also-active")
+        sf2_hash = sync_helper.compute_file_hash(sf2)
+        manifest_data = [{
+            "file": "epic-1-building.md", "jira_key": "EDM-101",
+            "content_hash": "oldhash", "synced_status": "active",
+            "stories": [
+                {"file": "story-01-scaffold.md", "jira_key": "EDM-201",
+                 "content_hash": "oldhash", "synced_status": "active"},
+                {"file": "story-02-also-active.md", "jira_key": "EDM-202",
+                 "content_hash": sf2_hash, "synced_status": "active"},
+            ],
+        }]
+        _make_manifest(self.artifacts, manifest_data)
+        manifest = sync_helper.load_manifest(
+            self.artifacts / "sync-manifest.json")
+        plan = sync_helper.detect_changes(self.artifacts)
+
+        # EDM-201 is individually listed as 'removed' in items
+        individually_removed = {
+            i["jira_key"] for i in plan["items"]
+            if i["type"] == "story" and i["category"] == "removed"
+        }
+        self.assertIn("EDM-201", individually_removed)
+
+        # cascade returns only EDM-202 (excludes individually removed)
+        result = sync_helper.compute_cascade_closures(
+            plan["items"], manifest)
+        cascade_keys = {c["jira_key"] for c in result["cascades"]}
+        self.assertEqual(cascade_keys, {"EDM-202"})
+        self.assertNotIn("EDM-201", cascade_keys,
+                         "Individually removed child excluded from cascade")
+
+        # The approved union = individual + cascade = {EDM-201, EDM-202}
+        approved_union = individually_removed | cascade_keys
+        self.assertEqual(approved_union, {"EDM-201", "EDM-202"})
+
+        # Manifest-active children = {EDM-201, EDM-202}
+        manifest_active = {
+            s["jira_key"] for e in manifest["epics"]
+            if e["file"] == "epic-1-building.md"
+            for s in e.get("stories", [])
+            if s.get("synced_status", "active") == "active"
+        }
+        self.assertEqual(manifest_active, {"EDM-201", "EDM-202"})
+
+        # Guard must pass: manifest_active ⊆ approved_union
+        self.assertTrue(
+            manifest_active <= approved_union,
+            "Manifest-active children must be a subset of the approved "
+            "union (individual + cascade), not just cascade-only")
+
 
 class TestCascadePreviewContract(unittest.TestCase):
     """Step 3 preview must include cascade closures (R2)."""
@@ -10594,10 +10660,19 @@ class TestCascadeScopeGuardContract(unittest.TestCase):
         """Step 5c has a cascade scope guard before child writes."""
         self.assertIn("Cascade scope guard", self._step5c)
 
-    def test_guard_compares_approved_set(self) -> None:
-        """Guard compares against approved cascade set."""
-        self.assertIn("approved", self._step5c.lower())
-        self.assertIn("compute-cascade-closures", self._step5c)
+    def test_guard_compares_approved_union(self) -> None:
+        """Guard compares against the full union of individually listed
+        children and supplemental cascade closures."""
+        flat = " ".join(self._step5c.split())
+        self.assertIn("union", flat.lower())
+        self.assertIn("compute-cascade-closures", flat)
+        self.assertIn("individually listed", flat.lower())
+
+    def test_guard_uses_subset_not_exact_match(self) -> None:
+        """Guard checks remaining active children are a subset of
+        approved union — not exact equality to cascade-only set."""
+        flat = " ".join(self._step5c.lower().split())
+        self.assertIn("subset", flat)
 
     def test_guard_stops_on_expansion(self) -> None:
         """Guard STOPs if new unapproved children would expand writes."""
@@ -10618,6 +10693,150 @@ class TestCascadeScopeGuardContract(unittest.TestCase):
     def test_checkpoint_recovery_preserved(self) -> None:
         """Close-checkpoint recovery rule still present."""
         self.assertIn("close-checkpoint recovery", self._step5c.lower())
+
+
+# ---------------------------------------------------------------------------
+# FIX2: Unknown parent identity diagnostic (plan-creation-order)
+# ---------------------------------------------------------------------------
+
+class TestInvalidParentIdentity(_TmpDirMixin, unittest.TestCase):
+    """plan-creation-order must reject actionable items with
+    unparseable parent identity rather than silently dropping them.
+
+    Counterexample: a story under ``epic-abc/story-01-docs.md`` has
+    ``source_active: True`` (fresh sync) but ``epic_index: None``.
+    plan-creation-order previously dropped it silently; now it must
+    report a structural error.
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.artifacts = Path(self.tmpdir) / "art"
+        self.stories_dir = self.artifacts / "06-stories"
+        self.stories_dir.mkdir(parents=True)
+
+    def test_fresh_nonnumeric_parent_source_active_false(self) -> None:
+        """Fresh sync: story under epic-abc/ gets source_active False."""
+        # Create a non-numeric epic dir with a story
+        _make_epic(self.stories_dir, 1, "real")
+        nonnumeric_dir = self.stories_dir / "epic-abc"
+        nonnumeric_dir.mkdir(parents=True)
+        story_path = nonnumeric_dir / "story-01-docs.md"
+        story_path.write_text(
+            "---\n---\n# Story abc.01: [DOCS] API docs\n\n"
+            "As a writer I want to document the API.\n\n"
+            "## Acceptance Criteria\n\nDocs complete\n\n"
+            "## Documentation Scope\n\nAPI reference.\n\n"
+            "## Dependencies\n\nNone\n\n"
+            "## Design Reference\n\n"
+            "- Epic: Epic abc\n",
+            encoding="utf-8",
+        )
+        result = sync_helper.detect_changes(self.artifacts)
+        # Find the story under epic-abc
+        abc_stories = [
+            i for i in result["items"]
+            if i["type"] == "story" and i["file"].startswith("epic-abc/")
+        ]
+        self.assertEqual(len(abc_stories), 1)
+        self.assertIsNone(abc_stories[0]["epic_index"])
+        self.assertFalse(
+            abc_stories[0]["source_active"],
+            "Story under non-numeric parent must NOT be source_active")
+
+    def test_plan_creation_order_reports_nonnumeric_parent(self) -> None:
+        """plan-creation-order emits error for actionable story with
+        unparseable parent — does not silently drop planned work."""
+        _make_epic(self.stories_dir, 1, "real")
+        nonnumeric_dir = self.stories_dir / "epic-abc"
+        nonnumeric_dir.mkdir(parents=True)
+        story_path = nonnumeric_dir / "story-01-docs.md"
+        story_path.write_text(
+            "---\n---\n# Story abc.01: [DOCS] API docs\n\n"
+            "As a writer I want to document the API.\n\n"
+            "## Acceptance Criteria\n\nDocs complete\n\n"
+            "## Documentation Scope\n\nAPI reference.\n\n"
+            "## Dependencies\n\nNone\n\n"
+            "## Design Reference\n\n"
+            "- Epic: Epic abc\n",
+            encoding="utf-8",
+        )
+        plan = sync_helper.detect_changes(self.artifacts)
+        result = sync_helper.plan_creation_order(
+            plan["items"], str(self.artifacts), None)
+        # Must report error for the non-numeric parent story
+        self.assertTrue(
+            result["errors"],
+            "plan-creation-order must report errors for stories "
+            "with unparseable parent identity")
+        error_text = " ".join(result["errors"])
+        self.assertIn("epic-abc", error_text,
+                       "Error must name the problematic parent")
+
+    def test_plan_creation_order_cli_nonnumeric_parent_exit1(self) -> None:
+        """CLI plan-creation-order exits 1 for non-numeric parent story."""
+        _make_epic(self.stories_dir, 1, "real")
+        nonnumeric_dir = self.stories_dir / "epic-abc"
+        nonnumeric_dir.mkdir(parents=True)
+        story_path = nonnumeric_dir / "story-01-docs.md"
+        story_path.write_text(
+            "---\n---\n# Story abc.01: [DOCS] API docs\n\n"
+            "As a writer I want to document the API.\n\n"
+            "## Acceptance Criteria\n\nDocs complete\n\n"
+            "## Documentation Scope\n\nAPI reference.\n\n"
+            "## Dependencies\n\nNone\n\n"
+            "## Design Reference\n\n"
+            "- Epic: Epic abc\n",
+            encoding="utf-8",
+        )
+        out = StringIO()
+        with mock.patch("sys.stdout", out):
+            exit_code = sync_helper.main([
+                "plan-creation-order", str(self.artifacts)])
+        self.assertEqual(exit_code, 1,
+                         "CLI must exit 1 when errors are present")
+        data = json.loads(out.getvalue())
+        self.assertTrue(data["errors"])
+
+    def test_unchanged_story_under_nonnumeric_not_error(self) -> None:
+        """Non-actionable (unchanged/orphaned) stories with non-numeric
+        parent are NOT flagged as identity errors — this preserves
+        legitimate orphan cleanup and closed manifest recovery."""
+        _make_epic(self.stories_dir, 1, "real")
+        manifest_data = [{
+            "file": "epic-1-real.md", "jira_key": "EDM-101",
+            "content_hash": sync_helper.compute_file_hash(
+                self.stories_dir / "epic-1-real.md"),
+            "synced_status": "active",
+            "stories": [],
+        }]
+        _make_manifest(self.artifacts, manifest_data)
+        plan = sync_helper.detect_changes(self.artifacts)
+        # Inject a synthetic unchanged story with None epic_index
+        # (simulates an orphan/closed manifest entry)
+        plan["items"].append({
+            "file": "epic-old/story-01-legacy.md",
+            "type": "story",
+            "category": "unchanged",
+            "title": "Legacy",
+            "epic_index": None,
+            "story_index": 1,
+            "jira_key": "EDM-301",
+            "content_hash": "h",
+            "old_hash": "h",
+            "synced_status": "active",
+            "source_active": False,
+        })
+        manifest = sync_helper.load_manifest(
+            self.artifacts / "sync-manifest.json")
+        result = sync_helper.plan_creation_order(
+            plan["items"], str(self.artifacts), manifest)
+        # No identity errors for unchanged/non-actionable items
+        identity_errs = [e for e in result["errors"]
+                         if "qualified ID" in e]
+        self.assertEqual(
+            len(identity_errs), 0,
+            "Non-actionable stories must NOT cause identity errors")
 
 
 if __name__ == "__main__":

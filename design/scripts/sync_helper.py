@@ -561,7 +561,7 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
                 "content_hash": compute_file_hash(sf),
                 "old_hash": None,
                 "synced_status": None,
-                "source_active": True,
+                "source_active": epic_idx is not None,
             })
 
         summary = _compute_summary(items)
@@ -1196,14 +1196,25 @@ def plan_creation_order(
     if manifest:
         available = _build_ref_lookup(manifest)
 
-    # Index items by qualified story ID; record existing keys
+    # Index items by qualified story ID; record existing keys.
+    # Actionable items (new/changed/reopened) with unparseable parent
+    # identity are structural errors — report them rather than
+    # silently dropping planned work.
     item_by_id: dict[str, dict[str, Any]] = {}
+    identity_errors: list[str] = []
     for item in items:
         if item.get("type") != "story":
             continue
         eidx = item.get("epic_index")
         sidx = item.get("story_index")
         if eidx is None or sidx is None:
+            cat = item.get("category", "")
+            if cat in ("new", "changed", "reopened"):
+                identity_errors.append(
+                    f"story '{item.get('file', '?')}' has no valid "
+                    f"qualified ID (epic_index={eidx}, "
+                    f"story_index={sidx}) — cannot plan Jira "
+                    f"operations for this item")
             continue
         qid = f"story-{eidx}.{sidx:02d}"
         item_by_id[qid] = item
@@ -1222,7 +1233,7 @@ def plan_creation_order(
         return candidate if candidate.is_file() else None
 
     # ── Extract required refs from a story artifact ─────────────
-    errors: list[str] = []
+    errors: list[str] = list(identity_errors)
     # Track stories with unreadable/missing source files
     unreadable_sources: set[str] = set()
     # Track native Jira keys per story for self-reference detection

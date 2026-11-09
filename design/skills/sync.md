@@ -506,16 +506,21 @@ retry or skip.
 #### 5c: Close Removed and Selected Orphaned Epics
 
 **Cascade scope guard.** Before starting child closures, verify
-that the set of manifest-active children under each closing parent
-matches the cascade closures approved in the Step 3 preview. Re-read
-the manifest and compare against the approved cascade set (from
-`compute-cascade-closures`). If new manifest-active children
-appeared since approval (e.g., a concurrent operation added a child
-between approval and execution), **stop** and require a fresh
-preview/approval cycle — do not silently expand the approved writes.
-Children whose manifest entry already has `synced_status: "closed"`
-(from a resumed partial cascade) may be skipped per the resume rule
-below.
+that each closing parent's manifest-active children are within the
+approved scope. The approved scope for each parent is the **union**
+of: (a) children individually listed as To Close in the Step 3
+preview (category `"removed"` under this parent), and (b) the
+supplemental cascade closures from `compute-cascade-closures`. Build
+this per-parent union from the approved change plan and cascade data.
+Re-read the manifest and collect the set of `synced_status: "active"`
+children under each closing parent. Verify that these remaining
+active children are a **subset** of the approved union — children
+whose manifest entry already has `synced_status: "closed"` (from a
+resumed partial cascade) are no longer active and need not appear.
+If any manifest-active child is **not** in the approved union (e.g.,
+a concurrent operation added a child between approval and execution),
+**stop** and require a fresh preview/approval cycle — do not silently
+expand the approved writes.
 
 For each epic categorized as **Removed** (file has `status: removed`)
 or **Orphaned** where the user chose to close it in Step 1:
