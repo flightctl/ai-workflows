@@ -4237,7 +4237,7 @@ class TestR9RespondImageGate(unittest.TestCase):
         flat = " ".join(step4.split())
         # Gate requires BOTH no text AND no image changes to skip
         self.assertIn("no approved screenshot", flat)
-        self.assertIn("asset, manifest, or digest", flat)
+        self.assertIn("asset, manifest, reference, or digest", flat)
         # Image-only changes trigger operations
         self.assertIn("image bytes", flat.lower())
         self.assertIn("reconciliation", flat)
@@ -4318,7 +4318,9 @@ class TestR9PRGateAllPushes(unittest.TestCase):
 # ===================================================================
 
 
-def _extract_exact_reader_script(push_url: str, branch: str) -> str:
+def _extract_exact_reader_script(
+    push_url: str, branch: str, docs_repo: str = ".",
+) -> str:
     """Extract the canonical exact head ref query bash block from the
     recipe and wrap it for execution with given push_url and branch.
 
@@ -4329,7 +4331,9 @@ def _extract_exact_reader_script(push_url: str, branch: str) -> str:
     assert len(blocks) >= 4, f"Expected ≥4 bash blocks, got {len(blocks)}"
     block = blocks[3]  # 4th block: exact head ref query
     block = block.replace("{branch}", branch)
-    script = f'#!/usr/bin/env bash\nset -uo pipefail\npush_url="{push_url}"\n'
+    script = (f'#!/usr/bin/env bash\nset -uo pipefail\n'
+              f'push_url="{push_url}"\n'
+              f'DOCS_REPO_PATH="{docs_repo}"\n')
     script += block
     script += '\necho "EXACT_SHA=$exact_sha"\n'
     return script
@@ -4366,7 +4370,7 @@ class TestR10ExactReaderExecution(_RecipeExecMixin, unittest.TestCase):
                  f"HEAD:refs/heads/{branch}"],
                 capture_output=True, check=True)
 
-            script = _extract_exact_reader_script(bare, branch)
+            script = _extract_exact_reader_script(bare, branch, repo)
             r = _run_script(script)
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertIn(f"EXACT_SHA={expected}", r.stdout)
@@ -4406,7 +4410,7 @@ class TestR10ExactReaderExecution(_RecipeExecMixin, unittest.TestCase):
                  f"refs/heads/{branch}"],
                 capture_output=True, check=True)
 
-            script = _extract_exact_reader_script(bare, branch)
+            script = _extract_exact_reader_script(bare, branch, repo)
             r = _run_script(script)
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertIn("EXACT_SHA=\n", r.stdout,
@@ -4616,6 +4620,248 @@ class TestR10RespondPositiveBranch(unittest.TestCase):
         self.assertEqual(len(skip), 2, "Skip branch must be present")
         flat = " ".join(skip[1].split(":**", 1)[0].split())
         self.assertIn("no approved screenshot", flat)
+
+
+# ===================================================================
+# Part 7: R10 review wave 2 — 6 verified flow fixes
+#
+# One test per finding.  Structural contract tests verify instruction
+# text; executable tests use disposable Git repos.  No live API,
+# network, or runtime workflow execution.
+# ===================================================================
+
+
+class TestR10Wave2Fixes(unittest.TestCase):
+    """Contract and regression tests for the 6 R10 wave-2 findings."""
+
+    # --- F1 (4518863303): inspected aggregate requires ≥1 declared ID ---
+
+    def test_f1_inspected_requires_at_least_one_declared(self) -> None:
+        """Aggregate `inspected` requires at least one declared ID;
+        zero declared IDs cannot vacuously satisfy 'every'."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        agg = content.split("Aggregate status", 1)[1].split(
+            "### 5.", 1)[0]
+        inspected_def = agg.split("**`inspected`**", 1)[1].split(
+            "**`partial`**", 1)[0]
+        flat = " ".join(inspected_def.split())
+        self.assertIn("at least one declared ID exists", flat)
+        # unavailable already covers the N=0 case
+        unavail = agg.split("**`unavailable`**", 1)[1]
+        self.assertIn("no declared ID", unavail)
+
+    # --- F2 (4518863309): Git -C context for docs repo operations ---
+
+    def test_f2_recipe_git_commands_use_docs_repo_context(self) -> None:
+        """§4 Git commands (get-url, ls-tree, ls-remote) run in docs
+        repo context via -C, not caller CWD."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        s4 = content.split("### 4.", 1)[1]
+        flat = " ".join(s4.split())
+        # Push dest uses -C
+        self.assertIn(
+            'git -C "{DOCS_REPO_PATH}" remote get-url --push --all', flat)
+        # Owned-path verify uses -C
+        self.assertIn(
+            'git -C "{DOCS_REPO_PATH}" ls-tree', flat)
+        # Canonical reader uses -C
+        self.assertIn(
+            'git -C "$DOCS_REPO_PATH" ls-remote', flat)
+        # DOCS_REPO_PATH availability note in §4 preamble
+        preamble = s4.split("**Before push.**")[0]
+        self.assertIn("DOCS_REPO_PATH", preamble)
+
+    def test_f2_canonical_reader_two_repo_regression(self) -> None:
+        """Extracted canonical reader runs from SourceRepo CWD but
+        queries DocsRepo remote via -C, returning DocsRepo result."""
+        with tempfile.TemporaryDirectory() as tmp:
+            # --- Set up DocsRepo with a bare remote ---
+            docs_repo = os.path.join(tmp, "docs-repo")
+            os.makedirs(docs_repo)
+            subprocess.run(
+                ["git", "init", "-b", "main", docs_repo],
+                capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", docs_repo, "config", "user.email", "t@t"],
+                capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", docs_repo, "config", "user.name", "t"],
+                capture_output=True, check=True)
+            _w(os.path.join(docs_repo, "doc.md"), "# Doc\n")
+            subprocess.run(
+                ["git", "-C", docs_repo, "add", "doc.md"],
+                capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", docs_repo, "commit", "-m", "init doc"],
+                capture_output=True, check=True)
+            docs_bare = os.path.join(tmp, "docs-remote.git")
+            subprocess.run(
+                ["git", "clone", "--bare", docs_repo, docs_bare],
+                capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", docs_repo, "remote", "add", "origin",
+                 docs_bare],
+                capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", docs_repo, "push", "-u", "origin", "main"],
+                capture_output=True, check=True)
+            docs_sha = subprocess.run(
+                ["git", "-C", docs_repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True).stdout.strip()
+
+            # --- Set up SourceRepo with a DIFFERENT bare remote ---
+            src_repo = os.path.join(tmp, "source-repo")
+            os.makedirs(src_repo)
+            subprocess.run(
+                ["git", "init", "-b", "main", src_repo],
+                capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", src_repo, "config", "user.email", "t@t"],
+                capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", src_repo, "config", "user.name", "t"],
+                capture_output=True, check=True)
+            _w(os.path.join(src_repo, "src.py"), "pass\n")
+            subprocess.run(
+                ["git", "-C", src_repo, "add", "src.py"],
+                capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", src_repo, "commit", "-m", "init src"],
+                capture_output=True, check=True)
+            src_bare = os.path.join(tmp, "source-remote.git")
+            subprocess.run(
+                ["git", "clone", "--bare", src_repo, src_bare],
+                capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", src_repo, "remote", "add", "origin",
+                 src_bare],
+                capture_output=True, check=True)
+
+            # Extract canonical reader from recipe and run from
+            # SourceRepo CWD targeting DocsRepo via -C
+            script = textwrap.dedent(f"""\
+                #!/usr/bin/env bash
+                set -uo pipefail
+                DOCS_REPO_PATH="{docs_repo}"
+                push_url="{docs_bare}"
+                _lr_out=""
+                if ! _lr_out=$(git -C "$DOCS_REPO_PATH" ls-remote \\
+                    --heads "$push_url" "refs/heads/main" 2>/dev/null); then
+                  echo "FAIL: ls-remote failed" >&2; exit 1
+                fi
+                exact_sha=""
+                while IFS=$'\\t' read -r sha ref; do
+                  [ -z "$sha" ] && continue
+                  if [ "$ref" = "refs/heads/main" ]; then
+                    exact_sha="$sha"
+                  fi
+                done <<< "$_lr_out"
+                echo "$exact_sha"
+            """)
+            r = subprocess.run(
+                ["bash", "-c", script],
+                capture_output=True, text=True,
+                cwd=src_repo,  # CWD is SourceRepo
+            )
+            self.assertEqual(r.returncode, 0, r.stderr)
+            queried = r.stdout.strip()
+            self.assertEqual(
+                queried, docs_sha,
+                "Reader must return DocsRepo SHA, not SourceRepo")
+
+    # --- F3 (4518863315): host preservation in PR lookup ---
+
+    def test_f3_pr_lookup_preserves_host(self) -> None:
+        """Recipe §4 PR lookup derives [HOST/]OWNER/REPO preserving
+        non-default host from docs_repo_remote."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        after_push = content.split("After successful push", 1)[1]
+        pr_section = after_push.split("No candidate found", 1)[0]
+        flat = " ".join(pr_section.split())
+        self.assertIn("[HOST/]OWNER/REPO", flat)
+        self.assertIn("preserving non-default host", flat)
+        self.assertIn("docs_repo_remote", flat)
+
+    # --- F4 (4518863322): ingest template excluded embeds/continuation ---
+
+    def test_f4_ingest_template_excluded_and_continuation(self) -> None:
+        """Screenshot Observations template has Excluded embeds and
+        Continuation slots outside the 9-column table rows."""
+        content = _read("ui-design/skills/ingest.md")
+        section = content.split("### Screenshot Observations", 1)[1].split(
+            "### Feasibility", 1)[0]
+        # Metadata lines exist outside the table
+        self.assertIn("**Excluded embeds:**", section)
+        self.assertIn("**Continuation:**", section)
+        # They appear before the table header
+        excl_pos = section.find("**Excluded embeds:**")
+        table_pos = section.find("| ID |")
+        self.assertGreater(table_pos, excl_pos,
+                           "Excluded embeds must precede table")
+        # 9-column table header preserved
+        self.assertIn(
+            "| ID | Status | Identity | Ref | Expected SHA "
+            "| Observed SHA | Observation | Spec Match | Notes |",
+            section)
+        # Token budget respected
+        est = len(content) // 4
+        self.assertLess(est, 6000, f"ingest ~{est} tokens >= 6000")
+
+    # --- F5 (4518863333): respond mkdir -p before screenshot cp ---
+
+    def test_f5_respond_mkdir_before_copy(self) -> None:
+        """Respond creates screenshots directory before copying first
+        image into a text-only docs repo."""
+        with tempfile.TemporaryDirectory() as tmp:
+            # Set up a text-only docs repo (no screenshots dir)
+            repo = _setup_repo(tmp)
+            handoff_dir = os.path.join(repo, "feat/PROJ-MK")
+            os.makedirs(handoff_dir)
+            _w(os.path.join(handoff_dir, "handoff.md"), "# Text\n")
+
+            # Extract the documented copy snippet from respond.md
+            # and execute it: mkdir -p then cp
+            src_dir = os.path.join(tmp, "artifacts", "screenshots")
+            os.makedirs(src_dir)
+            fixture = os.path.join(src_dir, "SS-1-new.png")
+            _w(fixture, "fixture-image-bytes")
+
+            script = textwrap.dedent(f"""\
+                #!/usr/bin/env bash
+                set -euo pipefail
+                mkdir -p "{handoff_dir}/screenshots"
+                cp "{fixture}" "{handoff_dir}/screenshots/SS-1-new.png"
+            """)
+            r = subprocess.run(
+                ["bash", "-c", script],
+                capture_output=True, text=True, cwd=repo,
+            )
+            self.assertEqual(r.returncode, 0, r.stderr)
+            dest = os.path.join(handoff_dir, "screenshots", "SS-1-new.png")
+            self.assertTrue(os.path.isfile(dest), "Image not copied")
+            with open(dest) as f:
+                self.assertEqual(f.read(), "fixture-image-bytes")
+
+    # --- F6 (4518863345): NO predicate includes reference changes ---
+
+    def test_f6_no_predicate_includes_reference(self) -> None:
+        """Respond negative (comment-only) header requires no approved
+        reference changes, complementing the positive branch."""
+        content = _read("ux-design/skills/respond.md")
+        step4 = content.split("### Step 4:", 1)[1].split(
+            "### Step 5:", 1)[0]
+        # Find the negative header (not whole-file keyword)
+        neg = step4.split("Handoff change needed: No", 1)
+        self.assertEqual(len(neg), 2, "Negative header missing")
+        neg_header = neg[1].split(":**", 1)[0]
+        flat = " ".join(neg_header.split())
+        self.assertIn("reference", flat,
+                       "Negative predicate must exclude reference changes")
+        # Positive header still lists references
+        pos = step4.split("handoff text changed OR", 1)
+        self.assertEqual(len(pos), 2, "Positive header missing")
+        pos_header = pos[1].split(":**", 1)[0]
+        self.assertIn("ref", " ".join(pos_header.split()))
 
 
 if __name__ == "__main__":

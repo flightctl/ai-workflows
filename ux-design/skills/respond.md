@@ -68,7 +68,9 @@ applying review feedback and recommend `/handoff` to regenerate it. Resume
 `/respond` after the updated handoff is approved so reviewer feedback is applied
 to the current design context.
 
-Determine `{owner}/{repo}` from the config's `docs_repo_remote`.
+Derive validated `{repo_identifier}` in `[HOST/]OWNER/REPO` form
+from `docs_repo_remote`, preserving non-default host and port.
+Use this identifier for all PR lookup, view, and reply operations.
 
 Resolve `{AI_WORKFLOWS_ROOT}` as the git root of the ai-workflows install
 (typically `git rev-parse --show-toplevel` from the workflow directory, or
@@ -225,6 +227,7 @@ Otherwise, apply the same validation and storage gates as `/publish`:
    authoring manifest:
 
    ```bash
+   mkdir -p "{docs_repo_path}/{handoff_dir}/screenshots"
    cp ".artifacts/ux-design/{issue-key}/screenshots/{filename}" \
       "{docs_repo_path}/{handoff_dir}/screenshots/{filename}"
    ```
@@ -304,7 +307,7 @@ committed but the push failed, this retries without re-running the
 removal/copy steps.
 
 Re-resolve the effective push destination
-(`git remote get-url --push --all origin`) and verify its canonical
+(`git -C "{docs_repo_path}" remote get-url --push --all origin`) and verify its canonical
 identity matches `pending_attempt.push_destination` before pushing.
 Push with the explicit remote and recorded branch refspec — do not
 rely on `push.default`, `branch.*.pushRemote`, or
@@ -325,7 +328,7 @@ and re-finalize from its candidate values — never from the mutable
 authoring manifest. Do not create a new commit.
 
 **If "Handoff change needed: No" AND no approved screenshot
-asset, manifest, or digest changes:**
+asset, manifest, reference, or digest changes:**
 
 Skip the git operations above — both the handoff text and all
 screenshot assets are unchanged. The response is comment-only.

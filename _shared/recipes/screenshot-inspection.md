@@ -272,8 +272,9 @@ appears exactly once in the output.
 
 Compute the aggregate screenshot status after all §2–§4 processing:
 
-- **`inspected`** — every declared ID has `status: inspected` AND
-  no unmatched body embeds were excluded.
+- **`inspected`** — at least one declared ID exists, every declared
+  ID has `status: inspected`, AND no unmatched body embeds were
+  excluded.
 - **`partial`** — at least one declared ID has `status: inspected`,
   but any declared ID has non-inspected status OR unmatched body
   embeds were excluded with user authorization. Partial applies

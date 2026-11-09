@@ -461,11 +461,13 @@ structure:
 - **Manifest revision:** {context_revision from manifest, or "N/A"}
 - **Manifest iteration:** {prototype_iteration from manifest, or "N/A"}
 
-{If `inspected`/`partial`: one row per image per the inspection recipe schema.}
+- **Excluded embeds:** {excluded unmatched embed IDs with ref/reason, or "None"}
+- **Continuation:** {continuation decision/scope, or "N/A"}
+
+{`inspected`/`partial`: one row per declared ID per inspection recipe.}
 
 | ID | Status | Identity | Ref | Expected SHA | Observed SHA | Observation | Spec Match | Notes |
 |----|--------|----------|-----|-------------|-------------|-------------|------------|-------|
-| SS-1 | inspected | verified | `screenshots/SS-1-desc.png` | `a1b2…` | `a1b2…` | {layout, state} | Yes/No | — |
 
 {`none`/`deferred`/`unavailable`: one-line reason and per-image status.}
 

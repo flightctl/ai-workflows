@@ -138,7 +138,10 @@ removal (handoff + removed manifest + removed images) identically.
 
 Callers (`/publish` Step 8, `/respond` push section) follow this
 protocol to ensure push failures are recoverable without re-deriving
-ownership or adopting unknown ahead commits.
+ownership or adopting unknown ahead commits. All Git commands in §4
+operate on the docs repo; `DOCS_REPO_PATH` must be available as the
+recipe's declared input (carried from §1–§3, or explicitly supplied
+on standalone snapshot/retry/post-verify paths).
 
 **Before push.** Write a `pending_attempt` object into
 `publish-metadata.json`, preserving all existing fields:
@@ -183,7 +186,7 @@ state; do not fabricate paths or use placeholders.
 
 **Push destination validation.** Before recording `expected_base` or
 pushing, resolve effective push destination(s):
-`git remote get-url --push --all origin`. This expands `pushInsteadOf`
+`git -C "{DOCS_REPO_PATH}" remote get-url --push --all origin`. This expands `pushInsteadOf`
 rules to reveal actual targets. Validate:
 
 1. Exactly one push URL exists (single approved destination).
@@ -220,7 +223,7 @@ push, apply these checks in order:
 2. **Owned-path verification.** For each of `handoff_file_path`,
    `upstream_prd_path`, and `upstream_design_path` (when present),
    verify at `commit_sha` via
-   `git ls-tree "$commit_sha" -- "$path"`: the entry must exist
+   `git -C "{DOCS_REPO_PATH}" ls-tree "$commit_sha" -- "$path"`: the entry must exist
    with mode `100644` or `100755` (regular file — never `120000`
    symlink or `040000` tree). `cat-file -e` alone is insufficient
    because it accepts trees and symlinks. Verify expected basenames
@@ -241,7 +244,7 @@ push, apply these checks in order:
 # Checked capture: a failed query is UNKNOWN and must exit nonzero,
 # never treated as empty/absent. Redact credential-bearing errors.
 _lr_out=""
-if ! _lr_out=$(git ls-remote --heads "$push_url" "refs/heads/{branch}" 2>/dev/null); then
+if ! _lr_out=$(git -C "$DOCS_REPO_PATH" ls-remote --heads "$push_url" "refs/heads/{branch}" 2>/dev/null); then
   echo "Error: ls-remote query failed; cannot determine remote branch state" >&2
   exit 1
 fi
@@ -310,8 +313,10 @@ pre-push value) and verify `exact_sha` equals
    Closed, merged, changed head, changed base, missing PR, or
    unavailable tool → stop without writing final metadata; retain
    `pending_attempt`.
-   For a new PR (`pr_number` is `null`): derive `{owner}/{repo}` from
-   `docs_repo_remote`, then look up PRs in **all states** by
+   For a new PR (`pr_number` is `null`): derive validated
+   `[HOST/]OWNER/REPO` from the frozen `docs_repo_remote`,
+   preserving non-default host and port, then look up PRs in
+   **all states** by
    canonical head repository and head `branch` only — **without**
    filtering by `base_branch`. For each candidate, verify the PR's
    head repository matches the canonical `{host}/{owner}/{repo}`
