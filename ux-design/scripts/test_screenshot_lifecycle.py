@@ -1814,13 +1814,17 @@ class TestCommitPathsAndPendingAttempt(unittest.TestCase):
         self.assertIn("Already pushed", flat)
 
     def test_pending_attempt_initial_synced_base(self) -> None:
-        """Initial new attempt requires known synced base."""
+        """Initial new attempt resolves push destination and snapshots
+        expected_base via ls-remote against validated push URL."""
         content = _read("_shared/recipes/screenshot-publish-stage.md")
         section = content.split("Initial new attempt", 1)[1].split(
             "After successful push", 1
         )[0]
         flat = " ".join(section.split())
         self.assertIn("known synced base", flat)
+        self.assertIn("validated push URL", flat)
+        self.assertIn("ls-remote", flat)
+        self.assertNotIn("origin/{branch}", flat)
 
     def test_pending_attempt_finalize_after_verify(self) -> None:
         """Metadata finalized from candidate values after remote SHA verify;
@@ -2466,13 +2470,13 @@ class TestR5HeadRepoIdentity(unittest.TestCase):
     """2420: PR lookup requires full head repository identity match."""
 
     def test_head_repo_match_in_pr_lookup(self) -> None:
-        """PR lookup verifies head repository, not just branch name."""
+        """PR lookup verifies head repository with host-qualified identity."""
         content = _read("_shared/recipes/screenshot-publish-stage.md")
         after_push = content.split("After successful push", 1)[1].split(
             "Already-pushed", 1
         )[0]
         flat = " ".join(after_push.split())
-        self.assertIn("head repository full name", flat)
+        self.assertIn("{host}:{owner}/{repo}", flat)
         self.assertIn("docs_repo_remote", flat)
         self.assertIn("different fork", flat)
         self.assertIn("not a match", flat)
@@ -2827,10 +2831,19 @@ class TestGitEnvQuarantine(unittest.TestCase):
         fixture config without quarantine; with quarantine, fixture value
         applies.  Restoration verified.
 
-        Scope: disposable caller + temp fixture; never real checkout."""
+        Scope: disposable caller + temp fixture; never real checkout.
+        Negative control isolates location env while retaining harmless
+        COUNT/KEY/VALUE to prove the override on a disposable probe.
+        Positive path invokes actual module quarantine/setup/script
+        and teardown."""
         import json
         with tempfile.TemporaryDirectory() as tmp:
             caller, sentinel, caller_head = self._make_caller_repo(tmp)
+            caller_name = subprocess.run(
+                ["git", "-C", caller, "config", "user.name"],
+                capture_output=True, text=True,
+                env=self._clean_verify_env(),
+            ).stdout.strip()
             child_env = self._poisoned_env(caller)
             # Inject command-scope config override
             child_env["GIT_CONFIG_COUNT"] = "1"
@@ -2842,27 +2855,38 @@ class TestGitEnvQuarantine(unittest.TestCase):
                 sys.path.insert(0, os.environ["TEST_MODULE_DIR"])
                 import test_screenshot_lifecycle as mod
 
+                LOC = list(mod._GIT_LOCATION_VARS)
                 results = {}
 
-                # BEFORE: command-scope override active
+                # BEFORE: record command-scope override presence
                 results["before_count"] = os.environ.get("GIT_CONFIG_COUNT")
                 results["before_key0"] = os.environ.get("GIT_CONFIG_KEY_0")
                 results["before_val0"] = os.environ.get("GIT_CONFIG_VALUE_0")
 
-                # Show override in effect on a temp repo
+                # Negative control: strip location vars, keep COUNT/KEY/VALUE
+                # to prove override works on a disposable probe without
+                # location var interference
+                neg_env = dict(os.environ)
+                for v in LOC:
+                    neg_env.pop(v, None)
+                neg_env["GIT_CONFIG_COUNT"] = "1"
+                neg_env["GIT_CONFIG_KEY_0"] = "user.name"
+                neg_env["GIT_CONFIG_VALUE_0"] = "poisoned-override"
                 with tempfile.TemporaryDirectory() as t:
-                    repo = os.path.join(t, "probe")
-                    os.makedirs(repo)
-                    sp.run(["git", "init", "-b", "main", repo],
-                           capture_output=True, check=True)
-                    sp.run(["git", "-C", repo, "config",
+                    probe = os.path.join(t, "neg-probe")
+                    os.makedirs(probe)
+                    sp.run(["git", "init", "-b", "main", probe],
+                           capture_output=True, check=True, env=neg_env)
+                    sp.run(["git", "-C", probe, "config",
                             "user.name", "fixture-value"],
-                           capture_output=True, check=True)
+                           capture_output=True, check=True, env=neg_env)
                     name = sp.run(
-                        ["git", "-C", repo, "config", "user.name"],
-                        capture_output=True, text=True).stdout.strip()
+                        ["git", "-C", probe, "config", "user.name"],
+                        capture_output=True, text=True,
+                        env=neg_env).stdout.strip()
                     results["before_name"] = name
 
+                # Positive path: actual module quarantine
                 mod.setUpModule()
 
                 # AFTER SETUP: override cleared
@@ -2871,10 +2895,7 @@ class TestGitEnvQuarantine(unittest.TestCase):
                 results["after_val0"] = os.environ.get("GIT_CONFIG_VALUE_0")
 
                 with tempfile.TemporaryDirectory() as t:
-                    repo = os.path.join(t, "probe2")
-                    os.makedirs(repo)
-                    sp.run(["git", "init", "-b", "main", repo],
-                           capture_output=True, check=True)
+                    repo = mod._setup_repo(t)
                     sp.run(["git", "-C", repo, "config",
                             "user.name", "fixture-value"],
                            capture_output=True, check=True)
@@ -2882,6 +2903,8 @@ class TestGitEnvQuarantine(unittest.TestCase):
                         ["git", "-C", repo, "config", "user.name"],
                         capture_output=True, text=True).stdout.strip()
                     results["after_name"] = name
+                    r = mod._run_script("echo config-proof", cwd=repo)
+                    results["script_rc"] = r.returncode
 
                 mod.tearDownModule()
 
@@ -2917,13 +2940,14 @@ class TestGitEnvQuarantine(unittest.TestCase):
             self.assertEqual(
                 diag["after_name"], "fixture-value",
                 "Fixture config must apply after quarantine")
+            self.assertEqual(diag["script_rc"], 0)
 
             # AFTER TEARDOWN: restored
             self.assertEqual(diag["restored_count"], "1")
             self.assertEqual(diag["restored_key0"], "user.name")
             self.assertEqual(diag["restored_val0"], "poisoned-override")
 
-            # Caller repo untouched
+            # Caller repo untouched: HEAD, status, sentinel, local config
             clean = self._clean_verify_env()
             after_head = subprocess.run(
                 ["git", "-C", caller, "rev-parse", "HEAD"],
@@ -2931,6 +2955,19 @@ class TestGitEnvQuarantine(unittest.TestCase):
             ).stdout.strip()
             self.assertEqual(caller_head, after_head,
                              "Caller HEAD must be unchanged")
+            st = subprocess.run(
+                ["git", "-C", caller, "status", "--porcelain"],
+                capture_output=True, text=True, env=clean)
+            self.assertEqual(st.stdout.strip(), "",
+                             "Caller worktree must be clean")
+            with open(sentinel) as f:
+                self.assertEqual(f.read(), "caller-sentinel")
+            after_name = subprocess.run(
+                ["git", "-C", caller, "config", "user.name"],
+                capture_output=True, text=True, env=clean,
+            ).stdout.strip()
+            self.assertEqual(after_name, caller_name,
+                             "Caller local config must be unchanged")
 
 
 # ===================================================================
@@ -2944,21 +2981,30 @@ class TestR6InspectionRepairRerun(unittest.TestCase):
     """4516373704: repair/access-restored rerun replaces rows."""
 
     def test_s2_rerun_after_repair(self) -> None:
-        """§2 instructs rerun matching for repaired embeds."""
+        """§2 instructs rerun matching for repaired embeds with
+        published-input gate re-entry."""
         content = _read("_shared/recipes/screenshot-inspection.md")
         s2 = content.split("### 2.", 1)[1].split("### 3.", 1)[0]
         flat = " ".join(s2.split())
-        self.assertIn("rerun §2", flat)
-        self.assertIn("Replace previous", flat)
+        self.assertIn("published-input gate", flat)
+        self.assertIn("no private authoring fallback", flat)
+        self.assertIn("not partial authorization", flat)
+        self.assertIn("replace previous", flat)
+        self.assertIn("still valid", flat)
         self.assertIn("Do not append duplicate rows", flat)
 
     def test_s4_rerun_after_repair(self) -> None:
-        """§4 instructs rerun resolution/inspection for repaired IDs."""
+        """§4 instructs rerun resolution/inspection for repaired IDs
+        with published-input gate re-entry and superseded decisions."""
         content = _read("_shared/recipes/screenshot-inspection.md")
         s4 = content.split("### 4.", 1)[1].split("### 5.", 1)[0]
         flat = " ".join(s4.split())
-        self.assertIn("rerun §3", flat)
+        self.assertIn("published-input gate", flat)
+        self.assertIn("Rerun §3", flat)
+        self.assertIn("superseded", flat)
         self.assertIn("Replace previous unresolved rows", flat)
+        self.assertIn("still valid", flat)
+        self.assertIn("eligibility", flat)
         self.assertIn("Do not append duplicate rows", flat)
         self.assertIn("exactly once", flat)
 
@@ -3032,10 +3078,11 @@ class TestR6PushDestination(unittest.TestCase):
         self.assertIn("pushInsteadOf", flat)
 
     def test_pending_has_push_destination_field(self) -> None:
-        """pending_attempt record includes push_destination."""
+        """pending_attempt record includes host-qualified push_destination."""
         content = _read("_shared/recipes/screenshot-publish-stage.md")
         section = content.split("Pending attempt record", 1)[1]
         self.assertIn("`push_destination`", section)
+        self.assertIn("{host}:{owner}/{repo}", section)
 
     def test_single_approved_destination(self) -> None:
         """Recipe requires exactly one push URL."""
@@ -3049,12 +3096,13 @@ class TestR6PushDestination(unittest.TestCase):
         self.assertIn("stop", flat.lower())
 
     def test_ssh_https_equivalence(self) -> None:
-        """SSH/HTTPS equivalents of same repo are valid identity."""
+        """SSH/HTTPS equivalents of same host are valid identity."""
         content = _read("_shared/recipes/screenshot-publish-stage.md")
         section = content.split("Push destination validation", 1)[1].split(
             "On retry", 1
         )[0]
         self.assertIn("SSH/HTTPS equivalents", section)
+        self.assertIn("host mismatch", section)
 
     def test_no_credential_persistence(self) -> None:
         """Credential-bearing URLs must not be persisted or logged."""
@@ -3092,17 +3140,21 @@ class TestR6PushDestinationGitProof(_RecipeExecMixin, unittest.TestCase):
     Uses disposable bare remotes; never touches real checkout."""
 
     def test_fetch_vs_push_url_divergence(self) -> None:
-        """origin can have different fetch and push URLs;
-        get-url --push returns the push URL, get-url returns fetch."""
+        """Git primitive proof: after configuring split fetch/push URLs,
+        a new commit pushed via origin lands only on the push URL.
+        The fetch URL retains the old HEAD."""
         with tempfile.TemporaryDirectory() as tmp:
-            # Two bare repos
+            repo = _setup_repo(tmp)
             fetch_bare = os.path.join(tmp, "fetch-remote.git")
             push_bare = os.path.join(tmp, "push-remote.git")
-            repo = _setup_repo(tmp)
             subprocess.run(["git", "clone", "--bare", repo, fetch_bare],
                            capture_output=True, check=True)
             subprocess.run(["git", "clone", "--bare", repo, push_bare],
                            capture_output=True, check=True)
+            old_head = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True,
+            ).stdout.strip()
 
             # Configure origin with different fetch and push URLs
             subprocess.run(
@@ -3114,15 +3166,11 @@ class TestR6PushDestinationGitProof(_RecipeExecMixin, unittest.TestCase):
                  "--push", "origin", push_bare],
                 capture_output=True, check=True,
             )
-
-            # get-url returns fetch URL
             fetch_url = subprocess.run(
                 ["git", "-C", repo, "remote", "get-url", "origin"],
                 capture_output=True, text=True,
             ).stdout.strip()
             self.assertEqual(fetch_url, fetch_bare)
-
-            # get-url --push returns push URL
             push_url = subprocess.run(
                 ["git", "-C", repo, "remote", "get-url",
                  "--push", "origin"],
@@ -3130,30 +3178,49 @@ class TestR6PushDestinationGitProof(_RecipeExecMixin, unittest.TestCase):
             ).stdout.strip()
             self.assertEqual(push_url, push_bare)
 
-            # ls-remote origin queries FETCH url
+            # New commit AFTER cloning both bare remotes
+            _w(os.path.join(repo, "post-clone.txt"), "diverge\n")
+            subprocess.run(["git", "-C", repo, "add", "post-clone.txt"],
+                           capture_output=True, check=True)
+            subprocess.run(["git", "-C", repo, "commit", "-m", "diverge"],
+                           capture_output=True, check=True)
+            new_head = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True,
+            ).stdout.strip()
+            self.assertNotEqual(old_head, new_head)
+
+            # Push via origin
             subprocess.run(
                 ["git", "-C", repo, "push", "origin", "main"],
                 capture_output=True, check=True,
             )
-            # Push went to push_bare, not fetch_bare
-            push_head = subprocess.run(
+            # Fetch bare unchanged (old HEAD)
+            fetch_ref = subprocess.run(
+                ["git", "-C", fetch_bare, "rev-parse", "main"],
+                capture_output=True, text=True,
+            ).stdout.strip()
+            self.assertEqual(fetch_ref, old_head,
+                             "Fetch URL ref must be unchanged")
+            # Push bare advanced (new HEAD)
+            push_ref = subprocess.run(
                 ["git", "-C", push_bare, "rev-parse", "main"],
                 capture_output=True, text=True,
             ).stdout.strip()
-            expected = subprocess.run(
-                ["git", "-C", repo, "rev-parse", "HEAD"],
-                capture_output=True, text=True,
-            ).stdout.strip()
-            self.assertEqual(push_head, expected,
-                             "Push must target push URL, not fetch URL")
+            self.assertEqual(push_ref, new_head,
+                             "Push URL ref must advance to new commit")
 
-            # Querying push URL directly for expected_base
+            # ls-remote confirms: fetch=old, validated push=new
+            ls_fetch = subprocess.run(
+                ["git", "ls-remote", fetch_bare, "refs/heads/main"],
+                capture_output=True, text=True,
+            )
+            self.assertIn(old_head, ls_fetch.stdout)
             ls_push = subprocess.run(
                 ["git", "ls-remote", push_bare, "refs/heads/main"],
                 capture_output=True, text=True,
             )
-            self.assertIn(expected, ls_push.stdout,
-                          "ls-remote against push URL shows pushed commit")
+            self.assertIn(new_head, ls_push.stdout)
 
     def test_multiple_push_urls_all(self) -> None:
         """get-url --push --all returns all push URLs."""
@@ -3246,6 +3313,35 @@ class TestR6UpstreamPathRecovery(unittest.TestCase):
         self.assertIn("pending_attempt", flat)
         self.assertIn("frozen path values", flat)
         self.assertIn("commit_sha", flat)
+
+    def test_recipe_upstream_path_freeze(self) -> None:
+        """Recipe §4 has upstream path freeze validation rules."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("Upstream path freeze", 1)
+        self.assertEqual(len(section), 2,
+                         "Missing upstream path freeze section")
+        freeze = section[1].split("Push destination validation", 1)[0]
+        flat = " ".join(freeze.split())
+        self.assertIn("prd.md", flat)
+        self.assertIn("design.md", flat)
+        self.assertIn("canonical parent", flat)
+        self.assertIn("handoff_file_path", flat)
+        self.assertIn("commit_sha", flat)
+        self.assertIn("First publication remains first publication", flat)
+        self.assertIn("preserve established", flat)
+        self.assertIn("do not fabricate", flat)
+
+    def test_publish_push_dest_before_commit(self) -> None:
+        """Publish Step 3 validates push destination before owned commit."""
+        content = _read("ux-design/skills/publish.md")
+        step3 = content.split("### Step 3:", 1)[1].split(
+            "### Step 4:", 1
+        )[0]
+        flat = " ".join(step3.split())
+        self.assertIn("push destination", flat)
+        self.assertIn("screenshot-publish-stage.md", flat)
+        self.assertIn("expected_base", flat)
+        self.assertIn("before creating the owned commit", flat)
 
 
 class TestR6QuarantineExtended(unittest.TestCase):

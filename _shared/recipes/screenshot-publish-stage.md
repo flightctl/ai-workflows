@@ -157,11 +157,25 @@ ownership or adopting unknown ahead commits.
 | `candidate_screenshot_assets` | Array of `{id, filename, sha256, published_path}` entries |
 | `upstream_prd_path` | Repo-relative path to PRD (first-publish; `null` on updates) |
 | `upstream_design_path` | Repo-relative path to design doc (first-publish; `null` on updates) |
-| `push_destination` | Validated push target (`{owner}/{repo}` canonical form) |
+| `push_destination` | Validated push target (`{host}:{owner}/{repo}` canonical form) |
 | `timestamp` | ISO 8601 when the attempt was recorded |
 
 The `pending_attempt` record is private authoring state — do not copy
 it into the consumer-facing published manifest.
+
+**Upstream path freeze.** `upstream_prd_path` and
+`upstream_design_path` are frozen at preparation: validated as
+repo-relative POSIX paths to existing regular files with basenames
+`prd.md` and `design.md`, sharing the same canonical parent
+directory as `handoff_file_path`, inside `docs_repo_root`. On
+recovery, load frozen values into Step 9 variables before use;
+verify they exist at `commit_sha` (not the mutable worktree).
+First publication remains first publication even when `pr_number`
+has since become known. Update attempts preserve established
+upstream paths rather than overwrite with `null`. Legacy records
+missing required path fields stop and retain `pending_attempt`
+unless reconstruction has proof from frozen approved committed
+state; do not fabricate paths or use placeholders.
 
 **Push destination validation.** Before recording `expected_base` or
 pushing, resolve effective push destination(s):
@@ -169,9 +183,10 @@ pushing, resolve effective push destination(s):
 rules to reveal actual targets. Validate:
 
 1. Exactly one push URL exists (single approved destination).
-2. Its canonical `{owner}/{repo}` identity matches
-   `docs_repo_remote`. SSH/HTTPS equivalents of the same repository
-   are valid. Credential-bearing URLs must not be persisted or logged.
+2. Its canonical `{host}:{owner}/{repo}` identity matches
+   `docs_repo_remote`. SSH/HTTPS equivalents of the same host are
+   allowed; host mismatch or unverifiable host stops without
+   adopting. Credential-bearing URLs must not be persisted or logged.
 3. If multiple push URLs exist, the identity does not match, or
    resolution fails, stop — do not push or adopt the unverified
    destination.
@@ -217,11 +232,13 @@ retry classification, and post-push verification.
      `expected_base` was not `null`, or an unknown ahead SHA): stop.
      Do not force-push, recreate, or guess history.
 
-**Initial new attempt** (no `pending_attempt` exists): require the
-local branch to be at a known synced base (equal to
-`origin/{branch}`, or a fresh branch from `{base-branch}`). If the
-local branch is ahead of the remote by commits not created by this
-invocation, stop.
+**Initial new attempt** (no `pending_attempt` exists): resolve the
+effective push destination first (same validation as above).
+Snapshot `expected_base` via `git ls-remote` against the validated
+push URL before the owned commit. Require the local branch to be
+at a known synced base (SHA matches the push-URL snapshot, or a
+fresh branch from `{base-branch}`). If the local branch is ahead
+by commits not created by this invocation, stop.
 
 **After successful push.** Verify the remote ref at the validated
 push destination matches `pending_attempt.commit_sha` exactly. Then:
@@ -240,7 +257,7 @@ push destination matches `pending_attempt.commit_sha` exactly. Then:
    For a new PR (`pr_number` is `null`): derive `{owner}/{repo}` from
    `docs_repo_remote`, then look up PRs with head `branch` and base
    `base_branch` in that repo. For each candidate, verify the PR's
-   head repository full name matches the canonical `{owner}/{repo}`
+   head repository matches the canonical `{host}:{owner}/{repo}`
    from `docs_repo_remote` — a different fork with the same branch
    name is not a match. Reuse a matching open PR; preserve its
    draft/ready status. If a matching PR is closed or merged

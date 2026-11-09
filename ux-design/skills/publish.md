@@ -108,10 +108,8 @@ the handoff.
 Set `docs_repo_root = Path(docs_repo_path).resolve()`. Resolve relative source
 paths against `docs_repo_root`, then resolve both paths with `strict=True`.
 Require the files to exist, have the basenames `prd.md` and `design.md`, and
-remain inside `docs_repo_root`. Require both files to have the same parent
-directory. This is the canonical feature directory: `/ui-design:ingest` looks
-for the UX handoff alongside the PRD and design document, so `/publish` must
-put it there rather than accepting a second, independently chosen directory.
+remain inside `docs_repo_root`. Require both files to share one parent directory — the canonical
+feature directory where `/ui-design:ingest` expects the handoff.
 
 Set `destination_dir` to the resolved parent directory,
 `handoff_file_path` to
@@ -139,9 +137,13 @@ git -C "{docs_repo_path}" remote -v
 git -C "{docs_repo_path}" status --porcelain
 ```
 
-If the output is not empty, stop and tell the researcher the docs repo has
-uncommitted changes that must be resolved before publishing. Do not proceed
-with a dirty working tree.
+If the output is not empty, stop — uncommitted changes must be resolved
+before publishing.
+
+Resolve and validate the effective push destination per
+`../../_shared/recipes/screenshot-publish-stage.md` §4 push
+destination validation. Snapshot `expected_base` against the
+validated push URL before creating the owned commit.
 
 **If updating an existing PR**, validate the stored `branch` using the branch
 checks below. Require the stored `handoff_file_path` to equal the canonical path
@@ -304,9 +306,8 @@ cp "{source_repo_root}/.artifacts/ux-design/{issue-key}/05-handoff.md" "{handoff
 ```
 
 **Skip screenshot handling on initial text-only publishes** — when the
-handoff's Screenshot Index says "None" **and** no publish-metadata
-`screenshot_assets` exist from a prior publish. Do not prompt for a
-storage policy, touch asset paths, or stage screenshot directories.
+handoff's Screenshot Index says "None" and no prior `screenshot_assets`
+exist. Do not prompt for a storage policy or touch asset paths.
 
 **Reconcile previous assets on updates.** When updating an existing
 publish (`publish-metadata.json` exists with `screenshot_assets`), always

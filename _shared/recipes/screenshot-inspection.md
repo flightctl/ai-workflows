@@ -58,11 +58,16 @@ handoff to add the missing embeds, or explicitly authorize partial
 continuation (text-only for those IDs). Never silently omit a declared
 ID or claim all images were inspected when embeds are missing.
 
-If the user repairs the handoff (adds missing embeds), rerun §2
-matching for the repaired IDs. Replace previous `unavailable` rows
-with fresh matched results and recalculate all aggregate totals
-before proceeding to §3. Do not append duplicate rows — each
-declared ID appears exactly once in the output.
+If the user repairs the handoff (adds missing embeds or modifies
+the Screenshot Index), the caller must re-enter its
+published-input gate on the changed handoff/manifest before
+re-entering inspection — no private authoring fallback. Repair or
+wait is not partial authorization. Rerun §2 matching on the
+updated inputs. For affected IDs, replace previous `unavailable`
+rows with fresh matched results; preserve unaffected rows only if
+the embed is unchanged and still valid. Recalculate all aggregate
+totals before proceeding to §3. Do not append duplicate rows —
+each declared ID appears exactly once in the output.
 
 ### 3. Resolve image references
 
@@ -116,11 +121,15 @@ citation (§5 Rule 1) even when the user authorizes partial
 continuation; partial acceptance allows the workflow to proceed but
 does not override status-based eligibility.
 
-If the user repairs the source or access is restored, rerun §3
-resolution and §4 identity/inspection for the previously unresolved
-IDs. Replace previous unresolved rows with fresh results and
-recalculate aggregate totals. Do not append duplicate rows — each
-declared ID appears exactly once in the output.
+If the user repairs the source or access is restored, the caller
+must re-enter its published-input gate on the changed inputs
+before re-entering inspection. Rerun §3 resolution and §4
+identity/inspection (SHA, visual, bindings) for affected IDs.
+Replace previous unresolved rows and any superseded
+identity/binding decisions with fresh results; preserve unaffected
+rows only if still valid. Recalculate aggregate totals, status,
+and eligibility. Do not append duplicate rows — each declared ID
+appears exactly once in the output.
 
 **For each resolved matched image from §3:**
 
