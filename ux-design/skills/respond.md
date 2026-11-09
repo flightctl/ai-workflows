@@ -41,25 +41,26 @@ Read `.artifacts/config.json` to get the docs repo path and
 number and `{branch-name}`. If either file doesn't exist, tell the user
 that `/publish` should be run first.
 
-**Unconditional pending gate.** If `publish-metadata.json` contains
-a `pending_attempt` record, recover the prior attempt before
-fetching or processing any new feedback. Follow §4 of
-`../../_shared/recipes/screenshot-publish-stage.md`: if already
-pushed, skip to metadata finalization; if not yet pushed, push
-first. If recovery requires PR creation (an operation outside
-`/respond` established permissions), direct the researcher to run
-`/publish` for that step. If prerequisites cannot be verified
-(missing config, metadata, PR identity, or unavailable tool),
-stop with clear directions — do not fabricate success, post new
-replies, or write log entries. Return after recovery; process
-new feedback in a separate invocation.
-
 Determine `{source_repo_root}` with `git rev-parse --show-toplevel`. Normalize
 `docs_repo_path` before using it: expand `~`, resolve a relative value against
 `{source_repo_root}`, then use `Path.resolve()` to get an absolute path. This
 also supports existing configs that stored the path relative to the source
 repository. Use only the normalized absolute path in subsequent Git commands,
 filesystem paths, and provenance targets.
+
+**Unconditional pending gate.** If `publish-metadata.json` contains
+a `pending_attempt` record, recover the prior attempt before
+fetching or processing any new feedback. Follow §4 of
+`../../_shared/recipes/screenshot-publish-stage.md` using the
+resolved `docs_repo_path` above: if already pushed, skip to
+metadata finalization; if not yet pushed, push first. If recovery
+requires PR creation (an operation outside `/respond` established
+permissions), direct the researcher to run `/publish` for that
+step. If prerequisites cannot be verified (missing config,
+metadata, PR identity, or unavailable tool), stop with clear
+directions — do not fabricate success, post new replies, or write
+log entries. Return after recovery; process new feedback in a
+separate invocation.
 
 Read `00-context.md` and compare the published handoff's discovery revision
 with the current revision. If enrichment made the handoff stale, stop before

@@ -2373,6 +2373,24 @@ class TestR5UnresolvedPairHandling(unittest.TestCase):
         self.assertIn("eligible", flat)
         self.assertIn("Rule 1", flat)
 
+    def test_late_inspection_failure_full_handling(self) -> None:
+        """§4.4 late inspection failure applies same continuation
+        handling (repair/wait/partial), not just row shape."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        # Scope to the late-failure step inside resolved processing
+        resolved_section = content.split(
+            "For each resolved matched image", 1
+        )[1].split("Check revision binding", 1)[0]
+        late = resolved_section.split("Inspection failure", 1)
+        self.assertEqual(len(late), 2,
+                         "Late inspection failure step missing")
+        late_text = late[1].split("5.", 1)[0]
+        flat = " ".join(late_text.split())
+        self.assertIn("continuation handling", flat)
+        self.assertIn("repair", flat)
+        self.assertIn("partial continuation", flat)
+        self.assertIn("fabricate", flat)
+
 
 class TestR5SeparateBindingDecisions(unittest.TestCase):
     """2406: §4.5 persists separate named decisions per binding."""
@@ -2554,6 +2572,25 @@ class TestR5RespondUnconditionalGate(unittest.TestCase):
         )[0]
         self.assertIn("unconditional pending gate in Step 1", step4)
 
+    def test_gate_after_prereq_normalization(self) -> None:
+        """Gate appears after docs_repo_path normalization (read-only
+        prereqs) so §4 recovery has validated checkout path."""
+        content = _read("ux-design/skills/respond.md")
+        step1 = content.split("### Step 1:", 1)[1].split(
+            "### Step 2:", 1
+        )[0]
+        norm_pos = step1.find("Normalize")
+        gate_pos = step1.find("Unconditional pending gate")
+        self.assertGreater(norm_pos, -1,
+                           "Path normalization missing")
+        self.assertGreater(gate_pos, -1,
+                           "Unconditional gate missing")
+        self.assertLess(norm_pos, gate_pos,
+                        "Normalization must precede pending gate")
+        # Gate references the resolved path
+        gate_text = step1.split("Unconditional pending gate", 1)[1]
+        self.assertIn("resolved `docs_repo_path`", gate_text)
+
 
 # ===================================================================
 # Part 6: Git environment quarantine regression
@@ -2565,80 +2602,195 @@ class TestR5RespondUnconditionalGate(unittest.TestCase):
 
 class TestGitEnvQuarantine(unittest.TestCase):
     """Regression: Git location vars from caller don't leak into
-    _setup_repo or _run_script temp fixture repos."""
+    _setup_repo or _run_script temp fixture repos.
 
-    def test_quarantine_prevents_caller_leak(self) -> None:
-        """With GIT_DIR/GIT_WORK_TREE set to a disposable caller repo,
-        _setup_repo creates an independent target repo whose HEAD and
-        index are unaffected by the caller paths.  Caller repo HEAD,
-        index, and worktree remain unchanged after the operation.
+    Uses isolated child Python processes launched with a poisoned env
+    (all 7 Git location vars pointing at a disposable caller repo).
+    Never touches the real checkout, .git dir, index, or global config."""
 
-        Scope: disposable caller repo + temp fixture target + sentinel.
-        Never uses the real checkout, Git dir, or global config."""
+    def _make_caller_repo(self, tmp: str) -> tuple[str, str, str]:
+        """Create a disposable caller repo with sentinel; return
+        (caller_path, sentinel_path, caller_head_sha)."""
+        caller = os.path.join(tmp, "caller-repo")
+        os.makedirs(caller)
+        subprocess.run(["git", "init", "-b", "main", caller],
+                       capture_output=True, check=True)
+        subprocess.run(["git", "-C", caller, "config", "user.email", "c@c"],
+                       capture_output=True, check=True)
+        subprocess.run(["git", "-C", caller, "config", "user.name", "caller"],
+                       capture_output=True, check=True)
+        sentinel = os.path.join(caller, "sentinel.txt")
+        _w(sentinel, "caller-sentinel")
+        subprocess.run(["git", "-C", caller, "add", "sentinel.txt"],
+                       capture_output=True, check=True)
+        subprocess.run(["git", "-C", caller, "commit", "-m", "sentinel"],
+                       capture_output=True, check=True)
+        head = subprocess.run(
+            ["git", "-C", caller, "rev-parse", "HEAD"],
+            capture_output=True, text=True).stdout.strip()
+        return caller, sentinel, head
+
+    def _poisoned_env(self, caller: str) -> dict[str, str]:
+        """Build child env: scrub inherited location vars first, then
+        inject ONLY owned disposable caller paths."""
+        child_env: dict[str, str] = {}
+        for k, v in os.environ.items():
+            if k not in _GIT_LOCATION_VARS:
+                child_env[k] = v
+        git_dir = os.path.join(caller, ".git")
+        child_env["GIT_DIR"] = git_dir
+        child_env["GIT_WORK_TREE"] = caller
+        child_env["GIT_INDEX_FILE"] = os.path.join(git_dir, "index")
+        child_env["GIT_OBJECT_DIRECTORY"] = os.path.join(git_dir, "objects")
+        child_env["GIT_ALTERNATE_OBJECT_DIRECTORIES"] = ""
+        child_env["GIT_COMMON_DIR"] = git_dir
+        child_env["GIT_PREFIX"] = ""
+        child_env["TEST_MODULE_DIR"] = os.path.dirname(__file__)
+        return child_env
+
+    def _clean_verify_env(self) -> dict[str, str]:
+        """Return env with Git location vars removed for clean checks."""
+        return {k: v for k, v in os.environ.items()
+                if k not in _GIT_LOCATION_VARS}
+
+    def test_quarantine_in_poisoned_child(self) -> None:
+        """Launch child Python with all 7 Git location vars pointing at
+        a disposable caller repo.  Child calls setUpModule, runs
+        _setup_repo + _run_script in a temp target, calls tearDownModule,
+        and returns BEFORE/AFTER diagnostics.
+
+        Parent verifies: child exit 0, quarantine+restoration observed,
+        caller HEAD/index/worktree/sentinel unchanged.
+
+        Scope: disposable caller + temp fixture, never real checkout."""
+        import json
         with tempfile.TemporaryDirectory() as tmp:
-            # --- Create disposable caller repo with sentinel ---
-            caller = os.path.join(tmp, "caller-repo")
+            caller, sentinel, caller_head = self._make_caller_repo(tmp)
+            child_env = self._poisoned_env(caller)
+
+            child_script = textwrap.dedent('''\
+                import json, os, sys, tempfile
+                sys.path.insert(0, os.environ["TEST_MODULE_DIR"])
+                import test_screenshot_lifecycle as mod
+
+                LOC = list(mod._GIT_LOCATION_VARS)
+                results = {}
+
+                # BEFORE: observe injected vars present
+                results["before"] = {v: os.environ.get(v) for v in LOC}
+
+                mod.setUpModule()
+
+                # AFTER SETUP: all 7 vars must be removed
+                results["after_setup"] = {v: os.environ.get(v) for v in LOC}
+
+                # Run _setup_repo + _run_script in temp target
+                with tempfile.TemporaryDirectory() as t:
+                    import subprocess as sp
+                    repo = mod._setup_repo(t)
+                    log = sp.run(["git", "-C", repo, "log", "--oneline"],
+                                 capture_output=True, text=True)
+                    results["target_log_rc"] = log.returncode
+                    results["target_has_init"] = "init" in log.stdout
+                    results["target_no_sentinel"] = "sentinel" not in log.stdout
+
+                    r = mod._run_script("echo quarantine-proof", cwd=repo)
+                    results["script_rc"] = r.returncode
+                    results["script_out"] = r.stdout.strip()
+
+                mod.tearDownModule()
+
+                # AFTER TEARDOWN: vars must be restored to injected values
+                results["after_teardown"] = {v: os.environ.get(v) for v in LOC}
+
+                print(json.dumps(results))
+            ''')
+
+            child = subprocess.run(
+                ["python3", "-c", child_script],
+                capture_output=True, text=True, env=child_env,
+                cwd=tmp,
+            )
+            self.assertEqual(child.returncode, 0,
+                             f"Child failed:\n{child.stderr}")
+            diag = json.loads(child.stdout.strip())
+
+            # --- BEFORE: injected vars were present ---
+            for var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE",
+                        "GIT_OBJECT_DIRECTORY", "GIT_COMMON_DIR"):
+                self.assertIsNotNone(
+                    diag["before"][var],
+                    f"{var} not injected before setup")
+
+            # --- AFTER SETUP: all 7 cleared ---
+            for var in _GIT_LOCATION_VARS:
+                self.assertIsNone(
+                    diag["after_setup"].get(var),
+                    f"{var} not cleared by setUpModule")
+
+            # --- Target operations succeeded independently ---
+            self.assertEqual(diag["target_log_rc"], 0)
+            self.assertTrue(diag["target_has_init"])
+            self.assertTrue(diag["target_no_sentinel"])
+            self.assertEqual(diag["script_rc"], 0)
+            self.assertEqual(diag["script_out"], "quarantine-proof")
+
+            # --- AFTER TEARDOWN: vars restored ---
+            self.assertEqual(
+                diag["after_teardown"]["GIT_DIR"],
+                os.path.join(caller, ".git"))
+            self.assertEqual(
+                diag["after_teardown"]["GIT_WORK_TREE"], caller)
+
+            # --- Caller repo untouched (clean verification env) ---
+            clean = self._clean_verify_env()
+            after_head = subprocess.run(
+                ["git", "-C", caller, "rev-parse", "HEAD"],
+                capture_output=True, text=True, env=clean,
+            ).stdout.strip()
+            self.assertEqual(caller_head, after_head,
+                             "Caller HEAD must be unchanged")
+            st = subprocess.run(
+                ["git", "-C", caller, "status", "--porcelain"],
+                capture_output=True, text=True, env=clean)
+            self.assertEqual(st.stdout.strip(), "",
+                             "Caller worktree must be clean")
+            with open(sentinel) as f:
+                self.assertEqual(f.read(), "caller-sentinel")
+
+    def test_quarantine_disabled_shows_leak(self) -> None:
+        """Control: child WITHOUT setUpModule observes poisoned vars
+        still present in env — proves quarantine is necessary.
+
+        Scope: read-only observation, never mutates real repo."""
+        import json
+        with tempfile.TemporaryDirectory() as tmp:
+            caller = os.path.join(tmp, "caller-ctrl")
             os.makedirs(caller)
             subprocess.run(["git", "init", "-b", "main", caller],
                            capture_output=True, check=True)
-            subprocess.run(
-                ["git", "-C", caller, "config", "user.email", "c@c"],
-                capture_output=True, check=True)
-            subprocess.run(
-                ["git", "-C", caller, "config", "user.name", "caller"],
-                capture_output=True, check=True)
-            sentinel = os.path.join(caller, "sentinel.txt")
-            _w(sentinel, "caller-sentinel")
-            subprocess.run(["git", "-C", caller, "add", "sentinel.txt"],
-                           capture_output=True, check=True)
-            subprocess.run(
-                ["git", "-C", caller, "commit", "-m", "sentinel"],
-                capture_output=True, check=True)
-            caller_head = subprocess.run(
-                ["git", "-C", caller, "rev-parse", "HEAD"],
-                capture_output=True, text=True).stdout.strip()
+            child_env = self._poisoned_env(caller)
 
-            # --- Inject caller location vars into a child env ---
-            child_env = os.environ.copy()
-            # Remove location vars first (quarantine already did this
-            # at module level, but be explicit for the child)
-            for var in _GIT_LOCATION_VARS:
-                child_env.pop(var, None)
-            # Now inject ONLY owned disposable caller paths
-            child_env["GIT_DIR"] = os.path.join(caller, ".git")
-            child_env["GIT_WORK_TREE"] = caller
+            child_script = textwrap.dedent('''\
+                import json, os, sys
+                sys.path.insert(0, os.environ["TEST_MODULE_DIR"])
+                import test_screenshot_lifecycle as mod
+                # Do NOT call setUpModule — vars must leak
+                leaked = {v: os.environ.get(v) for v in mod._GIT_LOCATION_VARS}
+                has_leak = leaked.get("GIT_DIR") is not None
+                print(json.dumps({"leaked": leaked, "has_leak": has_leak}))
+            ''')
 
-            # --- Create target repo WITHOUT the leaked vars ---
-            target_dir = os.path.join(tmp, "target-setup")
-            os.makedirs(target_dir)
-            target = _setup_repo(target_dir)
-
-            # --- Run a git command in target WITHOUT leaked vars ---
-            result = subprocess.run(
-                ["git", "-C", target, "log", "--oneline"],
-                capture_output=True, text=True,
+            child = subprocess.run(
+                ["python3", "-c", child_script],
+                capture_output=True, text=True, env=child_env,
+                cwd=tmp,
             )
-            self.assertEqual(result.returncode, 0)
-            self.assertIn("init", result.stdout)
-            self.assertNotIn("sentinel", result.stdout)
-
-            # --- Verify caller HEAD unchanged ---
-            after_head = subprocess.run(
-                ["git", "-C", caller, "rev-parse", "HEAD"],
-                capture_output=True, text=True).stdout.strip()
-            self.assertEqual(caller_head, after_head,
-                             "Caller HEAD must be unchanged")
-
-            # --- Verify caller worktree unchanged ---
-            caller_status = subprocess.run(
-                ["git", "-C", caller, "status", "--porcelain"],
-                capture_output=True, text=True)
-            self.assertEqual(caller_status.stdout.strip(), "",
-                             "Caller worktree must be clean")
-
-            # --- Verify caller sentinel file intact ---
-            with open(sentinel) as f:
-                self.assertEqual(f.read(), "caller-sentinel")
+            self.assertEqual(child.returncode, 0, child.stderr)
+            diag = json.loads(child.stdout.strip())
+            self.assertTrue(
+                diag["has_leak"],
+                "Control: GIT_DIR must leak without quarantine")
 
     def test_module_quarantine_strips_vars(self) -> None:
         """setUpModule removed Git location vars from os.environ;
@@ -2646,13 +2798,7 @@ class TestGitEnvQuarantine(unittest.TestCase):
         for var in _GIT_LOCATION_VARS:
             self.assertNotIn(
                 var, os.environ,
-                f"{var} should be quarantined during tests",
-            )
-
-    def test_env_restored_after_module(self) -> None:
-        """Saved values in _saved_git_env will be restored by
-        tearDownModule. Verify the save dict was populated."""
-        self.assertEqual(len(_saved_git_env), len(_GIT_LOCATION_VARS))
+                f"{var} should be quarantined during tests")
 
 
 if __name__ == "__main__":

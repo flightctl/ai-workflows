@@ -143,7 +143,10 @@ does not override status-based eligibility.
 4. **Inspection failure during resolved processing.** If a resolved
    image cannot be visually inspected at this stage (e.g., unsupported
    format after successful download), record it using the unresolved
-   pair schema above with status `inspection-not-supported`.
+   pair schema above with status `inspection-not-supported`. Apply the
+   same continuation handling: prompt the user to repair, wait, or
+   explicitly authorize partial continuation for this ID. Do not
+   fabricate observations from captions or alt text.
 
 5. **Check revision binding (separate from identity).** Byte-identity
    verification (step 4.1) and revision-binding validity are
