@@ -10994,6 +10994,52 @@ class TestInvalidParentIdentity(_TmpDirMixin, unittest.TestCase):
                          "Valid parent must NOT produce owning errors")
         self.assertEqual(len(result["ordered"]), 1)
 
+    def test_zero_epic_cli_owning_parent_exit1(self) -> None:
+        """CLI plan-creation-order with ZERO epic source files and a
+        present story under epic-99/ → exit 1 with owning-parent error.
+
+        This is the exact counterexample that the conditional bypass
+        (``if epic_items_by_idx:``) would have let through as exit 0.
+        The fixture has no epic-*.md files at all, only a story
+        directory and story file.
+        """
+        # Verify: no epic-*.md files exist in stories dir
+        epic_files = list(self.stories_dir.glob("epic-*.md"))
+        self.assertEqual(len(epic_files), 0,
+                         "Fixture must have ZERO epic source files")
+        # Create only a story under epic-99 (no epic source)
+        epic99_dir = self.stories_dir / "epic-99"
+        epic99_dir.mkdir(parents=True)
+        (epic99_dir / "story-01-docs.md").write_text(
+            "---\n---\n# Story 99.01: [DOCS] API docs\n\n"
+            "As a writer I want to document.\n\n"
+            "## Acceptance Criteria\n\nDone\n\n"
+            "## Documentation Scope\n\nAPI.\n\n"
+            "## Dependencies\n\nNone\n\n"
+            "## Design Reference\n\n- Epic: Epic 99\n",
+            encoding="utf-8",
+        )
+        # Re-verify: still no epic-*.md files
+        epic_files_after = list(self.stories_dir.glob("epic-*.md"))
+        self.assertEqual(len(epic_files_after), 0,
+                         "Fixture must still have ZERO epic source files")
+        out = StringIO()
+        with mock.patch("sys.stdout", out):
+            exit_code = sync_helper.main([
+                "plan-creation-order", str(self.artifacts)])
+        self.assertEqual(exit_code, 1,
+                         "Zero-epic fixture must exit 1")
+        data = json.loads(out.getvalue())
+        self.assertTrue(data["errors"],
+                        "Must contain owning-parent errors")
+        error_text = " ".join(data["errors"])
+        self.assertIn("epic-99", error_text)
+        self.assertIn("owning", error_text.lower())
+        # Story must NOT be in ordered list
+        ordered_files = [i["file"] for i in data["ordered"]]
+        self.assertNotIn("epic-99/story-01-docs.md", ordered_files,
+                         "Story must NOT be silently ordered")
+
 
 if __name__ == "__main__":
     unittest.main()
