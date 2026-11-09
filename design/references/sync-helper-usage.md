@@ -238,7 +238,7 @@ The `|| REF_EXIT=$?` idiom captures a nonzero exit without aborting
 under `set -e`.  The two lines after the helper call read stderr text
 and remove the temp file immediately — before branch interpretation
 — so cleanup cannot be forgotten on any exit path.  Apply the
-three-branch interpretation from `sync.md` Step 6a (ready → proceed;
+three-branch interpretation from `../skills/sync.md` Step 6a (ready → proceed;
 blocked → skip; catch-all → stop and report `REF_ERR_TEXT`).
 
 The subcommand accepts one or more qualified IDs.  For each story it:

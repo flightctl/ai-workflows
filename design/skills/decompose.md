@@ -47,6 +47,31 @@ run first.
 Read the Jira Feature issue key from the PRD or context. This Feature is the
 parent for all epics created by this workflow.
 
+**If decomposition artifacts already exist** (`05-epics.md`,
+`06-stories/`, or `07-coverage.md`), this is a repeat `/decompose`.
+Load and reconcile existing artifacts before planning:
+
+1. Read `05-epics.md`, all `06-stories/epic-{N}-{slug}.md` files, all
+   `06-stories/epic-{N}/story-{NN}-{slug}.md` files, and
+   `07-coverage.md`.
+2. Record all existing qualified identities (epic numbers, story
+   numbers, filenames, containing paths) including files with
+   `status: removed`.
+3. Preserve existing numbers, qualified identities, paths, and removal
+   markers — do not overwrite mismatched existing IDs, delete and
+   recreate files, or reuse retired numbers. New stories and epics
+   append strictly above the highest existing number (including
+   retired).
+4. If an existing identity conflicts with the new plan (e.g., the
+   same epic number maps to a different slug), require clarification
+   rather than silently repurposing.
+5. Files with `status: removed` remain on disk with their numbers
+   reserved. Do not silently re-activate retired work; explicit
+   approved restoration is required to reopen a removed item.
+
+The initial empty decomposition (no prior artifacts) still works
+unchanged — these constraints apply only to repeat runs.
+
 ### Step 2: Plan the Decomposition
 
 Before writing, plan:
@@ -250,8 +275,9 @@ Step 6 after stories are written.
 
 ## Documentation Inputs
 
-{Inventories every user-facing artifact introduced or changed by the
- feature, grouped by the implementation story that delivers it.
+{Inventories all known, planned user-facing inputs within this DOCS
+ story's declared scope, grouped by the relevant DEV/UI story that
+ delivers each artifact.
  See the Documentation Inputs requirements below for format details.}
 
 ## Dependencies
@@ -319,15 +345,16 @@ validation gate.
    Those decisions belong to the documentation author or workflow that
    picks up the ticket. See the template example above for illustration.
 
-5. **Complete Documentation Inputs.** Inventories every user-facing
-   artifact introduced or changed by the feature, grouped by the
-   `[DEV]` or `[UI]` implementation story that delivers it. Include only
-   contributing story types that are relevant — a feature with no `[UI]`
-   stories should not reference UI stories, and vice versa. At design
-   time you have the complete picture of what's new and what changed.
-   Capture it so the documentation author (human or AI) gets a concrete
-   starting point — rather than reverse-engineering the user-visible
-   surface from code diffs after implementation.
+5. **Complete Documentation Inputs.** Inventories all known, planned
+   user-facing inputs within this DOCS story's declared scope, grouped
+   by the relevant `[DEV]` or `[UI]` implementation story that delivers
+   each artifact. Include only contributing story types that are
+   relevant — a feature with no `[UI]` stories should not reference UI
+   stories, and vice versa. At design time the DOCS story's scope
+   defines which inputs belong here. Capture them so the documentation
+   author (human or AI) gets a concrete starting point — rather than
+   reverse-engineering the user-visible surface from code diffs after
+   implementation.
 
    Group items under bold story headers (e.g., **Story 1.01 — {title}:**)
    followed by bullet points listing each user-facing artifact: new or
@@ -618,9 +645,9 @@ resumption:** Resume the same reviewer agent. Send it the updated
 artifacts and a summary of changes applied.
 
 **If resumption is not available:** Spawn a new subagent loaded with
-the decomposition review protocol, the updated artifacts, the PRD
-(but NOT the design document), and a summary of the previous round's
-changes so it has full context.
+the decomposition review protocol, the updated artifacts, the PRD,
+the testplan (`04-testplan.md`), and a summary of the previous round's
+changes (but NOT the design document) so it has full context.
 
 **If subagents are not available:** Re-read all decomposition artifact
 files before re-reviewing — do not rely on your cached understanding

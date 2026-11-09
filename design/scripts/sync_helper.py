@@ -965,6 +965,13 @@ def extract_required_refs(
         design_ref = sections.get("Design Reference", "")
         for line in design_ref.splitlines():
             stripped = line.strip()
+            # Normalize supported Markdown list-item prefixes
+            # (``- ``, ``* ``, ``+ ``) so a line like
+            # ``- Contributing stories: Story 1.02`` is not ignored.
+            for list_prefix in ("- ", "* ", "+ "):
+                if stripped.startswith(list_prefix):
+                    stripped = stripped[len(list_prefix):].strip()
+                    break
             if stripped.startswith("Contributing stories:"):
                 contrib_text = stripped.split(":", 1)[1]
                 for sref in _extract_story_refs(contrib_text):
@@ -1139,6 +1146,8 @@ def plan_creation_order(
     deps_graph: dict[str, list[str]] = {}
     # Track stories with hard-unavailable refs (must be excluded)
     has_unavailable_ref: set[str] = set()
+    # Track actual unavailable ref IDs per story (for blocked[].missing)
+    unavailable_ref_ids: dict[str, list[str]] = {}
 
     for qid, item in needs_creation.items():
         raw_refs = _get_required_refs(item, qid)
@@ -1168,11 +1177,15 @@ def plan_creation_order(
                         f"{qid} requires {ref_qid} which has no "
                         f"usable Jira key (category: {cat})")
                     has_unavailable_ref.add(qid)
+                    unavailable_ref_ids.setdefault(qid, []).append(
+                        ref_qid)
                 else:
                     errors.append(
                         f"{qid} requires {ref_qid} which does not "
                         f"exist in artifacts or manifest")
                     has_unavailable_ref.add(qid)
+                    unavailable_ref_ids.setdefault(qid, []).append(
+                        ref_qid)
             elif ref_qid.startswith("epic-"):
                 # Epic ref: check if this epic index has a mapped key
                 # or is a new epic that will be created in Step 5
@@ -1183,6 +1196,8 @@ def plan_creation_order(
                     errors.append(
                         f"{qid} references invalid epic: {ref_qid}")
                     has_unavailable_ref.add(qid)
+                    unavailable_ref_ids.setdefault(qid, []).append(
+                        ref_qid)
                     continue
                 epic_item = epic_items_by_idx.get(epic_idx)
                 if epic_item is not None:
@@ -1197,11 +1212,15 @@ def plan_creation_order(
                             f"{qid} requires {ref_qid} which has no "
                             f"usable Jira key (category: {ecat})")
                         has_unavailable_ref.add(qid)
+                        unavailable_ref_ids.setdefault(qid, []).append(
+                            ref_qid)
                 elif ref_qid not in available:
                     errors.append(
                         f"{qid} requires {ref_qid} which does not "
                         f"exist in artifacts or manifest")
                     has_unavailable_ref.add(qid)
+                    unavailable_ref_ids.setdefault(qid, []).append(
+                        ref_qid)
             # else: native Jira key already handled in _get_required_refs
         deps_graph[qid] = unsatisfied
 
@@ -1360,10 +1379,19 @@ def plan_creation_order(
                 continue
             missing_refs = [d for d in deps_graph.get(qid, [])
                            if d not in available and d not in ordered_set]
-            # Include refs that caused the error even if not in graph
-            if qid in has_unavailable_ref and not missing_refs:
-                # The unavailable ref was an external target, not a graph edge
-                missing_refs = [f"(see errors for {qid})"]
+            # Include actual unavailable ref IDs (external targets not
+            # in the graph) alongside blocked graph prerequisites.
+            if qid in unavailable_ref_ids:
+                for uid in unavailable_ref_ids[qid]:
+                    if uid not in missing_refs:
+                        missing_refs.append(uid)
+            # Source-read failures: reason without fake ID in missing
+            if qid in unreadable_sources:
+                blocked.append({
+                    "item": needs_creation[qid],
+                    "missing": missing_refs,
+                    "reason": "source file unreadable or missing"})
+                continue
             blocked.append({
                 "item": needs_creation[qid],
                 "missing": missing_refs,

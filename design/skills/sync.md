@@ -196,11 +196,37 @@ Confirm with the user:
 ### Step 3: Plan Creation Order and Dry Run
 
 **Plan creation order.** Run the sync helper to plan dependency-first
-creation order across the entire feature:
+creation order across the entire feature.  Capture output and status
+using the same fail-closed pattern as the Step 6a reference-availability
+guard:
 
 ```bash
-python3 "$SYNC_HELPER" plan-creation-order .artifacts/design/{issue-key}/
+PLAN_ERR=$(mktemp) || { echo "FATAL: cannot create temp file" >&2; exit 1; }
+PLAN_EXIT=0
+PLAN_JSON=$(python3 "$SYNC_HELPER" plan-creation-order \
+  .artifacts/design/{issue-key}/ 2>"$PLAN_ERR") || PLAN_EXIT=$?
+PLAN_ERR_TEXT=$(cat "$PLAN_ERR")
+rm -f "$PLAN_ERR"
 ```
+
+**Interpret the result (fail-closed).** Only a valid structured
+success may proceed to the preview.  Apply this three-branch
+interpretation **before** presenting the preview or proceeding to
+Step 4:
+
+1. **Exit 0 + valid JSON with `status` absent or equal to
+   `"success"` + non-empty `ordered` or no new stories:** the plan
+   is valid.  Continue to the preflight check below.
+2. **Exit 1 + valid JSON with non-empty `errors`:** structured
+   planning errors.  **STOP** — present per-story diagnostics and
+   recommend `/revise` to fix the decomposition.  Do not proceed to
+   preview, approval, writes, or checkpoints.
+3. **Any other result** — empty output, malformed JSON, missing
+   expected fields, unexpected exit code, or inconsistent
+   status/schema: **STOP**.  Report `PLAN_EXIT`,
+   `PLAN_ERR_TEXT`, and the raw `PLAN_JSON` (if any) as fatal
+   diagnostics.  Do not proceed to preview, approval, writes, or
+   checkpoints.
 
 The helper reads Dependencies and Contributing stories from every new
 story's artifact file, builds a dependency graph using existing

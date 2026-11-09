@@ -143,8 +143,11 @@ changed: (a) the `[DOCS]` file itself, (b) a listed or newly relevant
 renamed, or reopened stories whose user-facing surface falls within the `[DOCS]`
 story's scope, (c) design content that alters the story's reader,
 scope, AC, assumptions, or open-question markers — including resolved
-`[Open: §9.N]` items even without API/CLI shape changes, or (d) ICs
-covered by the story.
+`[Open: §9.N]` items even without API/CLI shape changes, (d) ICs
+covered by the story, or (e) a listed contributor effectively retired
+through its parent epic being marked `status: removed` — even when
+the contributor's own story file is unchanged, its parent's removal
+logically retires it.
 
 For each affected `[DOCS]` story, re-read the file and update
 Documentation Inputs, Contributing stories, and Dependencies to
@@ -231,6 +234,17 @@ updates above are complete on their own.
   with `Interface Change: —` — then write the updated `Validated by`
   line. If a story loses all its test cases, write:
   `Validated by: None — no behavioral test cases after testplan revision`.
+
+**`[DOCS]` reconciliation after cascades.** After the IC and testplan
+story cascades above complete, re-read every affected `[DOCS]` story
+and reconcile its Documentation Inputs, Contributing stories, and
+Dependencies against the current contributor set. Contributors may
+have been logically retired during this revision (including through
+parent epic removal discovered after the initial DOCS pass). Update
+the `[DOCS]` story's inputs and contributor references to reflect
+the post-cascade state — but preserve unrelated prerequisite
+Dependencies, existing IDs/paths, and existing removal/restore
+approval semantics.
 
 ### Step 5: Update Artifacts
 

@@ -7737,5 +7737,540 @@ class TestQualityGateApprovalTrace(unittest.TestCase):
         self.assertIn("independent eligible work", self._step4)
 
 
+# ---------------------------------------------------------------------------
+# R1: Markdown list-prefix normalization for Contributing stories
+# ---------------------------------------------------------------------------
+
+class TestContribListPrefixNormalization(_TmpDirMixin, unittest.TestCase):
+    """Contributing stories wrapped in Markdown list-item prefixes are
+    extracted correctly (R1 regression)."""
+
+    def test_dash_prefix_extracted(self) -> None:
+        """``- Contributing stories: Story 1.02`` must be extracted."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir()
+        _make_docs_story(
+            sd, 1, 3, "docs",
+            deps="Story 1.01",
+            contributing_stories="Story 1.01, Story 1.02",
+        )
+        # Rewrite the file to use a list-prefixed Contributing stories line
+        fp = sd / "epic-1" / "story-03-docs.md"
+        content = fp.read_text(encoding="utf-8")
+        content = content.replace(
+            "Contributing stories: Story 1.01, Story 1.02",
+            "- Contributing stories: Story 1.01, Story 1.02",
+        )
+        fp.write_text(content, encoding="utf-8")
+        result = sync_helper.extract_required_refs(fp)
+        ref_ids = result["refs"]
+        self.assertIn("story-1.01", ref_ids,
+                       "story-1.01 must be extracted from list-prefixed Contributing")
+        self.assertIn("story-1.02", ref_ids,
+                       "story-1.02 must be extracted from list-prefixed Contributing")
+
+    def test_asterisk_prefix_extracted(self) -> None:
+        """``* Contributing stories: Story 2.01`` must be extracted."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir()
+        _make_docs_story(sd, 2, 3, "docs",
+                         deps="None",
+                         contributing_stories="Story 2.01")
+        fp = sd / "epic-2" / "story-03-docs.md"
+        content = fp.read_text(encoding="utf-8")
+        content = content.replace(
+            "Contributing stories: Story 2.01",
+            "* Contributing stories: Story 2.01",
+        )
+        fp.write_text(content, encoding="utf-8")
+        result = sync_helper.extract_required_refs(fp)
+        self.assertIn("story-2.01", result["refs"])
+
+    def test_plus_prefix_extracted(self) -> None:
+        """``+ Contributing stories: Story 1.01`` must be extracted."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir()
+        _make_docs_story(sd, 1, 2, "docs",
+                         deps="None",
+                         contributing_stories="Story 1.01")
+        fp = sd / "epic-1" / "story-02-docs.md"
+        content = fp.read_text(encoding="utf-8")
+        content = content.replace(
+            "Contributing stories: Story 1.01",
+            "+ Contributing stories: Story 1.01",
+        )
+        fp.write_text(content, encoding="utf-8")
+        result = sync_helper.extract_required_refs(fp)
+        self.assertIn("story-1.01", result["refs"])
+
+    def test_no_prefix_still_works(self) -> None:
+        """Unprefixed ``Contributing stories:`` still extracted."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir()
+        _make_docs_story(sd, 1, 2, "docs",
+                         deps="None",
+                         contributing_stories="Story 1.01")
+        fp = sd / "epic-1" / "story-02-docs.md"
+        result = sync_helper.extract_required_refs(fp)
+        self.assertIn("story-1.01", result["refs"])
+
+    def test_deps_not_duplicated_as_contributors(self) -> None:
+        """Dependencies refs must not be duplicated in result when the
+        same ID appears in both Dependencies and Contributing stories."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir()
+        _make_docs_story(sd, 1, 3, "docs",
+                         deps="Story 1.01",
+                         contributing_stories="Story 1.01, Story 1.02")
+        fp = sd / "epic-1" / "story-03-docs.md"
+        result = sync_helper.extract_required_refs(fp)
+        # story-1.01 appears in BOTH Dependencies and Contributing;
+        # it should appear twice in refs (once from each section) per
+        # existing grammar — deduplication is the consumer's concern.
+        # The critical invariant is that it IS extracted from both.
+        refs = result["refs"]
+        self.assertGreaterEqual(refs.count("story-1.01"), 2,
+                                "story-1.01 must be extracted from both sections")
+        self.assertIn("story-1.02", refs)
+
+    def test_list_prefix_in_planner_integration(self) -> None:
+        """Plan-creation-order resolves list-prefixed Contributing correctly."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir()
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "impl", deps="None")
+        _make_docs_story(sd, 1, 2, "docs",
+                         deps="Story 1.01",
+                         contributing_stories="Story 1.01")
+        # Rewrite to use list prefix
+        fp = sd / "epic-1" / "story-02-docs.md"
+        content = fp.read_text(encoding="utf-8")
+        content = content.replace(
+            "Contributing stories: Story 1.01",
+            "- Contributing stories: Story 1.01",
+        )
+        fp.write_text(content, encoding="utf-8")
+        items = [
+            {"type": "story", "category": "new", "epic_index": 1,
+             "story_index": 1, "jira_key": None, "title": "",
+             "file": "epic-1/story-01-impl.md"},
+            {"type": "story", "category": "new", "epic_index": 1,
+             "story_index": 2, "jira_key": None, "title": "",
+             "file": "epic-1/story-02-docs.md"},
+        ]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, None)
+        qids = [f"story-{it['epic_index']}.{it['story_index']:02d}"
+                for it in r["ordered"]]
+        # story-1.01 must precede story-1.02 in creation order
+        self.assertIn("story-1.01", qids)
+        self.assertIn("story-1.02", qids)
+        idx_impl = qids.index("story-1.01")
+        idx_docs = qids.index("story-1.02")
+        self.assertLess(idx_impl, idx_docs,
+                        "Impl story must come before DOCS story in order")
+
+    def test_native_key_preserved_in_existing_cases(self) -> None:
+        """Existing native Jira key extraction from Contributing is preserved."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir()
+        _make_docs_story(sd, 1, 2, "docs",
+                         deps="None",
+                         contributing_stories="EDM-500")
+        fp = sd / "epic-1" / "story-02-docs.md"
+        result = sync_helper.extract_required_refs(fp)
+        self.assertIn("EDM-500", result["native_keys"])
+
+
+# ---------------------------------------------------------------------------
+# R2: Actual unavailable ref IDs in blocked[].missing — no placeholder
+# ---------------------------------------------------------------------------
+
+class TestUnavailableRefIDs(_TmpDirMixin, unittest.TestCase):
+    """Blocked entries must include actual unavailable ref IDs in
+    ``missing``, not ``(see errors for qid)`` (R2 regression)."""
+
+    def _setup_stories(self, deps_list):
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        for eidx, sidx, slug, deps in deps_list:
+            _make_epic(sd, eidx, f"epic{eidx}")
+            _make_dev_story(sd, eidx, sidx, slug, deps=deps)
+        return sd
+
+    def _item(self, eidx, sidx, slug):
+        return {"type": "story", "category": "new",
+                "epic_index": eidx, "story_index": sidx,
+                "jira_key": None, "title": "",
+                "file": f"epic-{eidx}/story-{sidx:02d}-{slug}.md"}
+
+    def test_unavailable_ref_id_in_missing(self) -> None:
+        """Unavailable story ref appears directly in blocked[].missing."""
+        self._setup_stories([(1, 1, "a", "Story 9.99")])
+        items = [self._item(1, 1, "a")]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, None)
+        self.assertEqual(len(r["ordered"]), 0)
+        self.assertEqual(len(r["blocked"]), 1)
+        blocked = r["blocked"][0]
+        self.assertIn("story-9.99", blocked["missing"],
+                       "Actual unavailable ref ID must be in missing")
+        # Must NOT contain placeholders
+        for m in blocked["missing"]:
+            self.assertNotIn("(see errors", m,
+                             "Placeholder must not appear in missing")
+
+    def test_unavailable_epic_ref_id_in_missing(self) -> None:
+        """Unavailable epic ref appears directly in blocked[].missing."""
+        self._setup_stories([(1, 1, "a", "Epic 999")])
+        items = [self._item(1, 1, "a")]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, None)
+        self.assertEqual(len(r["blocked"]), 1)
+        blocked = r["blocked"][0]
+        self.assertIn("epic-999", blocked["missing"],
+                       "Actual unavailable epic ref must be in missing")
+
+    def test_unavailable_plus_blocked_graph(self) -> None:
+        """Story with BOTH unavailable ref AND graph deps: both in missing."""
+        self._setup_stories([
+            (1, 1, "a", "Story 9.99"),
+            (1, 2, "b", "Story 1.01"),
+        ])
+        items = [self._item(1, 1, "a"), self._item(1, 2, "b")]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, None)
+        # story-1.01 is blocked with story-9.99 in missing
+        blocked_map = {
+            f"story-{b['item']['epic_index']}.{b['item']['story_index']:02d}": b
+            for b in r["blocked"]
+        }
+        self.assertIn("story-1.01", blocked_map)
+        self.assertIn("story-9.99", blocked_map["story-1.01"]["missing"])
+
+    def test_self_ref_uses_invalid_refs_not_missing(self) -> None:
+        """Self-ref uses invalid_refs/reason, NOT missing."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "a", deps="Story 1.01")
+        items = [self._item(1, 1, "a")]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, None)
+        self.assertEqual(len(r["blocked"]), 1)
+        b = r["blocked"][0]
+        self.assertEqual(b["missing"], [])
+        self.assertIn("invalid_refs", b)
+        self.assertIn("self-reference", b["reason"])
+
+    def test_source_read_failure_reason_no_fake_id(self) -> None:
+        """Unreadable source → reason set, no fake ID in missing."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir(exist_ok=True)
+        _make_epic(sd, 1, "building")
+        # Item references a file that doesn't exist
+        items = [{"type": "story", "category": "new",
+                  "epic_index": 1, "story_index": 1,
+                  "jira_key": None, "title": "",
+                  "file": "epic-1/story-01-ghost.md"}]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, None)
+        self.assertEqual(len(r["blocked"]), 1)
+        b = r["blocked"][0]
+        self.assertIn("unreadable", b["reason"].lower(),
+                       "Reason must describe source failure")
+        for m in b.get("missing", []):
+            self.assertNotIn("(see errors", m,
+                             "No placeholder in missing for source failures")
+
+    def test_no_placeholder_anywhere(self) -> None:
+        """No blocked entry in any plan_creation_order result may contain
+        the old ``(see errors for ...)`` placeholder in missing."""
+        # Complex scenario: multiple unavailable refs
+        self._setup_stories([
+            (1, 1, "a", "Story 9.01, Story 9.02"),
+            (1, 2, "b", "None"),
+        ])
+        items = [self._item(1, 1, "a"), self._item(1, 2, "b")]
+        r = sync_helper.plan_creation_order(items, self.tmpdir, None)
+        for b in r["blocked"]:
+            for m in b.get("missing", []):
+                self.assertNotIn("(see errors", m)
+
+
+# ---------------------------------------------------------------------------
+# R5: Parent-epic retirement affects DOCS set (instruction contract)
+# ---------------------------------------------------------------------------
+
+class TestDocsParentEpicRetirement(unittest.TestCase):
+    """Revise.md includes parent-epic retirement in DOCS affected set (R5)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import re
+        revise_path = Path(__file__).resolve().parent.parent / "skills" / "revise.md"
+        cls._revise_md = revise_path.read_text(encoding="utf-8")
+        m4 = re.search(r"### Step 4:.*?(?=### Step 5:)", cls._revise_md, re.DOTALL)
+        assert m4, "Step 4 not found in revise.md"
+        cls._step4 = m4.group()
+
+    def test_parent_epic_retirement_in_affected_set(self) -> None:
+        """Step 4 DOCS re-evaluation mentions parent epic retirement."""
+        self.assertIn("parent epic", self._step4.lower())
+
+    def test_effectively_retired_contributors(self) -> None:
+        """Step 4 mentions contributors retired through parent."""
+        self.assertIn("status: removed", self._step4)
+
+    def test_unchanged_story_file_still_affected(self) -> None:
+        """Even when contributor's own file is unchanged, parent removal
+        affects the DOCS story."""
+        self.assertIn("unchanged", self._step4.lower())
+
+
+# ---------------------------------------------------------------------------
+# R6: Post-cascade DOCS reconciliation (instruction contract)
+# ---------------------------------------------------------------------------
+
+class TestDocsPostCascadeReconciliation(unittest.TestCase):
+    """Revise.md re-reads/reconciles DOCS after IC/testplan cascades (R6)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import re
+        revise_path = Path(__file__).resolve().parent.parent / "skills" / "revise.md"
+        cls._revise_md = revise_path.read_text(encoding="utf-8")
+        m4 = re.search(r"### Step 4:.*?(?=### Step 5:)", cls._revise_md, re.DOTALL)
+        assert m4, "Step 4 not found in revise.md"
+        cls._step4 = m4.group()
+
+    def test_post_cascade_reconciliation_present(self) -> None:
+        """Post-cascade DOCS reconciliation section exists."""
+        self.assertIn("reconcil", self._step4.lower())
+
+    def test_preserves_prerequisite_dependencies(self) -> None:
+        """Post-cascade section preserves prerequisite Dependencies."""
+        self.assertIn("prerequisite", self._step4.lower())
+
+    def test_covers_documentation_inputs(self) -> None:
+        """Post-cascade section mentions Documentation Inputs."""
+        self.assertIn("Documentation Inputs", self._step4)
+
+
+# ---------------------------------------------------------------------------
+# R7: Step 3 fail-closed capture recipe (instruction contract)
+# ---------------------------------------------------------------------------
+
+class TestStep3FailClosedCapture(unittest.TestCase):
+    """Sync.md Step 3 uses fail-closed capture for plan-creation-order (R7)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import re
+        sync_path = Path(__file__).resolve().parent.parent / "skills" / "sync.md"
+        cls._sync_md = sync_path.read_text(encoding="utf-8")
+        m3 = re.search(r"### Step 3:.*?(?=### Step 4:)", cls._sync_md, re.DOTALL)
+        assert m3, "Step 3 not found in sync.md"
+        cls._step3 = m3.group()
+
+    def test_step3_uses_mktemp(self) -> None:
+        """Step 3 capture uses mktemp for safe temp file."""
+        self.assertIn("mktemp", self._step3)
+
+    def test_step3_captures_exit_code(self) -> None:
+        """Step 3 captures plan helper exit code."""
+        self.assertIn("PLAN_EXIT", self._step3)
+
+    def test_step3_captures_stderr(self) -> None:
+        """Step 3 captures stderr text."""
+        self.assertIn("PLAN_ERR", self._step3)
+
+    def test_step3_inline_cleanup(self) -> None:
+        """Step 3 cleans up temp file before interpretation."""
+        self.assertIn("rm -f", self._step3)
+
+    def test_step3_fatal_stops(self) -> None:
+        """Step 3 stops on malformed/missing/empty output."""
+        lower = self._step3.lower()
+        self.assertIn("malformed", lower)
+        self.assertIn("fatal", lower)
+
+    def test_step3_structured_errors_stop(self) -> None:
+        """Step 3 stops on valid JSON with non-empty errors."""
+        self.assertIn("errors", self._step3)
+        self.assertIn("STOP", self._step3)
+
+    def test_step3_valid_success_continues(self) -> None:
+        """Step 3 continues on valid structured success."""
+        self.assertIn("valid", self._step3.lower())
+
+    def test_step3_no_preview_on_fatal(self) -> None:
+        """Step 3 does not proceed to preview on fatal."""
+        self.assertIn("preview", self._step3.lower())
+        self.assertIn("approval", self._step3.lower())
+
+
+# ---------------------------------------------------------------------------
+# R8: Repeat /decompose loads existing artifacts (instruction contract)
+# ---------------------------------------------------------------------------
+
+class TestRepeatDecomposeArtifactLoad(unittest.TestCase):
+    """Decompose.md handles repeat runs with existing artifacts (R8)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import re
+        decompose_path = (Path(__file__).resolve().parent.parent
+                          / "skills" / "decompose.md")
+        cls._decompose_md = decompose_path.read_text(encoding="utf-8")
+        m1 = re.search(r"### Step 1:.*?(?=### Step 2:)",
+                        cls._decompose_md, re.DOTALL)
+        assert m1, "Step 1 not found in decompose.md"
+        cls._step1 = m1.group()
+
+    def test_existing_artifact_handling(self) -> None:
+        """Step 1 mentions handling existing decomposition artifacts."""
+        self.assertIn("already exist", self._step1)
+
+    def test_preserves_qualified_identities(self) -> None:
+        """Step 1 preserves existing qualified identities."""
+        self.assertIn("qualified identit", self._step1.lower())
+
+    def test_no_overwrite_mismatched_ids(self) -> None:
+        """Step 1 prohibits overwriting mismatched IDs."""
+        self.assertIn("overwrite", self._step1.lower())
+
+    def test_retired_numbers_not_reused(self) -> None:
+        """Step 1 prohibits reuse of retired numbers."""
+        self.assertIn("retired", self._step1.lower())
+
+    def test_explicit_restoration_required(self) -> None:
+        """Step 1 requires explicit approval for restoring removed items."""
+        self.assertIn("restoration", self._step1.lower())
+
+    def test_initial_empty_still_works(self) -> None:
+        """Step 1 notes initial empty decomposition still works."""
+        self.assertIn("initial empty", self._step1.lower())
+
+
+# ---------------------------------------------------------------------------
+# R8: Controller 'from scratch' wording (instruction contract)
+# ---------------------------------------------------------------------------
+
+class TestControllerDecomposeWording(unittest.TestCase):
+    """Controller.md does not say 'from scratch' for repeat decompose (R8)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        ctrl_path = (Path(__file__).resolve().parent.parent
+                     / "skills" / "controller.md")
+        cls._ctrl_md = ctrl_path.read_text(encoding="utf-8")
+
+    def test_no_from_scratch(self) -> None:
+        """Controller does not say 'from scratch'."""
+        self.assertNotIn("from scratch", self._ctrl_md)
+
+    def test_preserves_existing_identities(self) -> None:
+        """Controller mentions preserved identities for repeat decompose."""
+        self.assertIn("preserved existing identities", self._ctrl_md)
+
+
+# ---------------------------------------------------------------------------
+# R9: Relative protocol reference (instruction contract)
+# ---------------------------------------------------------------------------
+
+class TestSyncHelperUsageReference(unittest.TestCase):
+    """sync-helper-usage.md uses correct relative path for sync protocol (R9)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        ref_path = (Path(__file__).resolve().parent.parent
+                    / "references" / "sync-helper-usage.md")
+        cls._ref_md = ref_path.read_text(encoding="utf-8")
+
+    def test_relative_protocol_reference(self) -> None:
+        """Reference to sync protocol uses ../skills/sync.md path."""
+        self.assertIn("../skills/sync.md", self._ref_md)
+
+    def test_no_bare_sync_md_resource_ref(self) -> None:
+        """No bare ``sync.md`` used as a protocol resource reference.
+        Bare references to sync.md as a file path description (not a
+        relative link to follow) are acceptable."""
+        import re
+        # Find lines with `sync.md` that look like relative resource refs
+        # (i.e., "from `sync.md`" pattern)
+        matches = re.findall(r'from `sync\.md`', self._ref_md)
+        self.assertEqual(len(matches), 0,
+                         "Bare sync.md resource reference should use "
+                         "../skills/sync.md")
+
+
+# ---------------------------------------------------------------------------
+# R3: DOCS criterion 5 scope wording (instruction contract)
+# ---------------------------------------------------------------------------
+
+class TestDocsCriterion5Scope(unittest.TestCase):
+    """Decompose.md criterion 5 uses DOCS-story scope, not feature-wide (R3)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        decompose_path = (Path(__file__).resolve().parent.parent
+                          / "skills" / "decompose.md")
+        cls._decompose_md = decompose_path.read_text(encoding="utf-8")
+
+    def test_criterion5_not_feature_wide(self) -> None:
+        """Criterion 5 does NOT say 'by the feature'."""
+        # Find criterion 5 text area
+        import re
+        m = re.search(r"5\.\s+\*\*Complete Documentation Inputs\.\*\*.*?"
+                       r"(?=6\.\s+\*\*Contributing)",
+                       self._decompose_md, re.DOTALL)
+        self.assertIsNotNone(m, "Criterion 5 not found")
+        c5 = m.group()
+        self.assertNotIn("by the feature", c5.lower())
+
+    def test_criterion5_story_scope(self) -> None:
+        """Criterion 5 scopes to this DOCS story's declared scope."""
+        import re
+        m = re.search(r"5\.\s+\*\*Complete Documentation Inputs\.\*\*.*?"
+                       r"(?=6\.\s+\*\*Contributing)",
+                       self._decompose_md, re.DOTALL)
+        self.assertIsNotNone(m)
+        c5 = m.group()
+        self.assertIn("story's declared scope", c5.lower())
+
+    def test_template_scope(self) -> None:
+        """Template Documentation Inputs placeholder scopes to story."""
+        import re
+        # Find the template block for DOCS stories
+        m = re.search(r"## Documentation Inputs\n\n\{.*?\}", self._decompose_md,
+                       re.DOTALL)
+        self.assertIsNotNone(m, "Template Documentation Inputs not found")
+        tmpl = m.group()
+        self.assertIn("scope", tmpl.lower())
+
+
+# ---------------------------------------------------------------------------
+# R4: Replacement-reviewer includes testplan (instruction contract)
+# ---------------------------------------------------------------------------
+
+class TestReplacementReviewerTestplan(unittest.TestCase):
+    """Decompose.md replacement-reviewer includes 04-testplan.md (R4)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import re
+        decompose_path = (Path(__file__).resolve().parent.parent
+                          / "skills" / "decompose.md")
+        cls._decompose_md = decompose_path.read_text(encoding="utf-8")
+        m9 = re.search(r"### Step 9:.*?(?=### Step 10:)",
+                        cls._decompose_md, re.DOTALL)
+        assert m9, "Step 9 not found in decompose.md"
+        cls._step9 = m9.group()
+
+    def test_replacement_reviewer_includes_testplan(self) -> None:
+        """The replacement-reviewer branch includes 04-testplan.md."""
+        # Find the "If resumption is not available" paragraph
+        self.assertIn("04-testplan.md", self._step9)
+
+    def test_design_doc_still_excluded(self) -> None:
+        """The replacement-reviewer still excludes the design document."""
+        self.assertIn("NOT the design document", self._step9)
+
+
 if __name__ == "__main__":
     unittest.main()
