@@ -2635,6 +2635,52 @@ class TestProducerConsumerContracts(unittest.TestCase):
             hashlib.sha256(modified.encode()).hexdigest(),
             "Modified Expected Results must invalidate confirmation")
 
+    def test_e2e_validate_step7_three_way_ac_coverage(self):
+        """e2e/skills/validate.md Step 7 accepts scenario, manual TC, or gate."""
+        text = (self._repo_root() / "e2e/skills/validate.md").read_text()
+        import re
+        # Extract Step 7 section (up to Step 7b or next ###)
+        m = re.search(
+            r"### Step 7: Acceptance Criteria Verification\n(.*?)(?=\n### )",
+            text, re.DOTALL)
+        self.assertIsNotNone(m, "Step 7 section must exist")
+        step7 = m.group(1)
+        # Must reference all three coverage methods
+        self.assertIn("Manual TC", step7,
+                      "Step 7 must accept manual TC coverage")
+        self.assertIn("Qualification gate", step7,
+                      "Step 7 must accept qualification gate coverage")
+        self.assertIn("Automated test scenario", step7,
+                      "Step 7 must reference automated test scenarios")
+        # Must mention evidence gating for non-automated methods
+        self.assertIn("pending", step7,
+                      "Step 7 must note that pending evidence is not a pass")
+        # Must NOT contain old unconditional scenario-only claim
+        self.assertNotIn(
+            "covered by a test scenario.\nThis is",
+            step7,
+            "Step 7 must not claim coverage is exclusively test scenarios")
+
+    def test_publish_preflight_and_validate_canonical_verdict(self):
+        """Publishers require unqualified Overall: PASS; producers write it."""
+        # Both publishers must reject legacy plain PASS
+        for rel in ["implement/skills/publish.md",
+                     "e2e/skills/publish.md"]:
+            text = (self._repo_root() / rel).read_text()
+            self.assertIn("Overall: PASS", text,
+                          f"{rel} must check for Overall: PASS")
+            self.assertIn("legacy", text,
+                          f"{rel} must mention legacy plain PASS handling")
+
+        # Both validators must instruct writing the literal line
+        for rel in ["implement/skills/validate.md",
+                     "e2e/skills/validate.md"]:
+            text = (self._repo_root() / rel).read_text()
+            self.assertIn("Write `Overall: PASS`", text,
+                          f"{rel} must instruct writing literal Overall: PASS")
+            self.assertIn("Overall: FAIL", text,
+                          f"{rel} must document Overall: FAIL verdict")
+
 
 # ===========================================================================
 # 27. Snapshot/Git consumer regressions

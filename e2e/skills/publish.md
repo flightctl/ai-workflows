@@ -59,9 +59,10 @@ Verify readiness:
    `PASS (automated) — awaiting external validation` means external
    evidence is still pending and the tests are NOT ready for
    publication. If the file doesn't exist, the `## Result` section is
-   missing, it contains `FAIL`, or it contains only a qualified PASS
-   without overall PASS, tell the user that `/validate` should be run
-   (or re-run) first.
+   missing, it contains `FAIL`, it contains only a qualified PASS, or
+   it lacks an explicit unqualified `Overall: PASS` line (including
+   legacy reports with plain `PASS`), tell the user that `/validate`
+   should be run (or re-run) first.
 
 2. Verify the feature branch exists and has commits:
 

@@ -13,7 +13,8 @@ PR creation.
 ## Your Role
 
 Execute the e2e tests, analyze the test code for anti-patterns, verify
-that every acceptance criterion is covered by a test scenario, and iterate
+that every acceptance criterion is covered by the appropriate method
+(automated test scenario, manual TC, or qualification gate), and iterate
 until quality standards are met. This phase may loop — you fix issues,
 re-run checks, and repeat until everything passes.
 
@@ -205,31 +206,47 @@ git commit -m "{issue-key}: address validation review findings"
 ### Step 7: Acceptance Criteria Verification
 
 After automated checks and code quality review, verify that every
-acceptance criterion from the story has been covered by a test scenario.
-This is the workflow's primary contract.
+acceptance criterion from the story has been covered by the appropriate
+method from the approved plan. This is the workflow's primary contract.
 
 1. Read the **Acceptance Criteria** from `01-context.md`
 2. Read the **Acceptance Criteria Coverage** matrix from `02-plan.md`
-3. For each acceptance criterion:
-   - **Trace to test scenario:** Is there a test that exercises this
+3. For each acceptance criterion, check the plan-approved coverage
+   method:
+
+   **Automated test scenario:**
+   - Trace to test scenario: is there a test that exercises this
      criterion's behavior? Follow the task mapping —
      check that the task is marked Done and that the corresponding test
      code exists.
-   - **Verify the test runs:** Does the test pass when executed?
-   - **Assess coverage:** Is the criterion fully covered by the test
+   - Verify the test runs: does the test pass when executed?
+   - Assess coverage: is the criterion fully covered by the test
      scenarios, partially covered, or not addressed?
+
+   **Manual TC (from coverage matrix):**
+   - Verify the TC's criteria and required evidence status. Evidence
+     that is pending, not started, or unverified does not constitute a
+     pass. Failed required criteria means the AC is failed.
+   - Do not force an automated test scenario for an AC the plan
+     designates as manual verification.
+
+   **Qualification gate (from coverage matrix):**
+   - Verify the gate's criteria and evidence status in the external
+     evidence section. Pending or not-started evidence does not
+     constitute a pass. Failed required criteria means the AC is failed.
+   - Do not force an automated test scenario for an AC the plan
+     designates as a qualification gate.
 
 Record the result for each criterion. If any criterion is not fully
 covered:
 
-1. If it's a gap in test scenarios — write the missing test, commit,
-   and re-run
+1. If the plan designates an automated scenario and it is missing —
+   write the missing test, commit, and re-run
 2. If it's ambiguous whether the criterion is covered — flag it to the
    user with your assessment
-3. If the criterion cannot be verified through e2e tests (e.g., it
-   describes internal behavior or a non-functional requirement that
-   requires manual measurement) — note it as "not e2e-testable" with
-   an explanation of why
+3. If the criterion is covered by a manual TC or qualification gate —
+   verify evidence status as above; do not write a substitute automated
+   test
 
 ### Step 7b: Test Plan Verification
 
@@ -478,8 +495,9 @@ Write `.artifacts/e2e/{issue-key}/05-validation-report.md`:
  whether all manual verification, qualification gate, and non-TC
  gate evidence has been provided and accepted.
 
- Overall: PASS only when both automated coverage passes AND all
- external validation entries are verified. Other outcomes:
+ Write `Overall: PASS` on its own line only when both automated
+ coverage passes AND all external validation entries are verified.
+ Other outcomes:
  - If automated tests pass but entries are pending/not-started:
    "PASS (automated) — awaiting external validation for {N}
    entries." Overall is NOT PASS.

@@ -601,8 +601,9 @@ Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
  whether all manual verification, qualification gate, and non-TC
  gate evidence has been provided and accepted.
 
- Overall: PASS only when both automated coverage passes AND all
- external validation entries are verified. Other outcomes:
+ Write `Overall: PASS` on its own line only when both automated
+ coverage passes AND all external validation entries are verified.
+ Other outcomes:
  - If automated tests pass but entries are pending/not-started:
    "PASS (automated) — awaiting external validation for {N}
    entries." Overall is NOT PASS.
