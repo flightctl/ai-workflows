@@ -3357,16 +3357,18 @@ class TestR7IndexChecksumPrefix(unittest.TestCase):
         self.assertIn("prefix", s2)
 
     def test_s4_prefix_vs_manifest_and_bytes(self) -> None:
-        """§4.1 compares index prefix against both manifest digest
-        and computed actual-bytes hash."""
+        """§4.1 compares index prefix against manifest digest (when
+        present) and computed actual-bytes hash (always)."""
         content = _read("_shared/recipes/screenshot-inspection.md")
         s4 = content.split("Index checksum prefix", 1)
         self.assertEqual(len(s4), 2, "Index checksum prefix section missing")
-        block = s4[1].split("**Open and visually inspect**", 1)[0]
+        block = s4[1].split("**Identity exception decision.**", 1)[0]
         flat = " ".join(block.split())
         self.assertIn("manifest digest", flat)
         self.assertIn("actual-bytes hash", flat)
-        self.assertIn("both", flat.lower())
+        # Always compare against bytes; manifest only when present
+        self.assertIn("Always compare", flat)
+        self.assertIn("only when the manifest", flat)
 
     def test_s4_stale_prefix_identity_exception(self) -> None:
         """Stale/mismatched prefix is an identity exception."""
@@ -3787,7 +3789,7 @@ class TestR8IdentityExceptionDecision(unittest.TestCase):
         content = _read("_shared/recipes/screenshot-inspection.md")
         s4 = content.split("Identity exception decision", 1)
         self.assertEqual(len(s4), 2, "Identity exception section missing")
-        flat = " ".join(s4[1].split("Index checksum prefix", 1)[0].split())
+        flat = " ".join(s4[1].split("2. **Open and visually inspect**", 1)[0].split())
         self.assertIn("per-image", flat)
         self.assertIn("independent from", flat)
         self.assertIn("binding decisions", flat)
@@ -3796,7 +3798,7 @@ class TestR8IdentityExceptionDecision(unittest.TestCase):
         """One identity decision covers all identity reasons."""
         content = _read("_shared/recipes/screenshot-inspection.md")
         s4 = content.split("Identity exception decision", 1)[1].split(
-            "Index checksum prefix", 1)[0]
+            "2. **Open and visually inspect**", 1)[0]
         flat = " ".join(s4.split())
         self.assertIn("One identity decision covers all", flat)
 
@@ -3804,9 +3806,34 @@ class TestR8IdentityExceptionDecision(unittest.TestCase):
         """No new acceptance schema; 9 columns unchanged."""
         content = _read("_shared/recipes/screenshot-inspection.md")
         s4 = content.split("Identity exception decision", 1)[1].split(
-            "Index checksum prefix", 1)[0]
+            "2. **Open and visually inspect**", 1)[0]
         flat = " ".join(s4.split())
         self.assertIn("9 output columns unchanged", flat)
+
+    def test_identity_decision_after_prefix(self) -> None:
+        """Identity exception decision follows Index checksum prefix."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s41 = content.split("1. **Verify identity.**", 1)[1].split(
+            "2. **Open and visually inspect**", 1)[0]
+        prefix_pos = s41.find("Index checksum prefix")
+        decision_pos = s41.find("Identity exception decision")
+        self.assertGreater(prefix_pos, -1, "Prefix section missing")
+        self.assertGreater(decision_pos, -1, "Decision section missing")
+        self.assertLess(prefix_pos, decision_pos,
+                        "Prefix must precede identity decision")
+
+    def test_absent_manifest_prefix_only_observed(self) -> None:
+        """Absent manifest: prefix compared against observed bytes only;
+        identity stays unverified even when observed prefix matches."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        prefix = content.split("Index checksum prefix", 1)[1].split(
+            "Identity exception decision", 1)[0]
+        flat = " ".join(prefix.split())
+        self.assertIn("Always compare", flat)
+        self.assertIn("actual-bytes hash", flat)
+        self.assertIn("only when the manifest", flat)
+        self.assertIn("Absent manifest keeps", flat)
+        self.assertIn("prefix alone cannot elevate", flat)
 
 
 class TestR8BranchCollisionCheck(unittest.TestCase):

@@ -151,7 +151,31 @@ appears exactly once in the output.
    `unverified` (not "impossible comparison" and never "verified").
    An absent manifest must not clear a stale observed prefix mismatch.
 
-   **Identity exception decision.** When identity is `mismatched` or
+   **Index checksum prefix.** When the Screenshot Index declares a
+   SHA-256 prefix for this ID, the prefix must be exactly 12
+   lowercase hex characters (matching the template `{12 hex}…`).
+   A trailing display ellipsis (`…`) is not part of the validated
+   checksum. Reject one-character, malformed, or missing prefixes —
+   they cannot verify identity. Handle case consistently (normalize
+   to lowercase before comparison). Always compare a valid 12-hex
+   prefix against the computed actual-bytes hash. Additionally
+   compare against the full manifest digest only when the manifest
+   is present. Matching all available digests is consistent —
+   identity may be `verified` only when all other gates also pass.
+   An observed-bytes prefix mismatch is `identity: mismatched`
+   regardless of manifest presence or absence. A manifest-only
+   prefix mismatch is also `identity: mismatched`. Absent manifest
+   keeps `identity: unverified` even when the observed prefix
+   matches — prefix alone cannot elevate to `verified`. A stale or
+   mismatched prefix (does not match either available digest) is an
+   identity exception: apply the same independent accepted-unverified
+   rules as byte identity. A missing or invalid prefix cannot be
+   silently treated as verified; preserve existing unverified
+   decision paths. Retain the separate full 64-character digest
+   comparison.
+
+   **Identity exception decision.** After all manifest and prefix
+   checks above, when the final identity is `mismatched` or
    `unverified`, prompt the researcher for an explicit per-image
    identity exception decision, independent from the named
    `context_revision`/`prototype_iteration` binding decisions in
@@ -160,23 +184,6 @@ appears exactly once in the output.
    or defer keeps the image ineligible; explicit acceptance records
    `accepted-unverified` per existing citation rules. Do not invent
    a new acceptance schema — 9 output columns unchanged.
-
-   **Index checksum prefix.** When the Screenshot Index declares a
-   SHA-256 prefix for this ID, the prefix must be exactly 12
-   lowercase hex characters (matching the template `{12 hex}…`).
-   A trailing display ellipsis (`…`) is not part of the validated
-   checksum. Reject one-character, malformed, or missing prefixes —
-   they cannot verify identity. Handle case consistently (normalize
-   to lowercase before comparison). Compare a valid 12-hex prefix
-   against **both** the full manifest digest and the computed
-   actual-bytes hash. Matching both is consistent — identity may be
-   `verified` only when all other gates also pass. A stale or
-   mismatched prefix (does not match either digest) is an identity
-   exception: record `identity: mismatched` and apply the same
-   independent accepted-unverified rules as byte identity. A
-   missing or invalid prefix cannot be silently treated as verified;
-   preserve existing unverified decision paths. Retain the separate
-   full 64-character digest comparison.
 
 2. **Open and visually inspect** using the runtime's image reading
    capability (the `Read` tool on the file path). Reading markdown,
