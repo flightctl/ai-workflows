@@ -806,11 +806,11 @@ def _safe_write_output(dst: Path, content: str,
       runs before the ancestor walk and before `mkdir(parents=True)`.
       A same-UID process could plant a symlink in an intermediate
       directory between the containment check and the mkdir call.
-      This is an inherent filesystem TOCTOU condition under same-UID
-      replacement and does not affect cross-UID security boundaries
-      (different-UID processes cannot create entries in directories
-      they do not own).  The existing atomic-write path (mkstemp +
-      os.replace) limits the window's impact to directory creation.
+      This is an accepted limitation of the single-process
+      containment model: the check assumes no concurrent modification
+      of directories under the trusted root between resolve and
+      mkdir. Callers requiring stronger guarantees against concurrent
+      directory manipulation should use external locking.
     """
     import os
 

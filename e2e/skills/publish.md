@@ -144,14 +144,7 @@ present the findings to the user. Do not proceed until the user decides
 how to handle them.
 
 If the gate made code fixes, commit them before re-running validation.
-Do not run `/validate` against uncommitted changes. Additionally,
-reassess whether external qualification evidence still applies — if
-review fixes changed an e2e test that was executed in a qualification
-environment, the earlier evidence may no longer reflect the changed
-test's behavior. When the applicability of prior evidence is unknown
-or stale for an affected test, return to `/validate` to re-collect
-evidence before proceeding. Unaffected evidence (for tests not
-changed by the review) may be retained with its existing basis.
+Do not run `/validate` against uncommitted changes.
 
 Commit review fixes and any cross-cutting changes:
 
@@ -165,6 +158,14 @@ git commit -m "{issue-key}: address cross-cutting review findings"
 
 The fix commit changed HEAD. Re-run `/validate` on the clean committed
 state to produce a fresh validation report bound to the new HEAD.
+
+Additionally, reassess whether external qualification evidence still
+applies — if review fixes changed an e2e test that was executed in a
+qualification environment, the earlier evidence may no longer reflect
+the changed test's behavior. When the applicability of prior evidence
+is unknown or stale for an affected test, `/validate` must re-collect
+evidence for affected tests. Unaffected evidence (for tests not
+changed by the review) may be retained with its existing basis.
 Repeat the full Step 1 preflight checks on the fresh report:
 
 1. The report's `## Validated Identity` must record the current branch

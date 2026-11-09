@@ -820,7 +820,7 @@ class TestPushExpectedSHA(unittest.TestCase):
     @mock.patch.object(publish, "run")
     def test_expected_sha_match_pins_refspec(self, mock_run: mock.Mock) -> None:
         """When HEAD matches --expected-sha and branch is correct,
-        push uses a SHA-pinned refspec."""
+        push uses a SHA-pinned refspec and sets tracking explicitly."""
         mock_run.side_effect = [
             # git remote get-url
             subprocess.CompletedProcess([], 0, "https://example.com/repo.git\n", ""),
@@ -828,7 +828,9 @@ class TestPushExpectedSHA(unittest.TestCase):
             subprocess.CompletedProcess([], 0, self.FAKE_SHA + "\n", ""),
             # git symbolic-ref --short HEAD
             subprocess.CompletedProcess([], 0, "feat/x\n", ""),
-            # git push -u (SHA-pinned)
+            # git push (SHA-pinned, no -u)
+            subprocess.CompletedProcess([], 0, "", ""),
+            # git branch --set-upstream-to (explicit tracking)
             subprocess.CompletedProcess([], 0, "", ""),
         ]
         code = publish.main([
@@ -836,10 +838,18 @@ class TestPushExpectedSHA(unittest.TestCase):
             "--expected-sha", self.FAKE_SHA,
         ])
         self.assertEqual(code, 0)
-        # Verify the push used the pinned refspec
-        push_call = mock_run.call_args_list[-1]
+        # Verify the push used the pinned refspec without -u
+        push_call = mock_run.call_args_list[3]
         push_cmd = push_call[0][0]
         self.assertIn(f"{self.FAKE_SHA}:refs/heads/feat/x", push_cmd)
+        self.assertNotIn("-u", push_cmd)
+        # Verify explicit tracking was set
+        tracking_call = mock_run.call_args_list[4]
+        tracking_cmd = tracking_call[0][0]
+        self.assertEqual(
+            tracking_cmd,
+            ["git", "branch", "--set-upstream-to=fork/feat/x", "feat/x"],
+        )
 
     @mock.patch.object(publish, "run")
     def test_expected_sha_mismatch_exits_3(self, mock_run: mock.Mock) -> None:
@@ -943,6 +953,16 @@ class TestPushExpectedSHAWithGit(unittest.TestCase):
             ["git", "-C", self._repo, "config", "user.name", "Test"],
             check=True, capture_output=True,
         )
+        # Isolate temp repo from real global signing/hooks config
+        subprocess.run(
+            ["git", "-C", self._repo, "config", "commit.gpgsign", "false"],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", self._repo, "config", "--unset-all",
+             "core.hooksPath"],
+            capture_output=True,  # may fail if unset; that's fine
+        )
         # Create an initial commit
         dummy = os.path.join(self._repo, "file.txt")
         with open(dummy, "w") as f:
@@ -996,6 +1016,37 @@ class TestPushExpectedSHAWithGit(unittest.TestCase):
             os.chdir(old_cwd)
         self.assertEqual(code, 0)
         self.assertEqual(self._remote_sha(branch), sha)
+
+    def test_sha_push_sets_upstream_tracking(self) -> None:
+        """SHA-pinned push sets upstream tracking for the branch."""
+        sha = self._head_sha()
+        branch = self._branch_name()
+        old_cwd = os.getcwd()
+        os.chdir(self._repo)
+        try:
+            code = publish.main([
+                "push", "--remote", "origin", "--branch", branch,
+                "--expected-sha", sha,
+            ])
+        finally:
+            os.chdir(old_cwd)
+        self.assertEqual(code, 0)
+        self.assertEqual(self._remote_sha(branch), sha)
+        # Verify upstream tracking was set
+        r = subprocess.run(
+            ["git", "-C", self._repo, "config",
+             f"branch.{branch}.remote"],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(r.stdout.strip(), "origin")
+        r = subprocess.run(
+            ["git", "-C", self._repo, "config",
+             f"branch.{branch}.merge"],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(r.stdout.strip(), f"refs/heads/{branch}")
 
     def test_moved_head_rejects_push(self) -> None:
         """Push fails when HEAD moves after validation."""

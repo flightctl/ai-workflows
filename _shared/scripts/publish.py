@@ -506,16 +506,32 @@ def cmd_push(args: argparse.Namespace) -> int:
         refspec = f"{expected_sha}:refs/heads/{branch}"
         info(f"Pushing validated {expected_sha[:12]} to "
              f"{remote}/{branch}...")
-        result = run(["git", "push", "-u", remote, refspec],
+        result = run(["git", "push", remote, refspec],
                      capture=False)
+
+        if result.returncode != 0:
+            fail(f"push: git push failed (remote={remote}, "
+                 f"branch={branch})", EXIT_PUSH_FAIL)
+
+        # SHA-pinned refspecs don't set upstream tracking via -u
+        # (git requires a local branch ref as source for -u to work).
+        # Set tracking explicitly after successful push.
+        tracking_r = run(
+            ["git", "branch",
+             f"--set-upstream-to={remote}/{branch}", branch]
+        )
+        if tracking_r.returncode != 0:
+            info(f"Push succeeded but upstream tracking could not be "
+                 f"set for {branch} -> {remote}/{branch}. "
+                 f"The remote branch has the correct content.")
     else:
         info(f"Pushing {branch} to {remote}...")
         result = run(["git", "push", "-u", remote, branch],
                      capture=False)
 
-    if result.returncode != 0:
-        fail(f"push: git push failed (remote={remote}, branch={branch})",
-             EXIT_PUSH_FAIL)
+        if result.returncode != 0:
+            fail(f"push: git push failed (remote={remote}, "
+                 f"branch={branch})", EXIT_PUSH_FAIL)
 
     info(f"Push successful: {remote}/{branch}")
     return EXIT_SUCCESS

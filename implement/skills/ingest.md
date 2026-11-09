@@ -285,9 +285,12 @@ resolver has not validated.
 
 **Artifact discovery (using validated resolver output):** Use the
 resolver's returned artifact list to identify the published
-validation artifact filenames and the primary testplan. If the
-resolver returns an empty list for a legacy design with only
-`testplan.md`, use the validated path directly.
+validation artifact filenames and the primary testplan. For legacy
+designs (no `validation-index.json`), the resolver validates and
+returns the testplan path in its artifact list (e.g.,
+`[{file: "testplan.md", type: "testplan"}]`). An empty resolver
+result (`[]`) means no valid artifacts were found — route through
+the existing no-source outcome rather than reading unvalidated paths.
 
 **Filter across all validation artifacts:** For each validation
 artifact file discovered above, match the story's `Validated by`

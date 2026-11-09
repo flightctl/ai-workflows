@@ -545,16 +545,17 @@ git -C "{docs_repo_path}" commit -m "Add design document for {issue-key}: {title
 ### Step 9: Push and Create PR
 
 Push the branch using the shared script (run from the docs repo).
-Use the validated HEAD SHA from the validation report's `## Validated
-Identity` section to pin the push to the exact validated commit:
+Use the current HEAD of the docs repo (the Step 8 commit) to pin
+the push to the exact committed state:
 
 ```bash
-(cd "{docs_repo_path}" && python3 "$PUBLISH_SCRIPT" push --remote {push-remote} --branch {branch-name} --expected-sha {validated-head-sha})
+DOCS_HEAD=$(git -C "{docs_repo_path}" rev-parse HEAD)
+(cd "{docs_repo_path}" && python3 "$PUBLISH_SCRIPT" push --remote {push-remote} --branch {branch-name} --expected-sha "$DOCS_HEAD")
 ```
 
 The `--expected-sha` flag verifies that HEAD still matches the
-validated commit and pins the push refspec to that exact SHA, so
-branch movement after preflight cannot publish an unvalidated commit.
+Step 8 commit and pins the push refspec to that exact SHA, so
+branch movement after the commit cannot publish uncommitted content.
 
 Read the design document and identify specific areas that warrant reviewer
 attention (AI-dependent):

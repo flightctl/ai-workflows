@@ -271,12 +271,12 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
 
 ## Acceptance Criteria Coverage
 
-| AC | Description | Coverage | Reference | Evidence Status |
-|----|-------------|----------|-----------|-----------------|
-| AC-1 | {brief} | C1 | Task 2 | — |
-| AC-2 | {brief} | S1 | Task 3 | — |
-| AC-3 | {brief} | Gate: {heading} | — | pending |
-| AC-4 | {brief} | Manual: TC-NFR2-01 | — | pending |
+| AC | Description | Coverage | Reference | Method | Evidence Status |
+|----|-------------|----------|-----------|--------|-----------------|
+| AC-1 | {brief} | C1 | Task 2 | automated-test | — |
+| AC-2 | {brief} | S1 | Task 3 | automated-test | — |
+| AC-3 | {brief} | Gate: {heading} | — | qualification-gate | pending |
+| AC-4 | {brief} | Manual: TC-NFR2-01 | — | manual-test | pending |
 
 {Every AC must appear in at least one scenario, be covered by a
  qualification gate with tracked evidence, or be covered by a manual
@@ -288,7 +288,16 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
  pending until manual verification evidence is reviewed and accepted.
  Gate-covered ACs have pending evidence until actual validation —
  planned gate coverage is not verified coverage. Flag any gaps where
- an AC has neither a scenario, a gate, nor a manual TC.}
+ an AC has neither a scenario, a gate, nor a manual TC.
+
+ **Method column:** Record the approved verification method for each
+ AC: `automated-test`, `manual-test`, `qualification-gate`,
+ `external-evidence`, or `unresolved — clarify with user`. This
+ drives `/validate` Step 7 — the validator reads Method from this
+ matrix to select the verification path for each AC. ACs with no
+ mapped scenarios or tasks must have their method explicitly set
+ (typically `unresolved — clarify with user`). Do not leave it
+ blank.}
 
 ## Test Plan Coverage
 
@@ -301,11 +310,12 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
  plan coverage for an unresolved testplan. Note "testplan source
  unresolved" and continue with AC-based planning.
 
- If `testplan.md` does NOT contain a `Freshness: unverified` or
- `Freshness: unresolved-source` marker (the plan was freshly
- ingested from an authoritative source), its TCs are
- authoritative — use them as normative coverage requirements
- directly without requiring user confirmation or SHA-256 binding.
+ If `testplan.md` does NOT contain a `Freshness: unverified`,
+ `**Freshness:** unverified`, or `Freshness: unresolved-source`
+ marker (the plan was freshly ingested from an authoritative
+ source), its TCs are authoritative — use them as normative
+ coverage requirements directly without requiring user
+ confirmation or SHA-256 binding.
 
  If `testplan.md` contains `Freshness: unverified` (or the legacy
  bold form `**Freshness:** unverified`), the testplan was retained
