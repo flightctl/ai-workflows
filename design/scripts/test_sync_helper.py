@@ -7830,40 +7830,44 @@ class TestContribListPrefixNormalization(_TmpDirMixin, unittest.TestCase):
                                 "story-1.01 must be extracted from both sections")
         self.assertIn("story-1.02", refs)
 
-    def test_contrib_only_dependency_order(self) -> None:
-        """DOCS story with Dependencies:None and list-prefixed Contributing
-        as sole reference — planner creates prereq before DOCS story."""
+    def test_contrib_only_reversed_order(self) -> None:
+        """DOCS story-1.01 with list-prefixed Contributing-only ref to
+        later-numbered Story 2.01 — planner reverses numeric order so
+        DEV 2.01 is created before DOCS 1.01.  Uses detect_changes +
+        plan_creation_order with real source files."""
         sd = Path(self.tmpdir) / "06-stories"
         sd.mkdir()
-        _make_epic(sd, 1, "building")
-        _make_dev_story(sd, 1, 1, "impl", deps="None")
-        # DOCS story with Dependencies: None, Contributing-only ref
-        _make_docs_story(sd, 1, 2, "docs",
+        _make_epic(sd, 1, "docs-epic")
+        _make_epic(sd, 2, "dev-epic")
+        _make_dev_story(sd, 2, 1, "impl", deps="None")
+        # DOCS story-1.01 with Dependencies: None, Contributing-only ref
+        # to the later-numbered Story 2.01
+        _make_docs_story(sd, 1, 1, "api-docs",
                          deps="None",
-                         contributing_stories="Story 1.01")
-        fp = sd / "epic-1" / "story-02-docs.md"
+                         contributing_stories="Story 2.01")
+        fp = sd / "epic-1" / "story-01-api-docs.md"
         content = fp.read_text(encoding="utf-8")
         content = content.replace(
-            "Contributing stories: Story 1.01",
-            "- Contributing stories: Story 1.01",
+            "Contributing stories: Story 2.01",
+            "- Contributing stories: Story 2.01",
         )
         fp.write_text(content, encoding="utf-8")
-        items = [
-            {"type": "story", "category": "new", "epic_index": 1,
-             "story_index": 1, "jira_key": None, "title": "",
-             "file": "epic-1/story-01-impl.md"},
-            {"type": "story", "category": "new", "epic_index": 1,
-             "story_index": 2, "jira_key": None, "title": "",
-             "file": "epic-1/story-02-docs.md"},
-        ]
-        r = sync_helper.plan_creation_order(items, self.tmpdir, None)
+        # Use detect_changes to build the real change plan
+        change_plan = sync_helper.detect_changes(self.tmpdir)
+        self.assertFalse(change_plan["manifest_exists"])
+        story_items = [i for i in change_plan["items"]
+                       if i["type"] == "story"]
+        self.assertEqual(len(story_items), 2)
+        r = sync_helper.plan_creation_order(
+            change_plan["items"], self.tmpdir, None)
         self.assertEqual(r["errors"], [])
         qids = [f"story-{it['epic_index']}.{it['story_index']:02d}"
                 for it in r["ordered"]]
+        self.assertIn("story-2.01", qids)
         self.assertIn("story-1.01", qids)
-        self.assertIn("story-1.02", qids)
-        self.assertLess(qids.index("story-1.01"), qids.index("story-1.02"),
-                        "DEV prerequisite must precede DOCS in creation order")
+        # DEV 2.01 must be created BEFORE DOCS 1.01 (reversed numeric)
+        self.assertLess(qids.index("story-2.01"), qids.index("story-1.01"),
+                        "DEV 2.01 must precede DOCS 1.01 in creation order")
 
     def test_contrib_only_availability_lifecycle(self) -> None:
         """DOCS with list-prefixed Contributing-only ref: blocked before
@@ -8024,11 +8028,14 @@ class TestUnavailableRefIDs(_TmpDirMixin, unittest.TestCase):
             for b in r["blocked"]
         }
         # story-1.03 has direct unavailable story-9.99 AND graph dep
-        # story-1.02 which is itself blocked
+        # story-1.02 which is itself blocked — both must be in missing
         self.assertIn("story-1.03", blocked_map)
         c_missing = blocked_map["story-1.03"]["missing"]
         self.assertIn("story-9.99", c_missing,
                        "Direct unavailable ref must be in missing")
+        self.assertIn("story-1.02", c_missing,
+                       "Blocked graph prerequisite must be in missing")
+        # No placeholders anywhere
         for m in c_missing:
             self.assertNotIn("(see errors", m)
 
@@ -8405,6 +8412,108 @@ class TestStep3CLIFixtures(_TmpDirMixin, unittest.TestCase):
                              "Fatal error must not produce complete JSON")
         except json.JSONDecodeError:
             pass  # Expected: no JSON at all
+
+
+# ---------------------------------------------------------------------------
+# R7: Step 3 Bash capture recipe execution under errexit
+# ---------------------------------------------------------------------------
+
+class TestStep3CaptureRecipeExecution(unittest.TestCase):
+    """The documented Step 3 Bash capture recipe for plan-creation-order
+    executes correctly under set -euo pipefail with real helper calls."""
+
+    def test_valid_clean_capture(self) -> None:
+        """Valid clean plan: exit=0, valid JSON, temp cleaned."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmpdir:
+            sd = Path(tmpdir) / "06-stories"
+            sd.mkdir()
+            _make_epic(sd, 1, "building")
+            _make_dev_story(sd, 1, 1, "impl", deps="None")
+            script = textwrap.dedent(f"""\
+                set -euo pipefail
+                PLAN_ERR=$(mktemp) || {{ echo "FATAL" >&2; exit 1; }}
+                PLAN_EXIT=0
+                PLAN_JSON=$(python3 -I "{_SCRIPT}" plan-creation-order \\
+                  "{tmpdir}" 2>"$PLAN_ERR") || PLAN_EXIT=$?
+                PLAN_ERR_TEXT=$(cat "$PLAN_ERR")
+                rm -f "$PLAN_ERR"
+                if [ -f "$PLAN_ERR" ]; then echo "LEAKED"; exit 1; fi
+                echo "exit=$PLAN_EXIT"
+                echo "$PLAN_JSON"
+            """)
+            r = subprocess.run(
+                ["bash", "-c", script],
+                capture_output=True, text=True, timeout=10)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("exit=0", r.stdout)
+            self.assertNotIn("LEAKED", r.stdout)
+            # Parse the JSON from stdout (after "exit=0\n")
+            json_text = r.stdout.split("\n", 1)[1]
+            out = json.loads(json_text)
+            self.assertEqual(out["errors"], [])
+            self.assertEqual(out["blocked"], [])
+            self.assertIsInstance(out["ordered"], list)
+            self.assertIsInstance(out["satisfied_keys"], dict)
+
+    def test_structured_error_capture(self) -> None:
+        """Structured error (exit=1 + JSON): captured correctly."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmpdir:
+            sd = Path(tmpdir) / "06-stories"
+            sd.mkdir()
+            _make_epic(sd, 1, "building")
+            _make_dev_story(sd, 1, 1, "impl", deps="Story 9.99")
+            script = textwrap.dedent(f"""\
+                set -euo pipefail
+                PLAN_ERR=$(mktemp) || {{ echo "FATAL" >&2; exit 1; }}
+                PLAN_EXIT=0
+                PLAN_JSON=$(python3 -I "{_SCRIPT}" plan-creation-order \\
+                  "{tmpdir}" 2>"$PLAN_ERR") || PLAN_EXIT=$?
+                PLAN_ERR_TEXT=$(cat "$PLAN_ERR")
+                rm -f "$PLAN_ERR"
+                if [ -f "$PLAN_ERR" ]; then echo "LEAKED"; exit 1; fi
+                echo "exit=$PLAN_EXIT"
+                echo "$PLAN_JSON"
+            """)
+            r = subprocess.run(
+                ["bash", "-c", script],
+                capture_output=True, text=True, timeout=10)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("exit=1", r.stdout)
+            self.assertNotIn("LEAKED", r.stdout)
+            json_text = r.stdout.split("\n", 1)[1]
+            out = json.loads(json_text)
+            self.assertGreater(len(out["errors"]), 0)
+
+    def test_fatal_corrupted_capture(self) -> None:
+        """Fatal (corrupted manifest): exit!=0, stderr captured, temp cleaned."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmpdir:
+            sd = Path(tmpdir) / "06-stories"
+            sd.mkdir()
+            _make_epic(sd, 1, "building")
+            _make_dev_story(sd, 1, 1, "impl", deps="None")
+            _write(Path(tmpdir) / "sync-manifest.json", "NOT JSON {{{")
+            script = textwrap.dedent(f"""\
+                set -euo pipefail
+                PLAN_ERR=$(mktemp) || {{ echo "FATAL" >&2; exit 1; }}
+                PLAN_EXIT=0
+                PLAN_JSON=$(python3 -I "{_SCRIPT}" plan-creation-order \\
+                  "{tmpdir}" 2>"$PLAN_ERR") || PLAN_EXIT=$?
+                PLAN_ERR_TEXT=$(cat "$PLAN_ERR")
+                rm -f "$PLAN_ERR"
+                if [ -f "$PLAN_ERR" ]; then echo "LEAKED"; exit 1; fi
+                echo "exit=$PLAN_EXIT"
+                echo "stderr=$PLAN_ERR_TEXT"
+            """)
+            r = subprocess.run(
+                ["bash", "-c", script],
+                capture_output=True, text=True, timeout=10)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("exit=1", r.stdout)
+            self.assertIn("stderr=ERROR", r.stdout)
+            self.assertNotIn("LEAKED", r.stdout)
 
 
 # ---------------------------------------------------------------------------
