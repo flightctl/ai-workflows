@@ -124,7 +124,7 @@ def _setup_repo(tmpdir: str) -> str:
     """Create a minimal git repo with an initial commit, return its path."""
     repo = os.path.join(tmpdir, "docs-repo")
     os.makedirs(repo)
-    subprocess.run(["git", "init", repo], capture_output=True, check=True)
+    subprocess.run(["git", "init", "-b", "main", repo], capture_output=True, check=True)
     subprocess.run(
         ["git", "-C", repo, "config", "user.email", "test@test"],
         capture_output=True, check=True,
@@ -1036,6 +1036,77 @@ class TestRecipeExecution(unittest.TestCase):
             )
             self.assertIn("unrel-staged.txt", st.stdout)
             self.assertIn("unrel-dirty.txt", st.stdout)
+
+    # --- T19: _setup_repo branch name independent of ambient config ---
+    def test_setup_repo_branch_name_isolated(self) -> None:
+        """Regression: _setup_repo uses git init -b main so the initial
+        branch is always 'main' regardless of ambient init.defaultBranch.
+
+        Scope: actual local Git repos with isolated config per variant.
+        Verifies the initial push to a bare remote succeeds under master,
+        custom, and unset ambient defaults."""
+        variants = [
+            ("master", "master"),
+            ("custom", "trunk"),
+            ("unset", None),
+        ]
+        for label, default_branch in variants:
+            with self.subTest(ambient=label):
+                with tempfile.TemporaryDirectory() as tmp:
+                    # Isolated git config with no init.defaultBranch
+                    cfg = os.path.join(tmp, "gitconfig")
+                    with open(cfg, "w") as f:
+                        f.write("[user]\n  email = test@test\n  name = test\n")
+                        if default_branch:
+                            f.write(f"[init]\n  defaultBranch = {default_branch}\n")
+                    env = {**os.environ, "GIT_CONFIG_GLOBAL": cfg,
+                           "GIT_CONFIG_NOSYSTEM": "1"}
+                    repo = os.path.join(tmp, "docs-repo")
+                    os.makedirs(repo)
+                    subprocess.run(
+                        ["git", "init", "-b", "main", repo],
+                        capture_output=True, check=True, env=env,
+                    )
+                    subprocess.run(
+                        ["git", "-C", repo, "config", "user.email", "t@t"],
+                        capture_output=True, check=True, env=env,
+                    )
+                    subprocess.run(
+                        ["git", "-C", repo, "config", "user.name", "t"],
+                        capture_output=True, check=True, env=env,
+                    )
+                    _w(os.path.join(repo, ".gitkeep"))
+                    subprocess.run(
+                        ["git", "-C", repo, "add", ".gitkeep"],
+                        capture_output=True, check=True, env=env,
+                    )
+                    subprocess.run(
+                        ["git", "-C", repo, "commit", "-m", "init"],
+                        capture_output=True, check=True, env=env,
+                    )
+                    # Branch must be main
+                    br = subprocess.run(
+                        ["git", "-C", repo, "branch", "--show-current"],
+                        capture_output=True, text=True, env=env,
+                    )
+                    self.assertEqual(br.stdout.strip(), "main",
+                                     f"ambient={label}: branch is not main")
+                    # Push to bare remote must succeed
+                    bare = os.path.join(tmp, "remote.git")
+                    subprocess.run(
+                        ["git", "clone", "--bare", repo, bare],
+                        capture_output=True, check=True, env=env,
+                    )
+                    subprocess.run(
+                        ["git", "-C", repo, "remote", "add", "origin", bare],
+                        capture_output=True, check=True, env=env,
+                    )
+                    push = subprocess.run(
+                        ["git", "-C", repo, "push", "-u", "origin", "main"],
+                        capture_output=True, text=True, env=env,
+                    )
+                    self.assertEqual(push.returncode, 0,
+                                     f"ambient={label}: push failed: {push.stderr}")
 
     # --- T14: Staged deletion D-paths in commit diff ---
     def test_staged_deletion_appears_in_commit_diff(self) -> None:
