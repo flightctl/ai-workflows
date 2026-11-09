@@ -43,6 +43,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -478,7 +479,17 @@ def cmd_push(args: argparse.Namespace) -> int:
         fail(f"push: remote '{remote}' does not exist. "
              f"Available remotes: {available}", EXIT_PUSH_FAIL)
 
-    if expected_sha:
+    if expected_sha is not None:
+        # Validate SHA format before any comparison or refspec use.
+        # An explicit --expected-sha with an empty or malformed value
+        # must error, never silently fall through to unpinned push.
+        # Accept exactly SHA-1 (40 hex) or SHA-256 (64 hex).
+        if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", expected_sha):
+            fail(f"push: expected_sha is not a valid full hex object "
+                 f"name (got {len(expected_sha)} chars: "
+                 f"{expected_sha!r}). Provide the full commit SHA.",
+                 EXIT_ARG_ERROR)
+
         # Verify current HEAD matches the validated SHA.
         head_r = run(["git", "rev-parse", "HEAD"])
         if head_r.returncode != 0:

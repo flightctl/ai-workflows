@@ -228,18 +228,35 @@ method from the approved plan. This is the workflow's primary contract.
      scenarios, partially covered, or not addressed?
 
    **Manual TC (from coverage matrix):**
-   - Verify the TC's criteria and required evidence status. Evidence
-     that is pending, not started, or unverified does not constitute a
-     pass. Failed required criteria means the AC is failed.
+   - Read the **Evidence Reference** column from the AC coverage
+     matrix. Use the recorded reference to locate and assess the
+     evidence; if the reference is missing or unusable, ask the user
+     for clarification rather than guessing from available sources.
+   - Before marking evidence `verified`, verify the evidence basis
+     applies to the **current candidate** (build, revision, or test
+     run). Evidence collected against a different candidate whose
+     applicability to the current candidate is unknown must remain
+     `pending`. Compare the evidence against the entry's original
+     source criteria.
+   - Evidence that is pending, not started, or unverified does not
+     constitute a pass. Failed required criteria means the AC is
+     failed.
    - Do not force an automated test scenario for an AC the plan
      designates as manual verification.
 
    **Qualification gate (from coverage matrix):**
-   - Collect the gate's evidence status now: check whether external
-     evidence has been provided for this gate's criteria. Determine
-     the evidence status (not-started, pending, verified, or failed)
-     from available evidence sources in the current run — do not
-     read from a report section that has not yet been written.
+   - Read the **Evidence Reference** column from the AC coverage
+     matrix. Use the recorded reference to locate the gate's
+     evidence; if the reference is missing or unusable, ask the user
+     for clarification rather than guessing from available sources.
+   - Before marking evidence `verified`, verify the evidence basis
+     applies to the **current candidate** (build, revision, or test
+     run). Evidence collected against a different candidate whose
+     applicability is unknown must remain `pending`. Compare the
+     evidence against the entry's original source criteria.
+   - Determine the evidence status (not-started, pending, verified,
+     or failed) from the located evidence in the current run — do
+     not read from a report section that has not yet been written.
      Reuse this same evidence result when writing the report in
      Step 8. Pending or not-started evidence does not constitute a
      pass. Failed required criteria means the AC is failed.
@@ -611,8 +628,10 @@ writing the final result:
 
 ## Result
 
-{Automated e2e coverage: PASS / FAIL — whether all automatable TC IDs
- have passing tests, no anti-patterns, and no regressions.
+{Automated e2e coverage: PASS / FAIL — whether all authoritative or
+ individually confirmed automatable TC IDs have passing tests, no
+ anti-patterns, and no regressions. Provisional (unconfirmed) TCs
+ are reported separately and excluded from this line.
 
  External validation: COMPLETE / PENDING / FAILED / NOT STARTED —
  whether all manual verification, qualification gate, and non-TC
@@ -622,10 +641,11 @@ writing the final result:
  (1) all acceptance criteria pass their approved verification
      method (automated scenario, manual TC, or qualification
      gate — as determined in Step 7),
- (2) all confirmed automatable TC IDs have passing tests with no
-     anti-patterns or regressions,
- (3) all confirmed external validation entries (manual TCs and
-     qualification gates) are verified.
+ (2) all authoritative or individually confirmed automatable TC
+     IDs have passing tests with no anti-patterns or regressions,
+ (3) all authoritative or individually confirmed external
+     validation entries (manual TCs and qualification gates) are
+     verified.
  Unconfirmed TCs (from an unverified or unconfirmed testplan) are
  provisional — report them separately and exclude them from
  mandatory pass checks. An unconfirmed TC gap does not block

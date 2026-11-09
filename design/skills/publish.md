@@ -388,36 +388,24 @@ Verify the design document destination before creating directories:
 - If `{docs_repo_path}/{release}/{feature}/design.md` itself is a
   symlink, stop and report.
 
-Only after the ancestor check passes, create the feature directory:
+Only after the ancestor check passes, sync validation artifacts
+to the docs repo using the shared recipe. The recipe handles all
+artifact/destination validation, directory creation, copying,
+index publishing, and removal — including empty-set retirement
+approval — as a single canonical procedure.
 
-```bash
-mkdir -p "{docs_repo_path}/{release}/{feature}"
-```
+Read and follow `../../_shared/recipes/sync-validation-artifacts.md`
+with `ISSUE_KEY={issue-key}`,
+`VALIDATION_INDEX_SCRIPT="$VALIDATION_INDEX_SCRIPT"`,
+`DOCS_REPO_PATH="{docs_repo_path}"`,
+`FEATURE_DIR="{release}/{feature}"`,
+`DESIGN_FILE_PATH="{release}/{feature}/design.md"`.
 
-If the current set is non-empty (has validation artifacts), verify
-each artifact destination before any copy:
+Complete both PREFLIGHT and APPLY phases of the recipe. The recipe's
+APPLY phase includes design file staging, so the design copy and
+provenance rendering below happen inside the APPLY window.
 
-For each entry in the current set, verify the local file exists.
-A listed artifact whose local file is missing is an error — stop and
-report it to the user. Do not proceed with partial publication.
-
-Verify that no source file is a symlink. For each destination path,
-check:
-- If any ancestor in the destination path between `{docs_repo_path}`
-  and the target file is a symlink, stop and report — the
-  destination could escape the docs checkout. Symlinks at or above
-  `{docs_repo_path}` itself are permitted (the checkout root may
-  be an alias).
-- If the destination itself is a symlink, stop and report.
-- If the destination already exists and the filename is NOT in the
-  previous validation set (from Step 4), stop and report — this
-  would overwrite an unowned file (e.g., `clarifications.md` from
-  PRD publication). Files that ARE in the previous set are owned
-  updates and may be overwritten.
-
-All destination checks passed. Now begin writing to the docs repo.
-
-**Copy the design document:**
+**Copy the design document** (during APPLY, after mkdir):
 
 ```bash
 cp ".artifacts/design/{issue-key}/03-design.md" "{docs_repo_path}/{release}/{feature}/design.md"
@@ -427,110 +415,10 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=design`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{docs_repo_path}/{release}/{feature}/design.md"`.
 
-```bash
-git -C "{docs_repo_path}" add "{release}/{feature}/design.md"
-```
+The recipe's step 6 stages the design file. The recipe's steps 5–9
+handle artifact copy, index publish, removal, and metadata update.
 
-**Copy validation artifacts:**
-
-If the current set is empty (no validation artifacts), skip to Step 7.
-
-Copy each artifact to the docs repo:
-
-```bash
-cp ".artifacts/design/{issue-key}/{local}" "{docs_repo_path}/{release}/{feature}/{published_as}"
-```
-
-```bash
-git -C "{docs_repo_path}" add "{release}/{feature}/{published_as}"
-```
-
-### Step 6: Publish the Validation Index
-
-Transform and write the
-published index for downstream discovery:
-
-```bash
-python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" "{docs_repo_path}/{release}/{feature}/validation-index.json" --trusted-output-base "{docs_repo_path}" || { echo "Transform failed — aborting" >&2; exit 1; }
-```
-
-If the transform exits non-zero, **stop and report** — do not proceed
-to stage the index. A failed transform may leave a stale index at the
-destination; staging it would publish incorrect downstream metadata.
-
-```bash
-git -C "{docs_repo_path}" add "{release}/{feature}/validation-index.json"
-```
-
-### Step 7: Remove Stale Artifacts
-
-Compute the change set by comparing the previous snapshot (Step 4)
-against the current set. The comparison must use the new published
-index when one was written in Step 6, or an empty artifact list
-when the current set is empty.
-
-**If the current set is non-empty** and a previous snapshot exists,
-execute the removals that were already confirmed during the removal
-preflight (Step 4). Re-diff using the final published index to
-verify the removal set is unchanged:
-
-```bash
-python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-published-index.json" "{docs_repo_path}/{release}/{feature}/validation-index.json" || { echo "Diff failed — aborting" >&2; exit 1; }
-```
-
-The `removed` list must match the preflight result. If the sets
-differ (unexpected — would indicate a transform inconsistency),
-stop and report before deleting anything. Do not re-prompt for
-confirmation — the user already approved these specific filenames
-in the preflight.
-
-For each confirmed filename in `removed`:
-
-```bash
-git -C "{docs_repo_path}" rm -- "{release}/{feature}/{stale-filename}"
-```
-
-Do not remove files outside the feature directory or files not
-listed in the previous set.
-
-**If the current set is empty** and the previous set had artifacts,
-execute the retirement using the confirmation obtained in Step 4's
-empty-set preflight. If no such confirmation was recorded (the
-preflight was bypassed or state changed since confirmation), stop
-and restart the preflight before any docs-repo mutation — do not
-prompt for confirmation after the design document has already been
-copied. The `/revise` fallback to `/publish` must not bypass this
-gate.
-
-If the user confirms, validate the previous snapshot before removal:
-
-```bash
-python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issue-key}/prev-published-index.json"
-```
-
-If validation fails, **stop and report** — do not delete files based
-on a malformed snapshot. If validation passes, remove each artifact
-listed in the snapshot:
-
-```bash
-git -C "{docs_repo_path}" rm -- "{release}/{feature}/{previous-artifact-file}"
-```
-
-If the previous snapshot was built from a published
-`validation-index.json` (not a legacy-only `testplan.md` snapshot),
-also remove the index:
-
-```bash
-git -C "{docs_repo_path}" rm -- "{release}/{feature}/validation-index.json"
-```
-
-Do not attempt to remove `validation-index.json` for a legacy-only
-snapshot — no index file exists to remove.
-
-If no previous snapshot exists (first publish with no artifacts),
-no removal is needed.
-
-### Step 8: Commit
+### Step 6: Commit
 
 Commit with a message reflecting what was published:
 
@@ -542,20 +430,36 @@ git -C "{docs_repo_path}" commit -m "Add design document and validation artifact
 git -C "{docs_repo_path}" commit -m "Add design document for {issue-key}: {title}"
 ```
 
-### Step 9: Push and Create PR
-
-Push the branch using the shared script (run from the docs repo).
-Use the current HEAD of the docs repo (the Step 8 commit) to pin
-the push to the exact committed state:
+Capture the commit SHA immediately after the commit and persist it
+in the local publish-metadata so Step 7 can read it from a fresh
+shell. This ensures the push pins to the exact Step 6 commit even
+if HEAD moves between steps:
 
 ```bash
 DOCS_HEAD=$(git -C "{docs_repo_path}" rev-parse HEAD)
+python3 "$PUBLISH_SCRIPT" save-metadata \
+  --file .artifacts/design/{issue-key}/publish-metadata.json \
+  docs_commit_sha="$DOCS_HEAD"
+```
+
+### Step 7: Push and Create PR
+
+Push the branch using the shared script (run from the docs repo).
+Read the persisted `docs_commit_sha` from publish-metadata — do NOT
+recapture `git rev-parse HEAD`, as HEAD may have moved since Step 6:
+
+```bash
+DOCS_HEAD=$(python3 -c "import json,sys; d=json.load(open('.artifacts/design/{issue-key}/publish-metadata.json')); v=d.get('docs_commit_sha',''); sys.exit(1) if not v else print(v)")
+if [ -z "$DOCS_HEAD" ]; then echo "ERROR: docs_commit_sha not found in publish-metadata" >&2; exit 1; fi
 (cd "{docs_repo_path}" && python3 "$PUBLISH_SCRIPT" push --remote {push-remote} --branch {branch-name} --expected-sha "$DOCS_HEAD")
 ```
 
-The `--expected-sha` flag verifies that HEAD still matches the
-Step 8 commit and pins the push refspec to that exact SHA, so
-branch movement after the commit cannot publish uncommitted content.
+The `--expected-sha` flag verifies that the docs repo HEAD still
+matches the Step 6 commit and pins the push refspec to that exact
+SHA. If HEAD moved between Step 6 and the push, the helper's own
+HEAD comparison detects the mismatch and rejects the push. Because
+`DOCS_HEAD` is read from persisted metadata (not recaptured), this
+guard cannot be bypassed by concurrent docs-repo commits.
 
 Read the design document and identify specific areas that warrant reviewer
 attention (AI-dependent):
@@ -607,7 +511,7 @@ First, check whether a PR already exists for this branch:
 python3 "$PUBLISH_SCRIPT" check-existing --repo {owner}/{repo} --head {head-ref}
 ```
 
-If exit code is 5, a PR already exists — skip to Step 10 and report its
+If exit code is 5, a PR already exists — skip to Step 8 and report its
 URL. Parse the PR number from the returned JSON. If the command fails
 (non-zero exit other than 5), stop and report the error. If exit code
 is 0, create a new PR:
@@ -624,7 +528,7 @@ python3 "$PUBLISH_SCRIPT" create-pr \
 
 The script prints the PR URL on stdout. Parse the PR number from the URL path.
 
-### Step 10: Save Metadata and Report
+### Step 8: Save Metadata and Report
 
 Save the core metadata using the shared script. If the primary
 testplan was published, include `testplan_file_path` for backwards
@@ -661,7 +565,11 @@ python3 "$PUBLISH_SCRIPT" save-metadata \
 **Add the validation artifact list.** After `save-metadata` writes
 the file, read it, add the `validation_artifacts` array, and write it
 back. This list is the authoritative record of all published
-validation artifacts:
+validation artifacts. Note: `validation_artifacts` is a structured
+typed array, not subject to `save-metadata`'s string-only key-value
+convention. When rewriting the JSON file, preserve all existing keys
+and values (including their types) and use stable key ordering
+(sorted alphabetically).
 
 Read `.artifacts/design/{issue-key}/publish-metadata.json`, parse as
 JSON. Add a `validation_artifacts` key with the same array as the

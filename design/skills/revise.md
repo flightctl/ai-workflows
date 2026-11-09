@@ -189,10 +189,18 @@ VALIDATION_INDEX_SCRIPT="$(realpath "${SKILL_DIR}/../scripts/validation_index.py
 python3 "$VALIDATION_INDEX_SCRIPT" resolve --local ".artifacts/design/{issue-key}"
 ```
 
-If the command exits 0, parse the JSON array to discover all
-validation artifacts. If it exits non-zero, stop and report the
-error. If the result is empty and `04-testplan.md` exists, fall
-back to reading it directly (legacy single-testplan behavior).
+If the command exits 0 with a non-empty array, read each listed
+file — the resolver already handles legacy layouts (a valid
+`04-testplan.md` is included in the returned list), so only read
+paths from the returned array. If the result is an empty array
+`[]`, no validation artifacts exist. If the command exits non-zero,
+stop and report the error.
+
+Use the Step 1 validated artifact set only when the inputs and
+context are unchanged. If the user edited artifacts, added or
+removed files, or changed the design document between Step 1 and
+Step 4, re-resolve before mutating — do not reuse a cached set
+that may not reflect current state.
 
 For **each** validation artifact (primary testplan and any companions):
 - Before modifying any test cases, record the IC and requirement
@@ -396,7 +404,10 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 
 **Validation artifact docs-repo sync:**
 
-Set `SKILL_DIR` as above (the agent's file-load context), then resolve:
+Set `SKILL_DIR` to the canonical directory of this loaded skill file
+(resolved from the path provided by the phase dispatcher or file-read
+context, following symlinks). Each fresh shell must re-resolve this
+independently:
 
 ```bash
 VALIDATION_INDEX_SCRIPT="$(realpath "${SKILL_DIR}/../scripts/validation_index.py")" || { echo "Cannot resolve ../scripts/validation_index.py" >&2; exit 1; }
@@ -405,235 +416,18 @@ VALIDATION_INDEX_SCRIPT="$(realpath "${SKILL_DIR}/../scripts/validation_index.py
 Derive `{feature-dir}` from `design_file_path` in publish-metadata
 (e.g., `v2.1/feature-slug` from `v2.1/feature-slug/design.md`).
 
-**Build CURRENT set:** Resolve the current local artifacts:
+Read and follow `../../_shared/recipes/sync-validation-artifacts.md`
+with `ISSUE_KEY={issue-key}`,
+`VALIDATION_INDEX_SCRIPT="$VALIDATION_INDEX_SCRIPT"`,
+`DOCS_REPO_PATH="{docs_repo_path}"`,
+`FEATURE_DIR="{feature-dir}"`,
+`DESIGN_FILE_PATH="{design_file_path}"`.
 
-```bash
-python3 "$VALIDATION_INDEX_SCRIPT" resolve --local ".artifacts/design/{issue-key}"
-```
+Complete both PREFLIGHT and APPLY phases of the recipe. The recipe
+handles build/snapshot/preflight/copy/index/retirement/metadata as a
+single canonical execution. Do not duplicate those steps inline.
 
-If the command exits 0, parse the JSON array (may be empty `[]`).
-If the command exits non-zero, a validation error occurred — **stop
-and report the error.** Do not fall back to legacy behavior when a
-malformed index is present.
-
-If `validation-index.json` does not exist in
-`.artifacts/design/{issue-key}` and `04-testplan.md` exists (legacy
-layout), build a normalized index first with `build-legacy`, then
-re-run `resolve --local`.
-
-Before capture, remove any existing snapshot from a previous run
-(substitute the actual Jira issue key for `{issue-key}`):
-
-```bash
-rm -f -- ".artifacts/design/{issue-key}/prev-published-index.json"
-```
-
-If the removal command fails (non-zero exit other than file-not-found),
-stop and report the error.
-
-**Snapshot PREVIOUS state:** If
-`{docs_repo_path}/{feature-dir}/validation-index.json` exists,
-validate it at its source before copying — to ensure it conforms
-to the published schema and is trustworthy for later removal
-decisions:
-
-```bash
-python3 "$VALIDATION_INDEX_SCRIPT" validate --published "{docs_repo_path}/{feature-dir}/validation-index.json" || { echo "Published index validation failed — aborting" >&2; exit 1; }
-```
-
-If validation fails, **stop and report** — do not copy or proceed
-with a malformed published index. Only after validation passes,
-capture the snapshot:
-
-```bash
-cp "{docs_repo_path}/{feature-dir}/validation-index.json" ".artifacts/design/{issue-key}/prev-published-index.json" || { echo "Snapshot copy failed" >&2; exit 1; }
-```
-
-If the index does not exist but
-`{docs_repo_path}/{feature-dir}/testplan.md` exists (legacy), create
-the minimal published snapshot:
-
-```json
-{
-  "schema_version": "1.0",
-  "primary_testplan": "testplan.md",
-  "artifacts": [{"file": "testplan.md", "type": "testplan"}]
-}
-```
-
-Save to `.artifacts/design/{issue-key}/prev-published-index.json`.
-If neither exists, there is no previous set — no snapshot is captured
-and the empty previous set is correct (first publish).
-
-**Removal preflight (non-empty current set with previous snapshot):**
-Before copying any artifacts or overwriting the published index,
-identify proposed removals so the user can approve them first.
-Transform the current local index to a candidate published index
-under `.artifacts`:
-
-```bash
-python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" ".artifacts/design/{issue-key}/candidate-published-index.json" --trusted-output-base "." || { echo "Transform failed — aborting" >&2; exit 1; }
-```
-
-If the transform exits non-zero, stop and report the error — do not
-proceed to the diff. Remove any stale `candidate-published-index.json`
-from a prior interrupted run before continuing.
-
-Diff the previous snapshot against the candidate:
-
-```bash
-python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-published-index.json" ".artifacts/design/{issue-key}/candidate-published-index.json" || { echo "Diff failed — aborting" >&2; exit 1; }
-```
-
-If the diff exits non-zero, stop and report the error — do not proceed
-to artifact copy or metadata update.
-
-If the `removed` list is non-empty, present each removal with its full
-published path `{release}/{feature}/{filename}` and require named
-confirmation of each removal before proceeding. The full path ensures
-users can distinguish removals across features. An earlier explicit
-named-artifact approval (from a prior `/revise` step that named these
-specific files with full paths) counts as confirmation only if the
-artifact's published state has not changed since approval — a new
-publish cycle resets approvals. Generic update approval does not
-constitute named removal approval. If the user declines, stop — preserve
-published artifacts and metadata unchanged. Clean up the candidate file
-after the preflight completes.
-
-If no previous snapshot was captured or the current set is empty, skip
-this preflight.
-
-If both the current set and the previous set are empty and
-publish-metadata has no `validation_artifacts` or
-`testplan_file_path`, skip validation artifact sync below (copy,
-index transform, and removal steps). The design file staging and
-commit must still proceed — see the design staging step below.
-
-If the docs repo has published artifacts but local
-`validation-index.json` does not exist (artifacts were published
-previously but no local index exists now), note to the user:
-"Validation artifacts were previously published but no local index
-exists. Re-run `/publish` to resync, or create a local index before
-proceeding."
-
-**Validate current set:** For each artifact in the current set,
-verify its local file exists and is not a symlink. A listed
-artifact whose local file is missing or is a symlink is an error —
-stop and report. Do not delete published content based on a missing
-local file.
-
-**Copy ALL current artifacts** (not just previously tracked — handles
-new companions added during revision). Before each copy:
-- Reject symlink destinations (the published_as filename itself).
-- Reject any symlink ancestor in the destination path between the
-  configured `{docs_repo_path}` root and the target file. Walk each
-  path component of `{feature-dir}/{published_as}` below
-  `{docs_repo_path}` and verify it is not a symlink. If any ancestor
-  is a symlink, stop and report — the destination could escape the
-  docs checkout. Symlinks and aliases at or above `{docs_repo_path}`
-  itself are permitted (the checkout root may be an alias).
-- Verify that any existing destination file is in the previous
-  validation set (an existing file not in the previous set is
-  unowned and must not be overwritten).
-
-```bash
-cp ".artifacts/design/{issue-key}/{local}" "{docs_repo_path}/{feature-dir}/{published_as}"
-```
-
-```bash
-git -C "{docs_repo_path}" add "{feature-dir}/{published_as}"
-```
-
-**Stage the design file** independently of validation artifacts —
-a pure design update or retirement must commit the design change
-even when both validation sets are empty:
-
-```bash
-git -C "{docs_repo_path}" add "{design_file_path}"
-```
-
-**Update published index:** If the current set is non-empty,
-transform and write the updated index:
-
-```bash
-python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" "{docs_repo_path}/{feature-dir}/validation-index.json" --trusted-output-base "{docs_repo_path}" || { echo "Transform failed — aborting" >&2; exit 1; }
-```
-
-```bash
-git -C "{docs_repo_path}" add "{feature-dir}/validation-index.json"
-```
-
-**Remove retired artifacts:** Compute the change set before
-deleting anything. The comparison must use the new published index
-when one was written, or an empty artifact list when the current
-set is empty.
-
-If the current set is **non-empty** and a previous snapshot exists,
-execute the removals confirmed during the removal preflight. Re-diff
-using the final published index to verify the set is unchanged:
-
-```bash
-python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-published-index.json" "{docs_repo_path}/{feature-dir}/validation-index.json" || { echo "Diff failed — aborting" >&2; exit 1; }
-```
-
-The `removed` list must match the preflight result. If the sets
-differ, stop and report before deleting. Do not re-prompt — the user
-already approved these filenames in the preflight.
-
-For each filename in the `removed` list:
-
-```bash
-git -C "{docs_repo_path}" ls-files --error-unmatch "{feature-dir}/{stale-filename}"
-```
-
-If tracked, stage its removal:
-
-```bash
-git -C "{docs_repo_path}" rm -- "{feature-dir}/{stale-filename}"
-```
-
-If not tracked (already removed), skip. If the check or removal
-produces an unexpected error, stop and report.
-
-If the current set is **empty** and the previous set had artifacts,
-validate the previous snapshot before removal:
-
-```bash
-python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issue-key}/prev-published-index.json"
-```
-
-If validation fails, stop and report. If it passes, present the
-exact list of previously published filenames from the validated
-snapshot to the user and confirm that retirement of each named
-artifact is intended (the user may choose to retire all, restore
-specific files, or abort). An empty current set caused by missing
-local sources (rather than explicit user intent) must not silently
-remove published content — stop and report the missing sources
-instead of proceeding to retirement.
-
-**If the user restores any artifact** instead of confirming its
-retirement, rebuild the valid local set from the restored files:
-re-run `build-legacy` or re-create `validation-index.json` to
-reflect the retained artifacts, then restart resolution and
-validation from Step 4. Do not continue with the empty-set
-retirement flow when files have been restored — the restored
-files must be validated and synced as a non-empty set. If the
-restored files cannot yield a valid primary testplan, stop and
-preserve published files until the user resolves the issue.
-
-Once the user confirms the named retirements (all remaining
-after any restorations), for each confirmed artifact, check
-whether it is tracked and stage removal with
-`git -C "{docs_repo_path}" rm -- "{feature-dir}/{filename}"`.
-Skip untracked files. Remove the published `validation-index.json`
-only if **all** previously published artifacts are retired. If
-any artifacts are retained (partial retirement), preserve the
-index with its retained entries. Use the same tracked-file
-check and `git rm` for the index removal when applicable.
-
-Update `publish-metadata.json`: set `validation_artifacts` to match
-the current published set, update `testplan_file_path` to the primary
-testplan's full published path (or remove if no primary testplan).
+**Commit and push** after the recipe completes:
 
 ```bash
 git -C "{docs_repo_path}" commit -m "Design {issue-key}: revise — {brief description}"

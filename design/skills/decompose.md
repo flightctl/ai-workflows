@@ -52,21 +52,21 @@ VALIDATION_INDEX_SCRIPT="$(realpath "${SKILL_DIR}/../scripts/validation_index.py
 python3 "$VALIDATION_INDEX_SCRIPT" resolve --local ".artifacts/design/{issue-key}"
 ```
 
-If the command exits 0, parse the JSON array of artifact entries and
-read each listed file. The array may be empty `[]` if no validation
-artifacts exist. If the command exits non-zero, a validation error
-occurred (malformed index, missing listed files) — **stop and report
-the error.** Do not fall back to legacy behavior when a malformed
-index is present.
+If the command exits 0 with a non-empty array, read each listed
+file. The resolver already handles legacy layouts — a valid
+`04-testplan.md` is resolved into an artifact entry in the returned
+list, so the array includes legacy-resolved artifacts when present.
 
-If the result is empty and `04-testplan.md` exists (legacy layout),
-fall back to reading `04-testplan.md` directly.
+If the command exits 0 with an empty array `[]`, no validation
+artifacts exist (source absence). Tell the user that `/draft` should
+be run first.
 
-If the design document doesn't exist, tell the user that `/draft` should be
-run first.
+If the command exits non-zero, a validation error occurred (malformed
+index, missing listed files) — **stop and report the error.** Do not
+fall back to legacy behavior when a malformed index is present.
 
-If neither the validation index nor `04-testplan.md` exists, tell the user
-that `/draft` should be run first.
+If the design document doesn't exist, tell the user that `/draft`
+should be run first.
 
 Read the Jira Feature issue key from the PRD or context. This Feature is the
 parent for all epics created by this workflow.

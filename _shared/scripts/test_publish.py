@@ -924,62 +924,104 @@ class TestPushExpectedSHA(unittest.TestCase):
         self.assertEqual(push_cmd, ["git", "push", "-u", "fork", "feat/x"])
 
 
+# ---------------------------------------------------------------------------
+# Shared temp-Git fixture helper
+# ---------------------------------------------------------------------------
+
+
+def create_isolated_temp_git(
+    prefix: str = "publish_test_",
+    *,
+    with_bare_remote: bool = False,
+    initial_commit: bool = True,
+) -> dict[str, str]:
+    """Create an isolated temporary Git repository.
+
+    Returns a dict with keys:
+      tmpdir  – root of the temporary directory tree
+      repo    – path to the working repository
+      bare    – path to the bare remote (only when with_bare_remote=True)
+
+    The repository is isolated from global signing and hooks config:
+    - commit.gpgsign is disabled
+    - core.hooksPath is set to an empty directory, overriding any
+      global hooksPath (including hostile ones)
+
+    Caller is responsible for cleanup (shutil.rmtree(result["tmpdir"])).
+    """
+    tmpdir = tempfile.mkdtemp(prefix=prefix)
+    repo = os.path.join(tmpdir, "repo")
+    result: dict[str, str] = {"tmpdir": tmpdir, "repo": repo}
+
+    if with_bare_remote:
+        bare = os.path.join(tmpdir, "bare.git")
+        subprocess.run(
+            ["git", "init", "--bare", bare],
+            check=True, capture_output=True,
+        )
+        result["bare"] = bare
+
+    subprocess.run(
+        ["git", "init", repo],
+        check=True, capture_output=True,
+    )
+
+    if with_bare_remote:
+        subprocess.run(
+            ["git", "-C", repo, "remote", "add", "origin", result["bare"]],
+            check=True, capture_output=True,
+        )
+
+    subprocess.run(
+        ["git", "-C", repo, "config", "user.email", "test@test.com"],
+        check=True, capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", repo, "config", "user.name", "Test"],
+        check=True, capture_output=True,
+    )
+    # Isolate temp repo from real global signing/hooks config.
+    # Setting local core.hooksPath to an empty dir overrides any
+    # global hooksPath — --unset-all only clears the local value
+    # and still inherits global config.
+    subprocess.run(
+        ["git", "-C", repo, "config", "commit.gpgsign", "false"],
+        check=True, capture_output=True,
+    )
+    empty_hooks = os.path.join(tmpdir, "empty-hooks")
+    os.makedirs(empty_hooks, exist_ok=True)
+    subprocess.run(
+        ["git", "-C", repo, "config", "core.hooksPath", empty_hooks],
+        check=True, capture_output=True,
+    )
+
+    if initial_commit:
+        dummy = os.path.join(repo, "file.txt")
+        with open(dummy, "w") as f:
+            f.write("initial\n")
+        subprocess.run(
+            ["git", "-C", repo, "add", "file.txt"],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", repo, "commit", "-m", "initial"],
+            check=True, capture_output=True,
+        )
+
+    return result
+
+
 class TestPushExpectedSHAWithGit(unittest.TestCase):
     """Verify --expected-sha with a real temporary Git repository."""
 
     def setUp(self) -> None:
-        self._tmpdir = tempfile.mkdtemp(prefix="publish_push_")
-        self._repo = os.path.join(self._tmpdir, "repo")
-        self._bare = os.path.join(self._tmpdir, "bare.git")
-        # Create a bare remote
-        subprocess.run(
-            ["git", "init", "--bare", self._bare],
-            check=True, capture_output=True,
+        fixture = create_isolated_temp_git(
+            prefix="publish_push_", with_bare_remote=True,
         )
-        # Create a working repo and link to the bare remote
-        subprocess.run(
-            ["git", "init", self._repo],
-            check=True, capture_output=True,
-        )
-        subprocess.run(
-            ["git", "-C", self._repo, "remote", "add", "origin", self._bare],
-            check=True, capture_output=True,
-        )
-        subprocess.run(
-            ["git", "-C", self._repo, "config", "user.email", "test@test.com"],
-            check=True, capture_output=True,
-        )
-        subprocess.run(
-            ["git", "-C", self._repo, "config", "user.name", "Test"],
-            check=True, capture_output=True,
-        )
-        # Isolate temp repo from real global signing/hooks config.
-        # Setting local core.hooksPath to an empty dir overrides any
-        # global hooksPath — --unset-all only clears the local value
-        # and still inherits global config.
-        subprocess.run(
-            ["git", "-C", self._repo, "config", "commit.gpgsign", "false"],
-            check=True, capture_output=True,
-        )
+        self._tmpdir = fixture["tmpdir"]
+        self._repo = fixture["repo"]
+        self._bare = fixture["bare"]
         self._empty_hooks = os.path.join(self._tmpdir, "empty-hooks")
-        os.makedirs(self._empty_hooks, exist_ok=True)
-        subprocess.run(
-            ["git", "-C", self._repo, "config", "core.hooksPath",
-             self._empty_hooks],
-            check=True, capture_output=True,
-        )
-        # Create an initial commit
-        dummy = os.path.join(self._repo, "file.txt")
-        with open(dummy, "w") as f:
-            f.write("initial\n")
-        subprocess.run(
-            ["git", "-C", self._repo, "add", "file.txt"],
-            check=True, capture_output=True,
-        )
-        subprocess.run(
-            ["git", "-C", self._repo, "commit", "-m", "initial"],
-            check=True, capture_output=True,
-        )
 
     def tearDown(self) -> None:
         import shutil
@@ -1098,12 +1140,19 @@ class TestPushExpectedSHAWithGit(unittest.TestCase):
 
 
 class TestPushFixtureIsolation(unittest.TestCase):
-    """Verify temp Git repos are isolated from hostile global config."""
+    """Verify the shared temp-Git fixture is isolated from hostile global config."""
 
     def test_commit_succeeds_with_hostile_global_hooks(self) -> None:
         """Fixture's first commit works even with a global hooksPath
         pointing to a pre-commit hook that always fails."""
-        tmpdir = tempfile.mkdtemp(prefix="publish_hostile_")
+        # Use the shared fixture — the same isolation used by
+        # TestPushExpectedSHAWithGit — so this test proves the
+        # shared helper, not a one-off copy.
+        fixture = create_isolated_temp_git(
+            prefix="publish_hostile_", initial_commit=False,
+        )
+        tmpdir = fixture["tmpdir"]
+        repo = fixture["repo"]
         try:
             # Create a hostile hooks directory with a failing pre-commit
             hostile_dir = os.path.join(tmpdir, "hostile-hooks")
@@ -1112,27 +1161,6 @@ class TestPushFixtureIsolation(unittest.TestCase):
             with open(hook, "w") as f:
                 f.write("#!/bin/sh\nexit 1\n")
             os.chmod(hook, 0o755)
-
-            # Create repo with the SAME isolation as TestPushExpectedSHAWithGit
-            repo = os.path.join(tmpdir, "repo")
-            subprocess.run(["git", "init", repo], check=True,
-                           capture_output=True)
-            subprocess.run(
-                ["git", "-C", repo, "config", "user.email", "t@t.com"],
-                check=True, capture_output=True)
-            subprocess.run(
-                ["git", "-C", repo, "config", "user.name", "T"],
-                check=True, capture_output=True)
-            subprocess.run(
-                ["git", "-C", repo, "config", "commit.gpgsign", "false"],
-                check=True, capture_output=True)
-            # Local override: empty hooks dir beats hostile global
-            empty_hooks = os.path.join(tmpdir, "empty-hooks")
-            os.makedirs(empty_hooks, exist_ok=True)
-            subprocess.run(
-                ["git", "-C", repo, "config", "core.hooksPath",
-                 empty_hooks],
-                check=True, capture_output=True)
 
             # Simulate hostile global config via GIT_CONFIG_GLOBAL
             global_cfg = os.path.join(tmpdir, "hostile-global")

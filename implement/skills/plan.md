@@ -257,7 +257,16 @@ Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
  treated as unconfirmed.
 
  Confirmation does NOT restore `Freshness` to verified — the
- upstream source remains absent.}
+ upstream source remains absent.
+
+ **Source-Discovery: unresolved** is an independent constraint
+ checked FIRST, regardless of Freshness or confirmation state.
+ Confirmation does not clear `Source-Discovery: unresolved` —
+ only a successful re-ingest that checks and resolves the source
+ can clear it. TCs from an unresolved-source plan remain
+ provisional even after user confirmation. Ordinary AC-based
+ coding and existing tests continue; `/validate` blocks
+ `Overall: PASS` until source discovery is resolved.}
 
 | TC ID | Title | Covered by Task | Method | Evidence Reference | Notes |
 |-------|-------|-----------------|--------|-------------------|-------|

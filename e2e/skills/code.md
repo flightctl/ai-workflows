@@ -277,6 +277,14 @@ reconciliation. Missing SHA-256 binding is treated as unconfirmed.
 An unconfirmed retained TC does not block AC-based work or existing
 tests.
 
+**Source-Discovery: unresolved check (independent, first):** If
+`testplan.md` contains a `Source-Discovery: unresolved` marker,
+skip mandatory TC reconciliation entirely — all TCs from an
+unresolved-source plan are provisional regardless of Freshness
+marker or user confirmation. Report them as provisional coverage.
+Ordinary AC-based coding and existing tests continue; `/validate`
+blocks `Overall: PASS` until source discovery is resolved.
+
 If `testplan.md` does NOT contain a `Freshness: unverified` or
 `**Freshness:** unverified` marker (the plan was freshly ingested
 from an authoritative source), its TCs are authoritative — reconcile them directly without requiring

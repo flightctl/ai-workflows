@@ -193,7 +193,9 @@ Need:
 3. **PRD** (`prd.md`) — FR/NFR this story covers
 4. **Testplan** — candidate test cases for Step 6. The primary
    filename is discovered in Step 6 via the validation index; do not
-   assume `testplan.md` before discovery.
+   assume `testplan.md` before discovery. **Do not read the testplan
+   in Step 5** — defer all testplan reading to Step 6 after the
+   resolver has identified the correct file.
 
 **Selecting the design source (polymorphic design reference):**
 
@@ -321,10 +323,14 @@ relevant to this story. Collect all relevant gates with their source
 path, gate heading/name, mapped requirements and ICs, type,
 Required Evidence (copy verbatim from the source gate's Required
 Evidence column; if missing, set to "criteria not specified in
-source — clarification needed"), and reviewer/owner. For TC-based
-gates, also copy the TC's Expected Results as evidence criteria.
-This extraction runs BEFORE the TC outcome table below — a story
-with zero TCs but relevant gates still produces a retained
+source — clarification needed"), and reviewer/owner. If a gate
+lacks a requirement mapping, IC mapping, or type, retain the gate
+with the missing field set to "not specified in source —
+clarification needed" and record the source origin. Do not silently
+drop gates with incomplete mappings or fabricate mappings. For
+TC-based gates, also copy the TC's Expected Results as evidence
+criteria. This extraction runs BEFORE the TC outcome table below —
+a story with zero TCs but relevant gates still produces a retained
 validation artifact.
 
 **Validate the published index before selecting an outcome.** The
@@ -378,7 +384,7 @@ resolution or index validation is not confirmed absence.
 | Outcome | Condition | Action |
 |---------|-----------|--------|
 | Normal | TC matches found (in any artifact) | Write `testplan.md` **once** from `../templates/story-testplan.md` |
-| Gate-only | Zero TC matches but relevant gates found | Write `testplan.md` with only the Qualification Gates section (no TC sections). This is not an error — the story's validation is gate-based. |
+| Gate-only | Zero TC matches but relevant gates found | Write `testplan.md` with only the `## Qualification Gates` section (no TC sections). This is not an error — the story's validation is gate-based. |
 | Expected zero | No TC matches, no relevant gates, and type is `[QE]`/`[DOCS]`/`[UX]`/`[CI]` | Note expected; delete stale story testplan if present |
 | Expected zero | No TC matches, no matching `Validated by` IDs, PRD Requirements contains "Discovered during UI design", and no relevant gates | Note UI-design origin; delete stale story testplan if present |
 | Anomalous zero | No TC matches, no relevant gates, and type is `[DEV]`/`[UI]` (or unknown) | Warn; delete stale story testplan if present |
@@ -400,7 +406,7 @@ until the upstream source is available."
 
 When writing the story testplan from matches across multiple artifacts,
 include all matched TCs in a single `testplan.md` with a Source line
-listing each contributing artifact. Include the Qualification Gates
+listing each contributing artifact. Include a `## Qualification Gates`
 section for any relevant gates found above.
 
 **Per-TC verification classification:** Classify each matched TC

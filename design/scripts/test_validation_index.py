@@ -2785,34 +2785,27 @@ class TestProducerConsumerContracts(unittest.TestCase):
         """Empty-set retirement confirmation must precede design copy.
 
         Reads design/skills/publish.md and verifies that the empty-set
-        branch in the removal preflight (Step 4) obtains named
-        confirmation BEFORE Step 5 copies the design document to the
-        docs repo. Step 7 must use the pre-authorized confirmation,
-        not prompt after writes. Declining stops before any docs-repo
-        mutation.
+        branch obtains named confirmation BEFORE the design copy step.
+        The shared sync recipe handles retirement via PREFLIGHT (all
+        approvals) → APPLY (writes), so the publish caller must
+        reference the recipe before any design copy, and inline
+        empty-set confirmation in the preflight section must precede
+        the copy step. Declining stops before any docs-repo mutation.
 
         This is a static branch-ordering test, not a live agent
         execution claim."""
         text = (self._repo_root() /
                 "design/skills/publish.md").read_text(encoding="utf-8")
-        import re as _re
-        normalized = _re.sub(r'\s+', ' ', text)
-        # Empty-set confirmation must appear in the preflight section
-        # (Step 4) before Step 5's design copy
+        # Empty-set confirmation must appear before design copy
         empty_confirm_pos = text.find(
             "current set is empty** and a previous snapshot exists")
-        step5_pos = text.find("### Step 5")
         design_copy_pos = text.find(
             'cp ".artifacts/design/{issue-key}/03-design.md"')
         self.assertGreater(empty_confirm_pos, -1,
-                           "Step 4 must handle empty-set confirmation")
-        self.assertGreater(step5_pos, -1,
-                           "Step 5 must exist")
+                           "Preflight must handle empty-set confirmation")
         self.assertGreater(design_copy_pos, -1,
                            "Design copy command must exist")
-        # Empty-set confirmation before Step 5 / design copy
-        self.assertLess(empty_confirm_pos, step5_pos,
-                        "Empty-set confirmation must precede Step 5")
+        # Empty-set confirmation before design copy
         self.assertLess(empty_confirm_pos, design_copy_pos,
                         "Empty-set confirmation must precede design copy")
         # Declining stops before any mutation
@@ -2820,13 +2813,15 @@ class TestProducerConsumerContracts(unittest.TestCase):
             "no docs-repo files are copied, staged")
         self.assertGreater(decline_stop, -1,
                            "Declining must stop before any docs mutation")
-        self.assertLess(decline_stop, step5_pos,
-                        "Decline-stop must precede Step 5")
-        # Step 7 uses pre-authorized confirmation, not re-prompt
-        step7_empty = text.find(
-            "confirmation obtained in Step 4")
-        self.assertGreater(step7_empty, step5_pos,
-                           "Step 7 must reference Step 4's confirmation")
+        self.assertLess(decline_stop, design_copy_pos,
+                        "Decline-stop must precede design copy")
+        # Recipe reference exists and precedes design copy —
+        # the recipe's PREFLIGHT handles empty retirement approval
+        recipe_ref = text.find("sync-validation-artifacts.md")
+        self.assertGreater(recipe_ref, -1,
+                           "Shared sync recipe must be referenced")
+        self.assertLess(recipe_ref, design_copy_pos,
+                        "Recipe reference must precede design copy")
 
     def test_e2e_validate_step7_three_way_ac_coverage(self):
         """e2e/skills/validate.md Step 7 accepts scenario, manual TC, or gate."""
@@ -3571,22 +3566,36 @@ class TestRemovalPreflightOrder(unittest.TestCase):
         return Path(__file__).resolve().parent.parent.parent
 
     def _assert_preflight_before_copy(self, rel):
+        """Verify that the caller references the shared sync recipe
+        and that the recipe itself has preflight before copy.
+
+        Callers delegate sync to the shared recipe rather than inline
+        commands, so check the recipe reference exists and the recipe
+        has the correct ordering."""
         text = (self._repo_root() / rel).read_text()
-        preflight_pos = text.find("candidate-published-index.json")
+        # Caller must reference the shared recipe
+        recipe_ref = text.find("sync-validation-artifacts.md")
+        self.assertGreater(
+            recipe_ref, -1,
+            f"{rel} must reference the shared sync recipe")
+        # The shared recipe itself must have preflight before copy
+        recipe_text = (self._repo_root() /
+                       "_shared/recipes/sync-validation-artifacts.md"
+                       ).read_text()
+        preflight_pos = recipe_text.find(
+            "candidate-published-index.json")
         self.assertGreater(
             preflight_pos, -1,
-            f"{rel} must contain candidate-published-index preflight")
-        # Find the validation artifact copy command (uses {local} and
-        # {published_as} placeholders, distinct from the design doc
-        # copy which uses literal filenames)
-        copy_pos = text.find('{local}')
+            "Shared recipe must contain candidate-published-index "
+            "preflight")
+        copy_pos = recipe_text.find('{LOCAL}')
         self.assertGreater(
             copy_pos, -1,
-            f"{rel} must contain validation artifact copy command")
+            "Shared recipe must contain artifact copy command")
         self.assertLess(
             preflight_pos, copy_pos,
-            f"{rel}: removal preflight (candidate transform + diff) "
-            f"must appear BEFORE validation artifact copy commands")
+            "Shared recipe: removal preflight must appear BEFORE "
+            "artifact copy commands")
 
     def test_publish_preflight_order(self):
         self._assert_preflight_before_copy("design/skills/publish.md")
@@ -3653,17 +3662,27 @@ class TestCandidatePreflightTrustedBase(unittest.TestCase):
         return Path(__file__).resolve().parent.parent.parent
 
     def _extract_candidate_transform_cmd(self, rel):
-        """Extract the candidate transform bash line from a phase file."""
+        """Extract the candidate transform bash line.
+
+        Callers now delegate to the shared sync recipe, so find the
+        command in the recipe and verify the caller references it."""
         import re
-        text = (self._repo_root() / rel).read_text()
-        # Find the candidate-published-index transform command
+        caller_text = (self._repo_root() / rel).read_text()
+        # Caller must reference the shared recipe
+        self.assertIn(
+            "sync-validation-artifacts.md", caller_text,
+            f"{rel}: must reference shared sync recipe")
+        # Find the candidate transform in the shared recipe
+        recipe_path = (self._repo_root() /
+                       "_shared/recipes/sync-validation-artifacts.md")
+        text = recipe_path.read_text()
         pattern = (r'python3\s+"\$VALIDATION_INDEX_SCRIPT"\s+transform\s+'
                    r'"[^"]+validation-index\.json"\s+'
                    r'"[^"]+candidate-published-index\.json"\s+'
                    r'--trusted-output-base\s+"([^"]+)"')
         m = re.search(pattern, text)
         self.assertIsNotNone(
-            m, f"{rel}: candidate transform command not found")
+            m, f"shared recipe: candidate transform command not found")
         return m.group(0), m.group(1)
 
     def _run_preflight(self, rel):

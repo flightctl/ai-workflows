@@ -173,16 +173,16 @@ git commit -m "{issue-key}: address cross-cutting review findings"
 ```
 
 Because the fix commit changes HEAD, the existing validation report's
-identity binding is now stale. Re-run `/validate` on the clean
-committed state to produce a fresh report bound to the new HEAD.
-Do not return to `/validate` with uncommitted changes — validate
-rejects dirty worktrees (Step 3). After `/validate` completes with
-an unqualified `Overall: PASS`, re-check the identity binding (Step 1
-checks above) against the new HEAD before proceeding. If evidence
-is stale or inapplicable after the code changes, `/validate` will
-detect and report the gap.
-
-Then proceed to Step 3.
+identity binding is now stale. **Stop the `/publish` phase** and tell
+the user to run `/validate` on the clean committed state to produce a
+fresh report bound to the new HEAD. The publish phase cannot invoke
+`/validate` — the user must run it separately. Do not return to
+`/validate` with uncommitted changes — validate rejects dirty
+worktrees (Step 3). After `/validate` completes with an unqualified
+`Overall: PASS`, restart `/publish` from Step 1 and repeat all
+identity preflight checks against the new HEAD before proceeding.
+If evidence is stale or inapplicable after the code changes,
+`/validate` will detect and report the gap.
 
 ### Step 3: Confirm Details
 

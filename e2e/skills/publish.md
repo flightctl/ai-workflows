@@ -156,8 +156,10 @@ git add {fixed files}
 git commit -m "{issue-key}: address cross-cutting review findings"
 ```
 
-The fix commit changed HEAD. Re-run `/validate` on the clean committed
-state to produce a fresh validation report bound to the new HEAD.
+The fix commit changed HEAD. **Stop the `/publish` phase** and tell
+the user to run `/validate` on the clean committed state to produce
+a fresh validation report bound to the new HEAD. The publish phase
+cannot invoke `/validate` — the user must run it separately.
 
 Additionally, reassess whether external qualification evidence still
 applies — if review fixes changed an e2e test that was executed in a
@@ -166,7 +168,10 @@ the changed test's behavior. When the applicability of prior evidence
 is unknown or stale for an affected test, `/validate` must re-collect
 evidence for affected tests. Unaffected evidence (for tests not
 changed by the review) may be retained with its existing basis.
-Repeat the full Step 1 preflight checks on the fresh report:
+
+After `/validate` completes with an unqualified `Overall: PASS`,
+restart `/publish` from Step 1 and repeat all identity preflight
+checks on the fresh report:
 
 1. The report's `## Validated Identity` must record the current branch
    HEAD, context SHA-256, plan SHA-256, and testplan SHA-256 matching

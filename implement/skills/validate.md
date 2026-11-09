@@ -311,23 +311,34 @@ promises to deliver, and this is the last gate before publishing.
 1. Read the **Acceptance Criteria** from `01-context.md`
 2. Read the **Acceptance Criteria Coverage** matrix from `02-plan.md`
    to see which tasks were mapped to each criterion
-3. For each acceptance criterion, read the **Method** column from the
-   AC coverage matrix to determine the approved verification method
-   before assessing evidence. Do not infer the method from which tests
+3. For each acceptance criterion, read the **Method** and **Evidence
+   Reference** columns from the AC coverage matrix to determine the
+   approved verification method and the recorded reference for
+   locating evidence. Do not infer the method from which tests
    passed — use the planned method to select the verification path:
    - **automated-test:** Trace to implementation (code exists, task
      Done) and trace to tests (at least one test verifies this
      criterion's behavior through a public interface and would fail
      if the criterion were not implemented).
-   - **manual-test:** Collect external evidence status for the manual
-     verification (see point 3 below). A passing automated test does
-     not satisfy a criterion whose approved method is manual-test.
-   - **qualification-gate:** Collect qualification gate evidence
-     status (see point 3 below). A passing automated test does not
-     satisfy a criterion whose approved method is qualification-gate.
-   - **external-evidence:** Collect external evidence status (see
-     point 3 below). A passing automated test does not satisfy a
-     criterion whose approved method is external-evidence.
+   - **manual-test:** Use the recorded **Evidence Reference** to
+     locate and assess the manual verification evidence (see the
+     evidence-status rule in the unsatisfied-criterion list below).
+     If the reference is missing or unusable, ask the user for
+     clarification rather than guessing from available sources.
+     A passing automated test does not satisfy a criterion whose
+     approved method is manual-test.
+   - **qualification-gate:** Use the recorded **Evidence Reference**
+     to locate the gate's evidence (see the evidence-status rule in
+     the unsatisfied-criterion list below). If the reference is
+     missing or unusable, ask for clarification.
+     A passing automated test does not satisfy a criterion whose
+     approved method is qualification-gate.
+   - **external-evidence:** Use the recorded **Evidence Reference**
+     to locate the external evidence (see the evidence-status rule
+     in the unsatisfied-criterion list below). If the reference is
+     missing or unusable, ask for clarification.
+     A passing automated test does not satisfy a criterion whose
+     approved method is external-evidence.
    - **unresolved:** The method was not determined during planning.
      Flag to the user for clarification before assessing; do not
      guess a method.
@@ -349,17 +360,22 @@ satisfied:
    user with your assessment and let them decide
 3. If the criterion's approved verification method is manual
    verification, a qualification gate, or external evidence —
-   collect the evidence status now: check whether external evidence
-   has been provided for this criterion. Determine the status
-   (not-started, pending, verified, or failed) from available
-   evidence sources in the current run — do not read from a report
-   section that has not yet been written. If evidence status is
-   `verified`, the AC passes its approved method. If `pending` or
-   `not-started`, record the AC as "awaiting external evidence"
-   with the entry ID. If `failed`, the AC fails. Reuse this same
-   evidence result when writing the report in Step 9. Do not record
-   manual ACs as merely "requires manual verification" without
-   checking the evidence status
+   use the recorded **Evidence Reference** to locate the evidence.
+   If the reference is missing or unusable, ask the user for
+   clarification rather than guessing from available sources.
+   Before marking evidence `verified`, verify the evidence basis
+   applies to the **current candidate** (build, revision, or test
+   run). Evidence collected against a different candidate whose
+   applicability to the current candidate is unknown must remain
+   `pending`. Compare the evidence against the entry's original
+   source criteria.
+   Determine the status (not-started, pending, verified, or failed).
+   If evidence status is `verified`, the AC passes its approved
+   method. If `pending` or `not-started`, record the AC as "awaiting
+   external evidence" with the entry ID. If `failed`, the AC fails.
+   Reuse this same evidence result when writing the report in Step 9.
+   Do not record manual ACs as merely "requires manual verification"
+   without checking the evidence status
 
 ### Step 8b: Test Plan Verification
 
@@ -696,8 +712,11 @@ writing the final result:
 
 ## Result
 
-{Automated test coverage: PASS / FAIL — whether all automatable TC
- IDs have passing tests, coverage meets thresholds, and no regressions.
+{Automated test coverage: PASS / FAIL — whether all authoritative or
+ individually confirmed automatable TC IDs have passing tests,
+ coverage meets thresholds, and no regressions. Provisional
+ (unconfirmed) TCs are reported separately and excluded from this
+ line.
 
  External validation: COMPLETE / PENDING / FAILED / NOT STARTED —
  whether all manual verification, qualification gate, and non-TC
@@ -707,10 +726,12 @@ writing the final result:
  (1) all acceptance criteria pass their approved verification
      method (automated scenario, manual TC, qualification gate,
      or manual verification — as determined in Step 8),
- (2) all confirmed automatable TC IDs have passing tests,
-     coverage meets thresholds, and no regressions,
- (3) all confirmed external validation entries (manual TCs and
-     qualification gates) are verified.
+ (2) all authoritative or individually confirmed automatable TC
+     IDs have passing tests, coverage meets thresholds, and no
+     regressions,
+ (3) all authoritative or individually confirmed external
+     validation entries (manual TCs and qualification gates) are
+     verified.
  Unconfirmed TCs (from an unverified or unconfirmed testplan) are
  provisional — report them separately and exclude them from
  mandatory pass checks. An unconfirmed TC gap does not block
