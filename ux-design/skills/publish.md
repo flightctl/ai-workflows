@@ -403,6 +403,10 @@ Prepare the PR description and save it to
 
 ### Step 8: Push and Create PR
 
+Follow the pending attempt protocol in
+`../../_shared/recipes/screenshot-publish-stage.md` §4 for both new
+and existing PRs.
+
 **For an existing PR**, push to its branch when unpushed commits
 exist. Before pushing, verify the local branch HEAD matches the
 commit SHA from Step 6; refuse if unexpected ahead commits appear.

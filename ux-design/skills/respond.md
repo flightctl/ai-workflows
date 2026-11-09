@@ -270,6 +270,8 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 - `MANIFEST_REMOVED="true"` if the consumer manifest was removed (all screenshots deleted)
 - `COMMIT_MESSAGE="UX design {issue-key}: address review feedback"`
 
+Follow the pending attempt protocol in
+`../../_shared/recipes/screenshot-publish-stage.md` §4.
 Push only when unpushed commits exist. Before pushing, verify the
 local branch HEAD matches the commit SHA from the staging recipe;
 refuse if unexpected ahead commits appear. If a prior invocation

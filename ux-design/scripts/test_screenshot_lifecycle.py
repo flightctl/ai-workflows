@@ -1037,6 +1037,147 @@ class TestRecipeExecution(unittest.TestCase):
             self.assertIn("unrel-staged.txt", st.stdout)
             self.assertIn("unrel-dirty.txt", st.stdout)
 
+    # --- T14: Staged deletion D-paths in commit diff ---
+    def test_staged_deletion_appears_in_commit_diff(self) -> None:
+        """commit_paths fix: git-rm staged deletions must appear in the
+        commit's diff-tree with status D, not be silently dropped.
+
+        Scope: documented recipe Bash blocks in disposable Git repos."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            d = os.path.join(repo, "feat/PROJ-SD")
+            sd = os.path.join(d, "screenshots")
+            os.makedirs(sd)
+            _w(os.path.join(d, "handoff.md"), "# SD v1\n")
+            _w(os.path.join(d, "screenshot-manifest.json"), "{}")
+            _w(os.path.join(sd, "SS-1-sd.png"), "img-sd")
+            self._exec(repo, "feat/PROJ-SD/handoff.md", "feat/PROJ-SD",
+                        copied=["SS-1-sd.png"], manifest_written=True,
+                        msg="Init SD test")
+            # git rm image + manifest
+            subprocess.run(
+                ["git", "-C", repo, "rm",
+                 "feat/PROJ-SD/screenshots/SS-1-sd.png"],
+                capture_output=True, check=True,
+            )
+            subprocess.run(
+                ["git", "-C", repo, "rm",
+                 "feat/PROJ-SD/screenshot-manifest.json"],
+                capture_output=True, check=True,
+            )
+            _w(os.path.join(d, "handoff.md"), "# SD v2\n")
+            r = self._exec(repo, "feat/PROJ-SD/handoff.md", "feat/PROJ-SD",
+                            removed=["SS-1-sd.png"], manifest_removed=True,
+                            msg="Staged deletion commit")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            # Assert D-paths appear in the commit diff
+            show = subprocess.run(
+                ["git", "-C", repo, "diff-tree", "--no-commit-id",
+                 "--name-status", "-r", "HEAD"],
+                capture_output=True, text=True,
+            )
+            self.assertIn("D\tfeat/PROJ-SD/screenshots/SS-1-sd.png",
+                          show.stdout)
+            self.assertIn("D\tfeat/PROJ-SD/screenshot-manifest.json",
+                          show.stdout)
+            self.assertIn("M\tfeat/PROJ-SD/handoff.md", show.stdout)
+
+    # --- T15: No owned staged deletions remain after commit ---
+    def test_no_owned_staged_deletions_after_commit(self) -> None:
+        """commit_paths fix: after recipe commits, no owned staged
+        deletions remain in the index.
+
+        Scope: documented recipe Bash blocks in disposable Git repos."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            d = os.path.join(repo, "feat/PROJ-NS")
+            sd = os.path.join(d, "screenshots")
+            os.makedirs(sd)
+            _w(os.path.join(d, "handoff.md"), "# NS\n")
+            _w(os.path.join(d, "screenshot-manifest.json"), "{}")
+            _w(os.path.join(sd, "SS-1-ns.png"), "ns-img")
+            self._exec(repo, "feat/PROJ-NS/handoff.md", "feat/PROJ-NS",
+                        copied=["SS-1-ns.png"], manifest_written=True,
+                        msg="Init NS")
+            # Remove image via git rm
+            subprocess.run(
+                ["git", "-C", repo, "rm",
+                 "feat/PROJ-NS/screenshots/SS-1-ns.png"],
+                capture_output=True, check=True,
+            )
+            _w(os.path.join(d, "handoff.md"), "# NS v2\n")
+            _w(os.path.join(d, "screenshot-manifest.json"), '{"v":2}')
+            # Seed unrelated staged file
+            _w(os.path.join(repo, "unrel.txt"), "keep")
+            subprocess.run(["git", "-C", repo, "add", "unrel.txt"],
+                           capture_output=True, check=True)
+            r = self._exec(repo, "feat/PROJ-NS/handoff.md", "feat/PROJ-NS",
+                            removed=["SS-1-ns.png"], manifest_written=True,
+                            msg="Remove one")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            # No owned deletions remain staged
+            status = subprocess.run(
+                ["git", "-C", repo, "status", "--porcelain"],
+                capture_output=True, text=True,
+            )
+            # Owned deletion paths must NOT appear as staged
+            for line in status.stdout.splitlines():
+                if "SS-1-ns" in line:
+                    self.fail(f"Owned deletion still staged: {line}")
+            # Unrelated file survives in index
+            self.assertIn("unrel.txt", status.stdout)
+
+    # --- T16: Required path validation — missing handoff errors ---
+    def test_missing_handoff_errors(self) -> None:
+        """Required-path validation: missing handoff exits non-zero.
+
+        Scope: documented recipe Bash blocks."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            # Do NOT create the handoff file
+            r = self._exec(repo, "feat/PROJ-MH/handoff.md", "feat/PROJ-MH",
+                            msg="Should fail")
+            self.assertNotEqual(r.returncode, 0,
+                                "Missing handoff should error")
+            self.assertIn("required handoff missing", r.stderr)
+
+    # --- T17: Required path validation — missing copied file errors ---
+    def test_missing_copied_file_errors(self) -> None:
+        """Required-path validation: missing copied file exits non-zero.
+
+        Scope: documented recipe Bash blocks."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            d = os.path.join(repo, "feat/PROJ-MC")
+            os.makedirs(d)
+            _w(os.path.join(d, "handoff.md"), "# MC\n")
+            # Do NOT create the screenshots dir or file
+            r = self._exec(repo, "feat/PROJ-MC/handoff.md", "feat/PROJ-MC",
+                            copied=["SS-1-missing.png"],
+                            msg="Should fail on missing copy")
+            self.assertNotEqual(r.returncode, 0,
+                                "Missing copied file should error")
+            self.assertIn("required copied file missing", r.stderr)
+
+    # --- T18: Required path validation — written manifest missing ---
+    def test_manifest_written_but_missing_errors(self) -> None:
+        """Required-path validation: MANIFEST_WRITTEN=true but file absent.
+
+        Scope: documented recipe Bash blocks."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            d = os.path.join(repo, "feat/PROJ-MM")
+            os.makedirs(d)
+            _w(os.path.join(d, "handoff.md"), "# MM\n")
+            # Do NOT create the manifest file
+            r = self._exec(repo, "feat/PROJ-MM/handoff.md", "feat/PROJ-MM",
+                            manifest_written=True,
+                            msg="Should fail on missing manifest")
+            self.assertNotEqual(r.returncode, 0,
+                                "Missing manifest should error")
+            self.assertIn("MANIFEST_WRITTEN=true but manifest missing",
+                          r.stderr)
+
     # --- T13: Changed handoff after committed removals ---
     def test_changed_handoff_after_committed_removal(self) -> None:
         """F6 regression (Git execution): after git-rm + commit, handoff
@@ -1473,6 +1614,154 @@ class TestPR159FindingRegressions(unittest.TestCase):
         )[0]
         flat = " ".join(removals.split())
         self.assertIn("validate path inside", flat)
+
+
+# ===================================================================
+# Part 4: commit_paths filter and pending attempt protocol
+#
+# Structural contract tests verifying the recipe's commit_paths HEAD
+# membership check, required-path validation, and pending attempt
+# protocol documentation are present. Executable Git tests for the
+# commit_paths fix are in Part 2 (T14–T18). Tests label which
+# assertions are Read/Write journal contracts (instruction text
+# presence) versus actual canonical Bash guard/push execution
+# (disposable Git repo subprocess tests in Part 2).
+# ===================================================================
+
+class TestCommitPathsAndPendingAttempt(unittest.TestCase):
+    """Contract and structural tests for commit_paths filter fix and
+    pending attempt protocol."""
+
+    # --- Commit_paths HEAD membership in recipe ---
+
+    def test_recipe_commit_paths_head_check(self) -> None:
+        """Recipe Step 3 uses HEAD:path to include staged deletions."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        block3 = content.split("### 3.", 1)[1].split("### 4.", 1)[0]
+        self.assertIn('rev-parse --verify "HEAD:$p"', block3)
+        self.assertIn("staged deletion, first removal", block3)
+
+    def test_recipe_commit_paths_skip_comment(self) -> None:
+        """Recipe Step 3 documents skip for already-committed deletions."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        block3 = content.split("### 3.", 1)[1].split("### 4.", 1)[0]
+        self.assertIn("already-committed deletion", block3)
+
+    def test_recipe_commit_paths_description_update(self) -> None:
+        """Recipe Step 3 description mentions HEAD-based inclusion."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        desc = content.split("### 3.", 1)[1].split("```bash", 1)[0]
+        flat = " ".join(desc.split())
+        self.assertIn("present in HEAD but absent from the index", flat)
+        self.assertIn("already-committed deletions", flat)
+
+    # --- Required-path validation in recipe ---
+
+    def test_recipe_required_path_validation(self) -> None:
+        """Recipe Step 2 validates required paths before staging."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        block2 = content.split("### 2.", 1)[1].split("### 3.", 1)[0]
+        flat = " ".join(block2.split())
+        self.assertIn("required handoff missing", flat)
+        self.assertIn("required copied file missing", flat)
+        self.assertIn("MANIFEST_WRITTEN=true but manifest missing", flat)
+
+    def test_recipe_step2_title_updated(self) -> None:
+        """Recipe Step 2 title includes 'Validate'."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        self.assertIn("### 2. Validate and stage owned paths", content)
+
+    # --- Pending attempt protocol ---
+
+    def test_recipe_has_pending_attempt_section(self) -> None:
+        """Recipe Step 4 documents the pending attempt protocol."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        self.assertIn("### 4. Pending attempt record (push safety)",
+                      content)
+
+    def test_pending_attempt_fields(self) -> None:
+        """Pending attempt record has required fields (contract)."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("Pending attempt record", 1)[1]
+        for field in ("commit_sha", "branch", "expected_base",
+                      "owned_paths", "pr_number", "timestamp"):
+            self.assertIn(f"`{field}`", section,
+                          f"pending_attempt missing field: {field}")
+
+    def test_pending_attempt_private_state(self) -> None:
+        """Pending attempt is private authoring state, not published."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("Pending attempt record", 1)[1]
+        flat = " ".join(section.split())
+        self.assertIn("private authoring state", flat)
+        self.assertIn("do not copy", flat)
+        self.assertIn("consumer-facing published manifest", flat)
+
+    def test_pending_attempt_retry_verification(self) -> None:
+        """On retry: verify HEAD matches, check remote, refuse unknown."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        retry = content.split("On retry", 1)[1].split("Initial new", 1)[0]
+        flat = " ".join(retry.split())
+        self.assertIn("commit_sha", flat)
+        self.assertIn("do not force-push", flat)
+        self.assertIn("re-derive ownership", flat)
+        self.assertIn("Already pushed", flat)
+
+    def test_pending_attempt_initial_synced_base(self) -> None:
+        """Initial new attempt requires known synced base."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("Initial new attempt", 1)[1].split(
+            "After successful push", 1
+        )[0]
+        flat = " ".join(section.split())
+        self.assertIn("known synced base", flat)
+
+    def test_pending_attempt_finalize_after_verify(self) -> None:
+        """Metadata finalized only after exact remote SHA verification."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("After successful push", 1)[1].split(
+            "Already-pushed", 1
+        )[0]
+        flat = " ".join(section.split())
+        self.assertIn("Verify the remote ref matches", flat)
+        self.assertIn("commit_sha", flat)
+        self.assertIn("Finalize metadata", flat)
+        self.assertIn("Remove `pending_attempt`", flat)
+
+    def test_pending_attempt_meta_write_failure(self) -> None:
+        """Already-pushed + metadata-write failure handled."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("metadata-write failure", 1)[1].split(
+            "Unexpected state", 1
+        )[0]
+        flat = " ".join(section.split())
+        self.assertIn("re-reading", flat)
+        self.assertIn("Do not create a new commit", flat)
+
+    def test_pending_attempt_unexpected_stop(self) -> None:
+        """Unexpected state stops; no force-push or reset."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("**Unexpected state.**", 1)[1]
+        flat = " ".join(section.split())
+        self.assertIn("stop", flat)
+        self.assertIn("Do not force-push", flat)
+
+    # --- Callers reference protocol ---
+
+    def test_publish_references_pending_attempt(self) -> None:
+        """Publish Step 8 references recipe §4 pending attempt."""
+        content = _read("ux-design/skills/publish.md")
+        step8 = content.split("### Step 8:", 1)[1].split("### Step 9:", 1)[0]
+        flat = " ".join(step8.split())
+        self.assertIn("pending attempt protocol", flat)
+        self.assertIn("screenshot-publish-stage.md", flat)
+
+    def test_respond_references_pending_attempt(self) -> None:
+        """Respond push section references recipe §4 pending attempt."""
+        content = _read("ux-design/skills/respond.md")
+        flat = " ".join(content.split())
+        self.assertIn("pending attempt protocol", flat)
+        self.assertIn("screenshot-publish-stage.md", flat)
 
 
 if __name__ == "__main__":
