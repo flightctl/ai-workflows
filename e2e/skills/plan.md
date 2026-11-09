@@ -355,11 +355,20 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
  Qualification-gate TCs are external validation evidence — they are NOT
  assigned to e2e test scenarios but must appear in the table with status
  `Qualification gate` and the designated execution environment as
- rationale. This is a set-diff gate: compute the difference between the
- set of TC IDs in testplan.md and the set assigned to scenarios, marked
- N/A, listed as manual verification, or listed as qualification gates.
- If the difference is non-empty, the plan is incomplete — resolve
- before proceeding.
+ rationale.
+
+ **Set-diff gate (verified/confirmed TCs only):** This gate applies
+ only when the testplan source is verified or the user has confirmed
+ retained TCs with a valid SHA-256 binding. Compute the difference
+ between the set of confirmed TC IDs in testplan.md and the set
+ assigned to scenarios, marked N/A, listed as manual verification,
+ or listed as qualification gates. If the difference is non-empty,
+ the plan is incomplete — resolve before proceeding.
+
+ **Unconfirmed TCs (Freshness: unverified, no confirmation):** list
+ all TC IDs in the table but mark unmapped rows as provisional. Do
+ not mandate scenario assignments or block the plan on unconfirmed
+ TC gaps — AC-based quality work still proceeds.
 
  A gate-only testplan (zero TC IDs, only a Qualification Gates
  section) is valid — omit the TC table and include only the

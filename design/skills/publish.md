@@ -43,8 +43,22 @@ shared scripts to absolute paths so they remain valid:
 
 ```bash
 PUBLISH_SCRIPT="${HOME}/.ai-workflows/_shared/scripts/publish.py"
-VALIDATION_INDEX_SCRIPT="${HOME}/.ai-workflows/design/scripts/validation_index.py"
 ```
+
+Set `SKILL_DIR` to the canonical directory of this loaded skill file
+(resolved from the path provided by the phase dispatcher or file-read
+context, following symlinks). If the loaded file path is unavailable,
+stop and report — do not fall back to `$HOME`, `BASH_SOURCE`, or the
+current working directory:
+
+```bash
+# SKILL_DIR: set by the agent to this skill file's canonical directory
+VALIDATION_INDEX_SCRIPT="$(realpath "${SKILL_DIR}/../scripts/validation_index.py")" || { echo "Cannot resolve ../scripts/validation_index.py" >&2; exit 1; }
+```
+
+If the resolution fails (script not found at the expected relative
+location), stop and report the error — do not fall back to a different
+install or guess the path.
 
 Use `$PUBLISH_SCRIPT` and `$VALIDATION_INDEX_SCRIPT` instead of the
 relative paths in all subsequent commands.
@@ -256,10 +270,31 @@ files to the docs repo, snapshot the previously published index so
 stale files can be identified after the new set is written.
 
 If `{docs_repo_path}/{release}/{feature}/validation-index.json`
-exists, copy it to a temp file:
+exists, reject it if it is a symlink (including dangling) before
+copying — the `cp` command follows symlinks by default and would
+accept ownership from the linked target:
 
 ```bash
-cp "{docs_repo_path}/{release}/{feature}/validation-index.json" ".artifacts/design/{issue-key}/prev-published-index.json"
+if [ -L "{docs_repo_path}/{release}/{feature}/validation-index.json" ]; then
+  echo "Published index is a symlink — refusing to copy" >&2; exit 1
+fi
+```
+
+**Validate the published index at its source before capturing.**
+Validate the original published index in place — before `cp` —
+to ensure it conforms to the published schema and is trustworthy
+for later removal decisions:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" validate --published "{docs_repo_path}/{release}/{feature}/validation-index.json" || { echo "Published index validation failed — aborting" >&2; exit 1; }
+```
+
+If validation fails, **stop and report** — do not copy or proceed
+with a malformed published index. Only after validation passes,
+capture the snapshot:
+
+```bash
+cp "{docs_repo_path}/{release}/{feature}/validation-index.json" ".artifacts/design/{issue-key}/prev-published-index.json" || { echo "Snapshot copy failed" >&2; exit 1; }
 ```
 
 If it does not exist but `{docs_repo_path}/{release}/{feature}/testplan.md`
@@ -287,21 +322,6 @@ report** — do not proceed with an empty previous set when a prior
 publication exists. An empty previous set is correct only when
 no prior published state exists (first publish).
 
-**Validate the snapshot if one was captured.** Before copying any
-current artifacts or overwriting the published index, validate the
-captured snapshot to ensure it is trustworthy for later removal
-decisions.
-
-```bash
-if [ -f ".artifacts/design/{issue-key}/prev-published-index.json" ]; then
-  python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issue-key}/prev-published-index.json"
-fi
-```
-
-If validation fails, **stop and report** — do not proceed with
-publication using a malformed previous snapshot. The snapshot must
-be corrected or removed before continuing.
-
 **Removal preflight (non-empty current set with previous snapshot):**
 Before copying any artifacts or overwriting the published index,
 identify proposed removals so the user can approve them first.
@@ -309,17 +329,18 @@ Transform the current local index to a candidate published index
 under `.artifacts`:
 
 ```bash
-python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" ".artifacts/design/{issue-key}/candidate-published-index.json" --trusted-output-base "."
+python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" ".artifacts/design/{issue-key}/candidate-published-index.json" --trusted-output-base "." || { echo "Transform failed — aborting" >&2; exit 1; }
 ```
 
 Diff the previous snapshot against the candidate:
 
 ```bash
-python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-published-index.json" ".artifacts/design/{issue-key}/candidate-published-index.json"
+python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-published-index.json" ".artifacts/design/{issue-key}/candidate-published-index.json" || { echo "Diff failed — aborting" >&2; exit 1; }
 ```
 
-If the `removed` list is non-empty, present the exact filenames to the
-user and require named confirmation of each removal before proceeding.
+If the `removed` list is non-empty, present each removal with its full
+published path `{release}/{feature}/{filename}` and require named
+confirmation of each removal before proceeding.
 An earlier explicit named-artifact approval (from a prior `/revise` or
 `/publish` step that named these specific files) counts as confirmation
 only if the artifact's published state has not changed since approval —
@@ -353,13 +374,48 @@ or committed. Record the confirmation for Step 7 to execute.
 ### Step 5: Copy Design Document and Current Artifacts
 
 All preflights have passed and any required confirmations have been
-obtained. Now begin modifying the docs repo.
+obtained. Before modifying the docs repo, verify ALL destination paths
+first so a rejected publication leaves the checkout unchanged.
 
-**Copy the design document:**
+**Check all destinations before any copy:**
 
 ```bash
 mkdir -p "{docs_repo_path}/{release}/{feature}"
 ```
+
+Verify the design document destination:
+- If any ancestor in the destination path between `{docs_repo_path}`
+  and `design.md` is a symlink, stop and report — the destination
+  could escape the docs checkout. Symlinks at or above
+  `{docs_repo_path}` itself are permitted (the checkout root may
+  be an alias).
+- If `{docs_repo_path}/{release}/{feature}/design.md` itself is a
+  symlink, stop and report.
+
+If the current set is non-empty (has validation artifacts), verify
+each artifact destination before any copy:
+
+For each entry in the current set, verify the local file exists.
+A listed artifact whose local file is missing is an error — stop and
+report it to the user. Do not proceed with partial publication.
+
+Verify that no source file is a symlink. For each destination path,
+check:
+- If any ancestor in the destination path between `{docs_repo_path}`
+  and the target file is a symlink, stop and report — the
+  destination could escape the docs checkout. Symlinks at or above
+  `{docs_repo_path}` itself are permitted (the checkout root may
+  be an alias).
+- If the destination itself is a symlink, stop and report.
+- If the destination already exists and the filename is NOT in the
+  previous validation set (from Step 4), stop and report — this
+  would overwrite an unowned file (e.g., `clarifications.md` from
+  PRD publication). Files that ARE in the previous set are owned
+  updates and may be overwritten.
+
+All destination checks passed. Now begin writing to the docs repo.
+
+**Copy the design document:**
 
 ```bash
 cp ".artifacts/design/{issue-key}/03-design.md" "{docs_repo_path}/{release}/{feature}/design.md"
@@ -377,25 +433,6 @@ git -C "{docs_repo_path}" add "{release}/{feature}/design.md"
 
 If the current set is empty (no validation artifacts), skip to Step 7.
 
-For each entry in the current set, verify the local file exists
-before copying. A listed artifact whose local file is missing is an
-error — stop and report it to the user. Do not proceed with partial
-publication.
-
-Verify that no source file is a symlink. For each destination path,
-check:
-- If any ancestor in the destination path between `{docs_repo_path}`
-  and the target file is a symlink, stop and report — the
-  destination could escape the docs checkout. Symlinks at or above
-  `{docs_repo_path}` itself are permitted (the checkout root may
-  be an alias).
-- If the destination itself is a symlink, stop and report.
-- If the destination already exists and the filename is NOT in the
-  previous validation set (from Step 4), stop and report — this
-  would overwrite an unowned file (e.g., `clarifications.md` from
-  PRD publication). Files that ARE in the previous set are owned
-  updates and may be overwritten.
-
 Copy each artifact to the docs repo:
 
 ```bash
@@ -412,8 +449,12 @@ Transform and write the
 published index for downstream discovery:
 
 ```bash
-python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" "{docs_repo_path}/{release}/{feature}/validation-index.json" --trusted-output-base "{docs_repo_path}"
+python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" "{docs_repo_path}/{release}/{feature}/validation-index.json" --trusted-output-base "{docs_repo_path}" || { echo "Transform failed — aborting" >&2; exit 1; }
 ```
+
+If the transform exits non-zero, **stop and report** — do not proceed
+to stage the index. A failed transform may leave a stale index at the
+destination; staging it would publish incorrect downstream metadata.
 
 ```bash
 git -C "{docs_repo_path}" add "{release}/{feature}/validation-index.json"
@@ -432,7 +473,7 @@ preflight (Step 4). Re-diff using the final published index to
 verify the removal set is unchanged:
 
 ```bash
-python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-published-index.json" "{docs_repo_path}/{release}/{feature}/validation-index.json"
+python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-published-index.json" "{docs_repo_path}/{release}/{feature}/validation-index.json" || { echo "Diff failed — aborting" >&2; exit 1; }
 ```
 
 The `removed` list must match the preflight result. If the sets

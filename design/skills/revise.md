@@ -45,8 +45,14 @@ Determine which artifacts exist and read them:
 - `.artifacts/design/{issue-key}/07-coverage.md` (coverage matrix, if exists)
 - **Validation artifacts:** Before reading any testplan or companion,
   resolve the validation index:
+  Set `SKILL_DIR` to the canonical directory of this loaded skill file
+  (resolved from the path provided by the phase dispatcher or file-read
+  context, following symlinks). If the loaded file path is unavailable,
+  stop and report — do not fall back to `$HOME`, `BASH_SOURCE`, or the
+  current working directory:
   ```bash
-  VALIDATION_INDEX_SCRIPT="${HOME}/.ai-workflows/design/scripts/validation_index.py"
+  # SKILL_DIR: set by the agent to this skill file's canonical directory
+  VALIDATION_INDEX_SCRIPT="$(realpath "${SKILL_DIR}/../scripts/validation_index.py")" || { echo "Cannot resolve ../scripts/validation_index.py" >&2; exit 1; }
   python3 "$VALIDATION_INDEX_SCRIPT" resolve --local ".artifacts/design/{issue-key}"
   ```
   If exit 0, parse the JSON array to discover all artifact paths.
@@ -176,8 +182,10 @@ not part of the contributing-story inventory.
 Resolve the validation index **before** reading any artifact files.
 Use the CLI helper to validate and resolve paths:
 
+Set `SKILL_DIR` as above (the agent's file-load context), then resolve:
+
 ```bash
-VALIDATION_INDEX_SCRIPT="${HOME}/.ai-workflows/design/scripts/validation_index.py"
+VALIDATION_INDEX_SCRIPT="$(realpath "${SKILL_DIR}/../scripts/validation_index.py")" || { echo "Cannot resolve ../scripts/validation_index.py" >&2; exit 1; }
 python3 "$VALIDATION_INDEX_SCRIPT" resolve --local ".artifacts/design/{issue-key}"
 ```
 
@@ -230,8 +238,9 @@ feature-wide high-water mark for that requirement group.
   each command — do not assume `VALIDATION_INDEX_SCRIPT` survives
   from a prior shell:
 
+  Set `SKILL_DIR` as above (the agent's file-load context), then resolve:
   ```bash
-  VALIDATION_INDEX_SCRIPT="${HOME}/.ai-workflows/design/scripts/validation_index.py"
+  VALIDATION_INDEX_SCRIPT="$(realpath "${SKILL_DIR}/../scripts/validation_index.py")" || { echo "Cannot resolve ../scripts/validation_index.py" >&2; exit 1; }
   python3 "$VALIDATION_INDEX_SCRIPT" build-legacy ".artifacts/design/{issue-key}" ".artifacts/design/{issue-key}/validation-index.json"
   ```
 
@@ -240,7 +249,7 @@ feature-wide high-water mark for that requirement group.
   adding, validate:
 
   ```bash
-  VALIDATION_INDEX_SCRIPT="${HOME}/.ai-workflows/design/scripts/validation_index.py"
+  VALIDATION_INDEX_SCRIPT="$(realpath "${SKILL_DIR}/../scripts/validation_index.py")" || { echo "Cannot resolve ../scripts/validation_index.py" >&2; exit 1; }
   python3 "$VALIDATION_INDEX_SCRIPT" validate --local ".artifacts/design/{issue-key}/validation-index.json" --artifact-dir ".artifacts/design/{issue-key}"
   ```
 
@@ -387,10 +396,10 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 
 **Validation artifact docs-repo sync:**
 
-Resolve the shared validation index script:
+Set `SKILL_DIR` as above (the agent's file-load context), then resolve:
 
 ```bash
-VALIDATION_INDEX_SCRIPT="${HOME}/.ai-workflows/design/scripts/validation_index.py"
+VALIDATION_INDEX_SCRIPT="$(realpath "${SKILL_DIR}/../scripts/validation_index.py")" || { echo "Cannot resolve ../scripts/validation_index.py" >&2; exit 1; }
 ```
 
 Derive `{feature-dir}` from `design_file_path` in publish-metadata
@@ -422,10 +431,26 @@ If the removal command fails (non-zero exit other than file-not-found),
 stop and report the error.
 
 **Snapshot PREVIOUS state:** If
-`{docs_repo_path}/{feature-dir}/validation-index.json` exists, copy
-it to `.artifacts/design/{issue-key}/prev-published-index.json`. If
-it does not exist but `{docs_repo_path}/{feature-dir}/testplan.md`
-exists (legacy), create the minimal published snapshot:
+`{docs_repo_path}/{feature-dir}/validation-index.json` exists,
+validate it at its source before copying — to ensure it conforms
+to the published schema and is trustworthy for later removal
+decisions:
+
+```bash
+python3 "$VALIDATION_INDEX_SCRIPT" validate --published "{docs_repo_path}/{feature-dir}/validation-index.json" || { echo "Published index validation failed — aborting" >&2; exit 1; }
+```
+
+If validation fails, **stop and report** — do not copy or proceed
+with a malformed published index. Only after validation passes,
+capture the snapshot:
+
+```bash
+cp "{docs_repo_path}/{feature-dir}/validation-index.json" ".artifacts/design/{issue-key}/prev-published-index.json" || { echo "Snapshot copy failed" >&2; exit 1; }
+```
+
+If the index does not exist but
+`{docs_repo_path}/{feature-dir}/testplan.md` exists (legacy), create
+the minimal published snapshot:
 
 ```json
 {
@@ -436,23 +461,8 @@ exists (legacy), create the minimal published snapshot:
 ```
 
 Save to `.artifacts/design/{issue-key}/prev-published-index.json`.
-If neither exists, there is no previous set — no snapshot is captured.
-
-**Validate the snapshot if one was captured.** Before copying any
-current artifacts or overwriting the published index, validate
-the captured snapshot. If no snapshot was captured (no previous
-published state), skip validation and continue with an empty
-previous set.
-
-```bash
-if [ -f ".artifacts/design/{issue-key}/prev-published-index.json" ]; then
-  python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issue-key}/prev-published-index.json"
-fi
-```
-
-If validation fails, **stop and report** — do not proceed with
-sync using a malformed previous snapshot. The snapshot must be
-corrected or removed before continuing.
+If neither exists, there is no previous set — no snapshot is captured
+and the empty previous set is correct (first publish).
 
 **Removal preflight (non-empty current set with previous snapshot):**
 Before copying any artifacts or overwriting the published index,
@@ -461,20 +471,31 @@ Transform the current local index to a candidate published index
 under `.artifacts`:
 
 ```bash
-python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" ".artifacts/design/{issue-key}/candidate-published-index.json" --trusted-output-base "."
+python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" ".artifacts/design/{issue-key}/candidate-published-index.json" --trusted-output-base "." || { echo "Transform failed — aborting" >&2; exit 1; }
 ```
+
+If the transform exits non-zero, stop and report the error — do not
+proceed to the diff. Remove any stale `candidate-published-index.json`
+from a prior interrupted run before continuing.
 
 Diff the previous snapshot against the candidate:
 
 ```bash
-python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-published-index.json" ".artifacts/design/{issue-key}/candidate-published-index.json"
+python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-published-index.json" ".artifacts/design/{issue-key}/candidate-published-index.json" || { echo "Diff failed — aborting" >&2; exit 1; }
 ```
 
-If the `removed` list is non-empty, present the exact filenames to the
-user and require named confirmation of each removal before proceeding.
-An earlier explicit named-artifact approval (from a prior `/revise`
-step that named these specific files) counts as confirmation; generic
-update approval does not. If the user declines, stop — preserve
+If the diff exits non-zero, stop and report the error — do not proceed
+to artifact copy or metadata update.
+
+If the `removed` list is non-empty, present each removal with its full
+published path `{release}/{feature}/{filename}` and require named
+confirmation of each removal before proceeding. The full path ensures
+users can distinguish removals across features. An earlier explicit
+named-artifact approval (from a prior `/revise` step that named these
+specific files with full paths) counts as confirmation only if the
+artifact's published state has not changed since approval — a new
+publish cycle resets approvals. Generic update approval does not
+constitute named removal approval. If the user declines, stop — preserve
 published artifacts and metadata unchanged. Clean up the candidate file
 after the preflight completes.
 
@@ -534,7 +555,7 @@ git -C "{docs_repo_path}" add "{design_file_path}"
 transform and write the updated index:
 
 ```bash
-python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" "{docs_repo_path}/{feature-dir}/validation-index.json" --trusted-output-base "{docs_repo_path}"
+python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" "{docs_repo_path}/{feature-dir}/validation-index.json" --trusted-output-base "{docs_repo_path}" || { echo "Transform failed — aborting" >&2; exit 1; }
 ```
 
 ```bash
@@ -551,7 +572,7 @@ execute the removals confirmed during the removal preflight. Re-diff
 using the final published index to verify the set is unchanged:
 
 ```bash
-python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-published-index.json" "{docs_repo_path}/{feature-dir}/validation-index.json"
+python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-published-index.json" "{docs_repo_path}/{feature-dir}/validation-index.json" || { echo "Diff failed — aborting" >&2; exit 1; }
 ```
 
 The `removed` list must match the preflight result. If the sets

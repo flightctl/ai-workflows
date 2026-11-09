@@ -285,11 +285,14 @@ gate — no executable test case is applicable").
 For each PRD requirement (FR-N, NFR-N), derive test cases:
 
 **Functional requirements with IC mapping:** Identify the Interface
-Changes (IC-N) from §5 that satisfy the requirement. For each IC,
+Changes (IC-N) from §5 that satisfy the requirement. For each IC
+that is not covered exclusively by a qualification gate (see §6),
 generate test cases that exercise the concrete system surface it
 describes — the API endpoint, CLI command, UI behavior, or
 configuration change. Use the IC description's inputs, outputs, and
-key behaviors as the basis for test scenarios.
+key behaviors as the basis for test scenarios. Skip test-case
+derivation for ICs whose sole coverage is a qualification gate —
+they are validated externally, not by generated test cases.
 
 **Non-functional or cross-cutting requirements:** For requirements
 without a direct IC mapping (performance, security, availability, or
@@ -480,7 +483,7 @@ have executable test cases:
 
 | Gate | Requirements | ICs | Type | Required Evidence | Reviewer/Owner |
 |------|-------------|-----|------|-------------------|----------------|
-| {gate name} | {FR-N, NFR-N} | {IC-N or —} | {architectural review / documentation check / compliance certification / hardware qualification} | {what evidence is needed — e.g., audit report, certification, sign-off} | {responsible party} |
+| {gate name} | {FR-N, NFR-N} | {IC-N or —} | {architectural review / documentation check / compliance certification / hardware qualification} | {evidence type AND acceptance criteria — e.g., "Security audit report with zero critical findings" or "Performance certification showing p99 < 200ms"; state what the evidence must demonstrate, not only the artifact type} | {responsible party} |
 
 Include the IC mapping when the gate covers behavior exposed
 through an interface change. Use `—` when the gate covers a
@@ -752,8 +755,15 @@ When no companions exist, the index contains only the primary entry.
 
 Validate the written index:
 
+Set `SKILL_DIR` to the canonical directory of this loaded skill file
+(resolved from the path provided by the phase dispatcher or file-read
+context, following symlinks). If the loaded file path is unavailable,
+stop and report — do not fall back to `$HOME`, `BASH_SOURCE`, or the
+current working directory:
+
 ```bash
-VALIDATION_INDEX_SCRIPT="${HOME}/.ai-workflows/design/scripts/validation_index.py"
+# SKILL_DIR: set by the agent to this skill file's canonical directory
+VALIDATION_INDEX_SCRIPT="$(realpath "${SKILL_DIR}/../scripts/validation_index.py")" || { echo "Cannot resolve ../scripts/validation_index.py" >&2; exit 1; }
 python3 "$VALIDATION_INDEX_SCRIPT" validate --local ".artifacts/design/{issue-key}/validation-index.json" --artifact-dir ".artifacts/design/{issue-key}"
 ```
 

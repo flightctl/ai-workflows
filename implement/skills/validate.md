@@ -334,9 +334,19 @@ satisfied:
    the fix.
 2. If it's ambiguous whether the criterion is met — flag it to the
    user with your assessment and let them decide
-3. If the criterion cannot be verified through automated means (e.g.,
-   it requires manual verification or describes a UX quality) — note
-   it as "requires manual verification" with an explanation of why
+3. If the criterion's approved verification method is manual
+   verification, a qualification gate, or external evidence —
+   collect the evidence status now: check whether external evidence
+   has been provided for this criterion. Determine the status
+   (not-started, pending, verified, or failed) from available
+   evidence sources in the current run — do not read from a report
+   section that has not yet been written. If evidence status is
+   `verified`, the AC passes its approved method. If `pending` or
+   `not-started`, record the AC as "awaiting external evidence"
+   with the entry ID. If `failed`, the AC fails. Reuse this same
+   evidence result when writing the report in Step 9. Do not record
+   manual ACs as merely "requires manual verification" without
+   checking the evidence status
 
 ### Step 8b: Test Plan Verification
 
@@ -347,13 +357,16 @@ verify that every **automatable** test case has been implemented.
 marker to determine its authority level. The cases are mutually
 exclusive; evaluate in this order:
 
-1. If `testplan.md` contains `Freshness: unresolved-source`, the
-   source could not be read or resolved during ingest. Report this
-   state as "unresolved discovery — source unavailable" in the
-   validation report. Do not treat it as confirmed absence or full
-   coverage. AC-based work may continue, but unresolved required
-   validation cannot be claimed as complete. The overall result
-   cannot be PASS while this state persists.
+1. If `testplan.md` contains `Source-Discovery: unresolved` or
+   `Freshness: unresolved-source`, the source could not be read or
+   resolved during ingest. Report this state as "unresolved
+   discovery — source unavailable" in the validation report. Do not
+   treat it as confirmed absence or full coverage. AC-based work may
+   continue, but unresolved required validation cannot be claimed as
+   complete. The overall result cannot be PASS while this state
+   persists — clear the unresolved state only upon a successful
+   checked discovery (a subsequent `/ingest` that resolves the
+   source).
 
 2. If `testplan.md` contains `Freshness: unverified` (or the legacy
    bold form `**Freshness:** unverified`), the testplan was retained
@@ -465,8 +478,11 @@ to step 4 below.
      Step 3 (clean/base), the Step 7 scope comparison and self-review
      gate on the committed HEAD (consuming remaining MAX_ROUNDS), and
      re-verify Step 8 AC and applicable Step 8b TC consistency on the
-     new HEAD. If the review gate proposes production fixes, route them
-     through the same post-fix cycle as Step 7.
+     new HEAD. Reassess whether each external validation evidence entry
+     still applies to the post-commit candidate — if applicability is
+     unknown after the code change, keep the entry `pending`. If the
+     review gate proposes production fixes, route them through the same
+     post-fix cycle as Step 7.
 4. For manual verification TCs, qualification gate TCs, and non-TC
    qualification gates (from the `## Qualification Gates` section
    of the story testplan — these have no TC IDs), record their
@@ -603,9 +619,14 @@ Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
  If all verified: "All external validation evidence verified."
  If any failed: "N entries FAILED — required evidence shows
  requirements not met." Overall result must be FAIL.
- If any pending or not-started: "N entries awaiting external
- evidence — these are not discharged by automated test
- coverage." Overall result cannot be PASS.}
+ If any mandatory entry is pending or not-started: "N mandatory
+ entries awaiting external evidence — these are not discharged
+ by automated test coverage." Overall result cannot be PASS.
+ Mandatory entries are: entries from source-verified or
+ effectively confirmed TCs (per Step 8b criteria), all AC-
+ linked entries, and all required non-TC qualification gates.
+ Unconfirmed TC entries are provisional — report their pending
+ status but do not block Overall: PASS on their account alone.}
 
 ## Quality Review Findings
 
@@ -675,6 +696,11 @@ writing the final result:
  Overall: PASS, but must be reported as provisional coverage.
  A failed or pending confirmed entry, or an AC without approved
  coverage, always blocks Overall: PASS.
+ Source-Discovery: if `testplan.md` contains
+ `Source-Discovery: unresolved` or `Freshness:
+ unresolved-source`, Overall cannot be PASS regardless of
+ provisional TC exemptions — unresolved discovery means
+ required validation gates may exist but are unknown.
  Other outcomes:
  - If automated tests pass but entries are pending/not-started:
    "PASS (automated) — awaiting external validation for {N}

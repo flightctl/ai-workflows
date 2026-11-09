@@ -76,6 +76,19 @@ Verify readiness:
    legacy reports with plain `PASS`), tell the user that `/validate`
    should be run (or re-run) first.
 
+   Verify the current branch matches the planned branch:
+
+   ```bash
+   git rev-parse --abbrev-ref HEAD
+   ```
+
+   Compare the output against the `{branch-name}` recorded in the
+   `## Branch` section of `02-plan.md`. If the current branch does not
+   match the planned branch, or HEAD is detached, stop — do not
+   silently switch, create, or push a different branch. The planned
+   branch is the publication target (Step 4 pushes it by name), so the
+   current checkout must be on that branch.
+
    Additionally, verify the validation report's identity binding
    in the `## Validated Identity` section: the report must record the
    candidate branch HEAD, context SHA-256, plan SHA-256, and testplan
@@ -146,20 +159,25 @@ unchanged), proceed directly to Step 3.
 
 If the gate made code fixes, re-run the validation profile's required
 checks on the post-fix working-tree candidate **before** staging or
-committing. Reassess whether each required external validation entry
-still applies to the post-fix candidate. If evidence is stale or its
-applicability is unknown after the code changes, stop and return to
-the existing `/validate` workflow to reverify before proceeding.
-If checks fail or produce further unreviewed code changes,
+committing. If checks fail or produce further unreviewed code changes,
 stop and present the gap to the user — hand back to the existing
 `/validate` and review workflow rather than entering an unbounded
-automatic cycle. Once checks pass and applicable external evidence
-is verified on the unchanged post-fix candidate, commit the gate fixes:
+automatic cycle. Once checks pass, commit the gate fixes:
 
 ```bash
 git add {fixed files}
 git commit -m "{issue-key}: address cross-cutting review findings"
 ```
+
+Because the fix commit changes HEAD, the existing validation report's
+identity binding is now stale. Re-run `/validate` on the clean
+committed state to produce a fresh report bound to the new HEAD.
+Do not return to `/validate` with uncommitted changes — validate
+rejects dirty worktrees (Step 3). After `/validate` completes with
+an unqualified `Overall: PASS`, re-check the identity binding (Step 1
+checks above) against the new HEAD before proceeding. If evidence
+is stale or inapplicable after the code changes, `/validate` will
+detect and report the gap.
 
 Then proceed to Step 3.
 

@@ -264,10 +264,14 @@ Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
  **Set-diff gate (verified/confirmed TCs only):** This gate applies
  only when the testplan source is verified or the user has confirmed
  retained TCs with a valid SHA-256 binding. Compute the difference
- between the set of TC IDs in testplan.md and the set assigned to
- tasks, marked N/A, listed as manual verification, or listed as
- qualification gates. If the difference is non-empty, the plan is
- incomplete — resolve before proceeding.
+ between the set of **confirmed** TC IDs (source-verified or
+ individually user-confirmed with a valid SHA-256) and the set
+ assigned to tasks, marked N/A, listed as manual verification, or
+ listed as qualification gates. Exclude unconfirmed TC IDs from
+ this computation — partial confirmation activates the gate only
+ for confirmed IDs, not for all IDs in testplan.md. If the
+ difference is non-empty, the plan is incomplete — resolve before
+ proceeding.
 
  **Unconfirmed TCs (Freshness: unverified, no confirmation):** list
  all TC IDs in the table but mark unmapped rows as provisional. Do

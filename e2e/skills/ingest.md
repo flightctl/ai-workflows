@@ -255,8 +255,15 @@ zero (warn the user, continue without `testplan.md`).
 using the validation index script. Resolve the script path before
 first use:
 
+Set `SKILL_DIR` to the canonical directory of this loaded skill file
+(resolved from the path provided by the phase dispatcher or file-read
+context, following symlinks). If the loaded file path is unavailable,
+stop and report — do not fall back to `$HOME`, `BASH_SOURCE`, or the
+current working directory:
+
 ```bash
-VALIDATION_INDEX_SCRIPT="${HOME}/.ai-workflows/design/scripts/validation_index.py"
+# SKILL_DIR: set by the agent to this skill file's canonical directory
+VALIDATION_INDEX_SCRIPT="$(realpath "${SKILL_DIR}/../../design/scripts/validation_index.py")" || { echo "Cannot resolve ../../design/scripts/validation_index.py" >&2; exit 1; }
 ```
 
 Run `python3 "$VALIDATION_INDEX_SCRIPT" resolve --published
@@ -268,19 +275,30 @@ malformed, contains an empty artifacts list, the source location or
 any discovered validation artifact cannot be resolved or read, or
 the resolve command exits non-zero, the source is unresolvable:
 - If a prior story-scoped testplan exists, retain it and mark it
-  `Freshness: unverified`. Do not overwrite prior evidence.
+  `Freshness: unverified`. Additionally, record
+  `Source-Discovery: unresolved` to distinguish plan freshness from
+  source discovery status. Do not overwrite prior evidence.
+  Source discovery is separate from plan freshness: a user may confirm
+  retained TCs (clearing unverified concerns) but unresolved discovery
+  means the source inspection itself failed — new TCs, gates, or
+  requirements may exist that were not discovered. Unresolved discovery
+  blocks `Overall: PASS` in validation even if retained TCs are
+  user-confirmed, because undiscovered required gates cannot be
+  accounted for.
 - If no prior story-scoped testplan exists, write a minimal marker
   to `.artifacts/e2e/{issue-key}/testplan.md`:
   ```
   # Story Test Plan — {issue-key}
   Freshness: unresolved-source
+  Source-Discovery: unresolved
   Source: could not be read or resolved
   ```
   This marker is distinct from confirmed absence (expected zero) or
   a verified empty set. Downstream validation must report this state
   as unresolved discovery, not as confirmed absence or full coverage.
-  A successful subsequent ingest that checks the source clears this
-  marker by writing the normal testplan or deleting it for expected
+  A successful subsequent ingest that checks the source clears both
+  the Freshness and Source-Discovery markers by writing the normal
+  testplan or deleting it for expected
   zero outcomes.
 - Report that the source could not be checked. Skip the outcome
   gate and story testplan write below. AC-based work may continue,

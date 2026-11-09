@@ -283,20 +283,27 @@ report the inconsistency. A gate-only testplan (zero TC IDs but a
 contains no TC mappings in its Test Plan Coverage section. If TC
 mappings remain, stop and report the inconsistency — re-ingest may
 have replaced TCs with gates while the plan retains stale mappings.
-When consistent, skip the automated coverage check and proceed
-directly to step 4 below.
+When consistent, check the testplan's freshness and discovery state
+before skipping: if `testplan.md` contains `Freshness: unresolved-source`
+or `Source-Discovery: unresolved`, the authority is unknown — report the
+unresolved state and do not skip the authority assessment below. If the
+testplan is freshly ingested or its freshness is verified/confirmed, skip
+the automated coverage check and proceed directly to step 4 below.
 
 **Testplan source authority:** Check the testplan's freshness
 marker to determine its authority level. The cases are mutually
 exclusive; evaluate in this order:
 
-1. If `testplan.md` contains `Freshness: unresolved-source`, the
-   source could not be read or resolved during ingest. Report this
-   state as "unresolved discovery — source unavailable" in the
-   validation report. Do not treat it as confirmed absence or full
-   coverage. AC-based work may continue, but unresolved required
-   validation cannot be claimed as complete. The overall result
-   cannot be PASS while this state persists.
+1. If `testplan.md` contains `Source-Discovery: unresolved` or
+   `Freshness: unresolved-source`, the source could not be read or
+   resolved during ingest. Report this state as "unresolved
+   discovery — source unavailable" in the validation report. Do not
+   treat it as confirmed absence or full coverage. AC-based work may
+   continue, but unresolved required validation cannot be claimed as
+   complete. The overall result cannot be PASS while this state
+   persists — clear the unresolved state only upon a successful
+   checked discovery (a subsequent `/ingest` that resolves the
+   source).
 
 2. If `testplan.md` contains `Freshness: unverified` (or the legacy
    bold form `**Freshness:** unverified`), the testplan was retained
@@ -379,6 +386,11 @@ work.
      filled.
    - Commit the test following the project's commit format.
    - Re-run the relevant checks from Step 3.
+   After the last gap-fill commit, re-assess AC coverage and all
+   external-evidence applicability on the final candidate HEAD before
+   writing the report. A gap-fill commit changes the candidate; the
+   earlier assessment may no longer apply. Reuse the Step 7 assessment
+   procedure — do not bind a stale assessment to the new HEAD.
 4. For manual verification TCs, qualification gate TCs, and non-TC
    qualification gates (from the `## Qualification Gates` section
    of the story testplan — these have no TC IDs), record their
@@ -487,23 +499,29 @@ Write `.artifacts/e2e/{issue-key}/05-validation-report.md`:
    and source criteria compared with the provided evidence
  - failed: evidence shows the requirement is not met
 
- Before marking manual evidence `verified`, compare it with the
- TC's verification method and original source criteria, and verify
- the evidence basis applies to the current candidate (build,
+ Before marking any external evidence `verified` (manual TCs,
+ qualification-gate TCs, and non-TC gates alike), compare it with
+ the entry's verification method and original source criteria, and
+ verify the evidence basis applies to the current candidate (build,
  revision, or test run). If the evidence does not address the
  criteria, or if the evidence was collected against a different
  candidate or revision and applicability to the current candidate
  is unknown, keep it `pending`. Record the evidence basis
  (candidate identifier, date) alongside the status. An incomplete
- or inapplicable manual check must not contribute to an overall
- PASS.
+ or inapplicable check must not contribute to an overall PASS.
 
  If all verified: "All external validation evidence verified."
  If any failed: "N entries FAILED — required evidence shows
  requirements not met." Overall result must be FAIL.
- If any pending or not-started: "N entries awaiting external
- evidence — these are not discharged by automated test
- coverage." Overall result cannot be PASS.}
+ If any mandatory entry is pending or not-started: "N mandatory
+ entries awaiting external evidence — these are not discharged
+ by automated test coverage." Overall result cannot be PASS.
+ Mandatory entries are: source-verified authoritative TCs,
+ effectively confirmed retained TCs, required non-TC qualification
+ gates, and all current AC obligations. Unconfirmed provisional
+ TCs do not block PASS — report them separately.
+ If Source-Discovery is unresolved, Overall result cannot be PASS
+ regardless of provisional TC exemptions.}
 
 ## Quality Review Findings
 
@@ -568,8 +586,10 @@ writing the final result:
  provisional — report them separately and exclude them from
  mandatory pass checks. An unconfirmed TC gap does not block
  Overall: PASS, but must be reported as provisional coverage.
- A failed or pending confirmed entry, or an AC without approved
- coverage, always blocks Overall: PASS.
+ A failed or pending confirmed entry, an AC without approved
+ coverage, or an unresolved Source-Discovery state always blocks
+ Overall: PASS. Required non-TC qualification gates are mandatory
+ and never exempt from the PASS criteria.
  Other outcomes:
  - If automated tests pass but entries are pending/not-started:
    "PASS (automated) — awaiting external validation for {N}

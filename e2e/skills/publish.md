@@ -64,6 +64,19 @@ Verify readiness:
    legacy reports with plain `PASS`), tell the user that `/validate`
    should be run (or re-run) first.
 
+   Verify the current branch matches the planned branch:
+
+   ```bash
+   git rev-parse --abbrev-ref HEAD
+   ```
+
+   Compare the output against the `{branch-name}` recorded in the
+   `## Branch` section of `02-plan.md`. If the current branch does not
+   match the planned branch, or HEAD is detached, stop — do not
+   silently switch, create, or push a different branch. The planned
+   branch is the publication target (Step 4 pushes it by name), so the
+   current checkout must be on that branch.
+
    Additionally, verify the validation report's identity binding
    in the `## Validated Identity` section: the report must record the
    candidate branch HEAD, context SHA-256, plan SHA-256, and testplan
@@ -149,6 +162,14 @@ git add {fixed files}
 ```bash
 git commit -m "{issue-key}: address cross-cutting review findings"
 ```
+
+The fix commit changed HEAD. Re-run `/validate` on the clean committed
+state to produce a fresh validation report bound to the new HEAD. Then
+re-check the identity binding (Step 1 preflight): the report's
+`## Validated Identity` must record the current branch HEAD, context
+SHA-256, plan SHA-256, and testplan SHA-256 matching the post-fix
+candidate. Do not proceed to push with a report bound to the pre-fix
+HEAD.
 
 ### Step 3: Confirm Details
 

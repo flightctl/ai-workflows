@@ -317,7 +317,15 @@ commit:
    re-check.
 
 This is a hard gate — the task cannot proceed to commit until every
-mapped TC ID has coverage. A TC ID may be treated as N/A only if the
+authoritative or effectively confirmed mapped TC ID has coverage.
+Authoritative TCs come from a verified source; effectively confirmed
+TCs are retained TCs that the user has confirmed with a valid SHA-256
+binding and whose TC ID is a member of the confirmed set. Unconfirmed
+TCs (from an unverified testplan with no user confirmation) are
+provisional — list them in the table but do not block the commit on
+their coverage gaps.
+
+A TC ID may be treated as N/A only if the
 plan's Test Plan Coverage matrix already marks it N/A with a non-empty
 rationale. A TC ID marked `Qualification gate` in the plan is external
 validation evidence — it does not require an e2e test and is not

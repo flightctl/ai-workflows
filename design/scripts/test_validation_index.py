@@ -2108,6 +2108,7 @@ class TestNoFollowAbsence(unittest.TestCase):
         if not hasattr(_os, 'O_NOFOLLOW'):
             self.skipTest("O_NOFOLLOW not available")
         with tempfile.TemporaryDirectory() as td:
+            td = str(Path(td).resolve())  # Canonicalize (macOS /var → /private/var)
             dst = Path(td) / "output.json"
             rc = vi._safe_write_output(dst, '{"test": true}\n')
             self.assertEqual(rc, 0)
@@ -2702,10 +2703,11 @@ class TestProducerConsumerContracts(unittest.TestCase):
             self.assertIn("**Freshness:**", text,
                           f"{rel} must accept bold Freshness marker")
             # Verify plain form is accepted independently — not just
-            # as a substring of the bold form.
-            plain_hits = [i for i in range(len(text))
-                          if text[i:].startswith("Freshness:")
-                          and not text[max(0, i - 2):i].endswith("**")]
+            # as a substring of the bold form.  Linear regex replaces
+            # the O(n²) per-index tail-slicing scan.
+            import re as _re
+            plain_hits = [m.start() for m in
+                          _re.finditer(r"(?<!\*\*)Freshness:", text)]
             self.assertGreater(
                 len(plain_hits), 0,
                 f"{rel} must accept plain 'Freshness:' marker "
@@ -3273,50 +3275,71 @@ class TestStoryScopedHashPath(unittest.TestCase):
     (.artifacts/{workflow}/{issue-key}/testplan.md), not a CWD
     testplan.md.
 
-    Verifies both the CLI behavior (sha256sum with story-scoped path
-    produces the correct hash) and that the documented inline commands
-    in consumer files reference story-scoped paths."""
+    Verifies that the documented sha256sum command, executed from a
+    directory containing a decoy testplan.md, still hashes the
+    story-scoped file (static document check is in the next test)."""
+
+    _CONSUMER_FILES = [
+        ("implement/skills/plan.md", "implement"),
+        ("implement/skills/code.md", "implement"),
+        ("implement/skills/validate.md", "implement"),
+        ("e2e/skills/plan.md", "e2e"),
+        ("e2e/skills/code.md", "e2e"),
+        ("e2e/skills/validate.md", "e2e"),
+    ]
 
     def test_decoy_testplan_does_not_affect_story_hash(self):
-        """Hash of story-scoped file bytes differs from CWD decoy."""
+        """Run the documented sha256sum command with a CWD decoy present."""
         import hashlib
+        import re
         import shutil
-        with tempfile.TemporaryDirectory() as td:
-            # Create story-scoped artifact
-            story_dir = Path(td) / ".artifacts" / "e2e" / "PROJ-1"
-            story_dir.mkdir(parents=True)
-            story_content = "# Story testplan content\n## TC-FR1-01\n"
-            _write(story_dir / "testplan.md", story_content)
+        if not shutil.which("sha256sum"):
+            self.skipTest("sha256sum not available")
 
-            # Create decoy in project root
+        repo_root = Path(__file__).resolve().parent.parent.parent
+        # Extract a documented sha256sum command from the first consumer
+        for rel, workflow in self._CONSUMER_FILES:
+            text = (repo_root / rel).read_text(encoding="utf-8")
+            m = re.search(r"sha256sum\s+([^\s`)]+)", text)
+            if m:
+                cmd_template = m.group(1)
+                break
+        else:
+            self.fail("No documented sha256sum command found in consumers")
+
+        issue_key = "PROJ-1"
+        with tempfile.TemporaryDirectory() as td:
+            td = str(Path(td).resolve())
+            # Create story-scoped artifact
+            story_path = cmd_template.replace(
+                "{issue-key}", issue_key)
+            full_story = Path(td) / story_path
+            full_story.parent.mkdir(parents=True, exist_ok=True)
+            story_content = "# Story testplan content\n## TC-FR1-01\n"
+            _write(full_story, story_content)
+
+            # Create decoy in project root (CWD)
             decoy_content = "# DECOY — different content\n"
             _write(Path(td) / "testplan.md", decoy_content)
 
-            # Hash actual file bytes (not string literals)
-            story_hash = hashlib.sha256(
-                (story_dir / "testplan.md").read_bytes()).hexdigest()
+            # Run the documented command from the project root (with decoy)
+            r = subprocess.run(
+                ["sha256sum", story_path],
+                capture_output=True, text=True,
+                timeout=10, check=False, cwd=td)
+            self.assertEqual(r.returncode, 0,
+                             f"sha256sum must succeed: {r.stderr}")
+            cmd_hash = r.stdout.split()[0]
+
+            # Verify it hashes the story-scoped file, not the decoy
+            expected = hashlib.sha256(
+                full_story.read_bytes()).hexdigest()
             decoy_hash = hashlib.sha256(
                 (Path(td) / "testplan.md").read_bytes()).hexdigest()
-
-            # Verify the hashes differ (proving CWD decoy is wrong)
-            self.assertNotEqual(story_hash, decoy_hash,
-                                "Story-scoped hash must differ from "
-                                "CWD decoy — instructions must hash "
-                                "the full story-scoped path")
-
-            # Verify via sha256sum if available (portable guard)
-            if shutil.which("sha256sum"):
-                r = subprocess.run(
-                    ["sha256sum",
-                     str(story_dir / "testplan.md")],
-                    capture_output=True, text=True,
-                    timeout=10, check=False)
-                self.assertEqual(r.returncode, 0,
-                                 f"sha256sum must succeed: {r.stderr}")
-                cmd_hash = r.stdout.split()[0]
-                self.assertEqual(cmd_hash, story_hash,
-                                 "sha256sum of story-scoped file "
-                                 "must match Python hashlib result")
+            self.assertEqual(cmd_hash, expected,
+                             "sha256sum must hash story-scoped file")
+            self.assertNotEqual(cmd_hash, decoy_hash,
+                                "sha256sum must NOT match CWD decoy")
 
     def test_documented_commands_use_story_scoped_paths(self):
         """All sha256sum commands in consumer files use story-scoped paths.
@@ -3470,6 +3493,7 @@ class TestDesignStagingIndependence(unittest.TestCase):
         """After full retirement decision, restoring an artifact
         should allow rebuild of index from restored files."""
         with tempfile.TemporaryDirectory() as td:
+            td = str(Path(td).resolve())  # Canonicalize (macOS /var → /private/var)
             art_dir = Path(td) / "art"
             art_dir.mkdir()
             # Simulate restoring a testplan during retirement
@@ -3657,6 +3681,8 @@ class TestCandidatePreflightTrustedBase(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as proj, \
              tempfile.TemporaryDirectory() as docs:
+            proj = str(Path(proj).resolve())  # Canonicalize (macOS /var → /private/var)
+            docs = str(Path(docs).resolve())
             # Build valid local index using existing factory
             art_dir = Path(proj) / ".artifacts" / "design" / "TST-1"
             art_dir.mkdir(parents=True)
@@ -3755,6 +3781,243 @@ class TestCandidatePreflightTrustedBase(unittest.TestCase):
     def test_revise_candidate_preflight(self):
         """revise.md candidate transform uses project root."""
         self._run_preflight("design/skills/revise.md")
+
+
+# ===========================================================================
+# Group 1: SKILL_DIR resource resolution (static filesystem contract)
+# ===========================================================================
+
+class TestSkillDirResourceResolution(unittest.TestCase):
+    """Static filesystem contract test for SKILL_DIR-based resource resolution.
+
+    Verifies symlink following, decoy rejection, and cross-workflow paths.
+    NOT a live agent E2E test — these exercise the bash realpath command
+    that phase file instructions document, against controlled filesystem
+    layouts."""
+
+    def test_design_skills_symlink_resolves_to_canonical(self):
+        """Symlinked phase file resolves ../scripts/validation_index.py
+        to the canonical install location, not the symlink's parent."""
+        with tempfile.TemporaryDirectory() as td:
+            td = str(Path(td).resolve())
+            # Simulate ai-workflows install layout
+            install = Path(td) / "install"
+            (install / "design" / "skills").mkdir(parents=True)
+            (install / "design" / "scripts").mkdir(parents=True)
+            _write(install / "design" / "skills" / "publish.md",
+                   "# placeholder")
+            target_script = install / "design" / "scripts" / "validation_index.py"
+            _write(target_script, "# real script")
+
+            # Project override via symlink
+            project = Path(td) / "project"
+            override_dir = project / ".workflows" / "design" / "skills"
+            override_dir.mkdir(parents=True)
+            link = override_dir / "publish.md"
+            link.symlink_to(install / "design" / "skills" / "publish.md")
+
+            # Create decoy at project root
+            _write(project / "validation_index.py", "# DECOY")
+
+            # Resolve SKILL_DIR from symlinked path (following symlinks)
+            r = subprocess.run(
+                ["bash", "-c",
+                 'SKILL_DIR="$(dirname "$(realpath "$1")")"; '
+                 'realpath "${SKILL_DIR}/../scripts/validation_index.py"',
+                 "_", str(link)],
+                capture_output=True, text=True, timeout=10,
+                check=False, cwd=str(project))
+            self.assertEqual(r.returncode, 0,
+                             f"realpath must succeed: {r.stderr}")
+            resolved = r.stdout.strip()
+            self.assertEqual(resolved, str(target_script.resolve()),
+                             "Must resolve to canonical script, not decoy")
+            # Verify decoy NOT selected
+            self.assertNotEqual(
+                resolved, str(project / "validation_index.py"),
+                "Must not resolve to CWD decoy")
+
+    def test_cross_workflow_path_from_implement(self):
+        """implement/skills/ → ../../design/scripts/validation_index.py
+        resolves correctly through symlink."""
+        with tempfile.TemporaryDirectory() as td:
+            td = str(Path(td).resolve())
+            install = Path(td) / "install"
+            (install / "implement" / "skills").mkdir(parents=True)
+            (install / "design" / "scripts").mkdir(parents=True)
+            _write(install / "implement" / "skills" / "ingest.md",
+                   "# placeholder")
+            target_script = install / "design" / "scripts" / "validation_index.py"
+            _write(target_script, "# real script")
+
+            # Symlink from project override
+            project = Path(td) / "project"
+            link_dir = project / ".workflows" / "implement" / "skills"
+            link_dir.mkdir(parents=True)
+            link = link_dir / "ingest.md"
+            link.symlink_to(
+                install / "implement" / "skills" / "ingest.md")
+
+            r = subprocess.run(
+                ["bash", "-c",
+                 'SKILL_DIR="$(dirname "$(realpath "$1")")"; '
+                 'realpath "${SKILL_DIR}/../../design/scripts/validation_index.py"',
+                 "_", str(link)],
+                capture_output=True, text=True, timeout=10,
+                check=False, cwd=str(project))
+            self.assertEqual(r.returncode, 0,
+                             f"realpath must succeed: {r.stderr}")
+            self.assertEqual(r.stdout.strip(),
+                             str(target_script.resolve()))
+
+    def test_empty_skill_dir_fails(self):
+        """Empty SKILL_DIR causes realpath to fail (non-zero exit)."""
+        r = subprocess.run(
+            ["bash", "-c",
+             'SKILL_DIR=""; '
+             'realpath "${SKILL_DIR}/../scripts/validation_index.py"'],
+            capture_output=True, text=True, timeout=10, check=False)
+        self.assertNotEqual(r.returncode, 0,
+                            "Empty SKILL_DIR must cause realpath failure")
+
+    def test_wrong_skill_dir_fails(self):
+        """Non-existent SKILL_DIR causes realpath to fail."""
+        r = subprocess.run(
+            ["bash", "-c",
+             'SKILL_DIR="/nonexistent/path/skills"; '
+             'realpath "${SKILL_DIR}/../scripts/validation_index.py"'],
+            capture_output=True, text=True, timeout=10, check=False)
+        self.assertNotEqual(r.returncode, 0,
+                            "Non-existent SKILL_DIR must cause failure")
+
+
+# ===========================================================================
+# Group 6: Focused coverage tests
+# ===========================================================================
+
+class TestTransformNonZeroGuard(unittest.TestCase):
+    """CLI transform exits non-zero on invalid input, proving the
+    ``|| { ...; exit 1; }`` guard pattern documented in phase files
+    would trigger. Tests the actual CLI exit code, not the API."""
+
+    def test_transform_invalid_index_exits_nonzero(self):
+        """Transform with schema-invalid local index → exit 1."""
+        with tempfile.TemporaryDirectory() as td:
+            td = str(Path(td).resolve())
+            src = Path(td) / "bad.json"
+            dst = Path(td) / "out.json"
+            # Missing required fields
+            _write_json(src, {"schema_version": "1.0"})
+            r = _run_cli("transform", str(src), str(dst))
+            self.assertNotEqual(r.returncode, 0,
+                                f"Must exit non-zero for invalid input: "
+                                f"stdout={r.stdout}, stderr={r.stderr}")
+            self.assertFalse(dst.exists(),
+                             "Must not write output on failure")
+
+    def test_transform_missing_file_exits_nonzero(self):
+        """Transform with non-existent input file → exit 1."""
+        with tempfile.TemporaryDirectory() as td:
+            td = str(Path(td).resolve())
+            r = _run_cli("transform",
+                          str(Path(td) / "nonexistent.json"),
+                          str(Path(td) / "out.json"))
+            self.assertNotEqual(r.returncode, 0)
+
+
+class TestPublishedIndexForbidsPublishedAs(unittest.TestCase):
+    """Published index schema explicitly rejects ``published_as`` fields.
+
+    The published format uses ``file`` (not ``published_as`` or
+    ``local``). This verifies the schema validation enforces that
+    boundary — static schema check, not live agent behavior."""
+
+    def test_rejects_published_as_field(self):
+        """validate_published_index rejects an artifact with published_as."""
+        data = {
+            "schema_version": "1.0",
+            "primary_testplan": "testplan.md",
+            "artifacts": [
+                {"file": "testplan.md", "type": "testplan",
+                 "published_as": "testplan.md"},
+            ],
+        }
+        errors = vi.validate_published_index(data)
+        self.assertTrue(
+            any("must not have 'published_as'" in e for e in errors),
+            f"Must reject published_as in published index: {errors}")
+
+    def test_accepts_file_only(self):
+        """Published index with only ``file`` (no local/published_as) passes."""
+        data = {
+            "schema_version": "1.0",
+            "primary_testplan": "testplan.md",
+            "artifacts": [
+                {"file": "testplan.md", "type": "testplan"},
+            ],
+        }
+        errors = vi.validate_published_index(data)
+        self.assertEqual(errors, [])
+
+
+class TestSourceDiscoveryMarkerContract(unittest.TestCase):
+    """Static document contract: Source-Discovery marker in producer/consumer.
+
+    Verifies that ingest producers write ``Source-Discovery: unresolved``
+    and downstream validators check it. Document-level checks, not live
+    agent execution."""
+
+    def _repo_root(self):
+        return Path(__file__).resolve().parent.parent.parent
+
+    def test_ingest_producers_write_source_discovery(self):
+        """Both ingest files produce Source-Discovery: unresolved marker."""
+        for rel in ["implement/skills/ingest.md",
+                     "e2e/skills/ingest.md"]:
+            text = (self._repo_root() / rel).read_text(encoding="utf-8")
+            self.assertIn("Source-Discovery: unresolved", text,
+                          f"{rel} must produce Source-Discovery marker")
+
+    def test_ingest_unresolved_source_includes_discovery(self):
+        """Freshness: unresolved-source marker co-occurs with
+        Source-Discovery: unresolved in the minimal marker block."""
+        import re as _re
+        for rel in ["implement/skills/ingest.md",
+                     "e2e/skills/ingest.md"]:
+            text = (self._repo_root() / rel).read_text(encoding="utf-8")
+            # Find fenced blocks (possibly indented, with optional
+            # language specifier after the opening backticks)
+            blocks = _re.findall(
+                r"[ \t]*```[^\n]*\n(.*?)[ \t]*```", text, _re.DOTALL)
+            marker_blocks = [b for b in blocks
+                             if "Freshness: unresolved-source" in b]
+            self.assertGreater(
+                len(marker_blocks), 0,
+                f"{rel}: must have a marker block with "
+                f"Freshness: unresolved-source")
+            for block in marker_blocks:
+                self.assertIn("Source-Discovery: unresolved", block,
+                              f"{rel}: unresolved-source marker block "
+                              f"must also contain Source-Discovery")
+
+    def test_validators_check_source_discovery(self):
+        """Both validate files check Source-Discovery for PASS blocking."""
+        for rel in ["implement/skills/validate.md",
+                     "e2e/skills/validate.md"]:
+            text = (self._repo_root() / rel).read_text(encoding="utf-8")
+            self.assertIn("Source-Discovery", text,
+                          f"{rel} must check Source-Discovery state")
+            # Verify it blocks PASS
+            import re as _re
+            normalized = _re.sub(r'\s+', ' ', text.lower())
+            self.assertIn("source-discovery", normalized)
+            # Should mention it blocks PASS
+            self.assertTrue(
+                "cannot be pass" in normalized
+                or "cannot pass" in normalized
+                or "blocks overall: pass" in normalized
+                or "cannot be pass" in normalized,
+                f"{rel} must state Source-Discovery blocks PASS")
 
 
 if __name__ == "__main__":

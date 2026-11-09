@@ -378,16 +378,20 @@ Verify each mapped TC ID before proceeding to commit:
    files (`git add`), re-run the review gate, then re-check.
 
 This is a hard gate — the task cannot proceed to commit until every
-mapped TC ID has coverage. A TC ID may be treated as N/A only if the
-plan's Test Plan Coverage matrix already marks it N/A with a non-empty
-rationale. A TC ID marked `Qualification gate` in the plan is external
-validation evidence — it does not require a test in the implementation
-and is not counted toward the coverage gate. A TC ID marked `Manual
-verification` in the plan requires human verification — it does not
-require an automated test and is not counted toward the coverage gate;
-the procedure and evidence remain visible in the validation report.
-The code phase must not invent N/A, qualification-gate, or
-manual-verification exemptions that the plan did not authorize. The testplan is a floor, not a ceiling: tests discovered
+**authoritative or effectively confirmed** mapped TC ID has coverage.
+Unconfirmed TCs (from an unverified testplan without per-TC user
+confirmation and SHA-256 binding) are provisional — report them but
+do not block the commit on their coverage. A TC ID may be treated as
+N/A only if the plan's Test Plan Coverage matrix already marks it N/A
+with a non-empty rationale. A TC ID marked `Qualification gate` in
+the plan is external validation evidence — it does not require a test
+in the implementation and is not counted toward the coverage gate. A
+TC ID marked `Manual verification` in the plan requires human
+verification — it does not require an automated test and is not
+counted toward the coverage gate; the procedure and evidence remain
+visible in the validation report. The code phase must not invent N/A,
+qualification-gate, or manual-verification exemptions that the plan
+did not authorize. The testplan is a floor, not a ceiling: tests discovered
 through TDD that are not tied to any TC ID are expected and
 encouraged.
 
