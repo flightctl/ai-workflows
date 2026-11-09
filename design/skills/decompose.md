@@ -70,13 +70,11 @@ Load and reconcile existing artifacts before planning:
 5. Files with `status: removed` remain on disk with their numbers
    reserved. Do not silently re-activate retired work; explicit
    approved restoration is required to reopen a removed item.
-6. When the new plan no longer retains existing work, mark the
-   affected files `status: removed` rather than deleting them.
-   Keep an epic active if any of its child stories are retained
-   in the new plan — only mark an epic `status: removed` when all
-   its child work is intentionally retired. This preserves cascade
-   safety: marking an epic removed logically retires all its
-   children, so a partially-retained epic must stay active.
+6. Do not decide or apply retirement markers during inventory
+   loading — the new plan does not exist yet. Existing `status:
+   removed` markers discovered in sub-step 2 are preserved as-is;
+   new retirement decisions wait until after planning (see the
+   reconciliation sub-step at the end of Step 2).
 
 The initial empty decomposition (no prior artifacts) still works
 unchanged — these constraints apply only to repeat runs.
@@ -117,6 +115,36 @@ Before writing, plan:
    in the final decomposition** — if an epic sizes to XXL, it must be
    split into smaller epics before proceeding. Split by user-value
    slice, not technical layer.
+
+#### Reconcile retained inventory against the new plan
+
+On a repeat `/decompose` only (existing artifacts were loaded in
+Step 1): compare the retained inventory from Step 1 against the
+plan produced above. For each existing file that is no longer
+retained by the new plan, add `status: removed` to its YAML
+frontmatter (the `---`-delimited block at the very start of the
+file — this is what `read_frontmatter` and `has_removed_status`
+examine; a plain Markdown body line is not recognized). Merge
+into any existing frontmatter; do not clobber other fields or
+prepend a second frontmatter block. If the file has no
+frontmatter, add a valid opening and closing `---` block before
+the first Markdown heading. Example:
+
+```yaml
+---
+status: removed
+---
+```
+
+Keep an epic active if any of its child stories are retained in
+the new plan — only mark an epic `status: removed` when all its
+child work is intentionally retired. This preserves cascade
+safety: marking an epic removed logically retires all its
+children, so a partially-retained epic must stay active. Never
+delete artifact files; do not reuse retired numbers. Missing or
+incomplete inventory from Step 1 is never evidence that work
+should be retired — only an explicit planning decision to drop
+work from the active plan triggers retirement.
 
 ### Step 3: Write Epics
 

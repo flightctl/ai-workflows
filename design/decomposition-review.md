@@ -64,10 +64,14 @@ expected and should not be flagged as a clarity problem.
 
 Evaluate the decomposition against these categories, prioritized by
 impact. Coverage and completeness checks (criteria 1–8) apply to
-effectively active stories — those with no `status: removed` marker
-whose parent epic is also active. Retained removed files are
-available for identity and traceability audit (criterion 9) but do
-not satisfy or violate active coverage requirements.
+effectively active artifacts only. A story is effectively active
+when it has no `status: removed` marker and its parent epic is also
+active. An epic is effectively active when it has no `status:
+removed` marker. Epic-level checks (criteria 2, 4) evaluate active
+epics; story-level checks evaluate effectively active stories.
+Retained removed files are available for identity and traceability
+audit (criterion 9) but do not satisfy or violate active coverage
+requirements.
 
 1. **Requirement Coverage** — Does the coverage matrix (`07-coverage.md`)
    map every FR and NFR from the PRD to effectively active stories? A
@@ -81,9 +85,11 @@ not satisfy or violate active coverage requirements.
    requirement been silently dropped, deferred to "v2", or reduced in
    scope?
 
-2. **Epic Structure** — Is each epic organized around user value, not
-   technical layers? Does each epic deliver complete functionality
-   independently? Are T-shirt sizes assigned and consistent with the sizing rubric
+2. **Epic Structure** — Evaluate active epics only (those with no
+   `status: removed` marker). Is each active epic organized around
+   user value, not technical layers? Does each active epic deliver
+   complete functionality independently? Are T-shirt sizes assigned
+   and consistent with the sizing rubric
    (`../_shared/sizing-rubric.md`)? Does each epic's size match its scope
    — story count, component breadth, integration surface? Are any epics
    suspiciously uniform in size when their scope clearly varies? No epic
@@ -107,10 +113,10 @@ not satisfy or violate active coverage requirements.
    functionality AND testing (or, for a justified behavior-preserving
    prerequisite, preserved-behavior tests)? Do `[QE]` stories define concrete e2e test
    scenarios that validate user-facing behavior, not duplicate
-   unit/integration tests from `[DEV]` stories? Does each epic with
-   e2e-testable surface include at least one `[QE]` story? Does any
-   story fall back to "manual validation" or "document procedure for QE"
-   where an automated test could be written?
+   unit/integration tests from `[DEV]` stories? Does each active epic
+   with e2e-testable surface include at least one `[QE]` story?
+   Does any story fall back to "manual validation" or "document
+   procedure for QE" where an automated test could be written?
 
 5. **Implementation Traceability** — Do stories correctly reference the
    interface changes they implement and the test cases that validate

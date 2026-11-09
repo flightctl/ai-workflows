@@ -8788,8 +8788,10 @@ class TestPartialResumeContract(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class TestObsoleteWorkRetirement(unittest.TestCase):
-    """Decompose.md Step 1 handles retirement of work no longer retained
-    in a repeat decomposition (F2)."""
+    """Decompose.md retirement reconciliation after planning (F2).
+
+    Step 1 inventories without deciding retirements; the reconciliation
+    sub-step at the end of Step 2 marks files no longer in the plan."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -8797,27 +8799,24 @@ class TestObsoleteWorkRetirement(unittest.TestCase):
         decompose_path = (Path(__file__).resolve().parent.parent
                           / "skills" / "decompose.md")
         cls._decompose_md = decompose_path.read_text(encoding="utf-8")
-        m1 = re.search(r"### Step 1:.*?(?=### Step 2:)",
+        # Retirement reconciliation now lives in Step 2
+        m2 = re.search(r"### Step 2:.*?(?=### Step 3:)",
                         cls._decompose_md, re.DOTALL)
-        assert m1, "Step 1 not found"
-        cls._step1 = m1.group()
-        repeat_idx = cls._step1.find("already exist")
-        assert repeat_idx >= 0
-        cls._repeat_block = cls._step1[repeat_idx:]
+        assert m2, "Step 2 not found"
+        cls._step2 = m2.group()
 
     def test_retirement_via_status_removed(self) -> None:
         """Work no longer retained is marked status: removed, not deleted."""
-        lower = self._repeat_block.lower()
-        self.assertIn("status: removed", self._repeat_block)
-        self.assertIn("no longer retains", lower)
+        self.assertIn("status: removed", self._step2)
+        self.assertIn("no longer", self._step2.lower())
 
     def test_epic_stays_active_if_children_retained(self) -> None:
         """Epic stays active if any child stories are retained."""
-        self.assertIn("child stories are retained", self._repeat_block.lower())
+        self.assertIn("child stories are retained", self._step2.lower())
 
     def test_cascade_safety_mentioned(self) -> None:
         """Retirement guidance mentions cascade safety."""
-        self.assertIn("cascade", self._repeat_block.lower())
+        self.assertIn("cascade", self._step2.lower())
 
 
 class TestObsoleteWorkHelper(_TmpDirMixin, unittest.TestCase):
@@ -8945,13 +8944,13 @@ class TestDocsRestorationHelper(_TmpDirMixin, unittest.TestCase):
                          "Unmarked child under restored parent reopens")
         # Individually removed sibling: locally removed, already closed
         # in Jira (synced_status "closed") → unchanged (stays closed).
-        # This proves individual retirement persists despite parent
-        # restoration — the sibling is not blindly reopened.
+        # _categorize_item(removed=True, synced_status="closed") returns
+        # "unchanged" — no spurious update/create for retired closed child.
         story2 = [i for i in result["items"]
                   if i["type"] == "story" and i.get("story_index") == 2]
         self.assertEqual(len(story2), 1)
-        self.assertNotEqual(story2[0]["category"], "reopened",
-                            "Individually removed sibling must NOT reopen")
+        self.assertEqual(story2[0]["category"], "unchanged",
+                         "Individually removed+closed sibling stays unchanged")
 
 
 # ---------------------------------------------------------------------------
@@ -9024,6 +9023,156 @@ class TestActiveCoverageContract(unittest.TestCase):
         # Join whitespace for line-wrapped text
         preamble = " ".join(m.group().lower().split())
         self.assertIn("do not satisfy or violate", preamble)
+
+
+# ---------------------------------------------------------------------------
+# Frontmatter encoding: YAML frontmatter recognized, body marker ignored
+# ---------------------------------------------------------------------------
+
+class TestFrontmatterEncoding(_TmpDirMixin, unittest.TestCase):
+    """has_removed_status only recognizes YAML frontmatter, not body markers."""
+
+    def test_frontmatter_status_removed_recognized(self) -> None:
+        """YAML frontmatter status: removed is detected by the helper."""
+        p = Path(self.tmpdir) / "fm.md"
+        _write(p, "---\nstatus: removed\n---\n# Title\nBody text.\n")
+        self.assertTrue(sync_helper.has_removed_status(p))
+
+    def test_body_marker_status_removed_ignored(self) -> None:
+        """A body line 'status: removed' without frontmatter is NOT detected."""
+        p = Path(self.tmpdir) / "body.md"
+        _write(p, "# Title\n\nstatus: removed\n\nMore text.\n")
+        self.assertFalse(sync_helper.has_removed_status(p))
+
+    def test_body_marker_after_frontmatter_ignored(self) -> None:
+        """Body 'status: removed' after valid frontmatter without it is ignored."""
+        p = Path(self.tmpdir) / "mixed.md"
+        _write(p, "---\ntitle: active work\n---\n# Title\n\nstatus: removed\n")
+        self.assertFalse(sync_helper.has_removed_status(p))
+
+
+# ---------------------------------------------------------------------------
+# Review protocol: criteria 2/4 scope to active epics
+# ---------------------------------------------------------------------------
+
+class TestReviewEpicScope(unittest.TestCase):
+    """Review protocol criteria 2 and 4 evaluate active epics only."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import re
+        review_path = (Path(__file__).resolve().parent.parent
+                       / "decomposition-review.md")
+        cls._review_md = review_path.read_text(encoding="utf-8")
+
+        crit2 = re.search(
+            r"2\.\s+\*\*Epic Structure\*\*.*?(?=3\.\s+\*\*Story Completeness\*\*)",
+            cls._review_md, re.DOTALL)
+        assert crit2, "Criterion 2 not found"
+        cls._criterion2 = crit2.group()
+
+        crit4 = re.search(
+            r"4\.\s+\*\*Testing Commitment\*\*.*?(?=5\.\s+\*\*Implementation Traceability\*\*)",
+            cls._review_md, re.DOTALL)
+        assert crit4, "Criterion 4 not found"
+        cls._criterion4 = crit4.group()
+
+    def test_criterion2_scoped_to_active_epics(self) -> None:
+        """Criterion 2 evaluates active epics only."""
+        lower = self._criterion2.lower()
+        self.assertIn("active epic", lower)
+
+    def test_criterion4_scoped_to_active_epics(self) -> None:
+        """Criterion 4 QE check applies to active epics only."""
+        lower = self._criterion4.lower()
+        self.assertIn("active epic", lower)
+
+    def test_preamble_covers_both_artifact_types(self) -> None:
+        """Evaluation criteria preamble scopes to both epics and stories."""
+        import re
+        m = re.search(r"## Evaluation Criteria\n\n.*?(?=1\.\s+\*\*Requirement)",
+                      self._review_md, re.DOTALL)
+        self.assertIsNotNone(m)
+        preamble = " ".join(m.group().lower().split())
+        self.assertIn("epic-level checks", preamble)
+        self.assertIn("story-level checks", preamble)
+
+
+# ---------------------------------------------------------------------------
+# Decompose instruction order: inventory before plan, retirement after plan
+# ---------------------------------------------------------------------------
+
+class TestDecomposeRetirementOrder(unittest.TestCase):
+    """Step 1 inventories without retirement; reconciliation follows Step 2."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import re
+        decompose_path = (Path(__file__).resolve().parent.parent
+                          / "skills" / "decompose.md")
+        cls._decompose_md = decompose_path.read_text(encoding="utf-8")
+        m1 = re.search(r"### Step 1:.*?(?=### Step 2:)",
+                        cls._decompose_md, re.DOTALL)
+        assert m1, "Step 1 not found"
+        cls._step1 = m1.group()
+
+        m2 = re.search(r"### Step 2:.*?(?=### Step 3:)",
+                        cls._decompose_md, re.DOTALL)
+        assert m2, "Step 2 not found"
+        cls._step2 = m2.group()
+
+    def test_step1_does_not_decide_retirement(self) -> None:
+        """Step 1 explicitly defers retirement decisions to after planning."""
+        lower = self._step1.lower()
+        # Must NOT say "when the new plan no longer retains" in Step 1
+        self.assertNotIn("new plan no longer retains", lower)
+        # Must say retirement decisions wait
+        self.assertIn("do not decide", lower)
+
+    def test_reconciliation_after_planning(self) -> None:
+        """Retirement reconciliation appears in Step 2, after planning."""
+        lower = self._step2.lower()
+        self.assertIn("reconcile", lower)
+        self.assertIn("no longer", lower)
+
+    def test_reconciliation_specifies_frontmatter(self) -> None:
+        """Reconciliation specifies YAML frontmatter encoding."""
+        self.assertIn("read_frontmatter", self._step2)
+        self.assertIn("---", self._step2)
+
+    def test_reconciliation_preserves_cascade_safety(self) -> None:
+        """Reconciliation mentions cascade safety for partial epic retention."""
+        lower = self._step2.lower()
+        self.assertIn("cascade", lower)
+        self.assertIn("child stories are retained", lower)
+
+
+# ---------------------------------------------------------------------------
+# Guidelines retirement encoding rule
+# ---------------------------------------------------------------------------
+
+class TestGuidelinesRetirementEncoding(unittest.TestCase):
+    """guidelines.md includes canonical retirement encoding rule."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        guidelines_path = (Path(__file__).resolve().parent.parent
+                           / "guidelines.md")
+        cls._guidelines = guidelines_path.read_text(encoding="utf-8")
+
+    def test_retirement_encoding_present(self) -> None:
+        """Guidelines include retirement encoding rule."""
+        self.assertIn("Retirement encoding", self._guidelines)
+
+    def test_retirement_encoding_specifies_frontmatter(self) -> None:
+        """Retirement encoding rule references YAML frontmatter."""
+        self.assertIn("read_frontmatter", self._guidelines)
+
+    def test_retirement_encoding_warns_body_marker(self) -> None:
+        """Retirement encoding warns that body markers are not detected."""
+        lower = self._guidelines.lower()
+        self.assertIn("body line", lower)
+        self.assertIn("not detected", lower)
 
 
 if __name__ == "__main__":
