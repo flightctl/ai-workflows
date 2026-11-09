@@ -345,10 +345,13 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
 | TC-NFR2-01 | {title} | Manual verification | {verification method} |
 | TC-NFR3-01 | {title} | Qualification gate | hardware device lab |
 
-{Every TC ID from testplan.md must appear. Each must be assigned to a
- scenario, marked N/A with a rationale, listed as a manual verification
- (TCs with a `[Manual verification]` marker), or listed as a
- qualification gate (TCs with a `[Qualification gate]` marker).
+{Every authoritative or individually confirmed TC ID from testplan.md
+ must appear. Unconfirmed provisional TCs may be listed separately as
+ provisional without scenario assignment. Each confirmed TC must be
+ assigned to a scenario, marked N/A with a rationale, listed as a
+ manual verification (TCs with a `[Manual verification]` marker), or
+ listed as a qualification gate (TCs with a `[Qualification gate]`
+ marker).
  Manual-verification TCs require human verification — they are NOT
  assigned to e2e test scenarios but must appear in the table with
  status `Manual verification` and the verification method as rationale.
@@ -433,7 +436,7 @@ Before presenting the plan, verify:
 - [ ] Each validation in a consolidated scenario is tagged with its source AC
 - [ ] Scenario identifiers and titles are unique across the plan (no duplicate C#/S# or repeated names)
 - [ ] The plan is achievable — no scenarios depend on unmerged features or unavailable test infrastructure methods
-- [ ] If story-scoped testplan exists: every TC ID is assigned to a scenario, marked N/A with rationale, listed as manual verification, or listed as a qualification gate (Test Plan Coverage set-diff is clean)
+- [ ] If story-scoped testplan exists: every authoritative or individually confirmed TC ID is assigned to a scenario, marked N/A with rationale, listed as manual verification, or listed as a qualification gate (Test Plan Coverage set-diff is clean). Unconfirmed provisional TCs remain listed as provisional.
 
 ### Step 7: Present to User
 

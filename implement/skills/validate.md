@@ -311,14 +311,27 @@ promises to deliver, and this is the last gate before publishing.
 1. Read the **Acceptance Criteria** from `01-context.md`
 2. Read the **Acceptance Criteria Coverage** matrix from `02-plan.md`
    to see which tasks were mapped to each criterion
-3. For each acceptance criterion:
-   - **Trace to implementation:** Is there code that implements this
-     criterion? Follow the task mapping — check that the task is marked
-     Done and that the corresponding code exists.
-   - **Trace to tests:** Is there at least one test that verifies this
-     criterion's behavior through a public interface? The test should
-     fail if the criterion were not implemented.
-   - **Assess satisfaction:** Based on the implementation and tests,
+3. For each acceptance criterion, read the **Method** column from the
+   AC coverage matrix to determine the approved verification method
+   before assessing evidence. Do not infer the method from which tests
+   passed — use the planned method to select the verification path:
+   - **automated-test:** Trace to implementation (code exists, task
+     Done) and trace to tests (at least one test verifies this
+     criterion's behavior through a public interface and would fail
+     if the criterion were not implemented).
+   - **manual-test:** Collect external evidence status for the manual
+     verification (see point 3 below). A passing automated test does
+     not satisfy a criterion whose approved method is manual-test.
+   - **qualification-gate:** Collect qualification gate evidence
+     status (see point 3 below). A passing automated test does not
+     satisfy a criterion whose approved method is qualification-gate.
+   - **external-evidence:** Collect external evidence status (see
+     point 3 below). A passing automated test does not satisfy a
+     criterion whose approved method is external-evidence.
+   - **unresolved:** The method was not determined during planning.
+     Flag to the user for clarification before assessing; do not
+     guess a method.
+   - **Assess satisfaction:** Based on the approved method's evidence,
      is the criterion fully satisfied, partially satisfied, or not
      addressed?
 
@@ -583,9 +596,14 @@ Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
 
 ## External Validation Evidence
 
-{Include if testplan.md contains qualification-gate TCs, manual
- verification TCs, or non-TC qualification gates (from the
- `## Qualification Gates` section). Omit entirely if none exist.
+{Include this section when any AC criterion uses a non-automated
+ verification method (manual-test, qualification-gate, or
+ external-evidence in the AC coverage matrix's Method column),
+ when testplan.md contains qualification-gate or manual-verification
+ TCs, or when non-TC qualification gates exist. Include AC-linked
+ evidence even when testplan.md contains zero qualifying entries —
+ ACs verified by qualification gates or external evidence must
+ appear regardless.
 
  These entries are excluded from the automated coverage check —
  they require a designated execution environment or human
@@ -617,8 +635,9 @@ Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
  status.
 
  If all verified: "All external validation evidence verified."
- If any failed: "N entries FAILED — required evidence shows
- requirements not met." Overall result must be FAIL.
+ If any mandatory entry failed: "N mandatory entries FAILED —
+ required evidence shows requirements not met." Overall result
+ must be FAIL.
  If any mandatory entry is pending or not-started: "N mandatory
  entries awaiting external evidence — these are not discharged
  by automated test coverage." Overall result cannot be PASS.
@@ -626,7 +645,9 @@ Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
  effectively confirmed TCs (per Step 8b criteria), all AC-
  linked entries, and all required non-TC qualification gates.
  Unconfirmed TC entries are provisional — report their pending
- status but do not block Overall: PASS on their account alone.}
+ status separately but do not block Overall: PASS on their
+ account alone. A failed provisional entry is informational,
+ not verdict-controlling.}
 
 ## Quality Review Findings
 
@@ -702,10 +723,10 @@ writing the final result:
  provisional TC exemptions — unresolved discovery means
  required validation gates may exist but are unknown.
  Other outcomes:
- - If automated tests pass but entries are pending/not-started:
-   "PASS (automated) — awaiting external validation for {N}
-   entries." Overall is NOT PASS.
- - If any required entry has FAILED evidence: "FAIL — external
+ - If automated tests pass but mandatory entries are pending/
+   not-started: "PASS (automated) — awaiting external validation
+   for {N} mandatory entries." Overall is NOT PASS.
+ - If any mandatory entry has FAILED evidence: "FAIL — external
    validation failed for {entry names}." Overall is FAIL.
  - If automated tests fail: "FAIL — automated tests failed."
  Follow the project's existing gating policy for merge readiness.
@@ -726,14 +747,14 @@ Summarize for the user:
 - Automatable test plan coverage (all automatable TCs covered / gaps
   filled / not applicable), if testplan exists — distinguish from
   overall readiness
-- External validation evidence status: how many entries are verified,
-  pending, not-started, or failed — these are not discharged by
-  automated test coverage
+- External validation evidence status: how many mandatory entries are
+  verified, pending, not-started, or failed — these are not discharged
+  by automated test coverage. Report provisional entries separately.
 - Any tests added during validation
 - Any regressions found (and whether they were fixed)
 - Overall verdict: the `Overall:` line from the report (PASS only
-  when both automated coverage and all external evidence are
-  verified; otherwise state the specific gap)
+  when both automated coverage and all mandatory external evidence
+  are verified; otherwise state the specific gap)
 
 ## Output
 

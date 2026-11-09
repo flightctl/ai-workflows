@@ -239,19 +239,36 @@ Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
  Confirmation does NOT restore `Freshness` to verified — the
  upstream source remains absent.}
 
-| TC ID | Title | Covered by Task | Notes |
-|-------|-------|-----------------|-------|
-| TC-FR1-01 | {title} | Task 2 | |
-| TC-FR1-02 | {title} | Task 3 | |
-| TC-NFR1-01 | {title} | N/A | {rationale} |
-| TC-NFR2-01 | {title} | Manual verification | {verification method} |
-| TC-NFR3-01 | {title} | Qualification gate | hardware device lab |
+| TC ID | Title | Covered by Task | Method | Evidence Reference | Notes |
+|-------|-------|-----------------|--------|-------------------|-------|
+| TC-FR1-01 | {title} | Task 2 | automated-test | TC-FR1-01 | |
+| TC-FR1-02 | {title} | Task 3 | automated-test | TC-FR1-02 | |
+| TC-NFR1-01 | {title} | N/A | external-evidence | {link or description} | {rationale} |
+| TC-NFR2-01 | {title} | Manual verification | manual-test | TC-NFR2-01 | {verification method} |
+| TC-NFR3-01 | {title} | Qualification gate | qualification-gate | {gate name / lab ref} | hardware device lab |
 
-{Every TC ID from testplan.md must appear. Each must be assigned to a
- task, marked N/A with a rationale (e.g., "NFR verified by load test
- infrastructure, not unit/integration tests"), listed as a manual
- verification (TCs with a `[Manual verification]` marker), or listed
- as a qualification gate (TCs with a `[Qualification gate]` marker).
+{Every authoritative or individually confirmed TC ID from testplan.md
+ must appear. Unconfirmed provisional TCs may be listed separately as
+ provisional without task assignment. Each confirmed TC must be
+ assigned to a task, marked N/A with a rationale (e.g., "NFR verified
+ by load test infrastructure, not unit/integration tests"), listed as
+ a manual verification (TCs with a `[Manual verification]` marker), or
+ listed as a qualification gate (TCs with a `[Qualification gate]`
+ marker).
+
+ **Method column:** Record the approved verification method for each
+ TC: `automated-test`, `manual-test`, `qualification-gate`, or
+ `external-evidence`. If the method is not yet determined from the
+ design or testplan, record `unresolved — clarify with user` and
+ flag for resolution before `/validate`. This column drives the
+ verification path selection in `/validate` Step 8 — the validator
+ reads it to determine how each AC is assessed. Do not leave it blank.
+
+ **Evidence Reference column:** Record the specific evidence source:
+ the TC ID for test-based methods, the gate name or lab reference for
+ qualification gates, or a link/description for external evidence. This
+ allows `/validate` to locate and assess evidence without guessing.
+
  Manual-verification TCs require human verification (visual checks,
  exploratory testing) — they are NOT assigned to implementation tasks
  but must appear in the table with status `Manual verification` and
@@ -373,7 +390,7 @@ Before presenting the plan, verify:
 - [ ] No tasks modify code outside the story's scope
 - [ ] Task count is reasonable — if you have more than 10 tasks, consider whether the story needs re-scoping
 - [ ] The plan is achievable — no tasks depend on unavailable infrastructure or unmerged code
-- [ ] If story-scoped testplan exists: every TC ID is assigned to a task, marked N/A with rationale, listed as manual verification, or listed as a qualification gate (Test Plan Coverage set-diff is clean)
+- [ ] If story-scoped testplan exists: every authoritative or individually confirmed TC ID is assigned to a task, marked N/A with rationale, listed as manual verification, or listed as a qualification gate (Test Plan Coverage set-diff is clean). Unconfirmed provisional TCs remain listed as provisional.
 - [ ] Every ingest open question is a locked decision (specified or implementer default) or a product fork still listed
 - [ ] Open Questions contains only product forks, not pins/timeouts/names `/code` could default
 - [ ] Cited Reads stayed within the cap; `02-plan.md` has no pasted file bodies

@@ -69,15 +69,19 @@ report under Branch Currency as "Unable to verify — fetch failed."
 git rev-list --count HEAD..origin/{local-base}
 ```
 
-If the branch is behind base, verify the working tree is clean before
-syncing:
+Verify the working tree is clean before running any validation,
+regardless of branch position relative to base:
 
 ```bash
 git status --porcelain
 ```
 
-If output is non-empty, stop and ask the user how to proceed (commit,
-stash, or abort) before continuing.
+If output is non-empty, stop and require the user to commit or stash
+changes before continuing. Validation must not run against uncommitted
+changes — the report binds its result to the current HEAD, and
+uncommitted changes would not be covered by that binding.
+
+If the branch is behind base, sync before continuing:
 
 Check whether a PR has already been created by looking for
 `.artifacts/e2e/{issue-key}/publish-metadata.json`.
@@ -337,6 +341,30 @@ For case 2, check the confirmed status:
   normative. Do not write mandatory gap-fill tests. Report as
   "unverified — source testplan not confirmed."
 
+**Non-TC gate confirmation (gate-only testplans).** When a
+gate-only testplan has `Freshness: unverified` (case 2) but no
+`Source-Discovery: unresolved` marker, the retained qualification
+gates also require explicit confirmation before being treated as
+mandatory. For each non-TC gate entry, verify:
+
+- The gate's source path and evidence criteria are present and
+  legible in the retained testplan.
+- The evidence criteria and expected status can be matched against
+  the published source (if accessible) or the prior ingest record.
+- If the gate's provenance and criteria are confirmed (user
+  verification or matching published source), treat it as a
+  mandatory gate with its current evidence status (verified,
+  pending, or failed).
+- If the gate cannot be confirmed (source unavailable, criteria
+  unclear, or user declines), treat it as provisional — report its
+  status as "unverified gate — retained from prior ingest, not
+  confirmed" without forcing mandatory evidence or automated
+  replacement.
+
+Do not invent automated gate confirmation or silently treat
+unverified gates as authoritative. Carry source freshness honestly
+in the validation report.
+
 When the user confirms TCs during validation, record the
 confirmation in the Test Plan Coverage section of `02-plan.md`:
 set the status to "confirmed — user verified TC applicability on
@@ -511,15 +539,19 @@ Write `.artifacts/e2e/{issue-key}/05-validation-report.md`:
  or inapplicable check must not contribute to an overall PASS.
 
  If all verified: "All external validation evidence verified."
- If any failed: "N entries FAILED — required evidence shows
- requirements not met." Overall result must be FAIL.
+ If any mandatory entry failed: "N mandatory entries FAILED —
+ required evidence shows requirements not met." Overall result
+ must be FAIL.
  If any mandatory entry is pending or not-started: "N mandatory
  entries awaiting external evidence — these are not discharged
  by automated test coverage." Overall result cannot be PASS.
  Mandatory entries are: source-verified authoritative TCs,
  effectively confirmed retained TCs, required non-TC qualification
  gates, and all current AC obligations. Unconfirmed provisional
- TCs do not block PASS — report them separately.
+ TCs do not block PASS — report them separately with their
+ current evidence status (pending, not-started, or failed).
+ A failed provisional entry is informational, not verdict-
+ controlling; report it but do not force Overall: FAIL.
  If Source-Discovery is unresolved, Overall result cannot be PASS
  regardless of provisional TC exemptions.}
 
@@ -591,10 +623,10 @@ writing the final result:
  Overall: PASS. Required non-TC qualification gates are mandatory
  and never exempt from the PASS criteria.
  Other outcomes:
- - If automated tests pass but entries are pending/not-started:
-   "PASS (automated) — awaiting external validation for {N}
-   entries." Overall is NOT PASS.
- - If any required entry has FAILED evidence: "FAIL — external
+ - If automated tests pass but mandatory entries are pending/
+   not-started: "PASS (automated) — awaiting external validation
+   for {N} mandatory entries." Overall is NOT PASS.
+ - If any mandatory entry has FAILED evidence: "FAIL — external
    validation failed for {entry names}." Overall is FAIL.
  - If automated tests fail: "FAIL — automated tests failed."
  Follow the project's existing gating policy for merge readiness.
@@ -615,13 +647,13 @@ Summarize for the user:
 - Test plan verification status (all automatable TCs covered / gaps
   filled / not applicable), if testplan exists — distinguish
   automatable coverage from overall readiness
-- External validation evidence status: how many entries are verified,
-  pending, not-started, or failed — these are not discharged by
-  automated test coverage
+- External validation evidence status: how many mandatory entries are
+  verified, pending, not-started, or failed — these are not discharged
+  by automated test coverage. Report provisional entries separately.
 - Any regressions found (and whether they were fixed)
 - Overall verdict: the `Overall:` line from the report (PASS only
-  when both automated coverage and all external evidence are
-  verified; otherwise state the specific gap)
+  when both automated coverage and all mandatory external evidence
+  are verified; otherwise state the specific gap)
 
 ## Output
 

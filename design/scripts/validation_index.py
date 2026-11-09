@@ -800,6 +800,17 @@ def _safe_write_output(dst: Path, content: str,
       tempfile (mkstemp) plus os.replace() semantics — rename
       replaces a symlink at dst rather than writing through it.
     - Resolved containment check rejects paths escaping the base.
+
+    Known limitation (same-UID TOCTOU window):
+      The resolved containment check (`abs_dst.resolve().relative_to`)
+      runs before the ancestor walk and before `mkdir(parents=True)`.
+      A same-UID process could plant a symlink in an intermediate
+      directory between the containment check and the mkdir call.
+      This is an inherent filesystem TOCTOU condition under same-UID
+      replacement and does not affect cross-UID security boundaries
+      (different-UID processes cannot create entries in directories
+      they do not own).  The existing atomic-write path (mkstemp +
+      os.replace) limits the window's impact to directory creation.
     """
     import os
 

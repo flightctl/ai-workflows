@@ -255,11 +255,39 @@ primary contract.
 
 ### Step 6: Discover Validation Artifacts and Filter to Story Scope
 
-**Artifact discovery:** Check for `validation-index.json` in the
-feature directory alongside `design.md`. If found, read it to get
-the list of published validation artifact filenames and identify the
-primary testplan. If `validation-index.json` does not exist (legacy
-design), fall back to looking for `testplan.md` directly.
+**Resolve and validate published artifacts before reading.** Before
+reading or filtering any validation artifacts (indexed or legacy),
+resolve the validation index script and run the published resolver
+unconditionally. This ensures that malicious or invalid index entries
+cannot direct the agent to read files outside the feature directory,
+and that legacy fallback paths receive the same symlink/ownership
+validation as indexed paths.
+
+Set `SKILL_DIR` to the canonical directory of this loaded skill file
+(resolved from the path provided by the phase dispatcher or file-read
+context, following symlinks). If the loaded file path is unavailable,
+stop and report — do not fall back to `$HOME`, `BASH_SOURCE`, or the
+current working directory:
+
+```bash
+# SKILL_DIR: set by the agent to this skill file's canonical directory
+VALIDATION_INDEX_SCRIPT="$(realpath "${SKILL_DIR}/../../design/scripts/validation_index.py")" || { echo "Cannot resolve ../../design/scripts/validation_index.py" >&2; exit 1; }
+```
+
+If a `validation-index.json` exists in the source feature directory,
+run `python3 "$VALIDATION_INDEX_SCRIPT" resolve --published
+"{source-feature-directory}"` and use its returned validated artifact
+list for all subsequent reading and filtering. If no
+`validation-index.json` exists (legacy design), run the resolver on
+the feature directory to validate the legacy `testplan.md` path
+before reading it. Do not read or filter any artifact file that the
+resolver has not validated.
+
+**Artifact discovery (using validated resolver output):** Use the
+resolver's returned artifact list to identify the published
+validation artifact filenames and the primary testplan. If the
+resolver returns an empty list for a legacy design with only
+`testplan.md`, use the validated path directly.
 
 **Filter across all validation artifacts:** For each validation
 artifact file discovered above, match the story's `Validated by`
@@ -296,25 +324,11 @@ This extraction runs BEFORE the TC outcome table below — a story
 with zero TCs but relevant gates still produces a retained
 validation artifact.
 
-**Validate the published index before selecting an outcome.** If a
-`validation-index.json` exists in the source location, validate it
-using the validation index script. Resolve the script path before
-first use:
-
-Set `SKILL_DIR` to the canonical directory of this loaded skill file
-(resolved from the path provided by the phase dispatcher or file-read
-context, following symlinks). If the loaded file path is unavailable,
-stop and report — do not fall back to `$HOME`, `BASH_SOURCE`, or the
-current working directory:
-
-```bash
-# SKILL_DIR: set by the agent to this skill file's canonical directory
-VALIDATION_INDEX_SCRIPT="$(realpath "${SKILL_DIR}/../../design/scripts/validation_index.py")" || { echo "Cannot resolve ../../design/scripts/validation_index.py" >&2; exit 1; }
-```
-
-Run `python3 "$VALIDATION_INDEX_SCRIPT" resolve --published
-"{source-feature-directory}"` before treating its contents as
-authoritative.
+**Validate the published index before selecting an outcome.** The
+resolver was already invoked at the start of this step. If the
+resolver returned a validated artifact list, use that list as
+authoritative. Do not re-read the raw index or fall back to
+unvalidated paths.
 
 **Resolution failure handling.** If the index is present but
 malformed, contains an empty artifacts list, the source location or

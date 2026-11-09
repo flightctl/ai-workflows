@@ -143,17 +143,17 @@ If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
 present the findings to the user. Do not proceed until the user decides
 how to handle them.
 
-If the gate made code fixes, re-run the validation profile's required
-checks to verify the post-fix state. Additionally, reassess whether
-external qualification evidence still applies — if review fixes
-changed an e2e test that was executed in a qualification environment,
-the earlier evidence may no longer reflect the changed test's
-behavior. When the applicability of prior evidence is unknown or
-stale for an affected test, return to `/validate` to re-collect
+If the gate made code fixes, commit them before re-running validation.
+Do not run `/validate` against uncommitted changes. Additionally,
+reassess whether external qualification evidence still applies — if
+review fixes changed an e2e test that was executed in a qualification
+environment, the earlier evidence may no longer reflect the changed
+test's behavior. When the applicability of prior evidence is unknown
+or stale for an affected test, return to `/validate` to re-collect
 evidence before proceeding. Unaffected evidence (for tests not
 changed by the review) may be retained with its existing basis.
 
-Once checks pass, commit:
+Commit review fixes and any cross-cutting changes:
 
 ```bash
 git add {fixed files}
@@ -164,12 +164,18 @@ git commit -m "{issue-key}: address cross-cutting review findings"
 ```
 
 The fix commit changed HEAD. Re-run `/validate` on the clean committed
-state to produce a fresh validation report bound to the new HEAD. Then
-re-check the identity binding (Step 1 preflight): the report's
-`## Validated Identity` must record the current branch HEAD, context
-SHA-256, plan SHA-256, and testplan SHA-256 matching the post-fix
-candidate. Do not proceed to push with a report bound to the pre-fix
-HEAD.
+state to produce a fresh validation report bound to the new HEAD.
+Repeat the full Step 1 preflight checks on the fresh report:
+
+1. The report's `## Validated Identity` must record the current branch
+   HEAD, context SHA-256, plan SHA-256, and testplan SHA-256 matching
+   the post-fix candidate.
+2. The report must contain an unqualified `Overall: PASS`. A report
+   that matches identity but has a pending or failed verdict does not
+   satisfy the preflight — do not proceed to push.
+
+Do not proceed to push with a report bound to the pre-fix HEAD or
+with a non-PASS verdict.
 
 ### Step 3: Confirm Details
 
@@ -191,9 +197,16 @@ Confirm with the user before proceeding.
 
 ### Step 4: Push Branch
 
+Use the validated HEAD SHA from the validation report's `## Validated
+Identity` section to pin the push to the exact validated commit:
+
 ```bash
-python3 "$PUBLISH_SCRIPT" push --remote origin --branch {branch-name}
+python3 "$PUBLISH_SCRIPT" push --remote origin --branch {branch-name} --expected-sha {validated-head-sha}
 ```
+
+The `--expected-sha` flag verifies that HEAD still matches the
+validated commit and pins the push refspec to that exact SHA, so
+branch movement after preflight cannot publish an unvalidated commit.
 
 ### Step 5: Create PR Description
 

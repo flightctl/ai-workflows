@@ -342,9 +342,9 @@ reconciliation. Missing SHA-256 binding is treated as unconfirmed.
 An unconfirmed retained TC does not block AC-based work or existing
 tests.
 
-If `testplan.md` does NOT contain a `Freshness: unverified` marker
-(the plan was freshly ingested from an authoritative source), its
-TCs are authoritative — reconcile them directly without requiring
+If `testplan.md` does NOT contain a `Freshness: unverified` or
+`**Freshness:** unverified` marker (the plan was freshly ingested
+from an authoritative source), its TCs are authoritative — reconcile them directly without requiring
 user confirmation or SHA-256 binding. A stale confirmation hash
 from a prior retained plan does not invalidate a freshly ingested
 authoritative source.

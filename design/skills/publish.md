@@ -342,7 +342,7 @@ If the `removed` list is non-empty, present each removal with its full
 published path `{release}/{feature}/{filename}` and require named
 confirmation of each removal before proceeding.
 An earlier explicit named-artifact approval (from a prior `/revise` or
-`/publish` step that named these specific files) counts as confirmation
+`/publish` step that named these specific `{release}/{feature}/{filename}` paths) counts as confirmation
 only if the artifact's published state has not changed since approval —
 approval is consumed by the operation it authorized, and is not reusable
 after an intervening synchronization, restoration, or content
@@ -379,18 +379,20 @@ first so a rejected publication leaves the checkout unchanged.
 
 **Check all destinations before any copy:**
 
-```bash
-mkdir -p "{docs_repo_path}/{release}/{feature}"
-```
-
-Verify the design document destination:
-- If any ancestor in the destination path between `{docs_repo_path}`
-  and `design.md` is a symlink, stop and report — the destination
-  could escape the docs checkout. Symlinks at or above
+Verify the design document destination before creating directories:
+- If any **existing** ancestor in the destination path between
+  `{docs_repo_path}` and `design.md` is a symlink, stop and report —
+  the destination could escape the docs checkout. Symlinks at or above
   `{docs_repo_path}` itself are permitted (the checkout root may
   be an alias).
 - If `{docs_repo_path}/{release}/{feature}/design.md` itself is a
   symlink, stop and report.
+
+Only after the ancestor check passes, create the feature directory:
+
+```bash
+mkdir -p "{docs_repo_path}/{release}/{feature}"
+```
 
 If the current set is non-empty (has validation artifacts), verify
 each artifact destination before any copy:
@@ -542,11 +544,17 @@ git -C "{docs_repo_path}" commit -m "Add design document for {issue-key}: {title
 
 ### Step 9: Push and Create PR
 
-Push the branch using the shared script (run from the docs repo):
+Push the branch using the shared script (run from the docs repo).
+Use the validated HEAD SHA from the validation report's `## Validated
+Identity` section to pin the push to the exact validated commit:
 
 ```bash
-(cd "{docs_repo_path}" && python3 "$PUBLISH_SCRIPT" push --remote {push-remote} --branch {branch-name})
+(cd "{docs_repo_path}" && python3 "$PUBLISH_SCRIPT" push --remote {push-remote} --branch {branch-name} --expected-sha {validated-head-sha})
 ```
+
+The `--expected-sha` flag verifies that HEAD still matches the
+validated commit and pins the push refspec to that exact SHA, so
+branch movement after preflight cannot publish an unvalidated commit.
 
 Read the design document and identify specific areas that warrant reviewer
 attention (AI-dependent):

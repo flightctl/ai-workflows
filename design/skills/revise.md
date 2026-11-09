@@ -421,7 +421,8 @@ If `validation-index.json` does not exist in
 layout), build a normalized index first with `build-legacy`, then
 re-run `resolve --local`.
 
-Before capture, remove any existing snapshot from a previous run:
+Before capture, remove any existing snapshot from a previous run
+(substitute the actual Jira issue key for `{issue-key}`):
 
 ```bash
 rm -f -- ".artifacts/design/{issue-key}/prev-published-index.json"

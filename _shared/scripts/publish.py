@@ -18,7 +18,7 @@ Subcommands:
 
 Usage:
   publish.py preflight [--platform github|gitlab]
-  publish.py push --remote <name> --branch <branch>
+  publish.py push --remote <name> --branch <branch> [--expected-sha <sha>]
   publish.py check-existing --repo <owner/repo> --head <branch>
              [--platform github|gitlab]
   publish.py create-pr --repo <owner/repo> --base <branch> --head <ref>
@@ -448,9 +448,22 @@ def cmd_preflight(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 def cmd_push(args: argparse.Namespace) -> int:
-    """Push a branch to the specified remote with upstream tracking (-u)."""
+    """Push a branch to the specified remote with upstream tracking (-u).
+
+    When ``--expected-sha`` is provided the function verifies that:
+    1. The current HEAD matches the expected SHA (guards against branch
+       movement between validation and push).
+    2. HEAD is on the requested branch (not detached or on a different
+       branch).
+
+    The push refspec is then pinned to the exact validated SHA so that
+    any subsequent local branch movement cannot publish an unvalidated
+    commit.  Legacy callers that omit ``--expected-sha`` retain the
+    original branch-name push behaviour.
+    """
     remote = args.remote
     branch = args.branch
+    expected_sha = getattr(args, "expected_sha", None)
 
     if not remote:
         fail("Missing required argument: --remote")
@@ -465,8 +478,41 @@ def cmd_push(args: argparse.Namespace) -> int:
         fail(f"push: remote '{remote}' does not exist. "
              f"Available remotes: {available}", EXIT_PUSH_FAIL)
 
-    info(f"Pushing {branch} to {remote}...")
-    result = run(["git", "push", "-u", remote, branch], capture=False)
+    if expected_sha:
+        # Verify current HEAD matches the validated SHA.
+        head_r = run(["git", "rev-parse", "HEAD"])
+        if head_r.returncode != 0:
+            fail("push: cannot resolve HEAD", EXIT_PUSH_FAIL)
+        actual_head = head_r.stdout.strip()
+        if actual_head != expected_sha:
+            fail(f"push: HEAD ({actual_head}) does not match "
+                 f"expected validated SHA ({expected_sha}). "
+                 f"The branch may have moved after validation.",
+                 EXIT_PUSH_FAIL)
+
+        # Verify HEAD is on the intended branch.
+        branch_r = run(["git", "symbolic-ref", "--short", "HEAD"])
+        if branch_r.returncode != 0:
+            fail("push: HEAD is detached — cannot verify branch",
+                 EXIT_PUSH_FAIL)
+        current_branch = branch_r.stdout.strip()
+        if current_branch != branch:
+            fail(f"push: current branch ({current_branch}) does not "
+                 f"match requested branch ({branch})",
+                 EXIT_PUSH_FAIL)
+
+        # Pin push to exact validated SHA so branch movement after
+        # this point cannot change what is published.
+        refspec = f"{expected_sha}:refs/heads/{branch}"
+        info(f"Pushing validated {expected_sha[:12]} to "
+             f"{remote}/{branch}...")
+        result = run(["git", "push", "-u", remote, refspec],
+                     capture=False)
+    else:
+        info(f"Pushing {branch} to {remote}...")
+        result = run(["git", "push", "-u", remote, branch],
+                     capture=False)
+
     if result.returncode != 0:
         fail(f"push: git push failed (remote={remote}, branch={branch})",
              EXIT_PUSH_FAIL)
@@ -831,6 +877,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_push.add_argument("--remote", required=True, help="Git remote name")
     p_push.add_argument("--branch", required=True, help="Branch name to push")
+    p_push.add_argument(
+        "--expected-sha",
+        default=None,
+        help="Validated commit SHA. When set, push verifies HEAD matches "
+             "this SHA and the branch is current, then pins the push "
+             "refspec to the exact SHA. Legacy callers may omit this.",
+    )
 
     # -- check-existing --
     p_check = subparsers.add_parser(

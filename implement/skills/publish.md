@@ -131,7 +131,10 @@ Verify readiness:
    and tell the user to authenticate first. Check for
    `has_uncommitted=true`, `has_staged=true`, or `has_untracked=true`.
    If there are uncommitted or untracked changes, ask the user how to
-   proceed.
+   proceed. If the user commits those changes, the existing validation
+   report's identity binding is now stale — re-run `/validate` and
+   require an unqualified `Overall: PASS` whose identity matches the
+   new HEAD before continuing. Do not reuse the earlier report.
 
 ### Step 2: Cross-Cutting Review
 
@@ -201,9 +204,16 @@ Confirm with the user before proceeding.
 
 ### Step 4: Push Branch
 
+Use the validated HEAD SHA from the validation report's `## Validated
+Identity` section to pin the push to the exact validated commit:
+
 ```bash
-python3 "$PUBLISH_SCRIPT" push --remote origin --branch {branch-name}
+python3 "$PUBLISH_SCRIPT" push --remote origin --branch {branch-name} --expected-sha {validated-head-sha}
 ```
+
+The `--expected-sha` flag verifies that HEAD still matches the
+validated commit and pins the push refspec to that exact SHA, so
+branch movement after preflight cannot publish an unvalidated commit.
 
 ### Step 5: Create PR Description
 

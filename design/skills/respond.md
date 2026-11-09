@@ -90,6 +90,26 @@ line comments with thread resolution status via GraphQL.
 
 If no comments are found, tell the user and suggest checking back later.
 
+### Shared Script Resolution
+
+This skill delegates deterministic validation index operations to a
+shared script. Resolve it before first use in any shell context below.
+
+Set `SKILL_DIR` to the canonical directory of this loaded skill file
+(resolved from the path provided by the phase dispatcher or file-read
+context, following symlinks). If the loaded file path is unavailable,
+stop and report — do not fall back to `$HOME`, `BASH_SOURCE`, or the
+current working directory:
+
+```bash
+# SKILL_DIR: set by the agent to this skill file's canonical directory
+VALIDATION_INDEX_SCRIPT="$(realpath "${SKILL_DIR}/../scripts/validation_index.py")" || { echo "Cannot resolve ../scripts/validation_index.py" >&2; exit 1; }
+```
+
+Each fresh shell execution context (subshell, new terminal command)
+must resolve `SKILL_DIR` and `VALIDATION_INDEX_SCRIPT` independently —
+do not assume a prior shell's variable is still available.
+
 ### Step 2: Categorize Comments
 
 Group comments into categories:
@@ -172,6 +192,20 @@ map from `publish-metadata.json`:
        ```
        Do not apply any primary or companion edits until validation
        passes.
+    5. **Compare with current published set:** after restoration and
+       local validation, run `resolve --published` on the published
+       feature directory and compare the restored local mapping and
+       file content against the current published set. If they differ
+       (e.g., a companion was added or content changed since the local
+       commit), present the differences to the user and reconcile
+       before proceeding. Do not silently overwrite published content
+       with stale restored content or delete companions that exist
+       only in the published set.
+    While local files are absent (before restoration completes),
+    route feedback comments by the published `file` entry path or
+    TC ID from the published index — do not require a local filename
+    for routing. Assign the local filename only after restoration
+    and mapping validation in steps 2–4 above.
     Do not edit published copies directly, perform broad restore
     overwrites, or introduce new manifest fields that leak local
     paths into the published index. The published set continues to

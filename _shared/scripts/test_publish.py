@@ -811,6 +811,236 @@ class TestPush(unittest.TestCase):
         self.assertEqual(ctx.exception.code, publish.EXIT_PUSH_FAIL)
 
 
+class TestPushExpectedSHA(unittest.TestCase):
+    """Verify --expected-sha push validation and SHA-pinned refspec."""
+
+    FAKE_SHA = "a" * 40
+    WRONG_SHA = "b" * 40
+
+    @mock.patch.object(publish, "run")
+    def test_expected_sha_match_pins_refspec(self, mock_run: mock.Mock) -> None:
+        """When HEAD matches --expected-sha and branch is correct,
+        push uses a SHA-pinned refspec."""
+        mock_run.side_effect = [
+            # git remote get-url
+            subprocess.CompletedProcess([], 0, "https://example.com/repo.git\n", ""),
+            # git rev-parse HEAD
+            subprocess.CompletedProcess([], 0, self.FAKE_SHA + "\n", ""),
+            # git symbolic-ref --short HEAD
+            subprocess.CompletedProcess([], 0, "feat/x\n", ""),
+            # git push -u (SHA-pinned)
+            subprocess.CompletedProcess([], 0, "", ""),
+        ]
+        code = publish.main([
+            "push", "--remote", "fork", "--branch", "feat/x",
+            "--expected-sha", self.FAKE_SHA,
+        ])
+        self.assertEqual(code, 0)
+        # Verify the push used the pinned refspec
+        push_call = mock_run.call_args_list[-1]
+        push_cmd = push_call[0][0]
+        self.assertIn(f"{self.FAKE_SHA}:refs/heads/feat/x", push_cmd)
+
+    @mock.patch.object(publish, "run")
+    def test_expected_sha_mismatch_exits_3(self, mock_run: mock.Mock) -> None:
+        """When HEAD doesn't match --expected-sha, push is rejected."""
+        mock_run.side_effect = [
+            # git remote get-url
+            subprocess.CompletedProcess([], 0, "https://example.com/repo.git\n", ""),
+            # git rev-parse HEAD -> different SHA
+            subprocess.CompletedProcess([], 0, self.WRONG_SHA + "\n", ""),
+        ]
+        with self.assertRaises(SystemExit) as ctx:
+            publish.main([
+                "push", "--remote", "fork", "--branch", "feat/x",
+                "--expected-sha", self.FAKE_SHA,
+            ])
+        self.assertEqual(ctx.exception.code, publish.EXIT_PUSH_FAIL)
+
+    @mock.patch.object(publish, "run")
+    def test_expected_sha_wrong_branch_exits_3(self, mock_run: mock.Mock) -> None:
+        """When HEAD matches but current branch is wrong, push is rejected."""
+        mock_run.side_effect = [
+            # git remote get-url
+            subprocess.CompletedProcess([], 0, "https://example.com/repo.git\n", ""),
+            # git rev-parse HEAD -> matches
+            subprocess.CompletedProcess([], 0, self.FAKE_SHA + "\n", ""),
+            # git symbolic-ref --short HEAD -> different branch
+            subprocess.CompletedProcess([], 0, "other/branch\n", ""),
+        ]
+        with self.assertRaises(SystemExit) as ctx:
+            publish.main([
+                "push", "--remote", "fork", "--branch", "feat/x",
+                "--expected-sha", self.FAKE_SHA,
+            ])
+        self.assertEqual(ctx.exception.code, publish.EXIT_PUSH_FAIL)
+
+    @mock.patch.object(publish, "run")
+    def test_expected_sha_detached_head_exits_3(self, mock_run: mock.Mock) -> None:
+        """Detached HEAD with --expected-sha is rejected."""
+        mock_run.side_effect = [
+            # git remote get-url
+            subprocess.CompletedProcess([], 0, "https://example.com/repo.git\n", ""),
+            # git rev-parse HEAD
+            subprocess.CompletedProcess([], 0, self.FAKE_SHA + "\n", ""),
+            # git symbolic-ref -> fails (detached)
+            subprocess.CompletedProcess([], 128, "", "fatal: not on a branch\n"),
+        ]
+        with self.assertRaises(SystemExit) as ctx:
+            publish.main([
+                "push", "--remote", "fork", "--branch", "feat/x",
+                "--expected-sha", self.FAKE_SHA,
+            ])
+        self.assertEqual(ctx.exception.code, publish.EXIT_PUSH_FAIL)
+
+    @mock.patch.object(publish, "run")
+    def test_legacy_no_expected_sha_uses_branch_name(
+        self, mock_run: mock.Mock,
+    ) -> None:
+        """Legacy callers without --expected-sha push by branch name."""
+        mock_run.side_effect = [
+            # git remote get-url
+            subprocess.CompletedProcess([], 0, "https://example.com/repo.git\n", ""),
+            # git push -u remote branch (branch-name push)
+            subprocess.CompletedProcess([], 0, "", ""),
+        ]
+        code = publish.main([
+            "push", "--remote", "fork", "--branch", "feat/x",
+        ])
+        self.assertEqual(code, 0)
+        # Verify the push used branch name, not a pinned refspec
+        push_call = mock_run.call_args_list[-1]
+        push_cmd = push_call[0][0]
+        self.assertEqual(push_cmd, ["git", "push", "-u", "fork", "feat/x"])
+
+
+class TestPushExpectedSHAWithGit(unittest.TestCase):
+    """Verify --expected-sha with a real temporary Git repository."""
+
+    def setUp(self) -> None:
+        self._tmpdir = tempfile.mkdtemp(prefix="publish_push_")
+        self._repo = os.path.join(self._tmpdir, "repo")
+        self._bare = os.path.join(self._tmpdir, "bare.git")
+        # Create a bare remote
+        subprocess.run(
+            ["git", "init", "--bare", self._bare],
+            check=True, capture_output=True,
+        )
+        # Create a working repo and link to the bare remote
+        subprocess.run(
+            ["git", "init", self._repo],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", self._repo, "remote", "add", "origin", self._bare],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", self._repo, "config", "user.email", "test@test.com"],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", self._repo, "config", "user.name", "Test"],
+            check=True, capture_output=True,
+        )
+        # Create an initial commit
+        dummy = os.path.join(self._repo, "file.txt")
+        with open(dummy, "w") as f:
+            f.write("initial\n")
+        subprocess.run(
+            ["git", "-C", self._repo, "add", "file.txt"],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", self._repo, "commit", "-m", "initial"],
+            check=True, capture_output=True,
+        )
+
+    def tearDown(self) -> None:
+        import shutil
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    def _head_sha(self) -> str:
+        r = subprocess.run(
+            ["git", "-C", self._repo, "rev-parse", "HEAD"],
+            check=True, capture_output=True, text=True,
+        )
+        return r.stdout.strip()
+
+    def _branch_name(self) -> str:
+        r = subprocess.run(
+            ["git", "-C", self._repo, "symbolic-ref", "--short", "HEAD"],
+            check=True, capture_output=True, text=True,
+        )
+        return r.stdout.strip()
+
+    def _remote_sha(self, branch: str) -> str:
+        r = subprocess.run(
+            ["git", "-C", self._bare, "rev-parse", branch],
+            check=True, capture_output=True, text=True,
+        )
+        return r.stdout.strip()
+
+    def test_correct_sha_pushes_exact_commit(self) -> None:
+        """Push with correct --expected-sha succeeds and remote has exact SHA."""
+        sha = self._head_sha()
+        branch = self._branch_name()
+        old_cwd = os.getcwd()
+        os.chdir(self._repo)
+        try:
+            code = publish.main([
+                "push", "--remote", "origin", "--branch", branch,
+                "--expected-sha", sha,
+            ])
+        finally:
+            os.chdir(old_cwd)
+        self.assertEqual(code, 0)
+        self.assertEqual(self._remote_sha(branch), sha)
+
+    def test_moved_head_rejects_push(self) -> None:
+        """Push fails when HEAD moves after validation."""
+        sha = self._head_sha()
+        branch = self._branch_name()
+        # Add another commit to move HEAD
+        dummy = os.path.join(self._repo, "file2.txt")
+        with open(dummy, "w") as f:
+            f.write("extra\n")
+        subprocess.run(
+            ["git", "-C", self._repo, "add", "file2.txt"],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", self._repo, "commit", "-m", "extra"],
+            check=True, capture_output=True,
+        )
+        old_cwd = os.getcwd()
+        os.chdir(self._repo)
+        try:
+            with self.assertRaises(SystemExit) as ctx:
+                publish.main([
+                    "push", "--remote", "origin", "--branch", branch,
+                    "--expected-sha", sha,
+                ])
+            self.assertEqual(ctx.exception.code, publish.EXIT_PUSH_FAIL)
+        finally:
+            os.chdir(old_cwd)
+
+    def test_legacy_push_still_works(self) -> None:
+        """Legacy push without --expected-sha works as before."""
+        branch = self._branch_name()
+        sha = self._head_sha()
+        old_cwd = os.getcwd()
+        os.chdir(self._repo)
+        try:
+            code = publish.main([
+                "push", "--remote", "origin", "--branch", branch,
+            ])
+        finally:
+            os.chdir(old_cwd)
+        self.assertEqual(code, 0)
+        self.assertEqual(self._remote_sha(branch), sha)
+
+
 # ---------------------------------------------------------------------------
 # Remote resolution tests (with GitHub and Git subprocess mocking)
 # ---------------------------------------------------------------------------
