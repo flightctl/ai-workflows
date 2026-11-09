@@ -66,7 +66,11 @@ Evaluate the decomposition against these categories, prioritized by
 impact:
 
 1. **Requirement Coverage** — Does the coverage matrix (`07-coverage.md`)
-   map every FR and NFR from the PRD? Do story acceptance criteria
+   map every FR and NFR from the PRD to effectively active stories? A
+   story is effectively active when it has no `status: removed` marker
+   and its parent epic is also active; stories with `status: removed`
+   and unmarked children of removed epics are retained for identity
+   audit but do not satisfy coverage. Do story acceptance criteria
    collectively cover the PRD's acceptance criteria, not just the FR/NFR
    descriptions? Are there stories without PRD traceability — and if so,
    are they justified (e.g., infrastructure prerequisites)? Has any

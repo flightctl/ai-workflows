@@ -8222,8 +8222,15 @@ class TestDocsPostCascadeReconciliation(unittest.TestCase):
                            "Reconciliation must appear after TC cascade")
 
     def test_reconciliation_before_step5(self) -> None:
-        """Post-cascade DOCS reconciliation appears before Step 5."""
-        self.assertLess(self._recon_idx, self._step5_boundary)
+        """Post-cascade DOCS reconciliation appears before Step 5 in full source."""
+        # Use whole-source positions — the Step 4 slice comparison was vacuous
+        # (any valid index within a slice is trivially < len(slice)).
+        recon_pos = self._revise_md.find("reconciliation after cascades")
+        step5_pos = self._revise_md.find("### Step 5:")
+        self.assertGreater(recon_pos, 0)
+        self.assertGreater(step5_pos, 0)
+        self.assertLess(recon_pos, step5_pos,
+                        "Reconciliation must appear before Step 5 in source")
 
     def test_recomputes_affected_set(self) -> None:
         """Reconciliation recomputes affected DOCS set, not cached initial."""
@@ -8276,6 +8283,17 @@ class TestStep3FailClosedCapture(unittest.TestCase):
         # Find preview
         cls._preview_idx = cls._step3.find("Dry-run preview")
         assert cls._preview_idx >= 0, "Preview not found"
+        # Find individual branch boundaries within interpretation
+        interp = cls._step3[cls._interp_idx:cls._preflight_idx]
+        cls._branch1_idx = interp.find("1. **Exit 0")
+        assert cls._branch1_idx >= 0, "Branch 1 not found"
+        cls._branch2_idx = interp.find("2. **Exit 1")
+        assert cls._branch2_idx >= 0, "Branch 2 not found"
+        cls._branch3_idx = interp.find("3. **Any other")
+        assert cls._branch3_idx >= 0, "Branch 3 not found"
+        cls._branch1 = interp[cls._branch1_idx:cls._branch2_idx]
+        cls._branch2 = interp[cls._branch2_idx:cls._branch3_idx]
+        cls._branch3 = interp[cls._branch3_idx:]
 
     def test_recipe_uses_mktemp(self) -> None:
         """Capture recipe uses mktemp for safe temp file."""
@@ -8306,39 +8324,35 @@ class TestStep3FailClosedCapture(unittest.TestCase):
     def test_success_requires_four_fields(self) -> None:
         """Branch 1 requires all four JSON fields: ordered, blocked,
         errors, satisfied_keys."""
-        interp = self._step3[self._interp_idx:self._preflight_idx]
         for field in ("ordered", "blocked", "errors", "satisfied_keys"):
-            self.assertIn(f"`{field}`", interp,
-                          f"Success contract must require {field}")
+            self.assertIn(f"`{field}`", self._branch1,
+                          f"Branch 1 success contract must require {field}")
 
     def test_success_requires_empty_errors_blocked(self) -> None:
         """Branch 1 requires errors empty AND blocked empty."""
-        interp = self._step3[self._interp_idx:self._preflight_idx]
-        self.assertIn("`errors` empty", interp)
-        self.assertIn("`blocked` empty", interp)
+        self.assertIn("`errors` empty", self._branch1)
+        self.assertIn("`blocked` empty", self._branch1)
 
     def test_success_allows_empty_ordered(self) -> None:
-        """Empty ordered is valid (no new stories to create)."""
-        interp = self._step3[self._interp_idx:self._preflight_idx]
-        self.assertIn("empty", interp.lower())
+        """Branch 1: empty ordered is valid (no new stories to create)."""
+        self.assertIn("`ordered` may be empty", self._branch1,
+                      "Branch 1 must explicitly allow empty ordered")
 
     def test_exit1_structured_errors_stop(self) -> None:
         """Branch 2: exit 1 + valid JSON + non-empty errors → STOP."""
-        interp = self._step3[self._interp_idx:self._preflight_idx]
-        self.assertIn("STOP", interp)
+        self.assertIn("STOP", self._branch2,
+                      "STOP must appear in Branch 2 (structured errors)")
 
     def test_malformed_fatal(self) -> None:
         """Branch 3: malformed/empty/missing fields → fatal STOP."""
-        interp = self._step3[self._interp_idx:self._preflight_idx]
-        lower = interp.lower()
+        lower = self._branch3.lower()
         self.assertIn("malformed", lower)
         self.assertIn("wrong-type", lower)
 
     def test_no_new_status_field(self) -> None:
         """Success contract does not invent a 'status' field."""
-        interp = self._step3[self._interp_idx:self._preflight_idx]
         # The word "status" should not appear as a JSON field name
-        self.assertNotIn("`status`", interp)
+        self.assertNotIn("`status`", self._branch1)
 
 
 class TestStep3CLIFixtures(_TmpDirMixin, unittest.TestCase):
@@ -8420,7 +8434,46 @@ class TestStep3CLIFixtures(_TmpDirMixin, unittest.TestCase):
 
 class TestStep3CaptureRecipeExecution(unittest.TestCase):
     """The documented Step 3 Bash capture recipe for plan-creation-order
-    executes correctly under set -euo pipefail with real helper calls."""
+    executes correctly under set -euo pipefail with real helper calls.
+
+    The recipe is extracted from the single bash fence in sync.md Step 3
+    rather than hardcoded, so the tests break if the documented consumer
+    diverges."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import re as _r
+        sync_path = (Path(__file__).resolve().parent.parent
+                     / "skills" / "sync.md")
+        sync_md = sync_path.read_text(encoding="utf-8")
+        m3 = _r.search(r"### Step 3:.*?(?=### Step 4:)",
+                        sync_md, _r.DOTALL)
+        assert m3, "Step 3 not found in sync.md"
+        step3 = m3.group()
+        # Extract the single bash fence containing the capture recipe
+        fence_match = _r.search(
+            r"```bash\n(PLAN_ERR=\$\(mktemp\).*?)```",
+            step3, _r.DOTALL)
+        assert fence_match, "Capture fence not found in Step 3"
+        cls._fence = fence_match.group(1)
+        # Verify boundary markers
+        assert "PLAN_ERR=$(mktemp)" in cls._fence
+        assert "rm -f" in cls._fence
+        assert "PLAN_EXIT" in cls._fence
+        assert "PLAN_ERR_TEXT" in cls._fence
+
+    @staticmethod
+    def _adapt_fence(artifacts_dir: str) -> str:
+        """Substitute controlled paths into the extracted fence."""
+        script = TestStep3CaptureRecipeExecution._fence
+        # Replace python3 "$SYNC_HELPER" with sys.executable -I _SCRIPT
+        script = script.replace(
+            'python3 "$SYNC_HELPER"',
+            f"'{sys.executable}' -I '{_SCRIPT}'")
+        # Replace artifact path placeholder
+        script = script.replace(
+            ".artifacts/design/{issue-key}/", artifacts_dir + "/")
+        return script
 
     def test_valid_clean_capture(self) -> None:
         """Valid clean plan: exit=0, valid JSON, temp cleaned."""
@@ -8430,18 +8483,14 @@ class TestStep3CaptureRecipeExecution(unittest.TestCase):
             sd.mkdir()
             _make_epic(sd, 1, "building")
             _make_dev_story(sd, 1, 1, "impl", deps="None")
-            script = textwrap.dedent(f"""\
-                set -euo pipefail
-                PLAN_ERR=$(mktemp) || {{ echo "FATAL" >&2; exit 1; }}
-                PLAN_EXIT=0
-                PLAN_JSON=$(python3 -I "{_SCRIPT}" plan-creation-order \\
-                  "{tmpdir}" 2>"$PLAN_ERR") || PLAN_EXIT=$?
-                PLAN_ERR_TEXT=$(cat "$PLAN_ERR")
-                rm -f "$PLAN_ERR"
-                if [ -f "$PLAN_ERR" ]; then echo "LEAKED"; exit 1; fi
-                echo "exit=$PLAN_EXIT"
-                echo "$PLAN_JSON"
-            """)
+            fence = self._adapt_fence(tmpdir)
+            script = (
+                "set -euo pipefail\n"
+                + fence
+                + 'if [ -f "$PLAN_ERR" ]; then echo "LEAKED"; exit 1; fi\n'
+                + 'echo "exit=$PLAN_EXIT"\n'
+                + 'echo "$PLAN_JSON"\n'
+            )
             r = subprocess.run(
                 ["bash", "-c", script],
                 capture_output=True, text=True, timeout=10)
@@ -8464,18 +8513,14 @@ class TestStep3CaptureRecipeExecution(unittest.TestCase):
             sd.mkdir()
             _make_epic(sd, 1, "building")
             _make_dev_story(sd, 1, 1, "impl", deps="Story 9.99")
-            script = textwrap.dedent(f"""\
-                set -euo pipefail
-                PLAN_ERR=$(mktemp) || {{ echo "FATAL" >&2; exit 1; }}
-                PLAN_EXIT=0
-                PLAN_JSON=$(python3 -I "{_SCRIPT}" plan-creation-order \\
-                  "{tmpdir}" 2>"$PLAN_ERR") || PLAN_EXIT=$?
-                PLAN_ERR_TEXT=$(cat "$PLAN_ERR")
-                rm -f "$PLAN_ERR"
-                if [ -f "$PLAN_ERR" ]; then echo "LEAKED"; exit 1; fi
-                echo "exit=$PLAN_EXIT"
-                echo "$PLAN_JSON"
-            """)
+            fence = self._adapt_fence(tmpdir)
+            script = (
+                "set -euo pipefail\n"
+                + fence
+                + 'if [ -f "$PLAN_ERR" ]; then echo "LEAKED"; exit 1; fi\n'
+                + 'echo "exit=$PLAN_EXIT"\n'
+                + 'echo "$PLAN_JSON"\n'
+            )
             r = subprocess.run(
                 ["bash", "-c", script],
                 capture_output=True, text=True, timeout=10)
@@ -8495,18 +8540,14 @@ class TestStep3CaptureRecipeExecution(unittest.TestCase):
             _make_epic(sd, 1, "building")
             _make_dev_story(sd, 1, 1, "impl", deps="None")
             _write(Path(tmpdir) / "sync-manifest.json", "NOT JSON {{{")
-            script = textwrap.dedent(f"""\
-                set -euo pipefail
-                PLAN_ERR=$(mktemp) || {{ echo "FATAL" >&2; exit 1; }}
-                PLAN_EXIT=0
-                PLAN_JSON=$(python3 -I "{_SCRIPT}" plan-creation-order \\
-                  "{tmpdir}" 2>"$PLAN_ERR") || PLAN_EXIT=$?
-                PLAN_ERR_TEXT=$(cat "$PLAN_ERR")
-                rm -f "$PLAN_ERR"
-                if [ -f "$PLAN_ERR" ]; then echo "LEAKED"; exit 1; fi
-                echo "exit=$PLAN_EXIT"
-                echo "stderr=$PLAN_ERR_TEXT"
-            """)
+            fence = self._adapt_fence(tmpdir)
+            script = (
+                "set -euo pipefail\n"
+                + fence
+                + 'if [ -f "$PLAN_ERR" ]; then echo "LEAKED"; exit 1; fi\n'
+                + 'echo "exit=$PLAN_EXIT"\n'
+                + 'echo "stderr=$PLAN_ERR_TEXT"\n'
+            )
             r = subprocess.run(
                 ["bash", "-c", script],
                 capture_output=True, text=True, timeout=10)
@@ -8701,6 +8742,263 @@ class TestReplacementReviewerTestplan(unittest.TestCase):
     def test_replacement_reviewer_excludes_design(self) -> None:
         """The exact replacement-reviewer paragraph excludes design doc."""
         self.assertIn("NOT the design document", self._replacement_para)
+
+
+# ---------------------------------------------------------------------------
+# F1: Partial-resume — decompose.md handles missing 07-coverage.md
+# ---------------------------------------------------------------------------
+
+class TestPartialResumeContract(unittest.TestCase):
+    """Decompose.md Step 1 repeat-decompose handles interrupted prior run
+    where 07-coverage.md was not produced (F1)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import re
+        decompose_path = (Path(__file__).resolve().parent.parent
+                          / "skills" / "decompose.md")
+        cls._decompose_md = decompose_path.read_text(encoding="utf-8")
+        m1 = re.search(r"### Step 1:.*?(?=### Step 2:)",
+                        cls._decompose_md, re.DOTALL)
+        assert m1, "Step 1 not found in decompose.md"
+        cls._step1 = m1.group()
+        repeat_idx = cls._step1.find("already exist")
+        assert repeat_idx >= 0, "Repeat-decompose block not found"
+        cls._repeat_block = cls._step1[repeat_idx:]
+
+    def test_coverage_read_is_conditional(self) -> None:
+        """07-coverage.md read in item 1 is conditional (if it exists)."""
+        # Find the numbered read instruction (item 1 of the list),
+        # not the detection condition that uses OR
+        item1_idx = self._repeat_block.find("1. Read")
+        self.assertGreater(item1_idx, 0, "Item 1 read instruction not found")
+        item1_text = self._repeat_block[item1_idx:item1_idx + 400]
+        self.assertIn("07-coverage.md", item1_text)
+        self.assertIn("if it exists", item1_text.lower(),
+                      "07-coverage.md read must be conditional for interrupted runs")
+
+    def test_interrupted_run_recovery_guidance(self) -> None:
+        """Step 1 mentions prior interrupted run and rebuild in Step 7."""
+        self.assertIn("interrupted", self._repeat_block.lower())
+        self.assertIn("Step 7", self._repeat_block)
+
+
+# ---------------------------------------------------------------------------
+# F2: Obsolete-work retirement on repeat decompose
+# ---------------------------------------------------------------------------
+
+class TestObsoleteWorkRetirement(unittest.TestCase):
+    """Decompose.md Step 1 handles retirement of work no longer retained
+    in a repeat decomposition (F2)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import re
+        decompose_path = (Path(__file__).resolve().parent.parent
+                          / "skills" / "decompose.md")
+        cls._decompose_md = decompose_path.read_text(encoding="utf-8")
+        m1 = re.search(r"### Step 1:.*?(?=### Step 2:)",
+                        cls._decompose_md, re.DOTALL)
+        assert m1, "Step 1 not found"
+        cls._step1 = m1.group()
+        repeat_idx = cls._step1.find("already exist")
+        assert repeat_idx >= 0
+        cls._repeat_block = cls._step1[repeat_idx:]
+
+    def test_retirement_via_status_removed(self) -> None:
+        """Work no longer retained is marked status: removed, not deleted."""
+        lower = self._repeat_block.lower()
+        self.assertIn("status: removed", self._repeat_block)
+        self.assertIn("no longer retains", lower)
+
+    def test_epic_stays_active_if_children_retained(self) -> None:
+        """Epic stays active if any child stories are retained."""
+        self.assertIn("child stories are retained", self._repeat_block.lower())
+
+    def test_cascade_safety_mentioned(self) -> None:
+        """Retirement guidance mentions cascade safety."""
+        self.assertIn("cascade", self._repeat_block.lower())
+
+
+class TestObsoleteWorkHelper(_TmpDirMixin, unittest.TestCase):
+    """detect_changes correctly classifies logically retired work (F2)."""
+
+    def test_unmarked_stale_active_detected_as_changed(self) -> None:
+        """An active story with changed content is detected as changed,
+        eligible for retirement marking by the decomposer."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir()
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "impl", deps="None")
+        _make_manifest(Path(self.tmpdir), [{
+            "file": "epic-1-building.md", "jira_key": "EDM-100",
+            "content_hash": "old-hash", "synced_status": "active",
+            "stories": [
+                {"file": "story-01-impl.md", "jira_key": "EDM-201",
+                 "content_hash": "old-different-hash",
+                 "synced_status": "active"},
+            ],
+        }])
+        result = sync_helper.detect_changes(self.tmpdir)
+        story_items = [i for i in result["items"]
+                       if i["type"] == "story" and i["epic_index"] == 1]
+        self.assertEqual(len(story_items), 1)
+        self.assertEqual(story_items[0]["category"], "changed",
+                         "Active changed story must be 'changed', not skipped")
+
+    def test_logically_removed_never_synced_skipped(self) -> None:
+        """A story with status: removed that was never synced is skipped."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir()
+        _make_epic(sd, 1, "building")
+        _make_dev_story(sd, 1, 1, "impl", deps="None", removed=True)
+        result = sync_helper.detect_changes(self.tmpdir)
+        story_items = [i for i in result["items"]
+                       if i["type"] == "story" and i["epic_index"] == 1]
+        # Never-synced removed story should not appear in items
+        self.assertEqual(len(story_items), 0,
+                         "Never-synced removed story must be skipped")
+
+
+# ---------------------------------------------------------------------------
+# F3: Restoration/DOCS trigger in revise.md
+# ---------------------------------------------------------------------------
+
+class TestDocsRestorationTrigger(unittest.TestCase):
+    """Revise.md includes parent-epic restoration in DOCS affected set (F3)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import re
+        revise_path = (Path(__file__).resolve().parent.parent
+                       / "skills" / "revise.md")
+        cls._revise_md = revise_path.read_text(encoding="utf-8")
+        m4 = re.search(r"### Step 4:.*?(?=### Step 5:)",
+                        cls._revise_md, re.DOTALL)
+        assert m4, "Step 4 not found in revise.md"
+        cls._step4 = m4.group()
+        trigger = re.search(
+            r"A `\[DOCS\]` story is affected when.*?(?=For each affected)",
+            cls._step4, re.DOTALL)
+        assert trigger, "DOCS affected-set trigger block not found"
+        cls._trigger_block = trigger.group()
+        cascade_idx = cls._step4.find("reconciliation after cascades")
+        assert cascade_idx >= 0
+        cls._cascade_block = cls._step4[cascade_idx:]
+
+    def test_restoration_trigger_exists(self) -> None:
+        """Trigger list includes parent epic restoration (trigger f)."""
+        self.assertIn("restored", self._trigger_block.lower())
+
+    def test_restoration_reactivates_unmarked_children(self) -> None:
+        """Restored parent makes children without own removal active."""
+        self.assertIn("without their own", self._trigger_block.lower())
+
+    def test_individually_removed_child_stays_removed(self) -> None:
+        """Child with its own status: removed stays removed after restore."""
+        self.assertIn("individually retired", self._trigger_block.lower())
+
+    def test_restoration_in_cascade_reconciliation(self) -> None:
+        """Post-cascade reconciliation mentions restoration."""
+        self.assertIn("restoration", self._cascade_block.lower())
+
+
+class TestDocsRestorationHelper(_TmpDirMixin, unittest.TestCase):
+    """detect_changes handles parent restoration correctly (F3)."""
+
+    def test_child_active_when_parent_restored(self) -> None:
+        """Unmarked child under active (restored) parent is active."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir()
+        # Parent epic is active (restored — no removed marker)
+        _make_epic(sd, 1, "building", removed=False)
+        _make_dev_story(sd, 1, 1, "impl", deps="None")
+        _make_manifest(Path(self.tmpdir), [{
+            "file": "epic-1-building.md", "jira_key": "EDM-100",
+            "content_hash": "old-hash", "synced_status": "active",
+            "stories": [
+                {"file": "story-01-impl.md", "jira_key": "EDM-201",
+                 "content_hash": "old-hash", "synced_status": "closed"},
+            ],
+        }])
+        result = sync_helper.detect_changes(self.tmpdir)
+        story_items = [i for i in result["items"]
+                       if i["type"] == "story" and i["epic_index"] == 1]
+        self.assertEqual(len(story_items), 1)
+        self.assertEqual(story_items[0]["category"], "reopened",
+                         "Unmarked child under active parent reopens")
+
+    def test_individually_removed_child_stays_removed(self) -> None:
+        """Child with own status: removed stays removed even if parent active."""
+        sd = Path(self.tmpdir) / "06-stories"
+        sd.mkdir()
+        _make_epic(sd, 1, "building", removed=False)
+        _make_dev_story(sd, 1, 1, "impl", deps="None", removed=True)
+        _make_manifest(Path(self.tmpdir), [{
+            "file": "epic-1-building.md", "jira_key": "EDM-100",
+            "content_hash": "old-hash", "synced_status": "active",
+            "stories": [
+                {"file": "story-01-impl.md", "jira_key": "EDM-201",
+                 "content_hash": "old-hash", "synced_status": "active"},
+            ],
+        }])
+        result = sync_helper.detect_changes(self.tmpdir)
+        story_items = [i for i in result["items"]
+                       if i["type"] == "story" and i["epic_index"] == 1]
+        self.assertEqual(len(story_items), 1)
+        self.assertEqual(story_items[0]["category"], "removed",
+                         "Individually removed child stays removed")
+
+
+# ---------------------------------------------------------------------------
+# F4: Active-only coverage in decompose.md and review protocol
+# ---------------------------------------------------------------------------
+
+class TestActiveCoverageContract(unittest.TestCase):
+    """Coverage matrix and review protocol evaluate active stories only (F4)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import re
+        decompose_path = (Path(__file__).resolve().parent.parent
+                          / "skills" / "decompose.md")
+        cls._decompose_md = decompose_path.read_text(encoding="utf-8")
+        m7 = re.search(r"### Step 7:.*?(?=### Step 8:)",
+                        cls._decompose_md, re.DOTALL)
+        assert m7, "Step 7 not found in decompose.md"
+        cls._step7 = m7.group()
+
+        review_path = (Path(__file__).resolve().parent.parent
+                       / "decomposition-review.md")
+        cls._review_md = review_path.read_text(encoding="utf-8")
+        crit1 = re.search(
+            r"1\.\s+\*\*Requirement Coverage\*\*.*?(?=2\.\s+\*\*Epic Structure\*\*)",
+            cls._review_md, re.DOTALL)
+        assert crit1, "Criterion 1 not found in review protocol"
+        cls._criterion1 = crit1.group()
+
+    def test_step7_active_only_coverage(self) -> None:
+        """Step 7 defines active-only coverage for the matrix."""
+        self.assertIn("effectively active", self._step7.lower())
+
+    def test_step7_retired_not_satisfying(self) -> None:
+        """Step 7 states retired stories do not satisfy coverage."""
+        lower = self._step7.lower()
+        self.assertIn("identity", lower)
+        self.assertIn("traceability audit", lower)
+
+    def test_step7_no_mask_coverage_gap(self) -> None:
+        """Step 7 forbids masking coverage gaps with retired work."""
+        self.assertIn("Do not mask", self._step7)
+
+    def test_review_criterion1_active_only(self) -> None:
+        """Review criterion 1 requires effectively active stories."""
+        self.assertIn("effectively active", self._criterion1.lower())
+
+    def test_review_criterion1_identity_audit(self) -> None:
+        """Review criterion 1 mentions retired stories retained for audit."""
+        self.assertIn("identity", self._criterion1.lower())
+        self.assertIn("audit", self._criterion1.lower())
 
 
 if __name__ == "__main__":

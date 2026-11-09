@@ -144,10 +144,15 @@ renamed, or reopened stories whose user-facing surface falls within the `[DOCS]`
 story's scope, (c) design content that alters the story's reader,
 scope, AC, assumptions, or open-question markers — including resolved
 `[Open: §9.N]` items even without API/CLI shape changes, (d) ICs
-covered by the story, or (e) a listed contributor effectively retired
+covered by the story, (e) a listed contributor effectively retired
 through its parent epic being marked `status: removed` — even when
 the contributor's own story file is unchanged, its parent's removal
-logically retires it.
+logically retires it, or (f) a parent epic explicitly restored
+(approved removal of its `status: removed` marker) — children
+without their own `status: removed` become effectively active
+again and should be reconsidered as contributors, while children
+with their own `status: removed` remain individually retired
+regardless of parent restoration.
 
 For each affected `[DOCS]` story, re-read the file and update
 Documentation Inputs, Contributing stories, and Dependencies to
@@ -240,7 +245,8 @@ story cascades above complete, recompute the affected `[DOCS]` set
 from the resulting post-cascade state — do not rely on the initial
 affected set computed before the cascades, which may miss `[DOCS]`
 stories newly affected by IC reassignment, contributor retirement
-(including through parent epic removal), or testplan changes
+(including through parent epic removal), contributor restoration
+(including through parent epic restoration), or testplan changes
 discovered during the cascade.  For each `[DOCS]` story in the
 recomputed set, re-read the file and reconcile its Documentation
 Inputs, Contributing stories, and Dependencies against the current

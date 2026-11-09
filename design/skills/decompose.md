@@ -53,7 +53,9 @@ Load and reconcile existing artifacts before planning:
 
 1. Read `05-epics.md`, all `06-stories/epic-{N}-{slug}.md` files, all
    `06-stories/epic-{N}/story-{NN}-{slug}.md` files, and
-   `07-coverage.md`.
+   `07-coverage.md` (if it exists — a prior run interrupted before
+   Step 7 may not have produced coverage; it will be rebuilt in
+   Step 7 from the retained decomposition artifacts).
 2. Record all existing qualified identities (epic numbers, story
    numbers, filenames, containing paths) including files with
    `status: removed`.
@@ -68,6 +70,13 @@ Load and reconcile existing artifacts before planning:
 5. Files with `status: removed` remain on disk with their numbers
    reserved. Do not silently re-activate retired work; explicit
    approved restoration is required to reopen a removed item.
+6. When the new plan no longer retains existing work, mark the
+   affected files `status: removed` rather than deleting them.
+   Keep an epic active if any of its child stories are retained
+   in the new plan — only mark an epic `status: removed` when all
+   its child work is intentionally retired. This preserves cascade
+   safety: marking an epic removed logically retires all its
+   children, so a partially-retained epic must stay active.
 
 The initial empty decomposition (no prior artifacts) still works
 unchanged — these constraints apply only to repeat runs.
@@ -528,6 +537,15 @@ Write `.artifacts/design/{issue-key}/07-coverage.md`:
 | FR-3: {description} | — | — | **GAP** |
 | NFR-1: {description} | Epic 1 | Story 1.02 | Covered |
 | NFR-2: {description} | Epic 2 | Story 2.01 | Covered |
+
+**Active-only coverage.** Only effectively active stories satisfy
+coverage. A story is effectively active when it has no `status:
+removed` marker and its parent epic is also active. Stories with
+`status: removed`, and unmarked children of removed epics, do not
+satisfy requirement coverage — they are retained for identity and
+traceability audit only. Do not mask a coverage gap by counting
+retired work, and do not silently drop requirements that lost their
+only implementing story to retirement.
 
 ## Gaps
 
