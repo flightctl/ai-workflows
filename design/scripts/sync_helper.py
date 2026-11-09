@@ -1291,6 +1291,32 @@ def plan_creation_order(
     # Track actual unavailable ref IDs per story (for blocked[].missing)
     unavailable_ref_ids: dict[str, list[str]] = {}
 
+    # ── Owning-parent preflight ────────────────────────────────
+    # Every new story needs an owning epic: either already keyed in
+    # the manifest, or a new epic that will be created in Step 5.
+    # Stories whose owning epic has no source artifact and no
+    # manifest key are structural errors — they cannot be created.
+    # This check requires the items list to contain epic items
+    # (detect_changes always produces them); skip if the caller
+    # passed story-only items (unit test helper pattern).
+    if epic_items_by_idx:
+        for qid, item in needs_creation.items():
+            eidx = item.get("epic_index")
+            if eidx is None:
+                continue  # Already caught by identity_errors above
+            epic_ref = f"epic-{eidx}"
+            if epic_ref in available:
+                continue  # Epic already has a Jira key
+            epic_item = epic_items_by_idx.get(eidx)
+            if epic_item is not None:
+                continue  # Epic will be created in Step 5
+            errors.append(
+                f"{qid} requires owning {epic_ref} which has no "
+                f"source artifact and no manifest key — "
+                f"cannot create story without a parent epic")
+            has_unavailable_ref.add(qid)
+            unavailable_ref_ids.setdefault(qid, []).append(epic_ref)
+
     for qid, item in needs_creation.items():
         raw_refs = _get_required_refs(item, qid)
         # Self-reference detection (before available-key shortcuts)

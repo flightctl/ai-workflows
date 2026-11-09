@@ -10106,6 +10106,75 @@ class TestCascadeClosurePreview(_TmpDirMixin, unittest.TestCase):
             "Manifest-active children must be a subset of the approved "
             "union (individual + cascade), not just cascade-only")
 
+    def test_orphan_parent_close_orphans_true_union(self) -> None:
+        """Selected orphan parent (close_orphans=True): missing parent
+        + child source files, both manifest-active with Jira keys.
+
+        compute_cascade_closures(close_orphans=True) returns 0
+        supplement because the orphaned child is already individually
+        closing.  The approved union must still include that child
+        via the individually-closing orphan path.
+        """
+        # No files on disk for this parent — purely orphaned
+        (self.stories_dir / "epic-2").mkdir(parents=True, exist_ok=True)
+        manifest_data = [{
+            "file": "epic-2-gone.md", "jira_key": "EDM-101",
+            "content_hash": "h", "synced_status": "active",
+            "title": "Gone",
+            "stories": [{
+                "file": "story-01-lost.md", "jira_key": "EDM-201",
+                "content_hash": "h", "synced_status": "active",
+                "title": "[DEV] Lost",
+            }],
+        }]
+        _make_manifest(self.artifacts, manifest_data)
+        manifest = sync_helper.load_manifest(
+            self.artifacts / "sync-manifest.json")
+        plan = sync_helper.detect_changes(self.artifacts)
+
+        # Both parent and child are orphaned
+        orphaned_items = [i for i in plan["items"]
+                          if i["category"] == "orphaned"]
+        self.assertEqual(len(orphaned_items), 2,
+                         "Both parent and child must be orphaned")
+
+        # With close_orphans=True: child is individually closing
+        individually_closing = {
+            i["jira_key"] for i in plan["items"]
+            if i["type"] == "story" and i["category"] == "orphaned"
+        }
+        self.assertIn("EDM-201", individually_closing)
+
+        # Cascade returns 0 (child already individually closing)
+        result = sync_helper.compute_cascade_closures(
+            plan["items"], manifest, close_orphans=True)
+        self.assertEqual(len(result["cascades"]), 0,
+                         "Orphaned child already individually shown")
+
+        # Approved union = individually closing orphans + cascade = {EDM-201}
+        cascade_keys = {c["jira_key"] for c in result["cascades"]}
+        approved_union = individually_closing | cascade_keys
+        self.assertEqual(approved_union, {"EDM-201"})
+
+        # Manifest-active child = {EDM-201}
+        manifest_active = {
+            s["jira_key"] for e in manifest["epics"]
+            for s in e.get("stories", [])
+            if s.get("synced_status", "active") == "active"
+        }
+        self.assertEqual(manifest_active, {"EDM-201"})
+
+        # Guard passes: manifest_active ⊆ approved_union
+        self.assertTrue(
+            manifest_active <= approved_union,
+            "Orphan child must be in approved union via "
+            "individually-closing path")
+
+        # Without close_orphans: no closures at all
+        result_no = sync_helper.compute_cascade_closures(
+            plan["items"], manifest, close_orphans=False)
+        self.assertEqual(len(result_no["cascades"]), 0)
+
 
 class TestCascadePreviewContract(unittest.TestCase):
     """Step 3 preview must include cascade closures (R2)."""
@@ -10668,6 +10737,11 @@ class TestCascadeScopeGuardContract(unittest.TestCase):
         self.assertIn("compute-cascade-closures", flat)
         self.assertIn("individually listed", flat.lower())
 
+    def test_guard_union_includes_orphaned_children(self) -> None:
+        """Guard union covers user-selected orphaned children too."""
+        flat = " ".join(self._step5c.lower().split())
+        self.assertIn("orphaned", flat)
+
     def test_guard_uses_subset_not_exact_match(self) -> None:
         """Guard checks remaining active children are a subset of
         approved union — not exact equality to cascade-only set."""
@@ -10837,6 +10911,60 @@ class TestInvalidParentIdentity(_TmpDirMixin, unittest.TestCase):
         self.assertEqual(
             len(identity_errs), 0,
             "Non-actionable stories must NOT cause identity errors")
+
+    def test_numeric_missing_parent_blocked_at_preflight(self) -> None:
+        """Story under epic-99/ with valid file but NO epic-99 source
+        artifact → preflight error, not silent ordering.
+
+        This is the counterexample: the story FILE exists (valid
+        numeric epic_index=99, story_index=1), but no epic-99-*.md
+        source artifact exists, so no Epic 99 will be created.
+        plan-creation-order must catch this at preflight, not
+        silently order the story for creation.
+        """
+        _make_epic(self.stories_dir, 1, "building")
+        # Create story under epic-99 (no epic-99 source artifact)
+        epic99_dir = self.stories_dir / "epic-99"
+        epic99_dir.mkdir(parents=True)
+        (epic99_dir / "story-01-docs.md").write_text(
+            "---\n---\n# Story 99.01: [DOCS] API docs\n\n"
+            "As a writer I want to document.\n\n"
+            "## Acceptance Criteria\n\nDone\n\n"
+            "## Documentation Scope\n\nAPI.\n\n"
+            "## Dependencies\n\nNone\n\n"
+            "## Design Reference\n\n- Epic: Epic 99\n",
+            encoding="utf-8",
+        )
+        plan = sync_helper.detect_changes(self.artifacts)
+        result = sync_helper.plan_creation_order(
+            plan["items"], str(self.artifacts), None)
+        # Must be in errors, not silently ordered
+        self.assertTrue(result["errors"],
+                        "Missing owning parent must produce errors")
+        error_text = " ".join(result["errors"])
+        self.assertIn("epic-99", error_text)
+        self.assertIn("owning", error_text.lower())
+        # Story must NOT be in ordered list
+        ordered_files = [i["file"] for i in result["ordered"]]
+        self.assertNotIn("epic-99/story-01-docs.md", ordered_files,
+                         "Story without parent must NOT be ordered")
+        # Valid story-1.01 should still be orderable
+        # (epic-1 has source artifact)
+
+    def test_numeric_valid_parent_passes_preflight(self) -> None:
+        """Story under epic-1/ with matching epic-1-*.md source: no
+        owning-parent error — confirms no false positives."""
+        _make_epic(self.stories_dir, 1, "building")
+        _make_dev_story(self.stories_dir, 1, 1, "scaffold",
+                        deps="None")
+        plan = sync_helper.detect_changes(self.artifacts)
+        result = sync_helper.plan_creation_order(
+            plan["items"], str(self.artifacts), None)
+        owning_errs = [e for e in result["errors"]
+                       if "owning" in e.lower()]
+        self.assertEqual(len(owning_errs), 0,
+                         "Valid parent must NOT produce owning errors")
+        self.assertEqual(len(result["ordered"]), 1)
 
 
 if __name__ == "__main__":

@@ -509,7 +509,8 @@ retry or skip.
 that each closing parent's manifest-active children are within the
 approved scope. The approved scope for each parent is the **union**
 of: (a) children individually listed as To Close in the Step 3
-preview (category `"removed"` under this parent), and (b) the
+preview (category `"removed"` or user-selected `"orphaned"` under
+this parent), and (b) the
 supplemental cascade closures from `compute-cascade-closures`. Build
 this per-parent union from the approved change plan and cascade data.
 Re-read the manifest and collect the set of `synced_status: "active"`
