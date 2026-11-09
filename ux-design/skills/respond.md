@@ -126,7 +126,8 @@ Wait for the user to approve, modify, or reject each response.
 
 ### Step 4: Apply Approved Changes
 
-**If "Handoff change needed: Yes":**
+**If handoff text changed OR approved screenshot asset, manifest,
+ref, removal, or digest change:**
 
 The unconditional pending gate in Step 1 ensures prior attempts
 are recovered before reaching this point. Never post or log replies

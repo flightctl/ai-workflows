@@ -187,9 +187,13 @@ pushing, resolve effective push destination(s):
 rules to reveal actual targets. Validate:
 
 1. Exactly one push URL exists (single approved destination).
-2. Its canonical `{host}/{owner}/{repo}` identity (with
-   non-default port: `{host}:{port}/{owner}/{repo}`) matches
-   `docs_repo_remote`. SSH (port 22) and HTTPS (port 443) are
+2. Normalize the resolved push URL to credential-free canonical
+   identity (`{host}/{owner}/{repo}`, with non-default port:
+   `{host}:{port}/{owner}/{repo}`): strip userinfo, query
+   parameters, and fragment before extracting host/owner/repo.
+   Normalize `docs_repo_remote` from config the same way before
+   comparing — legacy configs may store raw or differently-
+   formatted values. SSH (port 22) and HTTPS (port 443) are
    default and equivalent; an explicit non-default port difference
    or unverifiable port mapping stops and retains `pending_attempt`.
    Host mismatch stops without adopting. Credential-bearing URLs
@@ -213,12 +217,18 @@ push, apply these checks in order:
    missing, or unavailable → stop; retain `pending_attempt`. Not
    a cross-service atomic guarantee. Both `/publish` Step 8 and
    `/respond` push must consume this gate.
-2. **Owned-path verification.** Verify `handoff_file_path` exists
-   as a blob at `commit_sha` via `git cat-file -e`. When
-   `upstream_prd_path` and `upstream_design_path` are present,
-   verify each at `commit_sha` with expected basename and shared
-   parent. Missing or unverifiable → stop; preserve pending and
-   local commit. Do not automatically stage unrelated documents.
+2. **Owned-path verification.** For each of `handoff_file_path`,
+   `upstream_prd_path`, and `upstream_design_path` (when present),
+   verify at `commit_sha` via
+   `git ls-tree "$commit_sha" -- "$path"`: the entry must exist
+   with mode `100644` or `100755` (regular file — never `120000`
+   symlink or `040000` tree). `cat-file -e` alone is insufficient
+   because it accepts trees and symlinks. Verify expected basenames
+   (`handoff.md`, `prd.md`, `design.md`), shared canonical parent
+   directory as `handoff_file_path`, and containment inside
+   `docs_repo_root`. Missing, wrong mode, or unverifiable → stop;
+   preserve pending and local commit. Do not automatically stage
+   unrelated documents.
 3. **Exact head ref query.** Query remote branch via
    `git ls-remote --heads "$push_url" "refs/heads/$branch"` and
    verify the returned ref name field is exactly
@@ -228,14 +238,25 @@ push, apply these checks in order:
 
 ```bash
 # Exact head ref query — canonical form for all callers.
+# Checked capture: a failed query is UNKNOWN and must exit nonzero,
+# never treated as empty/absent. Redact credential-bearing errors.
+_lr_out=""
+if ! _lr_out=$(git ls-remote --heads "$push_url" "refs/heads/{branch}" 2>/dev/null); then
+  echo "Error: ls-remote query failed; cannot determine remote branch state" >&2
+  exit 1
+fi
 exact_sha=""
 while IFS=$'\t' read -r sha ref; do
+  [ -z "$sha" ] && continue
   if [ "$ref" = "refs/heads/{branch}" ]; then
-    [ -n "$exact_sha" ] && { echo "duplicate ref" >&2; exit 1; }
+    [ -n "$exact_sha" ] && { echo "Error: duplicate ref in ls-remote output" >&2; exit 1; }
+    if ! printf '%s' "$sha" | grep -qE '^[0-9a-f]{40}$'; then
+      echo "Error: malformed SHA in ls-remote output" >&2; exit 1
+    fi
     exact_sha="$sha"
   fi
-done < <(git ls-remote --heads "$push_url" "refs/heads/{branch}")
-# exact_sha empty => branch absent.
+done <<< "$_lr_out"
+# exact_sha empty => branch absent on remote.
 ```
 
 **On retry (when `pending_attempt` exists).** Before any file copy,
@@ -252,8 +273,8 @@ done < <(git ls-remote --heads "$push_url" "refs/heads/{branch}")
    Changed or unverifiable push destination → stop.
 3. Apply the pre-push gates above (PR revalidation, owned-path
    verification, exact head ref query).
-4. Classify remote branch state against the validated push
-   destination (`git ls-remote "$(git remote get-url --push origin)" {branch}`):
+4. Classify using `exact_sha` from the exact head ref query in
+   Step 3 above (do not re-query with a short pattern):
    - **Remote SHA equals `pending_attempt.commit_sha`:** Already
      pushed. Skip push; proceed to metadata finalization.
    - **Remote SHA equals `pending_attempt.expected_base` (or branch
@@ -267,14 +288,16 @@ done < <(git ls-remote --heads "$push_url" "refs/heads/{branch}")
 effective push destination first (same validation as above). Apply
 the pre-push gates (PR revalidation when `pr_number` is known,
 owned-path verification, exact ref query) before pushing.
-Snapshot `expected_base` via `git ls-remote` against the validated
-push URL before the owned commit. Require the local branch to be
+Snapshot `expected_base` via the canonical exact head ref query
+against the validated push URL before the owned commit. Require the local branch to be
 at a known synced base (SHA matches the push-URL snapshot, or a
 fresh branch from `{base-branch}`). If the local branch is ahead
 by commits not created by this invocation, stop.
 
-**After successful push.** Verify the remote ref at the validated
-push destination matches `pending_attempt.commit_sha` exactly. Then:
+**After successful push.** Re-run the exact head ref query (fresh
+checked capture against the validated push URL — not the stale
+pre-push value) and verify `exact_sha` equals
+`pending_attempt.commit_sha`. Then:
 
 1. Finalize metadata from `pending_attempt` candidate values:
    set `screenshot_storage` to `candidate_screenshot_storage`,

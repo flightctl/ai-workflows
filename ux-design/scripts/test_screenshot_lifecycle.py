@@ -1827,7 +1827,7 @@ class TestCommitPathsAndPendingAttempt(unittest.TestCase):
         flat = " ".join(section.split())
         self.assertIn("known synced base", flat)
         self.assertIn("validated push URL", flat)
-        self.assertIn("ls-remote", flat)
+        self.assertIn("exact head ref query", flat)
         self.assertNotIn("origin/{branch}", flat)
 
     def test_pending_attempt_finalize_after_verify(self) -> None:
@@ -1838,7 +1838,7 @@ class TestCommitPathsAndPendingAttempt(unittest.TestCase):
             "Already-pushed", 1
         )[0]
         flat = " ".join(section.split())
-        self.assertIn("Verify the remote ref", flat)
+        self.assertIn("exact head ref query", flat)
         self.assertIn("commit_sha", flat)
         self.assertIn("candidate_screenshot_storage", flat)
         self.assertIn("candidate_screenshot_assets", flat)
@@ -3133,14 +3133,17 @@ class TestR6PushDestination(unittest.TestCase):
         self.assertIn("push_destination", flat)
 
     def test_ls_remote_queries_push_url(self) -> None:
-        """Retry classification queries push URL, not fetch URL."""
+        """Retry classification uses exact_sha from pre-push gate,
+        which queries the validated push URL (not fetch URL)."""
         content = _read("_shared/recipes/screenshot-publish-stage.md")
-        classify = content.split("Classify remote branch state", 1)[1].split(
-            "Already pushed", 1
-        )[0]
-        flat = " ".join(classify.split())
-        self.assertIn("push destination", flat)
+        retry = content.split("On retry", 1)[1].split("Initial new", 1)[0]
+        flat = " ".join(retry.split())
+        # Classification uses exact_sha from pre-push gate
+        self.assertIn("exact_sha", flat)
+        self.assertIn("exact head ref query", flat)
+        # Push destination re-resolved before gates
         self.assertIn("get-url --push", flat)
+        self.assertIn("push_destination", flat)
 
 
 class TestR6PushDestinationGitProof(_RecipeExecMixin, unittest.TestCase):
@@ -4304,6 +4307,315 @@ class TestR9PRGateAllPushes(unittest.TestCase):
                       "missing", "unavailable"):
             self.assertIn(state, flat.lower(),
                           f"PR gate missing stop on: {state}")
+
+
+# ===================================================================
+# Part 10: R10 finishing fixes — exact reader, path mode, normalization
+#
+# Executable Git tests for exact head ref reader extracted from recipe;
+# ls-tree mode proof for owned-path gate; normalization fixture tests;
+# respond positive branch assertion.
+# ===================================================================
+
+
+def _extract_exact_reader_script(push_url: str, branch: str) -> str:
+    """Extract the canonical exact head ref query bash block from the
+    recipe and wrap it for execution with given push_url and branch.
+
+    Returns a runnable Bash script that outputs EXACT_SHA=<value>
+    on success, or exits nonzero on failure/malformed/duplicate."""
+    recipe_md = _read("_shared/recipes/screenshot-publish-stage.md")
+    blocks = _extract_bash_blocks(recipe_md)
+    assert len(blocks) >= 4, f"Expected ≥4 bash blocks, got {len(blocks)}"
+    block = blocks[3]  # 4th block: exact head ref query
+    block = block.replace("{branch}", branch)
+    script = f'#!/usr/bin/env bash\nset -uo pipefail\npush_url="{push_url}"\n'
+    script += block
+    script += '\necho "EXACT_SHA=$exact_sha"\n'
+    return script
+
+
+class TestR10ExactReaderExecution(_RecipeExecMixin, unittest.TestCase):
+    """Extracted exact head ref query bash block from recipe.
+
+    Executes the actual canonical Bash that the recipe ships, not
+    hand-copied alternative Git commands. Uses disposable temp bare
+    repos and fake git stubs."""
+
+    def test_present_branch_returns_sha(self) -> None:
+        """Positive case: branch exists, exact reader returns its SHA."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            bare = os.path.join(tmp, "remote.git")
+            subprocess.run(["git", "clone", "--bare", repo, bare],
+                           capture_output=True, check=True)
+            branch = "ux-design/FEAT-100"
+            subprocess.run(
+                ["git", "-C", repo, "checkout", "-b", branch],
+                capture_output=True, check=True)
+            _w(os.path.join(repo, "x.txt"), "x")
+            subprocess.run(["git", "-C", repo, "add", "x.txt"],
+                           capture_output=True, check=True)
+            subprocess.run(["git", "-C", repo, "commit", "-m", "x"],
+                           capture_output=True, check=True)
+            expected = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True).stdout.strip()
+            subprocess.run(
+                ["git", "-C", repo, "push", bare,
+                 f"HEAD:refs/heads/{branch}"],
+                capture_output=True, check=True)
+
+            script = _extract_exact_reader_script(bare, branch)
+            r = _run_script(script)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn(f"EXACT_SHA={expected}", r.stdout)
+
+    def test_absent_branch_empty_sha(self) -> None:
+        """Deleted head with tag+nested suffix: exact reader returns
+        empty SHA (absent), not the tag or nested match."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            bare = os.path.join(tmp, "remote.git")
+            subprocess.run(["git", "clone", "--bare", repo, bare],
+                           capture_output=True, check=True)
+            branch = "ux-design/FEAT-101"
+            subprocess.run(
+                ["git", "-C", repo, "checkout", "-b", branch],
+                capture_output=True, check=True)
+            _w(os.path.join(repo, "y.txt"), "y")
+            subprocess.run(["git", "-C", repo, "add", "y.txt"],
+                           capture_output=True, check=True)
+            subprocess.run(["git", "-C", repo, "commit", "-m", "y"],
+                           capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", repo, "push", bare,
+                 f"HEAD:refs/heads/{branch}"],
+                capture_output=True, check=True)
+            # Create tag + nested branch, then delete head
+            subprocess.run(
+                ["git", "-C", bare, "update-ref",
+                 f"refs/tags/{branch}", "HEAD"],
+                capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", bare, "update-ref",
+                 f"refs/heads/other/{branch}", "HEAD"],
+                capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", bare, "update-ref", "-d",
+                 f"refs/heads/{branch}"],
+                capture_output=True, check=True)
+
+            script = _extract_exact_reader_script(bare, branch)
+            r = _run_script(script)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("EXACT_SHA=\n", r.stdout,
+                          "Absent branch must produce empty exact_sha")
+
+    def test_failed_query_exits_nonzero(self) -> None:
+        """Failed ls-remote exits nonzero, never reaches EXACT_SHA.
+
+        Uses a local failing git stub to prove the canonical reader
+        propagates nonzero and never falls through to push/absence."""
+        with tempfile.TemporaryDirectory() as tmp:
+            fake_dir = os.path.join(tmp, "fake-bin")
+            os.makedirs(fake_dir)
+            fake_git = os.path.join(fake_dir, "git")
+            _w(fake_git, '#!/bin/sh\nexit 128\n')
+            os.chmod(fake_git, 0o755)
+
+            script = _extract_exact_reader_script("/dev/null", "test")
+            script = f'export PATH="{fake_dir}:$PATH"\n' + script
+            r = _run_script(script)
+            self.assertNotEqual(r.returncode, 0,
+                                "Failed ls-remote must exit nonzero")
+            self.assertIn("ls-remote query failed", r.stderr)
+            self.assertNotIn("EXACT_SHA", r.stdout,
+                             "Must not reach EXACT_SHA after failure")
+
+    def test_malformed_sha_rejected(self) -> None:
+        """Malformed SHA in ls-remote output causes nonzero exit."""
+        with tempfile.TemporaryDirectory() as tmp:
+            fake_dir = os.path.join(tmp, "fake-bin")
+            os.makedirs(fake_dir)
+            fake_git = os.path.join(fake_dir, "git")
+            _w(fake_git,
+               '#!/bin/sh\nprintf "ZZZNOTASHA\\trefs/heads/test\\n"\n')
+            os.chmod(fake_git, 0o755)
+
+            script = _extract_exact_reader_script("/dev/null", "test")
+            script = f'export PATH="{fake_dir}:$PATH"\n' + script
+            r = _run_script(script)
+            self.assertNotEqual(r.returncode, 0,
+                                "Malformed SHA must cause failure")
+            self.assertIn("malformed SHA", r.stderr)
+
+    def test_duplicate_ref_rejected(self) -> None:
+        """Duplicate ref lines in ls-remote output cause nonzero exit."""
+        with tempfile.TemporaryDirectory() as tmp:
+            fake_dir = os.path.join(tmp, "fake-bin")
+            os.makedirs(fake_dir)
+            fake_git = os.path.join(fake_dir, "git")
+            sha = "a" * 40
+            _w(fake_git,
+               f'#!/bin/sh\nprintf "{sha}\\trefs/heads/test\\n'
+               f'{sha}\\trefs/heads/test\\n"\n')
+            os.chmod(fake_git, 0o755)
+
+            script = _extract_exact_reader_script("/dev/null", "test")
+            script = f'export PATH="{fake_dir}:$PATH"\n' + script
+            r = _run_script(script)
+            self.assertNotEqual(r.returncode, 0,
+                                "Duplicate ref must cause failure")
+            self.assertIn("duplicate ref", r.stderr)
+
+
+class TestR10OwnedPathModeCheck(unittest.TestCase):
+    """Owned-path verification uses ls-tree mode, not just cat-file -e.
+
+    Executable Git proof in disposable temp repos."""
+
+    def test_catfile_accepts_symlink_lstree_rejects(self) -> None:
+        """cat-file -e accepts symlink; ls-tree shows mode 120000."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            d = os.path.join(repo, "feat")
+            os.makedirs(d)
+            _w(os.path.join(d, "real.md"), "content")
+            os.symlink("real.md", os.path.join(d, "link.md"))
+            subprocess.run(["git", "-C", repo, "add", "."],
+                           capture_output=True, check=True)
+            subprocess.run(["git", "-C", repo, "commit", "-m", "link"],
+                           capture_output=True, check=True)
+            sha = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True).stdout.strip()
+
+            # cat-file -e succeeds for both — insufficient
+            for p in ("feat/real.md", "feat/link.md"):
+                r = subprocess.run(
+                    ["git", "-C", repo, "cat-file", "-e", f"{sha}:{p}"],
+                    capture_output=True)
+                self.assertEqual(r.returncode, 0,
+                                 f"cat-file -e accepts {p}")
+
+            # ls-tree distinguishes: regular=100644, symlink=120000
+            t1 = subprocess.run(
+                ["git", "-C", repo, "ls-tree", sha, "--", "feat/real.md"],
+                capture_output=True, text=True)
+            self.assertIn("100644", t1.stdout)
+            t2 = subprocess.run(
+                ["git", "-C", repo, "ls-tree", sha, "--", "feat/link.md"],
+                capture_output=True, text=True)
+            self.assertIn("120000", t2.stdout)
+            self.assertNotIn("100644", t2.stdout)
+
+    def test_recipe_uses_lstree_not_catfile(self) -> None:
+        """Recipe §4 owned-path verification uses ls-tree mode check."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("Owned-path verification", 1)[1].split(
+            "Exact head ref query", 1)[0]
+        flat = " ".join(section.split())
+        self.assertIn("ls-tree", flat)
+        self.assertIn("100644", flat)
+        self.assertIn("100755", flat)
+        self.assertIn("120000", flat)
+        self.assertIn("cat-file -e` alone is insufficient", flat)
+
+
+class TestR10SecurityNormalization(unittest.TestCase):
+    """Both actual and legacy config values normalized before comparison.
+
+    Source contract checks + fixture tests with FAKE URIs only."""
+
+    def test_recipe_normalizes_both_sides(self) -> None:
+        """Recipe push dest validation normalizes both push URL and
+        docs_repo_remote before comparing."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("Push destination validation", 1)[1].split(
+            "On retry", 1)[0]
+        flat = " ".join(section.split())
+        self.assertIn("Normalize", flat)
+        self.assertIn("docs_repo_remote", flat)
+        self.assertIn("legacy", flat)
+        self.assertIn("userinfo", flat)
+        self.assertIn("query", flat)
+        self.assertIn("fragment", flat)
+
+    def test_publish_normalizes_both_sides(self) -> None:
+        """Publish Step 2 normalizes both captured URL and existing
+        config value before comparing."""
+        content = _read("ux-design/skills/publish.md")
+        step2 = content.split("### Step 2:", 1)[1].split(
+            "### Step 3:", 1)[0]
+        flat = " ".join(step2.split())
+        self.assertIn("Normalize both", flat)
+        self.assertIn("userinfo", flat)
+        self.assertIn("query", flat)
+        self.assertIn("fragment", flat)
+
+    def test_normalization_strips_credentials_query_fragment(self) -> None:
+        """Fixture: normalization strips userinfo, query, fragment from
+        FAKE URIs — never reads real checkout credentials."""
+        import re as _re
+        cases = [
+            ("https://u:p@host.invalid/org/repo.git?tok=x#ref",
+             "host.invalid/org/repo"),
+            ("ssh://deploy@host.invalid:2222/org/repo.git",
+             "host.invalid:2222/org/repo"),
+            ("https://host.invalid/org/repo.git",
+             "host.invalid/org/repo"),
+        ]
+        for raw, expected in cases:
+            with self.subTest(raw=raw):
+                cleaned = _re.sub(r'://[^@]+@', '://', raw)
+                cleaned = _re.sub(r'[?#].*$', '', cleaned)
+                m = _re.search(
+                    r'://([^/]+)/([^/]+)/([^/.]+)', cleaned)
+                identity = (f"{m.group(1)}/{m.group(2)}/{m.group(3)}"
+                            if m else "fail")
+                self.assertEqual(identity, expected)
+                self.assertNotIn("u:p", identity)
+                self.assertNotIn("tok", identity)
+
+    def test_normalization_retains_nondefault_port(self) -> None:
+        """Non-default port preserved in canonical identity."""
+        import re as _re
+        raw = "ssh://deploy@host.invalid:2222/org/repo.git"
+        cleaned = _re.sub(r'://[^@]+@', '://', raw)
+        cleaned = _re.sub(r'[?#].*$', '', cleaned)
+        m = _re.search(r'://([^/]+)/([^/]+)/([^/.]+)', cleaned)
+        self.assertIsNotNone(m)
+        identity = f"{m.group(1)}/{m.group(2)}/{m.group(3)}"
+        self.assertIn("2222", identity)
+
+
+class TestR10RespondPositiveBranch(unittest.TestCase):
+    """Respond positive branch covers both text and image-only changes."""
+
+    def test_positive_branch_includes_image_changes(self) -> None:
+        """Positive branch explicitly includes image-only trigger."""
+        content = _read("ux-design/skills/respond.md")
+        step4 = content.split("### Step 4:", 1)[1].split(
+            "### Step 5:", 1)[0]
+        positive = step4.split("handoff text changed OR", 1)
+        self.assertEqual(len(positive), 2,
+                         "Positive branch must include text OR image")
+        header = positive[1].split(":**", 1)[0]
+        flat = " ".join(header.split())
+        self.assertIn("screenshot", flat)
+        self.assertIn("asset", flat)
+        self.assertIn("digest", flat)
+
+    def test_skip_branch_requires_neither(self) -> None:
+        """Skip branch requires no text AND no image changes."""
+        content = _read("ux-design/skills/respond.md")
+        step4 = content.split("### Step 4:", 1)[1].split(
+            "### Step 5:", 1)[0]
+        skip = step4.split("Handoff change needed: No", 1)
+        self.assertEqual(len(skip), 2, "Skip branch must be present")
+        flat = " ".join(skip[1].split(":**", 1)[0].split())
+        self.assertIn("no approved screenshot", flat)
 
 
 if __name__ == "__main__":
