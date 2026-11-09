@@ -28,7 +28,8 @@ per image.
 ### 2. Account for every declared index ID
 
 Read `{HANDOFF_FILE}`'s **Screenshot Index** section and collect all
-declared `SS-N` IDs with their declared ref paths. Match each declared
+declared `SS-N` IDs with their declared ref paths and SHA-256
+prefixes (when the index records them). Match each declared
 ID to an actual image embed (`![...](...)` in the handoff body) by
 **both** the ID and its declared ref path. Consume each embed at most
 once — distinct IDs with the same ref may each match their own embed of
@@ -137,6 +138,18 @@ appears exactly once in the output.
    SHA-256 of the actual image bytes and compare. Record
    `identity: verified`, `identity: mismatched`, or `identity: unverified`
    (when manifest is unavailable).
+
+   **Index checksum prefix.** When the Screenshot Index declares a
+   SHA-256 prefix for this ID, compare the prefix against **both**
+   the full manifest digest and the computed actual-bytes hash. A
+   valid nonempty hex prefix matching both is consistent — identity
+   may be `verified` only when all other gates also pass. A
+   stale or mismatched prefix (does not match either digest) is an
+   identity exception: record `identity: mismatched` and apply the
+   same independent acceptance / accepted-unverified rules as byte
+   identity. A missing or invalid (non-hex) prefix cannot be
+   silently treated as verified; preserve existing text-only or
+   unverified decision paths.
 
 2. **Open and visually inspect** using the runtime's image reading
    capability (the `Read` tool on the file path). Reading markdown,

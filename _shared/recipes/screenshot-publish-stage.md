@@ -157,7 +157,7 @@ ownership or adopting unknown ahead commits.
 | `candidate_screenshot_assets` | Array of `{id, filename, sha256, published_path}` entries |
 | `upstream_prd_path` | Repo-relative path to PRD (frozen at preparation; preserved on updates) |
 | `upstream_design_path` | Repo-relative path to design doc (frozen at preparation; preserved on updates) |
-| `push_destination` | Validated push target (`{host}:{owner}/{repo}` canonical form) |
+| `push_destination` | Validated push target (`{host}/{owner}/{repo}` canonical form; non-default port appended as `{host}:{port}/{owner}/{repo}`) |
 | `timestamp` | ISO 8601 when the attempt was recorded |
 
 The `pending_attempt` record is private authoring state — do not copy
@@ -187,10 +187,13 @@ pushing, resolve effective push destination(s):
 rules to reveal actual targets. Validate:
 
 1. Exactly one push URL exists (single approved destination).
-2. Its canonical `{host}:{owner}/{repo}` identity matches
-   `docs_repo_remote`. SSH/HTTPS equivalents of the same host are
-   allowed; host mismatch or unverifiable host stops without
-   adopting. Credential-bearing URLs must not be persisted or logged.
+2. Its canonical `{host}/{owner}/{repo}` identity (with
+   non-default port: `{host}:{port}/{owner}/{repo}`) matches
+   `docs_repo_remote`. SSH (port 22) and HTTPS (port 443) are
+   default and equivalent; an explicit non-default port difference
+   or unverifiable port mapping stops and retains `pending_attempt`.
+   Host mismatch stops without adopting. Credential-bearing URLs
+   must not be persisted or logged.
 3. If multiple push URLs exist, the identity does not match, or
    resolution fails, stop — do not push or adopt the unverified
    destination.
@@ -259,17 +262,26 @@ push destination matches `pending_attempt.commit_sha` exactly. Then:
    unavailable tool → stop without writing final metadata; retain
    `pending_attempt`.
    For a new PR (`pr_number` is `null`): derive `{owner}/{repo}` from
-   `docs_repo_remote`, then look up PRs with head `branch` and base
-   `base_branch` in that repo. For each candidate, verify the PR's
-   head repository matches the canonical `{host}:{owner}/{repo}`
+   `docs_repo_remote`, then look up PRs in **all states** by
+   canonical head repository and head `branch` only — **without**
+   filtering by `base_branch`. For each candidate, verify the PR's
+   head repository matches the canonical `{host}/{owner}/{repo}`
    from `docs_repo_remote` — a different fork with the same branch
-   name is not a match. Reuse a matching open PR; preserve its
-   draft/ready status. If a matching PR is closed or merged
-   (terminal), stop — do not create a replacement; report to the
-   researcher. If no matching PR exists and the original intent was
-   new publication, create it as a draft. A known PR identity is
-   required before writing metadata. Record `pr_number`, `branch`,
-   and `handoff_file_path`.
+   name is not a match. Then check `base_branch` on each matched
+   candidate:
+   - **Retargeted base** (head repo+branch matches but base
+     differs from `pending_attempt.base_branch`): stop and retain
+     `pending_attempt` for researcher reconciliation — do not
+     create another PR or auto-retarget.
+   - **Terminal** (closed or merged): stop — do not create a
+     replacement; report to the researcher.
+   - **Open with matching base**: reuse; preserve its draft/ready
+     status.
+   - **No candidate found** and the original intent was new
+     publication: create as a draft. Respect `/respond` limited
+     permissions — direct to `/publish` when creation is needed.
+   A known PR identity is required before writing metadata. Record
+   `pr_number`, `branch`, and `handoff_file_path`.
 
 For first-publish recovery where path-resolution steps are
 skipped, verify `upstream_prd_path` and `upstream_design_path`

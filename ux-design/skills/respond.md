@@ -296,8 +296,15 @@ refuse if unexpected ahead commits appear. If a prior invocation
 committed but the push failed, this retries without re-running the
 removal/copy steps.
 
+Re-resolve the effective push destination
+(`git remote get-url --push --all origin`) and verify its canonical
+identity matches `pending_attempt.push_destination` before pushing.
+Push with the explicit remote and recorded branch refspec — do not
+rely on `push.default`, `branch.*.pushRemote`, or
+`remote.pushDefault` to choose the target:
+
 ```bash
-git -C "{docs_repo_path}" push
+git -C "{docs_repo_path}" push origin "HEAD:refs/heads/{branch}"
 ```
 
 Only update `publish-metadata.json` `screenshot_assets` after the push

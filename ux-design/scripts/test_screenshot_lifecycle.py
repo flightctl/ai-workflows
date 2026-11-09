@@ -21,6 +21,7 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import sys
 import tempfile
 import textwrap
 import unittest
@@ -2162,33 +2163,32 @@ class TestR4PRRecovery(unittest.TestCase):
         self.assertIn("required before writing metadata", flat)
 
     def test_null_pr_lookup_or_create(self) -> None:
-        """Null pr_number triggers lookup; reuses open PR or creates if
-        none; stops on terminal (closed/merged) PR."""
+        """Null pr_number triggers lookup by head repo+branch first;
+        reuses open PR or creates if none; stops on terminal."""
         content = _read("_shared/recipes/screenshot-publish-stage.md")
         after_push = content.split("After successful push", 1)[1].split(
             "Already-pushed", 1
         )[0]
         flat = " ".join(after_push.split())
         self.assertIn("null", flat.lower())
-        self.assertIn("open PR", flat)
-        self.assertIn("terminal", flat)
+        self.assertIn("all states", flat.lower())
+        self.assertIn("Terminal", flat)
         self.assertIn("stop", flat.lower())
 
     def test_pr_lookup_uses_repo_head_base(self) -> None:
-        """PR lookup uses all three identity inputs: repo (from
-        docs_repo_remote), head (branch), and base (base_branch).
-        Prose contract, NOT live API execution."""
+        """PR lookup uses head repo+branch first, then checks base
+        on each candidate. Prose contract, NOT live API."""
         content = _read("_shared/recipes/screenshot-publish-stage.md")
         after_push = content.split("After successful push", 1)[1].split(
             "Already-pushed", 1
         )[0]
         flat = " ".join(after_push.split())
         self.assertIn("docs_repo_remote", flat)
-        self.assertIn("`branch`", flat)
-        self.assertIn("`base_branch`", flat)
+        self.assertIn("head `branch`", flat)
+        self.assertIn("base_branch", flat)
         # Terminal PR inspected before any create
-        terminal_pos = flat.find("terminal")
-        create_pos = flat.find("create it")
+        terminal_pos = flat.find("Terminal")
+        create_pos = flat.find("No candidate found")
         self.assertGreater(terminal_pos, -1,
                            "Terminal PR rule must be present")
         self.assertGreater(create_pos, -1,
@@ -2476,7 +2476,7 @@ class TestR5HeadRepoIdentity(unittest.TestCase):
             "Already-pushed", 1
         )[0]
         flat = " ".join(after_push.split())
-        self.assertIn("{host}:{owner}/{repo}", flat)
+        self.assertIn("{host}/{owner}/{repo}", flat)
         self.assertIn("docs_repo_remote", flat)
         self.assertIn("different fork", flat)
         self.assertIn("not a match", flat)
@@ -2733,7 +2733,7 @@ class TestGitEnvQuarantine(unittest.TestCase):
             ''')
 
             child = subprocess.run(
-                ["python3", "-c", child_script],
+                [sys.executable, "-c", child_script],
                 capture_output=True, text=True, env=child_env,
                 cwd=tmp,
             )
@@ -2808,7 +2808,7 @@ class TestGitEnvQuarantine(unittest.TestCase):
             ''')
 
             child = subprocess.run(
-                ["python3", "-c", child_script],
+                [sys.executable, "-c", child_script],
                 capture_output=True, text=True, env=child_env,
                 cwd=tmp,
             )
@@ -2917,7 +2917,7 @@ class TestGitEnvQuarantine(unittest.TestCase):
             ''')
 
             child = subprocess.run(
-                ["python3", "-c", child_script],
+                [sys.executable, "-c", child_script],
                 capture_output=True, text=True, env=child_env,
                 cwd=tmp,
             )
@@ -3082,7 +3082,7 @@ class TestR6PushDestination(unittest.TestCase):
         content = _read("_shared/recipes/screenshot-publish-stage.md")
         section = content.split("Pending attempt record", 1)[1]
         self.assertIn("`push_destination`", section)
-        self.assertIn("{host}:{owner}/{repo}", section)
+        self.assertIn("{host}/{owner}/{repo}", section)
 
     def test_single_approved_destination(self) -> None:
         """Recipe requires exactly one push URL."""
@@ -3096,13 +3096,15 @@ class TestR6PushDestination(unittest.TestCase):
         self.assertIn("stop", flat.lower())
 
     def test_ssh_https_equivalence(self) -> None:
-        """SSH/HTTPS equivalents of same host are valid identity."""
+        """SSH/HTTPS default ports are equivalent; host mismatch stops."""
         content = _read("_shared/recipes/screenshot-publish-stage.md")
         section = content.split("Push destination validation", 1)[1].split(
             "On retry", 1
         )[0]
-        self.assertIn("SSH/HTTPS equivalents", section)
-        self.assertIn("host mismatch", section)
+        self.assertIn("SSH", section)
+        self.assertIn("HTTPS", section)
+        self.assertIn("equivalent", section)
+        self.assertIn("Host mismatch", section)
 
     def test_no_credential_persistence(self) -> None:
         """Credential-bearing URLs must not be persisted or logged."""
@@ -3342,6 +3344,247 @@ class TestR6UpstreamPathRecovery(unittest.TestCase):
         self.assertIn("screenshot-publish-stage.md", flat)
         self.assertIn("expected_base", flat)
         self.assertIn("before creating the owned commit", flat)
+
+
+class TestR7IndexChecksumPrefix(unittest.TestCase):
+    """4517026871: index SHA-256 prefix 3-way identity check."""
+
+    def test_s2_collects_sha_prefixes(self) -> None:
+        """§2 collects SHA-256 prefixes from the Screenshot Index."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s2 = content.split("### 2.", 1)[1].split("### 3.", 1)[0]
+        self.assertIn("SHA-256", s2)
+        self.assertIn("prefix", s2)
+
+    def test_s4_prefix_vs_manifest_and_bytes(self) -> None:
+        """§4.1 compares index prefix against both manifest digest
+        and computed actual-bytes hash."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s4 = content.split("Index checksum prefix", 1)
+        self.assertEqual(len(s4), 2, "Index checksum prefix section missing")
+        block = s4[1].split("**Open and visually inspect**", 1)[0]
+        flat = " ".join(block.split())
+        self.assertIn("manifest digest", flat)
+        self.assertIn("actual-bytes hash", flat)
+        self.assertIn("both", flat.lower())
+
+    def test_s4_stale_prefix_identity_exception(self) -> None:
+        """Stale/mismatched prefix is an identity exception."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        block = content.split("Index checksum prefix", 1)[1].split(
+            "**Open and visually inspect**", 1)[0]
+        flat = " ".join(block.split())
+        self.assertIn("mismatched", flat)
+        self.assertIn("identity exception", flat)
+        self.assertIn("accepted-unverified", flat)
+
+    def test_s4_missing_prefix_not_silent(self) -> None:
+        """Missing/invalid prefix cannot be silently verified."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        block = content.split("Index checksum prefix", 1)[1].split(
+            "**Open and visually inspect**", 1)[0]
+        flat = " ".join(block.split())
+        self.assertIn("missing", flat.lower())
+        self.assertIn("silently", flat)
+        self.assertIn("unverified", flat)
+
+
+class TestR7PushPort(unittest.TestCase):
+    """4517026884: port in push destination identity."""
+
+    def test_canonical_form_includes_port(self) -> None:
+        """push_destination format documents non-default port."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("Pending attempt record", 1)[1]
+        self.assertIn("non-default port", section)
+        self.assertIn("{host}:{port}/{owner}/{repo}", section)
+
+    def test_default_port_equivalence(self) -> None:
+        """SSH 22 and HTTPS 443 are default and equivalent."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("Push destination validation", 1)[1].split(
+            "On retry", 1)[0]
+        flat = " ".join(section.split())
+        self.assertIn("port 22", flat)
+        self.assertIn("port 443", flat)
+        self.assertIn("equivalent", flat)
+
+    def test_nondefault_port_difference_stops(self) -> None:
+        """Non-default port difference stops and retains pending."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("Push destination validation", 1)[1].split(
+            "On retry", 1)[0]
+        flat = " ".join(section.split())
+        self.assertIn("non-default port difference", flat)
+        self.assertIn("stops", flat)
+        self.assertIn("pending_attempt", flat)
+
+
+class TestR7NullPRLookupOrder(unittest.TestCase):
+    """4517026897: null PR lookup by head repo+branch first."""
+
+    def test_lookup_without_base_filter(self) -> None:
+        """Null PR lookup searches all states by head repo+branch
+        without filtering by base_branch."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("pr_number` is `null`", 1)[1].split(
+            "first-publish recovery", 1)[0]
+        flat = " ".join(section.split())
+        self.assertIn("all states", flat.lower())
+        self.assertIn("without", flat.lower())
+        self.assertIn("base_branch", flat)
+
+    def test_retargeted_base_stops(self) -> None:
+        """Retargeted base stops and retains pending for reconciliation."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("pr_number` is `null`", 1)[1].split(
+            "first-publish recovery", 1)[0]
+        flat = " ".join(section.split())
+        self.assertIn("Retargeted base", flat)
+        self.assertIn("stop", flat.lower())
+        self.assertIn("reconciliation", flat)
+
+    def test_terminal_before_create(self) -> None:
+        """Terminal PR stops before create; create only with no candidate."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("pr_number` is `null`", 1)[1].split(
+            "first-publish recovery", 1)[0]
+        terminal_pos = section.find("Terminal")
+        create_pos = section.find("No candidate found")
+        self.assertGreater(terminal_pos, -1)
+        self.assertGreater(create_pos, -1)
+        self.assertLess(terminal_pos, create_pos,
+                        "Terminal check must precede create")
+
+    def test_respond_directed_to_publish(self) -> None:
+        """Respond limited permissions directs to /publish for creation."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("pr_number` is `null`", 1)[1].split(
+            "first-publish recovery", 1)[0]
+        self.assertIn("/respond", section)
+        self.assertIn("/publish", section)
+
+
+class TestR7RespondExplicitPush(_RecipeExecMixin, unittest.TestCase):
+    """4517026897 outside: respond uses explicit remote + refspec."""
+
+    def test_respond_explicit_push_command(self) -> None:
+        """respond.md push uses explicit origin + refs/heads refspec."""
+        content = _read("ux-design/skills/respond.md")
+        flat = " ".join(content.split())
+        self.assertIn('push origin "HEAD:refs/heads/{branch}"', flat)
+        self.assertNotIn("git push\n", content.split("```bash")[
+            -1].split("```")[0])
+
+    def test_respond_no_default_selection(self) -> None:
+        """respond.md forbids push.default/pushRemote target selection."""
+        content = _read("ux-design/skills/respond.md")
+        flat = " ".join(content.split())
+        self.assertIn("push.default", flat)
+        self.assertIn("pushRemote", flat)
+        self.assertIn("do not", flat.lower())
+
+    def test_respond_revalidates_push_dest_before_push(self) -> None:
+        """respond.md re-resolves push URL before pushing."""
+        content = _read("ux-design/skills/respond.md")
+        push_section = content.split("retries without re-running", 1)[1]
+        push_section = push_section.split("Only update", 1)[0]
+        flat = " ".join(push_section.split())
+        self.assertIn("get-url --push --all", flat)
+        self.assertIn("push_destination", flat)
+
+    def test_misleading_push_remote_probe(self) -> None:
+        """Git primitive proof: explicit push origin HEAD:refs/heads/branch
+        targets the validated origin push URL, ignoring a misleading
+        branch.*.pushRemote config pointing elsewhere.
+
+        Uses disposable bare remotes; never touches real checkout."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            origin_bare = os.path.join(tmp, "origin.git")
+            other_bare = os.path.join(tmp, "other.git")
+            subprocess.run(["git", "clone", "--bare", repo, origin_bare],
+                           capture_output=True, check=True)
+            subprocess.run(["git", "clone", "--bare", repo, other_bare],
+                           capture_output=True, check=True)
+            old_head = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True).stdout.strip()
+
+            # Configure origin + other remote
+            subprocess.run(
+                ["git", "-C", repo, "remote", "add", "origin", origin_bare],
+                capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", repo, "remote", "add", "other", other_bare],
+                capture_output=True, check=True)
+            # Set misleading pushRemote on main
+            subprocess.run(
+                ["git", "-C", repo, "config",
+                 "branch.main.pushRemote", "other"],
+                capture_output=True, check=True)
+
+            # New commit
+            _w(os.path.join(repo, "explicit.txt"), "proof\n")
+            subprocess.run(["git", "-C", repo, "add", "explicit.txt"],
+                           capture_output=True, check=True)
+            subprocess.run(["git", "-C", repo, "commit", "-m", "explicit"],
+                           capture_output=True, check=True)
+            new_head = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True).stdout.strip()
+
+            # Explicit push to origin (ignores pushRemote)
+            push = subprocess.run(
+                ["git", "-C", repo, "push", "origin",
+                 "HEAD:refs/heads/main"],
+                capture_output=True, text=True)
+            self.assertEqual(push.returncode, 0, push.stderr)
+
+            # Origin advanced
+            origin_ref = subprocess.run(
+                ["git", "-C", origin_bare, "rev-parse", "main"],
+                capture_output=True, text=True).stdout.strip()
+            self.assertEqual(origin_ref, new_head,
+                             "Origin must advance to new commit")
+
+            # Other unchanged (misleading pushRemote not used)
+            other_ref = subprocess.run(
+                ["git", "-C", other_bare, "rev-parse", "main"],
+                capture_output=True, text=True).stdout.strip()
+            self.assertEqual(other_ref, old_head,
+                             "Other remote must be unchanged")
+
+
+class TestR7ChildInterpreter(unittest.TestCase):
+    """5831473096 outside: child launches use sys.executable."""
+
+    def test_no_hardcoded_python3_in_subprocess(self) -> None:
+        """Child subprocess launches use sys.executable, not 'python3'."""
+        content = _read("ux-design/scripts/test_screenshot_lifecycle.py")
+        # All subprocess child launches must use sys.executable
+        self.assertIn("[sys.executable,", content)
+        # No subprocess.run with hardcoded python3 for child scripts
+        import re as _re
+        hits = _re.findall(
+            r'subprocess\.run\(\s*\["python3"', content)
+        self.assertEqual(len(hits), 0,
+                         "subprocess.run with hardcoded python3 found")
+
+    def test_child_interpreter_matches_parent(self) -> None:
+        """Child process launched with sys.executable uses the same
+        interpreter as the parent."""
+        result = subprocess.run(
+            [sys.executable, "-c",
+             "import sys; print(sys.executable)"],
+            capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0)
+        child_exe = result.stdout.strip()
+        # Both resolve to the same real path
+        self.assertEqual(
+            os.path.realpath(sys.executable),
+            os.path.realpath(child_exe),
+            "Child interpreter must match parent")
 
 
 class TestR6QuarantineExtended(unittest.TestCase):
