@@ -270,9 +270,11 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 - `MANIFEST_REMOVED="true"` if the consumer manifest was removed (all screenshots deleted)
 - `COMMIT_MESSAGE="UX design {issue-key}: address review feedback"`
 
-Push only when unpushed commits exist (the branch is ahead of its
-remote tracking ref). If a prior invocation committed but the push
-failed, this recovers without re-running the removal/copy steps.
+Push only when unpushed commits exist. Before pushing, verify the
+local branch HEAD matches the commit SHA from the staging recipe;
+refuse if unexpected ahead commits appear. If a prior invocation
+committed but the push failed, this retries without re-running the
+removal/copy steps.
 
 ```bash
 git -C "{docs_repo_path}" push
@@ -282,6 +284,8 @@ Only update `publish-metadata.json` `screenshot_assets` after the push
 succeeds. If push failed, preserve previous metadata unchanged. Set
 `screenshot_storage` to `none` only after successful push when all
 screenshots have been removed.
+If push succeeded but metadata write fails, recover by re-reading
+the branch HEAD and screenshot state without creating a new commit.
 
 **If "Handoff change needed: No":**
 

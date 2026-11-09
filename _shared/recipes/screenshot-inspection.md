@@ -152,9 +152,10 @@ must not rerun image inspection. Evaluate each image in rule order:
 other status (`unavailable`, `lfs-unresolved`, `fetch-failed`,
 `inspection-not-supported`) → **ineligible**. Do not cite.
 
-**Rule 2 — Identity.** If `identity` is `mismatched` or `unverified`,
-the user must explicitly accept that specific exception. Rejected or
-unprompted → **ineligible**.
+**Rule 2 — Identity.** `identity` must be `verified` (no action
+needed), or `mismatched`/`unverified` with explicit per-image user
+acceptance. Any other value, or a rejected/unprompted/deferred
+decision → **ineligible**.
 
 **Rule 3 — Bindings.** Each binding (`context_revision`,
 `prototype_iteration`) that is `mismatched` or `unknown` requires its

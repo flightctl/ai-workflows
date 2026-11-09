@@ -947,6 +947,153 @@ class TestRecipeExecution(unittest.TestCase):
         self.assertEqual(len(blocks), 3,
                          f"Recipe should have 3 bash blocks, got {len(blocks)}")
 
+    # --- T12: Push failure with pre-receive hook rejection ---
+    def test_push_rejected_then_retry_succeeds(self) -> None:
+        """F6 regression (Git execution): pre-receive hook rejects first
+        push. Recipe is idempotent on retry; second push delivers the
+        original commit exactly. Metadata pattern: unchanged on failure.
+
+        Scope: documented recipe Bash blocks + manual push in disposable
+        Git repos with a local bare remote. NOT live network push."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            bare = os.path.join(tmp, "remote.git")
+            subprocess.run(["git", "clone", "--bare", repo, bare],
+                           capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", repo, "remote", "add", "origin", bare],
+                capture_output=True, check=True,
+            )
+            subprocess.run(
+                ["git", "-C", repo, "push", "-u", "origin", "main"],
+                capture_output=True, check=True,
+            )
+            # Point bare repo hooks at its own dir (workspace overrides
+            # core.hooksPath globally; disposable test repos need their own)
+            hooks_dir = os.path.join(bare, "hooks")
+            subprocess.run(
+                ["git", "-C", bare, "config", "core.hooksPath", hooks_dir],
+                capture_output=True, check=True,
+            )
+            hook = os.path.join(hooks_dir, "pre-receive")
+            marker = os.path.join(bare, ".reject-once")
+            _w(marker, "")
+            _w(hook, f'#!/bin/sh\n'
+                     f'if [ -f "{marker}" ]; then rm -f "{marker}"; exit 1; fi\n'
+                     f'exit 0\n')
+            os.chmod(hook, 0o755)
+
+            d = os.path.join(repo, "feat/PROJ-PF")
+            os.makedirs(d)
+            _w(os.path.join(d, "handoff.md"), "# Push fail\n")
+            _w(os.path.join(repo, "unrel-staged.txt"), "s")
+            subprocess.run(["git", "-C", repo, "add", "unrel-staged.txt"],
+                           capture_output=True, check=True)
+            _w(os.path.join(repo, "unrel-dirty.txt"), "d")
+
+            r1 = self._exec(repo, "feat/PROJ-PF/handoff.md", "feat/PROJ-PF",
+                            msg="Handoff for push test")
+            self.assertEqual(r1.returncode, 0, r1.stderr)
+            expected = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True,
+            ).stdout.strip()
+
+            # First push REJECTED
+            p1 = subprocess.run(
+                ["git", "-C", repo, "push", "origin", "main"],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(p1.returncode, 0, "First push must fail")
+
+            # Recipe retry: no new commit
+            r2 = self._exec(repo, "feat/PROJ-PF/handoff.md", "feat/PROJ-PF",
+                            msg="Must NOT appear")
+            self.assertEqual(r2.returncode, 0, r2.stderr)
+            self.assertEqual(
+                expected,
+                subprocess.run(["git", "-C", repo, "rev-parse", "HEAD"],
+                               capture_output=True, text=True).stdout.strip(),
+                "No duplicate commit on retry",
+            )
+
+            # Second push SUCCEEDS
+            p2 = subprocess.run(
+                ["git", "-C", repo, "push", "origin", "main"],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(p2.returncode, 0, p2.stderr)
+            remote = subprocess.run(
+                ["git", "-C", bare, "rev-parse", "main"],
+                capture_output=True, text=True,
+            ).stdout.strip()
+            self.assertEqual(expected, remote, "Remote SHA must match exactly")
+
+            # Unrelated files survive
+            st = subprocess.run(
+                ["git", "-C", repo, "status", "--porcelain"],
+                capture_output=True, text=True,
+            )
+            self.assertIn("unrel-staged.txt", st.stdout)
+            self.assertIn("unrel-dirty.txt", st.stdout)
+
+    # --- T13: Changed handoff after committed removals ---
+    def test_changed_handoff_after_committed_removal(self) -> None:
+        """F6 regression (Git execution): after git-rm + commit, handoff
+        changes. Re-running recipe with stale removal paths must not error
+        on absent pathspecs; commits only the new handoff content.
+
+        Scope: documented recipe Bash blocks in disposable Git repos."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            d = os.path.join(repo, "feat/PROJ-CR")
+            sd = os.path.join(d, "screenshots")
+            os.makedirs(sd)
+            _w(os.path.join(d, "handoff.md"), "# CR v1\n")
+            _w(os.path.join(d, "screenshot-manifest.json"), "{}")
+            _w(os.path.join(sd, "SS-1-cr.png"), "img")
+            self._exec(repo, "feat/PROJ-CR/handoff.md", "feat/PROJ-CR",
+                        copied=["SS-1-cr.png"], manifest_written=True,
+                        msg="Init CR test")
+            subprocess.run(
+                ["git", "-C", repo, "rm",
+                 "feat/PROJ-CR/screenshots/SS-1-cr.png"],
+                capture_output=True, check=True,
+            )
+            subprocess.run(
+                ["git", "-C", repo, "rm",
+                 "feat/PROJ-CR/screenshot-manifest.json"],
+                capture_output=True, check=True,
+            )
+            _w(os.path.join(d, "handoff.md"), "# CR v2\n")
+            r1 = self._exec(repo, "feat/PROJ-CR/handoff.md", "feat/PROJ-CR",
+                            removed=["SS-1-cr.png"], manifest_removed=True,
+                            msg="Remove + v2")
+            self.assertEqual(r1.returncode, 0, r1.stderr)
+            sha1 = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True,
+            ).stdout.strip()
+
+            # Change handoff again, stale removal paths
+            _w(os.path.join(d, "handoff.md"), "# CR v3\n")
+            r2 = self._exec(repo, "feat/PROJ-CR/handoff.md", "feat/PROJ-CR",
+                            removed=["SS-1-cr.png"], manifest_removed=True,
+                            msg="Retry v3")
+            self.assertEqual(r2.returncode, 0, r2.stderr)
+            sha2 = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True,
+            ).stdout.strip()
+            self.assertNotEqual(sha1, sha2, "New handoff must create commit")
+            show = subprocess.run(
+                ["git", "-C", repo, "diff-tree", "--no-commit-id",
+                 "--name-only", "-r", "HEAD"],
+                capture_output=True, text=True,
+            )
+            self.assertIn("handoff.md", show.stdout)
+            self.assertNotIn("SS-1-cr.png", show.stdout)
+
     # --- T10: Failed push retry — commit idempotent, push recovers ---
     def test_failed_push_retry_commit_idempotent(self) -> None:
         """Finding 6 regression (contract + Git execution): after a commit
@@ -1184,7 +1331,7 @@ class TestPR159FindingRegressions(unittest.TestCase):
         step8 = content.split("### Step 8:", 1)[1].split("### Step 9:", 1)[0]
         flat = " ".join(step8.split())
         self.assertIn("unpushed commits", flat)
-        self.assertIn("recovers without re-running", flat)
+        self.assertIn("retries without re-running", flat)
 
     def test_f6_publish_git_rm_only_if_tracked(self) -> None:
         """Publish Step 6 only git-rm paths that are still tracked."""
@@ -1204,7 +1351,7 @@ class TestPR159FindingRegressions(unittest.TestCase):
         content = _read("ux-design/skills/respond.md")
         flat = " ".join(content.split())
         self.assertIn("unpushed commits", flat)
-        self.assertIn("recovers without re-running", flat)
+        self.assertIn("retries without re-running", flat)
 
     def test_f6_respond_git_rm_only_if_tracked(self) -> None:
         """Respond only git-rm files still tracked."""
@@ -1236,6 +1383,96 @@ class TestPR159FindingRegressions(unittest.TestCase):
         self.assertIn("Prior Ingest", step2a)
         # No Git-root absolute requirement
         self.assertNotIn("git rev-parse --show-toplevel", step2)
+
+    # --- A: Push verification: owned-commit + unexpected-ahead refusal ---
+
+    def test_a_publish_owned_commit_verification(self) -> None:
+        """A: publish verifies commit SHA before push, refuses unexpected."""
+        content = _read("ux-design/skills/publish.md")
+        step8 = content.split("### Step 8:", 1)[1].split("### Step 9:", 1)[0]
+        flat = " ".join(step8.split())
+        self.assertIn("commit SHA from Step 6", flat)
+        self.assertIn("unexpected ahead commits", flat)
+        self.assertIn("refuse", flat)
+
+    def test_a_respond_owned_commit_verification(self) -> None:
+        """A: respond verifies commit SHA before push, refuses unexpected."""
+        content = _read("ux-design/skills/respond.md")
+        flat = " ".join(content.split())
+        self.assertIn("commit SHA from the staging recipe", flat)
+        self.assertIn("unexpected ahead commits", flat)
+
+    def test_a_publish_metadata_write_failure_recovery(self) -> None:
+        """A: publish Step 9 handles push-ok + metadata-write-failure."""
+        content = _read("ux-design/skills/publish.md")
+        step9 = content.split("Step 9:", 1)[1].split("Step 10:", 1)[0]
+        flat = " ".join(step9.split())
+        self.assertIn("metadata write fails", flat)
+        self.assertIn("without creating a new commit", flat)
+
+    def test_a_respond_metadata_write_failure_recovery(self) -> None:
+        """A: respond handles push-ok + metadata-write-failure."""
+        content = _read("ux-design/skills/respond.md")
+        flat = " ".join(content.split())
+        self.assertIn("metadata write fails", flat)
+        self.assertIn("without creating a new commit", flat)
+
+    # --- B: Plan lead text requires eligible, not just inspected ---
+
+    def test_b_plan_lead_requires_eligible(self) -> None:
+        """B: plan Step 2 lead says 'eligible' not 'inspected' for
+        screenshot citation, ensuring all-rejected produces no citations."""
+        content = _read("ui-design/skills/plan.md")
+        lead = content.split("### Step 2:", 1)[1].split("### Step 3:", 1)[0]
+        # Lead text uses 'eligible' not 'cite inspected'
+        self.assertNotIn("cite inspected screenshot", lead)
+        self.assertIn("eligible screenshot", lead)
+        # Checklist uses 'eligible images exist'
+        checklist = content.split("### Step 5:", 1)[1].split("### Step 6:", 1)[0]
+        self.assertIn("eligible images exist", checklist)
+        self.assertNotIn("HAS_SCREENSHOTS` is true or partial", checklist)
+
+    # --- C: Rule 2 fail-closed for unrecognized identity values ---
+
+    def test_c_rule2_fail_closed(self) -> None:
+        """C: Rule 2 requires identity to be one of verified/mismatched/
+        unverified; any other value is ineligible (fail-closed)."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        elig = content.split("Eligibility and citation rules", 1)[1]
+        r2 = elig.split("Rule 2", 1)[1].split("Rule 3", 1)[0]
+        flat = " ".join(r2.split())
+        # Must be verified (pass) or mismatched/unverified (need acceptance)
+        self.assertIn("`verified`", flat)
+        self.assertIn("`mismatched`/`unverified`", flat)
+        # Any other value blocks
+        self.assertIn("Any other value", flat)
+        # Deferred decisions also block
+        self.assertIn("deferred", flat)
+
+    # --- D: Restored safety constraints ---
+
+    def test_d_lfs_stop_on_missing_init(self) -> None:
+        """D: publish stops when lfs selected but LFS not initialized."""
+        content = _read("ux-design/skills/publish.md")
+        flat = " ".join(content.split())
+        self.assertIn("not initialized", flat)
+        self.assertIn("do not auto-enable", flat)
+
+    def test_d_external_immutable_urls(self) -> None:
+        """D: publish requires immutable revision-bound external URLs."""
+        content = _read("ux-design/skills/publish.md")
+        flat = " ".join(content.split())
+        self.assertIn("immutable and revision-bound", flat)
+        self.assertIn("reject mutable or expiring", flat)
+
+    def test_d_removal_path_validation(self) -> None:
+        """D: publish reconcile removals validates path containment."""
+        content = _read("ux-design/skills/publish.md")
+        removals = content.split("Reconcile removals", 1)[1].split(
+            "Publish consumer manifest", 1
+        )[0]
+        flat = " ".join(removals.split())
+        self.assertIn("validate path inside", flat)
 
 
 if __name__ == "__main__":

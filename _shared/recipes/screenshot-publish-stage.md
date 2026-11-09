@@ -71,18 +71,31 @@ done
 
 Use `--only` with the full allowlist so only owned paths are committed.
 Unrelated staged/index and unstaged/worktree changes survive untouched.
+Filter out paths no longer known to git (already-committed deletions
+from a prior run) so `commit --only` does not fail on unknown pathspecs.
 
 ```bash
-git -C "{DOCS_REPO_PATH}" diff --cached --quiet -- "${owned_paths[@]}"
-rc=$?
-if [ "$rc" -eq 0 ]; then
-  echo "No changes to owned paths; skipping commit."
-elif [ "$rc" -eq 1 ]; then
-  git -C "{DOCS_REPO_PATH}" commit --only \
-    -m "{COMMIT_MESSAGE}" \
-    -- "${owned_paths[@]}"
+commit_paths=()
+for p in "${owned_paths[@]}"; do
+  if [ -f "{DOCS_REPO_PATH}/$p" ] || git -C "{DOCS_REPO_PATH}" ls-files --error-unmatch "$p" >/dev/null 2>&1; then
+    commit_paths+=("$p")
+  fi
+done
+
+if [ ${#commit_paths[@]} -eq 0 ]; then
+  echo "No owned paths present; skipping commit."
 else
-  echo "Git error (exit $rc); stopping." >&2; exit "$rc"
+  git -C "{DOCS_REPO_PATH}" diff --cached --quiet -- "${commit_paths[@]}"
+  rc=$?
+  if [ "$rc" -eq 0 ]; then
+    echo "No changes to owned paths; skipping commit."
+  elif [ "$rc" -eq 1 ]; then
+    git -C "{DOCS_REPO_PATH}" commit --only \
+      -m "{COMMIT_MESSAGE}" \
+      -- "${commit_paths[@]}"
+  else
+    echo "Git error (exit $rc); stopping." >&2; exit "$rc"
+  fi
 fi
 ```
 

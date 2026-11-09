@@ -246,9 +246,11 @@ alone.
    explicit choice. Do not default to any mode.
 
 **Constraints:** `.gitattributes` LFS patterns alone are not a policy
-choice; do not auto-commit images or auto-enable LFS tracking. Do not
-invent external upload providers. Store the policy in
-`publish-metadata.json` for subsequent updates.
+choice. If `lfs` is selected but LFS is not initialized or tracking
+patterns are missing, stop — do not auto-enable. External URLs must
+be immutable and revision-bound; reject mutable or expiring links.
+Do not invent upload providers. Store the policy in
+`publish-metadata.json`.
 
 ### Step 6: Create or Update Branch and Commit
 
@@ -330,10 +332,10 @@ handoff; preserve authoring references in `05-handoff.md`.
 
 **Reconcile removals** (update publishes only). Compare previous
 `screenshot_assets` against the current manifest. For removed IDs:
-`lfs`/`git` — `git rm` only if still tracked; `external` — remove
-embed/index entries. If all removed, also `git rm` the consumer
-manifest if tracked, and set `screenshot_storage` to `none` after
-commit.
+`lfs`/`git` — validate path inside `{docs_repo_root}`, then `git rm`
+only if still tracked; `external` — remove embed/index entries. If
+all removed, also `git rm` the consumer manifest if tracked, and set
+`screenshot_storage` to `none` after commit.
 
 **Publish consumer manifest.** When any screenshots remain after
 removals, write `{destination_dir}/screenshot-manifest.json` with `id`,
@@ -402,10 +404,11 @@ Prepare the PR description and save it to
 ### Step 8: Push and Create PR
 
 **For an existing PR**, push to its branch when unpushed commits
-exist (the branch is ahead of its remote tracking ref). Keep its PR
-number, URL, and draft/ready status; do not run `gh pr create`. If a
-prior invocation committed but the push failed, this recovers without
-re-running Steps 4–7.
+exist. Before pushing, verify the local branch HEAD matches the
+commit SHA from Step 6; refuse if unexpected ahead commits appear.
+Keep its PR number, URL, and draft/ready status; do not run
+`gh pr create`. If a prior invocation committed but the push
+failed, this retries without re-running Steps 4–7.
 
 ```bash
 git -C "{docs_repo_path}" push origin "{branch-name}"
@@ -507,6 +510,8 @@ metadata. After a successful push, update `screenshot_storage` and
 replace `screenshot_assets` with the current entries. If no screenshots
 remain, set `screenshot_storage` to `none` and `screenshot_assets` to
 `[]`. If push failed, preserve previous metadata unchanged.
+If push succeeded but metadata write fails, recover by re-reading
+the branch HEAD and screenshot state without creating a new commit.
 
 ### Step 10: Report to Researcher
 

@@ -91,8 +91,8 @@ Before writing, create a mental map. If `HAS_HANDOFF` is true:
 - Which persona-specific views require conditional rendering or permission gates?
 - Which acceptance criteria drive which components?
 
-If `HAS_SCREENSHOTS` is true or `partial`, cite inspected screenshot
-observations from `01-context.md` for layout and visible-state decisions:
+If `HAS_SCREENSHOTS` is true or `partial`, use eligible screenshot
+evidence from `01-context.md` for layout and visible-state decisions:
 
 - Follow the eligibility rules in
   `../../_shared/recipes/screenshot-inspection.md` §5 using the
