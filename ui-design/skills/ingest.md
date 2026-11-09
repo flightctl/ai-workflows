@@ -296,8 +296,8 @@ for image references (`SS-N` IDs).
   `HANDOFF_DIR` = the handoff's directory,
   `MANIFEST_PATH` = `{HANDOFF_DIR}/screenshot-manifest.json`, and
   `HANDOFF_FILE` = the handoff file path.
-  Set Screenshots status: `inspected` (all), `partial` (some), or
-  `unavailable` (none). Preserve per-image status and user decisions.
+  Use the recipe's reported aggregate and excluded-embed list
+  rather than recomputing from indexed rows alone.
 
 - **If none** (Screenshot Index says "None" or is absent, and no
   inline image embeds exist): Set `HAS_SCREENSHOTS = false`. If the

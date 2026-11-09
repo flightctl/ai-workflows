@@ -294,7 +294,8 @@ validated `{branch}`, push URL, and `expected_base` in memory.
 - `COMMIT_MESSAGE="UX design {issue-key}: address review feedback"`
 
 Follow the pending attempt protocol in
-`../../_shared/recipes/screenshot-publish-stage.md` §4.
+`../../_shared/recipes/screenshot-publish-stage.md` §4 — including
+the pre-push PR gate and owned-path verification.
 Push only when unpushed commits exist. Before pushing, verify the
 local branch HEAD matches the commit SHA from the staging recipe;
 refuse if unexpected ahead commits appear. If a prior invocation
@@ -322,10 +323,16 @@ If push succeeded but metadata write fails, retain `pending_attempt`
 and re-finalize from its candidate values — never from the mutable
 authoring manifest. Do not create a new commit.
 
-**If "Handoff change needed: No":**
+**If "Handoff change needed: No" AND no approved screenshot
+asset, manifest, or digest changes:**
 
-Skip the git operations above — the handoff spec is unchanged. The response
-is comment-only (clarification, acknowledgment, or pushback).
+Skip the git operations above — both the handoff text and all
+screenshot assets are unchanged. The response is comment-only.
+
+Approved image bytes, manifest entries, references, or digest
+changes must trigger the existing reconciliation, staging, push,
+provenance, and metadata operations above, even when the handoff
+text is initially unchanged.
 
 **In both cases:**
 

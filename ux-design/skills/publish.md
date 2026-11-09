@@ -75,11 +75,12 @@ checked out, accepting an absolute path or one relative to
 Resolve the candidate path against `{source_repo_root}` if it is relative, then
 verify that the normalized absolute path exists and is a git repository. If
 either check fails, stop, report the failed check, and ask the researcher to
-correct the path before continuing. Run
-`git -C "{docs_repo_path}" remote get-url origin` to read the
-actual remote. When a config already exists, verify this URL matches its
-`docs_repo_remote`. When no config exists, confirm the URL with the researcher
-and use it as `docs_repo_remote`.
+correct the path before continuing. Capture the remote URL privately via
+`git -C "{docs_repo_path}" remote get-url origin` — do not display
+or persist the raw value. Normalize to credential-free canonical
+identity (`{host}/{owner}/{repo}`). Compare the normalized identity
+against `docs_repo_remote` (existing config) or confirm with the
+researcher (new config); store only the credential-free form.
 
 If reading or validating the remote fails, stop before publishing, report the
 error or mismatch, and ask the researcher to correct the path or remote. Re-run
@@ -127,10 +128,6 @@ Verify the environment:
 
 ```bash
 gh auth status
-```
-
-```bash
-git -C "{docs_repo_path}" remote -v
 ```
 
 ```bash
@@ -416,7 +413,8 @@ Prepare the PR description and save it to
 ### Step 8: Push and Create PR
 
 Follow the pending attempt protocol in
-`../../_shared/recipes/screenshot-publish-stage.md` §4 for both new
+`../../_shared/recipes/screenshot-publish-stage.md` §4 — including
+the pre-push PR gate and owned-path verification — for both new
 and existing PRs.
 
 **For an existing PR**, push to its branch when unpushed commits

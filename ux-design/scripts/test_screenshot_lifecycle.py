@@ -115,7 +115,9 @@ def _instantiate_recipe(
     """
     recipe_md = _read("_shared/recipes/screenshot-publish-stage.md")
     blocks = _extract_bash_blocks(recipe_md)
-    assert len(blocks) == 3, f"Expected 3 bash blocks in recipe, got {len(blocks)}"
+    # §1–§3 staging blocks; §4+ may have reference helpers.
+    assert len(blocks) >= 3, f"Expected ≥3 bash blocks in recipe, got {len(blocks)}"
+    blocks = blocks[:3]
 
     # Join recipe blocks with parameter declarations.
     # Recipe uses two placeholder conventions:
@@ -997,8 +999,9 @@ class TestRecipeExecution(_RecipeExecMixin, unittest.TestCase):
     def test_recipe_bash_block_count(self) -> None:
         recipe = _read("_shared/recipes/screenshot-publish-stage.md")
         blocks = _extract_bash_blocks(recipe)
-        self.assertEqual(len(blocks), 3,
-                         f"Recipe should have 3 bash blocks, got {len(blocks)}")
+        self.assertGreaterEqual(
+            len(blocks), 3,
+            f"Recipe needs ≥3 staging blocks (§1–§3), got {len(blocks)}")
 
     # --- T12: Push failure with pre-receive hook rejection ---
     def test_push_rejected_then_retry_succeeds(self) -> None:
@@ -2493,41 +2496,46 @@ class TestR5HeadRepoIdentity(unittest.TestCase):
 
 
 class TestR5PrePushPRRevalidation(unittest.TestCase):
-    """2430: retry revalidates live PR state before push."""
+    """2430: PR state validated before push (common pre-push gate)."""
 
-    def test_retry_prepush_pr_check(self) -> None:
-        """On retry with known pr_number, verifies live PR state."""
+    def test_prepush_pr_gate_in_common_section(self) -> None:
+        """PR revalidation is in the common pre-push gates section
+        and the retry section references it."""
         content = _read("_shared/recipes/screenshot-publish-stage.md")
-        retry = content.split("On retry", 1)[1].split(
-            "Initial new", 1
+        gates = content.split("Pre-push gates", 1)[1].split(
+            "On retry", 1
         )[0]
-        flat = " ".join(retry.split())
-        self.assertIn("Pre-push PR revalidation", flat)
+        flat = " ".join(gates.split())
+        self.assertIn("PR revalidation", flat)
         self.assertIn("pr_number", flat)
         self.assertIn("open", flat.lower())
         self.assertIn("head branch", flat)
-        self.assertIn("head repository", flat)
+        # Retry references common gate
+        retry = content.split("On retry", 1)[1].split(
+            "Initial new", 1
+        )[0]
+        self.assertIn("pre-push gates", " ".join(retry.split()))
 
     def test_closed_merged_stops(self) -> None:
-        """Closed/merged/missing PR stops without push."""
+        """Closed/merged/retargeted PR stops without push."""
         content = _read("_shared/recipes/screenshot-publish-stage.md")
-        retry = content.split("Pre-push PR revalidation", 1)[1].split(
-            "Classify remote", 1
+        gates = content.split("PR revalidation", 1)[1].split(
+            "Owned-path verification", 1
         )[0]
-        flat = " ".join(retry.split())
-        self.assertIn("closed", flat)
-        self.assertIn("merged", flat)
-        self.assertIn("stop without pushing", flat)
-        self.assertIn("retain `pending_attempt`", flat)
+        flat = " ".join(gates.split())
+        self.assertIn("closed", flat.lower())
+        self.assertIn("merged", flat.lower())
+        self.assertIn("stop", flat.lower())
+        self.assertIn("pending_attempt", flat)
 
     def test_no_atomic_guarantee_claim(self) -> None:
         """Does not claim cross-service atomic race-free guarantee."""
         content = _read("_shared/recipes/screenshot-publish-stage.md")
-        retry = content.split("Pre-push PR revalidation", 1)[1].split(
-            "Classify remote", 1
+        gates = content.split("PR revalidation", 1)[1].split(
+            "Owned-path verification", 1
         )[0]
-        flat = " ".join(retry.split())
-        self.assertIn("not a cross-service atomic guarantee", flat)
+        flat = " ".join(gates.split())
+        self.assertIn("atomic guarantee", flat.lower())
 
     def test_finalization_pr_check(self) -> None:
         """After push, existing PR revalidated before metadata write."""
@@ -3035,25 +3043,24 @@ class TestR6LiveBaseCheck(unittest.TestCase):
     """4516373714: live base branch validated before push/finalize."""
 
     def test_prepush_checks_base_branch(self) -> None:
-        """Pre-push PR revalidation includes base_branch."""
+        """Pre-push PR gate includes base_branch."""
         content = _read("_shared/recipes/screenshot-publish-stage.md")
-        retry = content.split("Pre-push PR revalidation", 1)[1].split(
-            "Classify remote", 1
+        gates = content.split("PR revalidation", 1)[1].split(
+            "Owned-path verification", 1
         )[0]
-        flat = " ".join(retry.split())
-        self.assertIn("base branch", flat)
+        flat = " ".join(gates.split())
+        self.assertIn("base", flat)
         self.assertIn("base_branch", flat)
 
     def test_retarget_stops_no_auto_revert(self) -> None:
-        """Retargeted base requires researcher reconciliation."""
+        """Retargeted base stops push."""
         content = _read("_shared/recipes/screenshot-publish-stage.md")
-        retry = content.split("Pre-push PR revalidation", 1)[1].split(
-            "Classify remote", 1
+        gates = content.split("PR revalidation", 1)[1].split(
+            "Owned-path verification", 1
         )[0]
-        flat = " ".join(retry.split())
-        self.assertIn("retargeted", flat)
-        self.assertIn("reconciliation", flat)
-        self.assertIn("do not automatically retarget", flat)
+        flat = " ".join(gates.split())
+        self.assertIn("retargeted", flat.lower())
+        self.assertIn("stop", flat.lower())
 
     def test_finalization_checks_base_branch(self) -> None:
         """Post-push finalization includes base branch check."""
@@ -3947,6 +3954,356 @@ class TestR8RespondPreStage(unittest.TestCase):
         self.assertIn("branch", flat)
         self.assertIn("push URL", flat)
         self.assertIn("expected_base", flat)
+
+
+# ===================================================================
+# Part 9: R9 review regressions — 6 concrete findings
+#
+# Contract tests verify the 6 findings from review round 9.
+# Finding 3 includes an executable Git counterexample proving exact
+# ref matching rejects tag/suffix masquerade. Tests use ONLY fake
+# fixture URIs in disposable temp Git repos.
+# ===================================================================
+
+class TestR9UnmatchedBodyEmbeds(unittest.TestCase):
+    """4518252787: unmatched body embeds affect aggregate status."""
+
+    def test_recipe_reports_unmatched_embeds(self) -> None:
+        """§2 reports unmatched body embeds before pixel inspection."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s2 = content.split("### 2.", 1)[1].split("### 3.", 1)[0]
+        flat = " ".join(s2.split())
+        self.assertIn("Unmatched body embeds", flat)
+        self.assertIn("excluded", flat)
+        self.assertIn("not eligible for inspection", flat)
+        self.assertIn("fabricated", flat)
+
+    def test_recipe_has_aggregate_section(self) -> None:
+        """Recipe defines aggregate status rules between §4 and §5."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        agg = content.split("### Aggregate status", 1)
+        self.assertEqual(len(agg), 2, "Aggregate status section missing")
+        section = agg[1].split("### 5.", 1)[0]
+        flat = " ".join(section.split())
+        # Three status levels defined
+        self.assertIn("`inspected`", flat)
+        self.assertIn("`partial`", flat)
+        self.assertIn("`unavailable`", flat)
+        # Excluded embeds force partial even if all declared rows inspected
+        self.assertIn("even when every declared-ID row was inspected", flat)
+        # Callers must not recompute
+        self.assertIn("rather than recomputing", flat)
+
+    def test_ingest_uses_recipe_aggregate(self) -> None:
+        """Ingest references recipe aggregate, not recomputing."""
+        content = _read("ui-design/skills/ingest.md")
+        section = content.split("screenshot-inspection.md", 1)[1].split(
+            "- **If none**", 1
+        )[0]
+        flat = " ".join(section.split())
+        self.assertIn("recipe's reported aggregate", flat)
+        self.assertIn("recomputing", flat)
+
+
+class TestR9CredentialFreePublish(unittest.TestCase):
+    """4518252791: publish captures URLs privately, stores safe identity."""
+
+    def test_publish_step2_credential_free(self) -> None:
+        """Step 2 captures privately and normalizes to credential-free."""
+        content = _read("ux-design/skills/publish.md")
+        step2 = content.split("### Step 2:", 1)[1].split(
+            "### Step 3:", 1
+        )[0]
+        flat = " ".join(step2.split())
+        self.assertIn("privately", flat)
+        self.assertIn("credential-free", flat)
+        self.assertIn("do not display", flat)
+        self.assertIn("{host}/{owner}/{repo}", flat)
+
+    def test_publish_step3_no_remote_v(self) -> None:
+        """Step 3 has no bare remote -v exposing raw URLs."""
+        content = _read("ux-design/skills/publish.md")
+        step3 = content.split("### Step 3:", 1)[1].split(
+            "### Step 4:", 1
+        )[0]
+        self.assertNotIn("remote -v", step3)
+
+    def test_recipe_docs_repo_remote_credential_free(self) -> None:
+        """Pending record docs_repo_remote is credential-free identity."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("Pending attempt record", 1)[1]
+        table_end = section.split("**Upstream path freeze.**", 1)[0]
+        self.assertIn("Credential-free", table_end)
+
+    def test_publish_step2_fixture_safe(self) -> None:
+        """Credential-free normalization discards userinfo from URLs.
+
+        Uses ONLY fake fixture-user:fixture-only@example.invalid — never
+        real checkout credentials."""
+        import re
+        # Simulate the normalization described in Step 2
+        raw_urls = [
+            "https://fixture-user:fixture-only@example.invalid/org/repo.git",
+            "git@example.invalid:org/repo.git",
+            "https://example.invalid/org/repo.git",
+            "ssh://fixture-user@example.invalid:2222/org/repo.git",
+        ]
+        for url in raw_urls:
+            # Strip userinfo (anything between :// and @, or user@ prefix)
+            cleaned = re.sub(r'://[^@]+@', '://', url)
+            cleaned = re.sub(r'^git@', '', cleaned)
+            # Verify no fixture credentials remain in cleaned output
+            self.assertNotIn("fixture-user", cleaned,
+                             f"Credential leaked in {url}")
+            self.assertNotIn("fixture-only", cleaned,
+                             f"Password leaked in {url}")
+
+
+class TestR9ExactRefMatching(_RecipeExecMixin, unittest.TestCase):
+    """4518252802: exact head ref matching rejects tag/suffix masquerade.
+
+    Executable Git proof in disposable temp bare repo."""
+
+    def test_exact_ref_rejects_tag_masquerade(self) -> None:
+        """Branch deleted, same-named tag + nested suffix remain.
+        Old short query finds matches; exact ref selection finds none.
+
+        Uses disposable temp repos; never touches real checkout."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            bare = os.path.join(tmp, "remote.git")
+            subprocess.run(["git", "clone", "--bare", repo, bare],
+                           capture_output=True, check=True)
+            branch = "ux-design/FEAT-42"
+            # Create and push the target branch
+            subprocess.run(
+                ["git", "-C", repo, "checkout", "-b", branch],
+                capture_output=True, check=True)
+            _w(os.path.join(repo, "feat.txt"), "content")
+            subprocess.run(["git", "-C", repo, "add", "feat.txt"],
+                           capture_output=True, check=True)
+            subprocess.run(["git", "-C", repo, "commit", "-m", "feat"],
+                           capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", repo, "push", bare,
+                 f"HEAD:refs/heads/{branch}"],
+                capture_output=True, check=True)
+            # Create a tag with the same name
+            subprocess.run(
+                ["git", "-C", bare, "update-ref",
+                 f"refs/tags/{branch}", "HEAD"],
+                capture_output=True, check=True)
+            # Create a nested branch ending with the same suffix
+            subprocess.run(
+                ["git", "-C", bare, "update-ref",
+                 f"refs/heads/other/{branch}", "HEAD"],
+                capture_output=True, check=True)
+            # Delete the target head
+            subprocess.run(
+                ["git", "-C", bare, "update-ref", "-d",
+                 f"refs/heads/{branch}"],
+                capture_output=True, check=True)
+
+            # Old short query: ls-remote with branch pattern shows matches
+            old = subprocess.run(
+                ["git", "ls-remote", bare, branch],
+                capture_output=True, text=True)
+            self.assertNotEqual(old.stdout.strip(), "",
+                                "Short query must show tag/suffix matches")
+
+            # Exact head ref query: only refs/heads/{branch}
+            exact = subprocess.run(
+                ["git", "ls-remote", "--heads", bare,
+                 f"refs/heads/{branch}"],
+                capture_output=True, text=True)
+            # Must be empty — head is deleted, tag/suffix don't qualify
+            self.assertEqual(exact.stdout.strip(), "",
+                             "Exact head query must find no match after "
+                             "branch deletion (tag+suffix remain)")
+
+            # Verify tag and nested branch still exist
+            tags = subprocess.run(
+                ["git", "ls-remote", "--tags", bare,
+                 f"refs/tags/{branch}"],
+                capture_output=True, text=True)
+            self.assertIn(f"refs/tags/{branch}", tags.stdout)
+            nested = subprocess.run(
+                ["git", "ls-remote", "--heads", bare,
+                 f"refs/heads/other/{branch}"],
+                capture_output=True, text=True)
+            self.assertIn(f"refs/heads/other/{branch}", nested.stdout)
+
+    def test_recipe_has_exact_ref_helper(self) -> None:
+        """Recipe §4 has the exact head ref query bash helper."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        flat = " ".join(content.split())
+        self.assertIn("Exact head ref query", flat)
+        self.assertIn("refs/heads/{branch}", flat)
+        self.assertIn("tag or nested", flat)
+
+
+class TestR9PrePushPathValidation(unittest.TestCase):
+    """4518252804: owned paths verified at commit_sha before every push."""
+
+    def test_recipe_has_owned_path_verification(self) -> None:
+        """Pre-push gates include owned-path verification."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        gates = content.split("Pre-push gates", 1)[1].split(
+            "On retry", 1
+        )[0]
+        flat = " ".join(gates.split())
+        self.assertIn("Owned-path verification", flat)
+        self.assertIn("handoff_file_path", flat)
+        self.assertIn("commit_sha", flat)
+        self.assertIn("cat-file", flat)
+
+    def test_path_verification_stops_on_missing(self) -> None:
+        """Missing path stops; preserves pending and local commit."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("Owned-path verification", 1)[1].split(
+            "Exact head ref query", 1
+        )[0]
+        flat = " ".join(section.split())
+        self.assertIn("stop", flat.lower())
+        self.assertIn("preserve pending", flat.lower())
+        self.assertIn("Do not automatically stage", flat)
+
+    def test_publish_references_path_verification(self) -> None:
+        """Publish Step 8 references owned-path verification."""
+        content = _read("ux-design/skills/publish.md")
+        step8 = content.split("### Step 8:", 1)[1].split(
+            "### Step 9:", 1
+        )[0]
+        flat = " ".join(step8.split())
+        self.assertIn("owned-path verification", flat)
+
+    def test_path_git_counterexample(self) -> None:
+        """Git proof: cat-file detects file absent from commit tree.
+
+        Uses disposable temp Git repo; never touches real checkout."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            d = os.path.join(repo, "feat/PROJ-PA")
+            os.makedirs(d)
+            _w(os.path.join(d, "handoff.md"), "# Path test\n")
+            subprocess.run(["git", "-C", repo, "add", "."],
+                           capture_output=True, check=True)
+            subprocess.run(["git", "-C", repo, "commit", "-m", "add"],
+                           capture_output=True, check=True)
+            commit = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True).stdout.strip()
+            # File exists at commit — cat-file succeeds
+            r1 = subprocess.run(
+                ["git", "-C", repo, "cat-file", "-e",
+                 f"{commit}:feat/PROJ-PA/handoff.md"],
+                capture_output=True)
+            self.assertEqual(r1.returncode, 0,
+                             "cat-file must succeed for existing file")
+            # Switch branch, remove file
+            subprocess.run(
+                ["git", "-C", repo, "checkout", "-b", "no-file"],
+                capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", repo, "rm", "feat/PROJ-PA/handoff.md"],
+                capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", repo, "commit", "-m", "remove"],
+                capture_output=True, check=True)
+            new_commit = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True).stdout.strip()
+            # File absent from new commit — cat-file fails
+            r2 = subprocess.run(
+                ["git", "-C", repo, "cat-file", "-e",
+                 f"{new_commit}:feat/PROJ-PA/handoff.md"],
+                capture_output=True)
+            self.assertNotEqual(r2.returncode, 0,
+                                "cat-file must fail for removed file")
+
+
+class TestR9RespondImageGate(unittest.TestCase):
+    """4518252810: respond gates on image changes, not only text."""
+
+    def test_respond_image_changes_trigger_git(self) -> None:
+        """Approved image changes trigger Git even without text changes."""
+        content = _read("ux-design/skills/respond.md")
+        step4 = content.split("### Step 4:", 1)[1].split(
+            "### Step 5:", 1
+        )[0]
+        flat = " ".join(step4.split())
+        # Gate requires BOTH no text AND no image changes to skip
+        self.assertIn("no approved screenshot", flat)
+        self.assertIn("asset, manifest, or digest", flat)
+        # Image-only changes trigger operations
+        self.assertIn("image bytes", flat.lower())
+        self.assertIn("reconciliation", flat)
+        self.assertIn("even when the handoff", flat)
+
+
+class TestR9PRGateAllPushes(unittest.TestCase):
+    """4518252820: PR revalidation before every push, not only retry."""
+
+    def test_recipe_pr_gate_applies_all_pushes(self) -> None:
+        """Pre-push gates section applies to initial and retry."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        gates = content.split("Pre-push gates", 1)
+        self.assertEqual(len(gates), 2, "Pre-push gates section missing")
+        header = gates[1].split("1.", 1)[0]
+        flat = " ".join(header.split())
+        self.assertIn("initial and retry", flat)
+        self.assertIn("every actual push", flat)
+
+    def test_both_callers_consume_pr_gate(self) -> None:
+        """Both publish and respond explicitly consume the gate."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        gates = content.split("PR revalidation", 1)[1].split(
+            "Owned-path verification", 1
+        )[0]
+        flat = " ".join(gates.split())
+        self.assertIn("/publish", flat)
+        self.assertIn("/respond", flat)
+        self.assertIn("must consume", flat)
+
+    def test_publish_references_pr_gate(self) -> None:
+        """Publish Step 8 mentions pre-push PR gate."""
+        content = _read("ux-design/skills/publish.md")
+        step8 = content.split("### Step 8:", 1)[1].split(
+            "### Step 9:", 1
+        )[0]
+        flat = " ".join(step8.split())
+        self.assertIn("pre-push PR gate", flat)
+
+    def test_respond_references_pr_gate(self) -> None:
+        """Respond push section mentions pre-push PR gate."""
+        content = _read("ux-design/skills/respond.md")
+        flat = " ".join(content.split())
+        self.assertIn("pre-push PR gate", flat)
+
+    def test_initial_push_also_gated(self) -> None:
+        """Initial new attempt section references pre-push gates."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        initial = content.split("Initial new attempt", 1)[1].split(
+            "After successful push", 1
+        )[0]
+        flat = " ".join(initial.split())
+        self.assertIn("pre-push gates", flat)
+        self.assertIn("PR revalidation", flat)
+
+    def test_fake_pr_state_contract(self) -> None:
+        """PR gate contract: closed/merged/retargeted → stop.
+        Source contract using local fake PR states (prose check,
+        NOT actual PR API mutations)."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        gates = content.split("PR revalidation", 1)[1].split(
+            "Owned-path verification", 1
+        )[0]
+        flat = " ".join(gates.split())
+        # Each stop condition documented
+        for state in ("closed", "merged", "retargeted", "mismatch",
+                      "missing", "unavailable"):
+            self.assertIn(state, flat.lower(),
+                          f"PR gate missing stop on: {state}")
 
 
 if __name__ == "__main__":

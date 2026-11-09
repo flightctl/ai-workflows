@@ -78,6 +78,17 @@ the embed is unchanged and still valid. Recalculate all aggregate
 totals before proceeding to §3. Do not append duplicate rows —
 each declared ID appears exactly once in the output.
 
+**Unmatched body embeds.** After matching declared IDs to embeds,
+scan the handoff body for image embeds (`![...](...)`) whose `SS-N`
+ID does not appear in the Screenshot Index. Report these separately
+as excluded — they are not eligible for inspection, citation, or
+ID assignment. Never inspect, cite, or assign fabricated
+observations to excluded embeds. If any exist, warn the user and
+prompt: repair the handoff (add the IDs to the Screenshot Index
+and re-enter the published-input gate) or explicitly authorize
+limited continuation. Record the list of excluded embed IDs and
+the user's decision.
+
 ### 3. Resolve image references
 
 For each matched pair from §2, determine the reference type:
@@ -256,6 +267,24 @@ appears exactly once in the output.
    (fail-closed). Accepted-unverified labels carry through to §5.
    A verified SHA cannot clear a binding mismatch. See §5
    Eligibility for citation rules.
+
+### Aggregate status
+
+Compute the aggregate screenshot status after all §2–§4 processing:
+
+- **`inspected`** — every declared ID has `status: inspected` AND
+  no unmatched body embeds were excluded.
+- **`partial`** — at least one declared ID has `status: inspected`,
+  but any declared ID has non-inspected status OR unmatched body
+  embeds were excluded with user authorization. Partial applies
+  even when every declared-ID row was inspected.
+- **`unavailable`** — no declared ID has `status: inspected`,
+  regardless of declared row count or excluded embeds.
+
+Report the aggregate, the excluded unmatched embed ID list (when
+any exist), and the user's continuation decision. Callers must
+preserve this reported aggregate and excluded list rather than
+recomputing solely from the per-image table rows.
 
 ### 5. Eligibility and citation rules
 

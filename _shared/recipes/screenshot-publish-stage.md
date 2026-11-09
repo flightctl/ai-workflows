@@ -151,7 +151,7 @@ ownership or adopting unknown ahead commits.
 | `owned_paths` | Array of paths included in the commit |
 | `pr_number` | PR number (existing PR) or `null` (new PR) |
 | `base_branch` | Target branch name for the PR (e.g., `main`) |
-| `docs_repo_remote` | Docs repo remote URL (from config) |
+| `docs_repo_remote` | Credential-free repo identity (from config) |
 | `handoff_file_path` | Repo-relative handoff path |
 | `candidate_screenshot_storage` | Storage mode for this attempt |
 | `candidate_screenshot_assets` | Array of `{id, filename, sha256, published_path}` entries |
@@ -203,6 +203,41 @@ validated destination for the initial `expected_base` snapshot
 (`git ls-remote` against the push URL, not the fetch tracking ref),
 retry classification, and post-push verification.
 
+**Pre-push gates (initial and retry).** Before every actual
+push, apply these checks in order:
+
+1. **PR revalidation.** When `pr_number` is known (not `null`),
+   verify the live PR is open, head branch matches `branch`,
+   head repo matches canonical `docs_repo_remote` identity, base
+   matches `base_branch`. Closed, merged, retargeted, mismatch,
+   missing, or unavailable → stop; retain `pending_attempt`. Not
+   a cross-service atomic guarantee. Both `/publish` Step 8 and
+   `/respond` push must consume this gate.
+2. **Owned-path verification.** Verify `handoff_file_path` exists
+   as a blob at `commit_sha` via `git cat-file -e`. When
+   `upstream_prd_path` and `upstream_design_path` are present,
+   verify each at `commit_sha` with expected basename and shared
+   parent. Missing or unverifiable → stop; preserve pending and
+   local commit. Do not automatically stage unrelated documents.
+3. **Exact head ref query.** Query remote branch via
+   `git ls-remote --heads "$push_url" "refs/heads/$branch"` and
+   verify the returned ref name field is exactly
+   `refs/heads/$branch`. A same-named tag or nested branch suffix
+   does not satisfy the query. Empty result means absent.
+   Malformed or duplicate output stops.
+
+```bash
+# Exact head ref query — canonical form for all callers.
+exact_sha=""
+while IFS=$'\t' read -r sha ref; do
+  if [ "$ref" = "refs/heads/{branch}" ]; then
+    [ -n "$exact_sha" ] && { echo "duplicate ref" >&2; exit 1; }
+    exact_sha="$sha"
+  fi
+done < <(git ls-remote --heads "$push_url" "refs/heads/{branch}")
+# exact_sha empty => branch absent.
+```
+
 **On retry (when `pending_attempt` exists).** Before any file copy,
 `git rm`, or new commit:
 
@@ -210,24 +245,13 @@ retry classification, and post-push verification.
    differs, stop — unknown commits exist; do not force-push, reset,
    or re-derive ownership.
 2. Verify the current branch matches `pending_attempt.branch`.
-   Verify the docs repo remote URL matches `pending_attempt.docs_repo_remote`.
+   Verify the docs repo remote identity matches `pending_attempt.docs_repo_remote`.
    Re-resolve the effective push destination
    (`git remote get-url --push --all origin`) and verify its
    canonical identity matches `pending_attempt.push_destination`.
    Changed or unverifiable push destination → stop.
-3. **Pre-push PR revalidation.** When `pending_attempt.pr_number` is
-   known (not `null`), fetch the live PR state before pushing. Verify
-   the PR is open, its head branch matches `pending_attempt.branch`,
-   and its head repository matches the canonical identity derived
-   from `pending_attempt.docs_repo_remote`, and its base branch
-   matches `pending_attempt.base_branch`. If the PR is closed,
-   merged, has a changed head branch, head repository, or base
-   branch, is missing, or the lookup tool is unavailable, stop
-   without pushing or writing final metadata — retain
-   `pending_attempt`. A retargeted base branch requires researcher
-   approval reconciliation; do not automatically retarget the PR
-   back. This is a pre-push revalidation, not a cross-service
-   atomic guarantee.
+3. Apply the pre-push gates above (PR revalidation, owned-path
+   verification, exact head ref query).
 4. Classify remote branch state against the validated push
    destination (`git ls-remote "$(git remote get-url --push origin)" {branch}`):
    - **Remote SHA equals `pending_attempt.commit_sha`:** Already
@@ -240,7 +264,9 @@ retry classification, and post-push verification.
      Do not force-push, recreate, or guess history.
 
 **Initial new attempt** (no `pending_attempt` exists): resolve the
-effective push destination first (same validation as above).
+effective push destination first (same validation as above). Apply
+the pre-push gates (PR revalidation when `pr_number` is known,
+owned-path verification, exact ref query) before pushing.
 Snapshot `expected_base` via `git ls-remote` against the validated
 push URL before the owned commit. Require the local branch to be
 at a known synced base (SHA matches the push-URL snapshot, or a
