@@ -146,6 +146,10 @@ ownership or adopting unknown ahead commits.
 | `expected_base` | Remote branch SHA before push, or `null` for first push |
 | `owned_paths` | Array of paths included in the commit |
 | `pr_number` | PR number (existing PR) or `null` (new PR) |
+| `docs_repo_remote` | Docs repo remote URL (from config) |
+| `handoff_file_path` | Repo-relative handoff path |
+| `candidate_screenshot_storage` | Storage mode for this attempt |
+| `candidate_screenshot_assets` | Array of `{id, filename, sha256, published_path}` entries |
 | `timestamp` | ISO 8601 when the attempt was recorded |
 
 The `pending_attempt` record is private authoring state — do not copy
@@ -158,6 +162,7 @@ it into the consumer-facing published manifest.
    differs, stop — unknown commits exist; do not force-push, reset,
    or re-derive ownership.
 2. Verify the current branch matches `pending_attempt.branch`.
+   Verify the docs repo remote URL matches `pending_attempt.docs_repo_remote`.
 3. Check whether `pending_attempt.commit_sha` already exists on the
    remote (`git ls-remote origin {branch}`):
    - **Already pushed:** skip push; proceed to metadata finalization.
@@ -172,13 +177,23 @@ invocation, stop.
 **After successful push.** Verify the remote ref matches
 `pending_attempt.commit_sha` exactly (`git ls-remote`). Then:
 
-1. Finalize metadata: update `screenshot_storage`, `screenshot_assets`.
+1. Finalize metadata from `pending_attempt` candidate values:
+   set `screenshot_storage` to `candidate_screenshot_storage`,
+   set `screenshot_assets` to `candidate_screenshot_assets`.
 2. Remove `pending_attempt` from `publish-metadata.json`.
 3. For a new PR, record `pr_number`, `branch`, and `handoff_file_path`.
 
+Write steps 1–3 atomically — if the write fails, retain
+`pending_attempt` so the next retry can re-finalize without a new
+commit.
+
 **Already-pushed, metadata-write failure.** If push succeeded (remote
-SHA matches) but the metadata write fails, recover by re-reading the
-branch HEAD and screenshot state. Do not create a new commit or PR.
+SHA matches) but the metadata write fails, finalize from the
+`pending_attempt` candidate values (`candidate_screenshot_storage`,
+`candidate_screenshot_assets`) and the committed consumer state at
+the verified SHA — never from the mutable authoring manifest.
+Retain `pending_attempt` until the metadata write succeeds. Do not
+create a new commit or PR.
 
 **Unexpected state.** If the remote branch HEAD is neither the
 expected base nor the pending commit SHA, stop. Do not force-push,

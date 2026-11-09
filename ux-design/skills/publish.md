@@ -50,6 +50,11 @@ publishing. Never publish a handoff produced from exploratory context.
 Also read `{source_repo_root}/.artifacts/ux-design/{issue-key}/01-discovery.md`;
 its **Upstream References** record the resolved published PRD and design paths.
 
+**Pending attempt check (early).** If `publish-metadata.json` contains
+`pending_attempt`, follow `../../_shared/recipes/screenshot-publish-stage.md`
+§4 now — before any copy or commit. Already pushed → skip to Step 9.
+Not yet pushed → skip to Step 8. Validation failure → stop.
+
 ### Step 2: Resolve Docs Repo
 
 Check for an existing docs repo configuration at
@@ -511,11 +516,12 @@ resolved paths used to derive the canonical handoff directory.
 
 For an existing PR, retain the PR number, branch, and other identity
 metadata. After a successful push, update `screenshot_storage` and
-replace `screenshot_assets` with the current entries. If no screenshots
-remain, set `screenshot_storage` to `none` and `screenshot_assets` to
-`[]`. If push failed, preserve previous metadata unchanged.
-If push succeeded but metadata write fails, recover by re-reading
-the branch HEAD and screenshot state without creating a new commit.
+replace `screenshot_assets` from `pending_attempt` candidate values;
+clear `pending_attempt` in the same write. If no screenshots remain,
+set both to `none`/`[]`. If push failed, preserve previous metadata
+unchanged. If push succeeded but metadata write fails, retain
+`pending_attempt` and re-finalize from its candidate values — never
+from the mutable authoring manifest. Do not create a new commit or PR.
 
 ### Step 10: Report to Researcher
 

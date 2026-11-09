@@ -1549,14 +1549,14 @@ class TestPR159FindingRegressions(unittest.TestCase):
         step9 = content.split("Step 9:", 1)[1].split("Step 10:", 1)[0]
         flat = " ".join(step9.split())
         self.assertIn("metadata write fails", flat)
-        self.assertIn("without creating a new commit", flat)
+        self.assertIn("Do not create a new commit", flat)
 
     def test_a_respond_metadata_write_failure_recovery(self) -> None:
         """A: respond handles push-ok + metadata-write-failure."""
         content = _read("ux-design/skills/respond.md")
         flat = " ".join(content.split())
         self.assertIn("metadata write fails", flat)
-        self.assertIn("without creating a new commit", flat)
+        self.assertIn("Do not create a new commit", flat)
 
     # --- B: Plan lead text requires eligible, not just inspected ---
 
@@ -1684,7 +1684,10 @@ class TestCommitPathsAndPendingAttempt(unittest.TestCase):
         content = _read("_shared/recipes/screenshot-publish-stage.md")
         section = content.split("Pending attempt record", 1)[1]
         for field in ("commit_sha", "branch", "expected_base",
-                      "owned_paths", "pr_number", "timestamp"):
+                      "owned_paths", "pr_number", "timestamp",
+                      "docs_repo_remote", "handoff_file_path",
+                      "candidate_screenshot_storage",
+                      "candidate_screenshot_assets"):
             self.assertIn(f"`{field}`", section,
                           f"pending_attempt missing field: {field}")
 
@@ -1698,11 +1701,12 @@ class TestCommitPathsAndPendingAttempt(unittest.TestCase):
         self.assertIn("consumer-facing published manifest", flat)
 
     def test_pending_attempt_retry_verification(self) -> None:
-        """On retry: verify HEAD matches, check remote, refuse unknown."""
+        """On retry: verify HEAD, branch, docs_repo_remote; refuse unknown."""
         content = _read("_shared/recipes/screenshot-publish-stage.md")
         retry = content.split("On retry", 1)[1].split("Initial new", 1)[0]
         flat = " ".join(retry.split())
         self.assertIn("commit_sha", flat)
+        self.assertIn("docs_repo_remote", flat)
         self.assertIn("do not force-push", flat)
         self.assertIn("re-derive ownership", flat)
         self.assertIn("Already pushed", flat)
@@ -1717,7 +1721,8 @@ class TestCommitPathsAndPendingAttempt(unittest.TestCase):
         self.assertIn("known synced base", flat)
 
     def test_pending_attempt_finalize_after_verify(self) -> None:
-        """Metadata finalized only after exact remote SHA verification."""
+        """Metadata finalized from candidate values after remote SHA verify;
+        write failure retains pending_attempt for recovery."""
         content = _read("_shared/recipes/screenshot-publish-stage.md")
         section = content.split("After successful push", 1)[1].split(
             "Already-pushed", 1
@@ -1725,17 +1730,24 @@ class TestCommitPathsAndPendingAttempt(unittest.TestCase):
         flat = " ".join(section.split())
         self.assertIn("Verify the remote ref matches", flat)
         self.assertIn("commit_sha", flat)
-        self.assertIn("Finalize metadata", flat)
+        self.assertIn("candidate_screenshot_storage", flat)
+        self.assertIn("candidate_screenshot_assets", flat)
         self.assertIn("Remove `pending_attempt`", flat)
+        # Atomic write + retain on failure
+        self.assertIn("write fails, retain", flat)
 
     def test_pending_attempt_meta_write_failure(self) -> None:
-        """Already-pushed + metadata-write failure handled."""
+        """Already-pushed + metadata-write failure: finalize from candidate
+        values, retain pending_attempt, never mutable authoring state."""
         content = _read("_shared/recipes/screenshot-publish-stage.md")
         section = content.split("metadata-write failure", 1)[1].split(
             "Unexpected state", 1
         )[0]
         flat = " ".join(section.split())
-        self.assertIn("re-reading", flat)
+        self.assertIn("candidate values", flat)
+        self.assertIn("committed consumer state", flat)
+        self.assertIn("never from the mutable authoring manifest", flat)
+        self.assertIn("Retain `pending_attempt`", flat)
         self.assertIn("Do not create a new commit", flat)
 
     def test_pending_attempt_unexpected_stop(self) -> None:
@@ -1762,6 +1774,61 @@ class TestCommitPathsAndPendingAttempt(unittest.TestCase):
         flat = " ".join(content.split())
         self.assertIn("pending attempt protocol", flat)
         self.assertIn("screenshot-publish-stage.md", flat)
+
+    # --- Early call ordering (before copy/commit, not only at push) ---
+
+    def test_publish_early_pending_check(self) -> None:
+        """Publish checks pending_attempt BEFORE Step 2 (copy/commit),
+        not only at Step 8 (push). Skips to push or finalization."""
+        content = _read("ux-design/skills/publish.md")
+        early = content.split("### Step 2:", 1)[0]
+        flat = " ".join(early.split())
+        self.assertIn("Pending attempt check (early)", flat)
+        self.assertIn("pending_attempt", flat)
+        self.assertIn("before any copy", flat.lower())
+        # References §4
+        self.assertIn("screenshot-publish-stage.md", flat)
+        # Skips to push or finalization
+        self.assertIn("Step 9", flat)
+        self.assertIn("Step 8", flat)
+
+    def test_respond_early_pending_check(self) -> None:
+        """Respond checks pending_attempt BEFORE copy, not only at push."""
+        content = _read("ux-design/skills/respond.md")
+        # Must appear before the cp command
+        cp_pos = content.find('cp ".artifacts/ux-design/')
+        early_pos = content.find("Pending attempt check (early)")
+        self.assertGreater(cp_pos, -1, "cp command not found")
+        self.assertGreater(early_pos, -1, "early check not found")
+        self.assertLess(early_pos, cp_pos,
+                        "early pending check must precede cp command")
+        early = content.split("Pending attempt check (early)", 1)[1].split(
+            "Update the docs repo copy", 1
+        )[0]
+        flat = " ".join(early.split())
+        self.assertIn("before any file copy", flat.lower())
+        self.assertIn("screenshot-publish-stage.md", flat)
+
+    # --- Committed-state wording in callers ---
+
+    def test_publish_recovery_uses_candidate_not_authoring(self) -> None:
+        """Publish metadata recovery uses candidate values, never mutable
+        authoring manifest (contract)."""
+        content = _read("ux-design/skills/publish.md")
+        step9 = content.split("Step 9:", 1)[1].split("Step 10:", 1)[0]
+        flat = " ".join(step9.split())
+        self.assertIn("candidate values", flat)
+        self.assertIn("never from the mutable authoring manifest", flat)
+        self.assertIn("retain", flat.lower().split("write fails")[1])
+
+    def test_respond_recovery_uses_candidate_not_authoring(self) -> None:
+        """Respond metadata recovery uses candidate values, never mutable
+        authoring manifest (contract)."""
+        content = _read("ux-design/skills/respond.md")
+        flat = " ".join(content.split())
+        self.assertIn("candidate_screenshot_storage", flat)
+        self.assertIn("candidate_screenshot_assets", flat)
+        self.assertIn("never from the mutable authoring manifest", flat)
 
 
 if __name__ == "__main__":

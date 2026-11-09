@@ -120,6 +120,14 @@ Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 `WORKFLOW=ux-design`, `ISSUE_KEY={issue-key}`, `PHASE=respond`,
 `AUTHORING_MODE=skill`.
 
+**Pending attempt check (early).** If `publish-metadata.json` contains
+a `pending_attempt` record, follow §4 of
+`../../_shared/recipes/screenshot-publish-stage.md` **now** — before
+any file copy, `git rm`, or new commit. If the pending attempt is
+verified and already pushed, skip directly to metadata finalization
+below. If verified but not yet pushed, skip to the push step. If
+validation fails, stop.
+
 Update the docs repo copy:
 
 Before switching branches, confirm the docs repo worktree and index are clean:
@@ -283,11 +291,15 @@ git -C "{docs_repo_path}" push
 ```
 
 Only update `publish-metadata.json` `screenshot_assets` after the push
-succeeds. If push failed, preserve previous metadata unchanged. Set
+succeeds — finalize from `pending_attempt.candidate_screenshot_storage`
+and `candidate_screenshot_assets`; clear `pending_attempt` in the same
+write. If push failed, preserve previous metadata unchanged. Set
 `screenshot_storage` to `none` only after successful push when all
 screenshots have been removed.
-If push succeeded but metadata write fails, recover by re-reading
-the branch HEAD and screenshot state without creating a new commit.
+If push succeeded but metadata write fails, retain `pending_attempt`
+and re-finalize from its candidate values on the next invocation —
+never from the mutable authoring manifest. Do not create a new
+commit.
 
 **If "Handoff change needed: No":**
 
