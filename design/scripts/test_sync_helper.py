@@ -4257,6 +4257,38 @@ class TestDecomposePhaseContract(unittest.TestCase):
             "Structure gate must exist in Step 7")
         self.assertIn("05-epics.md", self._decompose_md[idx:idx+500])
 
+    def test_step3b_active_only_epic_authoring(self) -> None:
+        """Step 3b writes only active epics; does not rewrite retired files."""
+        step3 = self._decompose_md.split("### Step 3:")[1].split("### Step 4:")[0]
+        self.assertIn("each active epic", step3.lower())
+        self.assertIn("Do not rewrite retired epic files", step3)
+
+    def test_step3a_repeat_run_active_index(self) -> None:
+        """Step 3a index reflects active plan only on repeat runs."""
+        step3 = self._decompose_md.split("### Step 3:")[1].split("### Step 4:")[0]
+        self.assertIn("list active epics only", step3.lower())
+
+    def test_step4_active_only_story_authoring(self) -> None:
+        """Step 4 creates directories and stories for active epics only."""
+        step4 = self._decompose_md.split("### Step 4:")[1].split("### Step 5:")[0]
+        self.assertIn("each active epic", step4.lower())
+        self.assertIn("Do not fabricate directories", step4)
+
+    def test_step5_active_only_sizing(self) -> None:
+        """Step 5 sizes active epics only."""
+        step5 = self._decompose_md.split("### Step 5:")[1].split("### Step 6:")[0]
+        self.assertIn("all active epics", step5.lower())
+
+    def test_step6_active_only_references(self) -> None:
+        """Step 6 populates IC/TC references for active stories only."""
+        step6 = self._decompose_md.split("### Step 6:")[1].split("### Step 7:")[0]
+        self.assertIn("each active non-", step6.lower())
+
+    def test_step7_check1_active_index(self) -> None:
+        """Step 7 check 1 verifies 05-epics.md against active epics."""
+        step7 = self._decompose_md.split("### Step 7:")[1].split("### Step 8:")[0]
+        self.assertIn("all active epic files", step7.lower())
+
     def test_review_after_structure_gate(self) -> None:
         structure_idx = self._assert_marker_exists(
             "Verify artifact structure",

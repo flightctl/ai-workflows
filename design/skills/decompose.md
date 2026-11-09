@@ -215,10 +215,17 @@ Write `.artifacts/design/{issue-key}/05-epics.md`:
  that can proceed in parallel.}
 ```
 
+On a repeat `/decompose`, the index reflects the active plan from
+Step 2 — list active epics only. Retired epic files are retained
+on disk for identity audit but are not included in the active
+index table.
+
 #### 3b: Write Epic Files
 
-For each epic, write
-`.artifacts/design/{issue-key}/06-stories/epic-{N}-{slug}.md`:
+For each active epic (no `status: removed`), write or update
+`.artifacts/design/{issue-key}/06-stories/epic-{N}-{slug}.md`.
+Do not rewrite retired epic files — their `status: removed`
+frontmatter must be preserved:
 
 ```markdown
 # Epic {N}: {title}
@@ -249,9 +256,10 @@ Design sections: {§4.1 Architecture, §4.3 API Changes, or relevant subsections
 
 ### Step 4: Write Stories
 
-For each epic, create a story directory and write one file per story. Each
-story file has a 1:1 correspondence with a Jira Story issue — its content
-is what `/sync` will push to Jira.
+For each active epic, create a story directory and write one file per
+story. Do not fabricate directories or story files for retired epics.
+Each story file has a 1:1 correspondence with a Jira Story issue — its
+content is what `/sync` will push to Jira.
 
 ```bash
 mkdir -p .artifacts/design/{issue-key}/06-stories/epic-{N}
@@ -498,7 +506,7 @@ do not insert, reuse retired numbers, or renumber existing stories.
 
 ### Step 5: Sizing Consistency Check
 
-After sizing all epics, verify plausibility:
+After sizing all active epics, verify plausibility:
 
 1. Read the Feature's Size from the Jira Feature issue (`{issue-key}`).
    Check the Size field (or Story Points, if Size is not set). If the
@@ -552,7 +560,7 @@ story's `Validated by` line should read:
 
 **Write references.**
 
-Re-read each non-`[DOCS]` story file. Update the `Interface Changes`
+Re-read each active non-`[DOCS]` story file (written in Step 4). Update the `Interface Changes`
 and `Validated by` lines in the Design Reference section:
 
 ```markdown
@@ -616,7 +624,7 @@ only implementing story to retirement.
 **Verify artifact structure.** Quick sanity check before invoking the
 decomposition review. Verify:
 
-1. `05-epics.md` exists and references all epic files
+1. `05-epics.md` exists and references all active epic files
 2. Each epic file referenced in `05-epics.md` exists (e.g.,
    `06-stories/epic-1-{slug}.md`)
 3. Each active epic (no `status: removed`) has a corresponding
