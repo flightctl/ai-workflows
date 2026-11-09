@@ -202,7 +202,8 @@ For **each** validation artifact (primary testplan and any companions):
   test cases anchored to changed requirements. Update TC IDs if
   requirement IDs changed.
 - If test cases were added, removed, or modified, **or** if design
-  Interface Changes (§5) were added, removed, or renamed: recompute the
+  Interface Changes (§5) were added, removed, or renamed, OR Review
+  and Qualification Gates were added, changed, or removed: recompute the
   artifact's Overview counts, Summary table, and Test Case Index per
   the counting rules in the draft skill's Step 9a: each parameterized
   row counts individually toward the total, priority, and automation
@@ -482,7 +483,9 @@ this preflight.
 
 If both the current set and the previous set are empty and
 publish-metadata has no `validation_artifacts` or
-`testplan_file_path`, skip all sync below.
+`testplan_file_path`, skip validation artifact sync below (copy,
+index transform, and removal steps). The design file staging and
+commit must still proceed — see the design staging step below.
 
 If the docs repo has published artifacts but local
 `validation-index.json` does not exist (artifacts were published

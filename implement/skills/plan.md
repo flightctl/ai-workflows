@@ -196,17 +196,28 @@ Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
 {Include this section only if `.artifacts/implement/{issue-key}/testplan.md`
  exists. If no story-scoped testplan: omit this section entirely.
 
- **Unverified source handling:** If `testplan.md` contains
- `Freshness: unverified` or `**Freshness:** unverified` (set by
- `/ingest` when the upstream
- source was not found on re-ingest), present the TC list to the
- user and require explicit confirmation that the retained TCs are
- still applicable before using them as normative coverage
- requirements. Until confirmed, mark Test Plan Coverage as
- "unverified — awaiting user confirmation of retained TC
- applicability." Do not block AC-based work or add extra approval
- stages — the user may confirm and proceed, or discard the stale
- testplan.
+ **Testplan source authority:** If `testplan.md` contains
+ `Freshness: unresolved-source`, the source could not be checked
+ during ingest. Omit the Test Plan Coverage section — do not
+ plan coverage for an unresolved testplan. Note "testplan source
+ unresolved" and continue with AC-based planning.
+
+ If `testplan.md` does NOT contain a `Freshness: unverified` or
+ `Freshness: unresolved-source` marker (the plan was freshly
+ ingested from an authoritative source), its TCs are
+ authoritative — use them as normative coverage requirements
+ directly without requiring user confirmation or SHA-256 binding.
+
+ If `testplan.md` contains `Freshness: unverified` or
+ `**Freshness:** unverified` (set by `/ingest` when the upstream
+ source was not found on re-ingest), the testplan was retained from
+ a prior ingest. Present the TC list to the user and require
+ explicit confirmation that the retained TCs are still applicable
+ before using them as normative coverage requirements. Until
+ confirmed, mark Test Plan Coverage as "unverified — awaiting user
+ confirmation of retained TC applicability." Do not block AC-based
+ work or add extra approval stages — the user may confirm and
+ proceed, or discard the stale testplan.
 
  When the user confirms retained TCs, record the confirmation in
  `02-plan.md` by changing the Test Plan Coverage status to

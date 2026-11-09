@@ -259,24 +259,45 @@ dismissed findings in the implementation report (Discoveries section).
 
 **Test plan reconciliation (if story-scoped testplan exists):**
 
-**Unverified source deferral:** If `testplan.md` contains
-`Freshness: unverified` (or the legacy bold form `**Freshness:**
-unverified`) and the Test Plan Coverage status in
-`02-plan.md` has not been confirmed by the user (no "confirmed"
-status with SHA-256 binding), defer TC reconciliation — do not
-block the commit on TC coverage. AC-based work and existing tests
-proceed normally. If the plan records a confirmation with a
-SHA-256 hash, compute the current story-scoped testplan SHA-256
-(`sha256sum .artifacts/e2e/{issue-key}/testplan.md`) and compare.
-If the hash differs, treat as unconfirmed and defer. Missing
-SHA-256 binding is treated as unconfirmed.
+**Testplan source authority:** If `testplan.md` contains
+`Freshness: unresolved-source`, the source could not be checked
+during ingest. Skip TC reconciliation entirely — do not block
+commits on coverage for an unresolved testplan. AC-based work
+proceeds normally.
+
+If `testplan.md` contains `Freshness: unverified` (or the legacy
+bold form `**Freshness:** unverified`), the testplan was retained
+from a prior ingest and its source could not be re-checked. TC reconciliation for this retained
+plan requires the user's explicit confirmed status in `02-plan.md`
+with a SHA-256 binding. Compute the current story-scoped testplan
+SHA-256 (`sha256sum .artifacts/e2e/{issue-key}/testplan.md`) and
+compare against the recorded hash. If the hash differs, the
+confirmation is stale — treat as unconfirmed and defer TC
+reconciliation. Missing SHA-256 binding is treated as unconfirmed.
+An unconfirmed retained TC does not block AC-based work or existing
+tests.
+
+If `testplan.md` does NOT contain a `Freshness: unverified` marker
+(the plan was freshly ingested from an authoritative source), its
+TCs are authoritative — reconcile them directly without requiring
+user confirmation or SHA-256 binding. A stale confirmation hash
+from a prior retained plan does not invalidate a freshly ingested
+authoritative source.
 
 After the self-review gate passes, check whether this task's scenario(s)
 have TC IDs mapped to them in the Test Plan Coverage matrix of
 `02-plan.md`. If so, verify each mapped TC ID before proceeding to
 commit:
 
-1. For each mapped TC ID, locate its entry in `testplan.md`. If a
+0. **Retained testplans only (Freshness: unverified with user
+   confirmation):** For each mapped TC ID, verify it appears in the
+   plan's confirmed TC list (the list recorded when the user confirmed
+   TC coverage). If a mapped TC is not in the confirmed list, treat
+   it as unconfirmed — do not require coverage for that TC, report it
+   as provisional. **For authoritative testplans** (freshly ingested,
+   no Freshness: unverified marker), all TCs are inherently confirmed
+   — skip this check. Skip unconfirmed TCs in the steps below.
+1. For each confirmed mapped TC ID, locate its entry in `testplan.md`. If a
    mapped TC ID does not exist in the testplan, stop and report the
    inconsistency — the plan references a test case that the testplan
    does not contain. Read the full test case entry (the Preconditions,

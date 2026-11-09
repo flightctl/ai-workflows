@@ -68,6 +68,37 @@ def _run_cli(*args: str) -> subprocess.CompletedProcess:
     )
 
 
+def _init_git_repo(path):
+    """Initialize a Git repository with an initial commit.
+
+    Isolates from host Git configuration: disables signing and sets
+    an empty hooks directory to prevent global hooks from interfering
+    with test commits.
+    """
+    subprocess.run(["git", "init", str(path)],
+                   capture_output=True, check=True)
+    hooks_dir = tempfile.mkdtemp(prefix="empty-git-hooks-",
+                                 dir=str(path.parent))
+    subprocess.run(["git", "-C", str(path), "config",
+                    "core.hooksPath", hooks_dir],
+                   capture_output=True, check=True)
+    subprocess.run(["git", "-C", str(path), "config",
+                    "commit.gpgsign", "false"],
+                   capture_output=True, check=True)
+    subprocess.run(["git", "-C", str(path), "config",
+                    "user.email", "test@test.com"],
+                   capture_output=True, check=True)
+    subprocess.run(["git", "-C", str(path), "config",
+                    "user.name", "Test"],
+                   capture_output=True, check=True)
+    (path / ".gitkeep").write_text("")
+    subprocess.run(["git", "-C", str(path), "add", ".gitkeep"],
+                   capture_output=True, check=True)
+    subprocess.run(["git", "-C", str(path), "commit",
+                    "-m", "initial"],
+                   capture_output=True, check=True)
+
+
 def _make_local_index(
     *,
     companions: list[dict[str, str]] | None = None,
@@ -2489,51 +2520,82 @@ class TestTCConfirmationBindingContract(unittest.TestCase):
     - Agent re-prompting users when hash differs
     """
 
-    def test_same_ids_modified_expected_results_stale(self):
-        """Same TC IDs but modified Expected Results → different SHA-256.
+    def test_source_authority_clauses_in_consumers(self):
+        """Consumer files contain mutually exclusive authority clauses.
 
-        Simulates the documented scenario: re-ingest replaces testplan.md
-        with same TC IDs but changed Expected Results. The confirmation
-        hash from the original must NOT match the replacement."""
-        import hashlib
-        original = (
-            "# Story Test Plan — TEST-123\n\n"
-            "## TC-FR1-01: Login validation\n\n"
-            "### Expected Results\n\n"
-            "- User sees dashboard after login\n"
-        )
-        replacement = (
-            "# Story Test Plan — TEST-123\n\n"
-            "## TC-FR1-01: Login validation\n\n"
-            "### Expected Results\n\n"
-            "- User sees welcome page after login\n"
-        )
+        Reads the actual workflow markdown and verifies each consumer
+        has all three authority cases (unresolved-source, unverified,
+        authoritative) in the correct exclusive order — unresolved
+        checked first, authoritative last."""
+        consumers = [
+            "implement/skills/validate.md",
+            "implement/skills/code.md",
+            "e2e/skills/validate.md",
+            "e2e/skills/code.md",
+        ]
+        repo_root = Path(__file__).resolve().parent.parent.parent
+        for rel in consumers:
+            text = (repo_root / rel).read_text(encoding="utf-8")
+            # All three authority states must be documented
+            self.assertIn("unresolved-source", text,
+                          f"{rel} must handle unresolved-source marker")
+            self.assertIn("Freshness: unverified", text,
+                          f"{rel} must handle retained unverified plans")
+            self.assertIn("authoritative", text,
+                          f"{rel} must define authoritative source path")
+            # unresolved-source must appear before the authoritative
+            # clause to prevent misrouting
+            unresolved_pos = text.index("unresolved-source")
+            auth_pos = text.index("authoritative")
+            self.assertLess(unresolved_pos, auth_pos,
+                            f"{rel}: unresolved-source must be checked "
+                            f"before authoritative clause")
 
-        orig_hash = hashlib.sha256(
-            original.encode("utf-8")).hexdigest()
-        repl_hash = hashlib.sha256(
-            replacement.encode("utf-8")).hexdigest()
+    def test_per_tc_confirmation_in_code_consumers(self):
+        """Code skills require per-TC confirmation for retained plans.
 
-        # Confirmation hash from original must NOT match replacement
-        self.assertNotEqual(orig_hash, repl_hash,
-                            "Modified Expected Results must produce "
-                            "different SHA-256 — confirmation is stale")
+        Verifies the actual code.md files contain per-TC confirmed
+        list checking (not just file-level hash) and that authoritative
+        plans skip this check."""
+        consumers = [
+            "implement/skills/code.md",
+            "e2e/skills/code.md",
+        ]
+        repo_root = Path(__file__).resolve().parent.parent.parent
+        import re as _re
+        for rel in consumers:
+            text = (repo_root / rel).read_text(encoding="utf-8")
+            normalized = _re.sub(r'\s+', ' ', text.lower())
+            # Per-TC check must be conditional on retained testplans
+            self.assertIn("retained testplans only", normalized,
+                          f"{rel} must scope per-TC check to retained")
+            # Authoritative plans must skip the per-TC check
+            self.assertIn("authoritative testplans", normalized,
+                          f"{rel} must define authoritative skip")
+            self.assertIn("confirmed list", normalized,
+                          f"{rel} must reference the confirmed TC list")
 
-    def test_unchanged_content_matches(self):
-        """Identical content → same SHA-256 → confirmation valid."""
-        import hashlib
-        content = (
-            "# Story Test Plan — TEST-456\n\n"
-            "## TC-FR2-01: Data export\n\n"
-            "### Expected Results\n\n"
-            "- CSV file is downloaded\n"
-        )
-        hash_at_confirmation = hashlib.sha256(
-            content.encode("utf-8")).hexdigest()
-        hash_at_validation = hashlib.sha256(
-            content.encode("utf-8")).hexdigest()
-        self.assertEqual(hash_at_confirmation, hash_at_validation,
-                         "Unchanged content must produce same SHA-256")
+    def test_stale_hash_clauses_in_consumers(self):
+        """Consumer files treat stale SHA-256 hash as unconfirmed.
+
+        Reads actual consumer files and verifies each contains the
+        specific clause that a differing hash invalidates confirmation
+        — distinct from the missing-binding check."""
+        consumers = [
+            "implement/skills/validate.md",
+            "implement/skills/code.md",
+            "e2e/skills/validate.md",
+            "e2e/skills/code.md",
+        ]
+        repo_root = Path(__file__).resolve().parent.parent.parent
+        import re as _re
+        for rel in consumers:
+            text = (repo_root / rel).read_text(encoding="utf-8")
+            normalized = _re.sub(r'\s+', ' ', text.lower())
+            self.assertTrue(
+                "hash differs" in normalized
+                or "confirmation is stale" in normalized,
+                f"{rel} must treat stale hash as unconfirmed")
 
     def test_missing_binding_treated_as_unconfirmed_in_consumers(self):
         """Downstream consumers (validate, code) require SHA-256 binding.
@@ -2626,7 +2688,7 @@ class TestProducerConsumerContracts(unittest.TestCase):
                           f"{rel} must instruct copying Required Evidence")
 
     def test_freshness_readers_accept_both_forms(self):
-        """All Freshness readers accept plain and bold forms."""
+        """All Freshness readers independently accept plain and bold forms."""
         readers = [
             "implement/skills/plan.md",
             "implement/skills/code.md",
@@ -2639,20 +2701,130 @@ class TestProducerConsumerContracts(unittest.TestCase):
             text = (self._repo_root() / rel).read_text()
             self.assertIn("**Freshness:**", text,
                           f"{rel} must accept bold Freshness marker")
+            # Verify plain form is accepted independently — not just
+            # as a substring of the bold form.
+            plain_hits = [i for i in range(len(text))
+                          if text[i:].startswith("Freshness:")
+                          and not text[max(0, i - 2):i].endswith("**")]
+            self.assertGreater(
+                len(plain_hits), 0,
+                f"{rel} must accept plain 'Freshness:' marker "
+                f"independently of the bold form")
 
-    def test_tc_content_binding_stale_on_modified_expected_results(self):
-        """Same TC IDs + modified Expected Results = different SHA-256."""
-        import hashlib
-        original = (
-            "## TC-FR1-01: Login\n### Expected Results\n- Dashboard\n"
-        )
-        modified = (
-            "## TC-FR1-01: Login\n### Expected Results\n- Welcome page\n"
-        )
-        self.assertNotEqual(
-            hashlib.sha256(original.encode()).hexdigest(),
-            hashlib.sha256(modified.encode()).hexdigest(),
-            "Modified Expected Results must invalidate confirmation")
+    def test_unresolved_source_marker_in_ingest_producers(self):
+        """Both ingest files produce unresolved-source marker.
+
+        Reads the actual ingest skill files and verifies the documented
+        marker format for first-ingest with unresolvable source."""
+        import re as _re
+        for rel in ["implement/skills/ingest.md",
+                     "e2e/skills/ingest.md"]:
+            text = (self._repo_root() / rel).read_text(encoding="utf-8")
+            normalized = _re.sub(r'\s+', ' ', text.lower())
+            self.assertIn("freshness: unresolved-source", normalized,
+                          f"{rel} must produce unresolved-source marker")
+            self.assertIn("could not be read or resolved", normalized,
+                          f"{rel} must document the source failure state")
+            # Must be distinct from expected zero
+            self.assertIn("distinct from confirmed absence", normalized,
+                          f"{rel} must distinguish from confirmed absence")
+
+    def test_validated_identity_in_report_and_publisher(self):
+        """Validation reports record identity; publishers compare it.
+
+        Verifies the producer (validate) records ALL identity fields
+        and the consumer (publish) compares them against current
+        inputs. All four fields must appear in both producer and
+        consumer for each workflow."""
+        identity_fields = [
+            ("Branch HEAD", "branch HEAD"),
+            ("Context SHA-256", "01-context.md"),
+            ("Plan SHA-256", "02-plan.md"),
+            ("Testplan SHA-256", "testplan.md"),
+        ]
+        for workflow in ["e2e", "implement"]:
+            val_text = (self._repo_root() /
+                        f"{workflow}/skills/validate.md").read_text()
+            pub_text = (self._repo_root() /
+                        f"{workflow}/skills/publish.md").read_text()
+            # Producer records identity section
+            self.assertIn("## Validated Identity", val_text,
+                          f"{workflow}/validate must have identity section")
+            # Each field must appear in producer AND consumer
+            for field_label, file_ref in identity_fields:
+                self.assertIn(field_label, val_text,
+                              f"{workflow}/validate must record "
+                              f"{field_label}")
+                pub_lower = pub_text.lower()
+                self.assertIn(field_label.lower(), pub_lower,
+                              f"{workflow}/publish must compare "
+                              f"{field_label}")
+            # Consumer requires re-run on mismatch
+            self.assertIn("re-run", pub_text.lower(),
+                          f"{workflow}/publish must require re-run "
+                          f"on mismatch")
+
+    def test_overall_pass_requires_ac_verification(self):
+        """Overall PASS criteria include AC verification.
+
+        Reads both validate files and verifies the PASS criteria
+        require all ACs to pass their approved method, not just
+        automated TC coverage and external evidence."""
+        import re as _re
+        for rel in ["implement/skills/validate.md",
+                     "e2e/skills/validate.md"]:
+            text = (self._repo_root() / rel).read_text(encoding="utf-8")
+            normalized = _re.sub(r'\s+', ' ', text.lower())
+            # Find the Result section
+            self.assertIn("acceptance criteria pass their approved", normalized,
+                          f"{rel} PASS criteria must include AC verification")
+
+    def test_publish_empty_set_confirmation_before_docs_mutation(self):
+        """Empty-set retirement confirmation must precede design copy.
+
+        Reads design/skills/publish.md and verifies that the empty-set
+        branch in the removal preflight (Step 4) obtains named
+        confirmation BEFORE Step 5 copies the design document to the
+        docs repo. Step 7 must use the pre-authorized confirmation,
+        not prompt after writes. Declining stops before any docs-repo
+        mutation.
+
+        This is a static branch-ordering test, not a live agent
+        execution claim."""
+        text = (self._repo_root() /
+                "design/skills/publish.md").read_text(encoding="utf-8")
+        import re as _re
+        normalized = _re.sub(r'\s+', ' ', text)
+        # Empty-set confirmation must appear in the preflight section
+        # (Step 4) before Step 5's design copy
+        empty_confirm_pos = text.find(
+            "current set is empty** and a previous snapshot exists")
+        step5_pos = text.find("### Step 5")
+        design_copy_pos = text.find(
+            'cp ".artifacts/design/{issue-key}/03-design.md"')
+        self.assertGreater(empty_confirm_pos, -1,
+                           "Step 4 must handle empty-set confirmation")
+        self.assertGreater(step5_pos, -1,
+                           "Step 5 must exist")
+        self.assertGreater(design_copy_pos, -1,
+                           "Design copy command must exist")
+        # Empty-set confirmation before Step 5 / design copy
+        self.assertLess(empty_confirm_pos, step5_pos,
+                        "Empty-set confirmation must precede Step 5")
+        self.assertLess(empty_confirm_pos, design_copy_pos,
+                        "Empty-set confirmation must precede design copy")
+        # Declining stops before any mutation
+        decline_stop = text.find(
+            "no docs-repo files are copied, staged")
+        self.assertGreater(decline_stop, -1,
+                           "Declining must stop before any docs mutation")
+        self.assertLess(decline_stop, step5_pos,
+                        "Decline-stop must precede Step 5")
+        # Step 7 uses pre-authorized confirmation, not re-prompt
+        step7_empty = text.find(
+            "confirmation obtained in Step 4")
+        self.assertGreater(step7_empty, step5_pos,
+                           "Step 7 must reference Step 4's confirmation")
 
     def test_e2e_validate_step7_three_way_ac_coverage(self):
         """e2e/skills/validate.md Step 7 accepts scenario, manual TC, or gate."""
@@ -2728,33 +2900,7 @@ class TestSnapshotGitConsumerRegressions(unittest.TestCase):
     """
 
     def _init_git_repo(self, path):
-        """Initialize a Git repository with an initial commit."""
-        subprocess.run(["git", "init", str(path)],
-                       capture_output=True, check=True)
-        # Isolate from host Git configuration: disable signing and
-        # set an empty hooks directory to prevent global hooks from
-        # interfering with test commits.
-        hooks_dir = tempfile.mkdtemp(prefix="empty-git-hooks-",
-                                     dir=str(path.parent))
-        subprocess.run(["git", "-C", str(path), "config",
-                        "core.hooksPath", hooks_dir],
-                       capture_output=True, check=True)
-        subprocess.run(["git", "-C", str(path), "config",
-                        "commit.gpgsign", "false"],
-                       capture_output=True, check=True)
-        subprocess.run(["git", "-C", str(path), "config",
-                        "user.email", "test@test.com"],
-                       capture_output=True, check=True)
-        subprocess.run(["git", "-C", str(path), "config",
-                        "user.name", "Test"],
-                       capture_output=True, check=True)
-        # Create initial commit
-        (path / ".gitkeep").write_text("")
-        subprocess.run(["git", "-C", str(path), "add", ".gitkeep"],
-                       capture_output=True, check=True)
-        subprocess.run(["git", "-C", str(path), "commit",
-                        "-m", "initial"],
-                       capture_output=True, check=True)
+        _init_git_repo(path)
 
     def test_first_publish_no_previous_snapshot(self):
         """First publish: empty old → diff shows all artifacts as added."""
@@ -3132,8 +3278,9 @@ class TestStoryScopedHashPath(unittest.TestCase):
     in consumer files reference story-scoped paths."""
 
     def test_decoy_testplan_does_not_affect_story_hash(self):
-        """Hash of story-scoped file differs from CWD decoy."""
+        """Hash of story-scoped file bytes differs from CWD decoy."""
         import hashlib
+        import shutil
         with tempfile.TemporaryDirectory() as td:
             # Create story-scoped artifact
             story_dir = Path(td) / ".artifacts" / "e2e" / "PROJ-1"
@@ -3145,11 +3292,11 @@ class TestStoryScopedHashPath(unittest.TestCase):
             decoy_content = "# DECOY — different content\n"
             _write(Path(td) / "testplan.md", decoy_content)
 
-            # Hash the story-scoped file (correct behavior)
+            # Hash actual file bytes (not string literals)
             story_hash = hashlib.sha256(
-                story_content.encode("utf-8")).hexdigest()
+                (story_dir / "testplan.md").read_bytes()).hexdigest()
             decoy_hash = hashlib.sha256(
-                decoy_content.encode("utf-8")).hexdigest()
+                (Path(td) / "testplan.md").read_bytes()).hexdigest()
 
             # Verify the hashes differ (proving CWD decoy is wrong)
             self.assertNotEqual(story_hash, decoy_hash,
@@ -3157,16 +3304,19 @@ class TestStoryScopedHashPath(unittest.TestCase):
                                 "CWD decoy — instructions must hash "
                                 "the full story-scoped path")
 
-            # Also verify via actual sha256sum command on story file
-            r = subprocess.run(
-                ["sha256sum",
-                 str(story_dir / "testplan.md")],
-                capture_output=True, text=True)
-            self.assertEqual(r.returncode, 0)
-            cmd_hash = r.stdout.split()[0]
-            self.assertEqual(cmd_hash, story_hash,
-                             "sha256sum of story-scoped file must "
-                             "match Python hashlib result")
+            # Verify via sha256sum if available (portable guard)
+            if shutil.which("sha256sum"):
+                r = subprocess.run(
+                    ["sha256sum",
+                     str(story_dir / "testplan.md")],
+                    capture_output=True, text=True,
+                    timeout=10, check=False)
+                self.assertEqual(r.returncode, 0,
+                                 f"sha256sum must succeed: {r.stderr}")
+                cmd_hash = r.stdout.split()[0]
+                self.assertEqual(cmd_hash, story_hash,
+                                 "sha256sum of story-scoped file "
+                                 "must match Python hashlib result")
 
     def test_documented_commands_use_story_scoped_paths(self):
         """All sha256sum commands in consumer files use story-scoped paths.
@@ -3189,11 +3339,14 @@ class TestStoryScopedHashPath(unittest.TestCase):
             self.assertTrue(path.is_file(),
                             f"{rel} must exist as a consumer file")
             text = path.read_text(encoding="utf-8")
-            # Find all sha256sum mentions
-            hits = [m for m in re.finditer(
-                r"sha256sum\s+([^\s`)]+)", text)]
-            if not hits:
-                continue  # File may reference SHA-256 concept only
+            # Find all sha256sum mentions — each consumer must have
+            # at least one documented sha256sum command.
+            hits = list(re.finditer(
+                r"sha256sum\s+([^\s`)]+)", text))
+            self.assertGreater(
+                len(hits), 0,
+                f"{rel}: must contain at least one documented "
+                f"sha256sum command")
             for m in hits:
                 arg = m.group(1)
                 self.assertIn(
@@ -3215,29 +3368,7 @@ class TestDesignStagingIndependence(unittest.TestCase):
     Uses a real temporary Git repo + actual staging/commit."""
 
     def _init_git_repo(self, path):
-        """Initialize a Git repository with an initial commit."""
-        subprocess.run(["git", "init", str(path)],
-                       capture_output=True, check=True)
-        hooks_dir = tempfile.mkdtemp(prefix="empty-git-hooks-",
-                                     dir=str(path.parent))
-        subprocess.run(["git", "-C", str(path), "config",
-                        "core.hooksPath", hooks_dir],
-                       capture_output=True, check=True)
-        subprocess.run(["git", "-C", str(path), "config",
-                        "commit.gpgsign", "false"],
-                       capture_output=True, check=True)
-        subprocess.run(["git", "-C", str(path), "config",
-                        "user.email", "test@test.com"],
-                       capture_output=True, check=True)
-        subprocess.run(["git", "-C", str(path), "config",
-                        "user.name", "Test"],
-                       capture_output=True, check=True)
-        _write(path / ".gitkeep", "")
-        subprocess.run(["git", "-C", str(path), "add", "."],
-                       capture_output=True, check=True)
-        subprocess.run(["git", "-C", str(path), "commit", "-m",
-                        "initial"],
-                       capture_output=True, check=True)
+        _init_git_repo(path)
 
     def test_pure_design_update_no_artifacts_commits(self):
         """Design change stages/commits with empty validation sets."""
@@ -3488,9 +3619,10 @@ class TestCandidatePreflightTrustedBase(unittest.TestCase):
     the docs repo is a separate checkout. Using the docs root as
     trusted base causes the helper to reject the output path.
 
-    Each subtest extracts the actual transform command from the phase
-    markdown, substitutes placeholders, and executes it against a
-    real temporary layout with distinct project and docs directories.
+    Each subtest extracts the documented trusted-output-base value
+    from the phase markdown, verifies it is ".", and runs the
+    equivalent transform and diff argv against a real temporary
+    layout with distinct project and docs directories.
     """
 
     def _repo_root(self):
@@ -3511,8 +3643,8 @@ class TestCandidatePreflightTrustedBase(unittest.TestCase):
         return m.group(0), m.group(1)
 
     def _run_preflight(self, rel):
-        """Run the extracted candidate preflight for a single phase."""
-        cmd_text, trusted_base = self._extract_candidate_transform_cmd(rel)
+        """Run the candidate preflight for a single phase."""
+        _, trusted_base = self._extract_candidate_transform_cmd(rel)
 
         # The trusted base for candidates must be "." (project root)
         self.assertEqual(
@@ -3572,13 +3704,15 @@ class TestCandidatePreflightTrustedBase(unittest.TestCase):
             (docs_feat / "companion.md").write_text(
                 "# Published companion\n")
 
-            # Execute candidate transform: output under project
+            # Execute candidate transform: output under project,
+            # using the documented trusted-output-base with cwd=proj
             r1 = subprocess.run(
-                ["python3", script, "transform",
+                [sys.executable, script, "transform",
                  str(art_dir / "validation-index.json"),
                  str(art_dir / "candidate-published-index.json"),
-                 "--trusted-output-base", proj],
-                capture_output=True, text=True, cwd=proj)
+                 "--trusted-output-base", trusted_base],
+                capture_output=True, text=True, cwd=proj,
+                timeout=10, check=False)
             self.assertEqual(
                 r1.returncode, 0,
                 f"{rel}: candidate transform must succeed when "
@@ -3589,10 +3723,11 @@ class TestCandidatePreflightTrustedBase(unittest.TestCase):
 
             # Execute diff: should report old-extra.md as removed
             r2 = subprocess.run(
-                ["python3", script, "diff",
+                [sys.executable, script, "diff",
                  str(art_dir / "prev-published-index.json"),
                  str(art_dir / "candidate-published-index.json")],
-                capture_output=True, text=True, cwd=proj)
+                capture_output=True, text=True, cwd=proj,
+                timeout=10, check=False)
             self.assertEqual(r2.returncode, 0,
                              f"diff must succeed: {r2.stderr}")
             diff_result = json.loads(r2.stdout)

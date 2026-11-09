@@ -64,6 +64,24 @@ Verify readiness:
    legacy reports with plain `PASS`), tell the user that `/validate`
    should be run (or re-run) first.
 
+   Additionally, verify the validation report's identity binding
+   in the `## Validated Identity` section: the report must record the
+   candidate branch HEAD, context SHA-256, plan SHA-256, and testplan
+   SHA-256 that were validated. Compare each against:
+   - Current branch HEAD (`git rev-parse HEAD`)
+   - Current context SHA-256 (`sha256sum
+     .artifacts/e2e/{issue-key}/01-context.md`, or "absent")
+   - Current plan SHA-256 (`sha256sum
+     .artifacts/e2e/{issue-key}/02-plan.md`, or "absent")
+   - Current testplan SHA-256 (`sha256sum
+     .artifacts/e2e/{issue-key}/testplan.md`, or "absent")
+
+   If any identity field does not match the current inputs (stale
+   report from before a re-ingest, branch change, AC change, or
+   gate addition), tell the user that `/validate` should be re-run.
+   Legacy reports without identity binding also require
+   re-validation.
+
 2. Verify the feature branch exists and has commits:
 
    ```bash

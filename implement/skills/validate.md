@@ -343,10 +343,31 @@ satisfied:
 If `.artifacts/implement/{issue-key}/testplan.md` exists, independently
 verify that every **automatable** test case has been implemented.
 
-**Unverified source handling:** If `testplan.md` contains
-`Freshness: unverified` (or the legacy bold form `**Freshness:**
-unverified`), check whether the Test Plan Coverage
-section in `02-plan.md` records a confirmed status for the TCs.
+**Testplan source authority:** Check the testplan's freshness
+marker to determine its authority level. The cases are mutually
+exclusive; evaluate in this order:
+
+1. If `testplan.md` contains `Freshness: unresolved-source`, the
+   source could not be read or resolved during ingest. Report this
+   state as "unresolved discovery — source unavailable" in the
+   validation report. Do not treat it as confirmed absence or full
+   coverage. AC-based work may continue, but unresolved required
+   validation cannot be claimed as complete. The overall result
+   cannot be PASS while this state persists.
+
+2. If `testplan.md` contains `Freshness: unverified` (or the legacy
+   bold form `**Freshness:** unverified`), the testplan was retained
+   from a prior ingest. Check whether the Test Plan Coverage section
+   in `02-plan.md` records a confirmed status for the TCs.
+
+3. If `testplan.md` contains neither marker (the plan was freshly
+   ingested from an authoritative source), its TCs are authoritative
+   — verify all automatable TCs have been implemented without
+   requiring user confirmation or SHA-256 binding. A stale
+   confirmation hash from a prior retained plan does not invalidate
+   a freshly ingested authoritative source.
+
+For case 2, check the confirmed status:
 
 - **Confirmed TCs** (plan records user confirmation, confirmed TC
   IDs, and SHA-256 of `.artifacts/implement/{issue-key}/testplan.md`
@@ -567,8 +588,17 @@ Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
  Status values:
  - not-started: no evidence collection has begun
  - pending: evidence collection in progress
- - verified: evidence reviewed and accepted
+ - verified: evidence reviewed and accepted — verification method,
+   source criteria, and evidence basis (candidate build/revision)
+   all confirmed applicable to the current candidate
  - failed: evidence shows the requirement is not met
+
+ Before marking evidence `verified`, verify the evidence basis
+ applies to the current candidate (build, revision, or test run).
+ If the evidence was collected against a different candidate or
+ revision and applicability is unknown, keep it `pending`. Record
+ the evidence basis (candidate identifier, date) alongside the
+ status.
 
  If all verified: "All external validation evidence verified."
  If any failed: "N entries FAILED — required evidence shows
@@ -599,6 +629,29 @@ Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
 {If no validation commits: "No additional commits needed during
  validation."}
 
+## Validated Identity
+
+Record after the last code commit during validation, before
+writing the final result:
+
+- **Branch HEAD:** {full 40-character SHA of the branch HEAD}
+- **Context SHA-256:** {SHA-256 of
+  `.artifacts/implement/{issue-key}/01-context.md`, or "absent" if
+  no context file exists}
+- **Plan SHA-256:** {SHA-256 of
+  `.artifacts/implement/{issue-key}/02-plan.md`, or "absent" if no
+  plan file exists}
+- **Testplan SHA-256:** {SHA-256 of
+  `.artifacts/implement/{issue-key}/testplan.md` at validation time,
+  or "absent" if no testplan}
+
+{This section binds the validation result to the specific candidate
+ code and input artifacts that were validated. The publish step
+ compares these against current inputs to detect stale reports —
+ a re-ingest, branch change, AC change, or gate addition
+ invalidates the old PASS. Legacy reports without this section
+ require re-validation.}
+
 ## Result
 
 {Automated test coverage: PASS / FAIL — whether all automatable TC
@@ -608,8 +661,20 @@ Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
  whether all manual verification, qualification gate, and non-TC
  gate evidence has been provided and accepted.
 
- Write `Overall: PASS` on its own line only when both automated
- coverage passes AND all external validation entries are verified.
+ Write `Overall: PASS` on its own line only when ALL of:
+ (1) all acceptance criteria pass their approved verification
+     method (automated scenario, manual TC, qualification gate,
+     or manual verification — as determined in Step 8),
+ (2) all confirmed automatable TC IDs have passing tests,
+     coverage meets thresholds, and no regressions,
+ (3) all confirmed external validation entries (manual TCs and
+     qualification gates) are verified.
+ Unconfirmed TCs (from an unverified or unconfirmed testplan) are
+ provisional — report them separately and exclude them from
+ mandatory pass checks. An unconfirmed TC gap does not block
+ Overall: PASS, but must be reported as provisional coverage.
+ A failed or pending confirmed entry, or an AC without approved
+ coverage, always blocks Overall: PASS.
  Other outcomes:
  - If automated tests pass but entries are pending/not-started:
    "PASS (automated) — awaiting external validation for {N}

@@ -128,15 +128,29 @@ map from `publish-metadata.json`:
     from `resolve --local` because both `validation-index.json` and
     legacy `04-testplan.md` are absent) while metadata lists
     previously published artifacts, this is a proposed **empty-set
-    retirement** — do not stop on inconsistency. Retain the previous
-    validated set for comment routing and proceed to sync; the
-    retirement confirmation step will require explicit approval of
-    each named file removal before any deletion occurs. A present
+    retirement** — do not stop on inconsistency. Obtain the validated published set by reading
+    `{docs_repo_path}/{feature-dir}/validation-index.json` (or its
+    legacy `testplan.md` fallback). Use this published set for comment
+    routing and proceed to sync; the retirement confirmation step will
+    require explicit approval of each named file removal before any
+    deletion occurs. Before applying artifact edits to published
+    companions, require the user to restore local copies from the
+    published versions. A present
     but malformed or empty-content index is NOT this case — that
     triggers the resolve failure stop above.
   - If the local index is **non-empty** but its entries do not match
-    metadata, stop and report the inconsistency — a mismatched
-    non-empty set is a genuine error.
+    metadata, distinguish between intentional set transitions and
+    genuine errors:
+    - Entries in metadata but absent from the local index are candidate
+      removals — route them to the removal preflight for named
+      confirmation.
+    - Entries in the local index but absent from metadata are candidate
+      additions — proceed with publication.
+    - Entries with conflicting types, corrupted paths, or invalid index
+      structure are genuine errors — stop and report the inconsistency.
+    The removal preflight allows only named, user-approved removals of
+    specific files. Missing files and invalid indexes never constitute
+    deletion approval.
 - If `validation_artifacts` is absent, fall back to `testplan_file_path`
   as the sole entry (maps to `04-testplan.md` locally).
 
@@ -403,7 +417,9 @@ Apply changes in this order:
 3. **Update testplan Gaps section.** After all mutations, rebuild the
    Gaps section from the current testplan state: update requirement
    coverage gaps and IC coverage gaps based on the current TC-to-
-   requirement and TC-to-IC mappings.
+   requirement and TC-to-IC mappings and the Review and Qualification
+   Gates mappings. For requirements or ICs covered only by gates,
+   reference the gate rather than listing them as uncovered.
 
 **Update the local artifact:** Update
 `.artifacts/design/{issue-key}/03-design.md`.
@@ -665,7 +681,11 @@ python3 "$VALIDATION_INDEX_SCRIPT" validate --published ".artifacts/design/{issu
 If validation fails, stop and report. If it passes, for each
 listed artifact, check whether it is tracked and stage removal
 with `git -C "{docs_repo_path}" rm -- "{feature-dir}/{filename}"`.
-Skip untracked files. Remove the published `validation-index.json`
+For tracked files, stage removal with `git rm`. For untracked files
+that were previously owned by this publication (confirmed in the
+retirement list), remove them from disk with `rm -f` without staging —
+do not use `git clean` or follow symlinks. Remove the published
+`validation-index.json`
 only if the previous publication included one (skip for legacy-only
 snapshots that had only `testplan.md`). Use the same tracked-file
 check and `git rm` for the index removal.

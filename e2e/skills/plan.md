@@ -77,7 +77,7 @@ Do not conflate Local Base with PR Target. A stacked story rebases locally onto 
 
 Before writing the plan, create a mental map:
 - Which acceptance criteria describe user-facing behaviors that can be verified through e2e tests?
-- For each AC, what are the concrete scenarios? (happy path, error paths, edge cases)
+- For each AC with automated test coverage, what are the concrete scenarios? (happy path, error paths, edge cases). ACs covered by manual TCs or qualification gates do not need automated scenarios.
 - What test infrastructure methods will each scenario use?
 - What auxiliary services does each scenario need (if any)?
 - What setup and teardown does each scenario require beyond the suite-level patterns?
@@ -151,7 +151,10 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
 
 ## Test Scenarios
 
-{Map each acceptance criterion to concrete test scenarios. Each scenario
+{Map each acceptance criterion that has automated test coverage to
+ concrete test scenarios. ACs covered by manual TCs or qualification
+ gates are tracked in the Acceptance Criteria Coverage matrix, not
+ in this section. Each scenario
  is a specific test case that verifies observable behavior through the
  project's test infrastructure.
 
@@ -292,18 +295,30 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
 {Include this section only if `.artifacts/e2e/{issue-key}/testplan.md`
  exists. If no story-scoped testplan: omit this section entirely.
 
- **Unverified source handling:** If `testplan.md` contains
- `Freshness: unverified` (or the legacy bold form `**Freshness:**
- unverified`), present the TC list to the user and
- require explicit confirmation that the retained TCs are still
- applicable before using them as normative coverage requirements.
- Until confirmed, mark Test Plan Coverage as "unverified —
- awaiting user confirmation." Do not block AC-based work.
- Retained TCs that are unconfirmed are provisional — they may
- keep unmapped rows in the table and are exempt from the set-diff
- gate (changes to unconfirmed TCs are not enforced until
- confirmation). Once the user confirms, the normal disposition
- and set-diff requirements apply.
+ **Testplan source authority:** If `testplan.md` contains
+ `Freshness: unresolved-source`, the source could not be checked
+ during ingest. Omit the Test Plan Coverage section — do not
+ plan coverage for an unresolved testplan. Note "testplan source
+ unresolved" and continue with AC-based planning.
+
+ If `testplan.md` does NOT contain a `Freshness: unverified` or
+ `Freshness: unresolved-source` marker (the plan was freshly
+ ingested from an authoritative source), its TCs are
+ authoritative — use them as normative coverage requirements
+ directly without requiring user confirmation or SHA-256 binding.
+
+ If `testplan.md` contains `Freshness: unverified` (or the legacy
+ bold form `**Freshness:** unverified`), the testplan was retained
+ from a prior ingest. Present the TC list to the user and require
+ explicit confirmation that the retained TCs are still applicable
+ before using them as normative coverage requirements. Until
+ confirmed, mark Test Plan Coverage as "unverified — awaiting user
+ confirmation." Do not block AC-based work. Retained TCs that are
+ unconfirmed are provisional — they may keep unmapped rows in the
+ table and are exempt from the set-diff gate (changes to
+ unconfirmed TCs are not enforced until confirmation). Once the
+ user confirms, the normal disposition and set-diff requirements
+ apply.
 
  When the user confirms, record in this section:
  - Status: "confirmed — user verified TC applicability on {date}"

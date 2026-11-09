@@ -252,19 +252,44 @@ zero (warn the user, continue without `testplan.md`).
 
 **Validate the published index before selecting an outcome.** If a
 `validation-index.json` exists in the source location, validate it
-using `resolve --published` before treating its contents as
-authoritative. If the index is present but malformed or contains an
-empty artifacts list, treat it as unresolvable — retain any prior
-story-scoped testplan, mark it `Freshness: unverified`, and skip
-the outcome gate and story testplan write below. A present but
-invalid index is distinct from an absent index: do not fall back
-to legacy `testplan.md` discovery when a `validation-index.json`
-exists but fails validation.
+using the validation index script. Resolve the script path before
+first use:
 
-If the source location or any discovered validation artifact cannot be
-resolved or read, retain any prior story-scoped testplan and mark it
-`Freshness: unverified`. Report that the source could not be checked.
-Skip the outcome gate and story testplan write below.
+```bash
+VALIDATION_INDEX_SCRIPT="${HOME}/.ai-workflows/design/scripts/validation_index.py"
+```
+
+Run `python3 "$VALIDATION_INDEX_SCRIPT" resolve --published
+"{source-feature-directory}"` before treating its contents as
+authoritative.
+
+**Resolution failure handling.** If the index is present but
+malformed, contains an empty artifacts list, the source location or
+any discovered validation artifact cannot be resolved or read, or
+the resolve command exits non-zero, the source is unresolvable:
+- If a prior story-scoped testplan exists, retain it and mark it
+  `Freshness: unverified`. Do not overwrite prior evidence.
+- If no prior story-scoped testplan exists, write a minimal marker
+  to `.artifacts/e2e/{issue-key}/testplan.md`:
+  ```
+  # Story Test Plan — {issue-key}
+  Freshness: unresolved-source
+  Source: could not be read or resolved
+  ```
+  This marker is distinct from confirmed absence (expected zero) or
+  a verified empty set. Downstream validation must report this state
+  as unresolved discovery, not as confirmed absence or full coverage.
+  A successful subsequent ingest that checks the source clears this
+  marker by writing the normal testplan or deleting it for expected
+  zero outcomes.
+- Report that the source could not be checked. Skip the outcome
+  gate and story testplan write below. AC-based work may continue,
+  but unresolved required validation cannot be claimed as complete.
+
+A present but invalid index is distinct from an absent index: do
+not fall back to legacy `testplan.md` discovery when a
+`validation-index.json` exists but fails validation. Failed script
+resolution or index validation is not confirmed absence.
 
 For non-normal/non-gate-only outcomes (expected zero, anomalous zero,
 or confirmed absence of a feature-level testplan): if

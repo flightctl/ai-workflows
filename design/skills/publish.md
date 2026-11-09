@@ -209,28 +209,14 @@ git -C "{docs_repo_path}" checkout -b {branch-name} publish-push/{branch-name}
 git -C "{docs_repo_path}" checkout -b {branch-name}
 ```
 
-Copy the design document artifact to the docs repo:
+**Validation artifact resolution and preflight (before any docs-repo
+mutation):**
 
-```bash
-mkdir -p "{docs_repo_path}/{release}/{feature}"
-```
-
-```bash
-cp ".artifacts/design/{issue-key}/03-design.md" "{docs_repo_path}/{release}/{feature}/design.md"
-```
-
-Read and follow `../../_shared/recipes/render-provenance-footer.md` with
-`WORKFLOW=design`, `ISSUE_KEY={issue-key}`,
-`TARGET_FILE="{docs_repo_path}/{release}/{feature}/design.md"`.
-
-```bash
-git -C "{docs_repo_path}" add "{release}/{feature}/design.md"
-```
-
-**Validation artifact publication:**
-
-Publication follows a strict snapshot-before-write order to avoid
-data loss when artifacts change between publishes.
+All resolution, snapshot, and preflight operations below run
+against local `.artifacts/` and read from the docs repo without
+modifying it. No file in `{docs_repo_path}` is copied, staged, or
+committed until all preflights pass and any required confirmations
+are obtained.
 
 **Resolve current artifacts.** Resolve the local validation
 artifact set:
@@ -335,16 +321,59 @@ python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-publ
 If the `removed` list is non-empty, present the exact filenames to the
 user and require named confirmation of each removal before proceeding.
 An earlier explicit named-artifact approval (from a prior `/revise` or
-`/publish` step that named these specific files) counts as confirmation;
-generic update approval does not. If the user declines, stop — preserve
+`/publish` step that named these specific files) counts as confirmation
+only if the artifact's published state has not changed since approval —
+approval is consumed by the operation it authorized, and is not reusable
+after an intervening synchronization, restoration, or content
+replacement. When state continuity cannot be established, require fresh
+confirmation. Generic update approval does not authorize removal. If the user declines, stop — preserve
 published artifacts and metadata unchanged. Clean up the candidate file
 after the preflight completes (it is not published directly).
 
-If no previous snapshot was captured (first publish) or the current set
-is empty, skip this preflight — first-publish has no removals, and the
-empty-set retirement flow in Step 7 handles its own confirmation.
+If no previous snapshot was captured (first publish), skip this
+preflight — first-publish has no removals.
 
-### Step 5: Copy Current Artifacts
+**If the current set is empty** and a previous snapshot exists, this
+is an empty-set retirement. Present the exact filenames from the
+previous snapshot to the user and require named confirmation before
+any docs-repo mutation occurs:
+
+- For each artifact in the previous snapshot, show:
+  `{release}/{feature}/{filename}`
+- Show: `{release}/{feature}/validation-index.json` (if the previous
+  publication included one)
+
+Ask the user: **"The following published validation artifacts will
+be removed. Confirm retirement, or restore the local artifact set
+before proceeding."** The user must explicitly confirm removal of
+these specific filenames. Generic publish approval is not sufficient.
+If the user declines, stop — no docs-repo files are copied, staged,
+or committed. Record the confirmation for Step 7 to execute.
+
+### Step 5: Copy Design Document and Current Artifacts
+
+All preflights have passed and any required confirmations have been
+obtained. Now begin modifying the docs repo.
+
+**Copy the design document:**
+
+```bash
+mkdir -p "{docs_repo_path}/{release}/{feature}"
+```
+
+```bash
+cp ".artifacts/design/{issue-key}/03-design.md" "{docs_repo_path}/{release}/{feature}/design.md"
+```
+
+Read and follow `../../_shared/recipes/render-provenance-footer.md` with
+`WORKFLOW=design`, `ISSUE_KEY={issue-key}`,
+`TARGET_FILE="{docs_repo_path}/{release}/{feature}/design.md"`.
+
+```bash
+git -C "{docs_repo_path}" add "{release}/{feature}/design.md"
+```
+
+**Copy validation artifacts:**
 
 If the current set is empty (no validation artifacts), skip to Step 7.
 
@@ -422,22 +451,13 @@ Do not remove files outside the feature directory or files not
 listed in the previous set.
 
 **If the current set is empty** and the previous set had artifacts,
-present the exact filenames from the previous snapshot to the user
-and ask for explicit confirmation before proceeding:
-
-List the filenames:
-- For each artifact in the previous snapshot, show: `{release}/{feature}/{filename}`
-- Show: `{release}/{feature}/validation-index.json` (if the previous
-  publication included one)
-
-Ask the user: **"The following published validation artifacts will
-be removed. Confirm retirement, or restore the local artifact set
-before proceeding."** The user must explicitly confirm removal of
-these specific filenames. Generic publish approval is not sufficient.
-
-If the user declines or does not confirm, stop — preserve published
-artifacts and metadata unchanged. The `/revise` fallback to `/publish`
-must not bypass this confirmation.
+execute the retirement using the confirmation obtained in Step 4's
+empty-set preflight. If no such confirmation was recorded (the
+preflight was bypassed or state changed since confirmation), stop
+and restart the preflight before any docs-repo mutation — do not
+prompt for confirmation after the design document has already been
+copied. The `/revise` fallback to `/publish` must not bypass this
+gate.
 
 If the user confirms, validate the previous snapshot before removal:
 
