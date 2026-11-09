@@ -155,8 +155,8 @@ ownership or adopting unknown ahead commits.
 | `handoff_file_path` | Repo-relative handoff path |
 | `candidate_screenshot_storage` | Storage mode for this attempt |
 | `candidate_screenshot_assets` | Array of `{id, filename, sha256, published_path}` entries |
-| `upstream_prd_path` | Repo-relative path to PRD (first-publish; `null` on updates) |
-| `upstream_design_path` | Repo-relative path to design doc (first-publish; `null` on updates) |
+| `upstream_prd_path` | Repo-relative path to PRD (frozen at preparation; preserved on updates) |
+| `upstream_design_path` | Repo-relative path to design doc (frozen at preparation; preserved on updates) |
 | `push_destination` | Validated push target (`{host}:{owner}/{repo}` canonical form) |
 | `timestamp` | ISO 8601 when the attempt was recorded |
 
@@ -169,7 +169,11 @@ repo-relative POSIX paths to existing regular files with basenames
 `prd.md` and `design.md`, sharing the same canonical parent
 directory as `handoff_file_path`, inside `docs_repo_root`. On
 recovery, load frozen values into Step 9 variables before use;
-verify they exist at `commit_sha` (not the mutable worktree).
+verify against the committed tree at `commit_sha` (not the mutable
+worktree) that each path is a regular file with the expected
+basename (`prd.md` / `design.md`), both share the same canonical
+parent as `handoff_file_path`, and all remain inside
+`docs_repo_root`.
 First publication remains first publication even when `pr_number`
 has since become known. Update attempts preserve established
 upstream paths rather than overwrite with `null`. Legacy records
