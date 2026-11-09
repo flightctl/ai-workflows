@@ -34,12 +34,16 @@ Read `{source_repo_root}/.artifacts/ux-design/{issue-key}/05-handoff.md`.
 If the file doesn't exist, tell the researcher that `/handoff` should be run first.
 
 If `{source_repo_root}/.artifacts/ux-design/{issue-key}/publish-metadata.json`
-exists, read it and treat this invocation as an update to the existing PR. Keep
-its PR number, branch, and handoff path; do not create a second PR for the same
-handoff. Older metadata may also contain `release` and `feature` fields; treat
-those as informational and do not use them to reconstruct the handoff path. If
-the metadata is unreadable or lacks its PR number, branch, or handoff path,
-stop and ask the researcher to repair it before publishing.
+exists, read it. **Pending attempt check (early).** If it contains
+`pending_attempt`, validate its schema and follow
+`../../_shared/recipes/screenshot-publish-stage.md` §4 before any copy,
+commit, or authoring-revision gate. Resolve config/checkout
+non-mutatingly before §4; no branch creation, pull, or file copy first.
+Already pushed → Step 9. Not pushed → Step 8. Failure → stop.
+An existing `pending_attempt` must not be overwritten before validation.
+**If no pending**, treat as an update. Keep its PR number, branch, and
+handoff path; do not create a second PR. If the metadata lacks its PR
+number, branch, or handoff path, stop and ask the researcher to repair.
 
 Read `{source_repo_root}/.artifacts/ux-design/{issue-key}/00-context.md` and
 verify that the context is `enriched` and the handoff
@@ -49,11 +53,6 @@ publishing. Never publish a handoff produced from exploratory context.
 
 Also read `{source_repo_root}/.artifacts/ux-design/{issue-key}/01-discovery.md`;
 its **Upstream References** record the resolved published PRD and design paths.
-
-**Pending attempt check (early).** If `publish-metadata.json` contains
-`pending_attempt`, follow `../../_shared/recipes/screenshot-publish-stage.md`
-§4 now — before any copy or commit. Already pushed → skip to Step 9.
-Not yet pushed → skip to Step 8. Validation failure → stop.
 
 ### Step 2: Resolve Docs Repo
 
@@ -254,8 +253,9 @@ alone.
 choice. If `lfs` is selected but LFS is not initialized or tracking
 patterns are missing, stop — do not auto-enable. External URLs must
 be immutable and revision-bound; reject mutable or expiring links.
-Do not invent upload providers. Store the policy in
-`publish-metadata.json`.
+Do not invent upload providers. Keep the resolved policy in memory;
+persist to `publish-metadata.json` only after verified push and PR
+identity (Step 9). Previous published storage unchanged on failure.
 
 ### Step 6: Create or Update Branch and Commit
 

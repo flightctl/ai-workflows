@@ -114,19 +114,21 @@ Wait for the user to approve, modify, or reject each response.
 
 **If "Handoff change needed: Yes":**
 
+**Pending attempt check (early).** If `publish-metadata.json` contains
+a `pending_attempt` record, follow §4 of
+`../../_shared/recipes/screenshot-publish-stage.md` **now** — before
+any file copy, `git rm`, new commit, handoff update, or provenance
+capture. Recover the old attempt first: if already pushed, skip to
+metadata finalization; if not yet pushed, skip to the push step.
+Validation failure → stop. Process new approved feedback in a separate
+invocation after recovery. Never post or log replies claiming edits
+that were not published.
+
 Update `.artifacts/ux-design/{issue-key}/05-handoff.md` with approved changes.
 
 Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 `WORKFLOW=ux-design`, `ISSUE_KEY={issue-key}`, `PHASE=respond`,
 `AUTHORING_MODE=skill`.
-
-**Pending attempt check (early).** If `publish-metadata.json` contains
-a `pending_attempt` record, follow §4 of
-`../../_shared/recipes/screenshot-publish-stage.md` **now** — before
-any file copy, `git rm`, or new commit. If the pending attempt is
-verified and already pushed, skip directly to metadata finalization
-below. If verified but not yet pushed, skip to the push step. If
-validation fails, stop.
 
 Update the docs repo copy:
 

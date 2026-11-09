@@ -25,9 +25,42 @@ Read the manifest at `{MANIFEST_PATH}`. It contains per-image `sha256`,
 If the manifest is missing, warn the user and record `manifest: unavailable`
 per image.
 
-### 2. Resolve image references
+### 2. Account for every declared index ID
 
-Determine the reference type from the handoff embeds:
+Read `{HANDOFF_FILE}`'s **Screenshot Index** section and collect all
+declared `SS-N` IDs with their declared ref paths. Match each declared
+ID to an actual image embed (`![...](...)` in the handoff body) by
+**both** the ID and its declared ref path. Consume each embed at most
+once — distinct IDs with the same ref may each match their own embed of
+that ref, but one embed cannot satisfy two IDs.
+
+- **IDs with a matching embed:** pass to steps 3–4 for resolution and
+  inspection. One output row per declared ID.
+- **IDs without an embed or whose embed was already consumed:** record
+  immediately as a 9-column row with `status: unavailable`,
+  `identity: —`, `observation: —`, `spec_match: —`, and
+  `notes: "declared in index but no matching embed found"`. Include
+  in the output and aggregate totals.
+
+Unmatched embeds (embeds in the body that do not correspond to any
+declared ID) are not eligible for inspection or citation.
+
+Run this matching **before** resolution or inspection. The total is
+the count of declared IDs, not the count of discovered embeds.
+
+Report the full accounting:
+- **Total declared:** count of IDs in the Screenshot Index
+- **Embeds found:** count with matching image embeds
+- **Missing embeds:** count without embeds (list the IDs)
+
+If any IDs have missing embeds, warn the user and prompt: repair the
+handoff to add the missing embeds, or explicitly authorize partial
+continuation (text-only for those IDs). Never silently omit a declared
+ID or claim all images were inspected when embeds are missing.
+
+### 3. Resolve image references
+
+For each matched pair from §2, determine the reference type:
 
 **Local references** (`screenshots/SS-N-desc.png` -- `lfs` or `git`
 mode): **Path containment.** Before opening any local file, reject
@@ -44,9 +77,9 @@ Retrieve image bytes using the runtime's binary download capability
 (save to a temporary file). If download fails, record
 `inspection: fetch-failed`.
 
-### 3. Verify identity and inspect
+### 4. Verify identity and inspect
 
-For each resolved image (local file or fetched external):
+For each resolved matched image from §3:
 
 1. **Verify identity.** If the manifest provides `sha256`, compute the
    SHA-256 of the actual image bytes and compare. Record
@@ -88,7 +121,7 @@ For each resolved image (local file or fetched external):
    image access.
 
 5. **Check revision binding (separate from identity).** Byte-identity
-   verification (step 3.1) and revision-binding validity are
+   verification (step 4.1) and revision-binding validity are
    independent checks — a verified SHA must not erase a binding
    mismatch.
 
@@ -104,44 +137,15 @@ For each resolved image (local file or fetched external):
 
    Record binding status in the Notes column of the per-image schema
    (keeping 9 columns) with the actual expected/actual values and
-   match status. Default missing fields to `unknown` — never treat an
-   absent binding as vacuously `matched`.
+   match status. Default missing, empty, dash (`—`), or otherwise
+   invalid binding fields to `unknown` — never treat an absent or
+   unrecognizable binding as vacuously `matched`.
 
    When any binding is `mismatched` or `unknown`, prompt the user
    **per image** to accept or reject and persist the decision in
    Notes (e.g., `binding: mismatched, ctx_rev expected=r3 actual=r2,
    decision=accepted`). A verified SHA cannot clear a binding
    mismatch. See §5 Eligibility for citation rules.
-
-### 4. Account for every declared index ID
-
-Read `{HANDOFF_FILE}`'s **Screenshot Index** section and collect all
-declared `SS-N` IDs. Match each declared ID to an actual image embed
-(`![...](...)` in the handoff body) by **both** the ID and its declared
-ref path. Consume each embed at most once — a shared ref path cannot
-satisfy two distinct IDs from one embed.
-
-- **IDs with a matching embed:** these are the images processed in
-  steps 2–3 above.
-- **IDs without an embed or whose embed was already consumed:** record
-  as a 9-column row with `status: unavailable`, `identity: —`,
-  `observation: —`, `spec_match: —`, and
-  `notes: "declared in index but no matching embed found"`. Include
-  in the output and aggregate totals.
-
-Run this accounting **before** computing the final aggregate status or
-eligibility. The total is the count of declared IDs, not the count of
-discovered embeds.
-
-Report the full accounting:
-- **Total declared:** count of IDs in the Screenshot Index
-- **Embeds found:** count with matching image embeds
-- **Missing embeds:** count without embeds (list the IDs)
-
-If any IDs have missing embeds, warn the user and prompt: repair the
-handoff to add the missing embeds, or explicitly authorize partial
-continuation (text-only for those IDs). Never silently omit a declared
-ID or claim all images were inspected when embeds are missing.
 
 ### 5. Eligibility and citation rules
 
@@ -157,9 +161,11 @@ needed), or `mismatched`/`unverified` with explicit per-image user
 acceptance. Any other value, or a rejected/unprompted/deferred
 decision → **ineligible**.
 
-**Rule 3 — Bindings.** Each binding (`context_revision`,
-`prototype_iteration`) that is `mismatched` or `unknown` requires its
-own explicit acceptance, independent of identity. Any rejected,
+**Rule 3 — Bindings.** Stored binding status values that are missing,
+empty, a dash (`—`), or otherwise invalid default to `unknown`. Each
+binding (`context_revision`, `prototype_iteration`) that is `mismatched`
+or `unknown` requires its own explicit acceptance, independent of
+identity and independent of the other binding. Any rejected,
 unprompted, or deferred binding → **ineligible**.
 
 **Outcome:**

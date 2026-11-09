@@ -533,7 +533,7 @@ class TestStructuralRecipeConsistency(unittest.TestCase):
             len(binding_section), 2,
             "Missing 'separate from identity' binding section",
         )
-        binding = binding_section[1].split("### 4.", 1)[0]
+        binding = binding_section[1].split("### 5.", 1)[0]
         flat = " ".join(binding.split())  # normalize whitespace
         # Uses actual manifest fields
         self.assertIn("context_revision", flat)
@@ -1447,7 +1447,7 @@ class TestPR159FindingRegressions(unittest.TestCase):
         ref, consuming each embed at most once."""
         content = _read("_shared/recipes/screenshot-inspection.md")
         section = content.split("Account for every declared index ID", 1)[1]
-        section = section.split("### 5.", 1)[0]
+        section = section.split("### 3.", 1)[0]
         flat = " ".join(section.split())
         self.assertIn("both", flat.lower())
         self.assertIn("at most once", flat)
@@ -1879,6 +1879,298 @@ class TestCommitPathsAndPendingAttempt(unittest.TestCase):
         self.assertIn("candidate_screenshot_storage", flat)
         self.assertIn("candidate_screenshot_assets", flat)
         self.assertIn("never from the mutable authoring manifest", flat)
+
+
+# ===================================================================
+# Part 5: Focused regressions for PR159 review wave 2 (8 source gaps)
+#
+# Contract tests verify ordering, gating, and state rules in committed
+# instruction text.  Executable Git tests verify staging-failure
+# propagation via extracted recipe Bash blocks.  PR lookup contracts
+# are prose/structural checks, NOT live API or runtime execution.
+# ===================================================================
+
+class TestR4InspectionOrdering(unittest.TestCase):
+    """4759: ID+ref matching runs before resolution and inspection."""
+
+    def test_id_matching_before_resolution(self) -> None:
+        """§2 matches IDs to embeds before §3 resolves and §4 inspects."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        match_pos = content.find("### 2. Account for every declared index ID")
+        resolve_pos = content.find("### 3. Resolve image references")
+        inspect_pos = content.find("### 4. Verify identity and inspect")
+        self.assertGreater(match_pos, -1, "§2 matching section missing")
+        self.assertGreater(resolve_pos, -1, "§3 resolve section missing")
+        self.assertGreater(inspect_pos, -1, "§4 inspect section missing")
+        self.assertLess(match_pos, resolve_pos)
+        self.assertLess(resolve_pos, inspect_pos)
+
+    def test_resolve_processes_matched_pairs_only(self) -> None:
+        """§3 explicitly processes matched pairs from §2."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s3 = content.split("### 3.", 1)[1].split("### 4.", 1)[0]
+        self.assertIn("matched pair", s3)
+
+    def test_unmatched_embeds_ineligible(self) -> None:
+        """Embeds not corresponding to any declared ID are ineligible."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s2 = content.split("### 2.", 1)[1].split("### 3.", 1)[0]
+        self.assertIn("not eligible for inspection or citation", s2)
+
+
+class TestR4BindingStatusDefaults(unittest.TestCase):
+    """4770: missing/dash/invalid binding statuses default to unknown."""
+
+    def test_binding_check_dash_defaults_unknown(self) -> None:
+        """§4 binding check defaults dash and invalid to unknown."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        binding = content.split("Check revision binding", 1)[1].split(
+            "### 5.", 1
+        )[0]
+        flat = " ".join(binding.split())
+        self.assertIn("dash", flat)
+        self.assertIn("invalid", flat)
+        self.assertIn("unknown", flat)
+        self.assertIn("unrecognizable", flat)
+
+    def test_rule3_dash_defaults_independent(self) -> None:
+        """§5 Rule 3 defaults dash/invalid to unknown; each binding
+        requires independent acceptance."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        rule3 = content.split("Rule 3", 1)[1].split("**Outcome:**", 1)[0]
+        flat = " ".join(rule3.split())
+        self.assertIn("dash", flat)
+        self.assertIn("invalid default to `unknown`", flat)
+        self.assertIn("independent of the other binding", flat)
+
+
+class TestR4StagingFailure(TestRecipeExecution):
+    """4777: git add / commit failures propagate; no false 'no changes'.
+
+    Executable Git tests using extracted recipe Bash blocks.
+    Preserves: git diff exit 1 as ordinary changes; HEAD-membership
+    deletion fix; unrelated index/worktree."""
+
+    def test_git_add_ignored_file_stops(self) -> None:
+        """git add on a .gitignore'd handoff path fails; recipe exits
+        nonzero, HEAD unchanged, no false 'no changes' success."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            d = os.path.join(repo, "feat/PROJ-IGN")
+            os.makedirs(d)
+            _w(os.path.join(repo, ".gitignore"),
+               "feat/PROJ-IGN/handoff.md\n")
+            subprocess.run(
+                ["git", "-C", repo, "add", ".gitignore"],
+                capture_output=True, check=True,
+            )
+            subprocess.run(
+                ["git", "-C", repo, "commit", "-m", "add gitignore"],
+                capture_output=True, check=True,
+            )
+            _w(os.path.join(d, "handoff.md"), "# Ignored\n")
+            head_before = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True,
+            ).stdout.strip()
+
+            r = self._exec(
+                repo, "feat/PROJ-IGN/handoff.md", "feat/PROJ-IGN",
+                msg="Should not commit",
+            )
+            self.assertNotEqual(
+                r.returncode, 0,
+                "Recipe must fail when git add fails on ignored file",
+            )
+            head_after = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True,
+            ).stdout.strip()
+            self.assertEqual(
+                head_before, head_after,
+                "HEAD must not change when staging fails",
+            )
+
+    def test_git_add_index_lock_stops(self) -> None:
+        """git add with index.lock present fails; recipe exits nonzero,
+        HEAD unchanged."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            d = os.path.join(repo, "feat/PROJ-LK")
+            os.makedirs(d)
+            _w(os.path.join(d, "handoff.md"), "# Lock test\n")
+            lock = os.path.join(repo, ".git", "index.lock")
+            _w(lock, "")
+            head_before = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True,
+            ).stdout.strip()
+
+            r = self._exec(
+                repo, "feat/PROJ-LK/handoff.md", "feat/PROJ-LK",
+                msg="Should not commit",
+            )
+            self.assertNotEqual(
+                r.returncode, 0,
+                "Recipe must fail when index is locked",
+            )
+            head_after = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True,
+            ).stdout.strip()
+            self.assertEqual(
+                head_before, head_after,
+                "HEAD must not change when staging fails",
+            )
+            os.unlink(lock)
+
+
+class TestR4RetryRemoteClassification(unittest.TestCase):
+    """4785: retry classifies remote SHA before push (prose contract)."""
+
+    def test_expected_base_and_commit_sha_classification(self) -> None:
+        """Retry checks expected_base, commit_sha, and stops on
+        deleted/reset/unknown (not just pushed vs not-pushed)."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        retry = content.split("On retry", 1)[1].split("Initial new", 1)[0]
+        flat = " ".join(retry.split())
+        self.assertIn("expected_base", flat)
+        self.assertIn("commit_sha", flat)
+        self.assertIn("genuine new branch", flat)
+        self.assertIn("deleted", flat)
+        self.assertIn("stop", flat.lower())
+        self.assertIn("Do not force-push", flat)
+
+    def test_null_base_genuine_new_only(self) -> None:
+        """Null expected_base only for genuine new branch never pushed."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        retry = content.split("On retry", 1)[1].split("Initial new", 1)[0]
+        flat = " ".join(retry.split())
+        self.assertIn("null", flat.lower())
+        self.assertIn("genuine new branch never pushed", flat)
+
+
+class TestR4PRRecovery(unittest.TestCase):
+    """4795: PR recovery when pr_number is null after push
+    (prose contract, NOT live API execution)."""
+
+    def test_pr_identity_required_before_metadata(self) -> None:
+        """After push, PR identity must be known before writing metadata."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        after_push = content.split("After successful push", 1)[1].split(
+            "Already-pushed", 1
+        )[0]
+        flat = " ".join(after_push.split())
+        self.assertIn("PR identity", flat)
+        self.assertIn("required before writing metadata", flat)
+
+    def test_null_pr_lookup_or_create(self) -> None:
+        """Null pr_number triggers lookup; reuses open PR or creates if
+        none; stops on terminal (closed/merged) PR."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        after_push = content.split("After successful push", 1)[1].split(
+            "Already-pushed", 1
+        )[0]
+        flat = " ".join(after_push.split())
+        self.assertIn("null", flat.lower())
+        self.assertIn("open PR", flat)
+        self.assertIn("terminal", flat)
+        self.assertIn("stop", flat.lower())
+
+
+class TestR4PendingBeforeMetadata(unittest.TestCase):
+    """4818: publish detects pending before completed metadata checks."""
+
+    def test_pending_precedes_completed_metadata(self) -> None:
+        """Pending check runs before 'lacks its PR number' gate."""
+        content = _read("ux-design/skills/publish.md")
+        step1 = content.split("### Step 1:", 1)[1].split(
+            "### Step 2:", 1
+        )[0]
+        pending_pos = step1.find("Pending attempt check (early)")
+        lacks_pos = step1.find("lacks its PR")
+        self.assertGreater(pending_pos, -1, "Pending check missing")
+        self.assertGreater(lacks_pos, -1, "Completed metadata check missing")
+        self.assertLess(
+            pending_pos, lacks_pos,
+            "Pending must precede completed metadata validation",
+        )
+
+    def test_no_branch_mutation_before_pending(self) -> None:
+        """No branch creation, pull, or file copy before pending
+        validation."""
+        content = _read("ux-design/skills/publish.md")
+        step1 = content.split("### Step 1:", 1)[1].split(
+            "### Step 2:", 1
+        )[0]
+        pending_block = step1.split("Pending attempt check", 1)[1].split(
+            "If no pending", 1
+        )[0]
+        flat = " ".join(pending_block.split())
+        self.assertIn("no branch creation", flat)
+        self.assertIn("overwritten before validation", flat)
+
+
+class TestR4StoragePolicyDeferred(unittest.TestCase):
+    """4829: storage policy kept in memory until verified push + PR."""
+
+    def test_no_premature_persist(self) -> None:
+        """Step 5 no longer says 'Store the policy in
+        publish-metadata.json'."""
+        content = _read("ux-design/skills/publish.md")
+        step5 = content.split("### Step 5:", 1)[1].split(
+            "### Step 6:", 1
+        )[0]
+        flat = " ".join(step5.split())
+        self.assertNotIn(
+            "Store the policy in `publish-metadata.json`", flat,
+        )
+        self.assertIn("memory", flat)
+
+    def test_persist_after_verified_push(self) -> None:
+        """Persist only after verified push and PR identity."""
+        content = _read("ux-design/skills/publish.md")
+        step5 = content.split("### Step 5:", 1)[1].split(
+            "### Step 6:", 1
+        )[0]
+        flat = " ".join(step5.split())
+        self.assertIn("verified push", flat)
+        self.assertIn("unchanged on failure", flat)
+
+
+class TestR4RespondPendingBeforeEdits(unittest.TestCase):
+    """4843: respond checks pending before handoff edits/provenance."""
+
+    def test_pending_before_handoff_update(self) -> None:
+        """Pending check precedes handoff update and provenance capture."""
+        content = _read("ux-design/skills/respond.md")
+        step4 = content.split("### Step 4:", 1)[1].split(
+            "### Step 5:", 1
+        )[0]
+        pending_pos = step4.find("Pending attempt check")
+        update_pos = step4.find("Update `.artifacts/ux-design/")
+        provenance_pos = step4.find("capture-provenance-event.md")
+        self.assertGreater(pending_pos, -1)
+        self.assertGreater(update_pos, -1)
+        self.assertGreater(provenance_pos, -1)
+        self.assertLess(
+            pending_pos, update_pos,
+            "Pending check must precede handoff update",
+        )
+        self.assertLess(
+            pending_pos, provenance_pos,
+            "Pending check must precede provenance capture",
+        )
+
+    def test_no_unpublished_edit_claims(self) -> None:
+        """Never post or log replies claiming unpublished edits."""
+        content = _read("ux-design/skills/respond.md")
+        step4 = content.split("### Step 4:", 1)[1].split(
+            "### Step 5:", 1
+        )[0]
+        flat = " ".join(step4.split())
+        self.assertIn("Never post or log replies claiming", flat)
+        self.assertIn("not published", flat)
 
 
 if __name__ == "__main__":

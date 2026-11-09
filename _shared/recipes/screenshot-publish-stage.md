@@ -78,7 +78,9 @@ fi
 
 for p in "${owned_paths[@]}"; do
   if [ -f "{DOCS_REPO_PATH}/$p" ]; then
-    git -C "{DOCS_REPO_PATH}" add -- "$p"
+    if ! git -C "{DOCS_REPO_PATH}" add -- "$p"; then
+      echo "Error: git add failed for $p" >&2; exit 1
+    fi
   elif git -C "{DOCS_REPO_PATH}" ls-files --error-unmatch "$p" >/dev/null 2>&1; then
     # Tracked file that no longer exists on disk — already staged by git rm
     :
@@ -116,9 +118,11 @@ else
   if [ "$rc" -eq 0 ]; then
     echo "No changes to owned paths; skipping commit."
   elif [ "$rc" -eq 1 ]; then
-    git -C "{DOCS_REPO_PATH}" commit --only \
+    if ! git -C "{DOCS_REPO_PATH}" commit --only \
       -m "{COMMIT_MESSAGE}" \
-      -- "${commit_paths[@]}"
+      -- "${commit_paths[@]}"; then
+      echo "Error: git commit failed; stopping." >&2; exit 1
+    fi
   else
     echo "Git error (exit $rc); stopping." >&2; exit "$rc"
   fi
@@ -163,10 +167,15 @@ it into the consumer-facing published manifest.
    or re-derive ownership.
 2. Verify the current branch matches `pending_attempt.branch`.
    Verify the docs repo remote URL matches `pending_attempt.docs_repo_remote`.
-3. Check whether `pending_attempt.commit_sha` already exists on the
-   remote (`git ls-remote origin {branch}`):
-   - **Already pushed:** skip push; proceed to metadata finalization.
-   - **Not pushed:** re-attempt push.
+3. Classify remote branch state (`git ls-remote origin {branch}`):
+   - **Remote SHA equals `pending_attempt.commit_sha`:** Already
+     pushed. Skip push; proceed to metadata finalization.
+   - **Remote SHA equals `pending_attempt.expected_base` (or branch
+     does not exist and `expected_base` is `null` for a genuine new
+     branch never pushed):** normal push. Re-attempt push.
+   - **Any other state** (including deleted/reset branch where
+     `expected_base` was not `null`, or an unknown ahead SHA): stop.
+     Do not force-push, recreate, or guess history.
 
 **Initial new attempt** (no `pending_attempt` exists): require the
 local branch to be at a known synced base (equal to
@@ -181,7 +190,14 @@ invocation, stop.
    set `screenshot_storage` to `candidate_screenshot_storage`,
    set `screenshot_assets` to `candidate_screenshot_assets`.
 2. Remove `pending_attempt` from `publish-metadata.json`.
-3. For a new PR, record `pr_number`, `branch`, and `handoff_file_path`.
+3. **PR identity.** For an existing PR, keep its `pr_number`. For a
+   new PR (`pr_number` is `null`): look up the recorded repo and
+   `branch` for an existing open PR; reuse if found. If none exists
+   and the original intent was new publication, create it. If a
+   matching PR is closed/merged (terminal), stop — do not replace;
+   report to the researcher. A known PR identity is required before
+   writing metadata. Record `pr_number`, `branch`, and
+   `handoff_file_path`.
 
 Write steps 1–3 atomically — if the write fails, retain
 `pending_attempt` so the next retry can re-finalize without a new
