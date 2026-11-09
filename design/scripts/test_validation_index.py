@@ -3475,5 +3475,152 @@ class TestRespondEmptySetRetirementRoute(unittest.TestCase):
             "is NOT this case")
 
 
+# ===========================================================================
+# 35. Candidate preflight transform uses project root, not docs root
+# ===========================================================================
+
+class TestCandidatePreflightTrustedBase(unittest.TestCase):
+    """CLI regression: the candidate-published-index transform command
+    documented in publish/respond/revise must use the project root
+    (\".\") as --trusted-output-base, not {docs_repo_path}.
+
+    The candidate is written under .artifacts/ (project root), while
+    the docs repo is a separate checkout. Using the docs root as
+    trusted base causes the helper to reject the output path.
+
+    Each subtest extracts the actual transform command from the phase
+    markdown, substitutes placeholders, and executes it against a
+    real temporary layout with distinct project and docs directories.
+    """
+
+    def _repo_root(self):
+        return Path(__file__).resolve().parent.parent.parent
+
+    def _extract_candidate_transform_cmd(self, rel):
+        """Extract the candidate transform bash line from a phase file."""
+        import re
+        text = (self._repo_root() / rel).read_text()
+        # Find the candidate-published-index transform command
+        pattern = (r'python3\s+"\$VALIDATION_INDEX_SCRIPT"\s+transform\s+'
+                   r'"[^"]+validation-index\.json"\s+'
+                   r'"[^"]+candidate-published-index\.json"\s+'
+                   r'--trusted-output-base\s+"([^"]+)"')
+        m = re.search(pattern, text)
+        self.assertIsNotNone(
+            m, f"{rel}: candidate transform command not found")
+        return m.group(0), m.group(1)
+
+    def _run_preflight(self, rel):
+        """Run the extracted candidate preflight for a single phase."""
+        cmd_text, trusted_base = self._extract_candidate_transform_cmd(rel)
+
+        # The trusted base for candidates must be "." (project root)
+        self.assertEqual(
+            trusted_base, ".",
+            f"{rel}: candidate transform must use \".\" as "
+            f"trusted-output-base, got \"{trusted_base}\"")
+
+        script = str(self._repo_root() / "design" / "scripts"
+                     / "validation_index.py")
+
+        with tempfile.TemporaryDirectory() as proj, \
+             tempfile.TemporaryDirectory() as docs:
+            # Build valid local index using existing factory
+            art_dir = Path(proj) / ".artifacts" / "design" / "TST-1"
+            art_dir.mkdir(parents=True)
+            (art_dir / "04-testplan.md").write_text("# Testplan\n")
+            (art_dir / "04-companion.md").write_text("# Companion\n")
+            # Build legacy for primary, then add companion
+            r0 = _run_cli("build-legacy", str(art_dir),
+                           str(art_dir / "validation-index.json"))
+            self.assertEqual(r0.returncode, 0,
+                             f"build-legacy failed: {r0.stderr}")
+            idx = json.loads(
+                (art_dir / "validation-index.json").read_text())
+            idx["artifacts"].append({
+                "local": "04-companion.md",
+                "published_as": "companion.md",
+                "type": "companion",
+                "purpose": "supplementary",
+                "audience": "reviewers",
+            })
+            _write_json(art_dir / "validation-index.json", idx)
+
+            # Create a valid previous published snapshot (with
+            # companion that will be "removed" in candidate).
+            # Published schema requires purpose and audience.
+            prev_pub = {
+                "schema_version": "1.0",
+                "primary_testplan": "testplan.md",
+                "artifacts": [
+                    {"file": "testplan.md", "type": "testplan",
+                     "purpose": "primary", "audience": "reviewers"},
+                    {"file": "companion.md", "type": "companion",
+                     "purpose": "supplementary",
+                     "audience": "reviewers"},
+                    {"file": "old-extra.md", "type": "companion",
+                     "purpose": "supplementary",
+                     "audience": "reviewers"},
+                ],
+            }
+            _write_json(art_dir / "prev-published-index.json", prev_pub)
+            # Place the old-extra.md file in docs so it looks real
+            docs_feat = Path(docs) / "v1" / "feat"
+            docs_feat.mkdir(parents=True)
+            (docs_feat / "old-extra.md").write_text("# Old extra\n")
+            (docs_feat / "testplan.md").write_text("# Published TP\n")
+            (docs_feat / "companion.md").write_text(
+                "# Published companion\n")
+
+            # Execute candidate transform: output under project
+            r1 = subprocess.run(
+                ["python3", script, "transform",
+                 str(art_dir / "validation-index.json"),
+                 str(art_dir / "candidate-published-index.json"),
+                 "--trusted-output-base", proj],
+                capture_output=True, text=True, cwd=proj)
+            self.assertEqual(
+                r1.returncode, 0,
+                f"{rel}: candidate transform must succeed when "
+                f"trusted base is project root: {r1.stderr}")
+            self.assertTrue(
+                (art_dir / "candidate-published-index.json").exists(),
+                f"{rel}: candidate file must be written")
+
+            # Execute diff: should report old-extra.md as removed
+            r2 = subprocess.run(
+                ["python3", script, "diff",
+                 str(art_dir / "prev-published-index.json"),
+                 str(art_dir / "candidate-published-index.json")],
+                capture_output=True, text=True, cwd=proj)
+            self.assertEqual(r2.returncode, 0,
+                             f"diff must succeed: {r2.stderr}")
+            diff_result = json.loads(r2.stdout)
+            self.assertIn("old-extra.md", diff_result.get("removed", []),
+                          "Diff must report removed companion")
+
+            # Verify docs repo files are UNCHANGED (preflight only)
+            self.assertEqual(
+                (docs_feat / "old-extra.md").read_text(),
+                "# Old extra\n",
+                "Docs repo old-extra.md must be unchanged by preflight")
+            self.assertEqual(
+                (docs_feat / "testplan.md").read_text(),
+                "# Published TP\n",
+                "Docs repo testplan.md must be unchanged by preflight")
+
+    def test_publish_candidate_preflight(self):
+        """publish.md candidate transform uses project root."""
+        self._run_preflight("design/skills/publish.md")
+
+    def test_respond_candidate_preflight(self):
+        """respond.md candidate transform uses project root."""
+        self._run_preflight("design/skills/respond.md")
+
+    def test_revise_candidate_preflight(self):
+        """revise.md candidate transform uses project root."""
+        self._run_preflight("design/skills/revise.md")
+
+
 if __name__ == "__main__":
     unittest.main()

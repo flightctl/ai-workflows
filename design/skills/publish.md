@@ -323,7 +323,7 @@ Transform the current local index to a candidate published index
 under `.artifacts`:
 
 ```bash
-python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" ".artifacts/design/{issue-key}/candidate-published-index.json" --trusted-output-base "{docs_repo_path}"
+python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" ".artifacts/design/{issue-key}/candidate-published-index.json" --trusted-output-base "."
 ```
 
 Diff the previous snapshot against the candidate:
