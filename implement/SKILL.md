@@ -6,7 +6,7 @@ description: >-
   writes contract-based tests and production code via TDD, validates against
   the project's CI expectations, and manages review via GitHub PRs.
   Use when implementing Jira stories produced by the design workflow.
-  Activated by commands: /ingest, /plan, /revise, /code, /review, /validate, /publish, /respond.
+  Activated by commands: /ingest, /plan, /revise, /code, /implement:review, /validate, /publish, /respond.
 ---
 # Implement Workflow Orchestrator
 

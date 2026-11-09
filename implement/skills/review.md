@@ -38,12 +38,13 @@ self-contained — there is no open-review session or session artifact.
 
 ### Step 1: Read Context and Check Entry Conditions
 
-Determine the issue key from the command context. If the user provided
-an issue key or the command was invoked within a session that has an
-active implement workflow, use that key. If multiple
-`.artifacts/implement/` directories exist and the context does not
-identify which one, ask the user to specify. Do not pick an arbitrary
-artifact directory.
+Determine the issue key. An explicit key in the command context takes
+priority. Otherwise, use the key from the current active implement
+workflow context if exactly one is established and consistent. If no
+key is available, multiple `.artifacts/implement/` directories exist
+without a clear active context, or sources conflict, stop and ask the
+user to specify the issue key. Do not pick an arbitrary artifact
+directory, even if only one exists — it may be from a prior session.
 
 Read:
 1. `.artifacts/implement/{issue-key}/02-plan.md` — required. If it does not
@@ -98,6 +99,11 @@ ask the user. If the requirement is superseded, direct the user to
 update the canonical source and `/revise` the plan before coding
 resumes. If the requirement is kept, explain the rationale. Tests
 follow the resolved requirement.
+
+If the feedback is ambiguous, materially expands scope, or requires a
+pending scope decision, follow the existing clarification and `/revise`
+paths instead of silently applying it. Explain the technical reasoning
+if declining or adjusting the requested approach.
 
 ### Step 3: Apply the Change
 

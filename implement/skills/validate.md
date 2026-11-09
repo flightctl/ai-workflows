@@ -169,6 +169,12 @@ report the affected paths. Do not auto-commit, stash, reset, or delete
 them. The implementation must be completed and committed through normal
 `/code` or user-approved `/revise` handling before rerunning `/validate`.
 
+Initialize `PIPELINE_ROUNDS_REMAINING = MAX_ROUNDS` (default 3).
+Every fix committed in Steps 4–9 consumes one round from this shared
+budget. At zero without a clean pass, stop with FLAG. Step 7's
+self-review gate shares this budget; do not reset it on return to
+Step 3.
+
 ### Step 4: Run Pre-PR Checks
 
 Execute each check from the validation profile in order. For each check:
@@ -382,16 +388,10 @@ has TC mappings but `testplan.md` is missing, unreadable, or malformed
 
 ### Step 9: Write Validation Report
 
-**Final candidate verification.** Before writing the report, verify
-the current HEAD is the exact candidate whose checks passed. If Steps
-4–8b committed any fixes, return to Step 3 and re-run the full pipeline
-(Steps 3–8b), consuming the original MAX_ROUNDS budget — do not reset
-it. If re-runs produce further edits, return to Step 3 again. If
-MAX_ROUNDS is exhausted before a clean pass, stop with FLAG. If the
-worktree is dirty at the final check (`git status --porcelain -z
---ignore-submodules=none` produces output), stop and report — do not
-write PASS or auto-stage. Record the validated SHA only after a clean
-unchanged pass: `git rev-parse HEAD`.
+**Final candidate verification.** If Steps 4–8b committed fixes,
+decrement `PIPELINE_ROUNDS_REMAINING` and return to Step 3. At zero,
+stop FLAG. Dirty worktree at final check → stop, no PASS/auto-stage.
+Record `git rev-parse HEAD` only after clean unchanged pass.
 
 Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
 
@@ -510,10 +510,13 @@ Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
 
 ## Validated Commit
 
-Write exactly one line containing only the 40-character lowercase hex
-SHA from `git rev-parse HEAD`. No backticks, labels, prefixes, or
-additional text. Example: `a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2`.
+{validated-commit-sha}
 ```
+
+The `## Validated Commit` section must contain exactly one line: the
+bare 40-character lowercase hex SHA from `git rev-parse HEAD`. No
+backticks, labels, prefixes, prose, or additional lines.
+`validation_gate.py` rejects any other format.
 
 ## Output
 

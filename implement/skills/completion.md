@@ -29,7 +29,7 @@ user.
   recommend `/validate` or `/publish` while a scope decision is pending.
 - **review:** Recommend another `/implement:review` call for more feedback,
   or `/validate` when the user's feedback is complete. Note that any commit
-  from `/review` makes a previous validation report stale. Do not
+  from `/implement:review` makes a previous validation report stale. Do not
   auto-advance to `/validate`.
 - **validate:** Recommend `/publish` only when validation passed and no scope
   decisions are pending. When failures remain, recommend fixing them and

@@ -237,19 +237,38 @@ def check_worktree_clean():
 def _parse_ls_remote_exact(out_bytes, expected_ref):
     """Parse ls-remote output and return SHA for the exact ref match.
 
+    Collects all records whose ref column exactly equals expected_ref.
+    Requires exactly one valid 40-char lowercase hex SHA among them.
+    Rejects: no match, duplicate/conflicting exact refs, malformed SHA
+    on an exact-ref record.  Non-matching refs are ignored.
+
     Returns (sha, error).  sha is None on error.
     """
     if not out_bytes:
         return None, "empty ls-remote output"
     text = out_bytes.decode("utf-8", errors="replace")
+    exact_records = []
     for line in text.strip().splitlines():
         parts = line.split("\t", 1)
         if len(parts) != 2:
             continue
         sha, ref = parts
-        if ref == expected_ref and re.fullmatch(r'[0-9a-f]{40}', sha):
-            return sha, None
-    return None, f"no exact match for {expected_ref} in ls-remote output"
+        if ref == expected_ref:
+            exact_records.append(sha)
+
+    if not exact_records:
+        return None, f"no exact match for {expected_ref} in ls-remote output"
+
+    if len(exact_records) > 1:
+        return None, (f"ambiguous: {len(exact_records)} records for "
+                      f"{expected_ref}")
+
+    sha = exact_records[0]
+    if not re.fullmatch(r'[0-9a-f]{40}', sha):
+        return None, (f"malformed SHA for {expected_ref}: "
+                      f"{sha[:60]!r}")
+
+    return sha, None
 
 
 def run_gate(report_path):

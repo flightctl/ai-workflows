@@ -70,10 +70,12 @@ def write_report(repo_dir, result_text, sha):
 
 
 def parse_status_z(output_bytes):
-    """Parse NUL-delimited porcelain output, returning a set of all paths.
+    """Test-only helper: parse NUL-delimited porcelain, return set of paths.
 
-    For renames/copies (R/C), both the source and destination paths are
-    included in the returned set.
+    This is a test mechanism for verifying git state in assertions, not
+    a production guard.  The production isolation logic is in review.md
+    (prose instructions).  For renames/copies (R/C in either XY column),
+    both source and destination paths are included.
     """
     if not output_bytes:
         return set()
@@ -88,7 +90,7 @@ def parse_status_z(output_bytes):
         xy = entry[:2]
         path = entry[3:]
         paths.add(path)
-        if xy[0] in ("R", "C"):
+        if xy[0] in ("R", "C") or xy[1] in ("R", "C"):
             # Next NUL field is the destination path
             i += 1
             if i < len(entries) and entries[i]:
@@ -297,6 +299,21 @@ class TestParseReport(unittest.TestCase):
         os.unlink(f.name)
         self.assertIn("not valid UTF-8", info["parse_error"])
 
+    def test_template_placeholder_replaced_accepted(self):
+        """Template with placeholder replaced by actual SHA is accepted."""
+        template = "{validated-commit-sha}"
+        actual_sha = "abcdef1234567890abcdef1234567890abcdef12"
+        rendered = template.replace("{validated-commit-sha}", actual_sha)
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False,
+        ) as f:
+            f.write(f"## Result\n\nPASS\n\n## Validated Commit\n\n{rendered}\n")
+            f.flush()
+            info = validation_gate.parse_report(f.name)
+        os.unlink(f.name)
+        self.assertIsNone(info["parse_error"])
+        self.assertEqual(info["validated_commit"], actual_sha)
+
 
 # ---------------------------------------------------------------------------
 # TestParseLsRemote
@@ -344,6 +361,64 @@ class TestParseLsRemote(unittest.TestCase):
             b"", "refs/heads/main")
         self.assertIsNone(sha)
         self.assertIn("empty", err)
+
+    def test_duplicate_identical_exact_refs(self):
+        """Two records with same ref and same SHA are ambiguous."""
+        sha_val = "abcdef1234567890abcdef1234567890abcdef12"
+        output = (f"{sha_val}\trefs/heads/main\n"
+                  f"{sha_val}\trefs/heads/main\n").encode()
+        sha, err = validation_gate._parse_ls_remote_exact(
+            output, "refs/heads/main")
+        self.assertIsNone(sha)
+        self.assertIn("ambiguous", err)
+
+    def test_duplicate_conflicting_exact_refs(self):
+        """Two records with same ref but different SHAs are rejected."""
+        output = (
+            b"aaaa1234567890abcdef1234567890abcdef1234\trefs/heads/main\n"
+            b"bbbb1234567890abcdef1234567890abcdef1234\trefs/heads/main\n"
+        )
+        sha, err = validation_gate._parse_ls_remote_exact(
+            output, "refs/heads/main")
+        self.assertIsNone(sha)
+        self.assertIn("ambiguous", err)
+
+    def test_malformed_sha_on_exact_ref(self):
+        """Exact ref match with invalid SHA is rejected."""
+        output = b"not-a-hex-sha-at-all-nope-nope-nopex\trefs/heads/main\n"
+        sha, err = validation_gate._parse_ls_remote_exact(
+            output, "refs/heads/main")
+        self.assertIsNone(sha)
+        self.assertIn("malformed", err)
+
+    def test_nested_ref_selects_exact(self):
+        """Nested ref that sorts before the target doesn't confuse parser.
+
+        refs/heads/a/refs/heads/feature-x could match an ls-remote
+        pattern for refs/heads/feature-x by suffix. The parser must
+        select only the exact ref match.
+        """
+        output = (
+            b"aaaa1234567890abcdef1234567890abcdef1234\t"
+            b"refs/heads/a/refs/heads/feature-x\n"
+            b"bbbb1234567890abcdef1234567890abcdef1234\t"
+            b"refs/heads/feature-x\n"
+        )
+        sha, err = validation_gate._parse_ls_remote_exact(
+            output, "refs/heads/feature-x")
+        self.assertEqual(sha, "bbbb1234567890abcdef1234567890abcdef1234")
+        self.assertIsNone(err)
+
+    def test_malformed_exact_plus_valid_nonmatching(self):
+        """Malformed exact record fails even when valid non-matching exists."""
+        output = (
+            b"XXXX1234567890abcdef1234567890abcdef1234\trefs/heads/main\n"
+            b"abcdef1234567890abcdef1234567890abcdef12\trefs/heads/other\n"
+        )
+        sha, err = validation_gate._parse_ls_remote_exact(
+            output, "refs/heads/main")
+        self.assertIsNone(sha)
+        self.assertIn("malformed", err)
 
 
 # ---------------------------------------------------------------------------
@@ -688,16 +763,35 @@ class TestPrePRGate(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
         self.assertEqual(json.loads(r.stdout)["gate"], "fail")
 
-    def test_cli_option_boundary(self):
-        """Verify -- prevents remote name from being treated as git option."""
+    def test_option_boundary_runtime(self):
+        """Verify -- prevents remote name from being treated as git option.
+
+        Patches run_git to capture the actual argv passed and verifies
+        the '--' separator precedes the remote argument.
+        """
         head = get_head(self.repo)
         rpt = write_report(self.repo, "PASS", head)
-        # A remote name starting with - would be parsed as a git flag
-        # without the -- separator.  We can't easily add such a remote,
-        # but we verify the code path uses -- by checking the source.
-        import inspect
-        src = inspect.getsource(validation_gate.run_pre_pr_gate)
-        self.assertIn('"--",', src)
+        captured_calls = []
+        original_run_git = validation_gate.run_git
+
+        def spy_run_git(*args):
+            captured_calls.append(list(args))
+            return original_run_git(*args)
+
+        with mock.patch.object(validation_gate, "run_git", side_effect=spy_run_git):
+            validation_gate.run_pre_pr_gate(
+                rpt, head, "test-remote", "feature-x")
+
+        # Find the ls-remote call
+        ls_calls = [c for c in captured_calls if "ls-remote" in c]
+        self.assertTrue(ls_calls, "expected at least one ls-remote call")
+        ls_args = ls_calls[0]
+        # Verify '--' appears before the remote name
+        self.assertIn("--", ls_args)
+        dd_idx = ls_args.index("--")
+        remote_idx = ls_args.index("test-remote")
+        self.assertLess(dd_idx, remote_idx,
+                        "'--' must precede the remote name")
 
 
 # ---------------------------------------------------------------------------
@@ -706,7 +800,21 @@ class TestPrePRGate(unittest.TestCase):
 
 class TestRunGitBehavior(unittest.TestCase):
 
+    def test_timeout_kwargs(self):
+        """run_git passes timeout and GIT_TERMINAL_PROMPT=0 to subprocess."""
+        with mock.patch("validation_gate.subprocess.run") as mock_run:
+            mock_run.return_value = subprocess.CompletedProcess(
+                args=["git", "status"], returncode=0,
+                stdout=b"", stderr=b"")
+            validation_gate.run_git("status")
+            call_kwargs = mock_run.call_args
+            self.assertEqual(call_kwargs.kwargs["timeout"],
+                             validation_gate._GIT_TIMEOUT)
+            self.assertEqual(
+                call_kwargs.kwargs["env"]["GIT_TERMINAL_PROMPT"], "0")
+
     def test_timeout_returns_error(self):
+        """Timeout produces rc=124 and error message."""
         with mock.patch("validation_gate.subprocess.run",
                         side_effect=subprocess.TimeoutExpired(
                             cmd=["git"], timeout=30)):
@@ -715,33 +823,35 @@ class TestRunGitBehavior(unittest.TestCase):
             self.assertIn("timed out", err)
 
     def test_cli_exit2_on_crash(self):
-        """Script crash produces exit 2 with stderr, not JSON on stdout."""
-        repo = make_temp_repo()
-        orig = os.getcwd()
-        os.chdir(repo)
-        try:
-            r = subprocess.run(
-                ["python3", "-I", GATE_CLI,
-                 "--report", "/nonexistent"],
-                capture_output=True, text=True,
-                env={**os.environ,
-                     # Force an import error by breaking the module search
-                     "PYTHONPATH": "/dev/null/fake"})
-            # The script should either work normally (exit 0 or 1 with JSON)
-            # or crash (exit 2 with stderr).  We just verify the contract:
-            if r.returncode == 2:
-                self.assertTrue(r.stderr.strip())
-                # stdout should NOT be valid JSON
+        """Script crash → exit 2, non-empty stderr, no JSON on stdout.
+
+        Patches run_gate inside the production main() to raise, then
+        invokes main() directly capturing SystemExit, stdout, stderr.
+        """
+        import io
+        from contextlib import redirect_stdout, redirect_stderr
+
+        with mock.patch.object(
+            validation_gate, "run_gate",
+            side_effect=RuntimeError("injected test crash"),
+        ):
+            captured_out = io.StringIO()
+            captured_err = io.StringIO()
+            with redirect_stdout(captured_out), redirect_stderr(captured_err):
+                with mock.patch(
+                    "sys.argv",
+                    ["validation_gate.py", "--report", "/tmp/fake"],
+                ):
+                    with self.assertRaises(SystemExit) as cm:
+                        validation_gate.main()
+
+            self.assertEqual(cm.exception.code, 2)
+            self.assertIn("internal error", captured_err.getvalue())
+            # stdout must NOT contain valid JSON
+            stdout_text = captured_out.getvalue()
+            if stdout_text.strip():
                 with self.assertRaises(json.JSONDecodeError):
-                    json.loads(r.stdout)
-            else:
-                # Normal gate operation (report missing → exit 1)
-                self.assertEqual(r.returncode, 1)
-                parsed = json.loads(r.stdout)
-                self.assertEqual(parsed["gate"], "fail")
-        finally:
-            os.chdir(orig)
-            subprocess.run(["rm", "-rf", repo], check=False)
+                    json.loads(stdout_text)
 
 
 # ---------------------------------------------------------------------------
@@ -974,9 +1084,29 @@ class TestPreExistingDetection(unittest.TestCase):
         baseline_paths = parse_status_z(baseline)
         after_paths = parse_status_z(after)
         self.assertEqual(baseline_paths, after_paths)
-        # Verify user bytes preserved
+        # Verify raw NUL status bytes preserved (not just path set)
+        self.assertEqual(baseline, after)
+        # Verify user working-file bytes preserved
         with open("mine.txt") as f:
             self.assertEqual(f.read(), "my staged change\n")
+        # Verify user index diff bytes preserved
+        idx_diff = subprocess.run(
+            ["git", "diff", "--cached", "--", "mine.txt"],
+            capture_output=True, check=True).stdout
+        self.assertIn(b"my staged change", idx_diff)
+
+    def test_filename_with_newline(self):
+        """Paths with embedded newlines are correctly parsed via -z."""
+        fname = "line\nbreak.txt"
+        with open(fname, "w") as f:
+            f.write("data\n")
+        out = subprocess.run(
+            ["git", "status", "--porcelain", "-z",
+             "--untracked-files=all", "--ignore-submodules=none"],
+            capture_output=True, check=True).stdout
+        paths = parse_status_z(out)
+        self.assertIn(fname, paths)
+        os.unlink(fname)
 
 
 if __name__ == "__main__":
