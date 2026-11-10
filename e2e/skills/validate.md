@@ -376,8 +376,9 @@ For case 2, check the confirmed status:
   normative. Do not write mandatory gap-fill tests. Report as
   "unverified — source testplan not confirmed."
 
-**Non-TC gate confirmation (gate-only testplans).** When a
-gate-only testplan has `Freshness: unverified` (case 2) but no
+**Non-TC gate confirmation (mixed and gate-only testplans).** When
+the story testplan has a `## Qualification Gates` section and the
+testplan has `Freshness: unverified` (case 2) but no
 `Source-Discovery: unresolved` marker, the retained qualification
 gates also require explicit confirmation before being treated as
 mandatory. For each non-TC gate entry, verify:
@@ -396,9 +397,16 @@ mandatory. For each non-TC gate entry, verify:
   confirmed" without forcing mandatory evidence or automated
   replacement.
 
+If `Source-Discovery: unresolved` is present, all retained gates are
+provisional regardless of individual confirmation — source discovery
+takes precedence and cannot be cleared by confirming gates alone.
+Fresh verified source makes gates authoritative without manual
+confirmation.
+
 Do not invent automated gate confirmation or silently treat
-unverified gates as authoritative. Carry source freshness honestly
-in the validation report.
+unverified gates as authoritative. Current approved AC obligations
+remain mandatory regardless of gate provenance. Carry source
+freshness honestly in the validation report.
 
 When the user confirms TCs during validation, record the
 confirmation in the Test Plan Coverage section of `02-plan.md`:
@@ -587,8 +595,10 @@ Write `.artifacts/e2e/{issue-key}/05-validation-report.md`:
  entries awaiting external evidence — these are not discharged
  by automated test coverage." Overall result cannot be PASS.
  Mandatory entries are: source-verified authoritative TCs,
- effectively confirmed retained TCs, required non-TC qualification
- gates, and all current AC obligations. Unconfirmed provisional
+ effectively confirmed retained TCs, confirmed non-TC qualification
+ gates (per Step 8 gate confirmation), and all current AC
+ obligations verified by their approved Method and Evidence
+ Reference. Unconfirmed provisional
  TCs do not block PASS — report them separately with their
  current evidence status (pending, not-started, or failed).
  A failed provisional entry is informational, not verdict-
@@ -678,18 +688,15 @@ writing the final result:
  Overall: PASS, but must be reported as provisional coverage.
  A failed or pending confirmed entry, an AC without approved
  coverage, or an unresolved Source-Discovery state always blocks
- Overall: PASS. Current AC obligations are always mandatory.
- For retained non-TC qualification gates from prior plans: if
- the prior plan was retained as unverified (source absent or
- unresolved), non-TC gates from that plan require the same
- provenance confirmation as retained TCs before becoming
- mandatory — check that the gate heading exists in the current
- testplan and that the user has confirmed the retained gate set.
- Unconfirmed retained gates are provisional; report their
- pending status separately but do not block Overall: PASS on
- their account alone.
- Non-TC qualification gates from source-verified or effectively
- confirmed plans are mandatory.
+ Overall: PASS. Current AC obligations are always mandatory,
+ verified by their approved Method and Evidence Reference.
+ Confirmed non-TC qualification gates (per Step 8 gate
+ confirmation procedure) are mandatory. Unconfirmed retained
+ gates are provisional; report their pending status separately
+ but do not block Overall: PASS on their account alone.
+ A provisional old-TC or gate mention of an AC does not override
+ the current approved verification method; equally it does not
+ waive a genuine current AC obligation or required gate.
  Other outcomes:
  - If automated tests pass but mandatory entries are pending/
    not-started: "PASS (automated) — awaiting external validation

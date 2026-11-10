@@ -8775,7 +8775,7 @@ class TestDocsCriterion5Scope(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class TestReplacementReviewerTestplan(unittest.TestCase):
-    """Decompose.md replacement-reviewer includes 04-testplan.md (R4)."""
+    """Decompose.md replacement-reviewer includes all validation artifacts (R4)."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -8796,12 +8796,15 @@ class TestReplacementReviewerTestplan(unittest.TestCase):
         cls._replacement_para = replacement.group()
 
     def test_replacement_reviewer_includes_testplan(self) -> None:
-        """The exact replacement-reviewer paragraph includes 04-testplan.md."""
-        self.assertIn("04-testplan.md", self._replacement_para)
+        """The replacement-reviewer paragraph includes all validation artifacts."""
+        self.assertIn("all validation artifacts resolved in Step 1",
+                       self._replacement_para)
 
     def test_replacement_reviewer_excludes_design(self) -> None:
-        """The exact replacement-reviewer paragraph excludes design doc."""
-        self.assertIn("NOT the design document", self._replacement_para)
+        """The replacement-reviewer paragraph excludes design doc."""
+        # The exclusion may wrap across lines in the markdown source
+        normalized = " ".join(self._replacement_para.split())
+        self.assertIn("NOT the design document", normalized)
 
 
 # ---------------------------------------------------------------------------

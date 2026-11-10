@@ -4477,8 +4477,9 @@ class TestRecipeCallerIntegration(unittest.TestCase):
             "revise.md must document that the resolver handles legacy layouts")
 
     def test_draft_index_write_outside_optional_step(self):
-        """draft.md mandatory validation-index.json write must NOT be
-        nested inside the optional companion step heading.
+        """draft.md mandatory validation-index.json write must appear
+        after the optional companion step ends, before Step 10
+        presentation. Static heading-boundary check.
         """
         draft_path = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -4486,21 +4487,25 @@ class TestRecipeCallerIntegration(unittest.TestCase):
         content = Path(draft_path).read_text()
 
         optional_heading = "#### 9e: Companion Validation Plans (Optional)"
-        index_heading = "#### 9f: Write and Validate the Validation Index"
+        index_heading = "#### Write and Validate the Validation Index (Required)"
+        step10_heading = "### Step 10:"
         optional_pos = content.find(optional_heading)
         index_pos = content.find(index_heading)
+        step10_pos = content.find(step10_heading)
 
         self.assertGreater(optional_pos, 0,
                            "draft.md must have the optional companion step")
         self.assertGreater(index_pos, 0,
-                           "draft.md must have the separate index write step")
+                           "draft.md must have the required index write subsection")
         self.assertGreater(index_pos, optional_pos,
-                           "Index write step must follow the optional companion step")
-        # The index write instruction must be under 9f, not 9e
+                           "Index write must follow the optional companion step")
+        self.assertGreater(step10_pos, index_pos,
+                           "Index write must come before Step 10 presentation")
+        # The index write instruction must be inside the required section
         index_write = "**Write the validation index.**"
         write_pos = content.find(index_write)
         self.assertGreater(write_pos, index_pos,
-                           "Index write instruction must be inside 9f, after the heading")
+                           "Index write instruction must be after the required heading")
 
     def test_e2e_validate_source_discovery_precedence_in_gapfill(self):
         """e2e validate gap-fill must check Source-Discovery: unresolved
@@ -4581,6 +4586,79 @@ class TestRecipeCallerIntegration(unittest.TestCase):
             "companions",
             fallback_section,
             "Fallback must reference companion artifacts")
+
+    def test_both_validators_gate_confirmation_procedure(self):
+        """Both validators must have an operational non-TC gate
+        confirmation procedure for mixed AND gate-only testplans,
+        not just report-level classification. Static contract check.
+        """
+        repo_root = os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__))))
+
+        for workflow in ("e2e", "implement"):
+            validate_path = os.path.join(
+                repo_root, workflow, "skills", "validate.md")
+            content = Path(validate_path).read_text()
+
+            # Must have operational gate confirmation procedure
+            self.assertIn(
+                "Non-TC gate confirmation (mixed and gate-only",
+                content,
+                f"{workflow}/validate.md must have gate confirmation "
+                f"covering both mixed and gate-only plans")
+            # Must cover Source-Discovery precedence over gate confirmation
+            self.assertIn(
+                "Source-Discovery: unresolved" + "` is present, all retained gates",
+                content,
+                f"{workflow}/validate.md gate confirmation must note "
+                f"Source-Discovery precedence")
+            # Must NOT silently treat unverified gates as authoritative
+            self.assertIn(
+                "Do not invent automated gate confirmation",
+                content,
+                f"{workflow}/validate.md must prohibit automatic "
+                f"gate authority")
+
+    def test_both_validators_result_mandatory_classification(self):
+        """Both validator report templates must classify mandatory
+        entries consistently: confirmed gates, current AC obligations,
+        and no override of current method by provisional mentions.
+        Static section check.
+        """
+        repo_root = os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__))))
+
+        for workflow in ("e2e", "implement"):
+            validate_path = os.path.join(
+                repo_root, workflow, "skills", "validate.md")
+            content = Path(validate_path).read_text()
+
+            # The mandatory classification and verdict text may span
+            # External Validation Evidence and Result sections. Check
+            # from the first Mandatory entries occurrence to end of file.
+            mand_pos = content.find("Mandatory entries are:")
+            self.assertGreater(mand_pos, 0,
+                               f"{workflow}/validate.md must have mandatory "
+                               f"classification")
+            result_section = content[mand_pos:]
+
+            # Mandatory entries must reference confirmed gates, not "all required"
+            self.assertIn(
+                "onfirmed non-TC qualification gates",
+                result_section,
+                f"{workflow}/validate.md Result must classify gates as "
+                f"confirmed, not unconditionally required")
+            # Current AC obligations always mandatory
+            self.assertIn(
+                "Current AC obligations are always mandatory",
+                result_section,
+                f"{workflow}/validate.md Result must keep ACs mandatory")
+            # Provisional mention cannot override current method
+            self.assertIn(
+                "does not override",
+                result_section,
+                f"{workflow}/validate.md Result must prevent provisional "
+                f"override of current verification method")
 
 
 if __name__ == "__main__":
