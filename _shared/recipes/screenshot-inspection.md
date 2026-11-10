@@ -274,8 +274,10 @@ appears exactly once in the output.
    expected/actual/status (e.g.,
    `context_revision: mismatched, expected=r3 actual=r2, decision=accepted;
    prototype_iteration: unknown, expected=i2 actual=—, decision=accepted`).
-   When the manifest is absent, both bindings are `unknown` and each
-   needs its own explicit acceptance. One utterance explicitly
+   When the manifest is absent, each binding's status follows the
+   rules above independently — disagreeing header and index values
+   are `mismatched`, not forced `unknown`; each still needs its own
+   explicit acceptance. One utterance explicitly
    accepting both may record both decisions; an ambiguous aggregate
    legacy decision must not imply all bindings accepted. Missing,
    rejected, deferred, or unprompted decisions remain ineligible

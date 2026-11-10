@@ -319,8 +319,9 @@ pre-push value) and verify `exact_sha` equals
    unavailable tool → stop without writing final metadata; retain
    `pending_attempt`.
    For a new PR (`pr_number` is `null`): derive validated
-   `[HOST/]OWNER/REPO` from the frozen `docs_repo_remote`,
-   preserving non-default host and port, then look up PRs in
+   `[HOST/]OWNER/REPO` using the verified API host (not Git
+   transport port) and `docs_repo_remote` owner/repo, then
+   look up PRs in
    **all states** by
    canonical head repository and head `branch` only — **without**
    filtering by `base_branch`. For each candidate, verify the PR's

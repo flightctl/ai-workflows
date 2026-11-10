@@ -4788,14 +4788,14 @@ class TestR10Wave2Fixes(unittest.TestCase):
     # --- F3 (4518863315): host preservation in PR lookup ---
 
     def test_f3_pr_lookup_preserves_host(self) -> None:
-        """Recipe §4 PR lookup derives [HOST/]OWNER/REPO preserving
-        non-default host from docs_repo_remote."""
+        """Recipe §4 PR lookup derives [HOST/]OWNER/REPO using verified
+        API host from docs_repo_remote."""
         content = _read("_shared/recipes/screenshot-publish-stage.md")
         after_push = content.split("After successful push", 1)[1]
         pr_section = after_push.split("No candidate found", 1)[0]
         flat = " ".join(pr_section.split())
         self.assertIn("[HOST/]OWNER/REPO", flat)
-        self.assertIn("preserving non-default host", flat)
+        self.assertIn("verified API host", flat)
         self.assertIn("docs_repo_remote", flat)
 
     # --- F3b: respond fetch/reply commands use GH_HOST/GH_REPO prefix ---
@@ -5156,6 +5156,22 @@ class TestR12ManifestAbsentBindingDisagreement(unittest.TestCase):
         self.assertIn("regardless of whether other sources", flat)
         self.assertIn("are absent", flat)
 
+    def test_manifest_absent_notes_preserves_disagreement(self) -> None:
+        """The Notes/manifest-absent sentence must NOT force both
+        bindings to unknown when header and index disagree."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s5 = content.split("Check revision binding", 1)[1].split(
+            "### Aggregate status", 1)[0]
+        # Scope to the Notes/manifest-absent paragraph
+        notes = s5.split("Persist each decision", 1)[1]
+        flat = " ".join(notes.split())
+        # Must NOT say "both bindings are unknown"
+        self.assertNotIn("both bindings are `unknown`", flat)
+        # Must say disagreeing header/index are mismatched
+        self.assertIn("disagreeing header and index", flat)
+        self.assertIn("mismatched", flat)
+        self.assertIn("not forced `unknown`", flat)
+
 
 class TestR12TransportSchemeCheck(unittest.TestCase):
     """4519574723: effective push URL must use HTTPS or SSH; reject
@@ -5231,10 +5247,12 @@ class TestR12FrozenSHAPushRefspec(_RecipeExecMixin, unittest.TestCase):
 
     def test_frozen_sha_push_delivers_correct_commit(self) -> None:
         """Git primitive proof: record commit A, move checkout HEAD to B,
-        push A:refs/heads/branch → remote receives A, not B.
+        execute SHIPPED documented push snippet instantiated to TEMP
+        destination → remote receives A, not B.
 
-        Uses disposable temp bare repos; never touches real checkout.
-        Instantiates the SHIPPED documented push snippet."""
+        Extracts the actual bash block from publish.md (block 10),
+        instantiates placeholders, and runs via _run_script. Uses
+        disposable temp bare repos; never touches real checkout."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = _setup_repo(tmp)
             bare = os.path.join(tmp, "remote.git")
@@ -5278,12 +5296,20 @@ class TestR12FrozenSHAPushRefspec(_RecipeExecMixin, unittest.TestCase):
             self.assertNotEqual(sha_a, sha_b,
                                 "Test requires distinct SHAs")
 
-            # Execute the SHIPPED documented push snippet with frozen SHA
-            push = subprocess.run(
-                ["git", "-C", repo, "push", "origin",
-                 f"{sha_a}:refs/heads/{branch}"],
-                capture_output=True, text=True)
-            self.assertEqual(push.returncode, 0, push.stderr)
+            # Extract SHIPPED push bash block from publish.md (block 10),
+            # instantiate placeholders, and run via _run_script
+            publish_md = _read("ux-design/skills/publish.md")
+            blocks = _extract_bash_blocks(publish_md)
+            push_block = blocks[10]
+            push_block = push_block.replace(
+                '"{docs_repo_path}"', f'"{repo}"')
+            push_block = push_block.replace(
+                "{commit_sha}", sha_a)
+            push_block = push_block.replace(
+                "{branch-name}", branch)
+            script = f"#!/usr/bin/env bash\nset -euo pipefail\n{push_block}"
+            r = _run_script(script)
+            self.assertEqual(r.returncode, 0, r.stderr)
 
             # Verify remote received A, not B
             remote_sha = subprocess.run(
@@ -5300,15 +5326,15 @@ class TestR12GHHostNoSSHPort(unittest.TestCase):
     """4519574750: GH_HOST must not copy SSH transport port into HTTPS
     API address (SSH:2222 ≠ HTTPS API:2222)."""
 
-    def test_respond_separates_api_host_from_ssh_port(self) -> None:
-        """Respond derives API host without SSH transport port."""
+    def test_respond_derives_api_from_verified_mapping(self) -> None:
+        """Respond derives API host from verified mapping, not SSH port."""
         content = _read("ux-design/skills/respond.md")
         section = content.split("Derive validated", 1)[1].split(
             "Prefix every", 1)[0]
         flat = " ".join(section.split())
-        self.assertIn("hostname without port", flat)
-        self.assertIn("SSH transport", flat)
-        self.assertIn("not the HTTPS API port", flat)
+        self.assertIn("verified mapping", flat)
+        self.assertIn("not the Git transport port", flat)
+        self.assertIn("SSH port 2222 is not the HTTPS API port", flat)
 
     def test_respond_preserves_git_identity_for_push(self) -> None:
         """Respond preserves full Git transport identity for push."""
@@ -5317,15 +5343,39 @@ class TestR12GHHostNoSSHPort(unittest.TestCase):
             "Prefix every", 1)[0]
         flat = " ".join(section.split())
         self.assertIn("full Git transport identity", flat)
-        self.assertIn("push", flat)
+        self.assertIn("push separately", flat)
 
     def test_respond_stops_on_unverified_api_host(self) -> None:
-        """Respond stops before API calls if host not verified."""
+        """Respond stops before API calls if no verified mapping."""
         content = _read("ux-design/skills/respond.md")
         section = content.split("Derive validated", 1)[1].split(
             "Prefix every", 1)[0]
         flat = " ".join(section.split())
-        self.assertIn("stop before API calls", flat)
+        self.assertIn("stop and request", flat)
+        self.assertIn("before any API calls", flat)
+        # Must not silently strip/fall back/guess
+        self.assertIn("do not silently strip", flat)
+
+    def test_respond_no_unconditional_port_strip(self) -> None:
+        """Respond must not unconditionally strip port — verified
+        non-default HTTPS API port must not be silently dropped."""
+        content = _read("ux-design/skills/respond.md")
+        section = content.split("Derive validated", 1)[1].split(
+            "Prefix every", 1)[0]
+        flat = " ".join(section.split())
+        # Must not say "extract hostname without port" unconditionally
+        self.assertNotIn("extract the hostname without port", flat)
+        # Must preserve verified non-default API port
+        self.assertIn("verified non-default HTTPS API port", flat)
+
+    def test_recipe_pr_lookup_uses_verified_api_host(self) -> None:
+        """Recipe §4 PR lookup uses verified API host, not Git port."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("pr_number` is `null`", 1)[1].split(
+            "first-publish recovery", 1)[0]
+        flat = " ".join(section.split())
+        self.assertIn("verified API host", flat)
+        self.assertIn("not Git transport port", flat)
 
 
 class TestR12PreCopyRefreshReconciliation(unittest.TestCase):
@@ -5334,7 +5384,7 @@ class TestR12PreCopyRefreshReconciliation(unittest.TestCase):
 
     def test_refresh_reconciles_approved_caption_alt(self) -> None:
         """Pre-copy refresh reconciles approved caption/alt changes
-        from manifest before the copy."""
+        from manifest before the copy, even when bytes unchanged."""
         content = _read("ux-design/skills/respond.md")
         refresh = content.split("Pre-copy Screenshot Index refresh", 1)
         self.assertEqual(len(refresh), 2, "Refresh section missing")
@@ -5343,6 +5393,22 @@ class TestR12PreCopyRefreshReconciliation(unittest.TestCase):
         self.assertIn("caption", flat)
         self.assertIn("alt_text", flat)
         self.assertIn("reconcile", flat)
+        # Must apply even when bytes and prefix are unchanged
+        self.assertIn("even when bytes and prefix are unchanged", flat)
+
+    def test_refresh_skip_requires_no_caption_alt_changes(self) -> None:
+        """Refresh skip condition checks caption/alt too, not only
+        prefixes — description-only changes must not be skipped."""
+        content = _read("ux-design/skills/respond.md")
+        refresh = content.split("Pre-copy Screenshot Index refresh", 1)
+        self.assertEqual(len(refresh), 2, "Refresh section missing")
+        block = refresh[1].split('cp ".artifacts/', 1)[0]
+        flat = " ".join(block.split())
+        # Skip requires BOTH no stale prefixes AND no caption/alt diffs
+        self.assertIn("no manifest caption or alt_text differs", flat)
+        # Must NOT skip on prefixes alone
+        self.assertNotIn(
+            "no prefixes are stale, skip this step", flat)
 
     def test_refresh_preserves_unrelated_not_all(self) -> None:
         """Refresh preserves UNRELATED columns, not ALL other columns."""

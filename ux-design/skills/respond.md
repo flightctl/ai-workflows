@@ -71,11 +71,16 @@ to the current design context.
 Derive validated `{repo_host}`, `{owner}`, `{repo}`, and
 `{repo_identifier}` (`[HOST/]OWNER/REPO`) from the frozen
 `docs_repo_remote`. For `{repo_host}` (used as `GH_HOST`),
-extract the hostname without port — a non-default SSH transport
-port (e.g., 2222) is not the HTTPS API port. Preserve the full
-Git transport identity including port for push operations
-separately. If the hostname is not a known GitHub API host and
-no verified API endpoint mapping exists, stop before API calls.
+derive the API host from a verified mapping, not the Git
+transport port — SSH port 2222 is not the HTTPS API port, and
+the configured CLI rejects colon in host values. For well-known
+GitHub hosts (github.com, *.ghe.com), use the standard API
+endpoint; for other hosts, verify the API endpoint is supported
+by the configured CLI before use. If no verified mapping exists,
+stop and request the researcher to confirm the API endpoint
+before any API calls — do not silently strip a verified
+non-default HTTPS API port, fall back, or guess. Preserve the
+full Git transport identity including port for push separately.
 Use these for all PR lookup, view, and reply operations.
 Prefix every `$PR_COMMENTS_SCRIPT` invocation (fetch and reply)
 with command-scoped environment so the helper's `gh` calls target
@@ -200,15 +205,19 @@ update the authoring `05-handoff.md` Screenshot Index row with the
 correct prefix (`{first 12 hex}…`). This ensures the published copy
 carries current checksums even when an approved image-only change did
 not alter the handoff text. If no authoring manifest exists, it
-contains no screenshots, or no prefixes are stale, skip this step.
+contains no screenshots, skip this step. If all prefixes are
+current and no manifest caption or alt_text differs from the
+Screenshot Index text, also skip.
 Preserve unrelated Screenshot Index columns, embedded image
 references, and non-screenshot handoff content unchanged.
+For each entry where the SHA-256 prefix is stale, update the
+Screenshot Index row with the correct prefix (`{first 12 hex}…`).
 When the authoring manifest records approved caption or alt_text
-changes for a refreshed entry (differing from the current
-Screenshot Index text), reconcile them into the authoring
-`05-handoff.md` alongside the prefix update before the copy,
-or stop for researcher reconciliation if the scope is ambiguous.
-Do not force unapproved text updates into unchanged entries.
+changes for an entry (differing from the current Screenshot Index
+text), reconcile them into the authoring `05-handoff.md` before
+the copy — even when bytes and prefix are unchanged. Stop for
+researcher reconciliation if the scope is ambiguous. Do not
+force unapproved text updates into unchanged entries.
 
 ```bash
 cp ".artifacts/ux-design/{issue-key}/05-handoff.md" "{docs_repo_path}/{handoff_file_path}"
