@@ -5051,14 +5051,16 @@ class TestR11PreCopyChecksumRefresh(unittest.TestCase):
         self.assertLess(refresh_pos, copy_pos,
                         "Refresh must appear before the text copy")
 
-    def test_refresh_uses_verified_actual_bytes(self) -> None:
-        """Refresh verifies actual local bytes, not just manifest."""
+    def test_refresh_compares_bytes_against_approved_manifest(self) -> None:
+        """Refresh compares actual local bytes against approved manifest."""
         content = _read("ux-design/skills/respond.md")
         refresh = content.split("Pre-copy Screenshot Index refresh", 1)
         self.assertEqual(len(refresh), 2, "Refresh section missing")
         block = refresh[1].split('cp ".artifacts/', 1)[0]
         flat = " ".join(block.split())
-        self.assertIn("verified actual local bytes", flat)
+        self.assertIn("actual local bytes", flat)
+        self.assertIn("approved", flat)
+        self.assertIn("manifest", flat)
 
     def test_refresh_handles_stale_prefix(self) -> None:
         """Refresh updates stale prefixes from verified bytes checksum."""
@@ -5091,6 +5093,30 @@ class TestR11PreCopyChecksumRefresh(unittest.TestCase):
         flat = " ".join(block.split())
         self.assertIn("Preserve", flat)
         self.assertIn("unchanged", flat)
+
+    def test_mismatch_stops_before_copy(self) -> None:
+        """Bytes differing from approved manifest stops before handoff copy,
+        not an automatic digest rewrite."""
+        content = _read("ux-design/skills/respond.md")
+        refresh = content.split("Pre-copy Screenshot Index refresh", 1)
+        self.assertEqual(len(refresh), 2, "Refresh section missing")
+        block = refresh[1].split('cp ".artifacts/', 1)[0]
+        flat = " ".join(block.split())
+        self.assertIn("stop before the handoff copy", flat)
+        self.assertIn("do not rewrite the manifest", flat)
+
+    def test_no_automatic_manifest_digest_rewrite(self) -> None:
+        """Refresh never automatically blesses unexpected bytes by
+        overwriting the approved manifest digest."""
+        content = _read("ux-design/skills/respond.md")
+        refresh = content.split("Pre-copy Screenshot Index refresh", 1)
+        self.assertEqual(len(refresh), 2, "Refresh section missing")
+        block = refresh[1].split('cp ".artifacts/', 1)[0]
+        flat = " ".join(block.split())
+        self.assertIn("Never automatically bless unexpected bytes", flat)
+        self.assertIn("overwriting the approved manifest digest", flat)
+        # Must direct to existing flow, not invent new one
+        self.assertIn("existing approved", flat)
 
 
 if __name__ == "__main__":

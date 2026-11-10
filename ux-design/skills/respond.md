@@ -175,24 +175,29 @@ image byte, manifest, or digest updates, the authoring
 `05-handoff.md` may still contain stale SHA-256 prefixes in its
 Screenshot Index (e.g., an approved image replacement updated the
 authoring manifest but the handoff text was not separately edited).
-Before copying the handoff to the docs repo, compare each Screenshot
-Index SHA-256 prefix in the authoring `05-handoff.md` against the
-corresponding `sha256` in the authoring manifest at
-`.artifacts/ux-design/{issue-key}/screenshot-manifest.json`. For each
-entry, verify the actual local bytes at
-`.artifacts/ux-design/{issue-key}/screenshots/{filename}` match the
-manifest's `sha256` — verified actual local bytes take precedence.
-For each entry where the current Screenshot Index prefix does not
-match the first 12 characters of the verified actual-bytes digest,
+Before copying the handoff to the docs repo, for each entry in the
+authoring manifest at
+`.artifacts/ux-design/{issue-key}/screenshot-manifest.json`, compute
+the SHA-256 of the actual local bytes at
+`.artifacts/ux-design/{issue-key}/screenshots/{filename}` and compare
+against the manifest's approved `sha256`. If actual bytes differ from
+the approved manifest digest, stop before the handoff copy — do not
+rewrite the manifest to match observed bytes. Direct the researcher
+to reconcile the image through the existing approved
+capture/provenance/authorization flow (re-curate via `/handoff` or
+update the manifest through `/revise`), then revalidate. Never
+automatically bless unexpected bytes by overwriting the approved
+manifest digest. Only after actual-byte and approved-manifest
+agreement, compare each Screenshot Index SHA-256 prefix in the
+authoring `05-handoff.md` against the first 12 characters of the
+confirmed manifest digest. For each entry where the prefix is stale,
 update the authoring `05-handoff.md` Screenshot Index row with the
-correct prefix (`{first 12 hex}…`) and update the authoring manifest
-`sha256` if the verified bytes also differ from the manifest. This
-ensures the published copy carries current checksums even when an
-approved image-only change did not alter the handoff text. If no
-authoring manifest exists, it contains no screenshots, or no prefixes
-are stale, skip this step. Preserve all other Screenshot Index
-columns, embedded image references, and non-screenshot handoff content
-unchanged.
+correct prefix (`{first 12 hex}…`). This ensures the published copy
+carries current checksums even when an approved image-only change did
+not alter the handoff text. If no authoring manifest exists, it
+contains no screenshots, or no prefixes are stale, skip this step.
+Preserve all other Screenshot Index columns, embedded image
+references, and non-screenshot handoff content unchanged.
 
 ```bash
 cp ".artifacts/ux-design/{issue-key}/05-handoff.md" "{docs_repo_path}/{handoff_file_path}"
