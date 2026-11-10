@@ -422,8 +422,15 @@ For case 2, check the confirmed status:
   hash, and (3) the TC ID appears in the confirmed list. If the
   hash differs, the confirmation is stale — treat as unconfirmed.
   Missing SHA-256 binding (no hash recorded) is treated as
-  unconfirmed. Write gap-fill tests only for effectively confirmed
-  TCs; report TC coverage normally for those.
+  unconfirmed.
+- **Source-Discovery: unresolved takes precedence.** If the testplan
+  contains `Source-Discovery: unresolved`, ALL TCs from that source
+  are provisional regardless of confirmation hash or ID matches.
+  Do not write mandatory gap-fill tests or gate commits on
+  unresolved-source TC gaps. Report as "source discovery unresolved
+  — TCs provisional until source is resolved."
+- Write gap-fill tests only for effectively confirmed TCs whose
+  source discovery is resolved; report TC coverage normally for those.
 - **Unconfirmed TCs** (no confirmed status in plan, or missing
   SHA-256 binding, or stale hash): coverage is provisional, not
   normative. Do not write mandatory gap-fill
@@ -658,8 +665,22 @@ Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
  entries awaiting external evidence — these are not discharged
  by automated test coverage." Overall result cannot be PASS.
  Mandatory entries are: entries from source-verified or
- effectively confirmed TCs (per Step 8b criteria), all AC-
- linked entries, and all required non-TC qualification gates.
+ effectively confirmed TCs (per Step 8b criteria, with resolved
+ source discovery), all AC-linked entries, and all current AC
+ obligations.
+ For retained non-TC qualification gates from prior plans: if
+ the prior plan was retained as unverified (source absent or
+ unresolved), non-TC gates from that plan require the same
+ provenance confirmation as retained TCs before becoming
+ mandatory — check that the gate heading exists in the current
+ testplan and that the user has confirmed the retained gate set.
+ Unconfirmed retained gates are provisional; report their
+ pending status separately but do not block Overall: PASS on
+ their account alone.
+ Non-TC qualification gates from source-verified or effectively
+ confirmed plans are mandatory.
+ Current AC obligations are always mandatory regardless of TC
+ or gate provenance.
  Unconfirmed TC entries are provisional — report their pending
  status separately but do not block Overall: PASS on their
  account alone. A failed provisional entry is informational,

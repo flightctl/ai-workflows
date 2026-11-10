@@ -332,17 +332,26 @@ not fall back to legacy `testplan.md` discovery when a
 `validation-index.json` exists but fails validation. Failed script
 resolution or index validation is not confirmed absence.
 
-For non-normal/non-gate-only outcomes (expected zero, anomalous zero,
-or confirmed absence of a feature-level testplan): if
-`.artifacts/e2e/{issue-key}/testplan.md` exists from a prior ingest
-run, delete it. A stale story-scoped testplan
+For valid-source filtered-zero outcomes (expected zero or anomalous
+zero where the source was successfully read and no TCs or gates
+matched the story's scope): if `.artifacts/e2e/{issue-key}/testplan.md`
+exists from a prior ingest run, delete it. A stale story-scoped
+testplan whose source was verified to contain no matching content
 would cause downstream gates to enforce obsolete coverage requirements.
 
-If the source location was checked and no validation artifacts were found
-(neither `validation-index.json` nor `testplan.md` in the docs repo),
-note "No feature-level testplan
-available" and continue. This is not an error — the testplan is a newer
-feature and older designs may not have one.
+Source absence, resolution failure, or unreadable/invalid source
+**never** authorizes deletion of a prior plan. If the source location
+was checked and no validation artifacts were found (neither
+`validation-index.json` nor `testplan.md` in the docs repo), or if
+resolution failed, retain any existing prior story testplan as
+unverified. Mark it `Freshness: unverified` and
+`Source-Discovery: unresolved` and emit a warning: "Source testplan
+not found — retained story testplan marked as unverified. `/plan` and
+`/validate` should treat its TC coverage requirements as provisional
+until the upstream source is available." If no prior testplan exists,
+note "No feature-level testplan available" and continue. This is not
+an error — the testplan is a newer feature and older designs may not
+have one.
 
 When writing the story testplan from matches across multiple artifacts,
 include all matched TCs in a single `testplan.md` with a Source line
@@ -420,8 +429,21 @@ Write `.artifacts/e2e/{issue-key}/testplan.md`:
 {Qualification-gate TCs use the [Qualification gate] heading suffix
  and a Verification column instead of Automation. Evidence status
  values: not-started, pending, verified, failed. Include one section
- per qualification-gate TC; omit the Qualification gates section
- header if count is 0.}
+ per qualification-gate TC.}
+
+## Qualification Gates
+
+{Non-TC qualification gates from the source testplan. Include this
+ section when the source contains gates that are not individual test
+ cases — cross-cutting validation requirements such as hardware
+ certification or security audit. For gate-only plans (zero TC
+ sections), this is the only content section. For mixed plans, this
+ section follows the TC sections. Omit entirely when no non-TC
+ qualification gates apply.}
+
+| Gate | Requirement | Source | Type | Required Evidence | Reviewer | Status |
+|------|-------------|--------|------|-------------------|----------|--------|
+| {gate-heading} | {req-id} | {source-file} | {gate-type} | {evidence} | {reviewer or "unassigned"} | not-started |
 ```
 
 Each test case becomes an H2 heading with the same structure as the

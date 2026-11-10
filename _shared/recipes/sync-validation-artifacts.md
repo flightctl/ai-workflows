@@ -134,10 +134,21 @@ retire the published index for legacy-only snapshots that had only
 **First publish (no previous snapshot):** No removal approval
 needed — skip this step.
 
-#### 4. Validate current set
+#### 4. Validate current set and published index destination
 
-For each artifact in the current set, verify ALL source and
-destination checks:
+**Published index destination check (always, before any docs-repo
+write):** Verify the published `validation-index.json` destination
+path `{DOCS_REPO_PATH}/{FEATURE_DIR}/validation-index.json`:
+- Destination path is not a symlink (including dangling symlinks)
+- No symlink ancestor in destination path between
+  `{DOCS_REPO_PATH}` and the index file
+
+This check runs regardless of whether the published index currently
+exists — it guards first publish, updates, and empty-set scenarios.
+If either check fails, **stop and report**. Do not proceed to APPLY.
+
+**Per-artifact checks:** For each artifact in the current set, verify
+ALL source and destination checks:
 - Local file exists and is not a symlink
 - No symlink ancestor in destination path between
   `{DOCS_REPO_PATH}` and target file

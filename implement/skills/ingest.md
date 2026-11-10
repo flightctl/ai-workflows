@@ -177,8 +177,10 @@ files are often thousands of lines. Search, then slice.
 
 1. Collect search terms from the Jira story: issue key, design section
    refs, FR/NFR IDs, AC keywords, component names.
-2. Grep `design.md` / `prd.md` / `testplan.md` for those terms and for
-   heading lines (`^#`).
+2. Grep `design.md` / `prd.md` for those terms and for heading lines
+   (`^#`). **Do not grep or read `testplan.md` in Step 5** — all
+   testplan search, filtering, and reading is deferred to Step 6 after
+   the validation index resolver has identified the correct file.
 3. Read **only** the matching heading ranges (`offset`/`limit`). Prefer
    one contiguous range per relevant section.
 4. If grep finds nothing useful, Read the first ~80 lines of `design.md`

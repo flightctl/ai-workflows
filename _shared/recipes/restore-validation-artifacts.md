@@ -85,9 +85,11 @@ content or delete companions that exist only in the published set.
 While local files are absent (before restoration completes), route
 feedback comments by the published `file` entry path or by searching
 the published artifact files for exact TC definition headings
-(`## TC-xxx` sections) — do not look up TC IDs from index metadata
-or table mentions, as the published index contains artifact metadata
-(file, type, purpose), not TC IDs.
+(`#### TC-{id}:` headings, as written by the draft skill) — do not
+look up TC IDs from index metadata or table mentions, as the published
+index contains artifact metadata (file, type, purpose), not TC IDs.
+Legacy design testplans may use `## TC-{id}:` (H2) headings; check
+both `####` and `##` levels when searching published artifacts.
 
 Do not require a local filename for routing. Assign the local filename
 tag only after restoration and mapping validation in steps 2–4 above.

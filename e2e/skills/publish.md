@@ -121,6 +121,10 @@ Verify readiness:
      `gh auth login` and retrying `/publish`. Do not continue without auth.
    - `has_uncommitted`, `has_staged`, `has_untracked` — if any are `true`,
      ask the user how to proceed (commit, stash, or include untracked files).
+     If the user commits those changes, the existing validation report's
+     identity binding is now stale — re-run `/validate` and require an
+     unqualified `Overall: PASS` whose identity matches the new HEAD
+     before continuing.
 
 ### Step 2: Cross-Cutting Review
 
@@ -142,6 +146,9 @@ parameters:
 If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
 present the findings to the user. Do not proceed until the user decides
 how to handle them.
+
+If the gate reported PASS **without making any code fixes** (candidate
+unchanged), proceed directly to Step 3.
 
 If the gate made code fixes, commit them before re-running validation.
 Do not run `/validate` against uncommitted changes.

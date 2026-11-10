@@ -4385,75 +4385,202 @@ class TestRecipeCallerIntegration(unittest.TestCase):
         finally:
             shutil.rmtree(tmpdir)
 
-    def test_unapproved_removal_leaves_docs_unchanged(self):
-        """When PREFLIGHT identifies removals and the user declines,
-        no docs content changes. Static + Git fixture test.
-
-        The recipe's PREFLIGHT runs all checks before APPLY. If the user
-        declines removal approval, neither APPLY nor the caller's design
-        copy execute — the docs repo stays unchanged.
+    def test_sync_recipe_approval_before_apply_contract(self):
+        """The sync recipe requires named removal approval in PREFLIGHT
+        before APPLY begins. Static contract check: verify the recipe
+        text enforces this ordering — approval clauses appear before
+        the APPLY Phase heading.
         """
-        tmpdir = tempfile.mkdtemp(prefix="recipe_integ_")
-        try:
-            docs = os.path.join(tmpdir, "docs")
-            subprocess.run(["git", "init", docs],
-                           check=True, capture_output=True)
-            subprocess.run(
-                ["git", "-C", docs, "config", "user.email", "t@t.com"],
-                check=True, capture_output=True)
-            subprocess.run(
-                ["git", "-C", docs, "config", "user.name", "T"],
-                check=True, capture_output=True)
-            subprocess.run(
-                ["git", "-C", docs, "config", "commit.gpgsign", "false"],
-                check=True, capture_output=True)
-            empty_hooks = os.path.join(tmpdir, "empty-hooks")
-            os.makedirs(empty_hooks, exist_ok=True)
-            subprocess.run(
-                ["git", "-C", docs, "config", "core.hooksPath", empty_hooks],
-                check=True, capture_output=True)
+        repo_root = os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__))))
+        recipe_path = os.path.join(
+            repo_root, "_shared", "recipes", "sync-validation-artifacts.md")
+        content = Path(recipe_path).read_text()
 
-            feature_dir = os.path.join(docs, "v1", "feat")
-            os.makedirs(feature_dir, exist_ok=True)
+        apply_pos = content.find("### APPLY Phase")
+        self.assertGreater(apply_pos, 0,
+                           "Recipe must contain an APPLY Phase heading")
 
-            # Initial state: design + index
-            design_path = os.path.join(feature_dir, "design.md")
-            index_path = os.path.join(feature_dir, "validation-index.json")
-            with open(design_path, "w") as f:
-                f.write("# Design v1\n")
-            with open(index_path, "w") as f:
-                json.dump({"schema_version": "1.0",
-                           "artifacts": [{"file": "testplan.md",
-                                          "type": "testplan"}]}, f)
-            subprocess.run(["git", "-C", docs, "add", "."],
-                           check=True, capture_output=True)
-            subprocess.run(
-                ["git", "-C", docs, "commit", "-m", "initial publish"],
-                check=True, capture_output=True)
+        # The approval requirement must appear before APPLY
+        approval_clause = "require named confirmation"
+        approval_pos = content.find(approval_clause)
+        self.assertGreater(approval_pos, 0,
+                           f"Recipe must contain '{approval_clause}'")
+        self.assertLess(approval_pos, apply_pos,
+                        "Named removal approval must appear before APPLY Phase")
 
-            initial_head = subprocess.run(
-                ["git", "-C", docs, "rev-parse", "HEAD"],
-                check=True, capture_output=True, text=True
-            ).stdout.strip()
+        # The stop-on-decline rule must also appear before APPLY
+        stop_clause = "stop and report"
+        # Find the stop clause in the PREFLIGHT section (before APPLY)
+        preflight_section = content[:apply_pos]
+        self.assertIn(stop_clause, preflight_section,
+                      "PREFLIGHT must contain a stop-and-report rule before APPLY")
 
-            # Simulate: PREFLIGHT identifies removal, user DECLINES
-            # → no APPLY, no design copy, no staging, no commit
-            # Verify: HEAD unchanged, design bytes unchanged
-            final_head = subprocess.run(
-                ["git", "-C", docs, "rev-parse", "HEAD"],
-                check=True, capture_output=True, text=True
-            ).stdout.strip()
-            self.assertEqual(initial_head, final_head,
-                             "Declined removal must not change HEAD")
-            self.assertEqual(
-                Path(design_path).read_text(), "# Design v1\n",
-                "Design content must be unchanged after declined removal")
-            self.assertEqual(
-                json.loads(Path(index_path).read_text())["schema_version"],
-                "1.0",
-                "Index must be unchanged after declined removal")
-        finally:
-            shutil.rmtree(tmpdir)
+    def test_sync_recipe_index_destination_check_before_apply(self):
+        """The sync recipe must check published index destination
+        (symlink/ancestor) in PREFLIGHT before any APPLY writes.
+        """
+        repo_root = os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__))))
+        recipe_path = os.path.join(
+            repo_root, "_shared", "recipes", "sync-validation-artifacts.md")
+        content = Path(recipe_path).read_text()
+
+        apply_pos = content.find("### APPLY Phase")
+        self.assertGreater(apply_pos, 0)
+
+        preflight = content[:apply_pos]
+        # Published index destination check must be in PREFLIGHT
+        self.assertIn("validation-index.json",
+                      preflight.split("#### 4.")[1] if "#### 4." in preflight else "",
+                      "Step 4 must check published index destination")
+        self.assertIn("dangling symlink", preflight.lower().replace("dangling symlinks", "dangling symlink"),
+                      "PREFLIGHT must guard against dangling symlinks at index destination")
+
+    def test_restore_recipe_tc_heading_matches_draft_producer(self):
+        """The restore recipe TC heading pattern must match what
+        draft.md actually produces (H4 #### TC-{id}:), not the
+        story-testplan template (H2 ## {tc-id}:).
+        """
+        repo_root = os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__))))
+        restore_path = os.path.join(
+            repo_root, "_shared", "recipes", "restore-validation-artifacts.md")
+        content = Path(restore_path).read_text()
+
+        # Must reference H4 pattern as primary
+        self.assertIn("#### TC-{id}:", content,
+                      "Restore recipe must reference H4 TC heading pattern")
+        # Must NOT use only H2 pattern
+        self.assertNotIn("`## TC-xxx`", content,
+                         "Restore recipe must not use H2-only TC heading pattern")
+
+    def test_revise_step1_no_impossible_empty_fallback(self):
+        """revise.md Step 1 must not have the unreachable
+        'empty result + file exists = fallback' branch. The resolver
+        already returns the legacy file in its array.
+        """
+        revise_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "skills", "revise.md")
+        content = Path(revise_path).read_text()
+
+        # The old unreachable pattern should be gone
+        self.assertNotIn(
+            "fall back to reading it directly",
+            content,
+            "revise.md must not have the impossible empty-result legacy fallback")
+        # The correct resolver-handles-legacy language should be present
+        self.assertIn(
+            "resolver already handles",
+            content,
+            "revise.md must document that the resolver handles legacy layouts")
+
+    def test_draft_index_write_outside_optional_step(self):
+        """draft.md mandatory validation-index.json write must NOT be
+        nested inside the optional companion step heading.
+        """
+        draft_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "skills", "draft.md")
+        content = Path(draft_path).read_text()
+
+        optional_heading = "#### 9e: Companion Validation Plans (Optional)"
+        index_heading = "#### 9f: Write and Validate the Validation Index"
+        optional_pos = content.find(optional_heading)
+        index_pos = content.find(index_heading)
+
+        self.assertGreater(optional_pos, 0,
+                           "draft.md must have the optional companion step")
+        self.assertGreater(index_pos, 0,
+                           "draft.md must have the separate index write step")
+        self.assertGreater(index_pos, optional_pos,
+                           "Index write step must follow the optional companion step")
+        # The index write instruction must be under 9f, not 9e
+        index_write = "**Write the validation index.**"
+        write_pos = content.find(index_write)
+        self.assertGreater(write_pos, index_pos,
+                           "Index write instruction must be inside 9f, after the heading")
+
+    def test_e2e_validate_source_discovery_precedence_in_gapfill(self):
+        """e2e validate gap-fill must check Source-Discovery: unresolved
+        before treating confirmed TCs as normative.
+        """
+        repo_root = os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__))))
+        validate_path = os.path.join(
+            repo_root, "e2e", "skills", "validate.md")
+        content = Path(validate_path).read_text()
+
+        # Find the gap-fill section
+        gapfill_marker = "If any automatable TC ID lacks a corresponding test"
+        gapfill_pos = content.find(gapfill_marker)
+        self.assertGreater(gapfill_pos, 0,
+                           "validate.md must have the gap-fill section")
+
+        # Source-Discovery check must appear before the normative gap-fill rule
+        gapfill_section = content[gapfill_pos:gapfill_pos + 1500]
+        sd_pos = gapfill_section.find("Source-Discovery: unresolved")
+        normative_pos = gapfill_section.find("effectively confirmed TCs or verified-source TCs")
+        self.assertGreater(sd_pos, 0,
+                           "Gap-fill must check Source-Discovery: unresolved")
+        self.assertLess(sd_pos, normative_pos,
+                        "Source-Discovery check must come before normative gap-fill")
+
+    def test_e2e_publish_nofx_continuation(self):
+        """e2e publish must have explicit no-fix PASS continuation to
+        Step 3, not unconditional 'fix commit changed HEAD' stop.
+        """
+        repo_root = os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__))))
+        publish_path = os.path.join(
+            repo_root, "e2e", "skills", "publish.md")
+        content = Path(publish_path).read_text()
+
+        self.assertIn(
+            "without making any code fixes",
+            content,
+            "e2e publish must have the no-fix continuation branch")
+
+    def test_story_testplan_template_has_qualification_gates(self):
+        """implement/templates/story-testplan.md must have a standalone
+        ## Qualification Gates section for gate-only and mixed plans.
+        """
+        repo_root = os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__))))
+        template_path = os.path.join(
+            repo_root, "implement", "templates", "story-testplan.md")
+        content = Path(template_path).read_text()
+
+        self.assertIn(
+            "## Qualification Gates",
+            content,
+            "Template must have a standalone Qualification Gates section")
+
+    def test_decompose_fallback_loads_all_companions(self):
+        """decompose.md fallback re-review must load all resolved
+        validation artifacts, not just 04-testplan.md.
+        """
+        decompose_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "skills", "decompose.md")
+        content = Path(decompose_path).read_text()
+
+        fallback_marker = "If resumption is not available"
+        fallback_pos = content.find(fallback_marker)
+        self.assertGreater(fallback_pos, 0)
+
+        fallback_section = content[fallback_pos:fallback_pos + 500]
+        # Must NOT hard-code only 04-testplan.md
+        self.assertNotIn(
+            "the testplan (`04-testplan.md`)",
+            fallback_section,
+            "Fallback must not hard-code only 04-testplan.md")
+        # Must reference all validation artifacts
+        self.assertIn(
+            "companions",
+            fallback_section,
+            "Fallback must reference companion artifacts")
 
 
 if __name__ == "__main__":

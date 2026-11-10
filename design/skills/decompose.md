@@ -774,8 +774,9 @@ artifacts and a summary of changes applied.
 
 **If resumption is not available:** Spawn a new subagent loaded with
 the decomposition review protocol, the updated artifacts, the PRD,
-the testplan (`04-testplan.md`), and a summary of the previous round's
-changes (but NOT the design document) so it has full context.
+all validation artifacts resolved in Step 1 (primary testplan and any
+companions), and a summary of the previous round's changes (but NOT
+the design document) so it has full context.
 
 **If subagents are not available:** Re-read all decomposition artifact
 files before re-reviewing — do not rely on your cached understanding

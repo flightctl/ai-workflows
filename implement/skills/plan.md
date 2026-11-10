@@ -408,7 +408,7 @@ Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
 
 Before presenting the plan, verify:
 
-- [ ] Every acceptance criterion is addressed by at least one task
+- [ ] Every acceptance criterion is addressed by at least one task, gate, or manual verification method
 - [ ] Task ordering respects dependencies (e.g., types defined before tests that use them)
 - [ ] New interfaces and types follow the project's naming conventions
 - [ ] Test strategy covers all public interface behavioral paths

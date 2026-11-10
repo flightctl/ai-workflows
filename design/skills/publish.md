@@ -341,7 +341,7 @@ exist, write "General review — no specific items flagged."}
 ### Documents
 - `design.md` — technical design document
 {For each published validation artifact, add a bullet using the
- file names from the published validation-index.json (Step 6):
+ file names from the published validation-index.json (Step 5):
 - `{primary_testplan}` — acceptance test cases mapped to PRD requirements
 - `{companion-file}` — {companion purpose}
 If no validation artifacts were published, omit these bullets entirely.}
@@ -388,7 +388,7 @@ Save the core metadata using the shared script. If the primary
 testplan was published, include `testplan_file_path` for backwards
 compatibility with consumers that do not read `validation_artifacts`.
 Derive the primary testplan filename from the published
-`validation-index.json` written in Step 6 — read its
+`validation-index.json` written in Step 5 — read its
 `primary_testplan` value (e.g., `testplan.md` for the default, or a
 custom name if the index specifies one). For the legacy case where
 no index was written, fall back to the literal `testplan.md`:

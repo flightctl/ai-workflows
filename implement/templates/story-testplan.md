@@ -68,3 +68,27 @@ The `[Qualification gate]` / `[Manual verification]` suffix in the
 heading and the `Verification` / `manual` Automation value distinguish
 these from automatable TCs.
 Evidence status values: `not-started`, `pending`, `verified`, `failed`.
+
+---
+
+## Qualification Gates
+
+{Non-TC qualification gates that apply to this story. These are
+ gates from the source testplan that are NOT individual test cases
+ but represent cross-cutting validation requirements (e.g., hardware
+ certification, security audit, performance benchmark threshold).
+ Include this section when the source testplan contains non-TC
+ qualification gates, regardless of whether TC sections also exist.
+ Omit this section entirely when no non-TC qualification gates apply.}
+
+| Gate | Requirement | Source | Type | Required Evidence | Reviewer | Status |
+|------|-------------|--------|------|-------------------|----------|--------|
+| {gate-heading} | {requirement-id} | {source-filename} | {gate-type} | {what must be produced} | {designated reviewer or "unassigned"} | not-started |
+
+{For gate-only plans (zero TC sections), this is the only content
+ section. For mixed plans (TC sections above plus gates), this
+ section follows the TC sections. Preserve the gate's original
+ provenance: type, requirements, interface changes, and required
+ evidence from the source testplan. When a gate's details are
+ unavailable from the source, mark as "clarification needed" —
+ do not invent requirements or evidence criteria.}

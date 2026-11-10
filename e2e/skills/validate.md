@@ -263,6 +263,24 @@ method from the approved plan. This is the workflow's primary contract.
    - Do not force an automated test scenario for an AC the plan
      designates as a qualification gate.
 
+   **External evidence (from coverage matrix):**
+   - Read the **Evidence Reference** column from the AC coverage
+     matrix. Use the recorded reference to locate the external
+     evidence source; if the reference is missing or unusable, ask
+     the user for clarification.
+   - Before marking evidence `verified`, verify the evidence basis
+     applies to the **current candidate** (build, revision, or test
+     run). Evidence collected against a different candidate whose
+     applicability is unknown must remain `pending`. Compare the
+     evidence against the entry's original source criteria.
+   - Determine the evidence status (not-started, pending, verified,
+     or failed) from the located evidence. Reuse this same evidence
+     result when writing the report in Step 8. Pending or not-started
+     evidence does not constitute a pass. Failed required criteria
+     means the AC is failed.
+   - Do not force an automated test scenario for an AC the plan
+     designates as external evidence.
+
 Record the result for each criterion. If any criterion is not fully
 covered:
 
@@ -418,6 +436,12 @@ work.
      described scenario and assert the described outcomes.
    - Record the test file and scenario name for each TC ID.
 3. If any automatable TC ID lacks a corresponding test:
+   - If the testplan contains `Source-Discovery: unresolved`, ALL
+     TCs from that source are provisional regardless of confirmation
+     hash or ID matches. Report gaps as provisional: "TC coverage
+     gap — source discovery unresolved, not normative until source
+     is resolved." Do not write mandatory gap-fill tests or gate
+     commits on unresolved-source TC gaps.
    - If the TC is NOT effectively confirmed (see criteria above:
      hash present + current story-scoped testplan hash matches
      recorded hash + TC ID in confirmed list) AND `testplan.md`
@@ -425,10 +449,10 @@ work.
      provisional: "TC coverage gap — unconfirmed source, not
      normative until confirmed." Do not gate commits on
      unconfirmed TC gaps.
-   - For effectively confirmed TCs or verified-source TCs: write
-     the missing test following the reference suite's patterns.
-     These TCs are normative — their gaps are real and should be
-     filled.
+   - For effectively confirmed TCs or verified-source TCs (with
+     resolved source discovery): write the missing test following
+     the reference suite's patterns. These TCs are normative —
+     their gaps are real and should be filled.
    - Commit the test following the project's commit format.
    - Re-run the relevant checks from Step 3.
    After the last gap-fill commit, re-assess AC coverage and all
@@ -605,8 +629,10 @@ git status --porcelain
 If output is non-empty, the candidate has uncommitted changes after
 gap-fill or reassessment. Stop — do not record a PASS or bind
 identity to a HEAD that does not include all changes. Commit or
-discard the changes first, then return here to record identity on
-the clean HEAD.
+discard the changes first, then restart validation from Step 1 on
+the clean worktree. A commit may add untested changes; a discard
+may remove coverage that was part of the assessment. Either way,
+the prior assessment no longer applies to the current candidate.
 
 Record after the last code commit during validation, before
 writing the final result:
@@ -652,8 +678,18 @@ writing the final result:
  Overall: PASS, but must be reported as provisional coverage.
  A failed or pending confirmed entry, an AC without approved
  coverage, or an unresolved Source-Discovery state always blocks
- Overall: PASS. Required non-TC qualification gates are mandatory
- and never exempt from the PASS criteria.
+ Overall: PASS. Current AC obligations are always mandatory.
+ For retained non-TC qualification gates from prior plans: if
+ the prior plan was retained as unverified (source absent or
+ unresolved), non-TC gates from that plan require the same
+ provenance confirmation as retained TCs before becoming
+ mandatory — check that the gate heading exists in the current
+ testplan and that the user has confirmed the retained gate set.
+ Unconfirmed retained gates are provisional; report their
+ pending status separately but do not block Overall: PASS on
+ their account alone.
+ Non-TC qualification gates from source-verified or effectively
+ confirmed plans are mandatory.
  Other outcomes:
  - If automated tests pass but mandatory entries are pending/
    not-started: "PASS (automated) — awaiting external validation

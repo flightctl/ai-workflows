@@ -709,6 +709,10 @@ from Step 9c, plus verify:
 
 Save each companion to `.artifacts/design/{issue-key}/04-{slug}.md`.
 
+#### 9f: Write and Validate the Validation Index
+
+This sub-step always runs — it is not conditional on companions.
+
 **Write the validation index.** After writing the primary testplan
 and any companions (or only the primary when no companions apply),
 write the

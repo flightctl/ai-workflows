@@ -56,11 +56,13 @@ Determine which artifacts exist and read them:
   python3 "$VALIDATION_INDEX_SCRIPT" resolve --local ".artifacts/design/{issue-key}"
   ```
   If exit 0, parse the JSON array to discover all artifact paths.
-  Read only the returned artifacts. If exit non-zero (malformed index,
-  missing files, symlinks), stop and report. If the result is empty
-  and `04-testplan.md` exists, fall back to reading it directly
-  (legacy). This resolution happens here so the correct artifact set
-  is known before any testplan content is read.
+  Read only the returned artifacts — the resolver already handles
+  legacy layouts (a valid `04-testplan.md` is included in the returned
+  list when no index exists). If the result is an empty array `[]`, no
+  validation artifacts exist. If exit non-zero (malformed index,
+  missing files, symlinks), stop and report. This resolution happens
+  here so the correct artifact set is known before any testplan content
+  is read.
 - `.artifacts/design/{issue-key}/sync-manifest.json` (if exists —
   records Jira key mappings and content-hash checkpoints from
   previous `/sync` runs; may be partial if sync was interrupted or

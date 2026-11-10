@@ -189,8 +189,12 @@ basename matching, which would collide if multiple features share a
 review or if non-artifact files share a basename:
 
 - Comments with `path` exactly matching a published validation
-  artifact path are categorized as **Testplan feedback** and tagged
-  with the specific artifact's local filename for routing in Step 4.
+  artifact path are categorized as **Testplan feedback**. Do not
+  assign a local filename tag during initial categorization — tag
+  with the local filename only after the restore recipe has completed
+  restoration and mapping validation (steps 2–4 of
+  `restore-validation-artifacts.md`). Use the published `file` entry
+  path for routing until local files are available.
 - Top-level PR comments (from `gh pr view --json comments`) do not
   carry a `path`. For these, inspect the comment body: if it
   references test case IDs matching the pattern `TC-` followed by a

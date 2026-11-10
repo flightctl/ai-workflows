@@ -271,12 +271,13 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
 
 ## Acceptance Criteria Coverage
 
-| AC | Description | Coverage | Reference | Method | Evidence Status |
-|----|-------------|----------|-----------|--------|-----------------|
-| AC-1 | {brief} | C1 | Task 2 | automated-test | — |
-| AC-2 | {brief} | S1 | Task 3 | automated-test | — |
-| AC-3 | {brief} | Gate: {heading} | — | qualification-gate | pending |
-| AC-4 | {brief} | Manual: TC-NFR2-01 | — | manual-test | pending |
+| AC | Description | Coverage | Reference | Method | Evidence Reference | Evidence Status |
+|----|-------------|----------|-----------|--------|--------------------|-----------------|
+| AC-1 | {brief} | C1 | Task 2 | automated-test | — | — |
+| AC-2 | {brief} | S1 | Task 3 | automated-test | — | — |
+| AC-3 | {brief} | Gate: {heading} | — | qualification-gate | {gate evidence source or "pending"} | pending |
+| AC-4 | {brief} | Manual: TC-NFR2-01 | — | manual-test | {manual evidence source or "pending"} | pending |
+| AC-5 | {brief} | External: {source} | — | external-evidence | {external evidence source or "pending"} | pending |
 
 {Every AC must appear in at least one scenario, be covered by a
  qualification gate with tracked evidence, or be covered by a manual
@@ -297,7 +298,15 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
  matrix to select the verification path for each AC. ACs with no
  mapped scenarios or tasks must have their method explicitly set
  (typically `unresolved — clarify with user`). Do not leave it
- blank.}
+ blank.
+
+ **Evidence Reference column:** For manual-test, qualification-gate,
+ and external-evidence methods, record the specific evidence source
+ that `/validate` Step 7 should locate and assess: a test report
+ path, certification document, external system URL, or gate evidence
+ location. For automated-test ACs, use `—` (evidence is the test
+ itself). For ACs whose evidence is not yet identified, use
+ `pending` — `/validate` will prompt for clarification.}
 
 ## Test Plan Coverage
 
