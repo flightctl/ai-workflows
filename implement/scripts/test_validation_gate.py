@@ -1646,5 +1646,39 @@ class TestGatePathResolution(unittest.TestCase):
         self.assertEqual(parsed["gate"], "fail")
 
 
+class TestStalePASSInvalidation(unittest.TestCase):
+    """Verify gate consumer rejects overwritten reports on same HEAD.
+
+    Tests the mechanism validate.md Step 1 relies on: overwriting a
+    prior PASS report with FAIL makes the gate reject publication for
+    the same HEAD. This is a gate-consumer test, not prose execution.
+    """
+
+    def setUp(self):
+        self.repo = make_temp_repo()
+        self.orig_dir = os.getcwd()
+        os.chdir(self.repo)
+
+    def tearDown(self):
+        os.chdir(self.orig_dir)
+        shutil.rmtree(self.repo, ignore_errors=True)
+
+    def test_overwritten_pass_blocks_publication(self):
+        """PASS overwritten with FAIL-in-progress blocks gate on same HEAD."""
+        head = get_head(self.repo)
+        rpt = write_report(self.repo, "PASS", head)
+        # Gate passes with the PASS report
+        r1 = validation_gate.run_gate(rpt)
+        self.assertEqual(r1["gate"], "pass")
+        # Overwrite with FAIL (simulating Step 1 invalidation)
+        with open(rpt, "w") as f:
+            f.write(f"## Result\n\nFAIL — validation in progress\n\n"
+                    f"## Validated Commit\n\n{head}\n")
+        # Same HEAD, but gate now rejects
+        r2 = validation_gate.run_gate(rpt)
+        self.assertEqual(r2["gate"], "fail")
+        self.assertIn("not PASS", r2["reason"])
+
+
 if __name__ == "__main__":
     unittest.main()
