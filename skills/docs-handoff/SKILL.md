@@ -23,7 +23,8 @@ Inputs: one DOCS issue key, a selected release/target, and an optional
 caller-supplied consumer profile. Outputs: delivery-evidence findings,
 enrichment plan, and an owning-source narrative proposal when supported.
 
-**Boundaries:** Phase 1 preview saves `baseline_fingerprint` and
-`plan_digest` tokens. Phase 2 must pass both as approved references;
-stale or invalid requires a fresh preview cycle. Source/narrative
-apply is always disabled — changes route through the design workflow.
+**Boundaries:** No external write before the user explicitly approves
+the exact bounded plan. Phase 2 passes both saved
+`baseline_fingerprint` and `plan_digest`; stale or invalid requires
+fresh preview and re-approval. Source/narrative apply is always
+disabled; summary, description, and source content are never modified.
