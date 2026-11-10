@@ -6,17 +6,24 @@ contributor references, normalizing PR evidence, building bounded
 change plans, and checking enrichment idempotency.
 
 Subcommands:
-  validate         Validate a DOCS issue snapshot and extract contributors
-  build-plan       Build a delivery-evidence change plan from gathered evidence
-  check-enrichment Check proposed enrichment against existing issue state
+  validate         Validate a DOCS issue snapshot and extract contributors.
+  normalize        Normalize and deduplicate raw PR evidence items.
+  build-plan       Build a delivery-evidence change plan from validation
+                   and normalized evidence.
+  check-enrichment Check proposed enrichment against current issue state;
+                   with --readback, verify writes and produce receipts.
 
-All inputs come from files or stdin (JSON).  This script never contacts
-Jira, GitHub, or any external service.  ``urllib.parse`` is used for
-URL validation only -- no network I/O.
+All inputs are read from JSON files specified via ``--input`` (and
+optionally ``--readback``).  This script never contacts Jira, GitHub,
+or any external service.  ``urllib.parse`` is used for URL parsing
+only -- no network I/O.
 
 Exit codes:
   0 -- success (result JSON on stdout)
-  1 -- input validation error or data inconsistency (diagnostic on stderr)
+  1 -- input validation error or data inconsistency (diagnostic on
+       stderr; structured JSON is still written to stdout when the
+       error is representable as a result object, e.g. validate
+       with invalid issue)
   2 -- invalid arguments (from argparse)
 """
 
@@ -66,13 +73,24 @@ def _write_json(data: Any) -> None:
 
 
 # ---------------------------------------------------------------------------
-# URL validation
+# URL validation  (C)
 # ---------------------------------------------------------------------------
 
-# Allowed PR URL host patterns (public forges)
-_PR_URL_RE = re.compile(
-    r"^https://(?:github\.com|gitlab\.com|gitlab\.[a-z0-9.-]+)"
-    r"/[^/]+/[^/]+/(?:pull|merge_requests)/\d+/?$"
+# Supported PR/MR URL path patterns.  The path must be EXACTLY a PR/MR
+# page — trailing paths (files, commits, checks) are rejected so the
+# identity is unambiguous.
+#
+# GitHub:  /owner/repo/pull/N
+# GitLab:  /owner[/subgroup]*/repo/-/merge_requests/N
+# GitLab (legacy):  /owner[/subgroup]*/repo/merge_requests/N
+_GITHUB_PR_PATH = re.compile(
+    r"^/([^/]+)/([^/]+)/pull/(\d+)$"
+)
+_GITLAB_MR_PATH = re.compile(
+    r"^/(.+?)/([^/]+)/-/merge_requests/(\d+)$"
+)
+_GITLAB_MR_LEGACY_PATH = re.compile(
+    r"^/(.+?)/([^/]+)/merge_requests/(\d+)$"
 )
 
 
@@ -86,7 +104,6 @@ def validate_url(url: str, label: str = "url") -> str:
         raise ValueError(f"{label}: must be a non-empty string")
     url = url.strip()
 
-    # Reject control characters and whitespace
     if any(ord(c) < 32 or c.isspace() for c in url):
         raise ValueError(f"{label}: contains whitespace or control characters")
 
@@ -97,22 +114,39 @@ def validate_url(url: str, label: str = "url") -> str:
         raise ValueError(f"{label}: missing hostname")
     if parsed.username is not None or parsed.password is not None:
         raise ValueError(f"{label}: must not contain embedded credentials")
+    # Reject explicit non-standard ports — they are unusual for forges
+    # and could indicate a local proxy / test fixture that should use
+    # .example or .invalid TLDs instead.
+    if parsed.port is not None:
+        raise ValueError(f"{label}: explicit port not supported for PR URLs")
 
-    # Strip trailing slash for normalization
     normalized = url.rstrip("/")
     return normalized
 
 
 def validate_pr_url(url: str, label: str = "pr_url") -> str:
-    """Validate and normalize a pull/merge request URL.
+    """Validate and normalize a pull/merge-request URL.
 
-    Returns the normalized URL or raises ValueError.
+    Requires a complete, supported PR/MR path with a numeric
+    identifier.  Strips query strings and fragments for identity
+    normalization.  Raises ValueError for unrecognized, malformed,
+    or trailing-garbage URLs.
     """
     normalized = validate_url(url, label)
-    # Strip fragment and query for identity comparison
     parsed = urlsplit(normalized)
-    clean = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
-    clean = clean.rstrip("/")
+    # Reconstruct with only scheme + authority + path (strip query/fragment)
+    clean_path = parsed.path.rstrip("/")
+    clean = f"{parsed.scheme}://{parsed.netloc}{clean_path}"
+
+    # Verify the path matches a supported PR/MR structure
+    if not (_GITHUB_PR_PATH.match(clean_path)
+            or _GITLAB_MR_PATH.match(clean_path)
+            or _GITLAB_MR_LEGACY_PATH.match(clean_path)):
+        raise ValueError(
+            f"{label}: not a recognized PR/MR URL "
+            f"(requires /owner/repo/pull/N or "
+            f"/owner/repo/-/merge_requests/N): {url}"
+        )
     return clean
 
 
@@ -120,34 +154,39 @@ def extract_pr_identity(url: str) -> dict[str, str]:
     """Extract owner, repo, and PR number from a normalized PR URL.
 
     Returns a dict with ``owner``, ``repo``, ``number``, ``host``.
-    Raises ValueError if the URL is not a recognized PR URL.
+    Raises ValueError if the URL does not match a supported forge
+    pattern with a numeric identifier.
     """
     parsed = urlsplit(url)
-    parts = parsed.path.strip("/").split("/")
-    # GitHub: owner/repo/pull/N  GitLab: owner/repo/-/merge_requests/N
-    if len(parts) >= 4 and parts[2] == "pull":
+    path = parsed.path.rstrip("/")
+
+    m = _GITHUB_PR_PATH.match(path)
+    if m:
         return {
             "host": parsed.hostname or "",
-            "owner": parts[0],
-            "repo": parts[1],
-            "number": parts[3],
+            "owner": m.group(1),
+            "repo": m.group(2),
+            "number": m.group(3),
         }
-    # GitLab with /-/ prefix
-    if len(parts) >= 5 and parts[2] == "-" and parts[3] == "merge_requests":
+
+    m = _GITLAB_MR_PATH.match(path)
+    if m:
         return {
             "host": parsed.hostname or "",
-            "owner": parts[0],
-            "repo": parts[1],
-            "number": parts[4],
+            "owner": m.group(1),
+            "repo": m.group(2),
+            "number": m.group(3),
         }
-    # GitLab without /-/ prefix
-    if len(parts) >= 4 and parts[2] == "merge_requests":
+
+    m = _GITLAB_MR_LEGACY_PATH.match(path)
+    if m:
         return {
             "host": parsed.hostname or "",
-            "owner": parts[0],
-            "repo": parts[1],
-            "number": parts[3],
+            "owner": m.group(1),
+            "repo": m.group(2),
+            "number": m.group(3),
         }
+
     raise ValueError(f"unrecognized PR/MR URL structure: {url}")
 
 
@@ -198,10 +237,9 @@ def extract_story_refs(text: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# DOCS issue validation and contributor extraction
+# DOCS issue validation and contributor extraction  (A, B)
 # ---------------------------------------------------------------------------
 
-# Sections expected in a rendered DOCS issue description
 _DOCS_SECTIONS = {
     "Documentation Inputs",
     "Documentation Scope",
@@ -210,10 +248,7 @@ _DOCS_SECTIONS = {
 
 
 def _extract_sections(text: str) -> dict[str, str]:
-    """Extract ## sections from rendered Jira markdown description.
-
-    Returns heading -> body text mapping.
-    """
+    """Extract ## sections from rendered Jira markdown description."""
     sections: dict[str, str] = {}
     current: str | None = None
     lines: list[str] = []
@@ -230,24 +265,15 @@ def _extract_sections(text: str) -> dict[str, str]:
 
     if current is not None:
         sections[current] = "\n".join(lines).strip()
-
     return sections
 
 
 def _extract_contributing_stories(description: str) -> list[str]:
-    """Extract Contributing stories references from a rendered description.
-
-    Looks for a ``Contributing stories:`` line in the Design Reference
-    section or in the full description.  Returns a list of Jira keys
-    found on that line.  Local ``Story N.NN`` placeholders without Jira
-    keys are returned as qualified IDs (``story-N.NN``) and flagged as
-    unresolved.
-    """
+    """Extract Contributing stories references from a rendered description."""
     result: list[str] = []
     seen: set[str] = set()
     for line in description.splitlines():
         stripped = line.strip()
-        # Normalize list-item prefixes
         for pfx in ("- ", "* ", "+ "):
             if stripped.startswith(pfx):
                 stripped = stripped[len(pfx):].strip()
@@ -255,12 +281,10 @@ def _extract_contributing_stories(description: str) -> list[str]:
         if not stripped.lower().startswith("contributing stories:"):
             continue
         value = stripped.split(":", 1)[1].strip()
-        # Extract Jira keys (rendered form)
         for key in extract_all_jira_keys(value):
             if key not in seen:
                 seen.add(key)
                 result.append(key)
-        # Extract unresolved Story N.NN placeholders
         for qid in extract_story_refs(value):
             if qid not in seen:
                 seen.add(qid)
@@ -269,15 +293,10 @@ def _extract_contributing_stories(description: str) -> list[str]:
 
 
 def _extract_dependencies(description: str) -> list[str]:
-    """Extract Dependencies references from a rendered description.
-
-    Returns Jira keys and unresolved story refs found in the Dependencies
-    section only.
-    """
+    """Extract Dependencies references from a rendered description."""
     sections = _extract_sections(description)
     deps_text = sections.get("Dependencies", "")
     if not deps_text:
-        # Try inline Dependencies: line
         for line in description.splitlines():
             stripped = line.strip()
             for pfx in ("- ", "* ", "+ "):
@@ -304,9 +323,9 @@ def _extract_dependencies(description: str) -> list[str]:
 def _parse_documentation_inputs(text: str) -> list[dict[str, Any]]:
     """Parse Documentation Inputs section into structured items.
 
-    Recognizes bold contributor headers (``**Story N.NN -- title:**`` or
-    ``**JIRA-KEY -- title:**``) followed by bullet-pointed input items.
-    Each input may have ``[Assumption]`` or ``[Open: ...]`` markers.
+    Recognizes bold contributor headers followed by bullet-pointed
+    input items.  Each input may carry ``[Assumption]`` or
+    ``[Open: ...]`` markers which are preserved.
     """
     items: list[dict[str, Any]] = []
     current_contributor: str | None = None
@@ -314,20 +333,17 @@ def _parse_documentation_inputs(text: str) -> list[dict[str, Any]]:
 
     for line in text.splitlines():
         stripped = line.strip()
-        # Bold contributor header: **KEY -- title:** or **Story N.NN -- title:**
         header_match = re.match(
             r"\*\*(.+?)(?:\s*(?:--|—)\s*.+?)?\s*:?\*\*:?\s*$",
             stripped,
         )
         if header_match:
             header_text = header_match.group(1).strip()
-            # Extract key from header
             key = parse_jira_key(header_text)
             if key:
                 contributor_key = key
                 current_contributor = header_text
             else:
-                # May be Story N.NN format
                 refs = extract_story_refs(header_text)
                 if refs:
                     contributor_key = refs[0]
@@ -337,42 +353,34 @@ def _parse_documentation_inputs(text: str) -> list[dict[str, Any]]:
                     current_contributor = header_text
             continue
 
-        # Bullet item under a contributor
         bullet_match = re.match(r"[-*+]\s+(.*)", stripped)
         if bullet_match and current_contributor is not None:
-            item_text = bullet_match.group(1).strip()
+            raw_text = bullet_match.group(1).strip()
             marker = "planned"
             open_ref = None
-            if "[Assumption]" in item_text:
+            if "[Assumption]" in raw_text:
                 marker = "assumption"
-                item_text = item_text.replace("[Assumption]", "").strip()
-            open_match = re.search(r"\[Open:\s*([^\]]+)\]", item_text)
+            open_match = re.search(r"\[Open:\s*([^\]]+)\]", raw_text)
             if open_match:
                 marker = "open"
                 open_ref = open_match.group(1).strip()
-                item_text = re.sub(r"\[Open:\s*[^\]]+\]", "", item_text).strip()
-
+            # Preserve the original text including markers
             items.append({
                 "contributor": contributor_key,
                 "contributor_header": current_contributor,
-                "text": item_text,
+                "text": raw_text,
                 "marker": marker,
                 "open_ref": open_ref,
             })
-
     return items
 
 
 def validate_issue(snapshot: dict[str, Any]) -> dict[str, Any]:
     """Validate a DOCS issue snapshot and extract structured data.
 
-    Input: a JSON object with at minimum ``key``, ``summary``,
-    ``description``.  May include ``status``, ``parent``,
-    ``remote_links``, ``issue_links``.
-
-    Returns a result object with ``valid``, ``errors``, ``warnings``,
-    and extracted ``contributors``, ``dependencies``,
-    ``documentation_inputs``, ``sections``.
+    Returns a result with ``valid``, ``errors``, ``warnings``, and
+    extracted ``contributors``, ``dependencies``,
+    ``documentation_inputs``, ``sections``, ``key``.
     """
     errors: list[str] = []
     warnings: list[str] = []
@@ -380,6 +388,7 @@ def validate_issue(snapshot: dict[str, Any]) -> dict[str, Any]:
     key = snapshot.get("key")
     if not key or not isinstance(key, str):
         errors.append("missing or invalid 'key' field")
+        key = None
     elif not _JIRA_KEY_RE.fullmatch(key):
         errors.append(f"invalid Jira key format: {key}")
 
@@ -406,31 +415,26 @@ def validate_issue(snapshot: dict[str, Any]) -> dict[str, Any]:
         }
 
     sections = _extract_sections(description)
-
-    # Check required sections
     missing_sections = _DOCS_SECTIONS - set(sections.keys())
     for ms in sorted(missing_sections):
         errors.append(f"missing required section: {ms}")
 
-    # Extract contributors
     contributors = _extract_contributing_stories(description)
     unresolved = [c for c in contributors if c.startswith("story-")]
     if unresolved:
         for u in unresolved:
             warnings.append(f"unresolved local reference: {u}")
-
     if not contributors:
         errors.append("no Contributing stories found in description")
 
-    # Extract dependencies (distinct from contributors)
     dependencies = _extract_dependencies(description)
 
-    # Parse documentation inputs
     doc_inputs_text = sections.get("Documentation Inputs", "")
     documentation_inputs = _parse_documentation_inputs(doc_inputs_text)
     if not documentation_inputs and "Documentation Inputs" in sections:
         warnings.append(
-            "Documentation Inputs section exists but no structured items parsed"
+            "Documentation Inputs section exists but no structured "
+            "items parsed"
         )
 
     return {
@@ -446,7 +450,7 @@ def validate_issue(snapshot: dict[str, Any]) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Evidence normalization
+# Evidence normalization  (A, B, C)
 # ---------------------------------------------------------------------------
 
 
@@ -455,12 +459,16 @@ def normalize_evidence(
 ) -> dict[str, Any]:
     """Normalize and deduplicate gathered PR evidence.
 
-    Each evidence item must have ``pr_url``, ``contributor_key``, and
-    optionally ``target_branch``, ``state``, ``title``, ``merged``,
-    ``merge_commit``, ``observations`` (list of strings from AI review).
+    Each evidence item must have ``pr_url`` and ``contributor_key``.
+    Optional: ``target_branch``, ``state``, ``title``, ``merged``
+    (bool), ``merge_commit``, ``observations`` (list of strings).
+
+    Deduplication merges compatible same-PR records (same URL after
+    normalization).  Contradictory ``merged`` or ``target_branch``
+    values on the same PR produce a conflict warning — neither
+    silently wins.
 
     Returns ``{"items": [...], "errors": [...], "warnings": [...]}``.
-    Deduplication is by normalized PR URL.
     """
     errors: list[str] = []
     warnings: list[str] = []
@@ -468,7 +476,11 @@ def normalize_evidence(
     normalized: list[dict[str, Any]] = []
 
     if not isinstance(evidence_items, list):
-        return {"items": [], "errors": ["evidence must be an array"], "warnings": []}
+        return {
+            "items": [],
+            "errors": ["evidence must be an array"],
+            "warnings": [],
+        }
 
     for i, item in enumerate(evidence_items):
         if not isinstance(item, dict):
@@ -482,43 +494,114 @@ def normalize_evidence(
             errors.append(f"evidence[{i}]: missing contributor_key")
             continue
 
+        # Validate merged is bool or None
+        merged_val = item.get("merged")
+        if merged_val is not None and not isinstance(merged_val, bool):
+            errors.append(
+                f"evidence[{i}]: 'merged' must be a boolean or null"
+            )
+            continue
+
         try:
-            pr_url = validate_pr_url(pr_url_raw, f"evidence[{i}].pr_url")
+            pr_url = validate_pr_url(
+                pr_url_raw, f"evidence[{i}].pr_url"
+            )
         except ValueError as exc:
             errors.append(str(exc))
             continue
 
+        # Extract identity — reject if unparseable
+        try:
+            pr_id = extract_pr_identity(pr_url)
+        except ValueError as exc:
+            errors.append(
+                f"evidence[{i}]: {exc}"
+            )
+            continue
+
+        # Validate observations is a list of strings
+        raw_obs = item.get("observations", [])
+        if not isinstance(raw_obs, list):
+            errors.append(
+                f"evidence[{i}]: 'observations' must be an array"
+            )
+            continue
+        observations: list[str] = []
+        obs_valid = True
+        for j, ob in enumerate(raw_obs):
+            if not isinstance(ob, str):
+                errors.append(
+                    f"evidence[{i}].observations[{j}]: must be a string"
+                )
+                obs_valid = False
+            else:
+                observations.append(ob)
+        if not obs_valid:
+            continue
+
+        target_branch = item.get("target_branch", "")
+        if not isinstance(target_branch, str):
+            target_branch = str(target_branch)
+
         # Deduplicate by normalized URL
         if pr_url in seen_urls:
             existing_idx = seen_urls[pr_url]
-            # Merge contributor if different
             existing = normalized[existing_idx]
-            if contributor not in existing.get("contributor_keys", []):
-                existing.setdefault("contributor_keys", [contributor])
-                if contributor not in existing["contributor_keys"]:
-                    existing["contributor_keys"].append(contributor)
+
+            # Merge contributor keys
+            if contributor not in existing["contributor_keys"]:
+                existing["contributor_keys"].append(contributor)
+
+            # Detect contradictory merged state
+            if (merged_val is not None
+                    and existing["merged"] is not None
+                    and merged_val != existing["merged"]):
+                existing["conflicts"] = existing.get("conflicts", [])
+                existing["conflicts"].append(
+                    f"contradictory merged state: "
+                    f"evidence[{existing_idx}]={existing['merged']}, "
+                    f"evidence[{i}]={merged_val}"
+                )
+                warnings.append(
+                    f"evidence[{i}]: PR {pr_url} has contradictory "
+                    f"merged state with evidence[{existing_idx}]"
+                )
+
+            # Detect contradictory target branch
+            if (target_branch and existing["target_branch"]
+                    and target_branch != existing["target_branch"]):
+                existing["conflicts"] = existing.get("conflicts", [])
+                existing["conflicts"].append(
+                    f"contradictory target_branch: "
+                    f"'{existing['target_branch']}' vs '{target_branch}'"
+                )
+                warnings.append(
+                    f"evidence[{i}]: PR {pr_url} has contradictory "
+                    f"target_branch with evidence[{existing_idx}]"
+                )
+
+            # Merge observations
+            for ob in observations:
+                if ob not in existing["observations"]:
+                    existing["observations"].append(ob)
+
             warnings.append(
                 f"evidence[{i}]: duplicate PR URL {pr_url} "
                 f"(merged with evidence[{existing_idx}])"
             )
             continue
 
-        # Extract PR identity
-        try:
-            pr_id = extract_pr_identity(pr_url)
-        except ValueError:
-            pr_id = {}
-
         entry: dict[str, Any] = {
             "pr_url": pr_url,
             "contributor_keys": [contributor],
             "pr_identity": pr_id,
-            "target_branch": item.get("target_branch", ""),
+            "target_branch": target_branch,
             "state": item.get("state", ""),
             "title": item.get("title", ""),
-            "merged": item.get("merged"),
+            "merged": merged_val,
             "merge_commit": item.get("merge_commit", ""),
-            "observations": item.get("observations", []),
+            "observations": observations,
+            "conflicts": [],
         }
 
         seen_urls[pr_url] = len(normalized)
@@ -528,7 +611,7 @@ def normalize_evidence(
 
 
 # ---------------------------------------------------------------------------
-# Change plan
+# Change plan  (A, B, D)
 # ---------------------------------------------------------------------------
 
 
@@ -536,6 +619,22 @@ def _fingerprint(data: Any) -> str:
     """Compute a stable SHA-256 fingerprint of JSON-serializable data."""
     raw = json.dumps(data, sort_keys=True, ensure_ascii=True)
     return hashlib.sha256(raw.encode()).hexdigest()
+
+
+# Allowed metadata fields that this skill may propose.  Each entry
+# maps a canonical name to a description.  Fields NOT in this catalog
+# are rejected — no arbitrary keys become eligible.
+_ALLOWED_METADATA = {
+    "target_release": "Fix Version or Target Version value from project catalog",
+}
+
+# Fields that this skill must NEVER modify.
+_FORBIDDEN_FIELDS = frozenset({
+    "summary", "description", "status", "assignee",
+    "sprint", "parent", "labels", "comment",
+    "resolution", "priority", "issuetype",
+    "reporter", "components", "fixversions",
+})
 
 
 def build_change_plan(
@@ -547,81 +646,173 @@ def build_change_plan(
     """Build a delivery-evidence change plan.
 
     Args:
-        validation: output of ``validate_issue``
+        validation: output of ``validate_issue`` (validated; errors
+            checked here rather than trusting ``valid`` flag)
         evidence: output of ``normalize_evidence``
-        target: ``{"release": "...", "target_branch": "..."}``
-        profile: optional caller-supplied consumer profile
+        target: ``{"release": "...", "target_branch": "...",
+                  "issue_key": "..."}``
+        profile: optional caller-supplied consumer profile with
+            ``readiness_dimensions`` list and optional
+            ``readiness_results`` dict and ``allowed_fields`` list
 
-    Returns a plan object with ``status``, ``inputs``, ``pr_links``,
-    ``metadata``, ``findings``, ``source_proposal``, and ``fingerprint``.
+    Returns a plan with ``status`` (``complete``, ``invalid_issue``,
+    ``invalid_evidence``), ``issue_key``, ``target``, ``inputs``,
+    ``pr_links``, ``metadata``, ``findings``, ``source_proposal``,
+    ``readiness``, ``plan_digest``.
     """
-    errors: list[str] = []
-    findings: list[dict[str, str]] = []
+    # --- Validate nested shapes rather than trusting flags ---
+    val_errors = validation.get("errors")
+    if not isinstance(val_errors, list):
+        val_errors = []
 
-    if not validation.get("valid"):
+    if val_errors:
         return {
             "status": "invalid_issue",
-            "errors": validation.get("errors", []),
+            "errors": val_errors,
+            "issue_key": validation.get("key"),
+            "target": target,
             "inputs": [],
             "pr_links": [],
             "metadata": {},
-            "findings": findings,
+            "findings": [],
             "source_proposal": None,
             "readiness": None,
-            "fingerprint": "",
+            "plan_digest": "",
         }
 
-    issue_key = validation["key"]
-    contributors = set(validation.get("contributors", []))
-    dependencies = set(validation.get("dependencies", []))
+    issue_key = validation.get("key")
+    if not issue_key or not isinstance(issue_key, str):
+        return {
+            "status": "invalid_issue",
+            "errors": ["validation result missing valid key"],
+            "issue_key": None,
+            "target": target,
+            "inputs": [],
+            "pr_links": [],
+            "metadata": {},
+            "findings": [],
+            "source_proposal": None,
+            "readiness": None,
+            "plan_digest": "",
+        }
+
+    # Validate evidence shape
+    ev_errors = evidence.get("errors", [])
+    if not isinstance(ev_errors, list):
+        ev_errors = []
+    ev_items = evidence.get("items", [])
+    if not isinstance(ev_items, list):
+        return {
+            "status": "invalid_evidence",
+            "errors": ["evidence items must be an array"],
+            "issue_key": issue_key,
+            "target": target,
+            "inputs": [],
+            "pr_links": [],
+            "metadata": {},
+            "findings": [],
+            "source_proposal": None,
+            "readiness": None,
+            "plan_digest": "",
+        }
+
+    contributors_list = validation.get("contributors", [])
+    if not isinstance(contributors_list, list):
+        contributors_list = []
+    contributors = set(contributors_list)
+
+    deps_list = validation.get("dependencies", [])
+    if not isinstance(deps_list, list):
+        deps_list = []
+    dependencies = set(deps_list)
+
     doc_inputs = validation.get("documentation_inputs", [])
-    evidence_items = evidence.get("items", [])
+    if not isinstance(doc_inputs, list):
+        doc_inputs = []
+
     target_release = target.get("release", "")
     target_branch = target.get("target_branch", "")
+    findings: list[dict[str, str]] = []
 
-    # --- Per-input delivery status ---
-    input_statuses: list[dict[str, Any]] = []
+    # --- Index evidence by contributor ---
     contributor_evidence: dict[str, list[dict[str, Any]]] = {}
-
-    for ev in evidence_items:
+    for ev in ev_items:
         for ck in ev.get("contributor_keys", []):
             contributor_evidence.setdefault(ck, []).append(ev)
 
-    # Track which contributors had evidence
+    # --- Per-input delivery status (B: honest per-input assessment) ---
+    input_statuses: list[dict[str, Any]] = []
     contributors_with_evidence: set[str] = set()
+    contributor_pr_links: set[str] = set()  # PRs from actual contributors
 
     for doc_input in doc_inputs:
         contrib = doc_input.get("contributor")
-        evs = contributor_evidence.get(contrib, [])
+        evs = contributor_evidence.get(contrib, []) if contrib else []
 
-        status = "missing"
-        pr_refs: list[str] = []
+        status = "no_evidence"
+        evidence_refs: list[dict[str, Any]] = []
         target_notes: list[str] = []
+        input_conflicts: list[str] = []
 
         if evs:
             contributors_with_evidence.add(contrib)
-            has_merged = any(e.get("merged") is True for e in evs)
-            status = "delivered" if has_merged else "in_progress"
-            pr_refs = [e["pr_url"] for e in evs]
-
             for ev in evs:
+                contributor_pr_links.add(ev["pr_url"])
+                ev_merged = ev.get("merged")
                 ev_target = ev.get("target_branch", "")
-                if target_branch and ev_target and ev_target != target_branch:
-                    target_notes.append(
-                        f"PR {ev['pr_url']} targets {ev_target}, "
-                        f"expected {target_branch}"
-                    )
+                ev_conflicts = ev.get("conflicts", [])
+
+                # Build per-PR evidence ref
+                pr_status = "unknown"
+                if ev_conflicts:
+                    pr_status = "conflicting"
+                    input_conflicts.extend(ev_conflicts)
+                elif ev_merged is True:
+                    if (target_branch and ev_target
+                            and ev_target != target_branch):
+                        pr_status = "merged_wrong_target"
+                        target_notes.append(
+                            f"PR {ev['pr_url']} targets {ev_target}, "
+                            f"expected {target_branch}"
+                        )
+                    else:
+                        pr_status = "merged"
+                elif ev_merged is False:
+                    pr_status = "not_merged"
+                # ev_merged is None → unknown
+
+                evidence_refs.append({
+                    "pr_url": ev["pr_url"],
+                    "pr_status": pr_status,
+                    "target_branch": ev_target,
+                    "observations": ev.get("observations", []),
+                })
+
+            # Determine overall input status from individual PR statuses
+            pr_statuses = {r["pr_status"] for r in evidence_refs}
+            if "conflicting" in pr_statuses:
+                status = "conflicting"
+            elif "merged" in pr_statuses:
+                status = "merged_pr_exists"
+            elif "merged_wrong_target" in pr_statuses:
+                status = "merged_wrong_target"
+            elif "not_merged" in pr_statuses:
+                status = "in_progress"
+            else:
+                status = "evidence_unverified"
 
         input_statuses.append({
             "text": doc_input.get("text", ""),
             "contributor": contrib,
             "marker": doc_input.get("marker", "planned"),
             "status": status,
-            "pr_refs": pr_refs,
+            "evidence_refs": evidence_refs,
             "target_notes": target_notes,
+            "conflicts": input_conflicts,
         })
 
-    # --- Contributors without evidence ---
+    # --- Contributors without evidence (B: always flag, even if
+    # also a dependency) ---
     for contrib in sorted(contributors):
         if contrib not in contributors_with_evidence:
             if contrib.startswith("story-"):
@@ -633,7 +824,7 @@ def build_change_plan(
                         f"reference with no Jira key mapping"
                     ),
                 })
-            elif contrib not in dependencies:
+            else:
                 findings.append({
                     "type": "missing_evidence",
                     "ref": contrib,
@@ -643,7 +834,8 @@ def build_change_plan(
                     ),
                 })
 
-    # --- Evidence for non-contributors (new surfaces) ---
+    # --- Non-contributor evidence: candidate proposals, NOT auto-eligible
+    # PR links (B) ---
     all_contributor_keys: set[str] = set()
     for di in doc_inputs:
         c = di.get("contributor")
@@ -651,60 +843,124 @@ def build_change_plan(
             all_contributor_keys.add(c)
     all_contributor_keys |= contributors
 
-    for ev in evidence_items:
+    for ev in ev_items:
         for ck in ev.get("contributor_keys", []):
             if ck not in all_contributor_keys:
                 findings.append({
-                    "type": "new_surface",
+                    "type": "non_contributor_evidence",
                     "ref": ck,
                     "detail": (
                         f"PR {ev['pr_url']} is attributed to {ck} "
-                        f"which is not a listed contributor"
+                        f"which is not a listed contributor — this is "
+                        f"a candidate for scope review, not automatic "
+                        f"enrichment"
                     ),
+                    "pr_url": ev["pr_url"],
                 })
 
-    # --- PR Remote Links to add ---
+    # --- PR Remote Links: ONLY for actual contributors ---
     pr_links: list[dict[str, Any]] = []
-    for ev in evidence_items:
+    seen_link_urls: set[str] = set()
+    for ev in ev_items:
+        url = ev["pr_url"]
+        if url in seen_link_urls:
+            continue
+        # Only include PRs attributed to actual contributors
+        if url not in contributor_pr_links:
+            continue
+        seen_link_urls.add(url)
         pr_links.append({
-            "url": ev["pr_url"],
+            "url": url,
             "title": ev.get("title", ""),
             "relationship": "implements",
-            "contributor_keys": ev.get("contributor_keys", []),
+            "contributor_keys": [
+                ck for ck in ev.get("contributor_keys", [])
+                if ck in all_contributor_keys
+            ],
         })
 
-    # --- Metadata proposals ---
+    # --- Metadata (D: allowed catalog only) ---
     metadata: dict[str, Any] = {}
     if target_release:
-        metadata["proposed_target_release"] = target_release
+        metadata["target_release"] = {
+            "value": target_release,
+            "field_binding": "fixVersions or customfield (project-specific)",
+            "catalog_verified": False,
+            "note": (
+                "Value must be verified against the project's actual "
+                "Fix Version catalog before applying"
+            ),
+        }
 
-    # Profile-based readiness (independent of delivery)
+    # Profile allowed fields — only from catalog
+    if profile and isinstance(profile, dict):
+        for af in profile.get("allowed_fields", []):
+            if not isinstance(af, dict):
+                continue
+            field_name = af.get("name", "")
+            if field_name in _FORBIDDEN_FIELDS:
+                findings.append({
+                    "type": "forbidden_field",
+                    "ref": field_name,
+                    "detail": (
+                        f"Profile requests field '{field_name}' which "
+                        f"is forbidden by policy"
+                    ),
+                })
+            elif field_name in _ALLOWED_METADATA:
+                metadata[field_name] = {
+                    "value": af.get("value"),
+                    "field_binding": af.get("field_binding", ""),
+                    "catalog_verified": af.get("catalog_verified", False),
+                }
+
+    # --- Readiness (B: independent of delivery, visible gaps) ---
     readiness: dict[str, Any] | None = None
-    if profile:
+    if profile and isinstance(profile, dict):
         dims = profile.get("readiness_dimensions", [])
-        if dims:
-            readiness = {
-                "dimensions": dims,
-                "results": {},
-                "complete": False,
-                "note": (
-                    "Consumer readiness assessment requires evaluating "
-                    "each dimension against actual delivery evidence. "
-                    "Dimensions are recorded; results must be populated "
-                    "by the caller with actual assessments."
-                ),
-            }
-        else:
-            readiness = {
-                "dimensions": [],
-                "results": {},
-                "complete": False,
-                "note": "No readiness dimensions in consumer profile",
-            }
+        provided_results = profile.get("readiness_results", {})
+        if not isinstance(dims, list):
+            dims = []
+        if not isinstance(provided_results, dict):
+            provided_results = {}
 
-    # --- Source-change proposal ---
+        results: dict[str, Any] = {}
+        for d in dims:
+            if isinstance(d, str) and d in provided_results:
+                results[d] = provided_results[d]
+            elif isinstance(d, str):
+                results[d] = {
+                    "assessed": False,
+                    "note": "Assessment not provided by caller",
+                }
+
+        readiness = {
+            "dimensions": [d for d in dims if isinstance(d, str)],
+            "results": results,
+            "complete": (
+                bool(dims)
+                and all(
+                    isinstance(results.get(d), dict)
+                    and results[d].get("assessed") is True
+                    for d in dims if isinstance(d, str)
+                )
+            ),
+            "note": (
+                "No readiness dimensions specified"
+                if not dims else
+                "All dimensions assessed"
+                if all(
+                    isinstance(results.get(d), dict)
+                    and results[d].get("assessed") is True
+                    for d in dims if isinstance(d, str)
+                )
+                else "Some dimensions not yet assessed"
+            ),
+        }
+
+    # --- Source-change proposal (B: actionable with evidence) ---
     source_proposal = _build_source_proposal(
-        doc_inputs, input_statuses, findings, evidence_items
+        doc_inputs, input_statuses, findings, ev_items,
     )
 
     plan = {
@@ -717,10 +973,11 @@ def build_change_plan(
         "findings": findings,
         "source_proposal": source_proposal,
         "readiness": readiness,
-        "fingerprint": "",
+        "plan_digest": "",
     }
-    plan["fingerprint"] = _fingerprint({
+    plan["plan_digest"] = _fingerprint({
         "issue_key": issue_key,
+        "target": target,
         "inputs": input_statuses,
         "pr_links": pr_links,
         "metadata": metadata,
@@ -737,54 +994,78 @@ def _build_source_proposal(
 ) -> dict[str, Any]:
     """Build an owning-source narrative-change proposal.
 
-    This produces a structured proposal that the owning design workflow
-    could apply via its ``/revise`` phase.  The proposal includes
-    specific intended changes to the Documentation Inputs section with
-    supporting evidence references.
+    Source/narrative apply is disabled.  The proposal carries:
+    - Specific proposed wording changes or clearly unresolved questions
+    - Input/source location references
+    - Supporting PR/code evidence URLs
+    - Intended owning-workflow action
 
-    The docs-handoff skill does NOT directly apply these changes.
-    Source/narrative apply is disabled; the proposal is advisory.
+    Only observations that indicate actual divergence generate update
+    proposals.  'As planned' observations do NOT generate proposals.
     """
     proposed_changes: list[dict[str, Any]] = []
 
     for inp_status in input_statuses:
-        status = inp_status["status"]
-        contrib = inp_status["contributor"]
-        text = inp_status["text"]
+        contrib = inp_status.get("contributor")
+        text = inp_status.get("text", "")
+        ev_refs = inp_status.get("evidence_refs", [])
 
-        if status == "delivered":
-            # Check if observations suggest the actual implementation
-            # differs from the planned input
-            relevant_evs = [
-                e for e in evidence_items
-                if contrib in e.get("contributor_keys", [])
-            ]
-            has_observations = any(
-                e.get("observations") for e in relevant_evs
-            )
-            if has_observations:
-                all_obs = []
-                for e in relevant_evs:
-                    all_obs.extend(e.get("observations", []))
-                proposed_changes.append({
-                    "action": "update",
-                    "contributor": contrib,
-                    "input_text": text,
-                    "reason": "Implementation observations suggest differences",
-                    "observations": all_obs,
-                    "evidence_urls": [e["pr_url"] for e in relevant_evs],
-                })
+        if not ev_refs:
+            continue
 
-    # New surfaces from non-contributors
-    for finding in findings:
-        if finding["type"] == "new_surface":
+        # Collect observations that suggest divergence
+        divergent_observations: list[str] = []
+        confirming_observations: list[str] = []
+        evidence_urls: list[str] = []
+
+        for eref in ev_refs:
+            evidence_urls.append(eref["pr_url"])
+            for obs in eref.get("observations", []):
+                obs_lower = obs.lower()
+                if any(
+                    phrase in obs_lower
+                    for phrase in (
+                        "as planned", "as expected", "matches plan",
+                        "no change", "confirmed",
+                    )
+                ):
+                    confirming_observations.append(obs)
+                else:
+                    divergent_observations.append(obs)
+
+        # Only divergent observations produce update proposals (B)
+        if divergent_observations:
             proposed_changes.append({
-                "action": "add",
+                "action": "update",
+                "contributor": contrib,
+                "input_text": text,
+                "proposed_wording": (
+                    f"Update based on implementation evidence: "
+                    + "; ".join(divergent_observations)
+                ),
+                "reason": "Implementation diverges from planned input",
+                "observations": divergent_observations,
+                "evidence_urls": evidence_urls,
+                "source_location": "Documentation Inputs",
+            })
+
+    # Non-contributor evidence: proposals with evidence URLs (B)
+    for finding in findings:
+        if finding.get("type") == "non_contributor_evidence":
+            pr_url = finding.get("pr_url", "")
+            proposed_changes.append({
+                "action": "add_contributor",
                 "contributor": finding["ref"],
                 "input_text": "",
+                "proposed_wording": (
+                    f"Evaluate whether {finding['ref']} should be "
+                    f"added as a contributor — PR evidence exists at "
+                    f"{pr_url}"
+                ),
                 "reason": finding["detail"],
                 "observations": [],
-                "evidence_urls": [],
+                "evidence_urls": [pr_url] if pr_url else [],
+                "source_location": "Contributing stories + Documentation Inputs",
             })
 
     return {
@@ -792,8 +1073,8 @@ def _build_source_proposal(
         "reason": (
             "Source/narrative apply is disabled. No supported "
             "source-preserving handoff path is established for this "
-            "invocation. Proposed changes should be reviewed and applied "
-            "through the owning design workflow's /revise phase."
+            "invocation. Proposed changes should be reviewed and "
+            "applied through the owning design workflow's /revise phase."
         ),
         "owning_workflow": "design",
         "owning_action": "/revise",
@@ -802,43 +1083,90 @@ def _build_source_proposal(
 
 
 # ---------------------------------------------------------------------------
-# Enrichment check
+# Enrichment check  (D)
 # ---------------------------------------------------------------------------
 
 
 def check_enrichment(
     plan: dict[str, Any],
     current_state: dict[str, Any],
+    approved_baseline: str = "",
 ) -> dict[str, Any]:
     """Check proposed enrichment against current issue state.
 
     Args:
         plan: output of ``build_change_plan``
-        current_state: current issue snapshot with ``remote_links``
-            (list of ``{"url": ..., "title": ...}``) and
-            optionally ``fields`` (dict of field names to values)
+        current_state: current issue snapshot with ``key``,
+            ``remote_links`` and optionally ``fields``
+        approved_baseline: fingerprint from a previously approved
+            preview — if provided and differs from the current
+            baseline, the plan is stale
 
-    Returns an enrichment result with ``eligible_links``,
-    ``existing_links``, ``skipped_links``, ``eligible_metadata``,
-    ``forbidden_fields``, ``plan_fingerprint``, ``baseline_fingerprint``,
-    ``stale``.
+    Returns an enrichment result with eligibility, staleness, and
+    detailed operation plan.
     """
-    # Forbidden fields that this skill must never modify
-    FORBIDDEN = {
-        "summary", "description", "status", "assignee",
-        "sprint", "parent", "labels", "comment",
-        "resolution", "priority", "issuetype",
-    }
+    # Reject invalid/blocked plans entirely (D)
+    plan_status = plan.get("status", "")
+    if plan_status != "complete":
+        return {
+            "status": "invalid_plan",
+            "reason": f"plan status is '{plan_status}', not 'complete'",
+            "eligible_links": [],
+            "existing_links": [],
+            "skipped_links": [],
+            "eligible_metadata": {},
+            "forbidden_fields": [],
+            "plan_digest": plan.get("plan_digest", ""),
+            "baseline_fingerprint": "",
+            "stale": True,
+        }
+
+    # Verify issue identity matches (A, D)
+    plan_key = plan.get("issue_key", "")
+    current_key = current_state.get("key", "")
+    if current_key and plan_key and current_key != plan_key:
+        return {
+            "status": "wrong_issue",
+            "reason": (
+                f"plan targets {plan_key} but current state is "
+                f"for {current_key}"
+            ),
+            "eligible_links": [],
+            "existing_links": [],
+            "skipped_links": [],
+            "eligible_metadata": {},
+            "forbidden_fields": [],
+            "plan_digest": plan.get("plan_digest", ""),
+            "baseline_fingerprint": "",
+            "stale": True,
+        }
 
     existing_links = current_state.get("remote_links", [])
+    if not isinstance(existing_links, list):
+        existing_links = []
+
+    # Canonical link set for comparison (sorted for stable fingerprint)
     existing_urls: set[str] = set()
+    canonical_links: list[dict[str, str]] = []
     for link in existing_links:
         url = link.get("url", "")
         try:
-            existing_urls.add(validate_pr_url(url, "existing_link"))
+            norm = validate_pr_url(url, "existing_link")
         except ValueError:
-            existing_urls.add(url)
+            norm = url
+        existing_urls.add(norm)
+        canonical_links.append({"url": norm})
+    canonical_links.sort(key=lambda x: x["url"])
 
+    # Baseline fingerprint from current state
+    baseline_fp = _fingerprint({"remote_links": canonical_links})
+
+    # Staleness detection (D)
+    stale = False
+    if approved_baseline and approved_baseline != baseline_fp:
+        stale = True
+
+    # Link eligibility
     eligible: list[dict[str, Any]] = []
     existing: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
@@ -850,60 +1178,94 @@ def check_enrichment(
         except ValueError:
             skipped.append({**proposed, "reason": f"invalid URL: {url}"})
             continue
-
         if norm_url in existing_urls:
             existing.append({**proposed, "url": norm_url})
         else:
             eligible.append({**proposed, "url": norm_url})
 
-    # Metadata eligibility
+    # Metadata eligibility (D: allowed catalog only)
     eligible_metadata: dict[str, Any] = {}
     forbidden_found: list[str] = []
-    for field, value in plan.get("metadata", {}).items():
-        base_field = field.replace("proposed_", "")
-        if base_field in FORBIDDEN:
+
+    for field, spec in plan.get("metadata", {}).items():
+        if field in _FORBIDDEN_FIELDS:
             forbidden_found.append(field)
+            continue
+        if field not in _ALLOWED_METADATA:
+            forbidden_found.append(f"uncatalogued:{field}")
+            continue
+        if isinstance(spec, dict):
+            eligible_metadata[field] = spec
         else:
-            eligible_metadata[field] = value
+            eligible_metadata[field] = {"value": spec}
 
-    # Check profile-based field overrides
+    # Profile forbidden fields
     profile_fields = current_state.get("profile_fields", {})
-    for pf in profile_fields:
-        if pf in FORBIDDEN:
-            forbidden_found.append(f"profile:{pf}")
-
-    # Baseline fingerprint for drift detection
-    baseline_fp = _fingerprint({
-        "remote_links": [
-            {"url": l.get("url", "")} for l in existing_links
-        ],
-    })
+    if isinstance(profile_fields, dict):
+        for pf in profile_fields:
+            if pf in _FORBIDDEN_FIELDS:
+                forbidden_found.append(f"profile:{pf}")
 
     return {
+        "status": "stale" if stale else "ready",
         "eligible_links": eligible,
         "existing_links": existing,
         "skipped_links": skipped,
         "eligible_metadata": eligible_metadata,
         "forbidden_fields": forbidden_found,
-        "plan_fingerprint": plan.get("fingerprint", ""),
+        "plan_digest": plan.get("plan_digest", ""),
         "baseline_fingerprint": baseline_fp,
-        "stale": False,
+        "stale": stale,
     }
 
 
 def verify_enrichment(
-    expected: dict[str, Any],
+    enrichment: dict[str, Any],
     readback: dict[str, Any],
+    expected_key: str = "",
 ) -> dict[str, Any]:
     """Verify enrichment results against a readback snapshot.
 
     Args:
-        expected: the enrichment result from ``check_enrichment``
-        readback: fresh issue snapshot after writes
+        enrichment: output of ``check_enrichment``
+        readback: fresh issue snapshot after writes (must include
+            ``key`` and ``remote_links``)
+        expected_key: if provided, verify the readback is for the
+            correct issue
 
     Returns a receipt with per-operation status.
     """
+    # Identity check (D)
+    readback_key = readback.get("key", "")
+    if expected_key and readback_key and readback_key != expected_key:
+        return {
+            "status": "wrong_issue",
+            "reason": (
+                f"expected readback for {expected_key} but got "
+                f"{readback_key}"
+            ),
+            "link_receipts": [],
+            "metadata_receipts": [],
+            "baseline_fingerprint": "",
+            "all_confirmed": False,
+        }
+
+    # Reject receipts for invalid/stale enrichments
+    e_status = enrichment.get("status", "")
+    if e_status not in ("ready",):
+        return {
+            "status": "invalid_enrichment",
+            "reason": f"enrichment status is '{e_status}', not 'ready'",
+            "link_receipts": [],
+            "metadata_receipts": [],
+            "baseline_fingerprint": "",
+            "all_confirmed": False,
+        }
+
     readback_links = readback.get("remote_links", [])
+    if not isinstance(readback_links, list):
+        readback_links = []
+
     readback_urls: set[str] = set()
     for link in readback_links:
         url = link.get("url", "")
@@ -912,31 +1274,96 @@ def verify_enrichment(
         except ValueError:
             readback_urls.add(url)
 
-    receipts: list[dict[str, Any]] = []
-    for link in expected.get("eligible_links", []):
+    # Link receipts
+    link_receipts: list[dict[str, Any]] = []
+    eligible_links = enrichment.get("eligible_links", [])
+    existing_links = enrichment.get("existing_links", [])
+
+    for link in eligible_links:
         url = link.get("url", "")
         try:
             norm = validate_pr_url(url, "receipt")
         except ValueError:
             norm = url
         found = norm in readback_urls
-        receipts.append({
+        link_receipts.append({
             "url": norm,
+            "operation": "add",
             "applied": found,
             "status": "confirmed" if found else "uncertain",
         })
 
-    # Baseline drift check
-    new_baseline = _fingerprint({
-        "remote_links": [
-            {"url": l.get("url", "")} for l in readback_links
-        ],
-    })
+    for link in existing_links:
+        url = link.get("url", "")
+        try:
+            norm = validate_pr_url(url, "receipt")
+        except ValueError:
+            norm = url
+        found = norm in readback_urls
+        link_receipts.append({
+            "url": norm,
+            "operation": "existing",
+            "applied": found,
+            "status": "confirmed" if found else "disappeared",
+        })
+
+    # Metadata receipts
+    metadata_receipts: list[dict[str, Any]] = []
+    for field, spec in enrichment.get("eligible_metadata", {}).items():
+        readback_fields = readback.get("fields", {})
+        if not isinstance(readback_fields, dict):
+            readback_fields = {}
+        current_val = readback_fields.get(field)
+        expected_val = spec.get("value") if isinstance(spec, dict) else spec
+        if current_val == expected_val:
+            metadata_receipts.append({
+                "field": field,
+                "status": "confirmed",
+                "value": current_val,
+            })
+        elif current_val is not None:
+            metadata_receipts.append({
+                "field": field,
+                "status": "different_value",
+                "expected": expected_val,
+                "actual": current_val,
+            })
+        else:
+            metadata_receipts.append({
+                "field": field,
+                "status": "uncertain",
+                "expected": expected_val,
+            })
+
+    # New baseline
+    canonical: list[dict[str, str]] = []
+    for link in readback_links:
+        url = link.get("url", "")
+        try:
+            canonical.append({"url": validate_pr_url(url, "_")})
+        except ValueError:
+            canonical.append({"url": url})
+    canonical.sort(key=lambda x: x["url"])
+    new_baseline = _fingerprint({"remote_links": canonical})
+
+    # All confirmed: must have at least one operation, and all must
+    # be confirmed (empty eligible = no-op, not success)
+    all_ops = link_receipts + metadata_receipts
+    add_ops = [
+        r for r in all_ops
+        if r.get("operation") != "existing"
+    ]
+    all_confirmed = (
+        bool(add_ops)
+        and all(r.get("status") == "confirmed" for r in add_ops)
+    )
 
     return {
-        "receipts": receipts,
+        "status": "verified",
+        "link_receipts": link_receipts,
+        "metadata_receipts": metadata_receipts,
         "baseline_fingerprint": new_baseline,
-        "all_confirmed": all(r["applied"] for r in receipts),
+        "all_confirmed": all_confirmed,
     }
 
 
@@ -946,51 +1373,52 @@ def verify_enrichment(
 
 
 def render_handoff(plan: dict[str, Any]) -> str:
-    """Render a human-readable handoff document from a change plan.
-
-    Produces deterministic Markdown suitable for writer consumption.
-    """
+    """Render a human-readable handoff document from a change plan."""
     parts: list[str] = []
     issue_key = plan.get("issue_key", "unknown")
     target = plan.get("target", {})
 
     parts.append(f"# Documentation Handoff — {issue_key}")
     parts.append("")
-    parts.append(f"**Target release:** {target.get('release', 'not specified')}")
-    parts.append(f"**Target branch:** {target.get('target_branch', 'not specified')}")
+    parts.append(
+        f"**Target release:** {target.get('release', 'not specified')}"
+    )
+    parts.append(
+        f"**Target branch:** {target.get('target_branch', 'not specified')}"
+    )
     parts.append("")
 
-    # Delivery summary
     inputs = plan.get("inputs", [])
-    delivered = sum(1 for i in inputs if i["status"] == "delivered")
-    in_progress = sum(1 for i in inputs if i["status"] == "in_progress")
-    missing = sum(1 for i in inputs if i["status"] == "missing")
+    status_counts: dict[str, int] = {}
+    for i in inputs:
+        s = i.get("status", "unknown")
+        status_counts[s] = status_counts.get(s, 0) + 1
 
     parts.append("## Delivery Summary")
     parts.append("")
-    parts.append(f"- Delivered: {delivered}")
-    parts.append(f"- In progress: {in_progress}")
-    parts.append(f"- Missing evidence: {missing}")
+    for status_name in sorted(status_counts):
+        parts.append(f"- {status_name}: {status_counts[status_name]}")
     parts.append(f"- Total inputs: {len(inputs)}")
     parts.append("")
 
-    # Per-input details
     if inputs:
         parts.append("## Input Status")
         parts.append("")
-        parts.append("| Input | Contributor | Status | PRs |")
+        parts.append("| Input | Contributor | Status | Evidence |")
         parts.append("|---|---|---|---|")
         for inp in inputs:
             text = inp.get("text", "")[:60]
             contrib = inp.get("contributor", "")
             status = inp.get("status", "unknown")
-            prs = ", ".join(inp.get("pr_refs", []))
-            if not prs:
-                prs = "none"
-            parts.append(f"| {text} | {contrib} | {status} | {prs} |")
+            ev_refs = inp.get("evidence_refs", [])
+            ev_summary = ", ".join(
+                f"{r['pr_url']} ({r['pr_status']})" for r in ev_refs
+            ) if ev_refs else "none"
+            parts.append(
+                f"| {text} | {contrib} | {status} | {ev_summary} |"
+            )
         parts.append("")
 
-    # Target notes
     target_notes = [
         n for inp in inputs for n in inp.get("target_notes", [])
     ]
@@ -1001,49 +1429,87 @@ def render_handoff(plan: dict[str, Any]) -> str:
             parts.append(f"- {note}")
         parts.append("")
 
-    # Findings
     findings = plan.get("findings", [])
     if findings:
         parts.append("## Findings")
         parts.append("")
         for f in findings:
-            parts.append(f"- **{f['type']}** ({f.get('ref', '')}): {f.get('detail', '')}")
+            parts.append(
+                f"- **{f['type']}** ({f.get('ref', '')}): "
+                f"{f.get('detail', '')}"
+            )
+            if f.get("pr_url"):
+                parts.append(f"  Evidence: {f['pr_url']}")
         parts.append("")
 
-    # PR links to add
     pr_links = plan.get("pr_links", [])
     if pr_links:
-        parts.append("## PR Remote Links")
+        parts.append("## PR Remote Links (contributor PRs only)")
         parts.append("")
-        parts.append("| URL | Relationship | Contributors |")
+        parts.append("| URL | Title | Contributors |")
         parts.append("|---|---|---|")
         for link in pr_links:
             url = link.get("url", "")
-            rel = link.get("relationship", "")
+            title = link.get("title", "")
             contribs = ", ".join(link.get("contributor_keys", []))
-            parts.append(f"| {url} | {rel} | {contribs} |")
+            parts.append(f"| {url} | {title} | {contribs} |")
         parts.append("")
 
-    # Source proposal
+    metadata = plan.get("metadata", {})
+    if metadata:
+        parts.append("## Metadata Proposals")
+        parts.append("")
+        for field, spec in metadata.items():
+            if isinstance(spec, dict):
+                val = spec.get("value", "")
+                verified = spec.get("catalog_verified", False)
+                parts.append(
+                    f"- **{field}**: {val} "
+                    f"(catalog verified: {verified})"
+                )
+            else:
+                parts.append(f"- **{field}**: {spec}")
+        parts.append("")
+
     source = plan.get("source_proposal")
     if source:
         parts.append("## Source Change Proposal")
         parts.append("")
-        parts.append(f"**Apply enabled:** {source.get('apply_enabled', False)}")
+        parts.append(
+            f"**Apply enabled:** {source.get('apply_enabled', False)}"
+        )
         parts.append(f"**Reason:** {source.get('reason', '')}")
-        if source.get("proposed_changes"):
+        changes = source.get("proposed_changes", [])
+        if changes:
             parts.append("")
-            parts.append(f"**Owning workflow:** {source.get('owning_workflow', '')}")
-            parts.append(f"**Owning action:** {source.get('owning_action', '')}")
+            parts.append(
+                f"**Owning workflow:** "
+                f"{source.get('owning_workflow', '')}"
+            )
+            parts.append(
+                f"**Owning action:** {source.get('owning_action', '')}"
+            )
             parts.append("")
-            for change in source["proposed_changes"]:
+            for change in changes:
                 action = change.get("action", "")
                 contrib = change.get("contributor", "")
-                reason = change.get("reason", "")
-                parts.append(f"- **{action}** {contrib}: {reason}")
+                wording = change.get("proposed_wording", "")
+                ev_urls = change.get("evidence_urls", [])
+                parts.append(f"### {action}: {contrib}")
+                parts.append("")
+                if wording:
+                    parts.append(f"**Proposed:** {wording}")
+                if change.get("input_text"):
+                    parts.append(
+                        f"**Current input:** {change['input_text']}"
+                    )
+                if ev_urls:
+                    parts.append(
+                        f"**Evidence:** {', '.join(ev_urls)}"
+                    )
+                parts.append("")
         parts.append("")
 
-    # Readiness
     readiness = plan.get("readiness")
     if readiness:
         parts.append("## Consumer Readiness")
@@ -1053,8 +1519,18 @@ def render_handoff(plan: dict[str, Any]) -> str:
             parts.append(f"**Dimensions:** {', '.join(dims)}")
         else:
             parts.append("**Dimensions:** none specified")
-        parts.append(f"**Complete:** {readiness.get('complete', False)}")
-        parts.append(f"**Note:** {readiness.get('note', '')}")
+        parts.append(
+            f"**Complete:** {readiness.get('complete', False)}"
+        )
+        results = readiness.get("results", {})
+        if results:
+            for dim, res in results.items():
+                if isinstance(res, dict):
+                    assessed = res.get("assessed", False)
+                    note = res.get("note", "")
+                    parts.append(f"- {dim}: assessed={assessed} {note}")
+                else:
+                    parts.append(f"- {dim}: {res}")
         parts.append("")
 
     return "\n".join(parts)
@@ -1071,17 +1547,28 @@ def cmd_validate(args: argparse.Namespace) -> int:
     if not isinstance(snapshot, dict):
         fail("input must be a JSON object")
 
-    # Verify input is not mutated
     original = copy.deepcopy(snapshot)
-
     result = validate_issue(snapshot)
-
-    # Assert read-only behavior
     if snapshot != original:
         fail("BUG: validate_issue mutated its input")
 
     _write_json(result)
     return EXIT_SUCCESS if result["valid"] else EXIT_ERROR
+
+
+def cmd_normalize(args: argparse.Namespace) -> int:
+    """Run the normalize subcommand."""
+    data = _load_json(args.input)
+    if not isinstance(data, list):
+        fail("input must be a JSON array of evidence items")
+
+    original = copy.deepcopy(data)
+    result = normalize_evidence(data)
+    if data != original:
+        fail("BUG: normalize_evidence mutated its input")
+
+    _write_json(result)
+    return EXIT_SUCCESS if not result["errors"] else EXIT_ERROR
 
 
 def cmd_build_plan(args: argparse.Namespace) -> int:
@@ -1102,15 +1589,15 @@ def cmd_build_plan(args: argparse.Namespace) -> int:
     if not isinstance(target, dict):
         fail("input.target must be an object")
 
-    # Verify input is not mutated
     original = copy.deepcopy(data)
-
     plan = build_change_plan(validation, evidence_raw, target, profile)
-
     if data != original:
         fail("BUG: build_change_plan mutated its input")
 
     _write_json(plan)
+    # Invalid issue/evidence → exit 1
+    if plan["status"] != "complete":
+        return EXIT_ERROR
     return EXIT_SUCCESS
 
 
@@ -1122,6 +1609,7 @@ def cmd_check_enrichment(args: argparse.Namespace) -> int:
 
     plan = data.get("plan")
     current = data.get("current_state")
+    approved_baseline = data.get("approved_baseline", "")
 
     if not isinstance(plan, dict):
         fail("input.plan must be an object")
@@ -1132,16 +1620,20 @@ def cmd_check_enrichment(args: argparse.Namespace) -> int:
         readback = _load_json(Path(args.readback))
         if not isinstance(readback, dict):
             fail("readback must be a JSON object")
-        enrichment = check_enrichment(plan, current)
-        receipt = verify_enrichment(enrichment, readback)
+        enrichment = check_enrichment(plan, current, approved_baseline)
+        expected_key = plan.get("issue_key", "")
+        receipt = verify_enrichment(enrichment, readback, expected_key)
         _write_json({"enrichment": enrichment, "receipt": receipt})
+        if receipt.get("status") != "verified":
+            return EXIT_ERROR
     else:
-        # Verify input is not mutated
         original = copy.deepcopy(data)
-        result = check_enrichment(plan, current)
+        result = check_enrichment(plan, current, approved_baseline)
         if data != original:
             fail("BUG: check_enrichment mutated its input")
         _write_json(result)
+        if result.get("stale") or result.get("status") != "ready":
+            return EXIT_ERROR
 
     return EXIT_SUCCESS
 
@@ -1161,6 +1653,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_validate.add_argument("--input", required=True, type=Path)
 
+    p_normalize = sub.add_parser(
+        "normalize",
+        help="Normalize and deduplicate raw PR evidence items",
+    )
+    p_normalize.add_argument("--input", required=True, type=Path)
+
     p_plan = sub.add_parser(
         "build-plan",
         help="Build a delivery-evidence change plan",
@@ -1178,6 +1676,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "validate":
         return cmd_validate(args)
+    elif args.command == "normalize":
+        return cmd_normalize(args)
     elif args.command == "build-plan":
         return cmd_build_plan(args)
     elif args.command == "check-enrichment":

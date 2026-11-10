@@ -1,141 +1,110 @@
 # Handoff Protocol
 
-Preview/apply two-phase workflow for the docs-handoff skill.  This
-protocol governs the end-to-end flow from issue intake to enrichment
-and source-change proposals.
+Preview/apply two-phase workflow for the docs-handoff skill.
 
 ## Phase 1: Preview (No Side Effects)
 
-All operations in the preview phase are read-only.  No Jira writes,
-no source file modifications, no issue state changes.
-
 ### Step 1 — Validate Issue
 
-Provide the DOCS issue snapshot to `evidence.py validate`.  The script
-validates structure, extracts contributors, dependencies, and
-Documentation Inputs items.  If validation fails (missing sections,
-invalid key, no contributors), stop and report the errors.
+Provide the DOCS issue snapshot (from Jira read or offline file) to
+`evidence.py validate --input snapshot.json`.  The script validates
+structure, extracts contributors, dependencies, and Documentation Inputs
+items.  If validation fails (exit 1), stop and report errors.
 
 ### Step 2 — Gather Evidence (AI Responsibility)
 
 For each extracted contributor (NOT dependencies):
 
-1. Fetch the contributor's Jira issue to discover linked PRs
-2. For each PR, read metadata: URL, title, target branch, merge status,
-   merge commit
-3. Read the PR diff and assess what user-facing surfaces changed
+1. Fetch the contributor's Jira issue to discover linked PRs.
+2. For each PR: read metadata (URL, title, target branch, merge status,
+   merge commit).
+3. Read PR diffs and assess what user-facing surfaces changed.
 4. Record semantic observations comparing planned inputs against actual
-   implementation
+   implementation.
 
-**Evidence quality requirements:**
+Evidence quality requirements:
+- Merged PR status alone does not prove target-release inclusion.
+- String equality is not semantic confirmation — actual code review is
+  required.
+- Partial evidence is a valid intermediate state — report honestly.
+- Unknown or contradictory results are reported as findings.
+- An observation like "as planned" does NOT produce a source update
+  proposal — only divergent observations generate proposals.
 
-- A merged PR status alone does not prove the feature is delivered to
-  the target release.  Record the target branch and note ambiguity when
-  it differs from the expected release branch.
-- String equality between a planned input and a PR title is not semantic
-  confirmation.  Actual code/diff review is required.
-- Partial evidence (some PRs found, some contributors without PRs) is a
-  valid intermediate state.  Report it accurately — do not claim
-  completion or fabricate evidence.
-- Unknown or contradictory results (e.g., PR merged but reverted) must
-  be reported as findings, not silently resolved.
+### Step 3 — Normalize Evidence
 
-### Step 3 — Build Plan
+Provide raw evidence items to `evidence.py normalize --input evidence.json`.
+The script validates URLs (requiring supported PR/MR structure), rejects
+credentials, deduplicates, and detects contradictory states.
 
-Provide the validation result, normalized evidence, target, and optional
-profile to `evidence.py build-plan`.  The script produces:
+### Step 4 — Build Plan
 
-- Per-input delivery status (delivered/in\_progress/missing)
-- PR Remote Links to add
-- Metadata proposals
-- Findings (missing evidence, new surfaces, unresolved refs, target
-  ambiguity)
-- Source-change proposal (disabled; advisory)
-- Consumer readiness dimensions (when profile provided)
+Provide validation result, normalized evidence, target, and optional
+profile to `evidence.py build-plan --input plan-input.json`.  The input
+is a JSON object with keys: `validation`, `evidence`, `target`, `profile`.
 
-### Step 4 — Check Enrichment
+### Step 5 — Check Enrichment
 
-Provide the plan and current issue state (with existing Remote Links) to
-`evidence.py check-enrichment`.  The script identifies:
+Provide the plan and current issue state (with `key` and `remote_links`)
+to `evidence.py check-enrichment --input check-input.json`.  The input
+has keys: `plan`, `current_state`, `approved_baseline` (optional).
 
-- Eligible links (new, not already present)
-- Existing links (already on the issue)
-- Skipped links (invalid URLs)
-- Forbidden fields (blocked by policy)
-- Baseline fingerprint (for drift detection)
+### Step 6 — Present Preview
 
-### Step 5 — Present Preview
-
-Show the user the complete bounded preview:
-
-- Target issue key and current baseline
-- Delivery summary (counts per status)
-- Per-input status with PR references and target notes
-- Findings requiring attention
-- Eligible PR Remote Links (the set that would be added)
-- Existing links (already present, no action needed)
-- Metadata proposals with evidence
-- Source-change proposal (disabled, with intended changes and owning
-  workflow action)
-- Consumer readiness state (dimensions recorded, results pending)
-- Operation eligibility summary
+Show the complete bounded preview including:
+- Target issue key and baseline
+- Per-input evidence status with PR references
+- Findings (missing evidence, unresolved refs, non-contributor evidence)
+- Eligible PR Remote Links (contributor PRs only)
+- Metadata proposals with catalog verification status
+- Source-change proposal (disabled, with proposed wording)
+- Consumer readiness state
 
 ## Phase 2: Apply (Explicit Approval Required)
 
-The user reviews the preview and explicitly approves or rejects the
-enrichment plan as a single bounded operation.
-
 ### On Approval
 
-1. **Re-read** the issue's current Remote Links from Jira (fresh, not
-   cached from preview).
-2. **Detect drift**: if the baseline fingerprint changed since the
-   preview, the plan is stale.  Report the conflict and regenerate.
-3. **Apply** eligible PR Remote Links via the runtime's available Jira
-   write capability.
-4. **Re-read** the issue after writes.
-5. **Produce receipt**: per-link confirmed/uncertain status.
-6. **Report**: complete results including any uncertain outcomes.
+1. Re-read the issue from Jira (fresh snapshot).
+2. Re-run `check-enrichment` with the `approved_baseline` from Phase 1.
+3. If stale (baseline changed), regenerate with fresh preview.
+4. Apply eligible links and metadata via approved runtime capabilities.
+5. Re-read the issue; run `check-enrichment --readback` for receipts.
 
 ### On Rejection
 
-No writes.  The preview artifacts remain available for review.
+No writes.  Artifacts remain for review.
 
 ## Source-Change Proposals
 
-The skill produces structured proposals for updating the Documentation
-Inputs section in the owning design workflow's source artifacts.  These
-proposals include:
+The skill produces structured proposals for updating Documentation
+Inputs through the design workflow's `/revise` phase.  Each proposal
+carries:
 
-- Specific intended changes (add, update) with evidence references
-- The owning workflow (`design`) and action (`/revise`)
-- Factual observations from PR review
+- `action`: `update` (divergent input) or `add_contributor` (new)
+- `proposed_wording`: specific text or unresolved question
+- `evidence_urls`: supporting PR URLs
+- `source_location`: where in the source artifact
+- `observations`: divergent observations from code review
 
-**Source/narrative apply is disabled.**  The docs-handoff skill does NOT
-directly modify design source artifacts or Jira issue descriptions.  The
-proposal is advisory — the human or owning workflow applies changes
-through the established `/revise` phase.
+Source/narrative apply is disabled.  This is an explicit design choice:
+the design workflow owns Documentation Inputs, direct edits risk sync
+manifest conflicts, and writer-managed content must not be overwritten.
 
-This is an explicit design choice, not a limitation to work around:
+## CLI Sequence
 
-- The design workflow owns the Documentation Inputs source
-- Direct edits could conflict with the sync manifest and content hashes
-- Writer-managed content in the description must not be overwritten
-- The `/revise` phase has the correct reconciliation and consistency
-  checks
+```bash
+# 1. Validate offline snapshot
+python3 evidence.py validate --input snapshot.json
+# 2. Normalize raw evidence (from AI gathering)
+python3 evidence.py normalize --input raw-evidence.json
+# 3. Build change plan
+python3 evidence.py build-plan --input plan-input.json
+# 4. Check enrichment eligibility
+python3 evidence.py check-enrichment --input check-input.json
+# 5. After approved writes, verify with readback
+python3 evidence.py check-enrichment --input check-input.json \
+  --readback readback.json
+```
 
-If a supported explicit owning-source handoff can be established in a
-future version, it must be tested for producer/renderer/sync preservation
-and writer/concurrency handling BEFORE enabling apply.
-
-## Late Contributor Changes
-
-If evidence gathering reveals that a contributing story's actual scope
-differs from the planned Documentation Inputs (e.g., a new API field was
-added that is not in the plan), this is reported as a finding with type
-`new_surface`.  It is a PROPOSAL for the user to evaluate, not a silent
-scope expansion.  The user decides whether to:
-
-1. Accept the new surface and request a `/revise` to update the source
-2. Defer it to a future documentation cycle
-3. Determine it is out of scope for this DOCS story
+All inputs are file paths via `--input`.  No stdin support.  Exit 0 on
+success, exit 1 on validation/data errors, exit 2 on argument errors.
