@@ -1201,14 +1201,10 @@ class TestPreExistingDetection(unittest.TestCase):
         subprocess.run(["git", "-C", sub_work, "push", "origin", branch],
                        check=True, capture_output=True)
         # Add submodule
-        env = {**os.environ,
-               "GIT_CONFIG_COUNT": "1",
-               "GIT_CONFIG_KEY_0": "protocol.file.allow",
-               "GIT_CONFIG_VALUE_0": "always"}
         subprocess.run(["git", "-C", self.repo, "submodule", "add",
                         sub_src, "mysub"],
-                       check=True, capture_output=True, env=env)
-        subprocess.run(["git", "commit", "-m", "add sub"],
+                       check=True, capture_output=True, env=_FILE_ENV)
+        subprocess.run(["git", "-C", self.repo, "commit", "-m", "add sub"],
                        check=True, capture_output=True)
         # Dirty the submodule
         with open(os.path.join(self.repo, "mysub", "sub.txt"), "a") as f:
