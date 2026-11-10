@@ -28,8 +28,8 @@ Evidence quality requirements:
   required.
 - Partial evidence is a valid intermediate state — report honestly.
 - Unknown or contradictory results are reported as findings.
-- An observation like "as planned" does NOT produce a source update
-  proposal — only divergent observations generate proposals.
+- All observations are display-only context for human review — the
+  skill does not classify them as confirming or divergent.
 
 ### Step 3 — Normalize Evidence
 
@@ -80,11 +80,12 @@ The skill produces structured proposals for updating Documentation
 Inputs through the design workflow's `/revise` phase.  Each proposal
 carries:
 
-- `action`: `update` (divergent input) or `add_contributor` (new)
-- `proposed_wording`: specific text or unresolved question
+- `action`: `review` (observations for human review) or
+  `add_contributor` (non-contributor evidence candidate)
+- `proposed_wording`: null for review actions (human decides)
 - `evidence_urls`: supporting PR URLs
 - `source_location`: where in the source artifact
-- `observations`: divergent observations from code review
+- `observations`: display-only context — no automated classification
 
 Source/narrative apply is disabled.  This is an explicit design choice:
 the design workflow owns Documentation Inputs, direct edits risk sync

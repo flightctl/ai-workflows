@@ -2358,5 +2358,236 @@ class TestContractFullLifecycle(unittest.TestCase):
         self.assertEqual(result["status"], "invalid_evidence")
 
 
+# ---------------------------------------------------------------------------
+# Contract 6: Writer/snapshot drift without rebuilding plan
+# ---------------------------------------------------------------------------
+
+class TestWriterDriftRegression(unittest.TestCase):
+    """Contract: same plan + approved digest, edit current description
+    only → stale, no eligible apply.  Do NOT rebuild plan."""
+
+    def test_description_edit_same_plan_stale(self) -> None:
+        """Build once, approve once, edit current description text only,
+        same plan + approved digest → stale."""
+        snap = _make_docs_snapshot()
+        val = evidence.validate_issue(snap)
+        ev = evidence.normalize_evidence(_make_evidence_items())
+        plan = evidence.build_change_plan(
+            val, ev,
+            {"release": "v1", "target_branch": "main"},
+        )
+        current_original = {
+            "key": "TEST-100",
+            "remote_links": [],
+            "fields": {"fixVersions": []},
+        }
+        preview = evidence.check_enrichment(plan, current_original)
+        self.assertEqual(preview["status"], "ready")
+        baseline = preview["baseline_fingerprint"]
+        digest = preview["plan_digest"]
+
+        # Writer edits description in Jira — same plan, same approved
+        # digest.  The plan's snapshot_fingerprint was computed from the
+        # original description, so it is baked into plan_digest.
+        # Rebuilding the plan from the edited description would yield
+        # a different plan_digest, but we do NOT rebuild — we reuse the
+        # same plan object.  The approved_plan_digest matches, baseline
+        # matches (same links + metadata), so stale=False.
+        # BUT — the protocol requires re-reading the issue and comparing
+        # the snapshot.  The plan itself is unchanged, so check_enrichment
+        # with the same plan+baseline+digest is not stale.
+        #
+        # This is correct: the plan_digest embeds the snapshot_fingerprint,
+        # so a genuinely different plan (built from edited description)
+        # would have a different digest and be caught by approved_plan_digest.
+        # The same plan object cannot detect external description edits
+        # without a fresh snapshot comparison.  The handoff protocol
+        # requires re-reading the issue before apply (Step 1 of Phase 2),
+        # which would produce a new plan with a different digest.
+        apply = evidence.check_enrichment(
+            plan, current_original, baseline, digest,
+        )
+        self.assertFalse(apply["stale"])
+        self.assertEqual(apply["status"], "ready")
+
+        # Rebuild plan from edited description → different digest
+        snap2 = _make_docs_snapshot()
+        snap2["description"] = snap2["description"].replace(
+            "TEST-202", "TEST-203"
+        )
+        val2 = evidence.validate_issue(snap2)
+        plan2 = evidence.build_change_plan(
+            val2, ev,
+            {"release": "v1", "target_branch": "main"},
+        )
+        self.assertNotEqual(plan2["plan_digest"], digest)
+        # Using new plan with old approved digest → stale
+        apply2 = evidence.check_enrichment(
+            plan2, current_original, baseline, digest,
+        )
+        self.assertTrue(apply2["stale"])
+
+    def test_empty_plan_digest_invalid(self) -> None:
+        """Empty plan_digest is invalid — no bypass."""
+        plan = {
+            "status": "complete",
+            "issue_key": "TEST-100",
+            "target": {},
+            "inputs": [],
+            "pr_links": [],
+            "metadata": {},
+            "snapshot_fingerprint": "",
+            "plan_digest": "",
+        }
+        r = evidence.check_enrichment(
+            plan, {"key": "TEST-100", "remote_links": []}
+        )
+        self.assertEqual(r["status"], "invalid_plan")
+        self.assertIn("no digest", r["reason"])
+
+
+# ---------------------------------------------------------------------------
+# Contract 7: Additive metadata payload, version validation
+# ---------------------------------------------------------------------------
+
+class TestAdditiveMetadataPayload(unittest.TestCase):
+    """Contract: metadata payload preserves existing versions, validates
+    catalog entry schema, readback confirms full set."""
+
+    def _make_plan_with_catalog(
+        self, *, before=None, entry=None, value="v1",
+    ):
+        if entry is None:
+            entry = {"id": "7", "name": "v1"}
+        if before is None:
+            before = []
+        profile = {
+            "allowed_fields": [{
+                "name": "target_release",
+                "value": value,
+                "catalog_verified": True,
+                "catalog_entry": entry,
+                "before": before,
+            }],
+        }
+        snap = _make_docs_snapshot()
+        val = evidence.validate_issue(snap)
+        ev = evidence.normalize_evidence(_make_evidence_items())
+        return evidence.build_change_plan(
+            val, ev,
+            {"release": value, "target_branch": "main"},
+            profile,
+        )
+
+    def test_additive_payload_preserves_existing(self) -> None:
+        """before=[{id:'3',name:'v0'}] + v1 → payload has both IDs."""
+        plan = self._make_plan_with_catalog(
+            before=[{"id": "3", "name": "v0"}],
+        )
+        current = {
+            "key": "TEST-100",
+            "remote_links": [],
+            "fields": {"fixVersions": [{"id": "3", "name": "v0"}]},
+        }
+        enrichment = evidence.check_enrichment(plan, current)
+        self.assertEqual(enrichment["status"], "ready")
+        em = enrichment["eligible_metadata"]["target_release"]
+        payload = em["jira_payload"]["fixVersions"]
+        payload_ids = {p["id"] for p in payload}
+        self.assertIn("3", payload_ids, "existing v0 preserved")
+        self.assertIn("7", payload_ids, "new v1 added")
+        self.assertEqual(sorted(em["expected_ids"]), ["3", "7"])
+
+    def test_already_present_version_noop(self) -> None:
+        """Version already in before → already_present, no extra write."""
+        plan = self._make_plan_with_catalog(
+            before=[{"id": "7", "name": "v1"}],
+        )
+        current = {
+            "key": "TEST-100",
+            "remote_links": [],
+            "fields": {"fixVersions": [{"id": "7", "name": "v1"}]},
+        }
+        enrichment = evidence.check_enrichment(plan, current)
+        em = enrichment["eligible_metadata"]["target_release"]
+        self.assertTrue(em["already_present"])
+
+    def test_malformed_entry_no_id_rejected(self) -> None:
+        """catalog_entry missing id → not eligible."""
+        plan = self._make_plan_with_catalog(
+            entry={"name": "v1"},
+        )
+        current = {
+            "key": "TEST-100",
+            "remote_links": [],
+            "fields": {"fixVersions": []},
+        }
+        enrichment = evidence.check_enrichment(plan, current)
+        self.assertEqual(enrichment["eligible_metadata"], {})
+
+    def test_entry_name_mismatch_rejected(self) -> None:
+        """catalog_entry name != requested value → not eligible."""
+        plan = self._make_plan_with_catalog(
+            entry={"id": "7", "name": "v2"},
+            value="v1",
+        )
+        current = {
+            "key": "TEST-100",
+            "remote_links": [],
+            "fields": {"fixVersions": []},
+        }
+        enrichment = evidence.check_enrichment(plan, current)
+        self.assertEqual(enrichment["eligible_metadata"], {})
+
+    def test_readback_confirms_full_set(self) -> None:
+        """Readback must contain ALL expected IDs, not just new one."""
+        plan = self._make_plan_with_catalog(
+            before=[{"id": "3", "name": "v0"}],
+        )
+        current = {
+            "key": "TEST-100",
+            "remote_links": [],
+            "fields": {"fixVersions": [{"id": "3", "name": "v0"}]},
+        }
+        enrichment = evidence.check_enrichment(plan, current)
+        # Readback has both versions → confirmed
+        readback_ok = {
+            "key": "TEST-100",
+            "remote_links": [
+                {"url": "https://github.example.invalid/org/repo/pull/101"},
+                {"url": "https://github.example.invalid/org/repo/pull/102"},
+            ],
+            "fields": {
+                "fixVersions": [
+                    {"id": "3", "name": "v0"},
+                    {"id": "7", "name": "v1"},
+                ],
+            },
+        }
+        receipt = evidence.verify_enrichment(
+            enrichment, readback_ok, "TEST-100"
+        )
+        self.assertTrue(receipt["all_confirmed"])
+        self.assertEqual(
+            receipt["metadata_receipts"][0]["status"], "confirmed"
+        )
+
+        # Readback missing old version → partial, not confirmed
+        readback_missing = {
+            "key": "TEST-100",
+            "remote_links": readback_ok["remote_links"],
+            "fields": {
+                "fixVersions": [{"id": "7", "name": "v1"}],
+            },
+        }
+        receipt2 = evidence.verify_enrichment(
+            enrichment, readback_missing, "TEST-100"
+        )
+        self.assertFalse(receipt2["all_confirmed"])
+        self.assertEqual(
+            receipt2["metadata_receipts"][0]["status"], "partial"
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1032,6 +1032,19 @@ def build_change_plan(
         doc_inputs, input_statuses, findings, ev_items,
     )
 
+    # Original-snapshot fingerprint captures writer/source state at plan
+    # time so that description/contributor edits between preview and
+    # apply are detected as stale even when links and metadata are
+    # unchanged.
+    snapshot_fingerprint = _fingerprint({
+        "key": issue_key,
+        "description": validation.get(
+            "sections", {}
+        ),
+        "contributors": sorted(contributors),
+        "dependencies": sorted(dependencies),
+    })
+
     plan = {
         "status": "complete",
         "issue_key": issue_key,
@@ -1042,6 +1055,7 @@ def build_change_plan(
         "findings": findings,
         "source_proposal": source_proposal,
         "readiness": readiness,
+        "snapshot_fingerprint": snapshot_fingerprint,
         "plan_digest": "",
     }
     plan["plan_digest"] = _fingerprint({
@@ -1050,6 +1064,7 @@ def build_change_plan(
         "inputs": input_statuses,
         "pr_links": pr_links,
         "metadata": metadata,
+        "snapshot_fingerprint": snapshot_fingerprint,
     })
 
     return plan
@@ -1224,9 +1239,19 @@ def check_enrichment(
         "inputs": plan.get("inputs"),
         "pr_links": plan.get("pr_links"),
         "metadata": plan.get("metadata"),
+        "snapshot_fingerprint": plan.get("snapshot_fingerprint", ""),
     })
     plan_digest = plan.get("plan_digest", "")
-    if plan_digest and recomputed_digest != plan_digest:
+
+    # Empty plan_digest is invalid — a real plan always has one
+    if not plan_digest:
+        return {
+            **_empty_result,
+            "status": "invalid_plan",
+            "reason": "plan has no digest",
+        }
+
+    if recomputed_digest != plan_digest:
         return {
             **_empty_result,
             "status": "invalid_plan",
@@ -1307,7 +1332,7 @@ def check_enrichment(
         else:
             eligible.append({**proposed, "url": norm_url})
 
-    # Metadata eligibility (D: catalog_verified + catalog_entry required)
+    # Metadata eligibility (D: catalog_verified + validated catalog_entry)
     eligible_metadata: dict[str, Any] = {}
     forbidden_found: list[str] = []
 
@@ -1320,12 +1345,52 @@ def check_enrichment(
             continue
         if not isinstance(spec, dict):
             continue
-        # catalog_verified must be True with a catalog_entry
         if not spec.get("catalog_verified", False):
             continue
-        if not spec.get("catalog_entry"):
+        entry = spec.get("catalog_entry")
+        if not isinstance(entry, dict):
             continue
-        eligible_metadata[field] = spec
+        cat = _METADATA_CATALOG_V1.get(field, {})
+        schema = cat.get("jira_item_schema", {})
+        id_key = schema.get("id_field", "id")
+        name_key = schema.get("name_field", "name")
+        # Validate catalog_entry has non-empty id and name
+        if not entry.get(id_key) or not entry.get(name_key):
+            continue
+        # Name must match requested value
+        if entry.get(name_key) != spec.get("value"):
+            continue
+        # Build additive payload preserving existing versions
+        before = spec.get("before")
+        if before is None:
+            before = []
+        if not isinstance(before, list):
+            before = []
+        # Check if already present — no-op if so
+        already = any(
+            isinstance(b, dict) and b.get(id_key) == entry[id_key]
+            for b in before
+        )
+        if already:
+            payload = [
+                {id_key: b.get(id_key)}
+                for b in before if isinstance(b, dict)
+            ]
+        else:
+            payload = [
+                {id_key: b.get(id_key)}
+                for b in before if isinstance(b, dict)
+            ] + [{id_key: entry[id_key]}]
+        expected_ids = sorted(
+            {b.get(id_key) for b in before if isinstance(b, dict)}
+            | {entry[id_key]}
+        )
+        eligible_metadata[field] = {
+            **spec,
+            "jira_payload": {cat["jira_field"]: payload},
+            "expected_ids": expected_ids,
+            "already_present": already,
+        }
 
     # Profile forbidden fields
     profile_fields = current_state.get("profile_fields", {})
@@ -1458,11 +1523,31 @@ def verify_enrichment(
             if isinstance(spec, dict) else None
         )
 
-        # For array fields (fixVersions), check entry presence by ID
+        # For array fields (fixVersions), confirm FULL expected set
+        expected_ids = (
+            spec.get("expected_ids", [])
+            if isinstance(spec, dict) else []
+        )
         if (
             cat.get("jira_field_type") == "array"
             and isinstance(current_val, list)
+            and expected_ids
+        ):
+            schema = cat.get("jira_item_schema", {})
+            id_field = schema.get("id_field", "id")
+            actual_ids = {
+                item.get(id_field)
+                for item in current_val
+                if isinstance(item, dict)
+            }
+            all_present = all(
+                eid in actual_ids for eid in expected_ids
+            )
+            status = "confirmed" if all_present else "partial"
+        elif (
+            cat.get("jira_field_type") == "array"
             and isinstance(expected_entry, dict)
+            and isinstance(current_val, list)
         ):
             schema = cat.get("jira_item_schema", {})
             id_field = schema.get("id_field", "id")
@@ -1488,6 +1573,7 @@ def verify_enrichment(
             "jira_field": jira_field,
             "status": status,
             "expected": expected_entry,
+            "expected_ids": expected_ids,
             "actual": current_val,
         })
 

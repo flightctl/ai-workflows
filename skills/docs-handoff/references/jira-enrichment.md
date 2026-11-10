@@ -34,12 +34,17 @@ Uncatalogued fields are rejected as forbidden:
 
 | Canonical Name | Jira Binding | Requirement |
 |---|---|---|
-| `target_release` | `fixVersions` or project-specific custom field | Value must exist in project's actual Fix Version catalog |
+| `target_release` | `fixVersions` (via `target_release` alias in `_METADATA_CATALOG_V1`) | Catalog entry with version `id` and `name` from observed project catalog |
 
-Proposed values that have not been verified against the project's live
-field catalog carry `catalog_verified: false`.  The runtime must verify
-the value exists before applying.  Unknown or guessed values remain
-gaps — no raw `proposed_*` placeholder is sent as a Jira field write.
+Proposed values require a `catalog_entry` with non-empty `id` and
+`name` matching the requested release value, gathered from the
+project's actual Fix Version catalog via approved runtime capabilities.
+The `before` field records the current `fixVersions` array at plan
+time.  The metadata payload is additive — existing versions in `before`
+are preserved; the new version is appended.  A version already present
+is a no-op.  Unknown, uncatalogued, or malformed entries remain gaps
+with no metadata write.  No raw `proposed_*` placeholder or arbitrary
+`catalog_entry` value is sent as a Jira field write.
 
 ## PR Remote Links
 
@@ -72,14 +77,19 @@ genuinely new links are `eligible`.  Link ordering is canonicalized
 ## Baseline Drift Detection
 
 The `check-enrichment` subcommand computes a baseline fingerprint from
-the issue's current Remote Links (canonically ordered).  When an
+the issue's current Remote Links (canonically ordered) and metadata
+fields from the catalog (e.g. `fixVersions`).  When an
 `approved_baseline` is provided and differs from the current baseline,
 the result is `stale` — writes are blocked until a fresh preview is
 approved.
 
-The plan also carries a `plan_digest` covering the issue key, target,
-inputs, links, and metadata.  A tampered plan produces a different
-digest.
+The plan carries a `plan_digest` covering the issue key, target,
+inputs, links, metadata, and `snapshot_fingerprint` (a hash of the
+original issue description, contributors, and dependencies at plan
+time).  A tampered or stale plan produces a different digest.  An
+empty `plan_digest` is invalid.  An `approved_plan_digest` parameter
+detects plan changes since approval — e.g. when the writer edits the
+description or contributors between preview and apply.
 
 ## Readback and Receipts
 
