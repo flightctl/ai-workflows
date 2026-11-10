@@ -313,10 +313,14 @@ verification: if the
 plan's bookkeeping or the code phase's gate drifted from reality, this
 step catches it.
 
-**Gate-Applicability check (before testplan-absent skip).** Read
-the Story Test Plan section of `01-context.md`. If it contains
-`Gate-Applicability: unresolved`, record the unresolved gate names
-and report "gate applicability unresolved — coverage completeness
+**Gate-Applicability check (before testplan-absent skip).** Check
+for `.artifacts/e2e/{issue-key}/gate-applicability.pending`. If it
+exists, read it to obtain the unresolved gate names. As a fallback
+for pre-existing contexts without a pending file, also read the
+Story Test Plan section of `01-context.md` for
+`Gate-Applicability: unresolved`. If either source indicates
+unresolved applicability, record the unresolved gate names and
+report "gate applicability unresolved — coverage completeness
 cannot be confirmed" in the validation report. The overall result
 cannot be PASS while any gate has unresolved applicability. This
 check applies regardless of whether `testplan.md` exists — even
@@ -626,7 +630,8 @@ Write `.artifacts/e2e/{issue-key}/05-validation-report.md`:
  controlling; report it but do not force Overall: FAIL.
  If Source-Discovery is unresolved, Overall result cannot be PASS
  regardless of provisional TC exemptions.
- If Gate-Applicability is unresolved (from `01-context.md`),
+ If Gate-Applicability is unresolved (from
+ `gate-applicability.pending` or `01-context.md` fallback),
  Overall result cannot be PASS — report the unresolved gates and
  note that clarification is needed.}
 
@@ -726,6 +731,13 @@ writing the final result:
  the current approved verification method; equally it does not
  waive a genuine current AC obligation or required gate.
  Other outcomes:
+ - If Gate-Applicability is unresolved
+   (`gate-applicability.pending` exists or `01-context.md`
+   contains `Gate-Applicability: unresolved`): "FAIL — gate
+   applicability unresolved for {gate names}; coverage
+   completeness cannot be confirmed." Overall is FAIL. This
+   applies even when all known automated tests and mandatory
+   evidence pass, and regardless of whether a testplan exists.
  - If automated tests pass but mandatory entries are pending/
    not-started: "PASS (automated) — awaiting external validation
    for {N} mandatory entries." Overall is NOT PASS.

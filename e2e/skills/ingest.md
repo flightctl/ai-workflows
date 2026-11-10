@@ -365,13 +365,45 @@ zero. In that case:
   testplan for gates whose relevance is unknown. Request
   clarification in the ingest handoff.
 
-In both cases, persist the `Gate-Applicability: unresolved` marker
-in `01-context.md` before returning or pausing for clarification.
+In both cases, write a `gate-applicability.pending` file in the
+artifact directory
+(`.artifacts/e2e/{issue-key}/gate-applicability.pending`) listing
+the affected gate names and their unresolved status. Write this
+file immediately during gate analysis, before Step 8 compilation —
+it is not subject to Step 8a approval and persists even if a
+re-invocation overwrite is declined. Also include the
+`Gate-Applicability: unresolved` marker in the compiled
+`01-context.md` content (Step 8) for human readability, but the
+pending file is the authoritative blocker checked by `/validate`
+and `/publish`. When all gates are resolved on a subsequent
+analysis, remove the `gate-applicability.pending` file.
+
 This marker is distinct from `Source-Discovery: unresolved` (which
-records that the source itself could not be read). Clearing
-`Gate-Applicability: unresolved` requires a subsequent ingest or
-explicit clarification that establishes those gates' applicability
-or irrelevance — not simply TC confirmation or a missing prior plan.
+records that the source itself could not be read).
+
+**Clearing `gate-applicability.pending`** requires one of:
+- **Re-ingestion with resolved gates:** A completed `/ingest` run
+  where all previously unresolved gates have known relevance. Gates
+  confirmed relevant must be recorded with their original
+  mappings, origin, and evidence in the story testplan
+  (`testplan.md`). If a downstream plan (`02-plan.md`) exists, its
+  approval/update contract must be reconciled before clearing — the
+  plan must acknowledge the newly recorded gates. If no downstream
+  plan exists yet, the pending file is still removed after testplan
+  recording so that a subsequent `/plan` consumes the recorded
+  gates from the testplan.
+- **Verified irrelevance:** Explicit clarification establishing
+  that a specific gate is irrelevant (fully known non-overlap on
+  both requirement and IC dimensions). Verified irrelevance clears
+  only that gate's contribution to the pending state — if other
+  gates remain unresolved, the pending file persists with the
+  remaining gate names. Irrelevance does not fabricate a gate or
+  TC obligation.
+
+**Does NOT clear the pending file:** TC confirmation alone, partial
+clarification that leaves any gate unresolved, a missing prior
+testplan or downstream plan, failed or unreadable source discovery,
+or declined context/plan changes (Step 8a declined).
 
 Only after confirming that all gates have known relevance (or no
 gates exist): if `.artifacts/e2e/{issue-key}/testplan.md` exists
@@ -1005,6 +1037,7 @@ what changes were found and that the existing context was preserved.
 
 - `.artifacts/e2e/{issue-key}/01-context.md`
 - `.artifacts/e2e/{issue-key}/testplan.md` (if testplan exists with matching test cases)
+- `.artifacts/e2e/{issue-key}/gate-applicability.pending` (if any gate has unresolved applicability)
 
 ## When This Phase Is Done
 

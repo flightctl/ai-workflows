@@ -5187,5 +5187,368 @@ class TestGapFillResolvedDiscoveryContract(unittest.TestCase):
             "Checker must detect missing Source-Discovery check")
 
 
+# ===========================================================================
+# Gate-Applicability Pending-File Contract (Defect A: r4530941059)
+# ===========================================================================
+
+class TestGateApplicabilityPendingFileContract(unittest.TestCase):
+    """Static contract: gate-applicability blocking uses a separate
+    pending file independent of 01-context.md / Step 8a approval.
+
+    Defect A: persisting the marker in 01-context.md before returning
+    conflicts with Step 8a requiring approval before overwriting.
+    Fix: gate-applicability.pending written before Step 8 compilation,
+    not subject to Step 8a, checked by validators as authoritative
+    blocker. Static section checks — no agent execution."""
+
+    _INGESTS = [
+        ("e2e", "e2e/skills/ingest.md"),
+        ("implement", "implement/skills/ingest.md"),
+    ]
+    _VALIDATORS = [
+        ("e2e", "e2e/skills/validate.md"),
+        ("implement", "implement/skills/validate.md"),
+    ]
+
+    def _repo_root(self):
+        return Path(__file__).resolve().parent.parent.parent
+
+    def test_ingests_reference_pending_file(self):
+        """Both ingests: unknown-relevance branch references the
+        gate-applicability.pending file for durable blocking."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                text = (self._repo_root() / path).read_text(
+                    encoding="utf-8")
+                self.assertIn(
+                    "gate-applicability.pending", text,
+                    f"{workflow}/ingest.md must reference "
+                    f"gate-applicability.pending file")
+
+    def test_ingests_pending_file_before_step8(self):
+        """Both ingests: pending file is written before Step 8
+        compilation and not subject to Step 8a approval."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                text = (self._repo_root() / path).read_text(
+                    encoding="utf-8")
+                self.assertIn(
+                    "before Step 8", text,
+                    f"{workflow}/ingest.md must state pending file "
+                    f"is written before Step 8")
+                self.assertIn(
+                    "not subject to Step 8a", text,
+                    f"{workflow}/ingest.md must state pending file "
+                    f"is not subject to Step 8a approval")
+
+    def test_ingests_pending_file_survives_declined_overwrite(self):
+        """Both ingests: pending file persists even when re-invocation
+        overwrite is declined in Step 8a."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                text = (self._repo_root() / path).read_text(
+                    encoding="utf-8")
+                self.assertIn(
+                    "declined", text,
+                    f"{workflow}/ingest.md must mention declined "
+                    f"overwrite scenario")
+
+    def test_validators_check_pending_file(self):
+        """Both validators: Gate-Applicability check references the
+        pending file as the primary source."""
+        for workflow, path in self._VALIDATORS:
+            with self.subTest(workflow=workflow):
+                text = (self._repo_root() / path).read_text(
+                    encoding="utf-8")
+                self.assertIn(
+                    "gate-applicability.pending", text,
+                    f"{workflow}/validate.md must check "
+                    f"gate-applicability.pending file")
+
+    def test_validators_pending_file_with_fallback(self):
+        """Both validators: check pending file AND fall back to
+        01-context.md for pre-existing contexts."""
+        for workflow, path in self._VALIDATORS:
+            with self.subTest(workflow=workflow):
+                text = (self._repo_root() / path).read_text(
+                    encoding="utf-8")
+                ga_section_start = text.find(
+                    "Gate-Applicability check")
+                self.assertGreater(ga_section_start, 0)
+                ga_section = text[ga_section_start:ga_section_start + 600]
+                self.assertIn(
+                    "fallback", ga_section,
+                    f"{workflow}/validate.md Gate-Applicability check "
+                    f"must describe 01-context.md fallback")
+
+    def test_ingests_list_pending_file_in_output(self):
+        """Both ingests: Output section lists gate-applicability.pending."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                text = (self._repo_root() / path).read_text(
+                    encoding="utf-8")
+                output_pos = text.find("## Output")
+                self.assertGreater(output_pos, 0)
+                output_section = text[output_pos:output_pos + 500]
+                self.assertIn(
+                    "gate-applicability.pending", output_section,
+                    f"{workflow}/ingest.md Output must list "
+                    f"gate-applicability.pending")
+
+    def test_old_ingest_text_lacks_pending_file(self):
+        """Counter-regression: old ingest text (writing marker to
+        01-context.md before returning) does not use pending file."""
+        old_text = (
+            "In both cases, persist the `Gate-Applicability: unresolved`"
+            " marker\n"
+            "in `01-context.md` before returning or pausing for "
+            "clarification.\n"
+            "This marker is distinct from `Source-Discovery: unresolved`"
+        )
+        self.assertNotIn(
+            "gate-applicability.pending", old_text,
+            "Old text must not reference pending file (proving the "
+            "defect existed)")
+
+
+# ===========================================================================
+# Gate-Applicability Explicit FAIL Verdict (Defect B: r4530941070)
+# ===========================================================================
+
+class TestGateApplicabilityExplicitFailVerdict(unittest.TestCase):
+    """Static contract: both validators define an explicit Overall: FAIL
+    verdict for unresolved gate-applicability, even when all known tests
+    and evidence pass.
+
+    Defect B: Result schemas block PASS but give no final verdict when
+    automated tests and known mandatory evidence pass and unresolved
+    gates aren't yet known mandatory. Fix: explicit FAIL verdict with
+    precise blocking reason. Static section checks — no agent execution."""
+
+    _VALIDATORS = [
+        ("e2e", "e2e/skills/validate.md"),
+        ("implement", "implement/skills/validate.md"),
+    ]
+
+    def _repo_root(self):
+        return Path(__file__).resolve().parent.parent.parent
+
+    def _result_section(self, workflow_path):
+        """Extract the Result schema section from a validate.md file,
+        with normalized whitespace for cross-line matching."""
+        content = (self._repo_root() / workflow_path).read_text(
+            encoding="utf-8")
+        marker = "Overall: PASS"
+        start = content.find(marker)
+        self.assertGreater(start, 0,
+                           f"{workflow_path}: must have Overall: PASS")
+        end = content.find("```", start)
+        if end < 0:
+            end = start + 3000
+        # Normalize runs of whitespace (including newlines) to single
+        # space so assertions match across line-wrapped source text.
+        raw = content[start:end]
+        return " ".join(raw.split())
+
+    def test_validators_have_explicit_fail_for_gate_applicability(self):
+        """Both validators: Result schema 'Other outcomes' includes an
+        explicit FAIL verdict for gate-applicability unresolved."""
+        for workflow, path in self._VALIDATORS:
+            with self.subTest(workflow=workflow):
+                result = self._result_section(path)
+                # Must have the explicit FAIL verdict pattern
+                self.assertIn(
+                    "FAIL — gate applicability unresolved", result,
+                    f"{workflow}/validate.md Result must include "
+                    f"explicit FAIL verdict for gate-applicability")
+
+    def test_verdict_applies_regardless_of_testplan(self):
+        """Both validators: the FAIL verdict applies even when no
+        testplan exists (absent-testplan case from first ingest)."""
+        for workflow, path in self._VALIDATORS:
+            with self.subTest(workflow=workflow):
+                result = self._result_section(path)
+                self.assertIn(
+                    "regardless of whether a testplan exists", result,
+                    f"{workflow}/validate.md FAIL verdict must apply "
+                    f"regardless of testplan existence")
+
+    def test_verdict_applies_when_tests_pass(self):
+        """Both validators: the FAIL verdict applies even when all
+        known automated tests and mandatory evidence pass."""
+        for workflow, path in self._VALIDATORS:
+            with self.subTest(workflow=workflow):
+                result = self._result_section(path)
+                self.assertIn(
+                    "even when all known automated tests", result,
+                    f"{workflow}/validate.md FAIL verdict must apply "
+                    f"even when tests pass")
+
+    def test_old_text_lacks_explicit_fail_verdict(self):
+        """Counter-regression: old Result schema text (just 'cannot be
+        PASS') lacks the explicit FAIL verdict format."""
+        old_text = (
+            "Gate-Applicability: if `01-context.md` contains\n"
+            " `Gate-Applicability: unresolved`, Overall cannot be "
+            "PASS —\n"
+            " report the unresolved gates and note that clarification "
+            "is\n"
+            " needed before coverage completeness can be confirmed.\n"
+            " Other outcomes:\n"
+            " - If automated tests pass but mandatory entries are "
+            "pending/"
+        )
+        self.assertNotIn(
+            "FAIL — gate applicability unresolved", old_text,
+            "Old text must not have explicit FAIL verdict (proving "
+            "the defect existed)")
+
+
+# ===========================================================================
+# Gate-Applicability Clearing Contract (Defect C: r4530941084)
+# ===========================================================================
+
+class TestGateApplicabilityClearingContract(unittest.TestCase):
+    """Static contract: clearing gate-applicability.pending requires
+    completed re-ingestion recording gates in testplan AND downstream
+    plan reconciliation, OR verified irrelevance. Clarification alone
+    on first ingest cannot clear when gates are not recorded.
+
+    Defect C: clearing permits subsequent ingest OR explicit
+    clarification, but on first ingest a newly confirmed relevant gate
+    may not exist in testplan or downstream plan. Fix: require
+    re-ingestion with testplan recording and plan reconciliation.
+    Static section checks — no agent execution."""
+
+    _INGESTS = [
+        ("e2e", "e2e/skills/ingest.md"),
+        ("implement", "implement/skills/ingest.md"),
+    ]
+
+    def _repo_root(self):
+        return Path(__file__).resolve().parent.parent.parent
+
+    def _clearing_section(self, workflow_path):
+        """Extract the clearing conditions section."""
+        content = (self._repo_root() / workflow_path).read_text(
+            encoding="utf-8")
+        marker = "Clearing `gate-applicability.pending`"
+        start = content.find(marker)
+        self.assertGreater(
+            start, 0,
+            f"{workflow_path}: must have clearing section")
+        # Section ends at next major paragraph break
+        end = content.find("\nOnly after", start)
+        if end < 0:
+            end = start + 2000
+        return content[start:end]
+
+    def test_clearing_requires_reingestion(self):
+        """Both ingests: clearing requires completed re-ingestion."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._clearing_section(path)
+                self.assertIn(
+                    "Re-ingestion with resolved gates", section,
+                    f"{workflow}/ingest.md clearing must require "
+                    f"re-ingestion")
+
+    def test_clearing_requires_testplan_recording(self):
+        """Both ingests: relevant gates must be recorded in testplan
+        with original mappings, origin, and evidence."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._clearing_section(path)
+                self.assertIn(
+                    "recorded with their original", section,
+                    f"{workflow}/ingest.md clearing must require "
+                    f"testplan recording with original mappings")
+                self.assertIn(
+                    "testplan", section,
+                    f"{workflow}/ingest.md clearing must reference "
+                    f"testplan for recording gates")
+
+    def test_clearing_requires_downstream_plan_reconciliation(self):
+        """Both ingests: if downstream plan exists, clearing requires
+        its approval/update contract to be reconciled."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._clearing_section(path)
+                self.assertIn(
+                    "02-plan.md", section,
+                    f"{workflow}/ingest.md clearing must reference "
+                    f"downstream plan")
+                self.assertIn(
+                    "reconciled", section,
+                    f"{workflow}/ingest.md clearing must require "
+                    f"plan reconciliation")
+
+    def test_clearing_handles_no_downstream_plan(self):
+        """Both ingests: if no downstream plan exists, define handoff
+        so subsequent /plan consumes recorded gates."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._clearing_section(path)
+                self.assertIn(
+                    "no downstream\n  plan exists", section,
+                    f"{workflow}/ingest.md clearing must handle "
+                    f"no-downstream-plan case")
+
+    def test_clearing_allows_verified_irrelevance(self):
+        """Both ingests: verified irrelevance clears only that gate."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._clearing_section(path)
+                self.assertIn(
+                    "Verified irrelevance", section,
+                    f"{workflow}/ingest.md clearing must allow "
+                    f"verified irrelevance")
+                self.assertIn(
+                    "only that gate", section,
+                    f"{workflow}/ingest.md irrelevance must clear "
+                    f"only that specific gate")
+
+    def test_clearing_rejects_partial_clarification(self):
+        """Both ingests: partial clarification, TC confirmation,
+        missing files must NOT clear the pending file."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._clearing_section(path)
+                self.assertIn(
+                    "Does NOT clear", section,
+                    f"{workflow}/ingest.md must specify what does "
+                    f"NOT clear the pending file")
+                self.assertIn(
+                    "TC confirmation alone", section,
+                    f"{workflow}/ingest.md must reject TC confirmation "
+                    f"as clearing condition")
+                self.assertIn(
+                    "partial\nclarification", section,
+                    f"{workflow}/ingest.md must reject partial "
+                    f"clarification as clearing condition")
+
+    def test_old_text_allows_simple_clarification(self):
+        """Counter-regression: old clearing text ('or explicit
+        clarification that establishes...') does not require testplan
+        recording or plan reconciliation."""
+        old_text = (
+            "Clearing\n"
+            "`Gate-Applicability: unresolved` requires a subsequent "
+            "ingest or\n"
+            "explicit clarification that establishes those gates' "
+            "applicability\n"
+            "or irrelevance — not simply TC confirmation or a missing "
+            "prior plan."
+        )
+        self.assertNotIn(
+            "Re-ingestion with resolved gates", old_text,
+            "Old text must not require re-ingestion (proving "
+            "the defect existed)")
+        self.assertNotIn(
+            "reconciled", old_text,
+            "Old text must not require plan reconciliation (proving "
+            "the defect existed)")
+
+
 if __name__ == "__main__":
     unittest.main()
