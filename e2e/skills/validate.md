@@ -551,9 +551,14 @@ Write `.artifacts/e2e/{issue-key}/05-validation-report.md`:
 
 ## External Validation Evidence
 
-{Include if testplan.md contains qualification-gate TCs, manual
- verification TCs, or non-TC qualification gates (from the
- `## Qualification Gates` section). Omit entirely if none exist.
+{Include this section when any AC criterion uses a non-automated
+ verification method (qualification-gate, manual-verification, or
+ external-evidence in the AC coverage matrix's Method column),
+ when testplan.md contains qualification-gate or manual-verification
+ TCs, or when non-TC qualification gates exist. Include AC-linked
+ evidence even when testplan.md contains zero qualifying entries —
+ ACs verified by qualification gates or external evidence must
+ appear regardless.
 
  These entries are excluded from the automated coverage check —
  they require a designated execution environment or human
@@ -595,12 +600,17 @@ Write `.artifacts/e2e/{issue-key}/05-validation-report.md`:
  entries awaiting external evidence — these are not discharged
  by automated test coverage." Overall result cannot be PASS.
  Mandatory entries are: source-verified authoritative TCs,
- effectively confirmed retained TCs, confirmed non-TC qualification
- gates (per Step 8 gate confirmation), and all current AC
- obligations verified by their approved Method and Evidence
- Reference. Unconfirmed provisional
- TCs do not block PASS — report them separately with their
- current evidence status (pending, not-started, or failed).
+ effectively confirmed retained TCs, source-verified authoritative
+ non-TC qualification gates (fresh from verified source — mandatory
+ without confirmation), effectively confirmed retained non-TC
+ qualification gates (per Step 8 gate confirmation, with resolved
+ discovery), and all current AC obligations verified by their
+ approved Method and Evidence Reference. A fresh authoritative
+ gate that is pending or not-started blocks PASS; a failed
+ mandatory gate means FAIL without requiring confirmation first.
+ Unconfirmed provisional TCs do not block PASS — report them
+ separately with their current evidence status (pending,
+ not-started, or failed).
  A failed provisional entry is informational, not verdict-
  controlling; report it but do not force Overall: FAIL.
  If Source-Discovery is unresolved, Overall result cannot be PASS
@@ -690,10 +700,13 @@ writing the final result:
  coverage, or an unresolved Source-Discovery state always blocks
  Overall: PASS. Current AC obligations are always mandatory,
  verified by their approved Method and Evidence Reference.
- Confirmed non-TC qualification gates (per Step 8 gate
- confirmation procedure) are mandatory. Unconfirmed retained
- gates are provisional; report their pending status separately
- but do not block Overall: PASS on their account alone.
+ Source-verified authoritative non-TC qualification gates are
+ mandatory without confirmation. Effectively confirmed retained
+ non-TC qualification gates (per Step 8 gate confirmation
+ procedure, with resolved discovery) are also mandatory.
+ Unconfirmed retained gates are provisional; report their pending
+ status separately but do not block Overall: PASS on their
+ account alone.
  A provisional old-TC or gate mention of an AC does not override
  the current approved verification method; equally it does not
  waive a genuine current AC obligation or required gate.

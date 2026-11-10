@@ -528,6 +528,12 @@ to step 4 below.
      described scenario and assert the described outcomes.
    - Record the test file and test name for each TC ID.
 3. If any automatable TC ID lacks a corresponding test:
+   - If the testplan contains `Source-Discovery: unresolved`, ALL
+     TCs from that source are provisional regardless of confirmation
+     hash or ID matches. Report gaps as provisional: "TC coverage
+     gap — source discovery unresolved, not normative until source
+     is resolved." Do not write mandatory gap-fill tests or gate
+     commits on unresolved-source TC gaps.
    - If the TC is NOT effectively confirmed (see criteria above:
      hash present + current story-scoped testplan hash matches
      recorded hash + TC ID in confirmed list) AND `testplan.md`
@@ -536,10 +542,10 @@ to step 4 below.
      unconfirmed source, not normative until confirmed." AC-based
      validation and existing tests continue normally. Do not gate
      commits on unconfirmed TC gaps.
-   - For effectively confirmed TCs or verified-source TCs: write
-     the missing test following contract-based testing standards.
-     These TCs are normative — their gaps are real and should be
-     filled.
+   - For effectively confirmed TCs or verified-source TCs (with
+     resolved source discovery): write the missing test following
+     contract-based testing standards. These TCs are normative —
+     their gaps are real and should be filled.
    - Commit the test following the project's commit format.
    - Re-run Step 4 affected checks, Step 5 coverage when tests affect
      covered packages, Step 6 regression when production code changed,
@@ -698,9 +704,14 @@ Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
  by automated test coverage." Overall result cannot be PASS.
  Mandatory entries are: source-verified authoritative TCs,
  effectively confirmed retained TCs (per Step 8b criteria, with
- resolved source discovery), confirmed non-TC qualification gates
- (per Step 8b gate confirmation), and all current AC obligations
- verified by their approved Method and Evidence Reference.
+ resolved source discovery), source-verified authoritative
+ non-TC qualification gates (fresh from verified source — mandatory
+ without confirmation), effectively confirmed retained non-TC
+ qualification gates (per Step 8b gate confirmation, with resolved
+ discovery), and all current AC obligations verified by their
+ approved Method and Evidence Reference. A fresh authoritative
+ gate that is pending or not-started blocks PASS; a failed
+ mandatory gate means FAIL without requiring confirmation first.
  Unconfirmed retained gates are provisional; report their
  pending status separately but do not block Overall: PASS on
  their account alone.

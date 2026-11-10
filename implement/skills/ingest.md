@@ -383,6 +383,20 @@ not fall back to legacy `testplan.md` discovery when a
 `validation-index.json` exists but fails validation. Failed script
 resolution or index validation is not confirmed absence.
 
+**Unknown gate relevance guard (evaluate before selecting a zero
+outcome).** The Expected zero and Anomalous zero outcomes (which
+delete stale story testplans) require that every gate's relevance
+was established — each gate had sufficient requirement or IC
+mappings to determine overlap (or lack thereof) with the story's
+scope. If any gate has unknown relevance (its requirement and IC
+mappings are both missing or marked "clarification needed"), the
+outcome is not a confirmed zero. In that case, retain the prior
+testplan with `Freshness: unverified` and request clarification
+on the unmapped gate's applicability in the ingest handoff rather
+than deleting evidence whose relevance could not be assessed. Only
+after confirming that all gates have known relevance (or no gates
+exist) may a zero outcome proceed to deletion.
+
 | Outcome | Condition | Action |
 |---------|-----------|--------|
 | Normal | TC matches found (in any artifact) | Write `testplan.md` **once** from `../templates/story-testplan.md` |
@@ -397,14 +411,19 @@ but relevant qualification gates produces a gate-only testplan even
 if the story type or UI-design origin would otherwise indicate
 Expected zero.
 
-If the source location was checked and no validation artifacts were
-found (neither `validation-index.json` nor `testplan.md` in the docs
-repo), note "No feature-level testplan available" and continue. If a
-story-level testplan already exists from a prior ingest, mark it
-`Freshness: unverified` and emit a warning: "Source testplan not
-found — retained story testplan marked as unverified. `/plan` and
-`/validate` should treat its TC coverage requirements as provisional
-until the upstream source is available."
+If the source location was checked successfully and no validation
+artifacts were found (neither `validation-index.json` nor
+`testplan.md` in the docs repo), note "No feature-level testplan
+available" and continue. If a story-level testplan already exists
+from a prior ingest, mark it `Freshness: unverified` but do NOT
+set `Source-Discovery: unresolved` — the source was successfully
+checked. If the retained testplan already contains a
+`Source-Discovery: unresolved` marker from an earlier failed ingest,
+remove it — the current successful check supersedes the prior
+failure. Emit a warning: "Source testplan not found — retained
+story testplan marked as unverified. `/plan` and `/validate` should
+treat its TC coverage requirements as provisional until the upstream
+source is available."
 
 When writing the story testplan from matches across multiple artifacts,
 include all matched TCs in a single `testplan.md` with a Source line

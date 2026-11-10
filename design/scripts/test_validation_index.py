@@ -4506,6 +4506,8 @@ class TestRecipeCallerIntegration(unittest.TestCase):
         write_pos = content.find(index_write)
         self.assertGreater(write_pos, index_pos,
                            "Index write instruction must be after the required heading")
+        self.assertLess(write_pos, step10_pos,
+                        "Index write instruction must come before Step 10")
 
     def test_e2e_validate_source_discovery_precedence_in_gapfill(self):
         """e2e validate gap-fill must check Source-Discovery: unresolved
@@ -4640,14 +4642,43 @@ class TestRecipeCallerIntegration(unittest.TestCase):
             self.assertGreater(mand_pos, 0,
                                f"{workflow}/validate.md must have mandatory "
                                f"classification")
-            result_section = content[mand_pos:]
+            # Find the end of the mandatory-list paragraph block:
+            # look for a double newline after the start position.
+            mand_end_nl = content.find("\n\n", mand_pos)
+            mand_end = mand_end_nl if mand_end_nl > mand_pos else len(content)
+            mand_paragraph = content[mand_pos:mand_end]
 
-            # Mandatory entries must reference confirmed gates, not "all required"
-            self.assertIn(
-                "onfirmed non-TC qualification gates",
-                result_section,
-                f"{workflow}/validate.md Result must classify gates as "
-                f"confirmed, not unconditionally required")
+            # Mandatory entries must reference authoritative gates.
+            # Bind the adjective to the gate entry itself: require
+            # "authoritative" adjacent (with only whitespace) to
+            # "non-TC qualification gates" so the regex cannot borrow
+            # "authoritative" from an earlier TC clause like
+            # "source-verified authoritative TCs".
+            self.assertRegex(
+                mand_paragraph,
+                r'\bauthoritative\s+non-TC\s+qualification\s+gates\b',
+                f"{workflow}/validate.md mandatory list must include "
+                f"authoritative non-TC qualification gates (adjacent)")
+            self.assertRegex(
+                mand_paragraph,
+                r'\bconfirmed\s+retained\s+non-TC\s+qualification\s+gates\b',
+                f"{workflow}/validate.md mandatory list must include "
+                f"confirmed retained non-TC qualification gates (adjacent)")
+            # Counter-regression: the old substring "onfirmed non-TC"
+            # matched both "Confirmed" and "Unconfirmed". Verify the
+            # mandatory list sentence itself (before the Unconfirmed
+            # exclusion clause) does NOT rely on that ambiguous match.
+            mand_sentence_end = mand_paragraph.find(
+                "confirmation first.")
+            if mand_sentence_end > 0:
+                mand_list_only = mand_paragraph[:mand_sentence_end]
+                self.assertNotIn(
+                    "Unconfirmed", mand_list_only,
+                    f"{workflow}/validate.md mandatory-entries list "
+                    f"must not include Unconfirmed entries")
+
+            # Check full section for ACs and provisional override
+            result_section = content[mand_pos:]
             # Current AC obligations always mandatory
             self.assertIn(
                 "Current AC obligations are always mandatory",
@@ -4659,6 +4690,378 @@ class TestRecipeCallerIntegration(unittest.TestCase):
                 result_section,
                 f"{workflow}/validate.md Result must prevent provisional "
                 f"override of current verification method")
+
+
+class TestMandatoryClassificationRegexRobustness(unittest.TestCase):
+    """Counter-regressions for the OD-1 mandatory-classification regex.
+
+    The old regex ``r'\\bauthoritative\\b[\\s\\S]*\\bnon-TC qualification
+    gates\\b'`` was a false positive: it matched when "authoritative"
+    appeared only in the TC clause ("source-verified authoritative TCs")
+    and "non-TC qualification gates" appeared later — borrowing the
+    adjective from the wrong entry. The fixed regex requires adjacency.
+    """
+
+    def test_old_regex_false_positive_tc_clause_only(self):
+        """Old regex matches a paragraph with authoritative only in TC
+        clause (no authoritative gate entry) — proves the old matcher
+        was broken."""
+        import re
+        # Paragraph has "authoritative TCs" but NOT
+        # "authoritative non-TC qualification gates" — the gate
+        # phrase uses lowercase "non-TC" to match actual docs.
+        bad_paragraph = (
+            "Mandatory entries are: source-verified authoritative TCs, "
+            "effectively confirmed retained TCs, and all current AC "
+            "obligations. Unconfirmed non-TC qualification gates are "
+            "tracked but not listed here."
+        )
+        # Old regex (greedy [\s\S]*) matches — FALSE POSITIVE
+        # because "authoritative" from TC clause reaches across to
+        # "non-TC qualification gates" in the unconfirmed clause.
+        old_match = re.search(
+            r'\bauthoritative\b[\s\S]*\bnon-TC qualification gates\b',
+            bad_paragraph)
+        self.assertIsNotNone(old_match,
+                             "Old regex should match (proving it was broken)")
+        # New regex (adjacent) does NOT match — correct
+        new_match = re.search(
+            r'\bauthoritative\s+non-TC\s+qualification\s+gates\b',
+            bad_paragraph)
+        self.assertIsNone(new_match,
+                          "New regex must not match when authoritative "
+                          "is only in TC clause")
+
+    def test_old_regex_false_positive_confirmed_tc_clause_only(self):
+        """Old regex matches 'confirmed' from TC clause, not gate entry."""
+        import re
+        bad_paragraph = (
+            "Mandatory entries are: source-verified authoritative TCs, "
+            "effectively confirmed retained TCs, and all current AC "
+            "obligations. Unconfirmed non-TC qualification gates are "
+            "provisional."
+        )
+        old_match = re.search(
+            r'\bconfirmed\b[\s\S]*\bnon-TC qualification gates\b',
+            bad_paragraph)
+        self.assertIsNotNone(old_match,
+                             "Old regex should match (proving it was broken)")
+        new_match = re.search(
+            r'\bconfirmed\s+retained\s+non-TC\s+qualification\s+gates\b',
+            bad_paragraph)
+        self.assertIsNone(new_match,
+                          "New regex must not match when confirmed "
+                          "is only in TC clause")
+
+    def test_new_regex_passes_actual_docs(self):
+        """New regex matches both actual validate.md files."""
+        import re
+        repo_root = Path(__file__).resolve().parent.parent.parent
+        for workflow in ("e2e", "implement"):
+            path = repo_root / workflow / "skills" / "validate.md"
+            content = path.read_text()
+            mand_pos = content.find("Mandatory entries are:")
+            self.assertGreater(mand_pos, 0)
+            mand_end_nl = content.find("\n\n", mand_pos)
+            mand_end = mand_end_nl if mand_end_nl > mand_pos else len(content)
+            mand_paragraph = content[mand_pos:mand_end]
+            self.assertRegex(
+                mand_paragraph,
+                r'\bauthoritative\s+non-TC\s+qualification\s+gates\b',
+                f"{workflow}: actual docs must pass new authoritative regex")
+            self.assertRegex(
+                mand_paragraph,
+                r'\bconfirmed\s+retained\s+non-TC\s+qualification\s+gates\b',
+                f"{workflow}: actual docs must pass new confirmed regex")
+
+    def test_keywords_outside_mandatory_paragraph_no_match(self):
+        """Authoritative/confirmed keywords in unrelated text don't match."""
+        import re
+        unrelated = (
+            "The authoritative source is the design document. "
+            "User-confirmed TCs are listed below. "
+            "Some non-TC qualification gates may apply."
+        )
+        self.assertIsNone(
+            re.search(
+                r'\bauthoritative\s+non-TC\s+qualification\s+gates\b',
+                unrelated),
+            "Unrelated text must not match authoritative gate regex")
+        self.assertIsNone(
+            re.search(
+                r'\bconfirmed\s+retained\s+non-TC\s+qualification\s+gates\b',
+                unrelated),
+            "Unrelated text must not match confirmed gate regex")
+
+
+class TestGuardBeforeZeroDeletionContract(unittest.TestCase):
+    """Static contract: unknown-gate-relevance guard appears BEFORE
+    zero/deletion instructions in both Step 6 consumer sections.
+
+    Verifies the instruction ordering in the actual source files —
+    the guard must be checked before any outcome selects zero or
+    deletes a prior plan. Static section-order check, not live agent."""
+
+    def _repo_root(self):
+        return Path(__file__).resolve().parent.parent.parent
+
+    def test_e2e_ingest_guard_before_delete(self):
+        """e2e/ingest.md: gate relevance check before delete instruction."""
+        text = (self._repo_root() /
+                "e2e/skills/ingest.md").read_text(encoding="utf-8")
+        # Use a search string that avoids apostrophe encoding variants
+        guard_pos = text.find("relevance was established")
+        delete_pos = text.find("delete it. A stale story-scoped")
+        self.assertGreater(guard_pos, 0,
+                           "Must have gate relevance guard")
+        self.assertGreater(delete_pos, 0,
+                           "Must have delete instruction")
+        self.assertLess(guard_pos, delete_pos,
+                        "Gate relevance guard must appear BEFORE "
+                        "delete instruction in e2e/ingest.md")
+
+    def test_implement_ingest_guard_before_outcome_table(self):
+        """implement/ingest.md: gate relevance guard before zero outcome rows."""
+        text = (self._repo_root() /
+                "implement/skills/ingest.md").read_text(encoding="utf-8")
+        # Use the guard’s heading phrase which is on a single line
+        guard_pos = text.find("Unknown gate relevance guard")
+        # The outcome table’s Expected zero row with deletion
+        zero_del_pos = text.find("delete stale story testplan if present")
+        self.assertGreater(guard_pos, 0,
+                           "Must have gate relevance guard")
+        self.assertGreater(zero_del_pos, 0,
+                           "Must have zero-outcome deletion row")
+        self.assertLess(guard_pos, zero_del_pos,
+                        "Gate relevance guard must appear BEFORE "
+                        "zero-outcome deletion row in implement/ingest.md")
+
+
+class TestCheckedAbsenceClearsUnresolved(unittest.TestCase):
+    """Static contract: checked absence explicitly clears stale
+    Source-Discovery: unresolved markers in both ingest files.
+
+    A genuinely successful checked absence (resolver exits zero, no
+    artifacts found) should clear a stale unresolved marker from a
+    prior failed ingest while retaining Freshness: unverified."""
+
+    def _repo_root(self):
+        return Path(__file__).resolve().parent.parent.parent
+
+    def test_e2e_ingest_clears_stale_marker(self):
+        """e2e/ingest.md checked-absence section clears stale marker."""
+        text = (self._repo_root() /
+                "e2e/skills/ingest.md").read_text(encoding="utf-8")
+        checked_pos = text.find("**Checked absence")
+        self.assertGreater(checked_pos, 0,
+                           "Must have checked absence section")
+        # Find the next major section after checked absence
+        next_section = text.find("**Resolution failure (distinct", checked_pos)
+        if next_section < 0:
+            next_section = len(text)
+        checked_section = text[checked_pos:next_section]
+        self.assertIn("remove it", checked_section,
+                      "Checked absence must explicitly remove stale "
+                      "Source-Discovery: unresolved marker")
+        self.assertIn("supersedes", checked_section,
+                      "Checked absence must state current check "
+                      "supersedes prior failure")
+
+    def test_implement_ingest_clears_stale_marker(self):
+        """implement/ingest.md checked-absence section clears stale marker."""
+        text = (self._repo_root() /
+                "implement/skills/ingest.md").read_text(encoding="utf-8")
+        # implement ingest checked absence starts with "source location
+        # was checked successfully"
+        checked_pos = text.find("source location was checked successfully")
+        self.assertGreater(checked_pos, 0,
+                           "Must have checked absence section")
+        # Get paragraph (up to next double newline)
+        end_pos = text.find("\n\n", checked_pos)
+        if end_pos < 0:
+            end_pos = len(text)
+        checked_section = text[checked_pos:end_pos]
+        self.assertIn("remove it", checked_section,
+                      "Checked absence must explicitly remove stale "
+                      "Source-Discovery: unresolved marker")
+        self.assertIn("supersedes", checked_section,
+                      "Checked absence must state current check "
+                      "supersedes prior failure")
+
+    def test_e2e_ingest_retains_freshness_unverified(self):
+        """Checked absence retains Freshness: unverified even after clearing
+        Source-Discovery: unresolved."""
+        text = (self._repo_root() /
+                "e2e/skills/ingest.md").read_text(encoding="utf-8")
+        checked_pos = text.find("**Checked absence")
+        next_section = text.find("**Resolution failure (distinct", checked_pos)
+        if next_section < 0:
+            next_section = len(text)
+        checked_section = text[checked_pos:next_section]
+        self.assertIn("Freshness: unverified", checked_section,
+                      "Checked absence must retain Freshness: unverified")
+
+    def test_failure_retains_source_discovery_unresolved(self):
+        """Resolution failure retains Source-Discovery: unresolved
+        (does NOT clear it)."""
+        text = (self._repo_root() /
+                "e2e/skills/ingest.md").read_text(encoding="utf-8")
+        failure_pos = text.find(
+            "**Resolution failure (distinct from checked absence)")
+        self.assertGreater(failure_pos, 0,
+                           "Must have resolution failure section")
+        end_pos = text.find("\n\n", failure_pos + 10)
+        if end_pos < 0:
+            end_pos = len(text)
+        failure_section = text[failure_pos:end_pos]
+        self.assertIn("Source-Discovery:", failure_section,
+                      "Resolution failure must reference Source-Discovery")
+        self.assertIn("unresolved", failure_section,
+                      "Resolution failure must set unresolved state")
+
+
+class TestWriteBeforeStep10Contract(unittest.TestCase):
+    """Static contract: validation report is written BEFORE Step 10
+    (present results) in both validate.md files."""
+
+    def _repo_root(self):
+        return Path(__file__).resolve().parent.parent.parent
+
+    def test_e2e_validate_write_before_present(self):
+        """e2e/validate.md: Step 8 (Write) appears before Step 9 (Present)."""
+        text = (self._repo_root() /
+                "e2e/skills/validate.md").read_text(encoding="utf-8")
+        write_pos = text.find("### Step 8: Write Validation Report")
+        present_pos = text.find("### Step 9: Present Results")
+        self.assertGreater(write_pos, 0, "Must have write step")
+        self.assertGreater(present_pos, 0, "Must have present step")
+        self.assertLess(write_pos, present_pos,
+                        "Write must come before Present")
+
+    def test_implement_validate_write_before_present(self):
+        """implement/validate.md: Step 9 (Write) before Step 10 (Present)."""
+        text = (self._repo_root() /
+                "implement/skills/validate.md").read_text(encoding="utf-8")
+        write_pos = text.find("### Step 9: Write Validation Report")
+        present_pos = text.find("### Step 10: Present Results")
+        self.assertGreater(write_pos, 0, "Must have write step")
+        self.assertGreater(present_pos, 0, "Must have present step")
+        self.assertLess(write_pos, present_pos,
+                        "Write must come before Present")
+
+
+class TestGapFillResolvedDiscoveryContract(unittest.TestCase):
+    """Static contract: both validators' gap-fill item 3 must require
+    resolved source discovery before authorizing positive gap-fill writes.
+
+    The numbered gap-fill procedure (starting at "If any automatable TC ID
+    lacks a corresponding test") must:
+      1. Check Source-Discovery: unresolved BEFORE the positive write branch
+      2. Include "resolved source discovery" in the positive write branch
+
+    Without this, a plan with unresolved discovery could reach the positive
+    write branch and produce normative gap-fill tests for TCs whose source
+    authority is unknown."""
+
+    _VALIDATORS = [
+        ("e2e", "e2e/skills/validate.md"),
+        ("implement", "implement/skills/validate.md"),
+    ]
+
+    def _repo_root(self):
+        return Path(__file__).resolve().parent.parent.parent
+
+    def _gapfill_section(self, workflow_path):
+        """Extract the gap-fill item 3 section from a validate.md file."""
+        content = (self._repo_root() / workflow_path).read_text()
+        marker = "If any automatable TC ID lacks a corresponding test"
+        start = content.find(marker)
+        self.assertGreater(start, 0,
+                           f"{workflow_path}: must have gap-fill section")
+        # Section ends at the next numbered item ("4. ")
+        end_marker = content.find("\n4. ", start)
+        if end_marker < 0:
+            end_marker = start + 2000
+        return content[start:end_marker]
+
+    def test_gapfill_source_discovery_before_positive_write(self):
+        """Both validators: Source-Discovery: unresolved check must
+        appear in gap-fill item 3 before the positive write branch."""
+        for name, path in self._VALIDATORS:
+            with self.subTest(workflow=name):
+                section = self._gapfill_section(path)
+                sd_pos = section.find("Source-Discovery: unresolved")
+                positive_pos = section.find(
+                    "effectively confirmed TCs or verified-source TCs")
+                self.assertGreater(
+                    sd_pos, 0,
+                    f"{name}: gap-fill item 3 must check "
+                    f"Source-Discovery: unresolved")
+                self.assertGreater(
+                    positive_pos, 0,
+                    f"{name}: gap-fill item 3 must have positive "
+                    f"write branch")
+                self.assertLess(
+                    sd_pos, positive_pos,
+                    f"{name}: Source-Discovery check must come before "
+                    f"positive gap-fill write branch")
+
+    def test_gapfill_positive_branch_requires_resolved_discovery(self):
+        """Both validators: positive write branch must include explicit
+        resolved source discovery condition."""
+        for name, path in self._VALIDATORS:
+            with self.subTest(workflow=name):
+                section = self._gapfill_section(path)
+                # Find the positive write branch
+                branch_start = section.find(
+                    "effectively confirmed TCs or verified-source TCs")
+                self.assertGreater(branch_start, 0)
+                # Extract just the positive write branch bullet
+                branch_text = section[branch_start:branch_start + 200]
+                self.assertIn(
+                    "resolved source discovery",
+                    branch_text,
+                    f"{name}: positive write branch must require "
+                    f"'resolved source discovery'")
+
+    def test_old_implement_text_fails_discovery_check(self):
+        """Counter-regression: the OLD implement gap-fill item 3 text
+        (before this fix) lacked both checks — proves the regression
+        test catches the defect."""
+        old_implement_gapfill = (
+            "If any automatable TC ID lacks a corresponding test:\n"
+            "   - If the TC is NOT effectively confirmed (see criteria "
+            "above:\n"
+            "     hash present + current story-scoped testplan hash "
+            "matches\n"
+            "     recorded hash + TC ID in confirmed list) AND "
+            "`testplan.md`\n"
+            "     contains `Freshness: unverified`, do NOT write tests "
+            "for the\n"
+            "     missing TCs. Report the gap as provisional.\n"
+            "   - For effectively confirmed TCs or verified-source TCs: "
+            "write\n"
+            "     the missing test following contract-based testing "
+            "standards.\n"
+            "     These TCs are normative."
+        )
+        # Old text lacks Source-Discovery check — RED
+        sd_pos = old_implement_gapfill.find(
+            "Source-Discovery: unresolved")
+        self.assertEqual(
+            sd_pos, -1,
+            "Old text must NOT have Source-Discovery check "
+            "(proves regression catches defect)")
+        # Old text lacks resolved discovery qualifier — RED
+        positive_start = old_implement_gapfill.find(
+            "effectively confirmed TCs or verified-source TCs")
+        branch_text = old_implement_gapfill[
+            positive_start:positive_start + 200]
+        self.assertNotIn(
+            "resolved source discovery",
+            branch_text,
+            "Old text must NOT have resolved discovery qualifier "
+            "(proves regression catches defect)")
 
 
 if __name__ == "__main__":

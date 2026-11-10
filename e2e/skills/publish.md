@@ -122,9 +122,11 @@ Verify readiness:
    - `has_uncommitted`, `has_staged`, `has_untracked` — if any are `true`,
      ask the user how to proceed (commit, stash, or include untracked files).
      If the user commits those changes, the existing validation report's
-     identity binding is now stale — re-run `/validate` and require an
-     unqualified `Overall: PASS` whose identity matches the new HEAD
-     before continuing.
+     identity binding is now stale. **Stop the `/publish` phase** and tell
+     the user to run `/validate` on the clean committed state to produce a
+     fresh validation report bound to the new HEAD. After `/validate`
+     completes with an unqualified `Overall: PASS`, the user must restart
+     `/publish` from Step 1.
 
 ### Step 2: Cross-Cutting Review
 

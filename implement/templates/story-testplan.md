@@ -81,9 +81,9 @@ Evidence status values: `not-started`, `pending`, `verified`, `failed`.
  qualification gates, regardless of whether TC sections also exist.
  Omit this section entirely when no non-TC qualification gates apply.}
 
-| Gate | Requirement | Source | Type | Required Evidence | Reviewer | Status |
-|------|-------------|--------|------|-------------------|----------|--------|
-| {gate-heading} | {requirement-id} | {source-filename} | {gate-type} | {what must be produced} | {designated reviewer or "unassigned"} | not-started |
+| Gate | Requirement | Interface Changes | Source | Type | Required Evidence | Reviewer | Status |
+|------|-------------|-------------------|--------|------|-------------------|----------|--------|
+| {gate-heading} | {requirement-id} | {IC IDs from source or "not specified in source — clarification needed"} | {source-filename} | {gate-type} | {what must be produced} | {designated reviewer or "unassigned"} | not-started |
 
 {For gate-only plans (zero TC sections), this is the only content
  section. For mixed plans (TC sections above plus gates), this

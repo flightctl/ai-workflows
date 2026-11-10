@@ -181,6 +181,13 @@ not part of the contributing-story inventory.
 
 **If validation artifacts exist:**
 
+Use the Step 1 validated artifact set only when the artifacts,
+index, and design context are unchanged since Step 1. If the user
+edited artifacts, added or removed files, or changed the design
+document between Step 1 and Step 4, re-resolve before reading or
+mutating — do not reuse a cached set that may not reflect current
+state. When uncertain whether inputs changed, re-resolve.
+
 Resolve the validation index **before** reading any artifact files.
 Use the CLI helper to validate and resolve paths:
 
@@ -197,12 +204,6 @@ file — the resolver already handles legacy layouts (a valid
 paths from the returned array. If the result is an empty array
 `[]`, no validation artifacts exist. If the command exits non-zero,
 stop and report the error.
-
-Use the Step 1 validated artifact set only when the inputs and
-context are unchanged. If the user edited artifacts, added or
-removed files, or changed the design document between Step 1 and
-Step 4, re-resolve before mutating — do not reuse a cached set
-that may not reflect current state.
 
 For **each** validation artifact (primary testplan and any companions):
 - Before modifying any test cases, record the IC and requirement

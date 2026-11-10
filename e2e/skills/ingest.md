@@ -334,24 +334,55 @@ resolution or index validation is not confirmed absence.
 
 For valid-source filtered-zero outcomes (expected zero or anomalous
 zero where the source was successfully read and no TCs or gates
-matched the story's scope): if `.artifacts/e2e/{issue-key}/testplan.md`
-exists from a prior ingest run, delete it. A stale story-scoped
-testplan whose source was verified to contain no matching content
-would cause downstream gates to enforce obsolete coverage requirements.
+matched the story's scope): first, verify that every gate's
+relevance was established — i.e., each gate had sufficient
+requirement or IC mappings to determine overlap (or lack thereof)
+with the story's scope. If any gate has unknown relevance (its
+requirement and IC mappings are both missing or marked
+"clarification needed"), the outcome is not a confirmed zero.
+In that case, retain the prior testplan with
+`Freshness: unverified` and request clarification on the unmapped
+gate's applicability in the ingest handoff rather than deleting
+evidence whose relevance could not be assessed. Only after
+confirming that all gates have known relevance (or no gates
+exist): if `.artifacts/e2e/{issue-key}/testplan.md` exists from a
+prior ingest run, delete it. A stale story-scoped testplan whose
+source was verified to contain no matching content would cause
+downstream gates to enforce obsolete coverage requirements.
 
 Source absence, resolution failure, or unreadable/invalid source
-**never** authorizes deletion of a prior plan. If the source location
-was checked and no validation artifacts were found (neither
-`validation-index.json` nor `testplan.md` in the docs repo), or if
-resolution failed, retain any existing prior story testplan as
-unverified. Mark it `Freshness: unverified` and
-`Source-Discovery: unresolved` and emit a warning: "Source testplan
-not found — retained story testplan marked as unverified. `/plan` and
-`/validate` should treat its TC coverage requirements as provisional
-until the upstream source is available." If no prior testplan exists,
-note "No feature-level testplan available" and continue. This is not
-an error — the testplan is a newer feature and older designs may not
-have one.
+**never** authorizes deletion of a prior plan.
+
+**Checked absence (resolver succeeds with no artifacts).** If the
+source location was checked successfully (resolver exited zero) and
+no validation artifacts were found (neither `validation-index.json`
+nor `testplan.md` in the docs repo), this is checked absence — source
+discovery succeeded but found nothing. If a story-level testplan
+already exists from a prior ingest, retain it and mark it
+`Freshness: unverified` but do NOT set `Source-Discovery: unresolved`
+— the source was successfully checked, not unresolvable. If the
+retained testplan already contains a `Source-Discovery: unresolved`
+marker from an earlier failed ingest, remove it — the current
+successful check supersedes the prior failure. The retained plan
+keeps `Freshness: unverified` (the TCs are still unverified) but
+source discovery is no longer unresolved. Emit a
+warning: "Source testplan not found — retained story testplan marked
+as unverified. `/plan` and `/validate` should treat its TC coverage
+requirements as provisional until the upstream source is available."
+If no prior testplan exists, note "No feature-level testplan
+available" and continue. This is not an error — the testplan is a
+newer feature and older designs may not have one.
+
+**Resolution failure (distinct from checked absence).** If the
+source location could not be checked (resolver exited non-zero,
+source location was malformed, listed artifacts were missing or
+unreadable, or the index was present but invalid), retain any
+existing prior story testplan as unverified. Mark it
+`Freshness: unverified` AND `Source-Discovery: unresolved` and emit
+a warning including the failure reason. The `Source-Discovery:
+unresolved` marker is appropriate here because the inspection itself
+failed — new TCs, gates, or requirements may exist that were not
+discovered.
 
 When writing the story testplan from matches across multiple artifacts,
 include all matched TCs in a single `testplan.md` with a Source line
@@ -441,9 +472,9 @@ Write `.artifacts/e2e/{issue-key}/testplan.md`:
  section follows the TC sections. Omit entirely when no non-TC
  qualification gates apply.}
 
-| Gate | Requirement | Source | Type | Required Evidence | Reviewer | Status |
-|------|-------------|--------|------|-------------------|----------|--------|
-| {gate-heading} | {req-id} | {source-file} | {gate-type} | {evidence} | {reviewer or "unassigned"} | not-started |
+| Gate | Requirement | Interface Changes | Source | Type | Required Evidence | Reviewer | Status |
+|------|-------------|-------------------|--------|------|-------------------|----------|--------|
+| {gate-heading} | {req-id} | {IC IDs from source or "not specified in source — clarification needed"} | {source-file} | {gate-type} | {evidence} | {reviewer or "unassigned"} | not-started |
 ```
 
 Each test case becomes an H2 heading with the same structure as the
