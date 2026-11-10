@@ -41,16 +41,23 @@ The script provides subcommands: `preflight`, `push`, `check-existing`,
 
 ### Prerequisites: Resolve Script Paths
 
-Before running any subcommands, resolve both shared scripts to absolute
-paths so they remain valid regardless of working directory:
+Before running any subcommands, resolve both scripts to absolute paths.
+
+The publish script uses the existing shared convention:
 
 ```bash
 PUBLISH_SCRIPT="${HOME}/.ai-workflows/_shared/scripts/publish.py"
-GATE_SCRIPT="${HOME}/.ai-workflows/implement/scripts/validation_gate.py"
 ```
 
-Use `$PUBLISH_SCRIPT` and `$GATE_SCRIPT` in all subsequent commands. If
-either script is not available, stop and report an installation problem.
+The gate script belongs to this loaded workflow package. Resolve it
+relative to this skill file's location (`../scripts/validation_gate.py`
+from `skills/publish.md`), following symlinks to find the actual
+installed path. Substitute the resolved literal absolute path into
+each shell call — do not rely on a shell variable surviving across
+agent calls. If the script is not at the resolved path, stop and
+report an installation problem.
+
+If either script is not available, stop before proceeding.
 
 ### Step 1: Pre-Flight Checks
 
@@ -70,7 +77,7 @@ Verify readiness:
    conditions must pass:
 
    ```bash
-   python3 "$GATE_SCRIPT" --report .artifacts/implement/{issue-key}/05-validation-report.md
+   python3 {gate-script-path} --report .artifacts/implement/{issue-key}/05-validation-report.md
    ```
 
    If exit code is 1, report the JSON failure reason. For a dirty
@@ -185,7 +192,7 @@ Confirm with the user before proceeding.
 Immediately before pushing, re-run the validation freshness gate:
 
 ```bash
-python3 "$GATE_SCRIPT" --report .artifacts/implement/{issue-key}/05-validation-report.md
+python3 {gate-script-path} --report .artifacts/implement/{issue-key}/05-validation-report.md
 ```
 
 If exit code is 1 (gate failure), use the same failure-specific
@@ -269,7 +276,7 @@ re-invoking `/publish` from Step 1 with fresh checks and user
 confirmation — do not infer the SHA from HEAD or the remote:
 
 ```bash
-python3 "$GATE_SCRIPT" \
+python3 {gate-script-path} \
   --report .artifacts/implement/{issue-key}/05-validation-report.md \
   --expected-sha {literal-pushed-sha} \
   --remote origin \

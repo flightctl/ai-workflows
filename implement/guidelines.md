@@ -79,12 +79,14 @@ resolves the conflict. Neither phase may modify Jira.
 - **Deviation transparency.** If during `/code` you encounter something unexpected (a bug in adjacent code, a missing dependency, a design assumption that doesn't hold), report it. Apply deviation rules (see `skills/code.md`) but never silently change approach.
 - Flag assumptions explicitly. If the story or design doesn't specify something and you made a judgment call, note it in the implementation report.
 - **Artifact outputs must be excluded from version control.** Before
-  writing any artifact file, verify that its exact output path is
-  gitignored (`git check-ignore -- {output-file-path}` exits 0). If
-  not, stop and explain that the project must exclude the path (via
-  `.gitignore` or a local exclude) before the workflow can write
-  there — do not auto-edit ignore files, commit artifacts, or
-  path-exempt unignored outputs.
+  `/validate` or `/publish` writes a report or PR description, verify
+  its exact output path is gitignored (`git check-ignore --
+  {output-file-path}` exits 0). If not, stop and explain that the
+  project must exclude the path (via `.gitignore` or local exclude)
+  before writing — do not auto-edit ignore files, commit artifacts,
+  or path-exempt unignored outputs. `/ingest` retains its existing
+  warn-only behavior for artifact directory setup; unignored outputs
+  still block at the validation and publication gates.
 
 ## Quality
 

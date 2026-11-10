@@ -1245,6 +1245,99 @@ class TestPreExistingDetection(unittest.TestCase):
         self.addCleanup(shutil.rmtree, sub_src, ignore_errors=True)
         self.addCleanup(shutil.rmtree, sub_work, ignore_errors=True)
 
+    def test_directory_target_blocks_dirty_descendant(self):
+        """Target 'assets' replacing a directory blocks on dirty
+        'assets/draft.txt' (bidirectional prefix). Mechanism test."""
+        os.makedirs("assets", exist_ok=True)
+        with open("assets/draft.txt", "w") as f:
+            f.write("user draft\n")
+        subprocess.run(["git", "add", "assets/draft.txt"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "add draft"],
+                       check=True, capture_output=True)
+        with open("assets/draft.txt", "w") as f:
+            f.write("modified draft\n")
+        out = subprocess.run(
+            ["git", "status", "--porcelain", "-z",
+             "--untracked-files=all", "--ignore-submodules=none"],
+            capture_output=True, check=True).stdout
+        paths = parse_status_z(out)
+        # Target "assets" is prefix of dirty "assets/draft.txt"
+        target = "assets"
+        blocked = any(
+            p == target or p.startswith(target + "/") or
+            target.startswith(p + "/")
+            for p in paths)
+        self.assertTrue(blocked, "dirty descendant should block directory target")
+        # "assetsv2" must NOT collide
+        self.assertFalse(any(
+            p == "assetsv2" or p.startswith("assetsv2/") or
+            "assetsv2".startswith(p + "/")
+            for p in paths))
+
+    def test_check_ignore_submodule_error(self):
+        """git check-ignore exits 128 for paths inside submodule.
+        Review.md Step 3.2b must stop on this error. Mechanism test."""
+        sub_src = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, sub_src, ignore_errors=True)
+        subprocess.run(["git", "init", "--bare", sub_src],
+                       check=True, capture_output=True)
+        sub_work = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, sub_work, ignore_errors=True)
+        subprocess.run(["git", "init", sub_work],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "-C", sub_work, "config",
+                        "user.email", "t@t"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "-C", sub_work, "config",
+                        "user.name", "T"],
+                       check=True, capture_output=True)
+        with open(os.path.join(sub_work, "f.txt"), "w") as f:
+            f.write("x\n")
+        # Add ignore rule inside submodule
+        with open(os.path.join(sub_work, ".gitignore"), "w") as f:
+            f.write("*.log\n")
+        subprocess.run(["git", "-C", sub_work, "add", "."],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "-C", sub_work, "commit", "-m", "init"],
+                       check=True, capture_output=True)
+        branch = subprocess.run(
+            ["git", "-C", sub_work, "branch", "--show-current"],
+            capture_output=True, text=True, check=True).stdout.strip()
+        subprocess.run(["git", "-C", sub_work, "config",
+                        "protocol.file.allow", "always"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "-C", sub_work, "remote", "add",
+                        "origin", sub_src],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "-C", sub_work, "push", "origin", branch],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "-C", self.repo, "submodule", "add",
+                        sub_src, "cleansub"],
+                       check=True, capture_output=True, env=_FILE_ENV)
+        subprocess.run(["git", "commit", "-m", "add cleansub"],
+                       check=True, capture_output=True)
+        # Create an ignored file inside the clean submodule
+        with open(os.path.join(self.repo, "cleansub", "user.log"), "w") as f:
+            f.write("user data\n")
+        # Superproject status is clean (submodule not dirty)
+        out = subprocess.run(
+            ["git", "status", "--porcelain", "-z",
+             "--untracked-files=all", "--ignore-submodules=none"],
+            capture_output=True, check=True).stdout
+        paths = parse_status_z(out)
+        self.assertNotIn("cleansub/user.log", paths,
+                          "ignored file in clean submodule not in outer status")
+        # check-ignore exits 128 (not 0 or 1)
+        r = subprocess.run(
+            ["git", "check-ignore", "--", "cleansub/user.log"],
+            capture_output=True, text=True)
+        self.assertEqual(r.returncode, 128,
+                         "check-ignore should error on submodule path")
+        # User bytes untouched
+        with open(os.path.join(self.repo, "cleansub", "user.log")) as f:
+            self.assertEqual(f.read(), "user data\n")
+
     def test_ignored_dangling_symlink_detected(self):
         """An existing ignored dangling symlink is detected by lexical
         existence (os.path.lexists), not os.path.exists which returns

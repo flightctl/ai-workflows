@@ -393,12 +393,15 @@ the worktree is clean (`git status --porcelain -z
 - Dirty worktree: stop, report paths, no PASS/auto-stage/commit.
 - HEAD differs from `PASS_START_HEAD` (fixes committed this pass):
   decrement `PIPELINE_ROUNDS_REMAINING` once. At zero → stop FLAG.
-  Otherwise return to Step 3 (counter not reset; earlier passes not
-  re-counted).
-- HEAD unchanged and clean: write PASS for this exact SHA.
+  Otherwise return to Step 3 (counter not reset; earlier passes
+  not re-counted).
+- HEAD unchanged and clean, all mandatory checks passed (Steps 4–7),
+  all AC satisfied with evidence (manual-pending is not satisfied;
+  write FLAG, stop): write PASS. Prior PASS with unverified AC →
+  overwrite with FLAG.
 
-Example: budget 3. Pass 1 fixes → 2, return. Pass 2 fixes → 1.
-Pass 3 clean → PASS (no decrement).
+Example: budget 3; pass 1 fixes → 2; pass 2 fixes → 1; pass 3
+clean+verified → PASS.
 
 Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
 
@@ -462,9 +465,8 @@ Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
 |----|-------------|----------------|-------|--------|
 | AC-1 | {brief} | {file:line or commit} | {test file:test name} | {satisfied/partial/not addressed/manual verification} |
 
-{If all satisfied: "All acceptance criteria verified."
- If any gaps: describe what's missing and what was done about it.
- If any require manual verification: list them with rationale.}
+{All satisfied → "All acceptance criteria verified."
+ Gaps/manual pending → describe; report cannot claim PASS.}
 
 ## Test Plan Verification
 

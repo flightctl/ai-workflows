@@ -132,10 +132,14 @@ For an in-scope change with no unresolved conflicts:
 2. **Pre-edit isolation check.** Before making any edits:
 
    a. Compare every target path against the pre-existing paths from
-      Step 1: exact path match, or any recorded pre-existing path is a
-      path-component prefix of the target (e.g., a dirty submodule root
-      `mysub` blocks target `mysub/file.go`, but `foo` does not block
-      `foobar`). Include both sides of renames.
+      Step 1 in both directions: exact path match, a pre-existing path
+      is a path-component prefix of the target (dirty `mysub` blocks
+      `mysub/file.go`), OR the target is a path-component prefix of a
+      pre-existing path (target `assets` replacing a directory would
+      clobber dirty `assets/draft.txt`). Use path-component boundaries
+      (`/`), not string prefix (`foo` does not match `foobar`). Include
+      both sides of renames. If a directory target has pre-existing
+      descendants, stop — expand to explicit files or ask the user.
 
    b. Check for existing ignored files at target paths:
 
@@ -152,7 +156,11 @@ For an in-scope change with no unresolved conflicts:
       correctly excludes tracked files) and is safe to edit. A
       nonexistent path matching an ignore pattern is not pre-existing
       user data, though a later `git add` failure must be reported
-      honestly without `--force`.
+      honestly without `--force`. If `git check-ignore` exits with an
+      error (exit code other than 0 or 1, e.g., 128 for paths inside
+      a submodule), stop and report the error — do not treat the error
+      as "not ignored." For targets inside a submodule, the
+      superproject cannot verify ignored status; ask the user.
 
    If any check finds a conflict, **stop and report** before editing.
    Explain which paths conflict and how to resolve (handle the
