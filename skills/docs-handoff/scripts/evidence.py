@@ -120,7 +120,15 @@ def validate_url(url: str, label: str = "url") -> str:
     if parsed.port is not None:
         raise ValueError(f"{label}: explicit port not supported for PR URLs")
 
-    normalized = url.rstrip("/")
+    # Canonical form: lowercase scheme+host, preserve path case
+    scheme = parsed.scheme.lower()
+    host = parsed.hostname  # lowered per RFC by urlsplit
+    rest = parsed.path
+    if parsed.query:
+        rest += f"?{parsed.query}"
+    if parsed.fragment:
+        rest += f"#{parsed.fragment}"
+    normalized = f"{scheme}://{host}{rest}".rstrip("/")
     return normalized
 
 
@@ -134,9 +142,13 @@ def validate_pr_url(url: str, label: str = "pr_url") -> str:
     """
     normalized = validate_url(url, label)
     parsed = urlsplit(normalized)
-    # Reconstruct with only scheme + authority + path (strip query/fragment)
+    # PR URLs require HTTPS — http is accepted by validate_url for
+    # generic URLs but not for forge PR/MR pages
+    if parsed.scheme != "https":
+        raise ValueError(f"{label}: PR URLs require https scheme")
+    # Reconstruct with only scheme + host + path (strip query/fragment)
     clean_path = parsed.path.rstrip("/")
-    clean = f"{parsed.scheme}://{parsed.netloc}{clean_path}"
+    clean = f"{parsed.scheme}://{parsed.hostname}{clean_path}"
 
     # Verify the path matches a supported PR/MR structure
     if not (_GITHUB_PR_PATH.match(clean_path)
@@ -544,8 +556,14 @@ def normalize_evidence(
             continue
 
         target_branch = item.get("target_branch", "")
-        if not isinstance(target_branch, str):
-            target_branch = str(target_branch)
+        if target_branch is None:
+            target_branch = ""
+        elif not isinstance(target_branch, str):
+            errors.append(
+                f"evidence[{i}]: 'target_branch' must be a string "
+                f"or null, got {type(target_branch).__name__}"
+            )
+            continue
 
         # Deduplicate by normalized URL
         if pr_url in seen_urls:
@@ -555,6 +573,19 @@ def normalize_evidence(
             # Merge contributor keys
             if contributor not in existing["contributor_keys"]:
                 existing["contributor_keys"].append(contributor)
+
+            # Backfill missing fields from later records without
+            # discarding existing nonempty data
+            if merged_val is not None and existing["merged"] is None:
+                existing["merged"] = merged_val
+            if target_branch and not existing["target_branch"]:
+                existing["target_branch"] = target_branch
+            if item.get("state") and not existing["state"]:
+                existing["state"] = item["state"]
+            if item.get("title") and not existing["title"]:
+                existing["title"] = item["title"]
+            if item.get("merge_commit") and not existing["merge_commit"]:
+                existing["merge_commit"] = item["merge_commit"]
 
             # Detect contradictory merged state
             if (merged_val is not None
@@ -635,7 +666,7 @@ _ALLOWED_METADATA = {
 # Fields that this skill must NEVER modify.
 _FORBIDDEN_FIELDS = frozenset({
     "summary", "description", "status", "assignee",
-    "sprint", "parent", "labels", "comment",
+    "sprint", "parent", "labels", "comment", "comments",
     "resolution", "priority", "issuetype",
     "reporter", "components", "fixversions",
 })
@@ -683,15 +714,49 @@ def build_change_plan(
     ``pr_links``, ``metadata``, ``findings``, ``source_proposal``,
     ``readiness``, ``plan_digest``.
     """
-    # --- Validate nested shapes rather than trusting flags ---
+    # --- Fail-closed: validate nested shapes, reject malformed ---
     val_errors = validation.get("errors")
     if not isinstance(val_errors, list):
-        val_errors = []
+        return {
+            "status": "invalid_issue",
+            "errors": [
+                "validation.errors is not a list "
+                "(malformed producer output)"
+            ],
+            "issue_key": validation.get("key"),
+            "target": target,
+            "inputs": [],
+            "pr_links": [],
+            "metadata": {},
+            "findings": [],
+            "source_proposal": None,
+            "readiness": None,
+            "plan_digest": "",
+        }
 
     if val_errors:
         return {
             "status": "invalid_issue",
             "errors": val_errors,
+            "issue_key": validation.get("key"),
+            "target": target,
+            "inputs": [],
+            "pr_links": [],
+            "metadata": {},
+            "findings": [],
+            "source_proposal": None,
+            "readiness": None,
+            "plan_digest": "",
+        }
+
+    # valid must be exactly True (not truthy int/string)
+    if validation.get("valid") is not True:
+        return {
+            "status": "invalid_issue",
+            "errors": [
+                "validation.valid is not True "
+                "(exact boolean required)"
+            ],
             "issue_key": validation.get("key"),
             "target": target,
             "inputs": [],
@@ -734,10 +799,41 @@ def build_change_plan(
             "plan_digest": "",
         }
 
-    # Validate evidence shape — errors block eligible operations
-    ev_errors = evidence.get("errors", [])
+    # Fail-closed: evidence must have required producer fields
+    if "errors" not in evidence:
+        return {
+            "status": "invalid_evidence",
+            "errors": [
+                "evidence missing required 'errors' field"
+            ],
+            "issue_key": issue_key,
+            "target": target,
+            "inputs": [],
+            "pr_links": [],
+            "metadata": {},
+            "findings": [],
+            "source_proposal": None,
+            "readiness": None,
+            "plan_digest": "",
+        }
+    ev_errors = evidence["errors"]
     if not isinstance(ev_errors, list):
-        ev_errors = []
+        return {
+            "status": "invalid_evidence",
+            "errors": [
+                "evidence.errors is not a list "
+                "(malformed producer output)"
+            ],
+            "issue_key": issue_key,
+            "target": target,
+            "inputs": [],
+            "pr_links": [],
+            "metadata": {},
+            "findings": [],
+            "source_proposal": None,
+            "readiness": None,
+            "plan_digest": "",
+        }
     if ev_errors:
         return {
             "status": "invalid_evidence",
@@ -997,11 +1093,43 @@ def build_change_plan(
 
     # Profile allowed fields — only from catalog
     if profile and isinstance(profile, dict):
-        for af in profile.get("allowed_fields", []):
+        allowed_fields_raw = profile.get("allowed_fields", [])
+        if not isinstance(allowed_fields_raw, list):
+            findings.append({
+                "type": "forbidden_field",
+                "ref": "allowed_fields",
+                "detail": (
+                    "'allowed_fields' must be a list, "
+                    f"got {type(allowed_fields_raw).__name__}"
+                ),
+            })
+            allowed_fields_raw = []
+        for af in allowed_fields_raw:
             if not isinstance(af, dict):
+                findings.append({
+                    "type": "forbidden_field",
+                    "ref": str(af),
+                    "detail": (
+                        f"allowed_fields entry must be an object, "
+                        f"got {type(af).__name__}"
+                    ),
+                })
                 continue
             field_name = af.get("name", "")
-            if field_name in _FORBIDDEN_FIELDS:
+            if not isinstance(field_name, str) or not field_name.strip():
+                findings.append({
+                    "type": "forbidden_field",
+                    "ref": repr(field_name),
+                    "detail": (
+                        "allowed_fields entry 'name' must be a "
+                        "non-empty string"
+                    ),
+                })
+                continue
+            # Case-insensitive forbidden check — blocks direct raw
+            # Jira field names like fixVersions/FIXVERSIONS and
+            # comment/comments synonyms
+            if field_name.lower() in _FORBIDDEN_FIELDS:
                 findings.append({
                     "type": "forbidden_field",
                     "ref": field_name,
@@ -1022,6 +1150,15 @@ def build_change_plan(
                     "catalog_entry": af.get("catalog_entry"),
                     "before": af.get("before"),
                 }
+            else:
+                findings.append({
+                    "type": "uncatalogued_field",
+                    "ref": field_name,
+                    "detail": (
+                        f"Profile requests field '{field_name}' which "
+                        f"is not in the allowed metadata catalog"
+                    ),
+                })
 
     # --- Readiness (B: independent of delivery, visible gaps) ---
     readiness: dict[str, Any] | None = None
@@ -1273,6 +1410,16 @@ def check_enrichment(
             ),
         }
 
+    # Snapshot fingerprint is mandatory — a plan without one cannot
+    # be applied even if its digest recomputes correctly
+    plan_snapshot_fp = plan.get("snapshot_fingerprint", "")
+    if not isinstance(plan_snapshot_fp, str) or not plan_snapshot_fp:
+        return {
+            **_empty_result,
+            "status": "invalid_plan",
+            "reason": "plan missing snapshot_fingerprint",
+        }
+
     # Verify plan digest integrity (detect tampering)
     recomputed_digest = _fingerprint({
         "issue_key": plan.get("issue_key"),
@@ -1360,34 +1507,33 @@ def check_enrichment(
     # Uses the SAME projection (key, summary, raw description,
     # contributors, dependencies) that build_change_plan froze, so any
     # edit — including outside parsed sections or in the summary — is
-    # detected with zero writes.
-    plan_snapshot_fp = plan.get("snapshot_fingerprint", "")
-    if plan_snapshot_fp:
-        current_description = current_state.get("description")
-        current_summary = current_state.get("summary", "")
-        if current_description is None or not isinstance(
-            current_description, str
-        ):
-            # Fail closed: cannot verify source state without description
+    # detected with zero writes.  plan_snapshot_fp is already validated
+    # as a non-empty string above.
+    current_description = current_state.get("description")
+    current_summary = current_state.get("summary", "")
+    if current_description is None or not isinstance(
+        current_description, str
+    ):
+        # Fail closed: cannot verify source state without description
+        stale = True
+    elif not isinstance(current_summary, str):
+        stale = True
+    else:
+        current_contribs = sorted(
+            _extract_contributing_stories(current_description)
+        )
+        current_deps = sorted(
+            _extract_dependencies(current_description)
+        )
+        fresh_fp = _fingerprint({
+            "key": current_key,
+            "summary": current_summary,
+            "description": current_description,
+            "contributors": current_contribs,
+            "dependencies": current_deps,
+        })
+        if fresh_fp != plan_snapshot_fp:
             stale = True
-        elif not isinstance(current_summary, str):
-            stale = True
-        else:
-            current_contribs = sorted(
-                _extract_contributing_stories(current_description)
-            )
-            current_deps = sorted(
-                _extract_dependencies(current_description)
-            )
-            fresh_fp = _fingerprint({
-                "key": current_key,
-                "summary": current_summary,
-                "description": current_description,
-                "contributors": current_contribs,
-                "dependencies": current_deps,
-            })
-            if fresh_fp != plan_snapshot_fp:
-                stale = True
 
     # Link eligibility
     eligible: list[dict[str, Any]] = []
@@ -1411,7 +1557,7 @@ def check_enrichment(
     forbidden_found: list[str] = []
 
     for field, spec in plan.get("metadata", {}).items():
-        if field in _FORBIDDEN_FIELDS:
+        if field.lower() in _FORBIDDEN_FIELDS:
             forbidden_found.append(field)
             continue
         if field not in _ALLOWED_METADATA:

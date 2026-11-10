@@ -2473,7 +2473,7 @@ class TestWriterDriftRegression(unittest.TestCase):
             "inputs": [],
             "pr_links": [],
             "metadata": {},
-            "snapshot_fingerprint": "",
+            "snapshot_fingerprint": "non-empty-for-digest-test",
             "plan_digest": "",
         }
         r = evidence.check_enrichment(
@@ -2937,6 +2937,775 @@ class TestFixVersionsFailClosed(unittest.TestCase):
         self.assertTrue(em["already_present"])
         payload_ids = {p["id"] for p in em["jira_payload"]["fixVersions"]}
         self.assertEqual(payload_ids, {"7"})
+
+
+# ---------------------------------------------------------------------------
+# Review contracts: PR URL HTTPS-only and canonical casing (R3)
+# ---------------------------------------------------------------------------
+
+class TestPrUrlHttpsAndCasing(unittest.TestCase):
+    """R3: PR URLs require HTTPS; canonical scheme+host lowercase,
+    preserve path case; HTTP rejected not eligible."""
+
+    def test_pr_url_rejects_http(self) -> None:
+        """HTTP PR URL → rejected (HTTPS required for forges)."""
+        with self.assertRaises(ValueError) as ctx:
+            evidence.validate_pr_url(
+                "http://github.example.invalid/org/repo/pull/42"
+            )
+        self.assertIn("https", str(ctx.exception).lower())
+
+    def test_generic_url_allows_http(self) -> None:
+        """Generic validate_url still accepts HTTP."""
+        r = evidence.validate_url(
+            "http://github.example.invalid/org/repo"
+        )
+        self.assertEqual(
+            r, "http://github.example.invalid/org/repo"
+        )
+
+    def test_pr_url_canonical_uppercase_host(self) -> None:
+        """Uppercase host is canonicalized to lowercase."""
+        r = evidence.validate_pr_url(
+            "HTTPS://GITHUB.EXAMPLE.INVALID/org/repo/pull/42"
+        )
+        self.assertEqual(
+            r,
+            "https://github.example.invalid/org/repo/pull/42",
+        )
+
+    def test_canonical_casing_dedup(self) -> None:
+        """Same PR with different host casing → deduplicated."""
+        items = [
+            {
+                "pr_url": (
+                    "https://github.example.invalid/org/repo/pull/1"
+                ),
+                "contributor_key": "TEST-201",
+                "merged": True,
+            },
+            {
+                "pr_url": (
+                    "HTTPS://GITHUB.EXAMPLE.INVALID/org/repo/pull/1"
+                ),
+                "contributor_key": "TEST-202",
+            },
+        ]
+        r = evidence.normalize_evidence(items)
+        self.assertEqual(len(r["items"]), 1)
+        self.assertIn("TEST-201", r["items"][0]["contributor_keys"])
+        self.assertIn("TEST-202", r["items"][0]["contributor_keys"])
+
+    def test_path_case_preserved(self) -> None:
+        """Path case is preserved (only scheme+host lowered)."""
+        r = evidence.validate_pr_url(
+            "https://github.example.invalid/Org/Repo/pull/42"
+        )
+        self.assertIn("/Org/Repo/pull/42", r)
+
+    def test_existing_link_uppercase_host_matches(self) -> None:
+        """Existing Remote Link with uppercase host matches proposed."""
+        snap = _make_docs_snapshot()
+        val = evidence.validate_issue(snap)
+        ev = evidence.normalize_evidence(_make_evidence_items())
+        plan = evidence.build_change_plan(
+            val, ev,
+            {"release": "v1", "target_branch": "main"},
+        )
+        current = {
+            "key": "TEST-100",
+            "summary": snap["summary"],
+            "description": snap["description"],
+            "remote_links": [
+                {
+                    "url": (
+                        "HTTPS://GITHUB.EXAMPLE.INVALID"
+                        "/org/repo/pull/101"
+                    ),
+                },
+            ],
+        }
+        r = evidence.check_enrichment(plan, current)
+        self.assertTrue(
+            len(r["existing_links"]) >= 1,
+            "Uppercase host link should match as existing",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Review contracts: Nullable target_branch (R4)
+# ---------------------------------------------------------------------------
+
+class TestNullableTargetBranch(unittest.TestCase):
+    """R4: JSON null → empty string, non-string → clear error;
+    duplicate backfill without losing data."""
+
+    def test_null_target_branch_becomes_empty(self) -> None:
+        """target_branch: null → empty string, not literal 'None'."""
+        items = [{
+            "pr_url": (
+                "https://github.example.invalid/org/repo/pull/1"
+            ),
+            "contributor_key": "TEST-201",
+            "target_branch": None,
+        }]
+        r = evidence.normalize_evidence(items)
+        self.assertEqual(len(r["items"]), 1)
+        self.assertEqual(r["items"][0]["target_branch"], "")
+        self.assertNotEqual(r["items"][0]["target_branch"], "None")
+
+    def test_non_string_target_branch_rejected(self) -> None:
+        """target_branch: 42 → error."""
+        items = [{
+            "pr_url": (
+                "https://github.example.invalid/org/repo/pull/1"
+            ),
+            "contributor_key": "TEST-201",
+            "target_branch": 42,
+        }]
+        r = evidence.normalize_evidence(items)
+        self.assertEqual(len(r["items"]), 0)
+        self.assertTrue(
+            any("target_branch" in e for e in r["errors"])
+        )
+
+    def test_list_target_branch_rejected(self) -> None:
+        """target_branch: [1, 2] → error."""
+        items = [{
+            "pr_url": (
+                "https://github.example.invalid/org/repo/pull/1"
+            ),
+            "contributor_key": "TEST-201",
+            "target_branch": ["main"],
+        }]
+        r = evidence.normalize_evidence(items)
+        self.assertEqual(len(r["items"]), 0)
+
+    def test_duplicate_backfill_missing_merged(self) -> None:
+        """Later record fills missing merged without conflict."""
+        items = [
+            {
+                "pr_url": (
+                    "https://github.example.invalid/org/repo/pull/1"
+                ),
+                "contributor_key": "TEST-201",
+                "merged": None,
+                "target_branch": "",
+            },
+            {
+                "pr_url": (
+                    "https://github.example.invalid/org/repo/pull/1"
+                ),
+                "contributor_key": "TEST-201",
+                "merged": True,
+                "target_branch": "main",
+                "title": "feat: add widget",
+                "state": "merged",
+                "merge_commit": "abc123",
+            },
+        ]
+        r = evidence.normalize_evidence(items)
+        self.assertEqual(len(r["items"]), 1)
+        item = r["items"][0]
+        self.assertTrue(item["merged"])
+        self.assertEqual(item["target_branch"], "main")
+        self.assertEqual(item["title"], "feat: add widget")
+        self.assertEqual(item["state"], "merged")
+        self.assertEqual(item["merge_commit"], "abc123")
+        # No contradictions
+        self.assertEqual(item["conflicts"], [])
+
+    def test_duplicate_preserves_existing_nonempty(self) -> None:
+        """Later record does NOT overwrite existing nonempty data."""
+        items = [
+            {
+                "pr_url": (
+                    "https://github.example.invalid/org/repo/pull/1"
+                ),
+                "contributor_key": "TEST-201",
+                "merged": True,
+                "target_branch": "main",
+                "title": "original title",
+            },
+            {
+                "pr_url": (
+                    "https://github.example.invalid/org/repo/pull/1"
+                ),
+                "contributor_key": "TEST-201",
+                "merged": True,
+                "title": "different title",
+            },
+        ]
+        r = evidence.normalize_evidence(items)
+        item = r["items"][0]
+        self.assertEqual(item["title"], "original title")
+        self.assertEqual(item["target_branch"], "main")
+
+    def test_duplicate_contradictory_still_conflict(self) -> None:
+        """Contradictory merged/target values still produce CONFLICT."""
+        items = [
+            {
+                "pr_url": (
+                    "https://github.example.invalid/org/repo/pull/1"
+                ),
+                "contributor_key": "TEST-201",
+                "merged": True,
+                "target_branch": "main",
+            },
+            {
+                "pr_url": (
+                    "https://github.example.invalid/org/repo/pull/1"
+                ),
+                "contributor_key": "TEST-201",
+                "merged": False,
+                "target_branch": "release-4.19",
+            },
+        ]
+        r = evidence.normalize_evidence(items)
+        item = r["items"][0]
+        self.assertTrue(len(item["conflicts"]) >= 2)
+
+
+# ---------------------------------------------------------------------------
+# Review contracts: Forbidden fields, comments synonym, casing (R2)
+# ---------------------------------------------------------------------------
+
+class TestForbiddenFieldContracts(unittest.TestCase):
+    """R2: case-insensitive forbidden, comments synonym, uncatalogued
+    field type, validate allowed_fields shape."""
+
+    def _make_plan_with_profile(self, profile):
+        snap = _make_docs_snapshot()
+        val = evidence.validate_issue(snap)
+        ev = evidence.normalize_evidence(_make_evidence_items())
+        return evidence.build_change_plan(
+            val, ev,
+            {"release": "v1", "target_branch": "main"},
+            profile,
+        )
+
+    def test_comments_synonym_forbidden(self) -> None:
+        """'comments' (plural) is forbidden like 'comment'."""
+        profile = {
+            "allowed_fields": [
+                {"name": "comments", "value": "test note"},
+            ],
+        }
+        plan = self._make_plan_with_profile(profile)
+        forbidden = [
+            f for f in plan["findings"]
+            if f["type"] == "forbidden_field"
+            and f["ref"] == "comments"
+        ]
+        self.assertTrue(len(forbidden) > 0)
+
+    def test_fixversions_camelcase_forbidden(self) -> None:
+        """'fixVersions' (camelCase raw Jira name) → forbidden."""
+        profile = {
+            "allowed_fields": [
+                {"name": "fixVersions", "value": "v1"},
+            ],
+        }
+        plan = self._make_plan_with_profile(profile)
+        forbidden = [
+            f for f in plan["findings"]
+            if f["type"] == "forbidden_field"
+            and f["ref"] == "fixVersions"
+        ]
+        self.assertTrue(
+            len(forbidden) > 0,
+            "Direct fixVersions must be forbidden (use target_release alias)",
+        )
+
+    def test_fixversions_uppercase_forbidden(self) -> None:
+        """'FIXVERSIONS' (all caps) → forbidden."""
+        profile = {
+            "allowed_fields": [
+                {"name": "FIXVERSIONS", "value": "v1"},
+            ],
+        }
+        plan = self._make_plan_with_profile(profile)
+        forbidden = [
+            f for f in plan["findings"]
+            if f["type"] == "forbidden_field"
+        ]
+        self.assertTrue(len(forbidden) > 0)
+
+    def test_target_release_alias_not_forbidden(self) -> None:
+        """'target_release' (catalog alias) is allowed."""
+        profile = {
+            "allowed_fields": [
+                {
+                    "name": "target_release",
+                    "value": "v1",
+                    "catalog_verified": True,
+                    "catalog_entry": {"id": "7", "name": "v1"},
+                },
+            ],
+        }
+        plan = self._make_plan_with_profile(profile)
+        forbidden = [
+            f for f in plan["findings"]
+            if f["type"] == "forbidden_field"
+            and f["ref"] == "target_release"
+        ]
+        self.assertEqual(len(forbidden), 0)
+        self.assertIn("target_release", plan["metadata"])
+
+    def test_uncatalogued_field_finding(self) -> None:
+        """Valid-but-uncatalogued field → uncatalogued_field finding."""
+        profile = {
+            "allowed_fields": [
+                {"name": "custom_field_12345", "value": "x"},
+            ],
+        }
+        plan = self._make_plan_with_profile(profile)
+        uncatalogued = [
+            f for f in plan["findings"]
+            if f["type"] == "uncatalogued_field"
+        ]
+        self.assertTrue(len(uncatalogued) > 0)
+        self.assertEqual(uncatalogued[0]["ref"], "custom_field_12345")
+
+    def test_malformed_allowed_fields_not_list(self) -> None:
+        """allowed_fields='bad' → finding, no crash."""
+        profile = {"allowed_fields": "not a list"}
+        plan = self._make_plan_with_profile(profile)
+        self.assertEqual(plan["status"], "complete")
+        forbidden = [
+            f for f in plan["findings"]
+            if f["type"] == "forbidden_field"
+            and f["ref"] == "allowed_fields"
+        ]
+        self.assertTrue(len(forbidden) > 0)
+
+    def test_malformed_allowed_field_entry_not_dict(self) -> None:
+        """allowed_fields=[42] → finding, no crash."""
+        profile = {"allowed_fields": [42]}
+        plan = self._make_plan_with_profile(profile)
+        self.assertEqual(plan["status"], "complete")
+        self.assertTrue(len(plan["findings"]) > 0)
+
+    def test_malformed_field_name_not_string(self) -> None:
+        """allowed_fields entry name=123 → finding, no TypeError."""
+        profile = {
+            "allowed_fields": [{"name": 123, "value": "x"}],
+        }
+        plan = self._make_plan_with_profile(profile)
+        self.assertEqual(plan["status"], "complete")
+        forbidden = [
+            f for f in plan["findings"]
+            if f["type"] == "forbidden_field"
+        ]
+        self.assertTrue(len(forbidden) > 0)
+
+    def test_malformed_field_name_empty(self) -> None:
+        """allowed_fields entry name='' → finding, no crash."""
+        profile = {
+            "allowed_fields": [{"name": "", "value": "x"}],
+        }
+        plan = self._make_plan_with_profile(profile)
+        self.assertTrue(len(plan["findings"]) > 0)
+
+
+# ---------------------------------------------------------------------------
+# Review contracts: Fail-closed errors and valid (R5)
+# ---------------------------------------------------------------------------
+
+class TestFailClosedErrorsValid(unittest.TestCase):
+    """R5: non-list errors → invalid, valid must be exact True,
+    missing evidence.errors → invalid_evidence."""
+
+    def test_validation_errors_non_list_fail_closed(self) -> None:
+        """validation.errors = 'string' → invalid_issue."""
+        val = {
+            "valid": True,
+            "errors": "something went wrong",
+            "key": "TEST-100",
+            "summary": "[DOCS] test",
+            "description": "test",
+            "contributors": [],
+            "dependencies": [],
+            "documentation_inputs": [],
+            "sections": {},
+        }
+        ev = {"items": [], "errors": [], "warnings": []}
+        plan = evidence.build_change_plan(val, ev, {})
+        self.assertEqual(plan["status"], "invalid_issue")
+        self.assertTrue(
+            any("not a list" in e for e in plan["errors"])
+        )
+
+    def test_validation_errors_none_fail_closed(self) -> None:
+        """validation.errors = None → invalid_issue."""
+        val = {
+            "valid": True,
+            "errors": None,
+            "key": "TEST-100",
+            "summary": "[DOCS] test",
+            "description": "test",
+            "contributors": [],
+            "dependencies": [],
+            "documentation_inputs": [],
+            "sections": {},
+        }
+        ev = {"items": [], "errors": [], "warnings": []}
+        plan = evidence.build_change_plan(val, ev, {})
+        self.assertEqual(plan["status"], "invalid_issue")
+
+    def test_validation_errors_dict_fail_closed(self) -> None:
+        """validation.errors = {} → invalid_issue."""
+        val = {
+            "valid": True,
+            "errors": {"msg": "bad"},
+            "key": "TEST-100",
+            "summary": "[DOCS] test",
+            "description": "test",
+            "contributors": [],
+            "dependencies": [],
+            "documentation_inputs": [],
+            "sections": {},
+        }
+        ev = {"items": [], "errors": [], "warnings": []}
+        plan = evidence.build_change_plan(val, ev, {})
+        self.assertEqual(plan["status"], "invalid_issue")
+
+    def test_valid_truthy_nonbool_rejected(self) -> None:
+        """validation.valid = 1 (truthy int) → invalid_issue."""
+        val = {
+            "valid": 1,
+            "errors": [],
+            "key": "TEST-100",
+            "summary": "[DOCS] test",
+            "description": "test desc",
+            "contributors": ["TEST-201"],
+            "dependencies": [],
+            "documentation_inputs": [],
+            "sections": {},
+        }
+        ev = {"items": [], "errors": [], "warnings": []}
+        plan = evidence.build_change_plan(val, ev, {})
+        self.assertEqual(plan["status"], "invalid_issue")
+        self.assertTrue(
+            any("not True" in e for e in plan["errors"])
+        )
+
+    def test_valid_string_yes_rejected(self) -> None:
+        """validation.valid = 'yes' → invalid_issue."""
+        val = {
+            "valid": "yes",
+            "errors": [],
+            "key": "TEST-100",
+            "summary": "[DOCS] test",
+            "description": "test desc",
+            "contributors": [],
+            "dependencies": [],
+            "documentation_inputs": [],
+            "sections": {},
+        }
+        ev = {"items": [], "errors": [], "warnings": []}
+        plan = evidence.build_change_plan(val, ev, {})
+        self.assertEqual(plan["status"], "invalid_issue")
+
+    def test_evidence_errors_missing_fail_closed(self) -> None:
+        """evidence without 'errors' key → invalid_evidence."""
+        snap = _make_docs_snapshot()
+        val = evidence.validate_issue(snap)
+        ev = {"items": [], "warnings": []}  # no 'errors' key
+        plan = evidence.build_change_plan(val, ev, {})
+        self.assertEqual(plan["status"], "invalid_evidence")
+
+    def test_evidence_errors_non_list_fail_closed(self) -> None:
+        """evidence.errors = None → invalid_evidence."""
+        snap = _make_docs_snapshot()
+        val = evidence.validate_issue(snap)
+        ev = {"items": [], "errors": None, "warnings": []}
+        plan = evidence.build_change_plan(val, ev, {})
+        self.assertEqual(plan["status"], "invalid_evidence")
+
+    def test_valid_true_with_empty_errors_passes(self) -> None:
+        """valid=True + errors=[] → proceeds normally."""
+        snap = _make_docs_snapshot()
+        val = evidence.validate_issue(snap)
+        self.assertTrue(val["valid"])
+        ev = evidence.normalize_evidence(_make_evidence_items())
+        plan = evidence.build_change_plan(
+            val, ev,
+            {"release": "v1", "target_branch": "main"},
+        )
+        self.assertEqual(plan["status"], "complete")
+
+
+# ---------------------------------------------------------------------------
+# Review contracts: Snapshot fingerprint mandatory (R6)
+# ---------------------------------------------------------------------------
+
+class TestSnapshotFingerprintMandatory(unittest.TestCase):
+    """R6: missing/blank snapshot_fingerprint → invalid_plan before
+    digest recompute; recomputed matching digest doesn't bypass."""
+
+    def test_empty_fingerprint_invalid_plan(self) -> None:
+        """Empty snapshot_fingerprint → invalid_plan."""
+        plan = {
+            "status": "complete",
+            "issue_key": "TEST-100",
+            "target": {},
+            "inputs": [],
+            "pr_links": [],
+            "metadata": {},
+            "snapshot_fingerprint": "",
+            "plan_digest": "some-digest",
+        }
+        r = evidence.check_enrichment(
+            plan, {"key": "TEST-100", "remote_links": []}
+        )
+        self.assertEqual(r["status"], "invalid_plan")
+        self.assertIn("snapshot_fingerprint", r["reason"])
+
+    def test_missing_fingerprint_key_invalid_plan(self) -> None:
+        """Missing snapshot_fingerprint key → invalid_plan."""
+        plan = {
+            "status": "complete",
+            "issue_key": "TEST-100",
+            "target": {},
+            "inputs": [],
+            "pr_links": [],
+            "metadata": {},
+            "plan_digest": "some-digest",
+        }
+        r = evidence.check_enrichment(
+            plan, {"key": "TEST-100", "remote_links": []}
+        )
+        self.assertEqual(r["status"], "invalid_plan")
+        self.assertIn("snapshot_fingerprint", r["reason"])
+
+    def test_nonstring_fingerprint_invalid_plan(self) -> None:
+        """Non-string snapshot_fingerprint → invalid_plan."""
+        plan = {
+            "status": "complete",
+            "issue_key": "TEST-100",
+            "target": {},
+            "inputs": [],
+            "pr_links": [],
+            "metadata": {},
+            "snapshot_fingerprint": 12345,
+            "plan_digest": "some-digest",
+        }
+        r = evidence.check_enrichment(
+            plan, {"key": "TEST-100", "remote_links": []}
+        )
+        self.assertEqual(r["status"], "invalid_plan")
+
+    def test_recomputed_digest_no_fingerprint_bypass(self) -> None:
+        """Matching recomputed digest but no fingerprint → still invalid.
+        A caller cannot make a fingerprint-less plan ready."""
+        # Compute what the digest WOULD be with empty fingerprint
+        import hashlib
+        projection = {
+            "issue_key": "TEST-100",
+            "target": {},
+            "inputs": [],
+            "pr_links": [],
+            "metadata": {},
+            "snapshot_fingerprint": "",
+        }
+        raw = json.dumps(
+            projection, sort_keys=True, ensure_ascii=True
+        )
+        matching_digest = hashlib.sha256(raw.encode()).hexdigest()
+
+        plan = {
+            "status": "complete",
+            "issue_key": "TEST-100",
+            "target": {},
+            "inputs": [],
+            "pr_links": [],
+            "metadata": {},
+            "snapshot_fingerprint": "",
+            "plan_digest": matching_digest,
+        }
+        r = evidence.check_enrichment(
+            plan, {"key": "TEST-100", "remote_links": []}
+        )
+        self.assertEqual(r["status"], "invalid_plan")
+        self.assertIn("snapshot_fingerprint", r["reason"])
+        self.assertEqual(r["eligible_links"], [])
+        self.assertEqual(r["eligible_metadata"], {})
+
+
+# ---------------------------------------------------------------------------
+# Review contract: Complete Phase1→Phase2 lifecycle (R1, R8)
+# ---------------------------------------------------------------------------
+
+class TestPhase1Phase2Lifecycle(unittest.TestCase):
+    """R1/R8: complete offline Phase1 preview → approved fresh check →
+    simulated metadata + link receipt using both saved tokens and
+    pre/post state.  Unknown fields not fabricated as empty."""
+
+    def test_complete_approval_lifecycle(self) -> None:
+        """Phase1 preview → save tokens → Phase2 check with approved
+        tokens → simulated writes → readback receipt."""
+        # === Phase 1: Preview (no side effects) ===
+        snapshot = _make_docs_snapshot()
+        val = evidence.validate_issue(snapshot)
+        self.assertTrue(val["valid"])
+
+        raw_evidence = _make_evidence_items()
+        ev = evidence.normalize_evidence(raw_evidence)
+        self.assertEqual(len(ev["errors"]), 0)
+
+        profile = {
+            "allowed_fields": [{
+                "name": "target_release",
+                "value": "4.19",
+                "catalog_verified": True,
+                "catalog_entry": {"id": "419", "name": "4.19"},
+            }],
+        }
+        target = {"release": "4.19", "target_branch": "main"}
+        plan = evidence.build_change_plan(val, ev, target, profile)
+        self.assertEqual(plan["status"], "complete")
+        self.assertTrue(plan["snapshot_fingerprint"])
+        self.assertTrue(plan["plan_digest"])
+
+        # Phase 1 preview check — no approval tokens
+        current_prewrite = {
+            "key": "TEST-100",
+            "summary": snapshot["summary"],
+            "description": snapshot["description"],
+            "remote_links": [],
+            "fields": {"fixVersions": []},
+        }
+        preview = evidence.check_enrichment(plan, current_prewrite)
+        self.assertEqual(preview["status"], "ready")
+        self.assertFalse(preview["stale"])
+
+        # Save Phase 1 tokens for Phase 2
+        saved_baseline = preview["baseline_fingerprint"]
+        saved_digest = preview["plan_digest"]
+        self.assertTrue(saved_baseline)
+        self.assertTrue(saved_digest)
+
+        # === Phase 2: Apply (with approved tokens) ===
+        # Fresh check with BOTH saved tokens — same state → ready
+        apply_check = evidence.check_enrichment(
+            plan, current_prewrite, saved_baseline, saved_digest,
+        )
+        self.assertEqual(apply_check["status"], "ready")
+        self.assertFalse(apply_check["stale"])
+        self.assertTrue(len(apply_check["eligible_links"]) > 0)
+        self.assertIn(
+            "target_release", apply_check["eligible_metadata"]
+        )
+
+        # Verify metadata payload is additive
+        em = apply_check["eligible_metadata"]["target_release"]
+        payload_ids = {
+            p["id"]
+            for p in em["jira_payload"]["fixVersions"]
+        }
+        self.assertIn("419", payload_ids)
+
+        # === Simulated writes → Readback ===
+        readback = {
+            "key": "TEST-100",
+            "summary": snapshot["summary"],
+            "description": snapshot["description"],
+            "remote_links": [
+                {
+                    "url": "https://github.example.invalid"
+                    "/org/repo/pull/101",
+                },
+                {
+                    "url": "https://github.example.invalid"
+                    "/org/repo/pull/102",
+                },
+            ],
+            "fields": {
+                "fixVersions": [
+                    {"id": "419", "name": "4.19"},
+                ],
+            },
+        }
+        receipt = evidence.verify_enrichment(
+            apply_check, readback, "TEST-100"
+        )
+        self.assertEqual(receipt["status"], "verified")
+        self.assertTrue(receipt["all_confirmed"])
+
+        # Check EACH receipt status individually
+        for lr in receipt["link_receipts"]:
+            self.assertEqual(lr["status"], "confirmed")
+            self.assertEqual(lr["operation"], "add")
+        for mr in receipt["metadata_receipts"]:
+            self.assertEqual(mr["status"], "confirmed")
+            self.assertEqual(mr["jira_field"], "fixVersions")
+
+        # === Idempotency: re-check shows existing ===
+        new_baseline = receipt["baseline_fingerprint"]
+        recheck = evidence.check_enrichment(
+            plan, readback, new_baseline, saved_digest,
+        )
+        self.assertFalse(recheck["stale"])
+        self.assertEqual(len(recheck["eligible_links"]), 0)
+        self.assertEqual(len(recheck["existing_links"]), 2)
+
+    def test_unknown_fixversions_not_fabricated_empty(self) -> None:
+        """Unknown fixVersions (missing field) blocks metadata writes;
+        NOT fabricated as []."""
+        snapshot = _make_docs_snapshot()
+        val = evidence.validate_issue(snapshot)
+        ev = evidence.normalize_evidence(_make_evidence_items())
+        profile = {
+            "allowed_fields": [{
+                "name": "target_release",
+                "value": "4.19",
+                "catalog_verified": True,
+                "catalog_entry": {"id": "419", "name": "4.19"},
+            }],
+        }
+        plan = evidence.build_change_plan(
+            val, ev,
+            {"release": "4.19", "target_branch": "main"},
+            profile,
+        )
+        # current_state has NO fields key — unknown state
+        current = {
+            "key": "TEST-100",
+            "summary": snapshot["summary"],
+            "description": snapshot["description"],
+            "remote_links": [],
+        }
+        r = evidence.check_enrichment(plan, current)
+        # Metadata must NOT be eligible (fail-closed)
+        self.assertEqual(r["eligible_metadata"], {})
+
+    def test_stale_plan_digest_blocks_apply(self) -> None:
+        """Phase2 with stale plan_digest → stale, zero writes."""
+        snapshot = _make_docs_snapshot()
+        val = evidence.validate_issue(snapshot)
+        ev = evidence.normalize_evidence(_make_evidence_items())
+        plan = evidence.build_change_plan(
+            val, ev,
+            {"release": "v1", "target_branch": "main"},
+        )
+        current = {
+            "key": "TEST-100",
+            "summary": snapshot["summary"],
+            "description": snapshot["description"],
+            "remote_links": [],
+        }
+        preview = evidence.check_enrichment(plan, current)
+        baseline = preview["baseline_fingerprint"]
+
+        # Pass wrong digest → stale
+        r = evidence.check_enrichment(
+            plan, current, baseline, "wrong-digest-from-old-plan",
+        )
+        self.assertTrue(r["stale"])
+        self.assertEqual(r["status"], "stale")
+        self.assertEqual(r["eligible_links"], [])
+        self.assertEqual(r["eligible_metadata"], {})
 
 
 if __name__ == "__main__":

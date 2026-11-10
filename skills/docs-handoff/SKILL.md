@@ -22,3 +22,8 @@ actionable handoff for the documentation writer.
 Inputs: one DOCS issue key, a selected release/target, and an optional
 caller-supplied consumer profile. Outputs: delivery-evidence findings,
 enrichment plan, and an owning-source narrative proposal when supported.
+
+**Boundaries:** Phase 1 preview saves `baseline_fingerprint` and
+`plan_digest` tokens. Phase 2 must pass both as approved references;
+stale or invalid requires a fresh preview cycle. Source/narrative
+apply is always disabled — changes route through the design workflow.

@@ -18,14 +18,23 @@ The skill must NEVER perform these operations, regardless of profile:
 - Modify `summary`, `description`, `reporter`
 - Change `status`, `resolution`
 - Set or change `assignee`
-- Modify `sprint`, `parent`, `labels`, `components`, `fixVersions`
-- Add `comments`
+- Modify `sprint`, `parent`, `labels`, `components`
+- Directly set `fixVersions` (use `target_release` catalog alias)
+- Add `comment` or `comments` (both synonyms are forbidden)
 - Set `priority` or `issuetype`
 - Create new issues
 - Trigger documentation authoring or publication
 - Execute workflow hooks or batch operations
 
-A consumer profile cannot override these restrictions.
+Forbidden field checks are case-insensitive — `fixVersions`,
+`FIXVERSIONS`, and `fixversions` are all blocked.  The ONLY
+authorized path to the Jira `fixVersions` field is through the
+`target_release` catalog alias.
+
+A consumer profile cannot override these restrictions.  Profile
+fields that are forbidden produce `forbidden_field` findings; fields
+that are valid strings but not in the allowed catalog produce
+`uncatalogued_field` findings.
 
 ## Allowed Metadata Catalog
 
@@ -106,12 +115,19 @@ the summary, is detected with zero writes.
 After applying approved writes, the `verify_enrichment` function:
 
 1. Checks the readback issue key matches the expected key
-2. Produces link receipts: `confirmed` (found) or `uncertain` (missing)
-3. Produces metadata receipts: `confirmed`, `different_value`, or
-   `uncertain`
+2. Produces link receipts: `confirmed` (found), `uncertain` (missing),
+   or `disappeared` (existing link no longer present)
+3. Produces metadata receipts: `confirmed`, `partial` (some expected
+   IDs missing), `different_value`, or `uncertain`
 4. Distinguishes existing (no-op) links from newly applied links
 5. Reports `all_confirmed` only when at least one add operation exists
-   and all are confirmed — empty eligible lists are not success
+   and all add operations are confirmed — empty eligible lists are
+   not success; existing link receipts (including `disappeared`) do
+   not affect the `all_confirmed` boolean
+
+A `disappeared` existing link is reported as a user-visible finding
+without changing `all_confirmed` semantics — it indicates an
+unexpected external change, not a failed write operation.
 
 On uncertain results, the skill reports the discrepancy.  It does NOT
 automatically retry or claim rollback.

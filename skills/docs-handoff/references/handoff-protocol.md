@@ -45,9 +45,14 @@ is a JSON object with keys: `validation`, `evidence`, `target`, `profile`.
 
 ### Step 5 — Check Enrichment
 
-Provide the plan and current issue state (with `key` and `remote_links`)
-to `evidence.py check-enrichment --input check-input.json`.  The input
-has keys: `plan`, `current_state`, `approved_baseline` (optional).
+Provide the plan and current issue state (with `key`, `summary`,
+`description`, `remote_links`, and optionally `fields`) to
+`evidence.py check-enrichment --input check-input.json`.  The input
+has keys: `plan`, `current_state`, `approved_baseline` (optional),
+`approved_plan_digest` (optional).
+
+Save the result's `baseline_fingerprint` and `plan_digest` —
+these are the approval tokens for Phase 2.
 
 ### Step 6 — Present Preview
 
@@ -65,10 +70,16 @@ Show the complete bounded preview including:
 ### On Approval
 
 1. Re-read the issue from Jira (fresh snapshot).
-2. Re-run `check-enrichment` with the `approved_baseline` from Phase 1.
-3. If stale (baseline changed), regenerate with fresh preview.
+2. Re-run `check-enrichment` with BOTH `approved_baseline` and
+   `approved_plan_digest` saved from Phase 1.
+3. If stale or invalid, stop and regenerate with a fresh preview
+   cycle — do not proceed with writes.
 4. Apply eligible links and metadata via approved runtime capabilities.
-5. Re-read the issue; run `check-enrichment --readback` for receipts.
+5. Re-read the issue (POSTWRITE state only in `--readback`, keep
+   PREWRITE `current_state` immutable); run
+   `check-enrichment --readback` for receipts.
+6. Interpret `all_confirmed` AND each individual receipt status —
+   exit code 0 alone does not mean all operations succeeded.
 
 ### On Rejection
 

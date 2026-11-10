@@ -115,12 +115,33 @@ assessment is an AI responsibility recorded in `observations`.
 ## URL Validation
 
 PR/MR URLs must:
-- Use HTTPS scheme (http rejected)
+- Use HTTPS scheme (`validate_pr_url` rejects http; the generic
+  `validate_url` still accepts http for other URL types)
 - Have no embedded credentials
 - Match a supported forge pattern: GitHub `/owner/repo/pull/N` or
   GitLab `/owner[/subgroup]*/repo/-/merge_requests/N`
 - Have a numeric PR/MR identifier
 - Be the canonical PR page (trailing paths like `/files` rejected)
 
+Canonical normalization lowercases the scheme and host while
+preserving path case, so `HTTPS://GITHUB.COM/Org/Repo/pull/1`
+and `https://github.com/Org/Repo/pull/1` are the same identity.
 Query strings and fragments are stripped for identity normalization.
 Synthetic `.example`/`.invalid` domains are supported for testing.
+
+## Current State Contract
+
+The `check-enrichment` subcommand requires a `current_state` object:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `key` | string | Yes | Must match plan's issue key |
+| `summary` | string | Yes | For snapshot drift detection |
+| `description` | string | Yes | Raw description for drift detection |
+| `remote_links` | array | Yes | Current Remote Links |
+| `fields` | object | No | Actual Jira field values |
+| `fields.fixVersions` | array | No | Required for metadata writes; missing/null/non-list fails closed |
+
+Unknown actual field values (missing `fields` or `fields.fixVersions`)
+must NOT be fabricated as `[]` — they block metadata writes.  An
+explicit empty list (`[]`) is a known absence and permits writes.
