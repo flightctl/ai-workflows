@@ -5352,15 +5352,19 @@ class TestGateApplicabilityExplicitFailVerdict(unittest.TestCase):
 
     def test_validators_have_explicit_fail_for_gate_applicability(self):
         """Both validators: Result schema 'Other outcomes' includes an
-        explicit FAIL verdict for gate-applicability unresolved."""
+        explicit Overall: FAIL verdict for gate-applicability unresolved."""
         for workflow, path in self._VALIDATORS:
             with self.subTest(workflow=workflow):
                 result = self._result_section(path)
-                # Must have the explicit FAIL verdict pattern
+                # Must have the literal Overall: FAIL emission
                 self.assertIn(
-                    "FAIL — gate applicability unresolved", result,
+                    "`Overall: FAIL`", result,
                     f"{workflow}/validate.md Result must include "
-                    f"explicit FAIL verdict for gate-applicability")
+                    f"literal Overall: FAIL for gate-applicability")
+                self.assertIn(
+                    "gate applicability unresolved", result,
+                    f"{workflow}/validate.md Result must include "
+                    f"gate-applicability reason")
 
     def test_verdict_applies_regardless_of_testplan(self):
         """Both validators: the FAIL verdict applies even when no
@@ -5547,6 +5551,354 @@ class TestGateApplicabilityClearingContract(unittest.TestCase):
         self.assertNotIn(
             "reconciled", old_text,
             "Old text must not require plan reconciliation (proving "
+            "the defect existed)")
+
+
+# ===========================================================================
+# Publisher Cached-PASS Bypass Guard (Defect 1: cachedPASS bypass)
+# ===========================================================================
+
+class TestPublisherCachedPassBypassGuard(unittest.TestCase):
+    """Static contract: both publishers must check for unresolved
+    gate-applicability BEFORE accepting a cached Overall: PASS.
+
+    Defect: A re-ingest can write gate-applicability.pending while
+    the user declines the context overwrite, leaving all 4 identity
+    inputs unchanged. The old Overall: PASS still passes publication
+    WITHOUT re-invoking validate. Fix: publishers check pending file
+    and context fallback in their operational preflight.
+    Static section checks — no agent execution."""
+
+    _PUBLISHERS = [
+        ("e2e", "e2e/skills/publish.md"),
+        ("implement", "implement/skills/publish.md"),
+    ]
+
+    def _repo_root(self):
+        return Path(__file__).resolve().parent.parent.parent
+
+    def _step1_section(self, workflow_path):
+        """Extract Step 1 preflight section from a publish.md file."""
+        content = (self._repo_root() / workflow_path).read_text(
+            encoding="utf-8")
+        start = content.find("### Step 1:")
+        self.assertGreater(start, 0,
+                           f"{workflow_path}: must have Step 1")
+        end = content.find("### Step 2:", start)
+        if end < 0:
+            end = start + 5000
+        return content[start:end]
+
+    def test_publishers_check_pending_file(self):
+        """Both publishers: Step 1 checks gate-applicability.pending."""
+        for workflow, path in self._PUBLISHERS:
+            with self.subTest(workflow=workflow):
+                section = self._step1_section(path)
+                self.assertIn(
+                    "gate-applicability.pending", section,
+                    f"{workflow}/publish.md Step 1 must check "
+                    f"gate-applicability.pending")
+
+    def test_publishers_have_context_fallback(self):
+        """Both publishers: Step 1 falls back to context marker."""
+        for workflow, path in self._PUBLISHERS:
+            with self.subTest(workflow=workflow):
+                section = self._step1_section(path)
+                self.assertIn(
+                    "Gate-Applicability: unresolved", section,
+                    f"{workflow}/publish.md Step 1 must have "
+                    f"context fallback for Gate-Applicability")
+
+    def test_publishers_block_cached_pass(self):
+        """Both publishers: explicitly state that cached PASS does not
+        authorize publication with unresolved gate applicability."""
+        for workflow, path in self._PUBLISHERS:
+            with self.subTest(workflow=workflow):
+                section = self._step1_section(path)
+                # Normalize whitespace for cross-line matching
+                normalized = " ".join(section.split())
+                self.assertIn(
+                    "cached", normalized,
+                    f"{workflow}/publish.md Step 1 must mention "
+                    f"cached PASS limitation")
+                self.assertIn(
+                    "does not authorize publication", normalized,
+                    f"{workflow}/publish.md Step 1 must state cached "
+                    f"PASS does not authorize publication")
+
+    def test_publishers_recommend_reingest_validate(self):
+        """Both publishers: recommend re-ingest then validate when
+        gate applicability is unresolved."""
+        for workflow, path in self._PUBLISHERS:
+            with self.subTest(workflow=workflow):
+                section = self._step1_section(path)
+                normalized = " ".join(section.split())
+                self.assertIn(
+                    "/ingest", normalized,
+                    f"{workflow}/publish.md Step 1 must recommend "
+                    f"/ingest for unresolved gates")
+                self.assertIn(
+                    "/validate", normalized,
+                    f"{workflow}/publish.md Step 1 must recommend "
+                    f"/validate after ingest")
+
+    def test_old_publisher_lacks_pending_check(self):
+        """Counter-regression: old publisher text (checking only
+        Overall: PASS and identity binding) had no pending file
+        check in Step 1 preflight."""
+        old_step1 = (
+            "1. Read `.artifacts/e2e/{issue-key}/05-validation-"
+            "report.md`. Check\n"
+            "   that the `## Result` section contains an explicit "
+            "`Overall: PASS`\n"
+            "   line.\n\n"
+            "   Verify the current branch matches the planned branch:"
+        )
+        self.assertNotIn(
+            "gate-applicability.pending", old_step1,
+            "Old Step 1 must not check pending file (proving "
+            "the defect existed)")
+
+    def test_cached_pass_with_declined_overwrite_scenario(self):
+        """Regression: the specific scenario where re-ingest writes
+        pending file but user declines context overwrite, leaving
+        identity unchanged — old publisher would accept the stale
+        Overall: PASS. New publisher must block."""
+        for workflow, path in self._PUBLISHERS:
+            with self.subTest(workflow=workflow):
+                section = self._step1_section(path)
+                normalized = " ".join(section.split())
+                # Must mention that re-ingest can introduce new
+                # pending state after report was written
+                self.assertIn(
+                    "re-ingest", normalized,
+                    f"{workflow}/publish.md must reference re-ingest "
+                    f"scenario in pending check")
+
+
+# ===========================================================================
+# Early Clearing Shortcut Removal (Defect 2: one clearing procedure)
+# ===========================================================================
+
+class TestEarlyClearingShortcutRemoval(unittest.TestCase):
+    """Static contract: both ingests must NOT have the early shortcut
+    'When all gates are resolved on a subsequent analysis, remove the
+    gate-applicability.pending file' before the stricter clearing
+    procedure. Only the formal clearing procedure authorizes removal.
+    Static section checks — no agent execution."""
+
+    _INGESTS = [
+        ("e2e", "e2e/skills/ingest.md"),
+        ("implement", "implement/skills/ingest.md"),
+    ]
+
+    def _repo_root(self):
+        return Path(__file__).resolve().parent.parent.parent
+
+    def _pre_clearing_section(self, workflow_path):
+        """Extract the section between 'pending file is the
+        authoritative blocker' and 'Clearing gate-applicability.pending'
+        — this is where the early shortcut lived."""
+        content = (self._repo_root() / workflow_path).read_text(
+            encoding="utf-8")
+        blocker_pos = content.find(
+            "pending file is the authoritative blocker")
+        clearing_pos = content.find(
+            "Clearing `gate-applicability.pending`")
+        self.assertGreater(blocker_pos, 0)
+        self.assertGreater(clearing_pos, blocker_pos)
+        return content[blocker_pos:clearing_pos]
+
+    def test_no_early_remove_shortcut(self):
+        """Both ingests: no 'remove' instruction between the
+        authoritative-blocker statement and the formal clearing
+        procedure."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                between = self._pre_clearing_section(path)
+                self.assertNotIn(
+                    "remove the `gate-applicability.pending` file",
+                    between,
+                    f"{workflow}/ingest.md must not have early remove "
+                    f"shortcut before the formal clearing procedure")
+
+    def test_no_analysis_alone_clears(self):
+        """Both ingests: 'on a subsequent analysis' alone does not
+        authorize clearing."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                between = self._pre_clearing_section(path)
+                self.assertNotIn(
+                    "on a subsequent\nanalysis, remove",
+                    between,
+                    f"{workflow}/ingest.md must not allow analysis-only "
+                    f"clearing")
+
+    def test_old_text_had_early_shortcut(self):
+        """Counter-regression: old text had the early shortcut."""
+        old_text = (
+            "and `/publish`. When all gates are resolved on a "
+            "subsequent\n"
+            "analysis, remove the `gate-applicability.pending` file."
+        )
+        self.assertIn(
+            "remove the `gate-applicability.pending` file", old_text,
+            "Old text must have early shortcut (proving the defect "
+            "existed)")
+
+
+# ===========================================================================
+# Legacy Context Marker Synchronization (Defect 2 continued)
+# ===========================================================================
+
+class TestLegacyContextMarkerSyncContract(unittest.TestCase):
+    """Static contract: clearing gate-applicability.pending must
+    synchronize the legacy Gate-Applicability: unresolved marker in
+    01-context.md. The marker serves as a validator fallback; clearing
+    the pending file without updating the context leaves the validator
+    fallback stale.
+    Static section checks — no agent execution."""
+
+    _INGESTS = [
+        ("e2e", "e2e/skills/ingest.md"),
+        ("implement", "implement/skills/ingest.md"),
+    ]
+
+    def _repo_root(self):
+        return Path(__file__).resolve().parent.parent.parent
+
+    def _clearing_section(self, workflow_path):
+        """Extract from 'Clearing gate-applicability.pending' through
+        'Only after' (the next major paragraph)."""
+        content = (self._repo_root() / workflow_path).read_text(
+            encoding="utf-8")
+        start = content.find("Clearing `gate-applicability.pending`")
+        self.assertGreater(start, 0)
+        end = content.find("\nOnly after", start)
+        if end < 0:
+            end = start + 3000
+        return content[start:end]
+
+    def test_clearing_references_legacy_marker_sync(self):
+        """Both ingests: clearing section references synchronizing
+        the legacy context marker."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._clearing_section(path)
+                self.assertIn(
+                    "Legacy context marker synchronization", section,
+                    f"{workflow}/ingest.md clearing must address "
+                    f"legacy context marker synchronization")
+
+    def test_clearing_requires_context_approval_for_marker(self):
+        """Both ingests: legacy marker removal requires context
+        overwrite approval (Step 8a)."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._clearing_section(path)
+                normalized = " ".join(section.split())
+                self.assertIn(
+                    "context overwrite", normalized,
+                    f"{workflow}/ingest.md clearing must reference "
+                    f"context overwrite approval for marker removal")
+
+    def test_declined_overwrite_retains_blocker(self):
+        """Both ingests: declined context overwrite prevents pending
+        file clearing because legacy marker persists."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._clearing_section(path)
+                normalized = " ".join(section.split())
+                self.assertIn(
+                    "declined", normalized,
+                    f"{workflow}/ingest.md must state declined "
+                    f"overwrite retains blocker")
+                self.assertIn(
+                    "must NOT be cleared", normalized,
+                    f"{workflow}/ingest.md must state pending file "
+                    f"must NOT be cleared on declined overwrite")
+
+
+# ===========================================================================
+# Verdict Emission Clarity (Defect 3: literal Overall: FAIL)
+# ===========================================================================
+
+class TestVerdictEmissionLiteralFail(unittest.TestCase):
+    """Static contract: both validators must specify that the
+    gate-applicability verdict emits literal 'Overall: FAIL' on its
+    own line, not a run-on FAIL format. The verdict must not fabricate
+    failed external evidence.
+    Static section checks — no agent execution."""
+
+    _VALIDATORS = [
+        ("e2e", "e2e/skills/validate.md"),
+        ("implement", "implement/skills/validate.md"),
+    ]
+
+    def _repo_root(self):
+        return Path(__file__).resolve().parent.parent.parent
+
+    def _gate_verdict_section(self, workflow_path):
+        """Extract the gate-applicability verdict clause from the
+        Result schema."""
+        content = (self._repo_root() / workflow_path).read_text(
+            encoding="utf-8")
+        marker = "If Gate-Applicability is unresolved"
+        start = content.find(marker)
+        self.assertGreater(start, 0)
+        # Find the next bullet or section
+        end = content.find("\n - If automated tests", start)
+        if end < 0:
+            end = start + 1000
+        return content[start:end]
+
+    def test_emits_literal_overall_fail(self):
+        """Both validators: gate-applicability verdict specifies
+        literal 'Overall: FAIL' emission."""
+        for workflow, path in self._VALIDATORS:
+            with self.subTest(workflow=workflow):
+                section = self._gate_verdict_section(path)
+                self.assertIn(
+                    "`Overall: FAIL`", section,
+                    f"{workflow}/validate.md gate-applicability "
+                    f"verdict must specify literal Overall: FAIL")
+
+    def test_emit_on_own_line(self):
+        """Both validators: Overall: FAIL must be on its own line."""
+        for workflow, path in self._VALIDATORS:
+            with self.subTest(workflow=workflow):
+                section = self._gate_verdict_section(path)
+                normalized = " ".join(section.split())
+                self.assertIn(
+                    "on its own line", normalized,
+                    f"{workflow}/validate.md must specify Overall: "
+                    f"FAIL on its own line")
+
+    def test_no_fabricated_evidence(self):
+        """Both validators: must not fabricate failed external
+        evidence to justify the FAIL."""
+        for workflow, path in self._VALIDATORS:
+            with self.subTest(workflow=workflow):
+                section = self._gate_verdict_section(path)
+                normalized = " ".join(section.split())
+                self.assertIn(
+                    "fabricate", normalized,
+                    f"{workflow}/validate.md must prohibit fabricating "
+                    f"evidence for gate-applicability FAIL")
+
+    def test_old_verdict_format_lacked_literal_overall_fail(self):
+        """Counter-regression: old verdict format used 'FAIL — gate'
+        run-on without literal 'Overall: FAIL' specification."""
+        old_text = (
+            ' - If Gate-Applicability is unresolved\n'
+            '   (`gate-applicability.pending` exists or `01-context.md`\n'
+            '   contains `Gate-Applicability: unresolved`): "FAIL — gate\n'
+            '   applicability unresolved for {gate names}; coverage\n'
+            '   completeness cannot be confirmed." Overall is FAIL.'
+        )
+        self.assertNotIn(
+            "`Overall: FAIL`", old_text,
+            "Old text must not have literal Overall: FAIL (proving "
             "the defect existed)")
 
 

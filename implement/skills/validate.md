@@ -826,11 +826,15 @@ writing the final result:
  Other outcomes:
  - If Gate-Applicability is unresolved
    (`gate-applicability.pending` exists or `01-context.md`
-   contains `Gate-Applicability: unresolved`): "FAIL — gate
-   applicability unresolved for {gate names}; coverage
-   completeness cannot be confirmed." Overall is FAIL. This
-   applies even when all known automated tests and mandatory
-   evidence pass, and regardless of whether a testplan exists.
+   contains `Gate-Applicability: unresolved`): emit
+   `Overall: FAIL` on its own line, followed by a separate
+   reason: "gate applicability unresolved for {gate names};
+   coverage completeness cannot be confirmed." This applies
+   even when all known automated tests and mandatory evidence
+   pass, and regardless of whether a testplan exists. Do not
+   fabricate failed external evidence observations to justify
+   the FAIL — the unresolved applicability itself is the
+   blocking reason.
  - If automated tests pass but mandatory entries are pending/
    not-started: "PASS (automated) — awaiting external validation
    for {N} mandatory entries." Overall is NOT PASS.

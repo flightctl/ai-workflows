@@ -375,8 +375,7 @@ re-invocation overwrite is declined. Also include the
 `Gate-Applicability: unresolved` marker in the compiled
 `01-context.md` content (Step 8) for human readability, but the
 pending file is the authoritative blocker checked by `/validate`
-and `/publish`. When all gates are resolved on a subsequent
-analysis, remove the `gate-applicability.pending` file.
+and `/publish`.
 
 This marker is distinct from `Source-Discovery: unresolved` (which
 records that the source itself could not be read).
@@ -404,6 +403,20 @@ records that the source itself could not be read).
 clarification that leaves any gate unresolved, a missing prior
 testplan or downstream plan, failed or unreadable source discovery,
 or declined context/plan changes (Step 8a declined).
+
+**Legacy context marker synchronization.** The
+`Gate-Applicability: unresolved` marker in `01-context.md` serves
+as a validator fallback after the pending file is removed.
+Clearing the pending file therefore also requires updating or
+removing the legacy marker in `01-context.md` — but only when the
+context overwrite has been approved (Step 8a accepted on
+re-invocation, or first-invocation write). If the context
+overwrite was declined or unanswered, the legacy marker in
+`01-context.md` persists and the pending file must NOT be cleared,
+because the validator fallback would no longer detect the blocker.
+A re-invocation that resolves all gates must compile a new
+`01-context.md` without the unresolved marker and obtain Step 8a
+approval before removing the pending file.
 
 Only after confirming that all gates have known relevance (or no
 gates exist): if `.artifacts/e2e/{issue-key}/testplan.md` exists

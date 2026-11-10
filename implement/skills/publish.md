@@ -76,6 +76,22 @@ Verify readiness:
    legacy reports with plain `PASS`), tell the user that `/validate`
    should be run (or re-run) first.
 
+   Additionally, check for unresolved gate applicability that may
+   have been introduced by a re-ingest after the validation report
+   was written. Check for
+   `.artifacts/implement/{issue-key}/gate-applicability.pending`. As
+   a fallback, read the Story Test Plan section of
+   `.artifacts/implement/{issue-key}/01-context.md` for
+   `Gate-Applicability: unresolved`. If either source indicates
+   unresolved applicability, stop — tell the user that gate
+   applicability must be resolved before publication. Recommend
+   re-running `/ingest` to clarify the unresolved gates, then
+   `/validate` to produce a fresh report. A cached `Overall: PASS`
+   from a prior validation does not authorize publication when
+   current gate applicability is unresolved, because the unresolved
+   gates may require evidence that the prior validation did not
+   assess.
+
    Verify the current branch matches the planned branch:
 
    ```bash
