@@ -1336,6 +1336,9 @@ class TestPreExistingDetection(unittest.TestCase):
             capture_output=True, text=True)
         self.assertEqual(r.returncode, 128,
                          "check-ignore should error on submodule path")
+        # Stderr should identify the submodule path (locale-independent check)
+        self.assertIn("cleansub", r.stderr,
+                       "error should reference the submodule name")
         # User bytes untouched
         with open(os.path.join(self.repo, "cleansub", "user.log")) as f:
             self.assertEqual(f.read(), "user data\n")
@@ -1597,44 +1600,50 @@ class TestBranchMismatch(unittest.TestCase):
 
 
 class TestGatePathResolution(unittest.TestCase):
-    """Test gate script path resolution mechanism.
+    """Test gate script path resolution via symlink traversal.
 
-    Verifies that resolving ../scripts/validation_gate.py relative to
-    the skill file's location (following symlinks) selects the correct
-    script even when $HOME points elsewhere. This tests the filesystem
-    mechanism, not full agent execution.
+    Verifies the filesystem mechanism publish.md relies on: resolving
+    ../scripts/validation_gate.py from a symlinked skill location
+    finds the correct script. Does not test full agent execution.
     """
 
     def test_symlink_resolution_finds_correct_script(self):
-        """Resolve from symlinked skill location finds the real script."""
-        # The actual script location
-        real_script = os.path.realpath(
-            os.path.join(validation_gate.SCRIPT_DIR, "validation_gate.py"))
+        """Real symlink to skills/ resolves ../scripts/ to actual gate."""
+        real_script = os.path.join(
+            validation_gate.SCRIPT_DIR, "validation_gate.py")
         self.assertTrue(os.path.isfile(real_script))
-        # Simulate: skill at implement/skills/publish.md resolves
-        # ../scripts/validation_gate.py — same as SCRIPT_DIR
-        skill_dir = os.path.realpath(
-            os.path.join(validation_gate.SCRIPT_DIR, "..", "skills"))
-        resolved = os.path.realpath(
-            os.path.join(skill_dir, "..", "scripts", "validation_gate.py"))
-        self.assertEqual(resolved, real_script)
+        # Create a temp dir simulating an install target
+        install_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, install_dir, ignore_errors=True)
+        # Symlink the entire implement dir (as the installer does)
+        impl_dir = os.path.realpath(
+            os.path.join(validation_gate.SCRIPT_DIR, ".."))
+        link = os.path.join(install_dir, "implement")
+        os.symlink(impl_dir, link)
+        # Resolve from the symlinked skills location
+        resolved = os.path.realpath(os.path.join(
+            link, "skills", "..", "scripts", "validation_gate.py"))
+        self.assertEqual(resolved, os.path.realpath(real_script))
 
-    def test_path_with_spaces(self):
-        """Resolved path with spaces is a valid single argument."""
-        # Create a temp dir with spaces, symlink the script there
+    def test_path_with_spaces_gate_cli(self):
+        """Gate script at a path with spaces executes correctly."""
         space_dir = tempfile.mkdtemp(prefix="path with spaces ")
         self.addCleanup(shutil.rmtree, space_dir, ignore_errors=True)
         real_script = os.path.join(
             validation_gate.SCRIPT_DIR, "validation_gate.py")
         link = os.path.join(space_dir, "validation_gate.py")
         os.symlink(real_script, link)
-        # shlex.quote produces a safe single argument
-        import shlex
-        quoted = shlex.quote(link)
-        self.assertIn(" ", link)
-        self.assertTrue(os.path.isfile(link))
-        # The quoted form is safe for shell use
-        self.assertEqual(shlex.split(quoted), [link])
+        # Actually invoke the gate CLI via the spaced path
+        repo = make_temp_repo()
+        self.addCleanup(shutil.rmtree, repo, ignore_errors=True)
+        r = subprocess.run(
+            ["python3", "-I", link,
+             "--report", "/nonexistent/report.md"],
+            capture_output=True, text=True,
+            cwd=repo)
+        self.assertEqual(r.returncode, 1, "gate should fail (missing report)")
+        parsed = json.loads(r.stdout)
+        self.assertEqual(parsed["gate"], "fail")
 
 
 if __name__ == "__main__":

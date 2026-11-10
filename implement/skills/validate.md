@@ -76,12 +76,14 @@ Read:
 
 Extract the validation profile's pre-PR checks list.
 
-Before proceeding, verify that the report output path is gitignored.
-Run `git check-ignore -- .artifacts/implement/{issue-key}/05-validation-report.md`.
-If the path is not ignored, stop and explain that the project must
-exclude the artifact path (via `.gitignore` or local exclude) before
-validation can write there. See `../guidelines.md` Safety. If
-properly ignored, continue without prompting.
+Verify report path is gitignored (`git check-ignore --
+.artifacts/implement/{issue-key}/05-validation-report.md`). If not,
+stop — see `../guidelines.md` Safety.
+
+If a prior report exists, overwrite with `FAIL — validation in
+progress` and current HEAD SHA (prevents stale PASS authorizing
+publication if this run stops early). Pending Scope Decision stops
+before this point (Step 1 item 1), preserving its no-write rule.
 
 ### Step 2: Check Base Branch Currency
 
@@ -400,7 +402,7 @@ the worktree is clean (`git status --porcelain -z
   unmet conditions, stop. FLAG replaces prior PASS on same HEAD
   (Pending Scope Decision publication block is separate).
 
-Example: budget 3; fixes → 2 → 1; clean+verified → PASS.
+Example: budget 3; fixes→2→1; clean+verified→PASS.
 
 Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
 
@@ -464,8 +466,8 @@ Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
 |----|-------------|----------------|-------|--------|
 | AC-1 | {brief} | {file:line or commit} | {test file:test name} | {satisfied/partial/not addressed/manual verification} |
 
-{All satisfied → "All acceptance criteria verified." Gaps/manual
- pending → describe; cannot claim PASS.}
+{All satisfied → "All criteria verified." Gaps/manual pending →
+ describe; cannot claim PASS.}
 
 ## Test Plan Verification
 

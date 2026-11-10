@@ -52,10 +52,12 @@ PUBLISH_SCRIPT="${HOME}/.ai-workflows/_shared/scripts/publish.py"
 The gate script belongs to this loaded workflow package. Resolve it
 relative to this skill file's location (`../scripts/validation_gate.py`
 from `skills/publish.md`), following symlinks to find the actual
-installed path. Substitute the resolved literal absolute path into
-each shell call — do not rely on a shell variable surviving across
-agent calls. If the script is not at the resolved path, stop and
-report an installation problem.
+installed path. In every shell call below, `"{gate-script-path}"` is a
+placeholder — replace it with the resolved absolute path as a quoted
+shell argument. Resolve once at the start; substitute the literal
+value into each separate call. Do not rely on a shell variable
+surviving across agent calls. If the script is not at the resolved
+path, stop and report an installation problem.
 
 If either script is not available, stop before proceeding.
 

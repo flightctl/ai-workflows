@@ -138,8 +138,11 @@ For an in-scope change with no unresolved conflicts:
       pre-existing path (target `assets` replacing a directory would
       clobber dirty `assets/draft.txt`). Use path-component boundaries
       (`/`), not string prefix (`foo` does not match `foobar`). Include
-      both sides of renames. If a directory target has pre-existing
-      descendants, stop — expand to explicit files or ask the user.
+      both sides of renames. Do not target a directory for replacement —
+      it may contain ignored descendants invisible to status and
+      check-ignore at the directory level. Expand directory operations
+      to explicit file paths; if the user's feedback implies replacing
+      a directory, list the affected files and ask for confirmation.
 
    b. Check for existing ignored files at target paths:
 
