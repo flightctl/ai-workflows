@@ -135,6 +135,8 @@ For each AI convention file found in Step 1, choose one action. For directory-ba
 
 **Keep** — The file serves a tool-specific purpose that AGENTS.md cannot replace. This includes files that are auto-loaded by their respective tools (e.g., `CLAUDE.md` by Claude Code, `.github/copilot-instructions.md` by GitHub Copilot) or files with capabilities AGENTS.md can't express (e.g., `.cursor/rules/` with glob-scoped rules). Merging these into AGENTS.md would lose the tool integration. Leave them untouched.
 
+Files under `.claude/rules/` must be **Keep** or **Update** by default. Claude Code loads rules without `paths` at launch and path-scoped rules when matching files are accessed. Merge or delete one only after verifying that every consuming tool will continue to load its guidance equivalently, and after the user approves the proposed change.
+
 **Merge** — The file contains generic agent instructions that belong in AGENTS.md. Consolidate its unique content into AGENTS.md, then delete the original file.
 
 **Update** — The file is tool-specific but contains stale or inaccurate content. Update it in place.
@@ -167,7 +169,7 @@ Accuracy:
 - Every file path referenced in AGENTS.md exists in the project
 - Every command referenced is runnable (appears in package.json scripts, Makefile, CI config, etc.)
 - No contradictions between sections
-- No contradictions between AGENTS.md and kept convention files (e.g., `CLAUDE.md`, `.github/copilot-instructions.md`). If a kept file conflicts with AGENTS.md, update the kept file to align — AGENTS.md is the source of truth
+- Check for contradictions between AGENTS.md and kept convention files (e.g., `CLAUDE.md`, `.github/copilot-instructions.md`). Distinguish stale generic guidance from intentional tool-specific or path-scoped exceptions before changing a kept file. Do not overwrite a scoped exception just to match AGENTS.md; update it only when evidence shows it is stale or inaccurate, and ask the user when its intent is unclear
 - No content duplicated across sections
 - Running this skill again would produce no further changes (idempotency check)
 - Final AGENTS.md size review: count every AGENTS.md after Step 3 and all Step 4 changes. If the root file approaches or exceeds about 150 lines, or any file approaches or exceeds about 300 lines, review for duplication, low-priority details, and meaningful scope boundaries. Make changes when they improve usability, and report notable counts with the rationale for the structure retained. Size alone does not determine success or failure.
@@ -183,6 +185,8 @@ Completeness — cross-reference Step 2 findings against the final AGENTS.md:
 A missing section is acceptable only when the codebase provides no concrete information for it. If the information exists in the codebase but is absent from AGENTS.md, add it.
 
 Fix any issues you find before proceeding to Step 6.
+
+After applying fixes, repeat the AGENTS.md size review before reporting. Use final line counts, and do not restructure files solely to meet a count.
 
 ### Step 6: Report
 
