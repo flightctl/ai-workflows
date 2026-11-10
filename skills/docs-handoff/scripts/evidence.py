@@ -1315,6 +1315,32 @@ def check_enrichment(
     if approved_baseline and approved_baseline != baseline_fp:
         stale = True
 
+    # Writer/source drift: compare fresh snapshot against plan original
+    plan_snapshot_fp = plan.get("snapshot_fingerprint", "")
+    if plan_snapshot_fp:
+        current_description = current_state.get("description")
+        if current_description is None or not isinstance(
+            current_description, str
+        ):
+            # Fail closed: cannot verify source state without description
+            stale = True
+        else:
+            current_sections = _extract_sections(current_description)
+            current_contribs = sorted(
+                _extract_contributing_stories(current_description)
+            )
+            current_deps = sorted(
+                _extract_dependencies(current_description)
+            )
+            fresh_fp = _fingerprint({
+                "key": current_key,
+                "description": current_sections,
+                "contributors": current_contribs,
+                "dependencies": current_deps,
+            })
+            if fresh_fp != plan_snapshot_fp:
+                stale = True
+
     # Link eligibility
     eligible: list[dict[str, Any]] = []
     existing: list[dict[str, Any]] = []
@@ -1360,10 +1386,12 @@ def check_enrichment(
         # Name must match requested value
         if entry.get(name_key) != spec.get("value"):
             continue
-        # Build additive payload preserving existing versions
-        before = spec.get("before")
-        if before is None:
-            before = []
+        # Build additive payload from actual current field state
+        jira_fld = cat["jira_field"]
+        before = (
+            current_fields.get(jira_fld, [])
+            if isinstance(current_fields, dict) else []
+        )
         if not isinstance(before, list):
             before = []
         # Check if already present — no-op if so
@@ -1401,10 +1429,10 @@ def check_enrichment(
 
     return {
         "status": "stale" if stale else "ready",
-        "eligible_links": eligible,
+        "eligible_links": [] if stale else eligible,
         "existing_links": existing,
         "skipped_links": skipped,
-        "eligible_metadata": eligible_metadata,
+        "eligible_metadata": {} if stale else eligible_metadata,
         "forbidden_fields": forbidden_found,
         "plan_digest": plan.get("plan_digest", ""),
         "baseline_fingerprint": baseline_fp,
