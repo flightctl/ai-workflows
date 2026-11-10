@@ -424,21 +424,22 @@ For a `review` or `top_level` comment, post a top-level reply:
 GH_HOST="{repo_host}" GH_REPO="{repo_identifier}" python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/ux-design/{issue-key}/tmp-reply.md
 ```
 
-If the reply command fails with a definitive error (nonzero exit,
-HTTP 4xx/5xx), report the error and continue without logging.
-
-**Uncertain reply outcome.** If the reply command times out or
-returns an ambiguous transport error, the reply may have been
-posted before the failure was observed. Do not automatically
-repost or log the reply as successful — either action risks
-duplicates or false records. Instead, stop processing further
-comments and ask the researcher to check whether the intended
-reply appeared on the PR thread. Only a confirmed posted reply
-(researcher verification or visible in a subsequent fetch)
-marks the original comment as processed via the existing
-responses log. A confirmed failure (reply absent after
-verification) may be retried under the existing approval for
-that comment. An unverifiable outcome must stop — do not guess.
+**Uncertain reply outcome.** If the reply command exits nonzero,
+times out, or returns an ambiguous error, the reply may have
+been posted before the failure was observed — a nonzero exit
+or 5xx alone does not prove the reply was not posted. Do not
+automatically repost or log the reply as successful — either
+action risks duplicates or false records. Stop processing
+further comments and ask the researcher to check whether the
+intended reply appeared on the PR thread (comment `--comment-id`
+from the original). Only a confirmed posted reply (researcher
+verification or visible in a subsequent fetch) marks the
+original comment as processed via the existing responses log;
+if the confirmed post's local log write then fails, stop and
+repair the responses log entry after confirmation — do not
+repost. A confirmed failure (reply absent after verification)
+may be retried under the existing approval for that comment.
+An unverifiable outcome must stop — do not guess.
 
 After each successful reply, record its `id` so later respond rounds skip it:
 

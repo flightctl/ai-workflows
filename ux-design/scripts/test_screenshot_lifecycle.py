@@ -4765,21 +4765,19 @@ class TestR10Wave2Fixes(unittest.TestCase):
             self.assertNotEqual(docs_sha, src_sha,
                                 "Test requires distinct SHAs")
 
-            # Use url.*.insteadOf mapping so -C context matters:
-            # same fake URL resolves to different bare repos per CWD
-            fake_url = "fake://repo.example.com/"
-            subprocess.run(
-                ["git", "-C", docs_repo, "config",
-                 f"url.{docs_bare}/.insteadOf", fake_url],
-                capture_output=True, check=True)
+            # SourceRepo has insteadOf that rewrites docs_bare to
+            # src_bare — so CWD context changes URL resolution.
+            # DocsRepo has NO insteadOf for docs_bare (absolute path
+            # unchanged by --get-url in DocsRepo context).
             subprocess.run(
                 ["git", "-C", src_repo, "config",
-                 f"url.{src_bare}/.insteadOf", fake_url],
+                 f"url.{src_bare}.insteadOf", docs_bare],
                 capture_output=True, check=True)
 
-            # Positive: reader with already-resolved push URL (docs_bare)
-            # and -C DocsRepo. The guard sees no rewrite (absolute
-            # path unchanged by --get-url), query returns DocsRepo SHA.
+            # Positive: SAME inputs (docs_bare URL, docs_repo -C).
+            # Guard: git -C docs_repo ls-remote --get-url docs_bare
+            # returns docs_bare (no rewrite in DocsRepo). Query
+            # returns DocsRepo SHA.
             script = _extract_exact_reader_script(
                 docs_bare, "main", docs_repo)
             r = _run_script(script, cwd=src_repo)
@@ -4787,23 +4785,20 @@ class TestR10Wave2Fixes(unittest.TestCase):
             self.assertIn(f"EXACT_SHA={docs_sha}", r.stdout,
                           "Reader must return DocsRepo SHA via -C")
 
-            # Negative control: use fake_url (needs insteadOf) and
-            # strip -C so CWD (SourceRepo) context resolves fake URL
-            # to src_bare via insteadOf — the second-rewrite guard
-            # detects this URL differs from the frozen push_url and
-            # rejects before any network query. This proves CWD
-            # context matters: wrong -C (or missing) causes a
-            # different insteadOf resolution that the guard catches,
-            # failing closed rather than querying the wrong repo.
-            neg_script = _extract_exact_reader_script(
-                fake_url, "main", src_repo)
-            no_c_script = neg_script.replace(
+            # Negative control: SAME URL and DOCS_REPO_PATH argument
+            # but strip -C so CWD (SourceRepo) context applies.
+            # Guard: git ls-remote --get-url docs_bare/ resolves via
+            # SourceRepo's insteadOf to src_bare — differs from
+            # push_url, guard rejects before any network query.
+            # Only variable changed: -C removal. Proves CWD context
+            # matters for the guard's URL resolution.
+            no_c_script = script.replace(
                 'git -C "$DOCS_REPO_PATH" ls-remote',
                 'git ls-remote')
             nr = _run_script(no_c_script, cwd=src_repo)
             self.assertNotEqual(nr.returncode, 0,
-                                "Fake URL with insteadOf must be rejected "
-                                "by second-rewrite guard (fail closed)")
+                                "Without -C, SourceRepo insteadOf rewrites "
+                                "docs_bare; guard must fail closed")
             self.assertNotIn(
                 f"EXACT_SHA={docs_sha}", nr.stdout,
                 "Must not return DocsRepo SHA after guard rejects")
@@ -4812,13 +4807,13 @@ class TestR10Wave2Fixes(unittest.TestCase):
 
     def test_f3_pr_lookup_preserves_host(self) -> None:
         """Recipe §4 PR lookup derives [HOST/]OWNER/REPO using verified
-        API host from docs_repo_remote."""
+        instance hostname from docs_repo_remote."""
         content = _read("_shared/recipes/screenshot-publish-stage.md")
         after_push = content.split("After successful push", 1)[1]
         pr_section = after_push.split("No candidate found", 1)[0]
         flat = " ".join(pr_section.split())
         self.assertIn("[HOST/]OWNER/REPO", flat)
-        self.assertIn("verified API host", flat)
+        self.assertIn("instance hostname", flat)
         self.assertIn("docs_repo_remote", flat)
 
     # --- F3b: respond fetch/reply commands use GH_HOST/GH_REPO prefix ---
@@ -5392,13 +5387,13 @@ class TestR12GHHostNoSSHPort(unittest.TestCase):
         self.assertIn("verified non-default HTTPS API port", flat)
 
     def test_recipe_pr_lookup_uses_verified_api_host(self) -> None:
-        """Recipe §4 PR lookup uses verified API host, not Git port."""
+        """Recipe §4 PR lookup uses verified instance hostname, not Git port."""
         content = _read("_shared/recipes/screenshot-publish-stage.md")
         section = content.split("pr_number` is `null`", 1)[1].split(
             "first-publish recovery", 1)[0]
         flat = " ".join(section.split())
-        self.assertIn("verified API host", flat)
-        self.assertIn("not Git transport port", flat)
+        self.assertIn("instance hostname", flat)
+        self.assertIn("not API hostname or Git transport port", flat)
 
 
 class TestR12PreCopyRefreshReconciliation(unittest.TestCase):
@@ -5566,15 +5561,17 @@ class TestR13SecondRewriteGuard(_RecipeExecMixin, unittest.TestCase):
             self.assertIn("EXACT_SHA=", r.stdout)
 
     def test_second_rewrite_rejected(self) -> None:
-        """Git proof: pushInsteadOf resolves push URL to A; a second
-        insteadOf in DocsRepo would rewrite A to B when passed to
-        ls-remote. The guard detects A≠B and rejects before any
-        network query.
+        """Git proof: origin has SSH fixture URL; pushInsteadOf
+        rewrites it to HTTPS fixture URL (safe, no contact).
+        A second insteadOf in DocsRepo rewrites HTTPS fixture
+        to local bare B. ACTUAL remote get-url --push origin
+        yields the HTTPS fixture. ACTUAL ls-remote --get-url
+        shows it resolves to a different local path. Shipped
+        extracted reader rejects BEFORE any network query.
 
-        Uses disposable temp bare repos with local config only;
-        no actual SSH/HTTPS queries to real domains."""
+        Uses disposable temp repos with local config only;
+        no actual SSH/HTTPS push or query."""
         with tempfile.TemporaryDirectory() as tmp:
-            # Set up DocsRepo
             docs_repo = os.path.join(tmp, "docs-repo")
             os.makedirs(docs_repo)
             subprocess.run(["git", "init", "-b", "main", docs_repo],
@@ -5593,27 +5590,50 @@ class TestR13SecondRewriteGuard(_RecipeExecMixin, unittest.TestCase):
                 ["git", "-C", docs_repo, "commit", "-m", "init"],
                 capture_output=True, check=True)
 
-            # Create two bare remotes
-            bare_a = os.path.join(tmp, "remote-a.git")
             bare_b = os.path.join(tmp, "remote-b.git")
-            subprocess.run(["git", "clone", "--bare", docs_repo, bare_a],
-                           capture_output=True, check=True)
             subprocess.run(["git", "clone", "--bare", docs_repo, bare_b],
                            capture_output=True, check=True)
 
-            # Configure a second insteadOf that rewrites bare_a to bare_b
-            # This simulates pushInsteadOf resolving to bare_a, then a
-            # local insteadOf rewriting bare_a to bare_b for queries
+            # origin = SSH fixture (no-contact)
+            ssh_fixture = "ssh://fixture@host.invalid:2222/org/docs.git"
+            https_fixture = "https://host.invalid/org/docs.git"
+            subprocess.run(
+                ["git", "-C", docs_repo, "remote", "add",
+                 "origin", ssh_fixture],
+                capture_output=True, check=True)
+            # pushInsteadOf rewrites SSH fixture → HTTPS fixture
             subprocess.run(
                 ["git", "-C", docs_repo, "config",
-                 f"url.{bare_b}/.insteadOf", f"{bare_a}/"],
+                 f"url.{https_fixture}.pushInsteadOf", ssh_fixture],
+                capture_output=True, check=True)
+            # Second insteadOf rewrites HTTPS fixture → local bare B
+            subprocess.run(
+                ["git", "-C", docs_repo, "config",
+                 f"url.{bare_b}/.insteadOf", https_fixture],
                 capture_output=True, check=True)
 
-            # The push URL is bare_a (already resolved by pushInsteadOf).
-            # When passed to ls-remote in DocsRepo context, insteadOf
-            # would rewrite bare_a/ to bare_b/ — the guard catches this.
+            # ACTUAL: remote get-url --push yields HTTPS fixture
+            push_url_r = subprocess.run(
+                ["git", "-C", docs_repo, "remote", "get-url",
+                 "--push", "origin"],
+                capture_output=True, text=True)
+            push_url = push_url_r.stdout.strip()
+            self.assertEqual(push_url, https_fixture,
+                             "pushInsteadOf must yield HTTPS fixture")
+
+            # ACTUAL: ls-remote --get-url shows second rewrite
+            effective_r = subprocess.run(
+                ["git", "-C", docs_repo, "ls-remote",
+                 "--get-url", push_url],
+                capture_output=True, text=True)
+            effective = effective_r.stdout.strip()
+            self.assertNotEqual(effective, push_url,
+                                "Second insteadOf must rewrite the URL")
+            self.assertIn(bare_b, effective)
+
+            # EXECUTE shipped extracted reader — must reject
             script = _extract_exact_reader_script(
-                f"{bare_a}/", "main", docs_repo)
+                push_url, "main", docs_repo)
             r = _run_script(script)
             self.assertNotEqual(r.returncode, 0,
                                 "Second rewrite must be rejected")
@@ -5753,20 +5773,27 @@ class TestR13ReplyTimeoutReconciliation(unittest.TestCase):
         self.assertIn("Uncertain reply outcome", step4)
 
     def test_no_automatic_repost(self) -> None:
-        """Uncertain timeout must not automatically repost."""
+        """Uncertain outcome must not automatically repost; nonzero
+        alone does not prove unposted."""
         content = _read("ux-design/skills/respond.md")
         section = content.split("Uncertain reply outcome", 1)[1].split(
             "After each successful reply", 1)[0]
         flat = " ".join(section.split())
         self.assertIn("Do not automatically repost", flat)
+        # Nonzero exit does not prove the reply was not posted
+        self.assertIn("nonzero exit", flat)
+        self.assertIn("does not prove", flat)
 
-    def test_no_automatic_log_success(self) -> None:
-        """Uncertain timeout must not log as successful."""
+    def test_confirmed_post_log_failure_stops(self) -> None:
+        """Confirmed post + local log failure stops and repairs existing
+        responses record; does not repost."""
         content = _read("ux-design/skills/respond.md")
         section = content.split("Uncertain reply outcome", 1)[1].split(
             "After each successful reply", 1)[0]
         flat = " ".join(section.split())
-        self.assertIn("log the reply as successful", flat)
+        self.assertIn("log write then fails", flat)
+        self.assertIn("repair the responses log", flat)
+        self.assertIn("do not repost", flat.lower())
 
     def test_researcher_verification_required(self) -> None:
         """Researcher must verify before retry or log."""
