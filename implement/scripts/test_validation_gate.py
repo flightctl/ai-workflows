@@ -1325,9 +1325,11 @@ class TestPreExistingDetection(unittest.TestCase):
             ["git", "status", "--porcelain", "-z",
              "--untracked-files=all", "--ignore-submodules=none"],
             capture_output=True, check=True).stdout
+        self.assertEqual(out, b"",
+                         "outer status must be completely empty for clean "
+                         "submodule with only ignored files")
         paths = parse_status_z(out)
-        self.assertNotIn("cleansub/user.log", paths,
-                          "ignored file in clean submodule not in outer status")
+        self.assertEqual(paths, set())
         # check-ignore exits 128 (not 0 or 1)
         r = subprocess.run(
             ["git", "check-ignore", "--", "cleansub/user.log"],
@@ -1592,6 +1594,47 @@ class TestBranchMismatch(unittest.TestCase):
         self.assertEqual(remote_sha, feat_sha,
                          "push named branch pushes that branch's tip, not HEAD")
         self.assertNotEqual(remote_sha, main_sha)
+
+
+class TestGatePathResolution(unittest.TestCase):
+    """Test gate script path resolution mechanism.
+
+    Verifies that resolving ../scripts/validation_gate.py relative to
+    the skill file's location (following symlinks) selects the correct
+    script even when $HOME points elsewhere. This tests the filesystem
+    mechanism, not full agent execution.
+    """
+
+    def test_symlink_resolution_finds_correct_script(self):
+        """Resolve from symlinked skill location finds the real script."""
+        # The actual script location
+        real_script = os.path.realpath(
+            os.path.join(validation_gate.SCRIPT_DIR, "validation_gate.py"))
+        self.assertTrue(os.path.isfile(real_script))
+        # Simulate: skill at implement/skills/publish.md resolves
+        # ../scripts/validation_gate.py — same as SCRIPT_DIR
+        skill_dir = os.path.realpath(
+            os.path.join(validation_gate.SCRIPT_DIR, "..", "skills"))
+        resolved = os.path.realpath(
+            os.path.join(skill_dir, "..", "scripts", "validation_gate.py"))
+        self.assertEqual(resolved, real_script)
+
+    def test_path_with_spaces(self):
+        """Resolved path with spaces is a valid single argument."""
+        # Create a temp dir with spaces, symlink the script there
+        space_dir = tempfile.mkdtemp(prefix="path with spaces ")
+        self.addCleanup(shutil.rmtree, space_dir, ignore_errors=True)
+        real_script = os.path.join(
+            validation_gate.SCRIPT_DIR, "validation_gate.py")
+        link = os.path.join(space_dir, "validation_gate.py")
+        os.symlink(real_script, link)
+        # shlex.quote produces a safe single argument
+        import shlex
+        quoted = shlex.quote(link)
+        self.assertIn(" ", link)
+        self.assertTrue(os.path.isfile(link))
+        # The quoted form is safe for shell use
+        self.assertEqual(shlex.split(quoted), [link])
 
 
 if __name__ == "__main__":

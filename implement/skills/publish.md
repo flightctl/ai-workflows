@@ -77,7 +77,7 @@ Verify readiness:
    conditions must pass:
 
    ```bash
-   python3 {gate-script-path} --report .artifacts/implement/{issue-key}/05-validation-report.md
+   python3 "{gate-script-path}" --report .artifacts/implement/{issue-key}/05-validation-report.md
    ```
 
    If exit code is 1, report the JSON failure reason. For a dirty
@@ -192,7 +192,7 @@ Confirm with the user before proceeding.
 Immediately before pushing, re-run the validation freshness gate:
 
 ```bash
-python3 {gate-script-path} --report .artifacts/implement/{issue-key}/05-validation-report.md
+python3 "{gate-script-path}" --report .artifacts/implement/{issue-key}/05-validation-report.md
 ```
 
 If exit code is 1 (gate failure), use the same failure-specific
@@ -276,7 +276,7 @@ re-invoking `/publish` from Step 1 with fresh checks and user
 confirmation — do not infer the SHA from HEAD or the remote:
 
 ```bash
-python3 {gate-script-path} \
+python3 "{gate-script-path}" \
   --report .artifacts/implement/{issue-key}/05-validation-report.md \
   --expected-sha {literal-pushed-sha} \
   --remote origin \

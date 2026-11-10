@@ -395,13 +395,12 @@ the worktree is clean (`git status --porcelain -z
   decrement `PIPELINE_ROUNDS_REMAINING` once. At zero → stop FLAG.
   Otherwise return to Step 3 (counter not reset; earlier passes
   not re-counted).
-- HEAD unchanged and clean, all mandatory checks passed (Steps 4–7),
-  all AC satisfied with evidence (manual-pending is not satisfied;
-  write FLAG, stop): write PASS. Prior PASS with unverified AC →
-  overwrite with FLAG.
+- HEAD unchanged and clean, mandatory checks passed, all AC satisfied
+  with evidence, no blocking issues: write PASS. Otherwise FLAG with
+  unmet conditions, stop. FLAG replaces prior PASS on same HEAD
+  (Pending Scope Decision publication block is separate).
 
-Example: budget 3; pass 1 fixes → 2; pass 2 fixes → 1; pass 3
-clean+verified → PASS.
+Example: budget 3; fixes → 2 → 1; clean+verified → PASS.
 
 Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
 
@@ -465,8 +464,8 @@ Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
 |----|-------------|----------------|-------|--------|
 | AC-1 | {brief} | {file:line or commit} | {test file:test name} | {satisfied/partial/not addressed/manual verification} |
 
-{All satisfied → "All acceptance criteria verified."
- Gaps/manual pending → describe; report cannot claim PASS.}
+{All satisfied → "All acceptance criteria verified." Gaps/manual
+ pending → describe; cannot claim PASS.}
 
 ## Test Plan Verification
 
