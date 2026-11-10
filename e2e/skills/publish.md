@@ -90,7 +90,7 @@ Verify readiness:
    `## Branch` section of `02-plan.md`. If the current branch does not
    match the planned branch, or HEAD is detached, stop — do not
    silently switch, create, or push a different branch. The planned
-   branch is the publication target (Step 4 pushes it by name), so the
+   branch is the publication target (Step 5 pushes it by name), so the
    current checkout must be on that branch.
 
    Additionally, verify the validation report's identity binding
@@ -226,7 +226,28 @@ git log --oneline {local-base}..HEAD
 
 Confirm with the user before proceeding.
 
-### Step 4: Push Branch
+### Step 4: Pre-Push Checkpoint
+
+Immediately before pushing, re-verify the current state — sidecar
+changes or new pending state may have been introduced during the
+Step 3 confirmation wait. Repeat the applicable Step 1 checks on
+the current worktree:
+
+1. Re-check for `gate-applicability.pending` and the
+   `Gate-Applicability: unresolved` context fallback.
+2. Re-verify the validation report's identity binding: current
+   branch HEAD, context SHA-256, plan SHA-256, and testplan
+   SHA-256 must still match the `## Validated Identity` section.
+3. Re-verify the worktree is clean (`git status --porcelain`),
+   ignoring `.artifacts/` paths.
+4. Re-verify the current branch matches the planned branch.
+
+If any check detects a change (new blocker, identity mismatch,
+dirty worktree, or branch switch), stop — do not rebind the old
+PASS to the changed state. Require the user to re-run `/ingest`,
+`/validate`, or restart `/publish` as appropriate.
+
+### Step 5: Push Branch
 
 Use the validated HEAD SHA from the validation report's `## Validated
 Identity` section to pin the push to the exact validated commit:
@@ -239,7 +260,7 @@ The `--expected-sha` flag verifies that HEAD still matches the
 validated commit and pins the push refspec to that exact SHA, so
 branch movement after preflight cannot publish an unvalidated commit.
 
-### Step 5: Create PR Description
+### Step 6: Create PR Description
 
 Check the **PR Conventions** section of `01-context.md`:
 
@@ -280,7 +301,7 @@ In either case, save the result to
 - [ ] AC-2: {description}
 ```
 
-### Step 6: Create Draft PR
+### Step 7: Create Draft PR
 
 Check the **Repository Topology** section of `01-context.md` to determine
 whether this is a fork-based workflow.
@@ -300,7 +321,7 @@ python3 "$PUBLISH_SCRIPT" check-existing --repo {upstream-owner}/{repo} --head {
 ```
 
 If exit code is 5, a PR already exists — parse the PR number and URL
-from the returned JSON output, then skip to Step 7 and use those values
+from the returned JSON output, then skip to Step 8 and use those values
 in the metadata. If the command fails (non-zero exit other than 5),
 stop and report the error. If exit code is 0, create a new PR.
 
@@ -341,7 +362,7 @@ providing the user with a GitHub compare URL:
 - Fork-based: `https://github.com/{upstream-owner}/{repo}/compare/{pr-target}...{fork-owner}:{branch-name}?expand=1`
 - Direct clone: `https://github.com/{upstream-owner}/{repo}/compare/{pr-target}...{branch-name}?expand=1`
 
-### Step 7: Save Publish Metadata
+### Step 8: Save Publish Metadata
 
 Read `{owner}/{repo}` from the **Origin** field of the Repository
 Topology section of `01-context.md`. If the repo is a fork, also read
@@ -378,7 +399,7 @@ python3 "$PUBLISH_SCRIPT" save-metadata \
   jira_key={issue-key}
 ```
 
-### Step 8: Report to User
+### Step 9: Report to User
 
 Present:
 - PR URL (the full `https://github.com/...` link, not just `owner/repo#number`)

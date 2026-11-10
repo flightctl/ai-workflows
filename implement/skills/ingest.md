@@ -415,13 +415,20 @@ zero. In that case:
   testplan for gates whose relevance is unknown. Request
   clarification in the ingest handoff.
 
-In both cases, write a `gate-applicability.pending` file in the
+In both cases, update the `gate-applicability.pending` file in the
 artifact directory
-(`.artifacts/implement/{issue-key}/gate-applicability.pending`)
-listing the affected gate names and their unresolved status. Write
-this file immediately during gate analysis, before Step 8
-compilation — it is not subject to Step 8a approval and persists
-even if a re-invocation overwrite is declined. Also include the
+(`.artifacts/implement/{issue-key}/gate-applicability.pending`).
+If the file already exists, read it first and preserve its
+existing entries — a gate absent from the latest artifact set is
+not verified irrelevant, and newly unresolved gates must not
+overwrite previously recorded ones. Merge newly unresolved gate
+names into the existing set, preserving each entry's origin, name,
+and status. Remove an entry only through the allowed checked
+clearing procedure (re-ingestion with gate recording and plan
+reconciliation, or verified irrelevance). Write the merged result
+immediately during gate analysis, before Step 8 compilation — it
+is not subject to Step 8a approval and persists even if a
+re-invocation overwrite is declined. Also include the
 `Gate-Applicability: unresolved` marker in the compiled
 `01-context.md` content (Step 8) for human readability, but the
 pending file is the authoritative blocker checked by `/validate`
@@ -467,6 +474,18 @@ because the validator fallback would no longer detect the blocker.
 A re-invocation that resolves all gates must compile a new
 `01-context.md` without the unresolved marker and obtain Step 8a
 approval before removing the pending file.
+
+**Deferred finalization.** Step 6 determines clearing eligibility
+during gate analysis but does not perform the actual pending-file
+removal or legacy-marker update. These operations are deferred to
+the context write: Step 8 (first invocation) or Step 8a
+(re-invocation, accepted branch). This ensures the context has
+been written (or approved for overwrite) before the pending file
+is removed, maintaining the validator fallback invariant. The
+compiled `01-context.md` content should reflect the resolved gate
+state (omitting the `Gate-Applicability: unresolved` marker when
+all gates are resolved), but the pending file is not removed until
+the context write succeeds.
 
 Only after confirming that all gates have known relevance (or no
 gates exist) may a zero outcome proceed to deletion.
@@ -608,6 +627,18 @@ fill it tightly (must-record bullets; 5–8 lines per component; signatures
 only; every open-question slot filled or N/A), Write `01-context.md`
 **once**.
 
+**Pending finalization (first invocation).** After writing
+`01-context.md`, if Step 6 determined that all previously
+unresolved gates now have known relevance and the clearing
+conditions are met (gates recorded in story testplan with original
+mappings, origin, and evidence; and either no downstream plan
+(`02-plan.md`) exists or the plan acknowledges the newly recorded
+gates), remove `gate-applicability.pending`. The written
+`01-context.md` must not contain the `Gate-Applicability:
+unresolved` marker. If clearing conditions are not met (source
+discovery failed, some gates remain unresolved, or downstream plan
+reconciliation is incomplete), retain the pending file.
+
 ### Step 8a: Diff Against Prior Ingest (Re-invocation Only)
 
 Diff compiled content vs `.prev`. Focus on:
@@ -617,7 +648,16 @@ Diff compiled content vs `.prev`. Focus on:
 - New components or patterns
 - Validation profile
 
-If `02-plan.md` or later artifacts exist, list them. Wait for confirmation. If confirmed, Write `01-context.md` **once** and delete `.prev`. If declined, delete `.prev` and stop without overwriting.
+If `02-plan.md` or later artifacts exist, list them. Wait for
+confirmation. If confirmed, Write `01-context.md` **once** and
+delete `.prev`. Apply the same pending finalization as Step 8: if
+Step 6 determined clearing eligibility and all conditions are met,
+remove `gate-applicability.pending`. The written `01-context.md`
+must not contain the `Gate-Applicability: unresolved` marker. If
+the user declined or did not answer the overwrite, do not clear
+the pending file — the legacy marker in the existing
+`01-context.md` must persist so the validator fallback continues
+to detect the blocker.
 
 ### Step 9: Report
 

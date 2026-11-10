@@ -200,7 +200,7 @@ def _check_gapfill_source_guard(section):
             "Source-Discovery check must come before positive write branch")
     if positive_pos >= 0:
         branch_text = section[positive_pos:positive_pos + 200]
-        if "resolved source discovery" not in branch_text:
+        if not re.search(r'\bresolved source discovery\b', branch_text):
             errors.append(
                 "positive write branch must require resolved source discovery")
     return len(errors) == 0, errors
@@ -5038,46 +5038,63 @@ class TestGateApplicabilityContract(unittest.TestCase):
             "e2e inline template must include Gate-Applicability field")
 
     def test_validators_check_gate_applicability_before_skip(self):
-        """Both validators check Gate-Applicability from 01-context.md
-        before the testplan-absent skip."""
+        """Both validators check Gate-Applicability within the testplan
+        verification step before the testplan-absent skip."""
+        step_markers = {
+            "e2e": "### Step 7b:",
+            "implement": "### Step 8b:",
+        }
         for workflow, path in [("e2e", "e2e/skills/validate.md"),
                                ("implement",
                                 "implement/skills/validate.md")]:
             with self.subTest(workflow=workflow):
                 text = (self._repo_root() / path).read_text(
                     encoding="utf-8")
-                ga_pos = text.find("Gate-Applicability")
-                skip_pos = text.find("skip the rest of this step")
+                step_start = text.find(step_markers[workflow])
+                self.assertGreater(
+                    step_start, 0,
+                    f"{workflow}/validate.md must have "
+                    f"{step_markers[workflow]} step")
+                next_step = text.find("\n### Step", step_start + 1)
+                if next_step < 0:
+                    next_step = len(text)
+                step_section = text[step_start:next_step]
+                ga_pos = step_section.find("Gate-Applicability")
+                skip_pos = step_section.find(
+                    "skip the rest of this step")
                 self.assertGreater(
                     ga_pos, 0,
-                    f"{workflow}/validate.md must check "
-                    f"Gate-Applicability")
+                    f"{workflow}/validate.md testplan step must "
+                    f"check Gate-Applicability")
                 self.assertGreater(
                     skip_pos, 0,
-                    f"{workflow}/validate.md must have "
-                    f"testplan-absent skip")
+                    f"{workflow}/validate.md testplan step must "
+                    f"have testplan-absent skip")
                 self.assertLess(
                     ga_pos, skip_pos,
-                    f"{workflow}/validate.md Gate-Applicability check "
-                    f"must appear before testplan-absent skip")
+                    f"{workflow}/validate.md Gate-Applicability "
+                    f"check must appear before testplan-absent "
+                    f"skip within testplan step")
 
     def test_validators_block_pass_on_unresolved_applicability(self):
-        """Both validators: Overall result blocks PASS when
-        Gate-Applicability is unresolved."""
+        """Both validators: Result section references
+        Gate-Applicability blocking PASS."""
         for workflow, path in [("e2e", "e2e/skills/validate.md"),
                                ("implement",
                                 "implement/skills/validate.md")]:
             with self.subTest(workflow=workflow):
                 text = (self._repo_root() / path).read_text(
                     encoding="utf-8")
-                # Must mention Gate-Applicability in Overall/Result
-                overall_pos = text.find("Overall: PASS")
-                self.assertGreater(overall_pos, 0)
-                result_area = text[overall_pos:]
+                result_start = text.find("## Result")
+                self.assertGreater(result_start, 0)
+                result_end = text.find("```", result_start)
+                if result_end < 0:
+                    result_end = len(text)
+                result_section = text[result_start:result_end]
                 self.assertIn(
-                    "Gate-Applicability", result_area,
-                    f"{workflow}/validate.md Result must reference "
-                    f"Gate-Applicability blocking PASS")
+                    "Gate-Applicability", result_section,
+                    f"{workflow}/validate.md Result section must "
+                    f"reference Gate-Applicability blocking PASS")
 
 
 class TestWriteBeforeStep10Contract(unittest.TestCase):
@@ -5186,6 +5203,31 @@ class TestGapFillResolvedDiscoveryContract(unittest.TestCase):
             any("Source-Discovery" in e for e in errors),
             "Checker must detect missing Source-Discovery check")
 
+    def test_unresolved_in_positive_branch_fails_checker(self):
+        """Negative fixture: a positive write branch that mentions only
+        'unresolved source discovery' must fail the checker — the
+        word-boundary check must not match 'unresolved' as 'resolved'."""
+        fixture_with_unresolved = (
+            "If any automatable TC ID lacks a corresponding test:\n"
+            "   - If the testplan contains "
+            "`Source-Discovery: unresolved`, ALL\n"
+            "     TCs from that source are provisional.\n"
+            "   - For effectively confirmed TCs or verified-source TCs "
+            "(with\n"
+            "     unresolved source discovery still pending): write\n"
+            "     the missing test.\n"
+            "     These TCs are normative."
+        )
+        passed, errors = _check_gapfill_source_guard(
+            fixture_with_unresolved)
+        self.assertFalse(
+            passed,
+            "Checker must reject 'unresolved source discovery' as "
+            "the resolved-discovery qualifier")
+        self.assertTrue(
+            any("resolved source discovery" in e for e in errors),
+            "Checker must report missing resolved-discovery qualifier")
+
 
 # ===========================================================================
 # Gate-Applicability Pending-File Contract (Defect A: r4530941059)
@@ -5253,6 +5295,32 @@ class TestGateApplicabilityPendingFileContract(unittest.TestCase):
                     f"{workflow}/ingest.md must mention declined "
                     f"overwrite scenario")
 
+    def test_ingests_step8_performs_pending_finalization(self):
+        """Both ingests: Step 8 (first invocation) performs deferred
+        pending-file finalization after writing context."""
+        step8_markers = {
+            "e2e": "### Step 8: Compile Context",
+            "implement": "### Step 8: Compile Context",
+        }
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                text = (self._repo_root() / path).read_text(
+                    encoding="utf-8")
+                step8_start = text.find(step8_markers[workflow])
+                self.assertGreater(step8_start, 0)
+                step8a_start = text.find("### Step 8a:", step8_start)
+                self.assertGreater(step8a_start, step8_start)
+                step8_section = text[step8_start:step8a_start]
+                normalized = " ".join(step8_section.split())
+                self.assertIn(
+                    "Pending finalization", normalized,
+                    f"{workflow}/ingest.md Step 8 must perform "
+                    f"pending finalization")
+                self.assertIn(
+                    "gate-applicability.pending", normalized,
+                    f"{workflow}/ingest.md Step 8 finalization "
+                    f"must reference pending file")
+
     def test_validators_check_pending_file(self):
         """Both validators: Gate-Applicability check references the
         pending file as the primary source."""
@@ -5295,20 +5363,28 @@ class TestGateApplicabilityPendingFileContract(unittest.TestCase):
                     f"{workflow}/ingest.md Output must list "
                     f"gate-applicability.pending")
 
-    def test_old_ingest_text_lacks_pending_file(self):
-        """Counter-regression: old ingest text (writing marker to
-        01-context.md before returning) does not use pending file."""
-        old_text = (
-            "In both cases, persist the `Gate-Applicability: unresolved`"
-            " marker\n"
-            "in `01-context.md` before returning or pausing for "
-            "clarification.\n"
-            "This marker is distinct from `Source-Discovery: unresolved`"
-        )
-        self.assertNotIn(
-            "gate-applicability.pending", old_text,
-            "Old text must not reference pending file (proving the "
-            "defect existed)")
+    def test_ingests_merge_existing_pending_entries(self):
+        """Both ingests: pending file write must merge with existing
+        entries rather than overwriting — absent gates are not verified
+        irrelevant."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                text = (self._repo_root() / path).read_text(
+                    encoding="utf-8")
+                # Find the pending-file write paragraph
+                write_pos = text.find(
+                    "gate-applicability.pending")
+                self.assertGreater(write_pos, 0)
+                write_section = text[write_pos:write_pos + 800]
+                normalized = " ".join(write_section.split())
+                self.assertIn(
+                    "already exists", normalized,
+                    f"{workflow}/ingest.md pending write must "
+                    f"check for existing file")
+                self.assertIn(
+                    "preserve", normalized,
+                    f"{workflow}/ingest.md pending write must "
+                    f"preserve existing entries")
 
 
 # ===========================================================================
@@ -5388,24 +5464,6 @@ class TestGateApplicabilityExplicitFailVerdict(unittest.TestCase):
                     f"{workflow}/validate.md FAIL verdict must apply "
                     f"even when tests pass")
 
-    def test_old_text_lacks_explicit_fail_verdict(self):
-        """Counter-regression: old Result schema text (just 'cannot be
-        PASS') lacks the explicit FAIL verdict format."""
-        old_text = (
-            "Gate-Applicability: if `01-context.md` contains\n"
-            " `Gate-Applicability: unresolved`, Overall cannot be "
-            "PASS —\n"
-            " report the unresolved gates and note that clarification "
-            "is\n"
-            " needed before coverage completeness can be confirmed.\n"
-            " Other outcomes:\n"
-            " - If automated tests pass but mandatory entries are "
-            "pending/"
-        )
-        self.assertNotIn(
-            "FAIL — gate applicability unresolved", old_text,
-            "Old text must not have explicit FAIL verdict (proving "
-            "the defect existed)")
 
 
 # ===========================================================================
@@ -5493,8 +5551,9 @@ class TestGateApplicabilityClearingContract(unittest.TestCase):
         for workflow, path in self._INGESTS:
             with self.subTest(workflow=workflow):
                 section = self._clearing_section(path)
+                normalized = " ".join(section.split())
                 self.assertIn(
-                    "no downstream\n  plan exists", section,
+                    "no downstream plan exists", normalized,
                     f"{workflow}/ingest.md clearing must handle "
                     f"no-downstream-plan case")
 
@@ -5518,40 +5577,35 @@ class TestGateApplicabilityClearingContract(unittest.TestCase):
         for workflow, path in self._INGESTS:
             with self.subTest(workflow=workflow):
                 section = self._clearing_section(path)
+                normalized = " ".join(section.split())
                 self.assertIn(
-                    "Does NOT clear", section,
+                    "Does NOT clear", normalized,
                     f"{workflow}/ingest.md must specify what does "
                     f"NOT clear the pending file")
                 self.assertIn(
-                    "TC confirmation alone", section,
+                    "TC confirmation alone", normalized,
                     f"{workflow}/ingest.md must reject TC confirmation "
                     f"as clearing condition")
                 self.assertIn(
-                    "partial\nclarification", section,
+                    "partial clarification", normalized,
                     f"{workflow}/ingest.md must reject partial "
                     f"clarification as clearing condition")
 
-    def test_old_text_allows_simple_clarification(self):
-        """Counter-regression: old clearing text ('or explicit
-        clarification that establishes...') does not require testplan
-        recording or plan reconciliation."""
-        old_text = (
-            "Clearing\n"
-            "`Gate-Applicability: unresolved` requires a subsequent "
-            "ingest or\n"
-            "explicit clarification that establishes those gates' "
-            "applicability\n"
-            "or irrelevance — not simply TC confirmation or a missing "
-            "prior plan."
-        )
-        self.assertNotIn(
-            "Re-ingestion with resolved gates", old_text,
-            "Old text must not require re-ingestion (proving "
-            "the defect existed)")
-        self.assertNotIn(
-            "reconciled", old_text,
-            "Old text must not require plan reconciliation (proving "
-            "the defect existed)")
+    def test_clearing_deferred_to_context_write(self):
+        """Both ingests: clearing is deferred to Step 8/8a context
+        write, not performed in Step 6."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._clearing_section(path)
+                normalized = " ".join(section.split())
+                self.assertIn(
+                    "Deferred finalization", normalized,
+                    f"{workflow}/ingest.md clearing must describe "
+                    f"deferred finalization to context write")
+                self.assertIn(
+                    "Step 8", normalized,
+                    f"{workflow}/ingest.md deferred finalization "
+                    f"must reference Step 8")
 
 
 # ===========================================================================
@@ -5642,23 +5696,6 @@ class TestPublisherCachedPassBypassGuard(unittest.TestCase):
                     f"{workflow}/publish.md Step 1 must recommend "
                     f"/validate after ingest")
 
-    def test_old_publisher_lacks_pending_check(self):
-        """Counter-regression: old publisher text (checking only
-        Overall: PASS and identity binding) had no pending file
-        check in Step 1 preflight."""
-        old_step1 = (
-            "1. Read `.artifacts/e2e/{issue-key}/05-validation-"
-            "report.md`. Check\n"
-            "   that the `## Result` section contains an explicit "
-            "`Overall: PASS`\n"
-            "   line.\n\n"
-            "   Verify the current branch matches the planned branch:"
-        )
-        self.assertNotIn(
-            "gate-applicability.pending", old_step1,
-            "Old Step 1 must not check pending file (proving "
-            "the defect existed)")
-
     def test_cached_pass_with_declined_overwrite_scenario(self):
         """Regression: the specific scenario where re-ingest writes
         pending file but user declines context overwrite, leaving
@@ -5674,6 +5711,32 @@ class TestPublisherCachedPassBypassGuard(unittest.TestCase):
                     "re-ingest", normalized,
                     f"{workflow}/publish.md must reference re-ingest "
                     f"scenario in pending check")
+
+    def test_publishers_have_pre_push_checkpoint(self):
+        """Both publishers: a pre-push checkpoint step re-verifies
+        state after user confirmation and before the SHA-pinned push."""
+        for workflow, path in self._PUBLISHERS:
+            with self.subTest(workflow=workflow):
+                content = (self._repo_root() / path).read_text(
+                    encoding="utf-8")
+                confirm_pos = content.find("Confirm with the user")
+                push_pos = content.find("push --remote origin")
+                self.assertGreater(confirm_pos, 0)
+                self.assertGreater(push_pos, confirm_pos)
+                between = content[confirm_pos:push_pos]
+                normalized = " ".join(between.split())
+                self.assertIn(
+                    "Pre-Push Checkpoint", normalized,
+                    f"{workflow}/publish.md must have pre-push "
+                    f"checkpoint between confirmation and push")
+                self.assertIn(
+                    "gate-applicability.pending", normalized,
+                    f"{workflow}/publish.md pre-push checkpoint "
+                    f"must re-check pending file")
+                self.assertIn(
+                    "identity", normalized,
+                    f"{workflow}/publish.md pre-push checkpoint "
+                    f"must re-verify identity binding")
 
 
 # ===========================================================================
@@ -5728,23 +5791,13 @@ class TestEarlyClearingShortcutRemoval(unittest.TestCase):
         for workflow, path in self._INGESTS:
             with self.subTest(workflow=workflow):
                 between = self._pre_clearing_section(path)
+                normalized = " ".join(between.split())
                 self.assertNotIn(
-                    "on a subsequent\nanalysis, remove",
-                    between,
+                    "on a subsequent analysis, remove",
+                    normalized,
                     f"{workflow}/ingest.md must not allow analysis-only "
                     f"clearing")
 
-    def test_old_text_had_early_shortcut(self):
-        """Counter-regression: old text had the early shortcut."""
-        old_text = (
-            "and `/publish`. When all gates are resolved on a "
-            "subsequent\n"
-            "analysis, remove the `gate-applicability.pending` file."
-        )
-        self.assertIn(
-            "remove the `gate-applicability.pending` file", old_text,
-            "Old text must have early shortcut (proving the defect "
-            "existed)")
 
 
 # ===========================================================================
@@ -5874,6 +5927,31 @@ class TestVerdictEmissionLiteralFail(unittest.TestCase):
                     f"{workflow}/validate.md must specify Overall: "
                     f"FAIL on its own line")
 
+    def test_reason_before_verdict(self):
+        """Both validators: gate-applicability reason is written
+        before the final Overall: FAIL verdict line."""
+        for workflow, path in self._VALIDATORS:
+            with self.subTest(workflow=workflow):
+                section = self._gate_verdict_section(path)
+                normalized = " ".join(section.split())
+                self.assertIn(
+                    "reason first", normalized,
+                    f"{workflow}/validate.md must write reason "
+                    f"before verdict")
+                # Verify "reason first" appears before "end" with
+                # "Overall: FAIL"
+                reason_pos = normalized.find("reason first")
+                end_pos = normalized.find(
+                    "end the report with `Overall: FAIL`")
+                self.assertGreater(
+                    reason_pos, -1,
+                    f"{workflow}/validate.md must have reason-first "
+                    f"instruction")
+                self.assertGreater(
+                    end_pos, reason_pos,
+                    f"{workflow}/validate.md reason must come "
+                    f"before final verdict")
+
     def test_no_fabricated_evidence(self):
         """Both validators: must not fabricate failed external
         evidence to justify the FAIL."""
@@ -5886,20 +5964,6 @@ class TestVerdictEmissionLiteralFail(unittest.TestCase):
                     f"{workflow}/validate.md must prohibit fabricating "
                     f"evidence for gate-applicability FAIL")
 
-    def test_old_verdict_format_lacked_literal_overall_fail(self):
-        """Counter-regression: old verdict format used 'FAIL — gate'
-        run-on without literal 'Overall: FAIL' specification."""
-        old_text = (
-            ' - If Gate-Applicability is unresolved\n'
-            '   (`gate-applicability.pending` exists or `01-context.md`\n'
-            '   contains `Gate-Applicability: unresolved`): "FAIL — gate\n'
-            '   applicability unresolved for {gate names}; coverage\n'
-            '   completeness cannot be confirmed." Overall is FAIL.'
-        )
-        self.assertNotIn(
-            "`Overall: FAIL`", old_text,
-            "Old text must not have literal Overall: FAIL (proving "
-            "the defect existed)")
 
 
 if __name__ == "__main__":
