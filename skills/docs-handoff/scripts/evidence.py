@@ -636,6 +636,25 @@ _FORBIDDEN_FIELDS = frozenset({
     "reporter", "components", "fixversions",
 })
 
+# Metadata catalog V1 — maps skill-level names to actual Jira fields.
+# ``target_release`` is the only authorized access path to the Jira
+# ``fixVersions`` field.  Direct use of the raw Jira field name is
+# blocked by ``_FORBIDDEN_FIELDS`` to prevent catalog bypass.
+_METADATA_CATALOG_V1: dict[str, dict[str, Any]] = {
+    "target_release": {
+        "jira_field": "fixVersions",
+        "jira_field_type": "array",
+        "jira_item_schema": {
+            "type": "version",
+            "id_field": "id",
+            "name_field": "name",
+        },
+        "description": (
+            "Fix Version value from project version catalog"
+        ),
+    },
+}
+
 
 def build_change_plan(
     validation: dict[str, Any],
@@ -696,10 +715,39 @@ def build_change_plan(
             "plan_digest": "",
         }
 
-    # Validate evidence shape
+    if not _JIRA_KEY_RE.fullmatch(issue_key):
+        return {
+            "status": "invalid_issue",
+            "errors": [f"invalid Jira key format: {issue_key}"],
+            "issue_key": issue_key,
+            "target": target,
+            "inputs": [],
+            "pr_links": [],
+            "metadata": {},
+            "findings": [],
+            "source_proposal": None,
+            "readiness": None,
+            "plan_digest": "",
+        }
+
+    # Validate evidence shape — errors block eligible operations
     ev_errors = evidence.get("errors", [])
     if not isinstance(ev_errors, list):
         ev_errors = []
+    if ev_errors:
+        return {
+            "status": "invalid_evidence",
+            "errors": ev_errors,
+            "issue_key": issue_key,
+            "target": target,
+            "inputs": [],
+            "pr_links": [],
+            "metadata": {},
+            "findings": [],
+            "source_proposal": None,
+            "readiness": None,
+            "plan_digest": "",
+        }
     ev_items = evidence.get("items", [])
     if not isinstance(ev_items, list):
         return {
@@ -740,10 +788,17 @@ def build_change_plan(
         for ck in ev.get("contributor_keys", []):
             contributor_evidence.setdefault(ck, []).append(ev)
 
+    # --- Contributor coverage (independent of parsed inputs) ---
+    all_evidence_contributors: set[str] = set()
+    contributor_pr_links: set[str] = set()
+    for ev in ev_items:
+        for ck in ev.get("contributor_keys", []):
+            all_evidence_contributors.add(ck)
+            if ck in contributors:
+                contributor_pr_links.add(ev["pr_url"])
+
     # --- Per-input delivery status (B: honest per-input assessment) ---
     input_statuses: list[dict[str, Any]] = []
-    contributors_with_evidence: set[str] = set()
-    contributor_pr_links: set[str] = set()  # PRs from actual contributors
 
     for doc_input in doc_inputs:
         contrib = doc_input.get("contributor")
@@ -755,9 +810,7 @@ def build_change_plan(
         input_conflicts: list[str] = []
 
         if evs:
-            contributors_with_evidence.add(contrib)
             for ev in evs:
-                contributor_pr_links.add(ev["pr_url"])
                 ev_merged = ev.get("merged")
                 ev_target = ev.get("target_branch", "")
                 ev_conflicts = ev.get("conflicts", [])
@@ -814,7 +867,7 @@ def build_change_plan(
     # --- Contributors without evidence (B: always flag, even if
     # also a dependency) ---
     for contrib in sorted(contributors):
-        if contrib not in contributors_with_evidence:
+        if contrib not in all_evidence_contributors:
             if contrib.startswith("story-"):
                 findings.append({
                     "type": "unresolved_contributor",
@@ -834,14 +887,21 @@ def build_change_plan(
                     ),
                 })
 
-    # --- Non-contributor evidence: candidate proposals, NOT auto-eligible
-    # PR links (B) ---
-    all_contributor_keys: set[str] = set()
+    # --- Input/contributor alignment ---
+    all_contributor_keys: set[str] = set(contributors)
     for di in doc_inputs:
         c = di.get("contributor")
         if c:
             all_contributor_keys.add(c)
-    all_contributor_keys |= contributors
+            if c not in contributors:
+                findings.append({
+                    "type": "input_contributor_mismatch",
+                    "ref": c,
+                    "detail": (
+                        f"Documentation input header references {c} "
+                        f"which is not listed in Contributing stories"
+                    ),
+                })
 
     for ev in ev_items:
         for ck in ev.get("contributor_keys", []):
@@ -879,16 +939,19 @@ def build_change_plan(
             ],
         })
 
-    # --- Metadata (D: allowed catalog only) ---
+    # --- Metadata (D: allowed catalog only, real Jira binding) ---
     metadata: dict[str, Any] = {}
     if target_release:
+        cat = _METADATA_CATALOG_V1["target_release"]
         metadata["target_release"] = {
             "value": target_release,
-            "field_binding": "fixVersions or customfield (project-specific)",
+            "jira_field": cat["jira_field"],
+            "jira_field_type": cat["jira_field_type"],
             "catalog_verified": False,
+            "catalog_entry": None,
+            "before": None,
             "note": (
-                "Value must be verified against the project's actual "
-                "Fix Version catalog before applying"
+                "Requires catalog entry with version ID before apply"
             ),
         }
 
@@ -908,10 +971,16 @@ def build_change_plan(
                     ),
                 })
             elif field_name in _ALLOWED_METADATA:
+                cat = _METADATA_CATALOG_V1.get(field_name, {})
                 metadata[field_name] = {
                     "value": af.get("value"),
-                    "field_binding": af.get("field_binding", ""),
-                    "catalog_verified": af.get("catalog_verified", False),
+                    "jira_field": cat.get("jira_field", ""),
+                    "jira_field_type": cat.get("jira_field_type", ""),
+                    "catalog_verified": af.get(
+                        "catalog_verified", False
+                    ),
+                    "catalog_entry": af.get("catalog_entry"),
+                    "before": af.get("before"),
                 }
 
     # --- Readiness (B: independent of delivery, visible gaps) ---
@@ -995,13 +1064,14 @@ def _build_source_proposal(
     """Build an owning-source narrative-change proposal.
 
     Source/narrative apply is disabled.  The proposal carries:
-    - Specific proposed wording changes or clearly unresolved questions
+    - Observations gathered per input with evidence refs
     - Input/source location references
     - Supporting PR/code evidence URLs
     - Intended owning-workflow action
 
-    Only observations that indicate actual divergence generate update
-    proposals.  'As planned' observations do NOT generate proposals.
+    Observations are display-only context for human review — no
+    automated semantic inference from free-form text.  Each
+    observation is tied to its specific input and evidence source.
     """
     proposed_changes: list[dict[str, Any]] = []
 
@@ -1013,38 +1083,26 @@ def _build_source_proposal(
         if not ev_refs:
             continue
 
-        # Collect observations that suggest divergence
-        divergent_observations: list[str] = []
-        confirming_observations: list[str] = []
+        # Collect observations — display-only, no semantic inference
+        observations: list[str] = []
         evidence_urls: list[str] = []
 
         for eref in ev_refs:
             evidence_urls.append(eref["pr_url"])
-            for obs in eref.get("observations", []):
-                obs_lower = obs.lower()
-                if any(
-                    phrase in obs_lower
-                    for phrase in (
-                        "as planned", "as expected", "matches plan",
-                        "no change", "confirmed",
-                    )
-                ):
-                    confirming_observations.append(obs)
-                else:
-                    divergent_observations.append(obs)
+            observations.extend(eref.get("observations", []))
 
-        # Only divergent observations produce update proposals (B)
-        if divergent_observations:
+        # All observations are presented for human review — the skill
+        # does not classify them as confirming or divergent
+        if observations:
             proposed_changes.append({
-                "action": "update",
+                "action": "review",
                 "contributor": contrib,
                 "input_text": text,
-                "proposed_wording": (
-                    f"Update based on implementation evidence: "
-                    + "; ".join(divergent_observations)
+                "proposed_wording": None,
+                "reason": (
+                    "Implementation observations require human review"
                 ),
-                "reason": "Implementation diverges from planned input",
-                "observations": divergent_observations,
+                "observations": observations,
                 "evidence_urls": evidence_urls,
                 "source_location": "Documentation Inputs",
             })
@@ -1091,6 +1149,7 @@ def check_enrichment(
     plan: dict[str, Any],
     current_state: dict[str, Any],
     approved_baseline: str = "",
+    approved_plan_digest: str = "",
 ) -> dict[str, Any]:
     """Check proposed enrichment against current issue state.
 
@@ -1101,44 +1160,87 @@ def check_enrichment(
         approved_baseline: fingerprint from a previously approved
             preview — if provided and differs from the current
             baseline, the plan is stale
+        approved_plan_digest: digest from a previously approved plan
+            — if provided and differs from the current plan's digest,
+            the plan has changed since approval
 
     Returns an enrichment result with eligibility, staleness, and
     detailed operation plan.
     """
+    _empty_result: dict[str, Any] = {
+        "eligible_links": [],
+        "existing_links": [],
+        "skipped_links": [],
+        "eligible_metadata": {},
+        "forbidden_fields": [],
+        "plan_digest": plan.get("plan_digest", ""),
+        "baseline_fingerprint": "",
+        "stale": True,
+    }
+
     # Reject invalid/blocked plans entirely (D)
     plan_status = plan.get("status", "")
     if plan_status != "complete":
         return {
+            **_empty_result,
             "status": "invalid_plan",
-            "reason": f"plan status is '{plan_status}', not 'complete'",
-            "eligible_links": [],
-            "existing_links": [],
-            "skipped_links": [],
-            "eligible_metadata": {},
-            "forbidden_fields": [],
-            "plan_digest": plan.get("plan_digest", ""),
-            "baseline_fingerprint": "",
-            "stale": True,
+            "reason": (
+                f"plan status is '{plan_status}', not 'complete'"
+            ),
         }
 
-    # Verify issue identity matches (A, D)
+    # Require both identity keys (missing = invalid, not pass)
     plan_key = plan.get("issue_key", "")
     current_key = current_state.get("key", "")
-    if current_key and plan_key and current_key != plan_key:
+
+    if not plan_key:
         return {
+            **_empty_result,
+            "status": "invalid_plan",
+            "reason": "plan missing issue key",
+        }
+
+    if not current_key:
+        return {
+            **_empty_result,
+            "status": "invalid",
+            "reason": "current state missing issue key",
+        }
+
+    if current_key != plan_key:
+        return {
+            **_empty_result,
             "status": "wrong_issue",
             "reason": (
                 f"plan targets {plan_key} but current state is "
                 f"for {current_key}"
             ),
-            "eligible_links": [],
-            "existing_links": [],
-            "skipped_links": [],
-            "eligible_metadata": {},
-            "forbidden_fields": [],
-            "plan_digest": plan.get("plan_digest", ""),
-            "baseline_fingerprint": "",
-            "stale": True,
+        }
+
+    # Verify plan digest integrity (detect tampering)
+    recomputed_digest = _fingerprint({
+        "issue_key": plan.get("issue_key"),
+        "target": plan.get("target"),
+        "inputs": plan.get("inputs"),
+        "pr_links": plan.get("pr_links"),
+        "metadata": plan.get("metadata"),
+    })
+    plan_digest = plan.get("plan_digest", "")
+    if plan_digest and recomputed_digest != plan_digest:
+        return {
+            **_empty_result,
+            "status": "invalid_plan",
+            "reason": (
+                "plan digest mismatch — plan may have been altered"
+            ),
+        }
+
+    # Check approved plan digest (plan changed since approval)
+    if approved_plan_digest and plan_digest != approved_plan_digest:
+        return {
+            **_empty_result,
+            "status": "stale",
+            "reason": "plan has changed since approval",
         }
 
     existing_links = current_state.get("remote_links", [])
@@ -1158,8 +1260,30 @@ def check_enrichment(
         canonical_links.append({"url": norm})
     canonical_links.sort(key=lambda x: x["url"])
 
-    # Baseline fingerprint from current state
-    baseline_fp = _fingerprint({"remote_links": canonical_links})
+    # Current metadata state for baseline
+    current_fields = current_state.get("fields", {})
+    current_metadata: dict[str, Any] = {}
+    if isinstance(current_fields, dict):
+        for fname, cat in _METADATA_CATALOG_V1.items():
+            jf = cat["jira_field"]
+            if jf in current_fields:
+                # Normalize for stable fingerprint (sort by id)
+                val = current_fields[jf]
+                if isinstance(val, list):
+                    val = sorted(
+                        val,
+                        key=lambda x: (
+                            x.get("id", "") if isinstance(x, dict)
+                            else str(x)
+                        ),
+                    )
+                current_metadata[fname] = val
+
+    # Baseline fingerprint from current state (links + metadata)
+    baseline_fp = _fingerprint({
+        "remote_links": canonical_links,
+        "metadata": current_metadata,
+    })
 
     # Staleness detection (D)
     stale = False
@@ -1183,7 +1307,7 @@ def check_enrichment(
         else:
             eligible.append({**proposed, "url": norm_url})
 
-    # Metadata eligibility (D: allowed catalog only)
+    # Metadata eligibility (D: catalog_verified + catalog_entry required)
     eligible_metadata: dict[str, Any] = {}
     forbidden_found: list[str] = []
 
@@ -1194,10 +1318,14 @@ def check_enrichment(
         if field not in _ALLOWED_METADATA:
             forbidden_found.append(f"uncatalogued:{field}")
             continue
-        if isinstance(spec, dict):
-            eligible_metadata[field] = spec
-        else:
-            eligible_metadata[field] = {"value": spec}
+        if not isinstance(spec, dict):
+            continue
+        # catalog_verified must be True with a catalog_entry
+        if not spec.get("catalog_verified", False):
+            continue
+        if not spec.get("catalog_entry"):
+            continue
+        eligible_metadata[field] = spec
 
     # Profile forbidden fields
     profile_fields = current_state.get("profile_fields", {})
@@ -1235,9 +1363,18 @@ def verify_enrichment(
 
     Returns a receipt with per-operation status.
     """
-    # Identity check (D)
+    # Identity check (D) — missing key is invalid, not a pass
     readback_key = readback.get("key", "")
-    if expected_key and readback_key and readback_key != expected_key:
+    if not readback_key:
+        return {
+            "status": "invalid",
+            "reason": "readback missing issue key",
+            "link_receipts": [],
+            "metadata_receipts": [],
+            "baseline_fingerprint": "",
+            "all_confirmed": False,
+        }
+    if expected_key and readback_key != expected_key:
         return {
             "status": "wrong_issue",
             "reason": (
@@ -1307,35 +1444,54 @@ def verify_enrichment(
             "status": "confirmed" if found else "disappeared",
         })
 
-    # Metadata receipts
+    # Metadata receipts — use real Jira field binding from catalog
     metadata_receipts: list[dict[str, Any]] = []
     for field, spec in enrichment.get("eligible_metadata", {}).items():
+        cat = _METADATA_CATALOG_V1.get(field, {})
+        jira_field = cat.get("jira_field", field)
         readback_fields = readback.get("fields", {})
         if not isinstance(readback_fields, dict):
             readback_fields = {}
-        current_val = readback_fields.get(field)
-        expected_val = spec.get("value") if isinstance(spec, dict) else spec
-        if current_val == expected_val:
-            metadata_receipts.append({
-                "field": field,
-                "status": "confirmed",
-                "value": current_val,
-            })
-        elif current_val is not None:
-            metadata_receipts.append({
-                "field": field,
-                "status": "different_value",
-                "expected": expected_val,
-                "actual": current_val,
-            })
-        else:
-            metadata_receipts.append({
-                "field": field,
-                "status": "uncertain",
-                "expected": expected_val,
-            })
+        current_val = readback_fields.get(jira_field)
+        expected_entry = (
+            spec.get("catalog_entry")
+            if isinstance(spec, dict) else None
+        )
 
-    # New baseline
+        # For array fields (fixVersions), check entry presence by ID
+        if (
+            cat.get("jira_field_type") == "array"
+            and isinstance(current_val, list)
+            and isinstance(expected_entry, dict)
+        ):
+            schema = cat.get("jira_item_schema", {})
+            id_field = schema.get("id_field", "id")
+            expected_id = expected_entry.get(id_field)
+            found = any(
+                isinstance(item, dict)
+                and item.get(id_field) == expected_id
+                for item in current_val
+            ) if expected_id else False
+            status = "confirmed" if found else "uncertain"
+        elif current_val is not None and expected_entry is not None:
+            status = (
+                "confirmed" if current_val == expected_entry
+                else "different_value"
+            )
+        elif expected_entry is not None:
+            status = "uncertain"
+        else:
+            status = "uncertain"
+
+        metadata_receipts.append({
+            "field": field,
+            "jira_field": jira_field,
+            "status": status,
+            "expected": expected_entry,
+            "actual": current_val,
+        })
+
+    # New baseline — includes metadata state (matches check_enrichment)
     canonical: list[dict[str, str]] = []
     for link in readback_links:
         url = link.get("url", "")
@@ -1344,7 +1500,28 @@ def verify_enrichment(
         except ValueError:
             canonical.append({"url": url})
     canonical.sort(key=lambda x: x["url"])
-    new_baseline = _fingerprint({"remote_links": canonical})
+
+    rb_fields = readback.get("fields", {})
+    rb_metadata: dict[str, Any] = {}
+    if isinstance(rb_fields, dict):
+        for fname, cat in _METADATA_CATALOG_V1.items():
+            jf = cat["jira_field"]
+            if jf in rb_fields:
+                val = rb_fields[jf]
+                if isinstance(val, list):
+                    val = sorted(
+                        val,
+                        key=lambda x: (
+                            x.get("id", "")
+                            if isinstance(x, dict) else str(x)
+                        ),
+                    )
+                rb_metadata[fname] = val
+
+    new_baseline = _fingerprint({
+        "remote_links": canonical,
+        "metadata": rb_metadata,
+    })
 
     # All confirmed: must have at least one operation, and all must
     # be confirmed (empty eligible = no-op, not success)
@@ -1616,11 +1793,15 @@ def cmd_check_enrichment(args: argparse.Namespace) -> int:
     if not isinstance(current, dict):
         fail("input.current_state must be an object")
 
+    approved_plan_digest = data.get("approved_plan_digest", "")
+
     if args.readback:
         readback = _load_json(Path(args.readback))
         if not isinstance(readback, dict):
             fail("readback must be a JSON object")
-        enrichment = check_enrichment(plan, current, approved_baseline)
+        enrichment = check_enrichment(
+            plan, current, approved_baseline, approved_plan_digest,
+        )
         expected_key = plan.get("issue_key", "")
         receipt = verify_enrichment(enrichment, readback, expected_key)
         _write_json({"enrichment": enrichment, "receipt": receipt})
@@ -1628,7 +1809,9 @@ def cmd_check_enrichment(args: argparse.Namespace) -> int:
             return EXIT_ERROR
     else:
         original = copy.deepcopy(data)
-        result = check_enrichment(plan, current, approved_baseline)
+        result = check_enrichment(
+            plan, current, approved_baseline, approved_plan_digest,
+        )
         if data != original:
             fail("BUG: check_enrichment mutated its input")
         _write_json(result)

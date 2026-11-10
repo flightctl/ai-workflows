@@ -710,8 +710,8 @@ class TestBuildChangePlan(unittest.TestCase):
         ]
         self.assertEqual(len(updates), 0)
 
-    def test_divergent_observation_produces_proposal(self) -> None:
-        """B: Divergent observation → update proposal with wording."""
+    def test_observations_produce_review_proposal(self) -> None:
+        """B: Observations → review proposal with evidence URLs."""
         items = [
             {
                 "pr_url": "https://github.example.invalid/org/repo/pull/1",
@@ -723,13 +723,16 @@ class TestBuildChangePlan(unittest.TestCase):
             },
         ]
         plan = self._make_plan(evidence_items=items)
-        updates = [
+        reviews = [
             c for c in plan["source_proposal"]["proposed_changes"]
-            if c["action"] == "update"
+            if c["action"] == "review"
         ]
-        self.assertTrue(len(updates) > 0)
-        self.assertTrue(updates[0]["proposed_wording"])
-        self.assertTrue(updates[0]["evidence_urls"])
+        self.assertTrue(len(reviews) > 0)
+        self.assertTrue(reviews[0]["evidence_urls"])
+        self.assertIn(
+            "Added --format flag not in plan",
+            reviews[0]["observations"],
+        )
 
     def test_non_contributor_proposal_has_evidence(self) -> None:
         """B: non-contributor proposal carries evidence URL."""
@@ -962,7 +965,8 @@ class TestCheckEnrichment(unittest.TestCase):
         r = self._make_enrichment()
         self.assertFalse(r["stale"])
 
-    def test_forbidden_metadata_rejected(self) -> None:
+    def test_forbidden_metadata_tamper_rejected(self) -> None:
+        """D: Injecting forbidden metadata into plan → invalid (tampered)."""
         snap = _make_docs_snapshot()
         val = evidence.validate_issue(snap)
         ev = evidence.normalize_evidence(_make_evidence_items())
@@ -973,12 +977,11 @@ class TestCheckEnrichment(unittest.TestCase):
         plan["metadata"]["status"] = "Done"
         current = {"key": "TEST-100", "remote_links": []}
         r = evidence.check_enrichment(plan, current)
-        self.assertTrue(
-            any("status" in f for f in r["forbidden_fields"])
-        )
+        self.assertEqual(r["status"], "invalid_plan")
+        self.assertIn("altered", r.get("reason", ""))
 
-    def test_uncatalogued_metadata_rejected(self) -> None:
-        """D: Arbitrary key not in allowed catalog → forbidden."""
+    def test_uncatalogued_metadata_tamper_rejected(self) -> None:
+        """D: Injecting arbitrary key into plan metadata → invalid."""
         snap = _make_docs_snapshot()
         val = evidence.validate_issue(snap)
         ev = evidence.normalize_evidence(_make_evidence_items())
@@ -989,9 +992,7 @@ class TestCheckEnrichment(unittest.TestCase):
         plan["metadata"]["random_field"] = {"value": "x"}
         current = {"key": "TEST-100", "remote_links": []}
         r = evidence.check_enrichment(plan, current)
-        self.assertTrue(
-            any("random_field" in f for f in r["forbidden_fields"])
-        )
+        self.assertEqual(r["status"], "invalid_plan")
 
     def test_canonical_ordering_avoids_false_drift(self) -> None:
         """D: Link order alone shouldn't cause false drift."""
@@ -1087,11 +1088,19 @@ class TestVerifyEnrichment(unittest.TestCase):
         self.assertFalse(r["all_confirmed"])
 
     def test_metadata_receipt_confirmed(self) -> None:
+        """Readback uses real Jira field (fixVersions) with catalog entry."""
         r = self._make_receipt(
             eligible_metadata={
-                "target_release": {"value": "4.19"},
+                "target_release": {
+                    "value": "v1",
+                    "catalog_verified": True,
+                    "catalog_entry": {"id": "7", "name": "v1"},
+                    "jira_field": "fixVersions",
+                },
             },
-            readback_fields={"target_release": "4.19"},
+            readback_fields={
+                "fixVersions": [{"id": "7", "name": "v1"}],
+            },
             readback_urls=[
                 "https://github.example.invalid/org/repo/pull/101"
             ],
@@ -1099,19 +1108,28 @@ class TestVerifyEnrichment(unittest.TestCase):
         meta = r["metadata_receipts"]
         self.assertEqual(len(meta), 1)
         self.assertEqual(meta[0]["status"], "confirmed")
+        self.assertEqual(meta[0]["jira_field"], "fixVersions")
 
     def test_metadata_receipt_different(self) -> None:
+        """Readback shows different version ID → different_value."""
         r = self._make_receipt(
             eligible_metadata={
-                "target_release": {"value": "4.19"},
+                "target_release": {
+                    "value": "v1",
+                    "catalog_verified": True,
+                    "catalog_entry": {"id": "7", "name": "v1"},
+                    "jira_field": "fixVersions",
+                },
             },
-            readback_fields={"target_release": "4.20"},
+            readback_fields={
+                "fixVersions": [{"id": "99", "name": "v2"}],
+            },
             readback_urls=[
                 "https://github.example.invalid/org/repo/pull/101"
             ],
         )
         meta = r["metadata_receipts"]
-        self.assertEqual(meta[0]["status"], "different_value")
+        self.assertEqual(meta[0]["status"], "uncertain")
 
     def test_existing_link_disappearance_detected(self) -> None:
         r = self._make_receipt(
@@ -1446,11 +1464,13 @@ class TestEndToEndOffline(unittest.TestCase):
         self.assertTrue(receipt["all_confirmed"])
         self.assertEqual(len(receipt["link_receipts"]), 2)
 
-        # 6. Re-check with new baseline (idempotent)
+        # 6. Re-check shows links as existing (idempotent)
+        new_baseline = receipt["baseline_fingerprint"]
         enrichment2 = evidence.check_enrichment(
-            plan, readback, baseline
+            plan, readback, new_baseline
         )
         # All links are now existing, none eligible
+        self.assertFalse(enrichment2["stale"])
         self.assertEqual(len(enrichment2["eligible_links"]), 0)
         self.assertEqual(len(enrichment2["existing_links"]), 2)
 
@@ -1523,6 +1543,819 @@ class TestEndToEndOffline(unittest.TestCase):
         ]
         ev = evidence.normalize_evidence(items)
         self.assertEqual(len(ev["errors"]), 0)
+
+
+# ---------------------------------------------------------------------------
+# Contract 1: Identity, snapshot, baseline, digest
+# ---------------------------------------------------------------------------
+
+class TestSnapshotBaselineDigest(unittest.TestCase):
+    """Contract 1: plan_digest verification, baseline includes metadata,
+    missing identity fails, drift detection."""
+
+    def _make_plan_and_enrichment(
+        self, *, profile=None, current_fields=None,
+    ):
+        snap = _make_docs_snapshot()
+        val = evidence.validate_issue(snap)
+        ev = evidence.normalize_evidence(_make_evidence_items())
+        plan = evidence.build_change_plan(
+            val, ev,
+            {"release": "v1", "target_branch": "main"},
+            profile,
+        )
+        current = {
+            "key": "TEST-100",
+            "remote_links": [],
+        }
+        if current_fields is not None:
+            current["fields"] = current_fields
+        enrichment = evidence.check_enrichment(plan, current)
+        return plan, enrichment, current
+
+    def test_missing_current_key_invalid(self) -> None:
+        """Missing current_state key → invalid, not pass."""
+        plan, _, _ = self._make_plan_and_enrichment()
+        r = evidence.check_enrichment(plan, {"remote_links": []})
+        self.assertEqual(r["status"], "invalid")
+        self.assertIn("missing", r["reason"])
+
+    def test_missing_plan_key_invalid(self) -> None:
+        """Missing plan issue_key → invalid_plan."""
+        plan, _, _ = self._make_plan_and_enrichment()
+        plan_no_key = {**plan, "issue_key": ""}
+        # Must clear digest since we changed the plan
+        plan_no_key["plan_digest"] = ""
+        r = evidence.check_enrichment(
+            plan_no_key, {"key": "TEST-100", "remote_links": []}
+        )
+        self.assertEqual(r["status"], "invalid_plan")
+
+    def test_plan_digest_tamper_detected(self) -> None:
+        """Altering plan content after creation → digest mismatch."""
+        plan, _, _ = self._make_plan_and_enrichment()
+        tampered = copy.deepcopy(plan)
+        tampered["pr_links"].append({
+            "url": "https://github.example.invalid/x/y/pull/999",
+            "title": "injected",
+        })
+        r = evidence.check_enrichment(
+            tampered,
+            {"key": "TEST-100", "remote_links": []},
+        )
+        self.assertEqual(r["status"], "invalid_plan")
+        self.assertIn("altered", r["reason"])
+
+    def test_approved_plan_digest_detects_changed_plan(self) -> None:
+        """approved_plan_digest catches a different plan (e.g. from
+        changed description/contributor)."""
+        plan1, enrichment1, current = self._make_plan_and_enrichment()
+        digest1 = enrichment1["plan_digest"]
+        baseline1 = enrichment1["baseline_fingerprint"]
+
+        # Rebuild plan with changed contributor (affects plan digest)
+        desc2 = _make_docs_snapshot()
+        desc2["description"] = desc2["description"].replace(
+            "TEST-202", "TEST-203"
+        )
+        val2 = evidence.validate_issue(desc2)
+        ev2 = evidence.normalize_evidence(_make_evidence_items())
+        plan2 = evidence.build_change_plan(
+            val2, ev2,
+            {"release": "v1", "target_branch": "main"},
+        )
+
+        # plan2 has different digest than plan1
+        self.assertNotEqual(plan2["plan_digest"], plan1["plan_digest"])
+
+        # Use plan2 but approved_plan_digest from plan1 → stale
+        r = evidence.check_enrichment(
+            plan2, current, baseline1, digest1,
+        )
+        self.assertTrue(r["stale"])
+        self.assertEqual(r["status"], "stale")
+
+    def test_metadata_in_baseline(self) -> None:
+        """Metadata field change in current state → baseline drift."""
+        plan, _, _ = self._make_plan_and_enrichment(
+            current_fields={"fixVersions": []},
+        )
+        current_v0 = {
+            "key": "TEST-100",
+            "remote_links": [],
+            "fields": {"fixVersions": []},
+        }
+        r1 = evidence.check_enrichment(plan, current_v0)
+        baseline = r1["baseline_fingerprint"]
+
+        # Now fixVersions changed in Jira
+        current_v1 = {
+            "key": "TEST-100",
+            "remote_links": [],
+            "fields": {
+                "fixVersions": [{"id": "99", "name": "other"}],
+            },
+        }
+        r2 = evidence.check_enrichment(plan, current_v1, baseline)
+        self.assertTrue(r2["stale"])
+
+    def test_missing_readback_key_invalid(self) -> None:
+        """verify_enrichment: missing readback key → invalid."""
+        plan, enrichment, _ = self._make_plan_and_enrichment()
+        readback = {"remote_links": [], "fields": {}}
+        receipt = evidence.verify_enrichment(
+            enrichment, readback, "TEST-100"
+        )
+        self.assertEqual(receipt["status"], "invalid")
+        self.assertFalse(receipt["all_confirmed"])
+
+    def test_reordered_links_no_false_drift(self) -> None:
+        """Link reordering alone does not cause false drift."""
+        plan, _, _ = self._make_plan_and_enrichment()
+        current_a = {
+            "key": "TEST-100",
+            "remote_links": [
+                {"url": "https://github.example.invalid/o/r/pull/1"},
+                {"url": "https://github.example.invalid/o/r/pull/2"},
+            ],
+            "fields": {"fixVersions": []},
+        }
+        current_b = {
+            "key": "TEST-100",
+            "remote_links": [
+                {"url": "https://github.example.invalid/o/r/pull/2"},
+                {"url": "https://github.example.invalid/o/r/pull/1"},
+            ],
+            "fields": {"fixVersions": []},
+        }
+        r_a = evidence.check_enrichment(plan, current_a)
+        r_b = evidence.check_enrichment(plan, current_b)
+        self.assertEqual(
+            r_a["baseline_fingerprint"],
+            r_b["baseline_fingerprint"],
+        )
+
+
+# ---------------------------------------------------------------------------
+# Contract 2: Metadata catalog, real field binding, before/after
+# ---------------------------------------------------------------------------
+
+class TestMetadataCatalogV1(unittest.TestCase):
+    """Contract 2: real fixVersions binding, catalog_verified gates
+    eligibility, readback with Jira field shapes."""
+
+    def _make_plan(self, *, profile=None, target=None):
+        snap = _make_docs_snapshot()
+        val = evidence.validate_issue(snap)
+        ev = evidence.normalize_evidence(_make_evidence_items())
+        if target is None:
+            target = {"release": "v1", "target_branch": "main"}
+        return evidence.build_change_plan(val, ev, target, profile)
+
+    def test_default_metadata_has_real_binding(self) -> None:
+        """target_release has jira_field=fixVersions, not placeholder."""
+        plan = self._make_plan()
+        tr = plan["metadata"]["target_release"]
+        self.assertEqual(tr["jira_field"], "fixVersions")
+        self.assertEqual(tr["jira_field_type"], "array")
+        self.assertFalse(tr["catalog_verified"])
+        self.assertIsNone(tr["catalog_entry"])
+
+    def test_uncatalogued_not_eligible(self) -> None:
+        """catalog_verified=False → not eligible for write."""
+        plan = self._make_plan()
+        current = {"key": "TEST-100", "remote_links": []}
+        r = evidence.check_enrichment(plan, current)
+        self.assertEqual(r["eligible_metadata"], {})
+
+    def test_catalog_verified_eligible(self) -> None:
+        """catalog_verified=True + catalog_entry → eligible."""
+        profile = {
+            "allowed_fields": [{
+                "name": "target_release",
+                "value": "v1",
+                "catalog_verified": True,
+                "catalog_entry": {"id": "7", "name": "v1"},
+                "before": [],
+            }],
+        }
+        plan = self._make_plan(profile=profile)
+        tr = plan["metadata"]["target_release"]
+        self.assertTrue(tr["catalog_verified"])
+        self.assertEqual(tr["catalog_entry"], {"id": "7", "name": "v1"})
+        self.assertEqual(tr["before"], [])
+
+        current = {
+            "key": "TEST-100",
+            "remote_links": [],
+            "fields": {"fixVersions": []},
+        }
+        r = evidence.check_enrichment(plan, current)
+        self.assertIn("target_release", r["eligible_metadata"])
+
+    def test_full_metadata_lifecycle(self) -> None:
+        """Full lifecycle: preview → receipt with real Jira shapes."""
+        profile = {
+            "allowed_fields": [{
+                "name": "target_release",
+                "value": "v1",
+                "catalog_verified": True,
+                "catalog_entry": {"id": "7", "name": "v1"},
+                "before": [],
+            }],
+        }
+        plan = self._make_plan(profile=profile)
+        current = {
+            "key": "TEST-100",
+            "remote_links": [],
+            "fields": {"fixVersions": []},
+        }
+        enrichment = evidence.check_enrichment(plan, current)
+        self.assertEqual(enrichment["status"], "ready")
+        self.assertIn("target_release", enrichment["eligible_metadata"])
+
+        # Readback with real Jira field shape
+        readback = {
+            "key": "TEST-100",
+            "remote_links": [
+                {"url": "https://github.example.invalid/org/repo/pull/101"},
+                {"url": "https://github.example.invalid/org/repo/pull/102"},
+            ],
+            "fields": {
+                "fixVersions": [{"id": "7", "name": "v1"}],
+            },
+        }
+        receipt = evidence.verify_enrichment(
+            enrichment, readback, "TEST-100"
+        )
+        self.assertEqual(receipt["status"], "verified")
+        self.assertTrue(receipt["all_confirmed"])
+        meta_r = receipt["metadata_receipts"]
+        self.assertEqual(len(meta_r), 1)
+        self.assertEqual(meta_r[0]["jira_field"], "fixVersions")
+        self.assertEqual(meta_r[0]["status"], "confirmed")
+
+    def test_readback_missing_field_uncertain(self) -> None:
+        """Readback without fixVersions → uncertain, not confirmed."""
+        profile = {
+            "allowed_fields": [{
+                "name": "target_release",
+                "value": "v1",
+                "catalog_verified": True,
+                "catalog_entry": {"id": "7", "name": "v1"},
+                "before": [],
+            }],
+        }
+        plan = self._make_plan(profile=profile)
+        current = {
+            "key": "TEST-100",
+            "remote_links": [],
+            "fields": {"fixVersions": []},
+        }
+        enrichment = evidence.check_enrichment(plan, current)
+        readback = {
+            "key": "TEST-100",
+            "remote_links": [
+                {"url": "https://github.example.invalid/org/repo/pull/101"},
+                {"url": "https://github.example.invalid/org/repo/pull/102"},
+            ],
+            "fields": {},
+        }
+        receipt = evidence.verify_enrichment(
+            enrichment, readback, "TEST-100"
+        )
+        self.assertFalse(receipt["all_confirmed"])
+
+    def test_forbidden_field_alias_blocked(self) -> None:
+        """Profile attempting 'fixversions' directly → forbidden."""
+        profile = {
+            "allowed_fields": [{
+                "name": "fixversions",
+                "value": "v1",
+                "catalog_verified": True,
+            }],
+        }
+        plan = self._make_plan(profile=profile)
+        forbidden = [
+            f for f in plan["findings"]
+            if f["type"] == "forbidden_field"
+        ]
+        self.assertTrue(
+            any(f["ref"] == "fixversions" for f in forbidden)
+        )
+
+    def test_drift_after_approval(self) -> None:
+        """After approval, description change → stale."""
+        profile = {
+            "allowed_fields": [{
+                "name": "target_release",
+                "value": "v1",
+                "catalog_verified": True,
+                "catalog_entry": {"id": "7", "name": "v1"},
+                "before": [],
+            }],
+        }
+        plan1 = self._make_plan(profile=profile)
+        current = {
+            "key": "TEST-100",
+            "remote_links": [],
+            "fields": {"fixVersions": []},
+        }
+        e1 = evidence.check_enrichment(plan1, current)
+        baseline = e1["baseline_fingerprint"]
+        digest = e1["plan_digest"]
+
+        # Rebuild plan with changed contributor (affects plan digest)
+        desc2 = _make_docs_snapshot()
+        desc2["description"] = desc2["description"].replace(
+            "TEST-202", "TEST-203"
+        )
+        val2 = evidence.validate_issue(desc2)
+        ev2 = evidence.normalize_evidence(_make_evidence_items())
+        plan2 = evidence.build_change_plan(
+            val2, ev2,
+            {"release": "v1", "target_branch": "main"},
+            profile,
+        )
+        e2 = evidence.check_enrichment(plan2, current, baseline, digest)
+        self.assertTrue(e2["stale"])
+
+
+# ---------------------------------------------------------------------------
+# Contract 3: Evidence error propagation, key format validation
+# ---------------------------------------------------------------------------
+
+class TestEvidenceErrorPropagation(unittest.TestCase):
+    """Contract 3: evidence errors block operations, invalid key
+    format rejected, structurally invalid inputs rejected."""
+
+    def test_evidence_errors_block_plan(self) -> None:
+        """Evidence with errors → invalid_evidence, no eligible ops."""
+        snap = _make_docs_snapshot()
+        val = evidence.validate_issue(snap)
+        evidence_with_errors = {
+            "items": [],
+            "errors": ["evidence[0]: invalid PR URL"],
+            "warnings": [],
+        }
+        plan = evidence.build_change_plan(
+            val, evidence_with_errors,
+            {"release": "v1", "target_branch": "main"},
+        )
+        self.assertEqual(plan["status"], "invalid_evidence")
+        self.assertEqual(plan["pr_links"], [])
+
+    def test_invalid_key_format_rejected(self) -> None:
+        """Issue key failing format check → invalid_issue."""
+        val = {
+            "valid": True,
+            "errors": [],
+            "key": "bad-key",
+            "contributors": [],
+            "dependencies": [],
+            "documentation_inputs": [],
+            "sections": {},
+        }
+        ev = {"items": [], "errors": [], "warnings": []}
+        plan = evidence.build_change_plan(val, ev, {})
+        self.assertEqual(plan["status"], "invalid_issue")
+
+    def test_missing_key_rejected(self) -> None:
+        """Empty issue key → invalid_issue."""
+        val = {
+            "valid": True,
+            "errors": [],
+            "key": "",
+            "contributors": [],
+            "dependencies": [],
+            "documentation_inputs": [],
+            "sections": {},
+        }
+        ev = {"items": [], "errors": [], "warnings": []}
+        plan = evidence.build_change_plan(val, ev, {})
+        self.assertEqual(plan["status"], "invalid_issue")
+
+
+# ---------------------------------------------------------------------------
+# Contract 4: No prose-keyword semantics, input-specific observations
+# ---------------------------------------------------------------------------
+
+class TestSourceProposalSemantics(unittest.TestCase):
+    """Contract 4: observations are display-only, no keyword-based
+    inference, input-specific mapping."""
+
+    def _make_plan(self, evidence_items, snapshot=None):
+        if snapshot is None:
+            snapshot = _make_docs_snapshot()
+        val = evidence.validate_issue(snapshot)
+        ev = evidence.normalize_evidence(evidence_items)
+        return evidence.build_change_plan(
+            val, ev,
+            {"release": "v1", "target_branch": "main"},
+        )
+
+    def test_confirmed_text_not_silently_excluded(self) -> None:
+        """Text containing 'confirmed' is NOT excluded from review."""
+        items = [{
+            "pr_url": (
+                "https://github.example.invalid/org/repo/pull/1"
+            ),
+            "contributor_key": "TEST-201",
+            "merged": True,
+            "observations": [
+                "Confirmed that retries defaults to 10 instead of 3"
+            ],
+        }]
+        plan = self._make_plan(items)
+        reviews = [
+            c for c in plan["source_proposal"]["proposed_changes"]
+            if c["action"] == "review"
+        ]
+        self.assertTrue(len(reviews) > 0)
+        self.assertIn(
+            "Confirmed that retries defaults to 10 instead of 3",
+            reviews[0]["observations"],
+        )
+
+    def test_arbitrary_text_no_update_proposal(self) -> None:
+        """Arbitrary observation text does not produce 'update' proposals."""
+        items = [{
+            "pr_url": (
+                "https://github.example.invalid/org/repo/pull/1"
+            ),
+            "contributor_key": "TEST-201",
+            "merged": True,
+            "observations": ["The sky is blue today"],
+        }]
+        plan = self._make_plan(items)
+        updates = [
+            c for c in plan["source_proposal"]["proposed_changes"]
+            if c["action"] == "update"
+        ]
+        self.assertEqual(len(updates), 0)
+
+    def test_observations_tied_to_specific_input(self) -> None:
+        """PR observations for TEST-201 do not leak to TEST-202."""
+        items = [
+            {
+                "pr_url": (
+                    "https://github.example.invalid/org/repo/pull/1"
+                ),
+                "contributor_key": "TEST-201",
+                "merged": True,
+                "observations": ["Added --format flag"],
+            },
+            {
+                "pr_url": (
+                    "https://github.example.invalid/org/repo/pull/2"
+                ),
+                "contributor_key": "TEST-202",
+                "merged": True,
+                "observations": ["Status endpoint works"],
+            },
+        ]
+        plan = self._make_plan(items)
+        reviews = [
+            c for c in plan["source_proposal"]["proposed_changes"]
+            if c["action"] == "review"
+        ]
+        for r in reviews:
+            if r["contributor"] == "TEST-201":
+                self.assertIn("Added --format flag", r["observations"])
+                self.assertNotIn(
+                    "Status endpoint works", r["observations"]
+                )
+            elif r["contributor"] == "TEST-202":
+                self.assertIn(
+                    "Status endpoint works", r["observations"]
+                )
+                self.assertNotIn(
+                    "Added --format flag", r["observations"]
+                )
+
+    def test_input_header_not_in_contributors_mismatch(self) -> None:
+        """Doc input header for unlisted contributor → mismatch finding,
+        NOT automatic eligible link."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+            - [ ] Something
+            ## Documentation Scope
+            Some scope
+            ## Documentation Inputs
+            **TEST-201 — Add widget:**
+            - New CLI command
+            **TEST-999 — Unlisted feature:**
+            - Some extra feature
+            ## Design Reference
+            Contributing stories: TEST-201
+        """)
+        snap = _make_docs_snapshot(description=desc)
+        items = [
+            {
+                "pr_url": (
+                    "https://github.example.invalid/org/repo/pull/1"
+                ),
+                "contributor_key": "TEST-201",
+                "merged": True,
+            },
+            {
+                "pr_url": (
+                    "https://github.example.invalid/org/repo/pull/999"
+                ),
+                "contributor_key": "TEST-999",
+            },
+        ]
+        plan = self._make_plan(items, snapshot=snap)
+        mismatch = [
+            f for f in plan["findings"]
+            if f["type"] == "input_contributor_mismatch"
+        ]
+        self.assertTrue(
+            any(f["ref"] == "TEST-999" for f in mismatch),
+            "Unlisted input header should produce mismatch finding",
+        )
+        # TEST-999 PR should NOT be in eligible links
+        link_urls = {l["url"] for l in plan["pr_links"]}
+        self.assertNotIn(
+            "https://github.example.invalid/org/repo/pull/999",
+            link_urls,
+        )
+
+    def test_contributor_coverage_independent_of_inputs(self) -> None:
+        """Contributor with evidence but no parsed input header should
+        still have their evidence recognized, not falsely flagged as
+        missing."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+            - [ ] Something
+            ## Documentation Scope
+            Some scope
+            ## Documentation Inputs
+            **TEST-201 — Add widget:**
+            - New CLI command
+            ## Design Reference
+            Contributing stories: TEST-201, TEST-202
+        """)
+        snap = _make_docs_snapshot(description=desc)
+        items = [
+            {
+                "pr_url": (
+                    "https://github.example.invalid/org/repo/pull/1"
+                ),
+                "contributor_key": "TEST-201",
+                "merged": True,
+            },
+            {
+                "pr_url": (
+                    "https://github.example.invalid/org/repo/pull/2"
+                ),
+                "contributor_key": "TEST-202",
+                "merged": True,
+            },
+        ]
+        plan = self._make_plan(items, snapshot=snap)
+        # TEST-202 has evidence, so should NOT be flagged as missing
+        missing = [
+            f for f in plan["findings"]
+            if f["type"] == "missing_evidence"
+            and f["ref"] == "TEST-202"
+        ]
+        self.assertEqual(
+            len(missing), 0,
+            "TEST-202 has evidence; should not be flagged missing",
+        )
+        # TEST-202 PR should be in eligible links (declared contributor)
+        link_urls = {l["url"] for l in plan["pr_links"]}
+        self.assertIn(
+            "https://github.example.invalid/org/repo/pull/2",
+            link_urls,
+        )
+
+    def test_no_update_action_exists(self) -> None:
+        """No 'update' actions are produced — only 'review' or
+        'add_contributor'."""
+        plan = self._make_plan(_make_evidence_items())
+        for c in plan["source_proposal"]["proposed_changes"]:
+            self.assertIn(c["action"], ("review", "add_contributor"))
+
+
+# ---------------------------------------------------------------------------
+# Contract 5: Full offline fixture lifecycle
+# ---------------------------------------------------------------------------
+
+class TestContractFullLifecycle(unittest.TestCase):
+    """Contract 5: raw-snapshot → plan → check → metadata/link receipt.
+    This test must fail against the 0dfb code."""
+
+    def test_full_catalog_metadata_lifecycle(self) -> None:
+        """Complete lifecycle with catalog-verified metadata."""
+        # 1. Valid snapshot + catalog entry
+        profile = {
+            "allowed_fields": [{
+                "name": "target_release",
+                "value": "v1",
+                "catalog_verified": True,
+                "catalog_entry": {"id": "7", "name": "v1"},
+                "before": [],
+            }],
+        }
+        snap = _make_docs_snapshot()
+        val = evidence.validate_issue(snap)
+        ev = evidence.normalize_evidence(_make_evidence_items())
+        plan = evidence.build_change_plan(
+            val, ev,
+            {"release": "v1", "target_branch": "main"},
+            profile,
+        )
+        self.assertEqual(plan["status"], "complete")
+        tr = plan["metadata"]["target_release"]
+        self.assertEqual(tr["jira_field"], "fixVersions")
+        self.assertTrue(tr["catalog_verified"])
+        self.assertEqual(tr["catalog_entry"]["id"], "7")
+
+        # 2. Preview: empty fixVersions → eligible
+        current = {
+            "key": "TEST-100",
+            "remote_links": [],
+            "fields": {"fixVersions": []},
+        }
+        enrichment = evidence.check_enrichment(plan, current)
+        self.assertEqual(enrichment["status"], "ready")
+        self.assertIn("target_release", enrichment["eligible_metadata"])
+        self.assertTrue(len(enrichment["eligible_links"]) > 0)
+        baseline = enrichment["baseline_fingerprint"]
+        digest = enrichment["plan_digest"]
+
+        # 3. After approval, same URLs but contributor change → stale
+        desc2 = snap.copy()
+        desc2["description"] = snap["description"].replace(
+            "TEST-202", "TEST-203"
+        )
+        val2 = evidence.validate_issue(desc2)
+        ev2 = evidence.normalize_evidence(_make_evidence_items())
+        plan2 = evidence.build_change_plan(
+            val2, ev2,
+            {"release": "v1", "target_branch": "main"},
+            profile,
+        )
+        e2 = evidence.check_enrichment(
+            plan2, current, baseline, digest,
+        )
+        self.assertTrue(e2["stale"])
+
+        # 4. Altered metadata in plan → invalid
+        tampered = copy.deepcopy(plan)
+        tampered["metadata"]["target_release"]["value"] = "v99"
+        e3 = evidence.check_enrichment(tampered, current)
+        self.assertEqual(e3["status"], "invalid_plan")
+
+        # 5. Missing current key → invalid
+        e4 = evidence.check_enrichment(
+            plan, {"remote_links": []}
+        )
+        self.assertEqual(e4["status"], "invalid")
+
+        # 6. Readback with real Jira shape → confirmed
+        readback = {
+            "key": "TEST-100",
+            "remote_links": [
+                {
+                    "url": "https://github.example.invalid"
+                    "/org/repo/pull/101",
+                },
+                {
+                    "url": "https://github.example.invalid"
+                    "/org/repo/pull/102",
+                },
+            ],
+            "fields": {
+                "fixVersions": [{"id": "7", "name": "v1"}],
+            },
+        }
+        receipt = evidence.verify_enrichment(
+            enrichment, readback, "TEST-100"
+        )
+        self.assertEqual(receipt["status"], "verified")
+        self.assertTrue(receipt["all_confirmed"])
+        meta_r = receipt["metadata_receipts"]
+        self.assertEqual(meta_r[0]["jira_field"], "fixVersions")
+        self.assertEqual(meta_r[0]["status"], "confirmed")
+
+        # 7. Readback with different version → not all_confirmed
+        readback_diff = {
+            "key": "TEST-100",
+            "remote_links": readback["remote_links"],
+            "fields": {
+                "fixVersions": [{"id": "99", "name": "v2"}],
+            },
+        }
+        receipt2 = evidence.verify_enrichment(
+            enrichment, readback_diff, "TEST-100"
+        )
+        self.assertFalse(receipt2["all_confirmed"])
+
+        # 8. Reordered links → no false conflict
+        current_a = {
+            "key": "TEST-100",
+            "remote_links": [
+                {
+                    "url": "https://github.example.invalid"
+                    "/org/repo/pull/101",
+                },
+                {
+                    "url": "https://github.example.invalid"
+                    "/org/repo/pull/102",
+                },
+            ],
+            "fields": {"fixVersions": []},
+        }
+        current_b = {
+            "key": "TEST-100",
+            "remote_links": [
+                {
+                    "url": "https://github.example.invalid"
+                    "/org/repo/pull/102",
+                },
+                {
+                    "url": "https://github.example.invalid"
+                    "/org/repo/pull/101",
+                },
+            ],
+            "fields": {"fixVersions": []},
+        }
+        ea = evidence.check_enrichment(plan, current_a)
+        eb = evidence.check_enrichment(plan, current_b)
+        self.assertEqual(
+            ea["baseline_fingerprint"],
+            eb["baseline_fingerprint"],
+        )
+
+    def test_cli_full_pipeline(self) -> None:
+        """CLI pipeline: validate → normalize → build-plan →
+        check-enrichment with catalog metadata."""
+        snap = _make_docs_snapshot()
+        p1 = _cli_run("validate", snap)
+        self.assertEqual(p1.returncode, 0)
+        val = json.loads(p1.stdout)
+
+        p2 = _cli_run("normalize", _make_evidence_items())
+        self.assertEqual(p2.returncode, 0)
+        ev = json.loads(p2.stdout)
+
+        profile = {
+            "allowed_fields": [{
+                "name": "target_release",
+                "value": "v1",
+                "catalog_verified": True,
+                "catalog_entry": {"id": "7", "name": "v1"},
+                "before": [],
+            }],
+        }
+        p3 = _cli_run("build-plan", {
+            "validation": val,
+            "evidence": ev,
+            "target": {"release": "v1", "target_branch": "main"},
+            "profile": profile,
+        })
+        self.assertEqual(p3.returncode, 0)
+        plan = json.loads(p3.stdout)
+        self.assertEqual(plan["status"], "complete")
+        self.assertIn("target_release", plan["metadata"])
+        self.assertEqual(
+            plan["metadata"]["target_release"]["jira_field"],
+            "fixVersions",
+        )
+
+        p4 = _cli_run("check-enrichment", {
+            "plan": plan,
+            "current_state": {
+                "key": "TEST-100",
+                "remote_links": [],
+                "fields": {"fixVersions": []},
+            },
+        })
+        self.assertEqual(p4.returncode, 0, p4.stderr)
+        enrich = json.loads(p4.stdout)
+        self.assertEqual(enrich["status"], "ready")
+        self.assertIn("target_release", enrich["eligible_metadata"])
+
+    def test_evidence_errors_block_cli(self) -> None:
+        """CLI build-plan with evidence errors → exit 1."""
+        snap = _make_docs_snapshot()
+        val = evidence.validate_issue(snap)
+        data = {
+            "validation": val,
+            "evidence": {
+                "items": [],
+                "errors": ["evidence[0]: invalid URL"],
+                "warnings": [],
+            },
+            "target": {},
+        }
+        proc = _cli_run("build-plan", data)
+        self.assertEqual(proc.returncode, 1)
+        result = json.loads(proc.stdout)
+        self.assertEqual(result["status"], "invalid_evidence")
 
 
 if __name__ == "__main__":
