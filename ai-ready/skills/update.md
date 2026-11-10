@@ -19,7 +19,7 @@ Check whether an AGENTS.md exists at the project root.
 Then scan for all AI convention files in the project (one glob search):
 
 ```text
-**/{.github/copilot-instructions.md,AGENT.md,AGENTS.md,CLAUDE.md,.cursorrules,.windsurfrules,.cursor/rules/**,.windsurf/rules/**,.clinerules,.clinerules/**}
+**/{.github/copilot-instructions.md,AGENT.md,AGENTS.md,CLAUDE.md,.cursorrules,.windsurfrules,.claude/rules/**,.cursor/rules/**,.windsurf/rules/**,.clinerules,.clinerules/**}
 ```
 
 Note every file found and its path.
@@ -114,7 +114,12 @@ These apply to both creation and updates:
 - Reference key files and directories that exemplify important patterns
 - Keep it concise: prefer a command over a paragraph
 - Include specific examples from the codebase when describing patterns
-- Aim for under 500 lines per AGENTS.md file. For monorepos, split project-wide concerns into the root file and package-specific details into nested files rather than writing one large file
+- Count current and final lines for every AGENTS.md file. Target root AGENTS.md under 150 lines and treat 300 lines as the absolute maximum for any single AGENTS.md file
+- For monorepos, split project-wide concerns into the root file and package-specific details into nested AGENTS.md files
+- When root AGENTS.md would reach 150 lines, move scoped details into existing hierarchical files or referenced documentation instead of expanding the root file
+- For root AGENTS.md files between 150 and 300 lines, perform best-effort scoped-hierarchy remediation, then report why the under-150 target was not met
+- If any root or nested AGENTS.md exceeds 300 lines, move scoped guidance into appropriate hierarchical files or referenced documentation, then remeasure. Do not report completion while any AGENTS.md exceeds 300 lines
+- Prefer references to detailed docs over copying long explanations into AGENTS.md
 
 #### AGENTS.md format reference
 
@@ -126,7 +131,7 @@ AGENTS.md is standard Markdown with no required fields or structure:
 
 ### Step 4: Audit AI Convention Files
 
-For each AI convention file found in Step 1, choose one action. For directory-based conventions (`.cursor/rules/`, `.windsurf/rules/`, `.clinerules/`), evaluate each file within the directory individually — different files may warrant different actions:
+For each AI convention file found in Step 1, choose one action. For directory-based conventions (`.claude/rules/`, `.cursor/rules/`, `.windsurf/rules/`, `.clinerules/`), evaluate each file within the directory individually — different files may warrant different actions:
 
 **Keep** — The file serves a tool-specific purpose that AGENTS.md cannot replace. This includes files that are auto-loaded by their respective tools (e.g., `CLAUDE.md` by Claude Code, `.github/copilot-instructions.md` by GitHub Copilot) or files with capabilities AGENTS.md can't express (e.g., `.cursor/rules/` with glob-scoped rules). Merging these into AGENTS.md would lose the tool integration. Leave them untouched.
 
@@ -143,6 +148,15 @@ When merging:
 - When sources conflict, prefer the most recently modified file
 - Deduplicate — do not repeat the same instruction in AGENTS.md and another file
 
+Before choosing **Merge**, check root AGENTS.md size and hierarchy:
+
+- Count the current root AGENTS.md lines and estimate its size after consolidation
+- If merging would make root AGENTS.md reach 150 lines, do not merge that content into the root file
+- Preserve an existing hierarchy first; update stale scoped files in place
+- If no suitable hierarchy exists, create the nearest nested AGENTS.md only when the guidance applies to that specific area. For unscoped guidance, keep the source file and explain why it was not merged
+- Create tool-specific files only when that convention already exists in the target project; do not invent paths or directories
+- In the audit report, explain preserved hierarchy with a note such as: "Kept hierarchical structure to maintain AGENTS.md size limits"
+
 **Monorepo awareness:** If the project uses workspaces (package.json workspaces, pnpm-workspace.yaml, Cargo `[workspace]`, multiple go.mod files), check whether subprojects have their own AGENTS.md. Root AGENTS.md covers project-wide concerns; nested files cover package-specific details. For existing nested AGENTS.md files, apply the same create-or-update logic from Step 3 scoped to the subproject. Recommend creating nested files where they're missing.
 
 ### Step 5: Validate
@@ -157,6 +171,7 @@ Accuracy:
 - No contradictions between AGENTS.md and kept convention files (e.g., `CLAUDE.md`, `.github/copilot-instructions.md`). If a kept file conflicts with AGENTS.md, update the kept file to align — AGENTS.md is the source of truth
 - No content duplicated across sections
 - Running this skill again would produce no further changes (idempotency check)
+- Final AGENTS.md size gate: count every AGENTS.md after Step 3 and all Step 4 changes. If root AGENTS.md has 150–300 lines, perform best-effort scoped-hierarchy remediation and report why the under-150 target was not met. Do not report completion while any AGENTS.md exceeds 300 lines; continue remediation and remeasure.
 
 Completeness — cross-reference Step 2 findings against the final AGENTS.md:
 
