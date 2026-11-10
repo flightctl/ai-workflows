@@ -76,6 +76,13 @@ Read:
 
 Extract the validation profile's pre-PR checks list.
 
+Before proceeding, verify that the report output path is gitignored.
+Run `git check-ignore -- .artifacts/implement/{issue-key}/05-validation-report.md`.
+If the path is not ignored, stop and explain that the project must
+exclude the artifact path (via `.gitignore` or local exclude) before
+validation can write there. See `../guidelines.md` Safety. If
+properly ignored, continue without prompting.
+
 ### Step 2: Check Base Branch Currency
 
 Before running checks, verify the branch is current with its base.
@@ -297,10 +304,10 @@ FLAG findings, record a complete `## Pending Scope Decision` in
 If the gate made code fixes (edits but does not commit): re-run
 affected Step 4 checks, Step 5 coverage when fixes touch covered
 packages, and Step 6 regression when fixes change production code.
-Commit. Re-run Step 3, scope comparison, and re-review on new HEAD.
-The self-review gate's iteration limit is the current
-`PIPELINE_ROUNDS_REMAINING`. The Step 9 pass-level budget governs
-the outer pipeline cycle.
+Commit the fixes. Then continue this pass through Steps 8 and 8b
+(do not return to Step 3 here — Step 9 is the only place that
+accounts for the pass and decides whether to return). The
+self-review gate's iteration limit is `PIPELINE_ROUNDS_REMAINING`.
 
 The validation report (Step 9) must reflect the final committed and
 reviewed HEAD.
@@ -330,12 +337,9 @@ Record the result for each criterion. If any criterion is not fully
 satisfied:
 
 1. If it's a gap in implementation or tests — fix it, commit the fix,
-   then re-run Step 3 (clean/base), Step 4 affected checks, Step 5
-   coverage when covered packages touched, Step 6 regression when
-   production code changed, the Step 7 scope comparison and self-review
-   gate (consuming remaining MAX_ROUNDS), and re-verify Step 8 AC on
-   the new committed HEAD. Do not reuse acceptance judgments from before
-   the fix.
+   then continue through the remaining steps (Steps 8b if applicable,
+   then Step 9 for accounting). Do not return directly to Step 3; the
+   committed fix will be detected by Step 9's HEAD comparison.
 2. If it's ambiguous whether the criterion is met — flag it to the
    user with your assessment and let them decide
 3. If the criterion cannot be verified through automated means (e.g.,
@@ -375,13 +379,8 @@ has TC mappings but `testplan.md` is missing, unreadable, or malformed
 3. If any TC ID lacks a corresponding test:
    - Write the missing test following contract-based testing standards.
    - Commit the test following the project's commit format.
-   - Re-run Step 4 affected checks, Step 5 coverage when tests affect
-     covered packages, Step 6 regression when production code changed,
-     Step 3 (clean/base), the Step 7 scope comparison and self-review
-     gate on the committed HEAD (consuming remaining MAX_ROUNDS), and
-     re-verify Step 8 AC and applicable Step 8b TC consistency on the
-     new HEAD. If the review gate proposes production fixes, route them
-     through the same post-fix cycle as Step 7.
+   - Continue to Step 9 for accounting. The committed fix will be
+     detected by Step 9's HEAD comparison and trigger a new pass.
 4. Record results for the validation report.
 
 ### Step 9: Write Validation Report

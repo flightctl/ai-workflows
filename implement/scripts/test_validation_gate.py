@@ -8,6 +8,7 @@ functions directly — no duplicated toy logic.
 
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import textwrap
@@ -535,7 +536,9 @@ class TestRunGate(unittest.TestCase):
                        check=True, capture_output=True)
         head = get_head(self.repo)
         # Write report OUTSIDE repo so it doesn't dirty the worktree
-        ext_report = os.path.join(tempfile.mkdtemp(), "report.md")
+        ext_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, ext_dir)
+        ext_report = os.path.join(ext_dir, "report.md")
         with open(ext_report, "w") as f:
             f.write(f"## Result\n\nPASS\n\n## Validated Commit\n\n{head}\n")
         # Verify gate passes with clean tracked artifact
@@ -547,10 +550,9 @@ class TestRunGate(unittest.TestCase):
             f.write("modified\n")
         r = validation_gate.run_gate(ext_report)
         self.assertEqual(r["gate"], "fail")
-        # Verify the dirty detail names the actual tracked file
+        # Verify the dirty detail names the exact tracked path
         dirty_detail = str(r["checks"][-1].get("detail", ""))
-        self.assertIn("cfg.md", dirty_detail)
-        os.unlink(ext_report)
+        self.assertIn(".artifacts/t/cfg.md", dirty_detail)
 
     def test_post_self_review_commit(self):
         head = get_head(self.repo)
@@ -1240,7 +1242,81 @@ class TestPreExistingDetection(unittest.TestCase):
         # User bytes preserved
         with open(os.path.join(self.repo, "mysub", "sub.txt")) as f:
             self.assertIn("dirty", f.read())
-        subprocess.run(["rm", "-rf", sub_src, sub_work], check=False)
+        self.addCleanup(shutil.rmtree, sub_src, ignore_errors=True)
+        self.addCleanup(shutil.rmtree, sub_work, ignore_errors=True)
+
+    def test_ignored_dangling_symlink_detected(self):
+        """An existing ignored dangling symlink is detected by lexical
+        existence (os.path.lexists), not os.path.exists which returns
+        False for dangling symlinks. Tests the git mechanism for
+        review.md Step 3.2b."""
+        # Create an ignored symlink target pattern
+        gi = os.path.join(self.repo, ".gitignore")
+        with open(gi, "a") as f:
+            f.write("*.log\n")
+        subprocess.run(["git", "add", ".gitignore"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "ignore logs"],
+                       check=True, capture_output=True)
+        # Create a dangling symlink to a non-existent target
+        link_path = os.path.join(self.repo, "data.log")
+        os.symlink("/nonexistent/target", link_path)
+        # os.path.exists returns False for dangling symlinks
+        self.assertFalse(os.path.exists(link_path))
+        # But lexists (or is_symlink) catches it
+        self.assertTrue(os.path.lexists(link_path))
+        # git check-ignore confirms it's ignored
+        r = subprocess.run(["git", "check-ignore", "--", "data.log"],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0)
+        # Symlink bytes/target untouched
+        self.assertEqual(os.readlink(link_path), "/nonexistent/target")
+        os.unlink(link_path)
+
+    def test_tracked_file_matching_ignore_pattern_safe(self):
+        """A clean tracked file whose name matches a .gitignore pattern
+        is NOT reported as ignored by default git check-ignore (without
+        --no-index). It is safe to edit. Tests the git mechanism for
+        review.md Step 3.2b countercase."""
+        # Add ignore pattern
+        gi = os.path.join(self.repo, ".gitignore")
+        with open(gi, "a") as f:
+            f.write("*.dat\n")
+        subprocess.run(["git", "add", ".gitignore"],
+                       check=True, capture_output=True)
+        # Create and track a .dat file (before the ignore rule applies)
+        with open("tracked.dat", "w") as f:
+            f.write("tracked data\n")
+        subprocess.run(["git", "add", "-f", "tracked.dat"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "track dat"],
+                       check=True, capture_output=True)
+        # Default git check-ignore (no --no-index) does NOT flag tracked files
+        r = subprocess.run(["git", "check-ignore", "--", "tracked.dat"],
+                           capture_output=True, text=True)
+        self.assertNotEqual(r.returncode, 0,
+                            "tracked file should NOT be reported as ignored")
+
+    def test_artifact_root_vs_report_file_ignore(self):
+        """Tests git mechanism: '.artifacts/**' in .gitignore ignores
+        files under .artifacts/ even if the directory entry itself is not
+        separately matched. The gate check-ignore on the actual report
+        path must succeed. Mechanism test, not prose workflow execution."""
+        gi = os.path.join(self.repo, ".gitignore")
+        with open(gi, "w") as f:
+            f.write(".artifacts/**\n")
+        subprocess.run(["git", "add", ".gitignore"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "glob ignore"],
+                       check=True, capture_output=True)
+        # The report file path should be ignored
+        rpt = ".artifacts/implement/TEST-001/05-validation-report.md"
+        r = subprocess.run(["git", "check-ignore", "--", rpt],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0,
+                         f"{rpt} should be ignored by .artifacts/**")
+        # The root directory itself may or may not match (depends on git)
+        # but the file path must match for the preflight to succeed
 
 
 if __name__ == "__main__":

@@ -125,11 +125,16 @@ For an in-scope change with no unresolved conflicts:
       git check-ignore -- {target paths}
       ```
 
-      If any target path is reported as ignored AND the file exists on
-      disk, stop — it may be user-owned data excluded from version
-      control. A clean tracked file that matches a `.gitignore` pattern
-      is NOT an ignored file and is safe to edit. A nonexistent path
-      matching an ignore pattern is not pre-existing user data.
+      If any target path is reported as ignored AND exists on disk
+      (check with lexical existence — a file, directory, or dangling
+      symlink), stop — it may be user-owned data excluded from version
+      control. Do not follow or overwrite an existing ignored symlink.
+      A clean tracked file that matches a `.gitignore` pattern is NOT
+      an ignored file (default `git check-ignore` without `--no-index`
+      correctly excludes tracked files) and is safe to edit. A
+      nonexistent path matching an ignore pattern is not pre-existing
+      user data, though a later `git add` failure must be reported
+      honestly without `--force`.
 
    If any check finds a conflict, **stop and report** before editing.
    Explain which paths conflict and how to resolve (handle the

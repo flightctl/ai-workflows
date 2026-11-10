@@ -80,7 +80,10 @@ Verify readiness:
    `/validate` must pass on the clean state before retrying `/publish`.
    For stale/missing/failed reports, recommend `/validate`. If exit
    code is 2 or other (script crash), report the raw stderr. Do not
-   auto-launch `/validate`, auto-stage, commit, or stash.
+   auto-launch `/validate`, auto-stage, commit, or stash. If dirty
+   paths are workflow outputs under `.artifacts/`, the project's
+   artifact exclusion is misconfigured — see `../guidelines.md` Safety
+   for the required setup before retrying.
 
 3. Verify the feature branch exists and has commits:
 
