@@ -2479,8 +2479,8 @@ class TestR5HeadRepoIdentity(unittest.TestCase):
             "Already-pushed", 1
         )[0]
         flat = " ".join(after_push.split())
-        self.assertIn("{host}/{owner}/{repo}", flat)
-        self.assertIn("docs_repo_remote", flat)
+        self.assertIn("instance_hostname", flat)
+        self.assertIn("derived PR identity", flat)
         self.assertIn("different fork", flat)
         self.assertIn("not a match", flat)
 
@@ -3008,7 +3008,7 @@ class TestR6InspectionRepairRerun(unittest.TestCase):
         s4 = content.split("### 4.", 1)[1].split("### 5.", 1)[0]
         flat = " ".join(s4.split())
         self.assertIn("published-input gate", flat)
-        self.assertIn("rerunning §3", flat)
+        self.assertIn("rerun §3", flat)
         self.assertIn("superseded", flat)
         self.assertIn("Replace previous unresolved rows", flat)
         self.assertIn("still valid", flat)
@@ -5854,7 +5854,7 @@ class TestR14RepairReloadsManifest(unittest.TestCase):
                         "§1 reload must come before §2 rerun")
 
     def test_s4_repair_reloads_manifest_before_resolution(self) -> None:
-        """§4 repair branch reloads §1 manifest before rerunning §3/§4."""
+        """§4 repair branch reloads §1, reruns §2, then §3/§4."""
         content = _read("_shared/recipes/screenshot-inspection.md")
         # Locate the §4 repair paragraph (after "repairs the source")
         repair_s4 = content.split("repairs the source")[1].split(
@@ -5862,11 +5862,16 @@ class TestR14RepairReloadsManifest(unittest.TestCase):
         flat = " ".join(repair_s4.split())
         self.assertIn("Reload §1 manifest", flat)
         self.assertIn("duplicate-ID check", flat)
-        # Must reload before rerunning §3
+        self.assertIn("rerun §2", flat)
+        self.assertIn("old matched pairs", flat)
+        # Must reload §1, then §2, then §3
         reload_pos = flat.index("Reload §1")
-        rerun_pos = flat.index("rerunning §3")
-        self.assertLess(reload_pos, rerun_pos,
-                        "§1 reload must come before §3 rerun")
+        s2_pos = flat.index("rerun §2")
+        s3_pos = flat.index("rerun §3")
+        self.assertLess(reload_pos, s2_pos,
+                        "§1 reload must come before §2 rerun")
+        self.assertLess(s2_pos, s3_pos,
+                        "§2 rerun must come before §3 rerun")
 
     def test_manifest_change_rechecks_all_rows(self) -> None:
         """Changed manifest fields affect all rows, not just repaired IDs."""
@@ -5964,6 +5969,21 @@ class TestR14PRIdentityMapping(unittest.TestCase):
         self.assertIn("stop", flat)
         self.assertIn("never assume that stripping", flat)
 
+    def test_new_pr_candidate_uses_derived_identity(self) -> None:
+        """New PR candidate comparison uses derived PR identity, not raw."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        # New PR section starts after "For a new PR"
+        new_pr = content.split("For a new PR")[1].split(
+            "Retargeted base")[0]
+        flat = " ".join(new_pr.split())
+        # Must use derived identity
+        self.assertIn("derived PR identity", flat)
+        self.assertIn("instance_hostname", flat)
+        # Must NOT use raw docs_repo_remote for head repo comparison
+        self.assertNotIn(
+            "canonical `{host}/{owner}/{repo}` from `docs_repo_remote`",
+            flat)
+
 
 class TestR14RespondPathRename(unittest.TestCase):
     """R14 outside-diff: path rename detection and reconciliation."""
@@ -5992,85 +6012,169 @@ class TestR14RespondPathRename(unittest.TestCase):
         self.assertIn("SHA validation", flat)
 
     def test_shared_path_not_removed_when_retained(self) -> None:
-        """Old path not removed if another retained ID references it."""
+        """Old basename not removed if in full retained filename set."""
         content = _read("ux-design/skills/respond.md")
         detect = content.split("Detect changes, additions, and removals")[1].split(
             "Handle removals")[0]
         flat = " ".join(detect.split())
-        self.assertIn("another retained ID", flat)
-        self.assertIn("distinct IDs sharing refs are valid", flat)
+        self.assertIn("retained current filename set", flat)
+        self.assertIn("only if its basename is not", flat)
+
+    def test_rename_scoped_to_git_lfs(self) -> None:
+        """Path rename detection is scoped to lfs/git mode, not external."""
+        content = _read("ux-design/skills/respond.md")
+        detect = content.split("Detect changes, additions, and removals")[1].split(
+            "Handle removals")[0]
+        flat = " ".join(detect.split())
+        self.assertIn("lfs", flat)
+        self.assertIn("git", flat)
+        self.assertIn("External mode keeps existing", flat)
+
+    def test_rename_uses_basenames_not_paths(self) -> None:
+        """copied_filenames and removed_filenames receive basenames."""
+        content = _read("ux-design/skills/respond.md")
+        detect = content.split("Detect changes, additions, and removals")[1].split(
+            "Handle removals")[0]
+        flat = " ".join(detect.split())
+        self.assertIn("**basename** in `copied_filenames`", flat)
+        self.assertIn("basename in `removed_filenames`", flat)
 
 
 class TestR14RenameExecution(_RecipeExecMixin, unittest.TestCase):
-    """R14 executable: rename stages new path, removes old, same bytes."""
+    """R14 executable: extracted respond copy/rm + canonical staging."""
 
     def test_rename_stages_new_removes_old(self) -> None:
-        """Copy new filename, git rm old filename, same ID/SHA unchanged."""
+        """Extracted respond copy block + git rm block + canonical staging.
+
+        Source repo has curated new-name bytes at the .artifacts path.
+        Docs repo has previously committed old-name + metadata.
+        Extracts actual bash blocks 9 (mkdir+cp) and 7 (git rm) from
+        respond.md, runs from source repo CWD with docs path absolute,
+        then canonical staging recipe commits rename.
+        """
+        import hashlib
+        import json
+
         with tempfile.TemporaryDirectory() as tmp:
-            repo = _setup_repo(tmp)
-            d = os.path.join(repo, "feat/PROJ-R14")
-            sd = os.path.join(d, "screenshots")
-            os.makedirs(sd)
+            issue_key = "PROJ-RN14"
             img_bytes = b"identical-image-bytes-for-rename-test"
-            # Initial commit with old filename
-            _w(os.path.join(d, "handoff.md"), "# Handoff\n")
-            _w(os.path.join(d, "screenshot-manifest.json"), "{}")
-            with open(os.path.join(sd, "SS-1-old-name.png"), "wb") as f:
+            img_sha = hashlib.sha256(img_bytes).hexdigest()
+
+            # --- Source repo (CWD) with curated new file ---
+            src_repo = os.path.join(tmp, "source-repo")
+            art_dir = os.path.join(
+                src_repo,
+                f".artifacts/ux-design/{issue_key}/screenshots")
+            os.makedirs(art_dir)
+            with open(os.path.join(art_dir, "SS-1-new-name.png"), "wb") as f:
                 f.write(img_bytes)
-            self._exec(repo, "feat/PROJ-R14/handoff.md", "feat/PROJ-R14",
-                        copied=["SS-1-old-name.png"], manifest_written=True,
-                        msg="Init with old filename")
-            # Rename: copy same bytes to new filename, git rm old
-            with open(os.path.join(sd, "SS-1-new-name.png"), "wb") as f:
+
+            # --- Docs repo with old filename committed ---
+            docs_repo = _setup_repo(tmp)
+            handoff_dir_rel = f"feat/{issue_key}"
+            hdir = os.path.join(docs_repo, handoff_dir_rel)
+            sdir = os.path.join(hdir, "screenshots")
+            os.makedirs(sdir)
+            _w(os.path.join(hdir, "handoff.md"), "# Handoff\n")
+            manifest = json.dumps([{
+                "id": "SS-1", "filename": "SS-1-old-name.png",
+                "sha256": img_sha, "caption": "test", "alt_text": "test",
+                "context_revision": "r1", "prototype_iteration": "1",
+            }])
+            _w(os.path.join(hdir, "screenshot-manifest.json"), manifest)
+            with open(os.path.join(sdir, "SS-1-old-name.png"), "wb") as f:
                 f.write(img_bytes)
-            subprocess.run(
-                ["git", "-C", repo, "rm",
-                 "feat/PROJ-R14/screenshots/SS-1-old-name.png"],
-                capture_output=True, check=True,
-            )
-            _w(os.path.join(d, "handoff.md"), "# Handoff updated\n")
-            _w(os.path.join(d, "screenshot-manifest.json"), '{"renamed":true}')
+            self._exec(
+                docs_repo, f"{handoff_dir_rel}/handoff.md",
+                handoff_dir_rel, copied=["SS-1-old-name.png"],
+                manifest_written=True, msg="Init with old filename")
+
+            # --- Extract block 9 (mkdir + cp) from respond.md ---
+            respond_md = _read("ux-design/skills/respond.md")
+            blocks = _extract_bash_blocks(respond_md)
+            copy_block = blocks[9]
+            copy_block = copy_block.replace(
+                "{docs_repo_path}", docs_repo)
+            copy_block = copy_block.replace(
+                "{handoff_dir}", handoff_dir_rel)
+            copy_block = copy_block.replace(
+                "{issue-key}", issue_key)
+            copy_block = copy_block.replace(
+                "{filename}", "SS-1-new-name.png")
+            copy_script = (
+                f"#!/usr/bin/env bash\nset -euo pipefail\n{copy_block}")
+            r_cp = subprocess.run(
+                ["bash", "-c", copy_script],
+                capture_output=True, text=True, cwd=src_repo)
+            self.assertEqual(r_cp.returncode, 0, r_cp.stderr)
+
+            # --- Extract block 7 (git rm) from respond.md ---
+            rm_block = blocks[7]
+            rm_block = rm_block.replace(
+                "{docs_repo_path}", docs_repo)
+            rm_block = rm_block.replace(
+                "{handoff_dir}", handoff_dir_rel)
+            rm_block = rm_block.replace(
+                "{removed_filename}", "SS-1-old-name.png")
+            rm_script = (
+                f"#!/usr/bin/env bash\nset -euo pipefail\n{rm_block}")
+            r_rm = subprocess.run(
+                ["bash", "-c", rm_script],
+                capture_output=True, text=True, cwd=src_repo)
+            self.assertEqual(r_rm.returncode, 0, r_rm.stderr)
+
+            # Update handoff and manifest for renamed entry
+            _w(os.path.join(hdir, "handoff.md"), "# Handoff updated\n")
+            new_manifest = json.dumps([{
+                "id": "SS-1", "filename": "SS-1-new-name.png",
+                "sha256": img_sha, "caption": "test", "alt_text": "test",
+                "context_revision": "r1", "prototype_iteration": "1",
+            }])
+            _w(os.path.join(hdir, "screenshot-manifest.json"),
+               new_manifest)
+
+            # --- Canonical staging recipe ---
             r = self._exec(
-                repo, "feat/PROJ-R14/handoff.md", "feat/PROJ-R14",
-                copied=["SS-1-new-name.png"], removed=["SS-1-old-name.png"],
+                docs_repo, f"{handoff_dir_rel}/handoff.md",
+                handoff_dir_rel,
+                copied=["SS-1-new-name.png"],
+                removed=["SS-1-old-name.png"],
                 manifest_written=True,
-                msg="Rename screenshot SS-1",
-            )
+                msg="Rename screenshot SS-1")
             self.assertEqual(r.returncode, 0, r.stderr)
+
             # New filename committed
             ls_new = subprocess.run(
-                ["git", "-C", repo, "ls-files",
-                 "feat/PROJ-R14/screenshots/SS-1-new-name.png"],
-                capture_output=True, text=True,
-            )
+                ["git", "-C", docs_repo, "ls-files",
+                 f"{handoff_dir_rel}/screenshots/SS-1-new-name.png"],
+                capture_output=True, text=True)
             self.assertIn("SS-1-new-name.png", ls_new.stdout,
                           "new filename must be tracked")
             # Old filename removed
             ls_old = subprocess.run(
-                ["git", "-C", repo, "ls-files",
-                 "feat/PROJ-R14/screenshots/SS-1-old-name.png"],
-                capture_output=True, text=True,
-            )
+                ["git", "-C", docs_repo, "ls-files",
+                 f"{handoff_dir_rel}/screenshots/SS-1-old-name.png"],
+                capture_output=True, text=True)
             self.assertEqual(ls_old.stdout.strip(), "",
                              "old filename must be removed")
-            # Same bytes in the new file
-            with open(os.path.join(sd, "SS-1-new-name.png"), "rb") as f:
-                self.assertEqual(f.read(), img_bytes,
-                                 "bytes must be identical after rename")
-            # Commit log shows the rename commit
-            log = subprocess.run(
-                ["git", "-C", repo, "log", "--oneline", "-1"],
-                capture_output=True, text=True,
-            )
-            self.assertIn("Rename screenshot SS-1", log.stdout)
-            # Commit diff shows both add and delete
+            # Same bytes
+            dest = os.path.join(sdir, "SS-1-new-name.png")
+            with open(dest, "rb") as f:
+                self.assertEqual(f.read(), img_bytes)
+            # Commit diff shows add + delete
             diff = subprocess.run(
-                ["git", "-C", repo, "diff-tree", "--no-commit-id",
-                 "--name-status", "-r", "HEAD"],
-                capture_output=True, text=True,
-            )
+                ["git", "-C", docs_repo, "diff-tree",
+                 "--no-commit-id", "--name-status", "-r", "HEAD"],
+                capture_output=True, text=True)
             self.assertIn("SS-1-new-name.png", diff.stdout)
             self.assertIn("SS-1-old-name.png", diff.stdout)
+            # No owned staged deletions left
+            st = subprocess.run(
+                ["git", "-C", docs_repo, "diff", "--cached",
+                 "--name-only"],
+                capture_output=True, text=True)
+            self.assertEqual(st.stdout.strip(), "",
+                             "no owned staged deletions after commit")
 
 
 if __name__ == "__main__":

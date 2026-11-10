@@ -363,9 +363,10 @@ pre-push value) and verify `exact_sha` equals
    **all states** by
    canonical head repository and head `branch` only — **without**
    filtering by `base_branch`. For each candidate, verify the PR's
-   head repository matches the canonical `{host}/{owner}/{repo}`
-   from `docs_repo_remote` — a different fork with the same branch
-   name is not a match. Then check `base_branch` on each matched
+   head repository matches the derived PR identity
+   (`{instance_hostname}/{owner}/{repo}` from the pre-push gate
+   §4 Step 1) — a different fork with the same branch name is not
+   a match. Then check `base_branch` on each matched
    candidate:
    - **Retargeted base** (head repo+branch matches but base
      differs from `pending_attempt.base_branch`): stop and retain

@@ -266,22 +266,27 @@ Otherwise, apply the same validation and storage gates as `/publish`:
    - For each verified manifest entry, compare its `sha256` against the
      corresponding `screenshot_assets` entry in `publish-metadata.json`.
      Changed checksum → updated image.
-   - For each verified manifest entry with matching ID **and**
-     unchanged `sha256`, also compare the expected published path
-     (derived from the manifest's `filename` as
-     `{handoff_dir}/screenshots/{filename}`) against the
-     `published_path` in `publish-metadata.json`. A different
-     filename or published path with the same ID and bytes is an
-     asset update: copy the validated file to the new path through
-     the existing copy block (step 4 above, with SHA validation),
-     and mark the previous `published_path` for removal. Collect
-     the new path in `copied_filenames` and the old filename in
-     `removed_filenames`. Do not remove an old path that is still
-     referenced by another retained ID's `published_path` in the
-     current manifest — distinct IDs sharing refs are valid.
-     Use previous recorded `screenshot_assets` paths for removal
-     targets; do not directory-walk or guess legacy filenames.
-     Unverifiable ownership stops reconciliation for that path.
+   - **Path rename (`lfs` or `git` mode only).** For each verified
+     manifest entry with matching ID **and** unchanged `sha256`,
+     compare the manifest's `filename` against the `published_path`
+     in `publish-metadata.json` `screenshot_assets` for that ID
+     (derive the current expected path as
+     `{handoff_dir}/screenshots/{filename}`). A different filename
+     with the same ID and bytes is an asset update. First derive
+     the full retained current filename set from all current
+     verified manifest entries' `filename` fields. Copy the
+     validated new file through the existing copy block (step 4
+     above, with SHA validation); collect the validated new
+     **basename** in `copied_filenames`. For the old recorded
+     path: extract its validated **basename** after ownership and
+     containment checks against the previous `screenshot_assets`
+     entry. Remove the old tracked path only if its basename is not
+     in the full retained current filename set; collect each removed
+     basename in `removed_filenames`. Do not directory-walk or guess
+     legacy filenames; unverifiable ownership stops reconciliation.
+     External mode keeps existing approved immutable URL
+     verification, reference rewrite, and metadata — no local
+     copy or hosted byte deletion.
    - Manifest entries absent from `publish-metadata.json` → newly added.
    - `publish-metadata.json` entries absent from the current manifest →
      removed.

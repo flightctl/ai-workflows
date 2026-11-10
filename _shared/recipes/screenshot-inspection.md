@@ -164,7 +164,9 @@ does not override status-based eligibility.
 If the user repairs the source or access is restored, the caller
 must re-enter its published-input gate on the changed inputs
 before re-entering inspection. Reload §1 manifest (including
-the duplicate-ID check) before rerunning §3 resolution and §4
+the duplicate-ID check), then rerun §2 header, index, and
+matching on the updated inputs — changed handoff or refs must
+not reuse old matched pairs. Then rerun §3 resolution and §4
 identity/inspection (SHA, visual, bindings). If any manifest
 field used by identity verification (per-entry `sha256`) or
 binding checks (top-level `context_revision`,
@@ -257,7 +259,9 @@ in the output.
    (§3 failures where no bytes were obtained), this image was
    successfully resolved — §4.1 has already computed
    `observed_sha` and `identity` and the `expected_sha` is
-   available from the manifest. Preserve those actually computed
+   available when the manifest provides a digest for this
+   image (`—` when the manifest is absent or has no entry).
+   Preserve those actually computed
    values; record `observation: —` (not observed) and
    `spec_match: —` (unknown). The image remains ineligible for
    citation (§5 Rule 1 — status must be `inspected`) even when
