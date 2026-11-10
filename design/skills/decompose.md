@@ -65,8 +65,8 @@ If the command exits non-zero, a validation error occurred (malformed
 index, missing listed files) — **stop and report the error.** Do not
 fall back to legacy behavior when a malformed index is present.
 
-If the design document doesn't exist, tell the user that `/draft`
-should be run first.
+If the design document doesn't exist, tell the user that `/draft` should be
+run first.
 
 Read the Jira Feature issue key from the PRD or context. This Feature is the
 parent for all epics created by this workflow.
