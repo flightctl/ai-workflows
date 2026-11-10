@@ -22,15 +22,14 @@ artifacts and published output from this workflow.
 - Never add generic or aspirational advice — if it's not discoverable, don't document it
 - Never modify source code, tests, or non-AI configuration — this workflow only touches documentation and AI convention files (AGENTS.md, CLAUDE.md, .cursorrules, .github/copilot-instructions.md, etc.)
 
-## AGENTS.md Size Limits
+## AGENTS.md Size Guidance
 
-- Target root AGENTS.md under 150 lines and keep every AGENTS.md at or below 300 lines
-- Count current and final lines for every AGENTS.md instead of estimating
-- When root AGENTS.md would reach 150 lines, preserve or create hierarchy for scoped guidance
-- Preserve existing tool-specific rule directories when they provide scoped loading; otherwise use the nearest nested AGENTS.md for guidance that applies to a specific area
-- Create tool-specific rule directories only when that convention already exists in the target project
+- Keep AGENTS.md files focused and use line counts as a review signal, not an automatic pass/fail rule
+- As a rough target, aim for a root AGENTS.md around 150 lines or fewer; review files approaching 300 lines for duplication, low-priority content, and useful scope boundaries
+- Choose whether to merge, preserve, or split guidance based on its scope, project conventions, and how target tools load instruction files
+- Prefer existing hierarchy. Create nested AGENTS.md files only when guidance is tied to a specific area, and create tool-specific rule directories only when the target project already uses that convention
+- Do not split files solely to meet a line target. If a larger file is clearer, retain it and explain why
 - Prefer references to detailed docs over copying long explanations into AGENTS.md
-- Do not report completion while any AGENTS.md exceeds 300 lines
 
 ## Safety
 
