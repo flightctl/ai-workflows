@@ -1327,10 +1327,9 @@ class TestPreExistingDetection(unittest.TestCase):
 
 
 class TestPathNormalization(unittest.TestCase):
-    """Test git mechanism for target path normalization (review.md Step 3).
-
-    These test the git mechanisms the prose instructions rely on, not
-    end-to-end LLM execution of review.md.
+    """Test filesystem/git mechanisms for target path normalization
+    (review.md Step 3). These verify the mechanisms the prose
+    instructions rely on, not end-to-end LLM execution.
     """
 
     def setUp(self):
@@ -1340,7 +1339,7 @@ class TestPathNormalization(unittest.TestCase):
 
     def tearDown(self):
         os.chdir(self.orig_dir)
-        subprocess.run(["rm", "-rf", self.repo], check=False)
+        shutil.rmtree(self.repo, ignore_errors=True)
 
     def test_dot_slash_target_matches_status(self):
         """./pkg/a.go normalized to pkg/a.go matches git status output."""
@@ -1370,21 +1369,80 @@ class TestPathNormalization(unittest.TestCase):
         target = os.path.normpath("./.env")
         self.assertEqual(target, ".env")
 
-    def test_outside_repo_detected(self):
-        """Path resolving outside repo root is detected by relpath."""
+    def test_outside_repo_detected_by_component(self):
+        """Path outside repo detected by path-component containment."""
         root = os.path.realpath(self.repo)
         outside = os.path.realpath(os.path.join(root, "..", "escape.txt"))
         rel = os.path.relpath(outside, root)
-        self.assertTrue(rel.startswith(".."),
-                        "path outside repo should have .. prefix")
+        # Component-aware check: first component must not be ".."
+        parts = rel.split(os.sep)
+        self.assertEqual(parts[0], "..",
+                         "outside path should start with .. component")
+
+    def test_dotdot_filename_not_escape(self):
+        """..notes is a valid filename, not a directory escape."""
+        rel = os.path.relpath(
+            os.path.join(os.path.realpath(self.repo), "..notes"),
+            os.path.realpath(self.repo))
+        parts = rel.split(os.sep)
+        self.assertNotEqual(parts[0], "..",
+                            "..notes is a filename, not an escape component")
+        self.assertEqual(rel, "..notes")
+
+    def test_parent_symlink_escape(self):
+        """Symlink in parent + .. can escape repo; physical resolve catches it."""
+        # Create a symlink inside repo pointing outside
+        outside_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, outside_dir, ignore_errors=True)
+        os.symlink(outside_dir, os.path.join(self.repo, "link_out"))
+        # Target: link_out/../../../etc/passwd → escapes via symlink
+        target_parent = os.path.join(self.repo, "link_out", "..")
+        resolved_parent = os.path.realpath(target_parent)
+        resolved = os.path.join(resolved_parent, "escape.txt")
+        root = os.path.realpath(self.repo)
+        rel = os.path.relpath(resolved, root)
+        parts = rel.split(os.sep)
+        self.assertEqual(parts[0], "..",
+                         "symlink + .. escape should be caught after realpath")
+
+    def test_final_symlink_preserved_for_lexists(self):
+        """Final symlink component preserved for lexists/ignore guard."""
+        os.symlink("/nonexistent", os.path.join(self.repo, "dangling_link"))
+        root = os.path.realpath(self.repo)
+        target = "dangling_link"
+        # Normalize: resolve parent (repo root), append final unchanged
+        parent_resolved = os.path.realpath(self.repo)
+        full = os.path.join(parent_resolved, target)
+        # lexists detects the dangling symlink
+        self.assertTrue(os.path.lexists(full))
+        # exists does not
+        self.assertFalse(os.path.exists(full))
+        # Containment check passes (it's in the repo)
+        rel = os.path.relpath(full, root)
+        self.assertNotEqual(rel.split(os.sep)[0], "..")
+
+    def test_subdirectory_base_resolution(self):
+        """Relative target from known subdirectory base resolves correctly."""
+        os.makedirs("src/pkg", exist_ok=True)
+        with open("src/pkg/main.go", "w") as f:
+            f.write("package main\n")
+        # From base "src/pkg", target "main.go" → "src/pkg/main.go"
+        base = os.path.join(os.path.realpath(self.repo), "src", "pkg")
+        target = os.path.join(base, "main.go")
+        root = os.path.realpath(self.repo)
+        rel = os.path.relpath(target, root)
+        self.assertEqual(rel, os.path.join("src", "pkg", "main.go"))
 
 
 class TestBranchMismatch(unittest.TestCase):
-    """Test git mechanism for publish branch verification (Step 5).
+    """Test git mechanism: pushing a named branch pushes that branch's
+    tip, which can differ from the current checkout's HEAD.
 
-    Proves that pushing a named branch pushes that branch's state,
-    which can differ from the current checkout. The branch check in
-    Step 5 prevents publishing an unchecked commit.
+    This demonstrates the raw git behavior that publish.md Step 5's
+    branch-equality check guards against. The test exercises git push
+    directly (not the shared publish.py helper, which wraps the same
+    git push command at _shared/scripts/publish.py:469). The prose
+    guard in Step 5 is not executed by this test.
     """
 
     def setUp(self):
@@ -1394,7 +1452,7 @@ class TestBranchMismatch(unittest.TestCase):
 
     def tearDown(self):
         os.chdir(self.orig_dir)
-        subprocess.run(["rm", "-rf", self.repo], check=False)
+        shutil.rmtree(self.repo, ignore_errors=True)
 
     def test_push_named_branch_pushes_branch_state(self):
         """git push remote branch pushes the named branch's tip, not HEAD."""

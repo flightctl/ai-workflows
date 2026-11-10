@@ -111,16 +111,24 @@ if declining or adjusting the requested approach.
 For an in-scope change with no unresolved conflicts:
 
 1. Identify the files that will need modification or creation.
-   Normalize all target paths to repository-root-relative form before
-   any isolation checks, writes, or staging. Strip leading `./`,
-   resolve `..` components, and resolve existing parent symlinks in
-   directory components — but preserve the final path component for
-   lexical existence checks (`os.path.lexists`). Do not damage
-   leading-dot filenames (e.g., `.env`). If a target resolves outside
-   the repository root, stop and report. If the intended base
-   directory is ambiguous (e.g., a relative path with no clear
-   context), ask the user. Run all git commands from the repository
-   root with these normalized paths.
+   Establish the repository root (`git rev-parse --show-toplevel`)
+   and the intended base directory for relative paths (from command
+   context; ask the user if ambiguous). Normalize each target path:
+   physically resolve the parent directory (following symlinks in
+   parent components, including `..`) via `os.path.realpath` on the
+   parent, then append the final path component unchanged — this
+   preserves the final entry for `os.path.lexists` and symlink
+   detection while correctly resolving `..` across symlinks. Compute
+   the repo-root-relative path and verify it stays within the repo
+   using path-component containment (the relative path must not start
+   with a `..` component — check `os.path.relpath(resolved, root)`
+   does not begin with `../`; note `..notes` is a valid filename, not
+   an escape). Do not damage leading-dot filenames (`.env`). If a
+   target resolves outside the repo, stop and report. If the final
+   component is a symlink and the intended edit target is ambiguous
+   (the link entry vs its referent), ask the user; the actual content
+   target must independently pass scope/dirty/ignored checks. Run all
+   git commands from the repository root with normalized paths.
 2. **Pre-edit isolation check.** Before making any edits:
 
    a. Compare every target path against the pre-existing paths from

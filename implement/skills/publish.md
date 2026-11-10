@@ -150,12 +150,26 @@ again after `/validate` passes.
 
 ### Step 3: Confirm Details
 
+Read the `## Branch` section of `02-plan.md` to get `{branch-name}`,
+Local Base, and PR Target. If the planned branch name is missing or
+ambiguous, stop and ask the user.
+
+Verify the current branch matches the planned branch:
+
+```bash
+git branch --show-current
+```
+
+If the result does not exactly equal `{branch-name}`, or HEAD is
+detached, stop and report the mismatch. Do not auto-checkout or
+rename the plan's branch.
+
 Present the PR details to the user for confirmation:
 
-- **Branch:** `{branch-name}` (from the plan)
-- **Local Base:** `{local-base}` (branch this story is stacked on — from `## Branch` in `02-plan.md`)
-- **PR Target:** `{pr-target}` (upstream branch the PR will target — from `## Branch` in `02-plan.md`)
-- **Commits:** List the commits that will be included (only this story's commits)
+- **Branch:** `{branch-name}` (verified above)
+- **Local Base:** `{local-base}`
+- **PR Target:** `{pr-target}`
+- **Commits:**
 
 ```bash
 git log --oneline {local-base}..HEAD
