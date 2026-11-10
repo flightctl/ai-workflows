@@ -153,7 +153,9 @@ Other options:
 subagent review with up to 2 fix-and-re-review rounds. Running it right
 after `/draft` pays that cost once as a design-validation step — but if the
 design changes substantially during `/revise` or `/respond`, the controller
-recommends re-running `/decompose` from scratch, paying that cost again.
+recommends re-running `/decompose`, which rebuilds the plan against
+preserved existing identities rather than discarding artifacts, paying
+that cost again.
 Whether this is worth it depends on how much churn the design is likely to
 see, which varies per feature.
 

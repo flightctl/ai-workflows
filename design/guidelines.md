@@ -30,6 +30,8 @@ artifacts and published output from this workflow.
 - No Jira modifications without explicit user approval and a dry-run preview first.
 - **No scope reduction.** Never silently simplify, defer to "v2", use "placeholder", or say "future enhancement" to reduce scope. If scope won't fit, propose a split — don't reduce.
 - Locked decisions from PRD clarification are binding. No phase may contradict a locked decision without explicit user override.
+- **Identity stability.** Once an epic or story file is created, its number, filename, and containing path are fixed. Do not rename, renumber, or move artifact files. New stories append above the highest existing number in their epic (including removed files); new epics append above the highest existing epic number. Gaps are allowed; retired numbers must not be reused. Title and content may change without renaming the file.
+- **Retirement encoding.** Retirement is encoded as `status: removed` in YAML frontmatter — the `---`-delimited block at the very start of the file. The sync helper's `read_frontmatter` only recognizes this format; a plain Markdown body line `status: removed` is not detected. Merge into existing frontmatter without clobbering other fields; add a valid `---` block before the first heading if none exists.
 - No committing to `main` directly. Use feature branches for `/publish`.
 
 ## Safety

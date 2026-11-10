@@ -63,19 +63,33 @@ expected and should not be flagged as a clarity problem.
 ## Evaluation Criteria
 
 Evaluate the decomposition against these categories, prioritized by
-impact:
+impact. Coverage and completeness checks (criteria 1–8) apply to
+effectively active artifacts only. A story is effectively active
+when it has no `status: removed` marker and its parent epic is also
+active. An epic is effectively active when it has no `status:
+removed` marker. Epic-level checks (criteria 2, 4) evaluate active
+epics; story-level checks evaluate effectively active stories.
+Retained removed files are available for identity and traceability
+audit (criterion 9) but do not satisfy or violate active coverage
+requirements.
 
 1. **Requirement Coverage** — Does the coverage matrix (`07-coverage.md`)
-   map every FR and NFR from the PRD? Do story acceptance criteria
+   map every FR and NFR from the PRD to effectively active stories? A
+   story is effectively active when it has no `status: removed` marker
+   and its parent epic is also active; stories with `status: removed`
+   and unmarked children of removed epics are retained for identity
+   audit but do not satisfy coverage. Do story acceptance criteria
    collectively cover the PRD's acceptance criteria, not just the FR/NFR
    descriptions? Are there stories without PRD traceability — and if so,
    are they justified (e.g., infrastructure prerequisites)? Has any
    requirement been silently dropped, deferred to "v2", or reduced in
    scope?
 
-2. **Epic Structure** — Is each epic organized around user value, not
-   technical layers? Does each epic deliver complete functionality
-   independently? Are T-shirt sizes assigned and consistent with the sizing rubric
+2. **Epic Structure** — Evaluate active epics only (those with no
+   `status: removed` marker). Is each active epic organized around
+   user value, not technical layers? Does each active epic deliver
+   complete functionality independently? Are T-shirt sizes assigned
+   and consistent with the sizing rubric
    (`../_shared/sizing-rubric.md`)? Does each epic's size match its scope
    — story count, component breadth, integration surface? Are any epics
    suspiciously uniform in size when their scope clearly varies? No epic
@@ -99,10 +113,10 @@ impact:
    functionality AND testing (or, for a justified behavior-preserving
    prerequisite, preserved-behavior tests)? Do `[QE]` stories define concrete e2e test
    scenarios that validate user-facing behavior, not duplicate
-   unit/integration tests from `[DEV]` stories? Does each epic with
-   e2e-testable surface include at least one `[QE]` story? Does any
-   story fall back to "manual validation" or "document procedure for QE"
-   where an automated test could be written?
+   unit/integration tests from `[DEV]` stories? Does each active epic
+   with e2e-testable surface include at least one `[QE]` story?
+   Does any story fall back to "manual validation" or "document
+   procedure for QE" where an automated test could be written?
 
 5. **Implementation Traceability** — Do stories correctly reference the
    interface changes they implement and the test cases that validate
@@ -144,15 +158,39 @@ impact:
    as gaps. Do not reject a legitimate prerequisite for adding no new
    feature behavior — that is its nature.
 
-8. **Documentation** — Do `[DOCS]` stories use the `[DOCS]` template
-   (Documentation Scope and Documentation Inputs instead of
-   Implementation Guidance and Testing Approach)? Does the Documentation
-   Scope describe what the reader needs to understand without prescribing
-   how to write or organize the documentation? Does the Documentation
-   Inputs section inventory all user-facing artifacts from the
-   implementation stories it references? Is the inventory detailed enough
-   for a documentation author to know what to look for in the
-   implementation?
+8. **Documentation** — Do `[DOCS]` stories satisfy the `[DOCS]` story
+   quality criteria from the decompose skill that the reviewer can
+   evaluate from its available inputs (PRD and decomposition artifacts)?
+   Specifically: does the title include searchable product/feature/
+   command terms (not just `[DOCS] Feature documentation`)? Does the
+   persona/goal/benefit name the actual reader and a concrete task? Are
+   acceptance criteria reader-verifiable documentation outcomes (not
+   implementation artifacts)? Does the Documentation Scope describe what
+   the reader needs to understand without prescribing how to write or
+   organize the documentation? Does the Documentation Inputs section
+   inventory user-facing artifacts from the contributing `[DEV]`/`[UI]`
+   stories? Are `[Assumption]` and `[Open: §9.N]` markers present on
+   items that appear speculative or unresolved? Does the Design
+   Reference include a `Contributing stories` line consistent with the
+   Documentation Inputs headers? Are the contributing story references
+   complete? Note: the reviewer cannot verify whether unmarked
+   Documentation Inputs items are truly derived from the design
+   document or PRD — that provenance check belongs to the decomposer
+   (see the provenance verification in `/decompose`). Flag items that
+   appear speculative or unresolved from the PRD and artifact context
+   alone.
+
+9. **Identity consistency** — Are story and epic IDs, filenames,
+   and directory paths self-consistent across the decomposition
+   artifacts? Do Dependencies, Contributing stories, Documentation
+   Inputs, and the coverage matrix reference story IDs that exist in
+   the actual artifact files? Do any instructions or comments
+   explicitly propose renaming, renumbering, moving, or reusing a
+   story/epic identity? Flag proven inconsistencies (e.g., a
+   referenced Story 2.03 with no corresponding file) or explicit
+   rename/reuse proposals. Absence of historical baseline does not
+   prove identity violation — do not invent allocation history or
+   require the sync manifest.
 
 ## Finding Format
 
@@ -179,9 +217,9 @@ Reference section.
 
 | Severity | Meaning | Action |
 |----------|---------|--------|
-| CRITICAL | Would cause incorrect implementation — missing requirements, contradictory acceptance criteria, broken dependency chain, scope reduction, stories referencing non-existent ICs or TCs, ICs with no implementing story, prerequisite story without justification or dependency declaration | Must fix before presenting |
-| HIGH | Would cause rework — story too large to review in a single PR, missing testing commitment, integration gap between stories, `[QE]` story duplicating `[DEV]` test scope, stories missing Interface Changes or Validated by references, prerequisite story missing preserved-behavior tests | Should fix before presenting |
-| MEDIUM | Would reduce clarity — vague acceptance criteria, imprecise implementation guidance or documentation scope, sizing concerns, minor coverage matrix inconsistencies, minor IC or TC reference inconsistencies | Fix if it adds value |
+| CRITICAL | Would cause incorrect implementation — missing requirements, contradictory acceptance criteria, broken dependency chain, scope reduction, stories referencing non-existent ICs or TCs, ICs with no implementing story, prerequisite story without justification or dependency declaration, `[DOCS]` story missing contributing stories or with Documentation Inputs that omit user-facing artifacts from referenced implementation stories | Must fix before presenting |
+| HIGH | Would cause rework — story too large to review in a single PR, missing testing commitment, integration gap between stories, `[QE]` story duplicating `[DEV]` test scope, stories missing Interface Changes or Validated by references, prerequisite story missing preserved-behavior tests, `[DOCS]` story with generic title or unidentified reader/task, explicit proposal to rename, renumber, move, or reuse a story/epic identity that would break sync idempotency | Should fix before presenting |
+| MEDIUM | Would reduce clarity — vague acceptance criteria, imprecise implementation guidance or documentation scope, sizing concerns, minor coverage matrix inconsistencies, minor IC or TC reference inconsistencies, `[DOCS]` story with Documentation Inputs items that appear speculative or unresolved from PRD and artifact context but lack `[Assumption]` or `[Open: §9.N]` markers (items verifiable against the PRD need no marker; the decomposer verifies design-derived provenance separately in the provenance sub-step of Step 9) | Fix if it adds value |
 | LOW | Structural improvements — naming consistency, ordering suggestions, documentation clarity | Fix only if clearly valuable |
 
 ## Validation Rules

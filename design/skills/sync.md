@@ -36,12 +36,12 @@ your responsibility.
 
 - **Dry-run first.** Always show what would be created, updated, or closed before doing anything.
 - **Explicit approval required.** Never modify Jira without the user saying "yes."
-- **Batch by operation.** Process epics first (confirm), then stories per epic (confirm). Not one giant batch.
+- **Batch by operation.** Process epics first (confirm), then all new stories in the dependency-first order across epics (confirm the ordered cross-epic creation batch), then per-epic update and close passes (confirm). Explicit approval is required for: the overall plan (Step 3), epic operations (Step 5), the ordered cross-epic new-story creation batch (Step 6a), and per-epic update/close passes (Steps 6b/6c).
 - **Idempotent.** Track what was synced in a manifest with content hashes. If re-run with no changes, do nothing.
 - **Manifest gate.** Before proceeding past Step 1, you **must** state aloud to the user what the manifest contains (or that none exists). This is mandatory — do not silently skip this acknowledgment. If a manifest exists and you cannot read it, stop and report the error.
 - **Jira-side duplicate check.** Before creating each epic or story, query Jira for existing children under the parent with a matching summary. If a match is found, stop and present the match to the user — do not create a duplicate. This is a safety net independent of the manifest.
 - **Jira hierarchy is fixed.** Feature → Epic → Story. Every epic's parent is the Feature issue; every story's parent is its epic. No operation may violate this hierarchy — no re-parenting, no creating issues outside this structure, no closing a Feature.
-- **Sync-owned fields.** Sync owns: summary, description, T-shirt size (epics only), parent link (creation only), and issue links (dependencies). These are set from artifact content on creation and overwritten on updates (except parent link). Sync never touches: assignee, sprint, comments, labels, or any other Jira-managed field. Status transitions are permitted **only** for gated lifecycle operations: reopening a previously closed item (Step 4b/5b), closing a removed or user-selected orphaned item (Step 4c/5c), and closing active child stories as part of an approved parent epic closure cascade (Step 4c — the user's approval of the parent close covers its children). No other status changes are allowed.
+- **Sync-owned fields.** Sync owns: summary, description, T-shirt size (epics only), parent link (creation only), and issue links (dependencies). These are set from artifact content on creation and overwritten on updates (except parent link). Sync never touches: assignee, sprint, comments, labels, or any other Jira-managed field. Status transitions are permitted **only** for gated lifecycle operations: reopening a previously closed item (Step 5b/6b), closing a removed or user-selected orphaned item (Step 5c/6c), and closing active child stories as part of an approved parent epic closure cascade (Step 5c — the user's approval of the parent close covers its children). No other status changes are allowed.
 - **Logical deletion via marker.** Stories and epics are closed (not deleted) when their artifact file contains `status: removed` in the YAML frontmatter. The file stays on disk so the manifest can still track it.
 - **Link to source.** Every Jira issue description references the design document.
 - **Jira-native references.** Local identifiers (`Story 1.01`, `Epic 1`) have meaning only within the `.artifacts/` directory. When constructing Jira issue descriptions, resolve all local references (in Dependencies, Documentation Inputs, Design Reference, and any other cross-references) to Jira issue keys using the sync manifest. Jira is the source of truth — readers of a Jira issue should never need to decode a local artifact numbering scheme.
@@ -193,25 +193,142 @@ Confirm with the user:
 - **Board / sprint:** Does the user want stories assigned to a specific
   board or sprint? (optional — can be done later in Jira)
 
-### Step 3: Dry Run
+### Step 3: Plan Creation Order and Dry Run
 
-Present a preview of all planned operations, using the change plan items:
+**Plan creation order.** Run the sync helper to plan dependency-first
+creation order across the entire feature.  Capture output and status
+using the same fail-closed pattern as the Step 6a reference-availability
+guard:
+
+```bash
+PLAN_ERR=$(mktemp) || { echo "FATAL: cannot create temp file" >&2; exit 1; }
+PLAN_EXIT=0
+PLAN_JSON=$(python3 "$SYNC_HELPER" plan-creation-order \
+  .artifacts/design/{issue-key}/ 2>"$PLAN_ERR") || PLAN_EXIT=$?
+PLAN_ERR_TEXT=$(cat "$PLAN_ERR")
+rm -f "$PLAN_ERR"
+```
+
+**Interpret the result (fail-closed).** Only a valid structured
+success may proceed to the preview.  Apply this three-branch
+interpretation **before** presenting the preview or proceeding to
+Step 4:
+
+1. **Exit 0 + valid JSON containing all four required fields
+   (`ordered`, `blocked`, `errors`, `satisfied_keys`) with correct
+   types (lists/dict) + `errors` empty + `blocked` empty:** the plan
+   is valid — `ordered` may be empty when no new stories need
+   creation.  Continue to the preflight check below.
+2. **Exit 1 + valid JSON containing all four required fields with
+   non-empty `errors`:** structured planning errors.  **STOP** —
+   present per-story diagnostics and recommend `/revise` to fix the
+   decomposition.  Do not proceed to preview, approval, writes, or
+   checkpoints.
+3. **Any other result** — empty output, malformed JSON, missing or
+   wrong-type required fields, unexpected exit code, or exit 1
+   without parseable JSON: **STOP**.  Report `PLAN_EXIT`,
+   `PLAN_ERR_TEXT`, and the raw `PLAN_JSON` (if any) as fatal
+   diagnostics.  Do not proceed to preview, approval, writes, or
+   checkpoints.
+
+The helper reads Dependencies and Contributing stories from every new
+story's artifact file, builds a dependency graph using existing
+manifest keys to satisfy already-synced references, and produces a
+topologically sorted creation plan. The output contains:
+
+- `ordered`: new stories in prerequisite-first creation order (stories
+  with no unsatisfied dependencies first, then their dependents).
+- `blocked`: stories whose required references cannot be satisfied
+  (missing local targets, removed/retired sources with no usable key,
+  or cycle participants). Each entry lists the missing reference IDs.
+- `errors`: human-readable diagnostics (cycles with qualified IDs,
+  references to nonexistent artifacts).
+- `satisfied_keys`: references already satisfied by manifest keys.
+
+**Preflight check.** If `errors` is non-empty, the plan is invalid
+— **stop**. Errors cover new stories with missing targets, cycles,
+unreadable source files, AND changed/reopened stories whose edited
+Dependencies or Contributing stories reference nonexistent or
+unavailable items. Every `blocked` item has at least one root-cause
+entry in `errors`, so a non-empty `errors` list is the single gate.
+Present the diagnostics and recommend `/revise` to fix the
+decomposition before re-running `/sync`. Do not proceed to any Jira
+writes (including epic creation in Step 5) with an invalid plan. Do
+not silently create extra issues to satisfy references or proceed
+with `[unresolved]` placeholders.
+
+**Cascade closure preview.** If the change plan includes parent
+epics being closed (category `"removed"` or `"orphaned"` where the
+user chose closure in Step 1), compute cascade child closures so the
+preview truthfully reflects all operations Step 5c will perform.
+Capture output and status using the same fail-closed pattern as the
+plan-creation-order call above:
+
+```bash
+CASC_ERR=$(mktemp) || { echo "FATAL: cannot create temp file" >&2; exit 1; }
+CASC_EXIT=0
+CASC_JSON=$(python3 "$SYNC_HELPER" compute-cascade-closures \
+  .artifacts/design/{issue-key}/ 2>"$CASC_ERR") || CASC_EXIT=$?
+CASC_ERR_TEXT=$(cat "$CASC_ERR")
+rm -f "$CASC_ERR"
+```
+
+Add `--close-orphans` after the artifacts path only if the user
+selected option (a) for orphaned items in Step 1. Omit it when the
+user chose (b) ignore — ignored orphan parents must not produce
+cascades.
+
+**Interpret the result (fail-closed).** Apply before the dry-run
+preview:
+
+1. **Exit 0 + valid JSON with a `cascades` list (may be empty) and
+   no `errors` key (or `errors` empty):** cascade data is valid.
+   Continue to the preview.
+2. **Exit 0 + valid JSON with non-empty `errors` list:** manifest
+   integrity problem (e.g., closing parent or child lacks a Jira
+   key). **STOP** — present the diagnostics. Do not proceed to
+   preview, approval, or writes.
+3. **Any other result** — nonzero exit, empty output, malformed
+   JSON, or missing `cascades` field: **STOP**. Report `CASC_EXIT`,
+   `CASC_ERR_TEXT`, and raw `CASC_JSON` (if any) as fatal
+   diagnostics.
+
+Each cascade entry includes `file`, `jira_key`, `title`,
+`parent_epic_file`, `parent_jira_key`, and `parent_reason`.
+
+Include cascade closures in the **To Close** section of the preview
+below. Adjust the To Close and Unchanged totals: add the cascade
+count to To Close, and subtract from Unchanged any cascade items
+that were categorized as `"unchanged"` in the change plan. Do not
+double-count items that appear both as individually removed and as
+cascade targets. Ignored orphan parents (user chose (b) in Step 1)
+must not produce cascades — this is enforced by omitting
+`--close-orphans` in the helper call.
+
+**Dry-run preview.** Present all planned operations:
 
 ```markdown
 ## Jira Sync Preview — {issue-key}
 
 ### Feature: {feature-key} — {title}
 
-### To Create ({N} items)
+### Story Creation Order ({N} stories)
+
+Stories will be created in this dependency-first order so each
+story's references resolve before it is written to Jira:
+
+| # | Story | Epic | Dependencies |
+|---|-------|------|-------------|
+| 1 | Story {N}.{NN}: [{prefix}] {title} | Epic {X} | None |
+| 2 | Story {M}.{MM}: [{prefix}] {title} | Epic {Y} | Story {N}.{NN} |
+
+### Epics to Create ({N} items)
 
 #### Epic {X}: {title} (`epic-{X}-{slug}.md`)
 - **Type:** Epic
 - **Parent:** {feature-key}
 - **T-Shirt Size:** {size}
 - **Summary:** {1-2 sentences}
-- **Stories:**
-  - Story {X}.01: [{prefix}] {title} (`story-01-{slug}.md`)
-  - Story {X}.02: [{prefix}] {title} (`story-02-{slug}.md`)
 
 ### To Update ({N} items)
 
@@ -223,20 +340,23 @@ Present a preview of all planned operations, using the change plan items:
 For items with `category: "reopened"`, prefix with "Reopened (closed →
 open)" so the status transition is visible.
 
-### To Close ({N} items)
+### To Close ({N} items, including {C} cascade closures)
 
 | Jira Key | Local File | Title |
 |----------|------------|-------|
 | {jira_key} | `{file}` | {title} |
 | {jira_key} | *(orphaned — no artifact file)* | {title} |
+| {jira_key} | `{file}` *(cascade: parent {parent_jira_key})* | {title} |
 
-Include orphaned entries the user chose to close in Step 1 with the
-note "*(orphaned — no artifact file)*" in the Local File column.
+Cascade items are children of closing parent epics that Step 5c will
+close before the parent. The parent's close approval covers them.
+If no cascades exist, omit the cascade count and rows.
 
 ### Unchanged ({N} items — skipped)
 
 ### Totals
-- To create: {N}
+- To create (stories): {N}
+- To create (epics): {N}
 - To update: {N}
 - To close: {N}
 - Unchanged: {N}
@@ -247,12 +367,55 @@ note "*(orphaned — no artifact file)*" in the Local File column.
 If the user wants changes, recommend `/revise` to update the decomposition
 first — do not modify the decomposition during sync.
 
-### Step 4: Sync Epics
+### Step 4: Validate `[DOCS]` Stories Before Sync
+
+Before proceeding to Jira operations, validate `[DOCS]` stories
+against the quality criteria below. Only stories whose source is
+effectively active are eligible for the quality gate — check the
+`source_active` field in the change plan items (from detect-changes).
+A story with `source_active: false` has an inactive source (own
+`status: removed` or parent epic removed/closed without approved
+restoration) and is excluded from quality validation — it is
+historical and will not be written to Jira as active content. If
+`source_active` cannot be determined (no identifiable parent epic),
+**stop the sync** and report the anomaly — do not silently exclude
+the story from quality or proceed to writes. Restored parent
+epics (category `"reopened"`) are active; their children are
+eligible. Individually removed stories remain ineligible
+regardless of parent status.
+
+Validate every eligible (source-active) `[DOCS]` story that is
+**new**, **changed**, or **reopened** in the change plan against all
+seven criteria in `decompose.md`. Also include any eligible
+`[DOCS]` story whose own hash is unchanged but whose contributor set
+changed: a listed contributor was modified, removed, renamed, or
+reopened, or a new/changed/reopened `[DEV]`/`[UI]` story's user-facing
+surface falls within the `[DOCS]` story's documented scope. Determine
+this from the change plan's full item list (new, changed, removed,
+reopened), not only from existing references.
+
+If any `[DOCS]` story fails validation, **stop the entire sync** —
+do not proceed to Step 5 or any Jira writes (epic creates, story
+creates, updates, reopens, closures), success checkpoints, or
+content checkpoints for this plan. Present the findings, recommend
+`/revise` to correct the source, and require a fresh
+preflight/preview/approval cycle after correction.
+Sync does not edit story source files.
+Do not reuse a stale approval from before the correction.
+
+Note: reference-availability checks for Dependencies and Contributing
+stories are handled by the Step 3 creation-order plan (preflight) and
+the Step 6a/6b reference-availability guards (runtime). Step 4
+validates `[DOCS]` quality criteria only. This gate is distinct from
+valid runtime missing-reference failures in Steps 6a/6b, which skip
+only the affected story and continue independent eligible work.
+
+### Step 5: Sync Epics
 
 Process epics in three passes: create new epics, update changed epics,
 close removed epics. Use the change plan items filtered by `type: "epic"`.
 
-#### 4a: Create New Epics
+#### 5a: Create New Epics
 
 **Pre-creation duplicate check (per epic).** Before creating each epic,
 search Jira for existing children of {feature-key} whose summary matches
@@ -313,7 +476,7 @@ failed, including the error. Offer to: (a) retry the failed epic, or
 (b) skip it and continue with the remaining epics. Do not silently
 continue past a failure.
 
-#### 4b: Update Changed Epics
+#### 5b: Update Changed Epics
 
 For each epic categorized as **Changed** or **Reopened**, prepare the
 updated description and hash using the epic `prepare` recipe from the
@@ -331,8 +494,8 @@ Update only the sync-owned fields. Do not touch assignee or other
 Jira-managed fields. Status transitions are permitted only for lifecycle
 operations: transition **Reopened** items to an open status before
 updating content, and transition **Removed** or user-selected
-**Orphaned** items to a closed status during the close passes (Steps 4c,
-5c). Do not change status for any other reason.
+**Orphaned** items to a closed status during the close passes (Steps 5c,
+6c). Do not change status for any other reason.
 
 After updating, record the new hash using `update-manifest --operation
 update` from the helper reference.
@@ -340,7 +503,25 @@ update` from the helper reference.
 **If update fails:** Report the error with the Jira key and offer to
 retry or skip.
 
-#### 4c: Close Removed and Selected Orphaned Epics
+#### 5c: Close Removed and Selected Orphaned Epics
+
+**Cascade scope guard.** Before starting child closures, verify
+that each closing parent's manifest-active children are within the
+approved scope. The approved scope for each parent is the **union**
+of: (a) children individually listed as To Close in the Step 3
+preview (category `"removed"` or user-selected `"orphaned"` under
+this parent), and (b) the
+supplemental cascade closures from `compute-cascade-closures`. Build
+this per-parent union from the approved change plan and cascade data.
+Re-read the manifest and collect the set of `synced_status: "active"`
+children under each closing parent. Verify that these remaining
+active children are a **subset** of the approved union — children
+whose manifest entry already has `synced_status: "closed"` (from a
+resumed partial cascade) are no longer active and need not appear.
+If any manifest-active child is **not** in the approved union (e.g.,
+a concurrent operation added a child between approval and execution),
+**stop** and require a fresh preview/approval cycle — do not silently
+expand the approved writes.
 
 For each epic categorized as **Removed** (file has `status: removed`)
 or **Orphaned** where the user chose to close it in Step 1:
@@ -414,10 +595,10 @@ Present all epic operations to the user:
 
 **Wait for user confirmation before syncing stories.**
 
-### Step 5: Sync Stories
+### Step 6: Sync Stories
 
 **Refresh the change plan** before processing stories. Epic operations
-in Step 4 may have changed the manifest (e.g., closing an epic closes
+in Step 5 may have changed the manifest (e.g., closing an epic closes
 its children, reopening an epic enables its children). Re-run
 `detect-changes` to get an updated plan that reflects the current
 manifest state:
@@ -428,53 +609,119 @@ STORY_PLAN=$(python3 "$SYNC_HELPER" detect-changes .artifacts/design/{issue-key}
 
 Use the refreshed plan's `type: "story"` items for story operations.
 This ensures:
-- Children already closed by cascaded epic closure (Step 4c) are not
+- Children already closed by cascaded epic closure (Step 5c) are not
   re-closed
 - Stories under a reopened epic are correctly categorized
-- User orphan choices from Step 1 that were not acted on in Step 4 are
+- User orphan choices from Step 1 that were not acted on in Step 5 are
   preserved (orphan entries the user chose to ignore remain in the
   manifest and will still appear as orphaned in the refreshed plan)
 
 If a parent epic's create or reopen operation failed/was skipped in
-Step 4, do not create, update, or reopen stories under that epic —
+Step 5, do not create, update, or reopen stories under that epic —
 skip them and report which stories were skipped due to the parent
 failure.
 
-If an epic's close cascade was deferred in Step 4c (the parent was
+If an epic's close cascade was deferred in Step 5c (the parent was
 left unclosed because a child closure or checkpoint failed — whether
 remaining children are open, Jira-closed but uncheckpointed, or
 unattempted), do not retry closing those remaining children here.
 They remain in their current manifest state. Report them as deferred
 and inform the user that the parent cascade must be retried from
-Step 4c after remediation.
+Step 5c after remediation.
 
-Process stories per epic, in the same three passes: create, update, close.
+Process stories in two phases: first create all new stories across
+all epics in the planned dependency-first order from Step 3, then
+run per-epic update and close passes.
 
-#### 5a: Create New Stories
+#### 6a: Create New Stories (Dependency-First Order)
 
-**Pre-creation duplicate check (per story).** Before creating each story,
-search Jira for existing children of the epic whose summary matches the
-story title. Use a JQL query like:
+The user's Step 5 confirmation ("Wait for user confirmation before
+syncing stories") covers the ordered cross-epic creation batch below.
+
+Process the `ordered` list from the Step 3 creation plan. This list
+spans all epics and is sorted so prerequisites are created before
+their dependents.
+
+**For each story in the ordered list:**
+
+**Pre-creation duplicate check.** Before creating each story, search
+Jira for existing children of its parent epic whose summary matches
+the story title. Use a JQL query like:
 
 ```
 parent = {epic-jira-key} AND issuetype = Story AND summary ~ "{story title}"
 ```
 
-If the query returns one or more matching issues, **do not create the
-story.** Instead, stop and present the match to the user with the same
-options as in Step 4a (skip and record, create anyway, or stop entirely).
+If a match is found, stop and present it to the user with the same
+options as in Step 5a (skip and record, create anyway, or stop).
 Wait for the user's choice before continuing.
 
-For each new story, prepare the hash and description using the story
-`prepare` recipe from the helper reference. `PREP` is JSON with
-`content_hash`, `description`, `summary` (`[PREFIX] title` without
-numbering), `story_type`, `dependencies` (resolved text), and `title`.
+**Reference-availability guard.** Before calling `prepare` for any
+story, run the `check-ref-availability` subcommand against the current
+on-disk manifest with this story's qualified ID:
+
+```bash
+REF_ERR=$(mktemp) || { echo "FATAL: cannot create temp file" >&2; exit 1; }
+REF_EXIT=0
+REF_CHECK=$(python3 "$SYNC_HELPER" check-ref-availability \
+  .artifacts/design/{issue-key}/ \
+  "story-{N}.{NN}" 2>"$REF_ERR") || REF_EXIT=$?
+REF_ERR_TEXT=$(cat "$REF_ERR")
+rm -f "$REF_ERR"
+```
+
+The `|| REF_EXIT=$?` idiom captures a nonzero exit without aborting
+under `set -e`.  Stderr is captured to a per-guard temp file
+(`$REF_ERR`) created fresh for this story.  The two lines after
+the helper call read the stderr text and remove the temp file
+immediately — before branch interpretation — so cleanup cannot be
+forgotten on any exit path.  `REF_ERR_TEXT` is available for fatal
+diagnostic reporting; on ready/blocked paths it is simply unused.
+
+The helper checks Dependencies (Story and Epic refs) and Contributing
+stories (for `[DOCS]` stories), verifies the owning epic has a key,
+and treats native Jira keys as always available.
+
+Interpret the result with fail-closed semantics.  Exactly ONE of these
+branches must match; any other outcome is a catch-all failure:
+
+1. **Ready:** `REF_EXIT` is 0, stdout is valid JSON, the `ready` list
+   contains an entry whose `qid` equals THIS story's qualified ID, and
+   the `blocked` list does NOT contain this QID.  → Proceed to
+   `prepare`.
+2. **Blocked:** `REF_EXIT` is 1, stdout is valid JSON, the `blocked`
+   list contains an entry whose `qid` equals THIS story's qualified ID
+   with `missing` (list of unresolved ref IDs) and `reason` (string).
+   → **Skip** this story — do not call `prepare`, do not render a
+   description, do not create the Jira issue, do not record a manifest
+   checkpoint.  Record the story's qualified ID, the `missing` refs,
+   and the `reason` for the Step 8 report.  Continue with the next
+   story in the ordered list — do not abort independent eligible work.
+3. **Catch-all failure** (every other outcome — including exit 0 with
+   invalid JSON, exit 0 with this QID missing from `ready`, exit
+   nonzero with no JSON, malformed or missing `ready`/`blocked` fields,
+   this QID appearing in both lists, or unexpected exit codes):
+   **Stop the sync** and report `REF_ERR_TEXT` and any stdout.  Do not
+   skip the story or continue with others — the manifest state may be
+   indeterminate.  Do not call `prepare`, render, write to Jira, or
+   record a manifest checkpoint.
+
+Keys recorded by earlier stories in this run (via `update-manifest`)
+are immediately visible to subsequent `check-ref-availability` calls
+because the manifest is reloaded fresh from disk.  Blocked stories
+remain eligible for the next explicit `/sync` invocation.
+
+For each new story (non-blocked), prepare the hash and description
+using the story `prepare` recipe from the helper reference. `PREP`
+is JSON with `content_hash`, `description`, `summary` (`[PREFIX]
+title` without numbering), `story_type`, `dependencies` (resolved
+text), and `title`.
 
 Create the Jira issue using fields from `PREP`:
 
 - **Type:** Story
 - **Project:** {project key}
-- **Parent:** {epic jira key} (from Step 4) — **set via the `fields` parameter: `{"parent": {"key": "{epic jira key}"}}`**
+- **Parent:** {epic jira key} (from Step 5) — **set via the `fields` parameter: `{"parent": {"key": "{epic jira key}"}}`**
 - **Summary:** `summary` from PREP (e.g. "[DEV] Scaffold Build Pipeline" — without "Story 1.01:" prefix)
 - **Description:** `description` from PREP
 
@@ -544,29 +791,43 @@ successfully and which one failed, including the error. Offer to:
 stories. The manifest already reflects all successfully created items,
 so re-running `/sync` later will only attempt uncreated items.
 
-#### 5b: Update Changed Stories
+#### 6b: Update Changed Stories
 
-For each story categorized as **Changed** or **Reopened**, prepare the
-updated description and hash using the story `prepare` recipe from the
-helper reference.
+Process changed and reopened stories per epic.
+
+**Reference-availability guard.** Before calling `prepare` for a
+changed or reopened story, run the same `check-ref-availability` guard
+as in Step 6a with this story's qualified ID: create a per-guard temp
+(`REF_ERR=$(mktemp)`), capture stderr and exit status with the
+`|| REF_EXIT=$?` idiom, read stderr text and remove the temp
+immediately after the helper call (same two-line cleanup as 6a), then
+apply the same three-branch result interpretation (ready → proceed;
+blocked → skip; catch-all → stop and report `REF_ERR_TEXT`).  Do not
+call `prepare`, render a description, update or reopen the Jira issue,
+or record a manifest checkpoint for a blocked or failed story.  Do not
+retry a blocked story in the current run.
+
+For each story categorized as **Changed** or **Reopened** (non-blocked),
+prepare the updated description and hash using the story `prepare`
+recipe from the helper reference.
 
 Update the Jira issue using fields from `PREP`:
 
 - **Summary:** `summary` from PREP
 - **Description:** `description` from PREP
 - **Issue links:** read the Jira issue's current issue links and filter
-  to only those matching the link type selected in Step 5a (either
+  to only those matching the link type selected in Step 6a (either
   "Dependency" or "Blocks", whichever was used during creation).
   Compare these filtered links against the artifact file's dependency
   list. Remove links whose dependency stories no longer appear in the
   artifact and create new links for added dependencies, using the same
-  link type and direction mapping as Step 5a. Do not touch issue links
+  link type and direction mapping as Step 6a. Do not touch issue links
   of other types.
 
 Update only the sync-owned fields. Do not touch assignee or other
 Jira-managed fields. For **Reopened** items, transition the Jira issue
 back to an open status before updating content (see the status rule in
-Step 4b). Do not change status for any other reason.
+Step 5b). Do not change status for any other reason.
 
 After updating, record the new hash using `update-manifest --operation
 update` with `--item-type story` and `--epic-file` from the helper
@@ -575,7 +836,7 @@ reference.
 **If update fails:** Report the error with the Jira key and offer to
 retry or skip.
 
-#### 5c: Close Removed and Selected Orphaned Stories
+#### 6c: Close Removed and Selected Orphaned Stories
 
 For each story categorized as **Removed** (file has `status: removed`)
 or **Orphaned** where the user chose to close it in Step 1:
@@ -602,9 +863,9 @@ Present the stories synced for each epic:
 | Closed | Story 1.03 | {EDM-CCCC} | [{prefix}] {title} |
 ```
 
-### Step 6: Verify Sync Manifest
+### Step 7: Verify Sync Manifest
 
-The manifest has been built/updated incrementally during Steps 4-5 (each
+The manifest has been built/updated incrementally during Steps 5-6 (each
 operation was recorded via `update-manifest` immediately after success).
 Verify the manifest is complete and consistent. The final structure should
 be:
@@ -644,16 +905,17 @@ Fields:
 - `synced_at` — top-level only, not per-entry. Updated to the current
   timestamp at the end of each sync run.
 
-### Step 7: Report to User
+### Step 8: Report to User
 
 Summarize:
-- How many epics and stories were created, updated, closed, and unchanged
-- Confirm the hierarchy was verified: every epic has parent = Feature (verified in Step 4), every story has parent = its epic (verified in Step 5)
+- How many epics and stories were created, updated, closed, unchanged, and **blocked**
+- For each blocked story: the story file, which required keys were missing, and the reason. Blocked new stories were not created; blocked changed/reopened stories were not updated. Because no checkpoint was recorded for blocked stories, they remain eligible on the next `/sync` run. Do not claim complete synchronization while blocked stories remain
+- Confirm the hierarchy was verified for every issue actually created or updated: every epic has parent = Feature (verified in Step 5), every story has parent = its epic (verified in Step 6). Blocked stories were not written to Jira; list them separately as work not applied
 - Link to the Feature issue in Jira (which now shows the full hierarchy)
 
 **Do not suggest manual parent linking as a next step.** If any parent
 link was not set during creation, that is a failure that should have been
-caught in Steps 4-5.
+caught in Steps 5-6.
 
 Present a translation table mapping all local artifact identifiers to Jira
 keys. This table is the definitive reference for anyone working with the
