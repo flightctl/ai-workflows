@@ -908,9 +908,11 @@ class TestCheckEnrichment(unittest.TestCase):
                 val, ev,
                 {"release": "4.19", "target_branch": "main"},
             )
+        snap = _make_docs_snapshot()
         current = {
             "key": current_key,
-            "description": _make_docs_snapshot()["description"],
+            "summary": snap["summary"],
+            "description": snap["description"],
             "remote_links": existing_links or [],
         }
         return evidence.check_enrichment(
@@ -1264,6 +1266,7 @@ class TestCli(unittest.TestCase):
             "plan": plan,
             "current_state": {
                 "key": "TEST-100",
+                "summary": snap["summary"],
                 "description": snap["description"],
                 "remote_links": [],
             },
@@ -1283,6 +1286,7 @@ class TestCli(unittest.TestCase):
             "plan": plan,
             "current_state": {
                 "key": "TEST-100",
+                "summary": snap["summary"],
                 "description": snap["description"],
                 "remote_links": [],
             },
@@ -1303,6 +1307,7 @@ class TestCli(unittest.TestCase):
             "plan": plan,
             "current_state": {
                 "key": "TEST-100",
+                "summary": snap["summary"],
                 "description": snap["description"],
                 "remote_links": [],
             },
@@ -1441,6 +1446,7 @@ class TestEndToEndOffline(unittest.TestCase):
         # 4. Check enrichment (pre-apply)
         current = {
             "key": "TEST-100",
+            "summary": snapshot["summary"],
             "description": snapshot["description"],
             "remote_links": [],
         }
@@ -1453,6 +1459,7 @@ class TestEndToEndOffline(unittest.TestCase):
         # 5. Verify readback (post-apply)
         readback = {
             "key": "TEST-100",
+            "summary": snapshot["summary"],
             "description": snapshot["description"],
             "remote_links": [
                 {
@@ -1518,6 +1525,7 @@ class TestEndToEndOffline(unittest.TestCase):
             "plan": plan,
             "current_state": {
                 "key": "TEST-100",
+                "summary": snap["summary"],
                 "description": snap["description"],
                 "remote_links": [],
             },
@@ -1576,6 +1584,7 @@ class TestSnapshotBaselineDigest(unittest.TestCase):
         )
         current = {
             "key": "TEST-100",
+            "summary": snap["summary"],
             "description": snap["description"],
             "remote_links": [],
         }
@@ -1651,10 +1660,11 @@ class TestSnapshotBaselineDigest(unittest.TestCase):
         plan, _, _ = self._make_plan_and_enrichment(
             current_fields={"fixVersions": []},
         )
-        desc = _make_docs_snapshot()["description"]
+        snap = _make_docs_snapshot()
         current_v0 = {
             "key": "TEST-100",
-            "description": desc,
+            "summary": snap["summary"],
+            "description": snap["description"],
             "remote_links": [],
             "fields": {"fixVersions": []},
         }
@@ -1664,7 +1674,8 @@ class TestSnapshotBaselineDigest(unittest.TestCase):
         # Now fixVersions changed in Jira
         current_v1 = {
             "key": "TEST-100",
-            "description": desc,
+            "summary": snap["summary"],
+            "description": snap["description"],
             "remote_links": [],
             "fields": {
                 "fixVersions": [{"id": "99", "name": "other"}],
@@ -1686,10 +1697,11 @@ class TestSnapshotBaselineDigest(unittest.TestCase):
     def test_reordered_links_no_false_drift(self) -> None:
         """Link reordering alone does not cause false drift."""
         plan, _, _ = self._make_plan_and_enrichment()
-        desc = _make_docs_snapshot()["description"]
+        snap = _make_docs_snapshot()
         current_a = {
             "key": "TEST-100",
-            "description": desc,
+            "summary": snap["summary"],
+            "description": snap["description"],
             "remote_links": [
                 {"url": "https://github.example.invalid/o/r/pull/1"},
                 {"url": "https://github.example.invalid/o/r/pull/2"},
@@ -1698,7 +1710,8 @@ class TestSnapshotBaselineDigest(unittest.TestCase):
         }
         current_b = {
             "key": "TEST-100",
-            "description": desc,
+            "summary": snap["summary"],
+            "description": snap["description"],
             "remote_links": [
                 {"url": "https://github.example.invalid/o/r/pull/2"},
                 {"url": "https://github.example.invalid/o/r/pull/1"},
@@ -1741,9 +1754,11 @@ class TestMetadataCatalogV1(unittest.TestCase):
     def test_uncatalogued_not_eligible(self) -> None:
         """catalog_verified=False → not eligible for write."""
         plan = self._make_plan()
+        snap = _make_docs_snapshot()
         current = {
             "key": "TEST-100",
-            "description": _make_docs_snapshot()["description"],
+            "summary": snap["summary"],
+            "description": snap["description"],
             "remote_links": [],
         }
         r = evidence.check_enrichment(plan, current)
@@ -1766,9 +1781,11 @@ class TestMetadataCatalogV1(unittest.TestCase):
         self.assertEqual(tr["catalog_entry"], {"id": "7", "name": "v1"})
         self.assertEqual(tr["before"], [])
 
+        snap = _make_docs_snapshot()
         current = {
             "key": "TEST-100",
-            "description": _make_docs_snapshot()["description"],
+            "summary": snap["summary"],
+            "description": snap["description"],
             "remote_links": [],
             "fields": {"fixVersions": []},
         }
@@ -1787,9 +1804,11 @@ class TestMetadataCatalogV1(unittest.TestCase):
             }],
         }
         plan = self._make_plan(profile=profile)
+        snap = _make_docs_snapshot()
         current = {
             "key": "TEST-100",
-            "description": _make_docs_snapshot()["description"],
+            "summary": snap["summary"],
+            "description": snap["description"],
             "remote_links": [],
             "fields": {"fixVersions": []},
         }
@@ -1830,9 +1849,11 @@ class TestMetadataCatalogV1(unittest.TestCase):
             }],
         }
         plan = self._make_plan(profile=profile)
+        snap = _make_docs_snapshot()
         current = {
             "key": "TEST-100",
-            "description": _make_docs_snapshot()["description"],
+            "summary": snap["summary"],
+            "description": snap["description"],
             "remote_links": [],
             "fields": {"fixVersions": []},
         }
@@ -1880,10 +1901,11 @@ class TestMetadataCatalogV1(unittest.TestCase):
             }],
         }
         plan1 = self._make_plan(profile=profile)
-        desc = _make_docs_snapshot()["description"]
+        snap = _make_docs_snapshot()
         current = {
             "key": "TEST-100",
-            "description": desc,
+            "summary": snap["summary"],
+            "description": snap["description"],
             "remote_links": [],
             "fields": {"fixVersions": []},
         }
@@ -2202,6 +2224,7 @@ class TestContractFullLifecycle(unittest.TestCase):
         # 2. Preview: empty fixVersions → eligible
         current = {
             "key": "TEST-100",
+            "summary": snap["summary"],
             "description": snap["description"],
             "remote_links": [],
             "fields": {"fixVersions": []},
@@ -2284,6 +2307,7 @@ class TestContractFullLifecycle(unittest.TestCase):
         # 8. Reordered links → no false conflict
         current_a = {
             "key": "TEST-100",
+            "summary": snap["summary"],
             "description": snap["description"],
             "remote_links": [
                 {
@@ -2299,6 +2323,7 @@ class TestContractFullLifecycle(unittest.TestCase):
         }
         current_b = {
             "key": "TEST-100",
+            "summary": snap["summary"],
             "description": snap["description"],
             "remote_links": [
                 {
@@ -2359,6 +2384,7 @@ class TestContractFullLifecycle(unittest.TestCase):
             "plan": plan,
             "current_state": {
                 "key": "TEST-100",
+                "summary": snap["summary"],
                 "description": snap["description"],
                 "remote_links": [],
                 "fields": {"fixVersions": []},
@@ -2408,6 +2434,7 @@ class TestWriterDriftRegression(unittest.TestCase):
         )
         current_original = {
             "key": "TEST-100",
+            "summary": snap["summary"],
             "description": snap["description"],
             "remote_links": [],
             "fields": {"fixVersions": []},
@@ -2491,13 +2518,14 @@ class TestAdditiveMetadataPayload(unittest.TestCase):
 
     def test_additive_payload_preserves_existing(self) -> None:
         """before=[{id:'3',name:'v0'}] + v1 → payload has both IDs."""
-        desc = _make_docs_snapshot()["description"]
+        snap = _make_docs_snapshot()
         plan = self._make_plan_with_catalog(
             before=[{"id": "3", "name": "v0"}],
         )
         current = {
             "key": "TEST-100",
-            "description": desc,
+            "summary": snap["summary"],
+            "description": snap["description"],
             "remote_links": [],
             "fields": {"fixVersions": [{"id": "3", "name": "v0"}]},
         }
@@ -2512,13 +2540,14 @@ class TestAdditiveMetadataPayload(unittest.TestCase):
 
     def test_before_omitted_uses_actual_field_state(self) -> None:
         """before=[] in profile but actual field has versions → additive."""
-        desc = _make_docs_snapshot()["description"]
+        snap = _make_docs_snapshot()
         plan = self._make_plan_with_catalog(
             before=[],
         )
         current = {
             "key": "TEST-100",
-            "description": desc,
+            "summary": snap["summary"],
+            "description": snap["description"],
             "remote_links": [],
             "fields": {"fixVersions": [{"id": "3", "name": "v0"}]},
         }
@@ -2533,13 +2562,14 @@ class TestAdditiveMetadataPayload(unittest.TestCase):
 
     def test_already_present_version_noop(self) -> None:
         """Version already in before → already_present, no extra write."""
-        desc = _make_docs_snapshot()["description"]
+        snap = _make_docs_snapshot()
         plan = self._make_plan_with_catalog(
             before=[{"id": "7", "name": "v1"}],
         )
         current = {
             "key": "TEST-100",
-            "description": desc,
+            "summary": snap["summary"],
+            "description": snap["description"],
             "remote_links": [],
             "fields": {"fixVersions": [{"id": "7", "name": "v1"}]},
         }
@@ -2549,13 +2579,14 @@ class TestAdditiveMetadataPayload(unittest.TestCase):
 
     def test_malformed_entry_no_id_rejected(self) -> None:
         """catalog_entry missing id → not eligible."""
-        desc = _make_docs_snapshot()["description"]
+        snap = _make_docs_snapshot()
         plan = self._make_plan_with_catalog(
             entry={"name": "v1"},
         )
         current = {
             "key": "TEST-100",
-            "description": desc,
+            "summary": snap["summary"],
+            "description": snap["description"],
             "remote_links": [],
             "fields": {"fixVersions": []},
         }
@@ -2564,14 +2595,15 @@ class TestAdditiveMetadataPayload(unittest.TestCase):
 
     def test_entry_name_mismatch_rejected(self) -> None:
         """catalog_entry name != requested value → not eligible."""
-        desc = _make_docs_snapshot()["description"]
+        snap = _make_docs_snapshot()
         plan = self._make_plan_with_catalog(
             entry={"id": "7", "name": "v2"},
             value="v1",
         )
         current = {
             "key": "TEST-100",
-            "description": desc,
+            "summary": snap["summary"],
+            "description": snap["description"],
             "remote_links": [],
             "fields": {"fixVersions": []},
         }
@@ -2580,13 +2612,14 @@ class TestAdditiveMetadataPayload(unittest.TestCase):
 
     def test_readback_confirms_full_set(self) -> None:
         """Readback must contain ALL expected IDs, not just new one."""
-        desc = _make_docs_snapshot()["description"]
+        snap = _make_docs_snapshot()
         plan = self._make_plan_with_catalog(
             before=[{"id": "3", "name": "v0"}],
         )
         current = {
             "key": "TEST-100",
-            "description": desc,
+            "summary": snap["summary"],
+            "description": snap["description"],
             "remote_links": [],
             "fields": {"fixVersions": [{"id": "3", "name": "v0"}]},
         }
@@ -2628,6 +2661,282 @@ class TestAdditiveMetadataPayload(unittest.TestCase):
         self.assertEqual(
             receipt2["metadata_receipts"][0]["status"], "partial"
         )
+
+
+# ---------------------------------------------------------------------------
+# Guard 1: Source context propagation through validate→build→check chain
+# ---------------------------------------------------------------------------
+
+class TestSourceContextPropagation(unittest.TestCase):
+    """Guard: validate propagates key+summary+raw description; builder
+    requires source context (valid:true alone is insufficient); check
+    compares same source projection."""
+
+    def test_validate_returns_summary_and_description(self) -> None:
+        """validate_issue output includes raw summary and description."""
+        snap = _make_docs_snapshot()
+        val = evidence.validate_issue(snap)
+        self.assertEqual(val["summary"], snap["summary"])
+        self.assertEqual(val["description"], snap["description"])
+
+    def test_validate_invalid_returns_summary(self) -> None:
+        """Even invalid snapshots propagate the summary they had."""
+        snap = _make_docs_snapshot(description="")
+        val = evidence.validate_issue(snap)
+        self.assertFalse(val["valid"])
+        self.assertEqual(val["summary"], snap["summary"])
+        self.assertEqual(val["description"], "")
+
+    def test_builder_rejects_missing_summary(self) -> None:
+        """build_change_plan rejects validation without summary."""
+        snap = _make_docs_snapshot()
+        val = evidence.validate_issue(snap)
+        del val["summary"]  # remove source context
+        ev = evidence.normalize_evidence(_make_evidence_items())
+        plan = evidence.build_change_plan(
+            val, ev, {"release": "v1", "target_branch": "main"},
+        )
+        self.assertEqual(plan["status"], "invalid_issue")
+        self.assertTrue(
+            any("summary" in e for e in plan["errors"])
+        )
+
+    def test_builder_rejects_missing_description(self) -> None:
+        """build_change_plan rejects validation without description."""
+        snap = _make_docs_snapshot()
+        val = evidence.validate_issue(snap)
+        del val["description"]
+        ev = evidence.normalize_evidence(_make_evidence_items())
+        plan = evidence.build_change_plan(
+            val, ev, {"release": "v1", "target_branch": "main"},
+        )
+        self.assertEqual(plan["status"], "invalid_issue")
+        self.assertTrue(
+            any("description" in e for e in plan["errors"])
+        )
+
+    def test_builder_rejects_valid_true_empty_summary(self) -> None:
+        """Fabricated valid:true with empty summary → rejected."""
+        val = {
+            "valid": True,
+            "errors": [],
+            "warnings": [],
+            "key": "TEST-100",
+            "summary": "",
+            "description": "some desc",
+            "contributors": ["TEST-201"],
+            "dependencies": [],
+            "documentation_inputs": [],
+            "sections": {},
+        }
+        ev = evidence.normalize_evidence([])
+        plan = evidence.build_change_plan(
+            val, ev, {"release": "v1", "target_branch": "main"},
+        )
+        self.assertEqual(plan["status"], "invalid_issue")
+
+    def test_summary_change_detected_as_stale(self) -> None:
+        """Summary edit between plan and check → stale."""
+        snap = _make_docs_snapshot()
+        val = evidence.validate_issue(snap)
+        ev = evidence.normalize_evidence(_make_evidence_items())
+        plan = evidence.build_change_plan(
+            val, ev, {"release": "v1", "target_branch": "main"},
+        )
+        # Check with original → ready
+        current_ok = {
+            "key": "TEST-100",
+            "summary": snap["summary"],
+            "description": snap["description"],
+            "remote_links": [],
+        }
+        r1 = evidence.check_enrichment(plan, current_ok)
+        self.assertFalse(r1["stale"])
+
+        # Check with changed summary → stale
+        current_changed = {
+            "key": "TEST-100",
+            "summary": "[DOCS] Changed summary text",
+            "description": snap["description"],
+            "remote_links": [],
+        }
+        r2 = evidence.check_enrichment(plan, current_changed)
+        self.assertTrue(r2["stale"])
+
+    def test_raw_description_outside_sections_detected(self) -> None:
+        """Edit to description text outside parsed sections → stale."""
+        snap = _make_docs_snapshot()
+        val = evidence.validate_issue(snap)
+        ev = evidence.normalize_evidence(_make_evidence_items())
+        plan = evidence.build_change_plan(
+            val, ev, {"release": "v1", "target_branch": "main"},
+        )
+        # Modify text that's outside any ## section (preamble)
+        modified_desc = "Preamble change\n" + snap["description"]
+        current_changed = {
+            "key": "TEST-100",
+            "summary": snap["summary"],
+            "description": modified_desc,
+            "remote_links": [],
+        }
+        r = evidence.check_enrichment(plan, current_changed)
+        self.assertTrue(r["stale"])
+        self.assertEqual(r["eligible_links"], [])
+
+
+# ---------------------------------------------------------------------------
+# Guard 2: Missing/malformed fixVersions fail-closed
+# ---------------------------------------------------------------------------
+
+class TestFixVersionsFailClosed(unittest.TestCase):
+    """Guard: unknown/malformed fixVersions MUST NOT become empty
+    removable state.  Explicit empty [] is legitimate."""
+
+    def _make_catalog_plan(self):
+        profile = {
+            "allowed_fields": [{
+                "name": "target_release",
+                "value": "v1",
+                "catalog_verified": True,
+                "catalog_entry": {"id": "7", "name": "v1"},
+                "before": [],
+            }],
+        }
+        snap = _make_docs_snapshot()
+        val = evidence.validate_issue(snap)
+        ev = evidence.normalize_evidence(_make_evidence_items())
+        plan = evidence.build_change_plan(
+            val, ev,
+            {"release": "v1", "target_branch": "main"},
+            profile,
+        )
+        return snap, plan
+
+    def test_missing_fields_key_fail_closed(self) -> None:
+        """current_state with no 'fields' key → no metadata eligible."""
+        snap, plan = self._make_catalog_plan()
+        current = {
+            "key": "TEST-100",
+            "summary": snap["summary"],
+            "description": snap["description"],
+            "remote_links": [],
+            # No 'fields' at all
+        }
+        r = evidence.check_enrichment(plan, current)
+        self.assertEqual(r["eligible_metadata"], {})
+
+    def test_missing_fixversions_field_fail_closed(self) -> None:
+        """fields dict without fixVersions key → no metadata eligible."""
+        snap, plan = self._make_catalog_plan()
+        current = {
+            "key": "TEST-100",
+            "summary": snap["summary"],
+            "description": snap["description"],
+            "remote_links": [],
+            "fields": {"someOtherField": "value"},
+        }
+        r = evidence.check_enrichment(plan, current)
+        self.assertEqual(r["eligible_metadata"], {})
+
+    def test_null_fixversions_fail_closed(self) -> None:
+        """fixVersions: null → no metadata eligible."""
+        snap, plan = self._make_catalog_plan()
+        current = {
+            "key": "TEST-100",
+            "summary": snap["summary"],
+            "description": snap["description"],
+            "remote_links": [],
+            "fields": {"fixVersions": None},
+        }
+        r = evidence.check_enrichment(plan, current)
+        self.assertEqual(r["eligible_metadata"], {})
+
+    def test_non_list_fixversions_fail_closed(self) -> None:
+        """fixVersions: 'string' → no metadata eligible."""
+        snap, plan = self._make_catalog_plan()
+        current = {
+            "key": "TEST-100",
+            "summary": snap["summary"],
+            "description": snap["description"],
+            "remote_links": [],
+            "fields": {"fixVersions": "v1"},
+        }
+        r = evidence.check_enrichment(plan, current)
+        self.assertEqual(r["eligible_metadata"], {})
+
+    def test_malformed_entry_no_id_fail_closed(self) -> None:
+        """fixVersions entry without 'id' → no metadata eligible."""
+        snap, plan = self._make_catalog_plan()
+        current = {
+            "key": "TEST-100",
+            "summary": snap["summary"],
+            "description": snap["description"],
+            "remote_links": [],
+            "fields": {"fixVersions": [{"name": "v0"}]},
+        }
+        r = evidence.check_enrichment(plan, current)
+        self.assertEqual(r["eligible_metadata"], {})
+
+    def test_malformed_non_dict_entry_fail_closed(self) -> None:
+        """fixVersions entry that's a string → no metadata eligible."""
+        snap, plan = self._make_catalog_plan()
+        current = {
+            "key": "TEST-100",
+            "summary": snap["summary"],
+            "description": snap["description"],
+            "remote_links": [],
+            "fields": {"fixVersions": ["v0"]},
+        }
+        r = evidence.check_enrichment(plan, current)
+        self.assertEqual(r["eligible_metadata"], {})
+
+    def test_explicit_empty_list_positive(self) -> None:
+        """fixVersions: [] is legitimate — metadata IS eligible."""
+        snap, plan = self._make_catalog_plan()
+        current = {
+            "key": "TEST-100",
+            "summary": snap["summary"],
+            "description": snap["description"],
+            "remote_links": [],
+            "fields": {"fixVersions": []},
+        }
+        r = evidence.check_enrichment(plan, current)
+        self.assertIn("target_release", r["eligible_metadata"])
+        em = r["eligible_metadata"]["target_release"]
+        self.assertEqual(em["expected_ids"], ["7"])
+
+    def test_actual_v0_id3_plus_catalog_v1_id7(self) -> None:
+        """actual=[{id:3}] + catalog id7 → payload has 3+7."""
+        snap, plan = self._make_catalog_plan()
+        current = {
+            "key": "TEST-100",
+            "summary": snap["summary"],
+            "description": snap["description"],
+            "remote_links": [],
+            "fields": {"fixVersions": [{"id": "3", "name": "v0"}]},
+        }
+        r = evidence.check_enrichment(plan, current)
+        em = r["eligible_metadata"]["target_release"]
+        payload_ids = {p["id"] for p in em["jira_payload"]["fixVersions"]}
+        self.assertEqual(payload_ids, {"3", "7"})
+        self.assertEqual(sorted(em["expected_ids"]), ["3", "7"])
+        self.assertFalse(em["already_present"])
+
+    def test_already_present_noop(self) -> None:
+        """actual=[{id:7}] + catalog id7 → already_present, same payload."""
+        snap, plan = self._make_catalog_plan()
+        current = {
+            "key": "TEST-100",
+            "summary": snap["summary"],
+            "description": snap["description"],
+            "remote_links": [],
+            "fields": {"fixVersions": [{"id": "7", "name": "v1"}]},
+        }
+        r = evidence.check_enrichment(plan, current)
+        em = r["eligible_metadata"]["target_release"]
+        self.assertTrue(em["already_present"])
+        payload_ids = {p["id"] for p in em["jira_payload"]["fixVersions"]}
+        self.assertEqual(payload_ids, {"7"})
 
 
 if __name__ == "__main__":

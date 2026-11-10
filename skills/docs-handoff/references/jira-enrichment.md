@@ -39,11 +39,15 @@ Uncatalogued fields are rejected as forbidden:
 Proposed values require a `catalog_entry` with non-empty `id` and
 `name` matching the requested release value, gathered from the
 project's actual Fix Version catalog via approved runtime capabilities.
-The `before` field records the current `fixVersions` array at plan
-time.  The metadata payload is additive — existing versions in `before`
-are preserved; the new version is appended.  A version already present
-is a no-op.  Unknown, uncatalogued, or malformed entries remain gaps
-with no metadata write.  No raw `proposed_*` placeholder or arbitrary
+The metadata payload is additive — existing versions from the actual
+current `fixVersions` field state are preserved; the new version is
+appended.  A version already present is a no-op.  The current field
+value must be retrievable and well-formed: if `fixVersions` is
+missing, null, not a list, or contains entries without a valid `id`,
+the metadata write is blocked (fail-closed) to prevent data loss.  An
+explicit empty list (`[]`) is legitimate and allows the write.
+Unknown, uncatalogued, or malformed catalog entries remain gaps with
+no metadata write.  No raw `proposed_*` placeholder or arbitrary
 `catalog_entry` value is sent as a Jira field write.
 
 ## PR Remote Links
@@ -85,11 +89,17 @@ approved.
 
 The plan carries a `plan_digest` covering the issue key, target,
 inputs, links, metadata, and `snapshot_fingerprint` (a hash of the
-original issue description, contributors, and dependencies at plan
-time).  A tampered or stale plan produces a different digest.  An
-empty `plan_digest` is invalid.  An `approved_plan_digest` parameter
-detects plan changes since approval — e.g. when the writer edits the
-description or contributors between preview and apply.
+original issue key, summary, raw description, contributors, and
+dependencies at plan time).  The builder requires the validated source
+context (summary and raw description) — a `valid: true` flag alone
+is insufficient.  A tampered or stale plan produces a different
+digest.  An empty `plan_digest` is invalid.  An
+`approved_plan_digest` parameter detects plan changes since
+approval — e.g. when the writer edits the summary, description, or
+contributors between preview and apply.  The fresh-check comparison
+uses the same projection (key, summary, raw description, contributors,
+dependencies) so any edit, including outside parsed sections or in
+the summary, is detected with zero writes.
 
 ## Readback and Receipts
 

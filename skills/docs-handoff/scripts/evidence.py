@@ -408,6 +408,8 @@ def validate_issue(snapshot: dict[str, Any]) -> dict[str, Any]:
             "errors": errors,
             "warnings": warnings,
             "key": key,
+            "summary": summary if isinstance(summary, str) else "",
+            "description": "",
             "contributors": [],
             "dependencies": [],
             "documentation_inputs": [],
@@ -442,6 +444,8 @@ def validate_issue(snapshot: dict[str, Any]) -> dict[str, Any]:
         "errors": errors,
         "warnings": warnings,
         "key": key,
+        "summary": summary if isinstance(summary, str) else "",
+        "description": description,
         "contributors": contributors,
         "dependencies": dependencies,
         "documentation_inputs": documentation_inputs,
@@ -764,6 +768,42 @@ def build_change_plan(
             "plan_digest": "",
         }
 
+    # --- Require source context: valid:true alone is insufficient ---
+    val_summary = validation.get("summary", "")
+    val_description = validation.get("description", "")
+    if not isinstance(val_summary, str) or not val_summary.strip():
+        return {
+            "status": "invalid_issue",
+            "errors": [
+                "validation result missing required source summary"
+            ],
+            "issue_key": issue_key,
+            "target": target,
+            "inputs": [],
+            "pr_links": [],
+            "metadata": {},
+            "findings": [],
+            "source_proposal": None,
+            "readiness": None,
+            "plan_digest": "",
+        }
+    if not isinstance(val_description, str) or not val_description.strip():
+        return {
+            "status": "invalid_issue",
+            "errors": [
+                "validation result missing required source description"
+            ],
+            "issue_key": issue_key,
+            "target": target,
+            "inputs": [],
+            "pr_links": [],
+            "metadata": {},
+            "findings": [],
+            "source_proposal": None,
+            "readiness": None,
+            "plan_digest": "",
+        }
+
     contributors_list = validation.get("contributors", [])
     if not isinstance(contributors_list, list):
         contributors_list = []
@@ -1035,12 +1075,13 @@ def build_change_plan(
     # Original-snapshot fingerprint captures writer/source state at plan
     # time so that description/contributor edits between preview and
     # apply are detected as stale even when links and metadata are
-    # unchanged.
+    # unchanged.  Includes raw summary and description (not just parsed
+    # sections) so any edit — including outside parsed sections — is
+    # caught.
     snapshot_fingerprint = _fingerprint({
         "key": issue_key,
-        "description": validation.get(
-            "sections", {}
-        ),
+        "summary": val_summary,
+        "description": val_description,
         "contributors": sorted(contributors),
         "dependencies": sorted(dependencies),
     })
@@ -1315,17 +1356,23 @@ def check_enrichment(
     if approved_baseline and approved_baseline != baseline_fp:
         stale = True
 
-    # Writer/source drift: compare fresh snapshot against plan original
+    # Writer/source drift: compare fresh snapshot against plan original.
+    # Uses the SAME projection (key, summary, raw description,
+    # contributors, dependencies) that build_change_plan froze, so any
+    # edit — including outside parsed sections or in the summary — is
+    # detected with zero writes.
     plan_snapshot_fp = plan.get("snapshot_fingerprint", "")
     if plan_snapshot_fp:
         current_description = current_state.get("description")
+        current_summary = current_state.get("summary", "")
         if current_description is None or not isinstance(
             current_description, str
         ):
             # Fail closed: cannot verify source state without description
             stale = True
+        elif not isinstance(current_summary, str):
+            stale = True
         else:
-            current_sections = _extract_sections(current_description)
             current_contribs = sorted(
                 _extract_contributing_stories(current_description)
             )
@@ -1334,7 +1381,8 @@ def check_enrichment(
             )
             fresh_fp = _fingerprint({
                 "key": current_key,
-                "description": current_sections,
+                "summary": current_summary,
+                "description": current_description,
                 "contributors": current_contribs,
                 "dependencies": current_deps,
             })
@@ -1386,31 +1434,50 @@ def check_enrichment(
         # Name must match requested value
         if entry.get(name_key) != spec.get("value"):
             continue
-        # Build additive payload from actual current field state
+        # Build additive payload from actual current field state.
+        # Fail closed: unknown/malformed field state must NOT default
+        # to empty or drop values — only an actual list (including [])
+        # is accepted.
         jira_fld = cat["jira_field"]
-        before = (
-            current_fields.get(jira_fld, [])
-            if isinstance(current_fields, dict) else []
-        )
+
+        # Fail closed: current_fields must be a dict with the field
+        # present.  Missing fields key → no metadata write.
+        if not isinstance(current_fields, dict):
+            continue
+        if jira_fld not in current_fields:
+            continue
+        before = current_fields[jira_fld]
+        # Fail closed: field value must be a list (null/str/int → skip)
         if not isinstance(before, list):
-            before = []
+            continue
+        # Fail closed: every entry must be a dict with a valid id
+        before_valid = True
+        for b_item in before:
+            if not isinstance(b_item, dict):
+                before_valid = False
+                break
+            if not b_item.get(id_key):
+                before_valid = False
+                break
+        if not before_valid:
+            continue
         # Check if already present — no-op if so
         already = any(
-            isinstance(b, dict) and b.get(id_key) == entry[id_key]
+            b.get(id_key) == entry[id_key]
             for b in before
         )
         if already:
             payload = [
-                {id_key: b.get(id_key)}
-                for b in before if isinstance(b, dict)
+                {id_key: b[id_key]}
+                for b in before
             ]
         else:
             payload = [
-                {id_key: b.get(id_key)}
-                for b in before if isinstance(b, dict)
+                {id_key: b[id_key]}
+                for b in before
             ] + [{id_key: entry[id_key]}]
         expected_ids = sorted(
-            {b.get(id_key) for b in before if isinstance(b, dict)}
+            {b[id_key] for b in before}
             | {entry[id_key]}
         )
         eligible_metadata[field] = {
