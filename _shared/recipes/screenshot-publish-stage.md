@@ -220,8 +220,25 @@ push, apply these checks in order:
 
 1. **PR revalidation.** When `pr_number` is known (not `null`),
    verify the live PR is open, head branch matches `branch`,
-   head repo matches canonical `docs_repo_remote` identity, base
-   matches `base_branch`. Closed, merged, retargeted, mismatch,
+   base matches `base_branch`, and head repo matches the derived
+   PR identity. Derive the PR identity from `docs_repo_remote`
+   by using the already-verified GitHub instance hostname
+   (the same verified mapping used for `GH_HOST` — see
+   `/respond` Step 1) plus the same `owner/repo` from
+   `docs_repo_remote`: `{instance_hostname}/{owner}/{repo}`.
+   The derived PR identity uses the instance hostname, not the
+   raw Git transport host:port — SSH port 2222 is not the
+   GitHub instance identity. If the instance hostname mapping
+   is unknown, ambiguous, or unverified, stop and ask the
+   researcher before comparison — never assume that stripping
+   a non-default port yields the correct instance hostname.
+   Use the same derived PR identity consistently for pre-push
+   revalidation, metadata finalization (§4.3), and new-PR
+   candidate comparison. Keep `docs_repo_remote` and
+   `push_destination` as the canonical Git transport identity
+   with exact approved port for all push/query/destination
+   checks — the PR identity mapping does not bypass transport
+   validation. Closed, merged, retargeted, mismatch,
    missing, or unavailable → stop; retain `pending_attempt`. Not
    a cross-service atomic guarantee. Both `/publish` Step 8 and
    `/respond` push must consume this gate.
@@ -330,8 +347,11 @@ pre-push value) and verify `exact_sha` equals
 2. Remove `pending_attempt` from `publish-metadata.json`.
 3. **PR identity.** For an existing PR (`pr_number` is known),
    revalidate: fetch the live PR state and verify it is open with
-   head branch, head repository, and base branch matching the frozen
-   `pending_attempt` record and canonical `docs_repo_remote` identity.
+   head branch, base branch, and head repository matching the
+   frozen `pending_attempt` record. Compare the PR's head
+   repository against the derived PR identity (same
+   `{instance_hostname}/{owner}/{repo}` from the pre-push gate
+   §4 Step 1), not the raw `docs_repo_remote` transport identity.
    Closed, merged, changed head, changed base, missing PR, or
    unavailable tool → stop without writing final metadata; retain
    `pending_attempt`.

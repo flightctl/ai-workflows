@@ -266,6 +266,22 @@ Otherwise, apply the same validation and storage gates as `/publish`:
    - For each verified manifest entry, compare its `sha256` against the
      corresponding `screenshot_assets` entry in `publish-metadata.json`.
      Changed checksum → updated image.
+   - For each verified manifest entry with matching ID **and**
+     unchanged `sha256`, also compare the expected published path
+     (derived from the manifest's `filename` as
+     `{handoff_dir}/screenshots/{filename}`) against the
+     `published_path` in `publish-metadata.json`. A different
+     filename or published path with the same ID and bytes is an
+     asset update: copy the validated file to the new path through
+     the existing copy block (step 4 above, with SHA validation),
+     and mark the previous `published_path` for removal. Collect
+     the new path in `copied_filenames` and the old filename in
+     `removed_filenames`. Do not remove an old path that is still
+     referenced by another retained ID's `published_path` in the
+     current manifest — distinct IDs sharing refs are valid.
+     Use previous recorded `screenshot_assets` paths for removal
+     targets; do not directory-walk or guess legacy filenames.
+     Unverifiable ownership stops reconciliation for that path.
    - Manifest entries absent from `publish-metadata.json` → newly added.
    - `publish-metadata.json` entries absent from the current manifest →
      removed.

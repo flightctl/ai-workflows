@@ -85,12 +85,18 @@ If the user repairs the handoff (adds missing embeds or modifies
 the Screenshot Index), the caller must re-enter its
 published-input gate on the changed handoff/manifest before
 re-entering inspection — no private authoring fallback. Repair or
-wait is not partial authorization. Rerun §2 matching on the
-updated inputs. For affected IDs, replace previous `unavailable`
-rows with fresh matched results; preserve unaffected rows only if
-the embed is unchanged and still valid. Recalculate all aggregate
-totals before proceeding to §3. Do not append duplicate rows —
-each declared ID appears exactly once in the output.
+wait is not partial authorization. Reload §1 manifest (including
+the duplicate-ID check) on the updated inputs before rerunning
+§2 matching — a changed manifest (top-level `context_revision`,
+`prototype_iteration`, or per-entry digests) affects all rows,
+not just repaired IDs. Rerun §2 matching on the updated inputs,
+then §3–§4 for fresh index, header, and affected rows. For
+affected IDs, replace previous `unavailable` rows with fresh
+matched results; preserve unaffected rows only if the embed is
+unchanged, still valid, and no manifest field used by that row's
+§3–§4 processing changed. Recalculate all aggregate totals
+before proceeding. Do not append duplicate rows — each declared
+ID appears exactly once in the output.
 
 **Unmatched body embeds.** After matching declared IDs to embeds,
 scan the handoff body for image embeds (`![...](...)`) whose `SS-N`
@@ -157,13 +163,19 @@ does not override status-based eligibility.
 
 If the user repairs the source or access is restored, the caller
 must re-enter its published-input gate on the changed inputs
-before re-entering inspection. Rerun §3 resolution and §4
-identity/inspection (SHA, visual, bindings) for affected IDs.
-Replace previous unresolved rows and any superseded
-identity/binding decisions with fresh results; preserve unaffected
-rows only if still valid. Recalculate aggregate totals, status,
-and eligibility. Do not append duplicate rows — each declared ID
-appears exactly once in the output.
+before re-entering inspection. Reload §1 manifest (including
+the duplicate-ID check) before rerunning §3 resolution and §4
+identity/inspection (SHA, visual, bindings). If any manifest
+field used by identity verification (per-entry `sha256`) or
+binding checks (top-level `context_revision`,
+`prototype_iteration`) changed, recheck all rows that reference
+the changed fields — not just the repaired IDs. Replace
+previous unresolved rows, obsolete SHA comparisons, superseded
+binding/acceptance decisions, and aggregate/eligibility with
+fresh results; preserve only rows whose manifest inputs are
+unchanged and still valid. One row per declared ID. Do not
+append duplicate rows — each declared ID appears exactly once
+in the output.
 
 **For each resolved matched image from §3:**
 
@@ -240,11 +252,20 @@ appears exactly once in the output.
 
 4. **Inspection failure during resolved processing.** If a resolved
    image cannot be visually inspected at this stage (e.g., unsupported
-   format after successful download), record it using the unresolved
-   pair schema above with status `inspection-not-supported`. Apply the
-   same continuation handling: prompt the user to repair, wait, or
-   explicitly authorize partial continuation for this ID. Do not
-   fabricate observations from captions or alt text.
+   format after successful download), record it with status
+   `inspection-not-supported`. Unlike early unresolved cases
+   (§3 failures where no bytes were obtained), this image was
+   successfully resolved — §4.1 has already computed
+   `observed_sha` and `identity` and the `expected_sha` is
+   available from the manifest. Preserve those actually computed
+   values; record `observation: —` (not observed) and
+   `spec_match: —` (unknown). The image remains ineligible for
+   citation (§5 Rule 1 — status must be `inspected`) even when
+   identity is `verified` and partial authorization was granted.
+   9 output columns unchanged. Apply the same continuation
+   handling: prompt the user to repair, wait, or explicitly
+   authorize partial continuation for this ID. Do not fabricate
+   observations from captions or alt text.
 
 5. **Check revision binding (separate from identity).** Byte-identity
    verification (step 4.1) and revision-binding validity are

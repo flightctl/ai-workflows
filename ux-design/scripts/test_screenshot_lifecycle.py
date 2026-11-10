@@ -2492,7 +2492,7 @@ class TestR5HeadRepoIdentity(unittest.TestCase):
         )[0]
         flat = " ".join(after_push.split())
         # Existing PR path checks head repo and base branch
-        self.assertIn("head branch, head repository, and base branch", flat)
+        self.assertIn("head branch, base branch, and head repository", flat)
 
 
 class TestR5PrePushPRRevalidation(unittest.TestCase):
@@ -3008,7 +3008,7 @@ class TestR6InspectionRepairRerun(unittest.TestCase):
         s4 = content.split("### 4.", 1)[1].split("### 5.", 1)[0]
         flat = " ".join(s4.split())
         self.assertIn("published-input gate", flat)
-        self.assertIn("Rerun §3", flat)
+        self.assertIn("rerunning §3", flat)
         self.assertIn("superseded", flat)
         self.assertIn("Replace previous unresolved rows", flat)
         self.assertIn("still valid", flat)
@@ -3069,7 +3069,7 @@ class TestR6LiveBaseCheck(unittest.TestCase):
             "Already-pushed", 1
         )[0]
         flat = " ".join(after_push.split())
-        self.assertIn("base branch matching", flat)
+        self.assertIn("base branch", flat)
         self.assertIn("changed base", flat)
 
 
@@ -5833,6 +5833,244 @@ class TestR13ReplyTimeoutReconciliation(unittest.TestCase):
         flat = " ".join(section.split())
         self.assertIn("unverifiable", flat.lower())
         self.assertIn("stop", flat.lower())
+
+
+class TestR14RepairReloadsManifest(unittest.TestCase):
+    """R14 4520265645: selective repair must reload §1 manifest."""
+
+    def test_s2_repair_reloads_manifest_before_matching(self) -> None:
+        """§2 repair branch reloads §1 manifest before rerunning matching."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        # Locate the §2 repair paragraph (after "repairs the handoff")
+        repair_s2 = content.split("repairs the handoff")[1].split(
+            "Unmatched body embeds")[0]
+        flat = " ".join(repair_s2.split())
+        self.assertIn("Reload §1 manifest", flat)
+        self.assertIn("duplicate-ID check", flat)
+        # Must reload before rerunning §2
+        reload_pos = flat.index("Reload §1")
+        rerun_pos = flat.index("Rerun §2")
+        self.assertLess(reload_pos, rerun_pos,
+                        "§1 reload must come before §2 rerun")
+
+    def test_s4_repair_reloads_manifest_before_resolution(self) -> None:
+        """§4 repair branch reloads §1 manifest before rerunning §3/§4."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        # Locate the §4 repair paragraph (after "repairs the source")
+        repair_s4 = content.split("repairs the source")[1].split(
+            "For each resolved")[0]
+        flat = " ".join(repair_s4.split())
+        self.assertIn("Reload §1 manifest", flat)
+        self.assertIn("duplicate-ID check", flat)
+        # Must reload before rerunning §3
+        reload_pos = flat.index("Reload §1")
+        rerun_pos = flat.index("rerunning §3")
+        self.assertLess(reload_pos, rerun_pos,
+                        "§1 reload must come before §3 rerun")
+
+    def test_manifest_change_rechecks_all_rows(self) -> None:
+        """Changed manifest fields affect all rows, not just repaired IDs."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        # Check §2 repair branch
+        repair_s2 = content.split("repairs the handoff")[1].split(
+            "Unmatched body embeds")[0]
+        flat_s2 = " ".join(repair_s2.split())
+        self.assertIn("affects all rows", flat_s2)
+        self.assertIn("not just repaired IDs", flat_s2)
+        # Check §4 repair branch
+        repair_s4 = content.split("repairs the source")[1].split(
+            "For each resolved")[0]
+        flat_s4 = " ".join(repair_s4.split())
+        self.assertIn("not just the repaired IDs", flat_s4)
+        self.assertIn("recheck all rows", flat_s4)
+
+
+class TestR14LateInspectionPreservesHash(unittest.TestCase):
+    """R14 4520265656: late failure preserves computed values."""
+
+    def test_late_failure_preserves_observed_sha(self) -> None:
+        """§4.4 preserves computed observed_sha, not dash."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        section = content.split("Inspection failure during resolved")[1].split(
+            "Check revision binding")[0]
+        flat = " ".join(section.split())
+        # Must preserve actually computed values
+        self.assertIn("Preserve those actually computed", flat)
+        self.assertIn("observed_sha", flat)
+        self.assertIn("identity", flat)
+        # Must NOT use unresolved pair schema (which dashes everything)
+        self.assertNotIn("unresolved pair schema", flat)
+
+    def test_late_failure_still_ineligible(self) -> None:
+        """Late failure with verified hash remains ineligible for citation."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        section = content.split("Inspection failure during resolved")[1].split(
+            "Check revision binding")[0]
+        flat = " ".join(section.split())
+        self.assertIn("ineligible", flat)
+        self.assertIn("Rule 1", flat)
+        self.assertIn("status must be `inspected`", flat)
+
+    def test_late_failure_nine_columns(self) -> None:
+        """Late failure keeps 9 output columns."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        section = content.split("Inspection failure during resolved")[1].split(
+            "Check revision binding")[0]
+        flat = " ".join(section.split())
+        self.assertIn("9 output columns unchanged", flat)
+
+
+class TestR14PRIdentityMapping(unittest.TestCase):
+    """R14 4520265662: PR identity uses instance hostname mapping."""
+
+    def test_prepush_pr_gate_uses_instance_hostname(self) -> None:
+        """Pre-push PR revalidation uses derived instance hostname."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("PR revalidation")[1].split(
+            "Owned-path verification")[0]
+        flat = " ".join(section.split())
+        self.assertIn("instance hostname", flat)
+        self.assertIn("derived PR identity", flat)
+        # Must not compare raw transport host:port
+        self.assertIn("not the raw Git transport host:port", flat)
+
+    def test_postpush_pr_identity_uses_derived(self) -> None:
+        """Post-push PR identity check references pre-push derived identity."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        # §4.3 PR identity section
+        section = content.split("**PR identity.**")[1].split(
+            "For a new PR")[0]
+        flat = " ".join(section.split())
+        self.assertIn("derived PR identity", flat)
+        self.assertIn("instance_hostname", flat)
+        self.assertNotIn("canonical `docs_repo_remote` identity", flat)
+
+    def test_pr_mapping_preserves_transport_identity(self) -> None:
+        """PR identity mapping does not bypass transport validation."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("PR revalidation")[1].split(
+            "Owned-path verification")[0]
+        flat = " ".join(section.split())
+        self.assertIn("does not bypass transport", flat)
+        self.assertIn("push_destination", flat)
+
+    def test_unknown_mapping_stops(self) -> None:
+        """Unknown instance hostname mapping stops before comparison."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("PR revalidation")[1].split(
+            "Owned-path verification")[0]
+        flat = " ".join(section.split())
+        self.assertIn("unknown", flat)
+        self.assertIn("stop", flat)
+        self.assertIn("never assume that stripping", flat)
+
+
+class TestR14RespondPathRename(unittest.TestCase):
+    """R14 outside-diff: path rename detection and reconciliation."""
+
+    def test_respond_detects_filename_change(self) -> None:
+        """respond.md detects filename/published_path change as update."""
+        content = _read("ux-design/skills/respond.md")
+        detect = content.split("Detect changes, additions, and removals")[1].split(
+            "Handle removals")[0]
+        flat = " ".join(detect.split())
+        self.assertIn("published_path", flat)
+        self.assertIn("filename", flat)
+        self.assertIn("asset update", flat)
+        # Same ID + same SHA + different path = update
+        self.assertIn("unchanged `sha256`", flat)
+
+    def test_rename_copies_new_removes_old(self) -> None:
+        """Rename copies to new path and marks old path for removal."""
+        content = _read("ux-design/skills/respond.md")
+        detect = content.split("Detect changes, additions, and removals")[1].split(
+            "Handle removals")[0]
+        flat = " ".join(detect.split())
+        self.assertIn("copied_filenames", flat)
+        self.assertIn("removed_filenames", flat)
+        self.assertIn("copy block", flat.lower())
+        self.assertIn("SHA validation", flat)
+
+    def test_shared_path_not_removed_when_retained(self) -> None:
+        """Old path not removed if another retained ID references it."""
+        content = _read("ux-design/skills/respond.md")
+        detect = content.split("Detect changes, additions, and removals")[1].split(
+            "Handle removals")[0]
+        flat = " ".join(detect.split())
+        self.assertIn("another retained ID", flat)
+        self.assertIn("distinct IDs sharing refs are valid", flat)
+
+
+class TestR14RenameExecution(_RecipeExecMixin, unittest.TestCase):
+    """R14 executable: rename stages new path, removes old, same bytes."""
+
+    def test_rename_stages_new_removes_old(self) -> None:
+        """Copy new filename, git rm old filename, same ID/SHA unchanged."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            d = os.path.join(repo, "feat/PROJ-R14")
+            sd = os.path.join(d, "screenshots")
+            os.makedirs(sd)
+            img_bytes = b"identical-image-bytes-for-rename-test"
+            # Initial commit with old filename
+            _w(os.path.join(d, "handoff.md"), "# Handoff\n")
+            _w(os.path.join(d, "screenshot-manifest.json"), "{}")
+            with open(os.path.join(sd, "SS-1-old-name.png"), "wb") as f:
+                f.write(img_bytes)
+            self._exec(repo, "feat/PROJ-R14/handoff.md", "feat/PROJ-R14",
+                        copied=["SS-1-old-name.png"], manifest_written=True,
+                        msg="Init with old filename")
+            # Rename: copy same bytes to new filename, git rm old
+            with open(os.path.join(sd, "SS-1-new-name.png"), "wb") as f:
+                f.write(img_bytes)
+            subprocess.run(
+                ["git", "-C", repo, "rm",
+                 "feat/PROJ-R14/screenshots/SS-1-old-name.png"],
+                capture_output=True, check=True,
+            )
+            _w(os.path.join(d, "handoff.md"), "# Handoff updated\n")
+            _w(os.path.join(d, "screenshot-manifest.json"), '{"renamed":true}')
+            r = self._exec(
+                repo, "feat/PROJ-R14/handoff.md", "feat/PROJ-R14",
+                copied=["SS-1-new-name.png"], removed=["SS-1-old-name.png"],
+                manifest_written=True,
+                msg="Rename screenshot SS-1",
+            )
+            self.assertEqual(r.returncode, 0, r.stderr)
+            # New filename committed
+            ls_new = subprocess.run(
+                ["git", "-C", repo, "ls-files",
+                 "feat/PROJ-R14/screenshots/SS-1-new-name.png"],
+                capture_output=True, text=True,
+            )
+            self.assertIn("SS-1-new-name.png", ls_new.stdout,
+                          "new filename must be tracked")
+            # Old filename removed
+            ls_old = subprocess.run(
+                ["git", "-C", repo, "ls-files",
+                 "feat/PROJ-R14/screenshots/SS-1-old-name.png"],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(ls_old.stdout.strip(), "",
+                             "old filename must be removed")
+            # Same bytes in the new file
+            with open(os.path.join(sd, "SS-1-new-name.png"), "rb") as f:
+                self.assertEqual(f.read(), img_bytes,
+                                 "bytes must be identical after rename")
+            # Commit log shows the rename commit
+            log = subprocess.run(
+                ["git", "-C", repo, "log", "--oneline", "-1"],
+                capture_output=True, text=True,
+            )
+            self.assertIn("Rename screenshot SS-1", log.stdout)
+            # Commit diff shows both add and delete
+            diff = subprocess.run(
+                ["git", "-C", repo, "diff-tree", "--no-commit-id",
+                 "--name-status", "-r", "HEAD"],
+                capture_output=True, text=True,
+            )
+            self.assertIn("SS-1-new-name.png", diff.stdout)
+            self.assertIn("SS-1-old-name.png", diff.stdout)
 
 
 if __name__ == "__main__":
