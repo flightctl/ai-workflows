@@ -70,7 +70,12 @@ to the current design context.
 
 Derive validated `{repo_host}`, `{owner}`, `{repo}`, and
 `{repo_identifier}` (`[HOST/]OWNER/REPO`) from the frozen
-`docs_repo_remote`, preserving non-default host and port.
+`docs_repo_remote`. For `{repo_host}` (used as `GH_HOST`),
+extract the hostname without port — a non-default SSH transport
+port (e.g., 2222) is not the HTTPS API port. Preserve the full
+Git transport identity including port for push operations
+separately. If the hostname is not a known GitHub API host and
+no verified API endpoint mapping exists, stop before API calls.
 Use these for all PR lookup, view, and reply operations.
 Prefix every `$PR_COMMENTS_SCRIPT` invocation (fetch and reply)
 with command-scoped environment so the helper's `gh` calls target
@@ -196,8 +201,14 @@ correct prefix (`{first 12 hex}…`). This ensures the published copy
 carries current checksums even when an approved image-only change did
 not alter the handoff text. If no authoring manifest exists, it
 contains no screenshots, or no prefixes are stale, skip this step.
-Preserve all other Screenshot Index columns, embedded image
+Preserve unrelated Screenshot Index columns, embedded image
 references, and non-screenshot handoff content unchanged.
+When the authoring manifest records approved caption or alt_text
+changes for a refreshed entry (differing from the current
+Screenshot Index text), reconcile them into the authoring
+`05-handoff.md` alongside the prefix update before the copy,
+or stop for researcher reconciliation if the scope is ambiguous.
+Do not force unapproved text updates into unchanged entries.
 
 ```bash
 cp ".artifacts/ux-design/{issue-key}/05-handoff.md" "{docs_repo_path}/{handoff_file_path}"
@@ -353,7 +364,7 @@ rely on `push.default`, `branch.*.pushRemote`, or
 `remote.pushDefault` to choose the target:
 
 ```bash
-git -C "{docs_repo_path}" push origin "HEAD:refs/heads/{branch}"
+git -C "{docs_repo_path}" push origin "{commit_sha}:refs/heads/{branch}"
 ```
 
 Only update `publish-metadata.json` after push succeeds — finalize from

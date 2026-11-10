@@ -258,9 +258,11 @@ appears exactly once in the output.
    conflicting index value — any disagreement among available
    sources is `mismatched`. When any source is missing, empty,
    dash (`—`), or otherwise invalid, default that source to
-   `unknown`; if all available sources agree but at least one is
-   unknown, the binding is `unknown`. Never treat an absent or
-   unrecognizable binding as vacuously `matched`.
+   `unknown`. When available (non-unknown) sources disagree, the
+   binding is `mismatched` regardless of whether other sources
+   are absent. Only when all available sources agree but at least
+   one is unknown is the binding `unknown`. Never treat an absent
+   or unrecognizable binding as vacuously `matched`.
 
    Record binding status in the Notes column of the per-image schema
    (keeping 9 columns) with the actual header/index/manifest values

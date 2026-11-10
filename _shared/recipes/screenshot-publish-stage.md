@@ -190,6 +190,11 @@ pushing, resolve effective push destination(s):
 rules to reveal actual targets. Validate:
 
 1. Exactly one push URL exists (single approved destination).
+   Require the effective push URL to use HTTPS or SSH (including
+   scp-style `user@host:path`); reject `http://`, `git://`, and
+   unrecognized schemes before any `ls-remote` query or push —
+   credentials must not transit cleartext. Apply the same scheme
+   check on initial and retry paths.
 2. Normalize the resolved push URL to credential-free canonical
    identity (`{host}/{owner}/{repo}`, with non-default port:
    `{host}:{port}/{owner}/{repo}`): strip userinfo, query

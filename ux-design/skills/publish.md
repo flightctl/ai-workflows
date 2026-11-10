@@ -419,20 +419,20 @@ the pre-push PR gate and owned-path verification — for both new
 and existing PRs.
 
 **For an existing PR**, push to its branch when unpushed commits
-exist. Before pushing, verify the local branch HEAD matches the
-commit SHA from Step 6; refuse if unexpected ahead commits appear.
+exist. Before pushing, verify local HEAD matches the
+commit SHA from Step 6; refuse unexpected ahead commits.
 Keep its PR number, URL, and draft/ready status; do not run
 `gh pr create`. If a prior invocation committed but the push
 failed, this retries without re-running Steps 4–7.
 
 ```bash
-git -C "{docs_repo_path}" push origin "HEAD:refs/heads/{branch-name}"
+git -C "{docs_repo_path}" push origin "{commit_sha}:refs/heads/{branch-name}"
 ```
 
 **For a new PR**, push the branch and create a draft PR:
 
 ```bash
-git -C "{docs_repo_path}" push -u origin "HEAD:refs/heads/{branch-name}"
+git -C "{docs_repo_path}" push origin "{commit_sha}:refs/heads/{branch-name}"
 ```
 
 Create a draft PR:

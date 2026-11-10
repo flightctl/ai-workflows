@@ -3494,7 +3494,7 @@ class TestR7RespondExplicitPush(_RecipeExecMixin, unittest.TestCase):
 
     def test_respond_all_push_commands_explicit(self) -> None:
         """Every git push in respond.md bash blocks uses explicit
-        origin remote AND HEAD:refs/heads refspec."""
+        origin remote AND frozen SHA:refs/heads refspec."""
         content = _read("ux-design/skills/respond.md")
         cmds = self._push_commands_from_blocks(content)
         self.assertGreater(len(cmds), 0, "No push commands found")
@@ -3502,12 +3502,15 @@ class TestR7RespondExplicitPush(_RecipeExecMixin, unittest.TestCase):
             self.assertIn("origin", cmd,
                           f"Push missing explicit remote: {cmd}")
             self.assertRegex(
-                cmd, r'HEAD:refs/heads/',
-                f"Push missing HEAD:refs/heads refspec: {cmd}")
+                cmd, r':refs/heads/',
+                f"Push missing :refs/heads refspec: {cmd}")
+            self.assertNotIn(
+                "HEAD:refs/heads/", cmd,
+                f"Push uses mutable HEAD instead of frozen SHA: {cmd}")
 
     def test_publish_all_push_commands_explicit(self) -> None:
         """Every git push in publish.md bash blocks uses explicit
-        origin remote AND HEAD:refs/heads refspec (including -u)."""
+        origin remote AND frozen SHA:refs/heads refspec."""
         content = _read("ux-design/skills/publish.md")
         cmds = self._push_commands_from_blocks(content)
         self.assertGreater(len(cmds), 0, "No push commands found")
@@ -3515,8 +3518,11 @@ class TestR7RespondExplicitPush(_RecipeExecMixin, unittest.TestCase):
             self.assertIn("origin", cmd,
                           f"Push missing explicit remote: {cmd}")
             self.assertRegex(
-                cmd, r'HEAD:refs/heads/',
-                f"Push missing HEAD:refs/heads refspec: {cmd}")
+                cmd, r':refs/heads/',
+                f"Push missing :refs/heads refspec: {cmd}")
+            self.assertNotIn(
+                "HEAD:refs/heads/", cmd,
+                f"Push uses mutable HEAD instead of frozen SHA: {cmd}")
 
     def test_bare_push_rejected(self) -> None:
         """Regression: bare 'git push' or branch-only push without
@@ -3537,9 +3543,9 @@ class TestR7RespondExplicitPush(_RecipeExecMixin, unittest.TestCase):
                     self.assertNotEqual(
                         after_push, "",
                         f"{label} block {i}: bare 'git push' found")
-                    # Must have HEAD:refs/heads refspec
+                    # Must have :refs/heads refspec (frozen SHA or HEAD)
                     self.assertIn(
-                        "HEAD:refs/heads/", stripped,
+                        ":refs/heads/", stripped,
                         f"{label} block {i}: branch-only push: {stripped}")
 
     def test_respond_no_default_selection(self) -> None:
@@ -5117,6 +5123,246 @@ class TestR11PreCopyChecksumRefresh(unittest.TestCase):
         self.assertIn("overwriting the approved manifest digest", flat)
         # Must direct to existing flow, not invent new one
         self.assertIn("existing approved", flat)
+
+
+
+# ===================================================================
+# Part 12: review5834760377 regressions — 5 verified findings
+#
+# (1) Manifest-absent binding must preserve disagreeing header/index
+#     as mismatched, not force both unknown.
+# (2) Push destination must reject unencrypted transports (HTTP/git).
+# (3) Push refspec must use frozen commit_sha, not mutable HEAD.
+#     Includes Git primitive proof.
+# (4) GH_HOST must not copy SSH port into HTTPS API address.
+# (5) Pre-copy refresh must reconcile approved caption/alt changes,
+#     not blindly preserve ALL columns.
+# ===================================================================
+
+
+class TestR12ManifestAbsentBindingDisagreement(unittest.TestCase):
+    """4519574713: available header/index disagreement is mismatched
+    even when manifest is absent (one source unknown)."""
+
+    def test_disagreeing_available_is_mismatched(self) -> None:
+        """§4.5 says available (non-unknown) sources that disagree →
+        mismatched, regardless of absent sources."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s5 = content.split("Check revision binding", 1)[1].split(
+            "### Aggregate status", 1)[0]
+        flat = " ".join(s5.split())
+        self.assertIn("available (non-unknown) sources disagree", flat)
+        self.assertIn("mismatched", flat)
+        self.assertIn("regardless of whether other sources", flat)
+        self.assertIn("are absent", flat)
+
+
+class TestR12TransportSchemeCheck(unittest.TestCase):
+    """4519574723: effective push URL must use HTTPS or SSH; reject
+    HTTP/git/unrecognized before any ls-remote or push."""
+
+    def test_recipe_requires_https_or_ssh(self) -> None:
+        """Push destination validation requires HTTPS or SSH."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("Push destination validation", 1)[1].split(
+            "On retry", 1)[0]
+        flat = " ".join(section.split())
+        self.assertIn("HTTPS or SSH", flat)
+        self.assertIn("scp-style", flat)
+        self.assertIn("http://", flat)
+        self.assertIn("git://", flat)
+        self.assertIn("reject", flat.lower())
+        self.assertIn("cleartext", flat)
+
+    def test_scheme_check_before_ls_remote(self) -> None:
+        """Scheme check applies before any ls-remote query."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("Push destination validation", 1)[1].split(
+            "On retry", 1)[0]
+        flat = " ".join(section.split())
+        self.assertIn("before any", flat)
+        self.assertIn("ls-remote", flat)
+
+    def test_scheme_check_on_retry(self) -> None:
+        """Same scheme check applies on initial and retry paths."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        section = content.split("Push destination validation", 1)[1].split(
+            "On retry", 1)[0]
+        flat = " ".join(section.split())
+        self.assertIn("initial and retry", flat)
+
+
+class TestR12FrozenSHAPushRefspec(_RecipeExecMixin, unittest.TestCase):
+    """4519574738: push commands use frozen commit_sha, not mutable HEAD.
+    Includes Git primitive proof that frozen SHA delivers exactly A when
+    checkout HEAD has moved to B."""
+
+    def test_publish_push_uses_commit_sha(self) -> None:
+        """Publish push bash blocks use {commit_sha}:refs/heads, not HEAD."""
+        content = _read("ux-design/skills/publish.md")
+        blocks = _extract_bash_blocks(content)
+        push_cmds = [
+            line.strip() for block in blocks
+            for line in block.splitlines()
+            if line.strip().startswith("git") and "push" in line
+        ]
+        self.assertGreater(len(push_cmds), 0)
+        for cmd in push_cmds:
+            self.assertIn("{commit_sha}:refs/heads/", cmd,
+                          f"Push must use frozen SHA: {cmd}")
+            self.assertNotIn("HEAD:refs/heads/", cmd,
+                             f"Push must NOT use HEAD: {cmd}")
+
+    def test_respond_push_uses_commit_sha(self) -> None:
+        """Respond push bash blocks use {commit_sha}:refs/heads, not HEAD."""
+        content = _read("ux-design/skills/respond.md")
+        blocks = _extract_bash_blocks(content)
+        push_cmds = [
+            line.strip() for block in blocks
+            for line in block.splitlines()
+            if line.strip().startswith("git") and "push" in line
+        ]
+        self.assertGreater(len(push_cmds), 0)
+        for cmd in push_cmds:
+            self.assertIn("{commit_sha}:refs/heads/", cmd,
+                          f"Push must use frozen SHA: {cmd}")
+            self.assertNotIn("HEAD:refs/heads/", cmd,
+                             f"Push must NOT use HEAD: {cmd}")
+
+    def test_frozen_sha_push_delivers_correct_commit(self) -> None:
+        """Git primitive proof: record commit A, move checkout HEAD to B,
+        push A:refs/heads/branch → remote receives A, not B.
+
+        Uses disposable temp bare repos; never touches real checkout.
+        Instantiates the SHIPPED documented push snippet."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            bare = os.path.join(tmp, "remote.git")
+            subprocess.run(["git", "clone", "--bare", repo, bare],
+                           capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", repo, "remote", "add", "origin", bare],
+                capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", repo, "push", "-u", "origin", "main"],
+                capture_output=True, check=True)
+
+            # Create commit A on feature branch
+            branch = "ux-design/FEAT-SHA"
+            subprocess.run(
+                ["git", "-C", repo, "checkout", "-b", branch],
+                capture_output=True, check=True)
+            _w(os.path.join(repo, "feat-a.txt"), "commit A content\n")
+            subprocess.run(["git", "-C", repo, "add", "feat-a.txt"],
+                           capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", repo, "commit", "-m", "commit A"],
+                capture_output=True, check=True)
+            sha_a = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True).stdout.strip()
+
+            # Move checkout HEAD to B (different branch)
+            subprocess.run(
+                ["git", "-C", repo, "checkout", "main"],
+                capture_output=True, check=True)
+            _w(os.path.join(repo, "unrelated.txt"), "commit B\n")
+            subprocess.run(["git", "-C", repo, "add", "unrelated.txt"],
+                           capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", repo, "commit", "-m", "commit B"],
+                capture_output=True, check=True)
+            sha_b = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                capture_output=True, text=True).stdout.strip()
+            self.assertNotEqual(sha_a, sha_b,
+                                "Test requires distinct SHAs")
+
+            # Execute the SHIPPED documented push snippet with frozen SHA
+            push = subprocess.run(
+                ["git", "-C", repo, "push", "origin",
+                 f"{sha_a}:refs/heads/{branch}"],
+                capture_output=True, text=True)
+            self.assertEqual(push.returncode, 0, push.stderr)
+
+            # Verify remote received A, not B
+            remote_sha = subprocess.run(
+                ["git", "-C", bare, "rev-parse", branch],
+                capture_output=True, text=True).stdout.strip()
+            self.assertEqual(
+                remote_sha, sha_a,
+                "Remote must receive frozen SHA A, not checkout HEAD B")
+            self.assertNotEqual(remote_sha, sha_b,
+                                "Remote must NOT receive checkout HEAD B")
+
+
+class TestR12GHHostNoSSHPort(unittest.TestCase):
+    """4519574750: GH_HOST must not copy SSH transport port into HTTPS
+    API address (SSH:2222 ≠ HTTPS API:2222)."""
+
+    def test_respond_separates_api_host_from_ssh_port(self) -> None:
+        """Respond derives API host without SSH transport port."""
+        content = _read("ux-design/skills/respond.md")
+        section = content.split("Derive validated", 1)[1].split(
+            "Prefix every", 1)[0]
+        flat = " ".join(section.split())
+        self.assertIn("hostname without port", flat)
+        self.assertIn("SSH transport", flat)
+        self.assertIn("not the HTTPS API port", flat)
+
+    def test_respond_preserves_git_identity_for_push(self) -> None:
+        """Respond preserves full Git transport identity for push."""
+        content = _read("ux-design/skills/respond.md")
+        section = content.split("Derive validated", 1)[1].split(
+            "Prefix every", 1)[0]
+        flat = " ".join(section.split())
+        self.assertIn("full Git transport identity", flat)
+        self.assertIn("push", flat)
+
+    def test_respond_stops_on_unverified_api_host(self) -> None:
+        """Respond stops before API calls if host not verified."""
+        content = _read("ux-design/skills/respond.md")
+        section = content.split("Derive validated", 1)[1].split(
+            "Prefix every", 1)[0]
+        flat = " ".join(section.split())
+        self.assertIn("stop before API calls", flat)
+
+
+class TestR12PreCopyRefreshReconciliation(unittest.TestCase):
+    """4519574758: pre-copy refresh reconciles approved caption/alt
+    changes instead of blindly preserving ALL columns."""
+
+    def test_refresh_reconciles_approved_caption_alt(self) -> None:
+        """Pre-copy refresh reconciles approved caption/alt changes
+        from manifest before the copy."""
+        content = _read("ux-design/skills/respond.md")
+        refresh = content.split("Pre-copy Screenshot Index refresh", 1)
+        self.assertEqual(len(refresh), 2, "Refresh section missing")
+        block = refresh[1].split('cp ".artifacts/', 1)[0]
+        flat = " ".join(block.split())
+        self.assertIn("caption", flat)
+        self.assertIn("alt_text", flat)
+        self.assertIn("reconcile", flat)
+
+    def test_refresh_preserves_unrelated_not_all(self) -> None:
+        """Refresh preserves UNRELATED columns, not ALL other columns."""
+        content = _read("ux-design/skills/respond.md")
+        refresh = content.split("Pre-copy Screenshot Index refresh", 1)
+        self.assertEqual(len(refresh), 2, "Refresh section missing")
+        block = refresh[1].split('cp ".artifacts/', 1)[0]
+        flat = " ".join(block.split())
+        # Must say "unrelated" not "all other"
+        self.assertIn("unrelated", flat.lower())
+        self.assertNotIn("all other Screenshot Index columns", flat)
+
+    def test_refresh_no_unapproved_force(self) -> None:
+        """Refresh does not force unapproved text updates."""
+        content = _read("ux-design/skills/respond.md")
+        refresh = content.split("Pre-copy Screenshot Index refresh", 1)
+        self.assertEqual(len(refresh), 2, "Refresh section missing")
+        block = refresh[1].split('cp ".artifacts/', 1)[0]
+        flat = " ".join(block.split())
+        self.assertIn("Do not force unapproved text updates", flat)
 
 
 if __name__ == "__main__":
