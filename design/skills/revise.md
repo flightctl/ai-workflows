@@ -188,8 +188,10 @@ document between Step 1 and Step 4, re-resolve before reading or
 mutating — do not reuse a cached set that may not reflect current
 state. When uncertain whether inputs changed, re-resolve.
 
-Resolve the validation index **before** reading any artifact files.
-Use the CLI helper to validate and resolve paths:
+If the artifacts, index, or design context changed since Step 1 (or
+you are uncertain), re-resolve the validation index before reading or
+mutating any artifact files. Use the CLI helper to validate and
+resolve paths:
 
 Set `SKILL_DIR` as above (the agent's file-load context), then resolve:
 
@@ -197,6 +199,10 @@ Set `SKILL_DIR` as above (the agent's file-load context), then resolve:
 VALIDATION_INDEX_SCRIPT="$(realpath "${SKILL_DIR}/../scripts/validation_index.py")" || { echo "Cannot resolve ../scripts/validation_index.py" >&2; exit 1; }
 python3 "$VALIDATION_INDEX_SCRIPT" resolve --local ".artifacts/design/{issue-key}"
 ```
+
+If the inputs are unchanged since Step 1, use the Step 1 validated
+artifact set directly — skip the resolver invocation and read the
+paths already validated in Step 1.
 
 If the command exits 0 with a non-empty array, read each listed
 file — the resolver already handles legacy layouts (a valid

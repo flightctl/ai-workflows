@@ -488,8 +488,19 @@ verification: if the plan's
 bookkeeping or the code phase's gate drifted from reality, this step
 catches it.
 
+**Gate-Applicability check (before testplan-absent skip).** Read
+the Story Test Plan section of `01-context.md`. If it contains
+`Gate-Applicability: unresolved`, record the unresolved gate names
+and report "gate applicability unresolved — coverage completeness
+cannot be confirmed" in the validation report. The overall result
+cannot be PASS while any gate has unresolved applicability. This
+check applies regardless of whether `testplan.md` exists — even
+if the story has no testplan (first ingest with unknown gates),
+the unresolved applicability must be reported.
+
 If `testplan.md` does not exist and `02-plan.md` has no Test Plan
-Coverage section, skip this step entirely. However, if `02-plan.md`
+Coverage section, skip the rest of this step (the TC coverage
+check). However, if `02-plan.md`
 has TC mappings but `testplan.md` is missing, unreadable, or malformed
 (no parseable TC IDs and no Qualification Gates section), stop and
 report the inconsistency. A gate-only testplan (zero TC IDs but a
@@ -803,6 +814,10 @@ writing the final result:
  unresolved-source`, Overall cannot be PASS regardless of
  provisional TC exemptions — unresolved discovery means
  required validation gates may exist but are unknown.
+ Gate-Applicability: if `01-context.md` contains
+ `Gate-Applicability: unresolved`, Overall cannot be PASS —
+ report the unresolved gates and note that clarification is
+ needed before coverage completeness can be confirmed.
  Other outcomes:
  - If automated tests pass but mandatory entries are pending/
    not-started: "PASS (automated) — awaiting external validation

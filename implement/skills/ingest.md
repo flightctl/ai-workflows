@@ -386,16 +386,45 @@ resolution or index validation is not confirmed absence.
 **Unknown gate relevance guard (evaluate before selecting a zero
 outcome).** The Expected zero and Anomalous zero outcomes (which
 delete stale story testplans) require that every gate's relevance
-was established — each gate had sufficient requirement or IC
-mappings to determine overlap (or lack thereof) with the story's
-scope. If any gate has unknown relevance (its requirement and IC
-mappings are both missing or marked "clarification needed"), the
-outcome is not a confirmed zero. In that case, retain the prior
-testplan with `Freshness: unverified` and request clarification
-on the unmapped gate's applicability in the ingest handoff rather
-than deleting evidence whose relevance could not be assessed. Only
-after confirming that all gates have known relevance (or no gates
-exist) may a zero outcome proceed to deletion.
+was established. A gate's relevance requires checking both its
+requirement mappings and IC mappings against the story's scope:
+- If either dimension (requirement or IC) shows known overlap with
+  the story's scope, the gate is relevant regardless of the other
+  dimension's status.
+- If both dimensions are fully known and neither overlaps the
+  story's scope, the gate is irrelevant.
+- If any dimension needed to determine overlap is missing or marked
+  "clarification needed", and known dimensions do not already
+  establish overlap, the gate has unknown relevance — its
+  applicability cannot be confirmed or denied.
+
+Preserve origins and known mappings: do not invent mappings for
+unknown dimensions or treat all unknown-relevance gates as
+mandatory for every AC. Explicit known non-overlap (fully known on
+both dimensions) establishes irrelevance without clarification.
+
+If any gate has unknown relevance, the outcome is not a confirmed
+zero. In that case:
+- If a prior story testplan exists, retain it with
+  `Freshness: unverified` and request clarification on the unmapped
+  gate's applicability in the ingest handoff rather than deleting
+  evidence whose relevance could not be assessed.
+- If no prior story testplan exists (first ingest), record
+  `Gate-Applicability: unresolved` with the affected gate names in
+  the Story Test Plan section of `01-context.md`. Do not write a
+  testplan for gates whose relevance is unknown. Request
+  clarification in the ingest handoff.
+
+In both cases, persist the `Gate-Applicability: unresolved` marker
+in `01-context.md` before returning or pausing for clarification.
+This marker is distinct from `Source-Discovery: unresolved` (which
+records that the source itself could not be read). Clearing
+`Gate-Applicability: unresolved` requires a subsequent ingest or
+explicit clarification that establishes those gates' applicability
+or irrelevance — not simply TC confirmation or a missing prior plan.
+
+Only after confirming that all gates have known relevance (or no
+gates exist) may a zero outcome proceed to deletion.
 
 | Outcome | Condition | Action |
 |---------|-----------|--------|

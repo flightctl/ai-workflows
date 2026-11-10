@@ -313,8 +313,19 @@ verification: if the
 plan's bookkeeping or the code phase's gate drifted from reality, this
 step catches it.
 
+**Gate-Applicability check (before testplan-absent skip).** Read
+the Story Test Plan section of `01-context.md`. If it contains
+`Gate-Applicability: unresolved`, record the unresolved gate names
+and report "gate applicability unresolved — coverage completeness
+cannot be confirmed" in the validation report. The overall result
+cannot be PASS while any gate has unresolved applicability. This
+check applies regardless of whether `testplan.md` exists — even
+if the story has no testplan (first ingest with unknown gates),
+the unresolved applicability must be reported.
+
 If `testplan.md` does not exist and `02-plan.md` has no Test Plan
-Coverage section, skip this step entirely. However, if `02-plan.md`
+Coverage section, skip the rest of this step (the TC coverage
+check). However, if `02-plan.md`
 has TC mappings but `testplan.md` is missing, unreadable, or malformed
 (no parseable TC IDs and no Qualification Gates section), stop and
 report the inconsistency. A gate-only testplan (zero TC IDs but a
@@ -603,7 +614,7 @@ Write `.artifacts/e2e/{issue-key}/05-validation-report.md`:
  effectively confirmed retained TCs, source-verified authoritative
  non-TC qualification gates (fresh from verified source — mandatory
  without confirmation), effectively confirmed retained non-TC
- qualification gates (per Step 8 gate confirmation, with resolved
+ qualification gates (per Step 7b gate confirmation, with resolved
  discovery), and all current AC obligations verified by their
  approved Method and Evidence Reference. A fresh authoritative
  gate that is pending or not-started blocks PASS; a failed
@@ -614,7 +625,10 @@ Write `.artifacts/e2e/{issue-key}/05-validation-report.md`:
  A failed provisional entry is informational, not verdict-
  controlling; report it but do not force Overall: FAIL.
  If Source-Discovery is unresolved, Overall result cannot be PASS
- regardless of provisional TC exemptions.}
+ regardless of provisional TC exemptions.
+ If Gate-Applicability is unresolved (from `01-context.md`),
+ Overall result cannot be PASS — report the unresolved gates and
+ note that clarification is needed.}
 
 ## Quality Review Findings
 
@@ -697,12 +711,13 @@ writing the final result:
  mandatory pass checks. An unconfirmed TC gap does not block
  Overall: PASS, but must be reported as provisional coverage.
  A failed or pending confirmed entry, an AC without approved
- coverage, or an unresolved Source-Discovery state always blocks
- Overall: PASS. Current AC obligations are always mandatory,
+ coverage, an unresolved Source-Discovery state, or an unresolved
+ Gate-Applicability state always blocks Overall: PASS.
+ Current AC obligations are always mandatory,
  verified by their approved Method and Evidence Reference.
  Source-verified authoritative non-TC qualification gates are
  mandatory without confirmation. Effectively confirmed retained
- non-TC qualification gates (per Step 8 gate confirmation
+ non-TC qualification gates (per Step 7b gate confirmation
  procedure, with resolved discovery) are also mandatory.
  Unconfirmed retained gates are provisional; report their pending
  status separately but do not block Overall: PASS on their

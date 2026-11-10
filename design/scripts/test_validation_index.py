@@ -29,6 +29,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -142,6 +143,67 @@ _SEC_COMPANION = {
     "purpose": "Security certification",
     "audience": "Security team",
 }
+
+
+# ---------------------------------------------------------------------------
+# Reusable static checkers — mandatory classification & gap-fill guards
+# ---------------------------------------------------------------------------
+
+_RE_AUTHORITATIVE_GATES = re.compile(
+    r'\bauthoritative\s+non-TC\s+qualification\s+gates\b')
+_RE_CONFIRMED_GATES = re.compile(
+    r'\bconfirmed\s+retained\s+non-TC\s+qualification\s+gates\b')
+_MAND_ANCHOR = "confirmation first."
+
+
+def _check_mandatory_paragraph(paragraph):
+    """Check mandatory-entries paragraph for correct adjacency patterns
+    and Unconfirmed exclusion before the anchor.
+
+    Returns ``(passed, errors)`` where *errors* is a list of failure
+    description strings.  Static checker — no agent execution.
+    """
+    errors = []
+    if not _RE_AUTHORITATIVE_GATES.search(paragraph):
+        errors.append(
+            "missing authoritative non-TC qualification gates (adjacent)")
+    if not _RE_CONFIRMED_GATES.search(paragraph):
+        errors.append(
+            "missing confirmed retained non-TC qualification gates (adjacent)")
+    anchor_pos = paragraph.find(_MAND_ANCHOR)
+    if anchor_pos < 0:
+        errors.append(f"missing '{_MAND_ANCHOR}' anchor")
+    else:
+        mand_list = paragraph[:anchor_pos]
+        if "Unconfirmed" in mand_list:
+            errors.append("mandatory list includes Unconfirmed entries")
+    return len(errors) == 0, errors
+
+
+def _check_gapfill_source_guard(section):
+    """Check gap-fill section for Source-Discovery guard before positive
+    write branch and resolved-discovery qualifier.
+
+    Returns ``(passed, errors)`` where *errors* is a list of failure
+    description strings.  Static checker — no agent execution.
+    """
+    errors = []
+    sd_pos = section.find("Source-Discovery: unresolved")
+    positive_pos = section.find(
+        "effectively confirmed TCs or verified-source TCs")
+    if sd_pos < 0:
+        errors.append("missing Source-Discovery: unresolved check")
+    if positive_pos < 0:
+        errors.append("missing positive write branch")
+    if sd_pos >= 0 and positive_pos >= 0 and sd_pos >= positive_pos:
+        errors.append(
+            "Source-Discovery check must come before positive write branch")
+    if positive_pos >= 0:
+        branch_text = section[positive_pos:positive_pos + 200]
+        if "resolved source discovery" not in branch_text:
+            errors.append(
+                "positive write branch must require resolved source discovery")
+    return len(errors) == 0, errors
 
 
 # ===========================================================================
@@ -4648,34 +4710,13 @@ class TestRecipeCallerIntegration(unittest.TestCase):
             mand_end = mand_end_nl if mand_end_nl > mand_pos else len(content)
             mand_paragraph = content[mand_pos:mand_end]
 
-            # Mandatory entries must reference authoritative gates.
-            # Bind the adjective to the gate entry itself: require
-            # "authoritative" adjacent (with only whitespace) to
-            # "non-TC qualification gates" so the regex cannot borrow
-            # "authoritative" from an earlier TC clause like
-            # "source-verified authoritative TCs".
-            self.assertRegex(
-                mand_paragraph,
-                r'\bauthoritative\s+non-TC\s+qualification\s+gates\b',
-                f"{workflow}/validate.md mandatory list must include "
-                f"authoritative non-TC qualification gates (adjacent)")
-            self.assertRegex(
-                mand_paragraph,
-                r'\bconfirmed\s+retained\s+non-TC\s+qualification\s+gates\b',
-                f"{workflow}/validate.md mandatory list must include "
-                f"confirmed retained non-TC qualification gates (adjacent)")
-            # Counter-regression: the old substring "onfirmed non-TC"
-            # matched both "Confirmed" and "Unconfirmed". Verify the
-            # mandatory list sentence itself (before the Unconfirmed
-            # exclusion clause) does NOT rely on that ambiguous match.
-            mand_sentence_end = mand_paragraph.find(
-                "confirmation first.")
-            if mand_sentence_end > 0:
-                mand_list_only = mand_paragraph[:mand_sentence_end]
-                self.assertNotIn(
-                    "Unconfirmed", mand_list_only,
-                    f"{workflow}/validate.md mandatory-entries list "
-                    f"must not include Unconfirmed entries")
+            # Use shared checker: adjacency regex + anchor +
+            # Unconfirmed exclusion (static, no agent execution).
+            passed, errors = _check_mandatory_paragraph(mand_paragraph)
+            self.assertTrue(
+                passed,
+                f"{workflow}/validate.md mandatory paragraph fails "
+                f"shared checker: {errors}")
 
             # Check full section for ACs and provisional override
             result_section = content[mand_pos:]
@@ -4702,96 +4743,102 @@ class TestMandatoryClassificationRegexRobustness(unittest.TestCase):
     adjective from the wrong entry. The fixed regex requires adjacency.
     """
 
-    def test_old_regex_false_positive_tc_clause_only(self):
-        """Old regex matches a paragraph with authoritative only in TC
-        clause (no authoritative gate entry) — proves the old matcher
-        was broken."""
-        import re
-        # Paragraph has "authoritative TCs" but NOT
-        # "authoritative non-TC qualification gates" — the gate
-        # phrase uses lowercase "non-TC" to match actual docs.
+    def test_cross_tc_keyword_borrowing_fails_shared_checker(self):
+        """Bad paragraph borrowing 'authoritative' from TC clause fails
+        the shared mandatory-paragraph checker (static, not agent)."""
         bad_paragraph = (
             "Mandatory entries are: source-verified authoritative TCs, "
             "effectively confirmed retained TCs, and all current AC "
             "obligations. Unconfirmed non-TC qualification gates are "
             "tracked but not listed here."
         )
-        # Old regex (greedy [\s\S]*) matches — FALSE POSITIVE
-        # because "authoritative" from TC clause reaches across to
-        # "non-TC qualification gates" in the unconfirmed clause.
-        old_match = re.search(
-            r'\bauthoritative\b[\s\S]*\bnon-TC qualification gates\b',
-            bad_paragraph)
-        self.assertIsNotNone(old_match,
-                             "Old regex should match (proving it was broken)")
-        # New regex (adjacent) does NOT match — correct
-        new_match = re.search(
-            r'\bauthoritative\s+non-TC\s+qualification\s+gates\b',
-            bad_paragraph)
-        self.assertIsNone(new_match,
-                          "New regex must not match when authoritative "
-                          "is only in TC clause")
+        passed, errors = _check_mandatory_paragraph(bad_paragraph)
+        self.assertFalse(passed,
+                         "Cross-TC keyword borrowing must fail shared checker")
+        self.assertTrue(
+            any("authoritative" in e for e in errors),
+            "Checker must detect missing authoritative gate entry")
 
-    def test_old_regex_false_positive_confirmed_tc_clause_only(self):
-        """Old regex matches 'confirmed' from TC clause, not gate entry."""
-        import re
+    def test_confirmed_borrowing_fails_shared_checker(self):
+        """Bad paragraph borrowing 'confirmed' from TC clause fails
+        the shared mandatory-paragraph checker (static, not agent)."""
         bad_paragraph = (
             "Mandatory entries are: source-verified authoritative TCs, "
             "effectively confirmed retained TCs, and all current AC "
             "obligations. Unconfirmed non-TC qualification gates are "
             "provisional."
         )
-        old_match = re.search(
-            r'\bconfirmed\b[\s\S]*\bnon-TC qualification gates\b',
-            bad_paragraph)
-        self.assertIsNotNone(old_match,
-                             "Old regex should match (proving it was broken)")
-        new_match = re.search(
-            r'\bconfirmed\s+retained\s+non-TC\s+qualification\s+gates\b',
-            bad_paragraph)
-        self.assertIsNone(new_match,
-                          "New regex must not match when confirmed "
-                          "is only in TC clause")
+        passed, errors = _check_mandatory_paragraph(bad_paragraph)
+        self.assertFalse(passed,
+                         "Confirmed borrowing must fail shared checker")
+        self.assertTrue(
+            any("confirmed" in e for e in errors),
+            "Checker must detect missing confirmed gate entry")
 
-    def test_new_regex_passes_actual_docs(self):
-        """New regex matches both actual validate.md files."""
-        import re
+    def test_missing_anchor_fails_shared_checker(self):
+        """Paragraph missing the 'confirmation first.' anchor fails
+        the shared mandatory-paragraph checker (static, not agent)."""
+        no_anchor = (
+            "Mandatory entries are: source-verified authoritative TCs, "
+            "effectively confirmed retained TCs, source-verified "
+            "authoritative non-TC qualification gates, effectively "
+            "confirmed retained non-TC qualification gates."
+        )
+        passed, errors = _check_mandatory_paragraph(no_anchor)
+        self.assertFalse(passed,
+                         "Missing anchor must fail shared checker")
+        self.assertTrue(
+            any("anchor" in e for e in errors),
+            "Checker must detect missing anchor")
+
+    def test_unconfirmed_in_mandatory_list_fails_shared_checker(self):
+        """Paragraph with Unconfirmed before the anchor fails
+        the shared mandatory-paragraph checker (static, not agent)."""
+        bad_unconfirmed = (
+            "Mandatory entries are: source-verified authoritative TCs, "
+            "Unconfirmed non-TC qualification gates, effectively "
+            "confirmed retained non-TC qualification gates, "
+            "authoritative non-TC qualification gates. A fresh "
+            "mandatory gate means FAIL without requiring "
+            "confirmation first. Other text."
+        )
+        passed, errors = _check_mandatory_paragraph(bad_unconfirmed)
+        self.assertFalse(passed,
+                         "Unconfirmed in mandatory list must fail shared checker")
+        self.assertTrue(
+            any("Unconfirmed" in e for e in errors),
+            "Checker must detect Unconfirmed in mandatory list")
+
+    def test_actual_docs_pass_shared_checker(self):
+        """Both actual validate.md files pass the shared
+        mandatory-paragraph checker (static, not agent)."""
         repo_root = Path(__file__).resolve().parent.parent.parent
         for workflow in ("e2e", "implement"):
-            path = repo_root / workflow / "skills" / "validate.md"
-            content = path.read_text()
-            mand_pos = content.find("Mandatory entries are:")
-            self.assertGreater(mand_pos, 0)
-            mand_end_nl = content.find("\n\n", mand_pos)
-            mand_end = mand_end_nl if mand_end_nl > mand_pos else len(content)
-            mand_paragraph = content[mand_pos:mand_end]
-            self.assertRegex(
-                mand_paragraph,
-                r'\bauthoritative\s+non-TC\s+qualification\s+gates\b',
-                f"{workflow}: actual docs must pass new authoritative regex")
-            self.assertRegex(
-                mand_paragraph,
-                r'\bconfirmed\s+retained\s+non-TC\s+qualification\s+gates\b',
-                f"{workflow}: actual docs must pass new confirmed regex")
+            with self.subTest(workflow=workflow):
+                path = repo_root / workflow / "skills" / "validate.md"
+                content = path.read_text(encoding="utf-8")
+                mand_pos = content.find("Mandatory entries are:")
+                self.assertGreater(mand_pos, 0)
+                mand_end_nl = content.find("\n\n", mand_pos)
+                mand_end = (mand_end_nl if mand_end_nl > mand_pos
+                            else len(content))
+                mand_paragraph = content[mand_pos:mand_end]
+                passed, errors = _check_mandatory_paragraph(mand_paragraph)
+                self.assertTrue(
+                    passed,
+                    f"{workflow}: actual docs fail shared checker — {errors}")
 
-    def test_keywords_outside_mandatory_paragraph_no_match(self):
-        """Authoritative/confirmed keywords in unrelated text don't match."""
-        import re
+    def test_keywords_outside_mandatory_paragraph_fail_checker(self):
+        """Authoritative/confirmed keywords in unrelated text fail
+        the shared checker (static, not agent)."""
         unrelated = (
             "The authoritative source is the design document. "
             "User-confirmed TCs are listed below. "
             "Some non-TC qualification gates may apply."
         )
-        self.assertIsNone(
-            re.search(
-                r'\bauthoritative\s+non-TC\s+qualification\s+gates\b',
-                unrelated),
-            "Unrelated text must not match authoritative gate regex")
-        self.assertIsNone(
-            re.search(
-                r'\bconfirmed\s+retained\s+non-TC\s+qualification\s+gates\b',
-                unrelated),
-            "Unrelated text must not match confirmed gate regex")
+        passed, _ = _check_mandatory_paragraph(unrelated)
+        self.assertFalse(passed,
+                         "Unrelated text must fail shared checker")
 
 
 class TestGuardBeforeZeroDeletionContract(unittest.TestCase):
@@ -4920,6 +4967,119 @@ class TestCheckedAbsenceClearsUnresolved(unittest.TestCase):
                       "Resolution failure must set unresolved state")
 
 
+class TestGateApplicabilityContract(unittest.TestCase):
+    """Static contract: unknown gate applicability produces a durable
+    handoff via Gate-Applicability in 01-context.md, consumed by
+    both validators.  Covers first-ingest/no-prior-plan, retained-plan,
+    overlap-based relevance, and validator consumer checks.
+    Static section checks — no agent execution."""
+
+    def _repo_root(self):
+        return Path(__file__).resolve().parent.parent.parent
+
+    def test_ingests_reference_gate_applicability_field(self):
+        """Both ingests: unknown-relevance branch references
+        Gate-Applicability for durable handoff."""
+        for workflow, path in [("e2e", "e2e/skills/ingest.md"),
+                               ("implement", "implement/skills/ingest.md")]:
+            with self.subTest(workflow=workflow):
+                text = (self._repo_root() / path).read_text(
+                    encoding="utf-8")
+                self.assertIn(
+                    "Gate-Applicability: unresolved", text,
+                    f"{workflow}/ingest.md must reference "
+                    f"Gate-Applicability: unresolved")
+
+    def test_ingests_handle_first_ingest_no_prior_plan(self):
+        """Both ingests: unknown-relevance branch handles first ingest
+        (no prior testplan) with durable handoff."""
+        for workflow, path in [("e2e", "e2e/skills/ingest.md"),
+                               ("implement", "implement/skills/ingest.md")]:
+            with self.subTest(workflow=workflow):
+                text = (self._repo_root() / path).read_text(
+                    encoding="utf-8")
+                self.assertIn(
+                    "no prior story testplan exists",
+                    text,
+                    f"{workflow}/ingest.md must handle first-ingest "
+                    f"case in unknown-relevance branch")
+
+    def test_ingests_overlap_based_relevance(self):
+        """Both ingests: gate relevance uses overlap-based logic with
+        per-dimension checks, not just 'both missing' condition."""
+        for workflow, path in [("e2e", "e2e/skills/ingest.md"),
+                               ("implement", "implement/skills/ingest.md")]:
+            with self.subTest(workflow=workflow):
+                text = (self._repo_root() / path).read_text(
+                    encoding="utf-8")
+                self.assertIn(
+                    "known overlap", text,
+                    f"{workflow}/ingest.md must describe known-overlap "
+                    f"case for gate relevance")
+                self.assertIn(
+                    "fully known", text,
+                    f"{workflow}/ingest.md must describe fully-known "
+                    f"non-overlap case for irrelevance")
+
+    def test_context_templates_include_gate_applicability(self):
+        """Both context templates include Gate-Applicability field."""
+        # implement uses a template file
+        impl_tmpl = (self._repo_root() /
+                     "implement/templates/01-context.md").read_text(
+            encoding="utf-8")
+        self.assertIn(
+            "Gate-Applicability: unresolved", impl_tmpl,
+            "implement template must include Gate-Applicability field")
+        # e2e uses an inline template in ingest.md
+        e2e_ingest = (self._repo_root() /
+                      "e2e/skills/ingest.md").read_text(encoding="utf-8")
+        self.assertIn(
+            "Gate-Applicability: unresolved", e2e_ingest,
+            "e2e inline template must include Gate-Applicability field")
+
+    def test_validators_check_gate_applicability_before_skip(self):
+        """Both validators check Gate-Applicability from 01-context.md
+        before the testplan-absent skip."""
+        for workflow, path in [("e2e", "e2e/skills/validate.md"),
+                               ("implement",
+                                "implement/skills/validate.md")]:
+            with self.subTest(workflow=workflow):
+                text = (self._repo_root() / path).read_text(
+                    encoding="utf-8")
+                ga_pos = text.find("Gate-Applicability")
+                skip_pos = text.find("skip the rest of this step")
+                self.assertGreater(
+                    ga_pos, 0,
+                    f"{workflow}/validate.md must check "
+                    f"Gate-Applicability")
+                self.assertGreater(
+                    skip_pos, 0,
+                    f"{workflow}/validate.md must have "
+                    f"testplan-absent skip")
+                self.assertLess(
+                    ga_pos, skip_pos,
+                    f"{workflow}/validate.md Gate-Applicability check "
+                    f"must appear before testplan-absent skip")
+
+    def test_validators_block_pass_on_unresolved_applicability(self):
+        """Both validators: Overall result blocks PASS when
+        Gate-Applicability is unresolved."""
+        for workflow, path in [("e2e", "e2e/skills/validate.md"),
+                               ("implement",
+                                "implement/skills/validate.md")]:
+            with self.subTest(workflow=workflow):
+                text = (self._repo_root() / path).read_text(
+                    encoding="utf-8")
+                # Must mention Gate-Applicability in Overall/Result
+                overall_pos = text.find("Overall: PASS")
+                self.assertGreater(overall_pos, 0)
+                result_area = text[overall_pos:]
+                self.assertIn(
+                    "Gate-Applicability", result_area,
+                    f"{workflow}/validate.md Result must reference "
+                    f"Gate-Applicability blocking PASS")
+
+
 class TestWriteBeforeStep10Contract(unittest.TestCase):
     """Static contract: validation report is written BEFORE Step 10
     (present results) in both validate.md files."""
@@ -4973,7 +5133,7 @@ class TestGapFillResolvedDiscoveryContract(unittest.TestCase):
 
     def _gapfill_section(self, workflow_path):
         """Extract the gap-fill item 3 section from a validate.md file."""
-        content = (self._repo_root() / workflow_path).read_text()
+        content = (self._repo_root() / workflow_path).read_text(encoding="utf-8")
         marker = "If any automatable TC ID lacks a corresponding test"
         start = content.find(marker)
         self.assertGreater(start, 0,
@@ -4984,50 +5144,22 @@ class TestGapFillResolvedDiscoveryContract(unittest.TestCase):
             end_marker = start + 2000
         return content[start:end_marker]
 
-    def test_gapfill_source_discovery_before_positive_write(self):
-        """Both validators: Source-Discovery: unresolved check must
-        appear in gap-fill item 3 before the positive write branch."""
+    def test_gapfill_actual_docs_pass_shared_checker(self):
+        """Both validators: gap-fill section passes the shared
+        source-guard checker (static, not agent)."""
         for name, path in self._VALIDATORS:
             with self.subTest(workflow=name):
                 section = self._gapfill_section(path)
-                sd_pos = section.find("Source-Discovery: unresolved")
-                positive_pos = section.find(
-                    "effectively confirmed TCs or verified-source TCs")
-                self.assertGreater(
-                    sd_pos, 0,
-                    f"{name}: gap-fill item 3 must check "
-                    f"Source-Discovery: unresolved")
-                self.assertGreater(
-                    positive_pos, 0,
-                    f"{name}: gap-fill item 3 must have positive "
-                    f"write branch")
-                self.assertLess(
-                    sd_pos, positive_pos,
-                    f"{name}: Source-Discovery check must come before "
-                    f"positive gap-fill write branch")
+                passed, errors = _check_gapfill_source_guard(section)
+                self.assertTrue(
+                    passed,
+                    f"{name}: gap-fill section fails shared checker — "
+                    f"{errors}")
 
-    def test_gapfill_positive_branch_requires_resolved_discovery(self):
-        """Both validators: positive write branch must include explicit
-        resolved source discovery condition."""
-        for name, path in self._VALIDATORS:
-            with self.subTest(workflow=name):
-                section = self._gapfill_section(path)
-                # Find the positive write branch
-                branch_start = section.find(
-                    "effectively confirmed TCs or verified-source TCs")
-                self.assertGreater(branch_start, 0)
-                # Extract just the positive write branch bullet
-                branch_text = section[branch_start:branch_start + 200]
-                self.assertIn(
-                    "resolved source discovery",
-                    branch_text,
-                    f"{name}: positive write branch must require "
-                    f"'resolved source discovery'")
-
-    def test_old_implement_text_fails_discovery_check(self):
+    def test_old_implement_text_fails_shared_checker(self):
         """Counter-regression: the OLD implement gap-fill item 3 text
-        (before this fix) lacked both checks — proves the regression
-        test catches the defect."""
+        (before this fix) fails the same shared checker that live docs
+        pass — proves the checker catches the defect (static, not agent)."""
         old_implement_gapfill = (
             "If any automatable TC ID lacks a corresponding test:\n"
             "   - If the TC is NOT effectively confirmed (see criteria "
@@ -5045,23 +5177,14 @@ class TestGapFillResolvedDiscoveryContract(unittest.TestCase):
             "standards.\n"
             "     These TCs are normative."
         )
-        # Old text lacks Source-Discovery check — RED
-        sd_pos = old_implement_gapfill.find(
-            "Source-Discovery: unresolved")
-        self.assertEqual(
-            sd_pos, -1,
-            "Old text must NOT have Source-Discovery check "
-            "(proves regression catches defect)")
-        # Old text lacks resolved discovery qualifier — RED
-        positive_start = old_implement_gapfill.find(
-            "effectively confirmed TCs or verified-source TCs")
-        branch_text = old_implement_gapfill[
-            positive_start:positive_start + 200]
-        self.assertNotIn(
-            "resolved source discovery",
-            branch_text,
-            "Old text must NOT have resolved discovery qualifier "
-            "(proves regression catches defect)")
+        passed, errors = _check_gapfill_source_guard(old_implement_gapfill)
+        self.assertFalse(
+            passed,
+            "Old text must fail shared checker (proving it catches "
+            "the defect)")
+        self.assertTrue(
+            any("Source-Discovery" in e for e in errors),
+            "Checker must detect missing Source-Discovery check")
 
 
 if __name__ == "__main__":
