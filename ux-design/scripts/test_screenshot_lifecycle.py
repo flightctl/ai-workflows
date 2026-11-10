@@ -4934,5 +4934,164 @@ class TestR10Wave2Fixes(unittest.TestCase):
         self.assertIn("ref", " ".join(pos_header.split()))
 
 
+# ===================================================================
+# Part 11: review5834537131 regressions — index metadata + pre-copy
+#          refresh
+#
+# Finding 4519392905: screenshot-inspection.md must collect Screenshot
+# Index context_revision/prototype_iteration and compare three sources
+# (header, index, manifest) with explicit mismatched/unknown handling.
+#
+# Finding 4519392914: respond.md must refresh authoring Screenshot
+# Index checksums from verified actual bytes before handoff copying.
+# ===================================================================
+
+
+class TestR11IndexMetadataCollection(unittest.TestCase):
+    """4519392905: §2 collects Screenshot Index footer bindings."""
+
+    def test_s2_collects_index_footer_context_revision(self) -> None:
+        """§2 collects context_revision from the Screenshot Index footer."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s2 = content.split("### 2.", 1)[1].split("### 3.", 1)[0]
+        flat = " ".join(s2.split())
+        self.assertIn("context_revision", flat)
+        self.assertIn("footer", flat)
+
+    def test_s2_collects_index_footer_prototype_iteration(self) -> None:
+        """§2 collects prototype_iteration from the Screenshot Index footer."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s2 = content.split("### 2.", 1)[1].split("### 3.", 1)[0]
+        flat = " ".join(s2.split())
+        self.assertIn("prototype_iteration", flat)
+        self.assertIn("footer", flat)
+
+    def test_s2_unknown_default_for_missing_footer(self) -> None:
+        """§2 defaults missing/dash/unparseable footer fields to unknown."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s2 = content.split("### 2.", 1)[1].split("### 3.", 1)[0]
+        flat = " ".join(s2.split())
+        self.assertIn("unknown", flat)
+        self.assertIn("unparseable", flat)
+
+
+class TestR11ThreeWayBindingComparison(unittest.TestCase):
+    """4519392905: §4 step 5 three-way header/index/manifest comparison."""
+
+    def test_s5_compares_three_sources(self) -> None:
+        """§4 step 5 compares all three sources: header, index, manifest."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s5 = content.split("Check revision binding", 1)[1].split(
+            "### Aggregate status", 1)[0]
+        flat = " ".join(s5.split())
+        self.assertIn("three sources", flat)
+        self.assertIn("header", flat.lower())
+        self.assertIn("Index (§2)", s5)
+        self.assertIn("Manifest", s5)
+
+    def test_s5_matching_header_manifest_cannot_bypass_conflicting_index(self) -> None:
+        """A matching header+manifest must not bypass a conflicting index."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s5 = content.split("Check revision binding", 1)[1].split(
+            "### Aggregate status", 1)[0]
+        flat = " ".join(s5.split())
+        self.assertIn(
+            "matching header and manifest must not bypass", flat)
+        self.assertIn("conflicting index value", flat)
+
+    def test_s5_disagreement_is_mismatched(self) -> None:
+        """Any disagreement among available sources is mismatched."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s5 = content.split("Check revision binding", 1)[1].split(
+            "### Aggregate status", 1)[0]
+        flat = " ".join(s5.split())
+        self.assertIn("disagreement among available", flat)
+        self.assertIn("mismatched", flat)
+
+    def test_s5_all_agree_with_unknown_stays_unknown(self) -> None:
+        """All available sources agree but one unknown keeps binding unknown."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s5 = content.split("Check revision binding", 1)[1].split(
+            "### Aggregate status", 1)[0]
+        flat = " ".join(s5.split())
+        self.assertIn("all available sources agree but at least one is", flat)
+        self.assertIn("unknown", flat)
+
+    def test_s5_table_has_index_column(self) -> None:
+        """Binding comparison table has an Index (§2) column."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s5 = content.split("Check revision binding", 1)[1].split(
+            "### Aggregate status", 1)[0]
+        # Table header must contain Index column
+        self.assertIn("Index (§2)", s5)
+        self.assertIn("{from index footer}", s5)
+
+
+class TestR11PreCopyChecksumRefresh(unittest.TestCase):
+    """4519392914: respond.md refreshes authoring Screenshot Index
+    checksum from verified actual bytes before handoff copying."""
+
+    def test_refresh_section_exists(self) -> None:
+        """Pre-copy Screenshot Index refresh section exists in Step 4."""
+        content = _read("ux-design/skills/respond.md")
+        step4 = content.split("### Step 4:", 1)[1].split(
+            "### Step 5:", 1)[0]
+        self.assertIn("Pre-copy Screenshot Index refresh", step4)
+
+    def test_refresh_before_copy(self) -> None:
+        """Pre-copy refresh appears before the text copy command."""
+        content = _read("ux-design/skills/respond.md")
+        step4 = content.split("### Step 4:", 1)[1].split(
+            "### Step 5:", 1)[0]
+        refresh_pos = step4.find("Pre-copy Screenshot Index refresh")
+        copy_pos = step4.find(
+            'cp ".artifacts/ux-design/{issue-key}/05-handoff.md"')
+        self.assertGreater(refresh_pos, -1, "Refresh section missing")
+        self.assertGreater(copy_pos, -1, "Handoff copy command missing")
+        self.assertLess(refresh_pos, copy_pos,
+                        "Refresh must appear before the text copy")
+
+    def test_refresh_uses_verified_actual_bytes(self) -> None:
+        """Refresh verifies actual local bytes, not just manifest."""
+        content = _read("ux-design/skills/respond.md")
+        refresh = content.split("Pre-copy Screenshot Index refresh", 1)
+        self.assertEqual(len(refresh), 2, "Refresh section missing")
+        block = refresh[1].split('cp ".artifacts/', 1)[0]
+        flat = " ".join(block.split())
+        self.assertIn("verified actual local bytes", flat)
+
+    def test_refresh_handles_stale_prefix(self) -> None:
+        """Refresh updates stale prefixes from verified bytes checksum."""
+        content = _read("ux-design/skills/respond.md")
+        refresh = content.split("Pre-copy Screenshot Index refresh", 1)
+        self.assertEqual(len(refresh), 2, "Refresh section missing")
+        block = refresh[1].split('cp ".artifacts/', 1)[0]
+        flat = " ".join(block.split())
+        self.assertIn("stale", flat)
+        self.assertIn("prefix", flat)
+        self.assertIn("first 12", flat)
+
+    def test_refresh_covers_image_only_change(self) -> None:
+        """Refresh handles image-only changes where handoff text was not
+        separately edited."""
+        content = _read("ux-design/skills/respond.md")
+        refresh = content.split("Pre-copy Screenshot Index refresh", 1)
+        self.assertEqual(len(refresh), 2, "Refresh section missing")
+        block = refresh[1].split('cp ".artifacts/', 1)[0]
+        flat = " ".join(block.split())
+        self.assertIn("image-only change", flat)
+        self.assertIn("handoff text", flat)
+
+    def test_refresh_preserves_other_content(self) -> None:
+        """Refresh preserves non-screenshot content unchanged."""
+        content = _read("ux-design/skills/respond.md")
+        refresh = content.split("Pre-copy Screenshot Index refresh", 1)
+        self.assertEqual(len(refresh), 2, "Refresh section missing")
+        block = refresh[1].split('cp ".artifacts/', 1)[0]
+        flat = " ".join(block.split())
+        self.assertIn("Preserve", flat)
+        self.assertIn("unchanged", flat)
+
+
 if __name__ == "__main__":
     unittest.main()

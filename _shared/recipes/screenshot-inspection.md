@@ -29,7 +29,11 @@ per image.
 
 Read `{HANDOFF_FILE}`'s **Screenshot Index** section and collect all
 declared `SS-N` IDs with their declared ref paths and SHA-256
-prefixes (when the index records them).
+prefixes (when the index records them). Also collect the Screenshot
+Index's own `context_revision` and `prototype_iteration` from its
+footer (the `**Context revision:** {R} | **Prototype iteration:** {N}`
+line produced by `/handoff`). Default missing, empty, dash (`—`), or
+unparseable footer fields to `unknown`.
 
 **Duplicate ID check.** Before matching, verify every declared SS-N
 ID is unique within the index. If any ID appears more than once,
@@ -239,19 +243,28 @@ appears exactly once in the output.
 
    Read the manifest's top-level `context_revision` and
    `prototype_iteration` (the actual published fields). Read the
-   handoff's metadata header for its declared revision/iteration. For
-   each image, record:
+   handoff's metadata header for its declared revision/iteration.
+   Use the Screenshot Index's own `context_revision` and
+   `prototype_iteration` collected in §2. For each image, compare
+   all three sources — header, index, and manifest:
 
-   | Binding | Expected (handoff header) | Actual (manifest) | Match |
-   |---------|--------------------------|-------------------|-------|
-   | `context_revision` | {from header} | {from manifest} | `matched` / `mismatched` / `unknown` |
-   | `prototype_iteration` | {from header} | {from manifest} | `matched` / `mismatched` / `unknown` |
+   | Binding | Header | Index (§2) | Manifest | Match |
+   |---------|--------|------------|----------|-------|
+   | `context_revision` | {from header} | {from index footer} | {from manifest} | `matched` / `mismatched` / `unknown` |
+   | `prototype_iteration` | {from header} | {from index footer} | {from manifest} | `matched` / `mismatched` / `unknown` |
+
+   A binding is `matched` only when all three sources that are
+   present agree. A matching header and manifest must not bypass a
+   conflicting index value — any disagreement among available
+   sources is `mismatched`. When any source is missing, empty,
+   dash (`—`), or otherwise invalid, default that source to
+   `unknown`; if all available sources agree but at least one is
+   unknown, the binding is `unknown`. Never treat an absent or
+   unrecognizable binding as vacuously `matched`.
 
    Record binding status in the Notes column of the per-image schema
-   (keeping 9 columns) with the actual expected/actual values and
-   match status. Default missing, empty, dash (`—`), or otherwise
-   invalid binding fields to `unknown` — never treat an absent or
-   unrecognizable binding as vacuously `matched`.
+   (keeping 9 columns) with the actual header/index/manifest values
+   and match status.
 
    When any binding is `mismatched` or `unknown`, prompt the user
    **per image** with a separate named decision for each affected
