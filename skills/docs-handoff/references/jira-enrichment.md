@@ -39,7 +39,7 @@ that are valid strings but not in the allowed catalog produce
 ## Allowed Metadata Catalog
 
 Only fields in this catalog may be proposed as metadata changes.
-Uncatalogued fields are rejected as forbidden:
+Uncatalogued fields are rejected with `uncatalogued_field` findings:
 
 | Canonical Name | Jira Binding | Requirement |
 |---|---|---|

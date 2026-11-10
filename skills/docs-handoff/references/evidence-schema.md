@@ -76,7 +76,7 @@ Each gathered PR evidence item must have:
 |---|---|---|
 | `pr_url` | string | Yes — supported PR/MR URL (see URL validation) |
 | `contributor_key` | string | Yes — Jira key of contributing story |
-| `target_branch` | string | No — PR target branch |
+| `target_branch` | string/null | No — PR target branch (null normalized to empty) |
 | `state` | string | No — PR state (open, merged, closed) |
 | `title` | string | No — PR title |
 | `merged` | boolean/null | No — whether PR is merged |
