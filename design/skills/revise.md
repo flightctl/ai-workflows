@@ -390,18 +390,6 @@ Fast-forward the local branch if the remote is ahead:
 git -C "{docs_repo_path}" pull --ff-only
 ```
 
-```bash
-mkdir -p "{docs_repo_path}/$(dirname "{design_file_path}")"
-```
-
-```bash
-cp ".artifacts/design/{issue-key}/03-design.md" "{docs_repo_path}/{design_file_path}"
-```
-
-Read and follow `../../_shared/recipes/render-provenance-footer.md` with
-`WORKFLOW=design`, `ISSUE_KEY={issue-key}`,
-`TARGET_FILE="{docs_repo_path}/{design_file_path}"`.
-
 **Validation artifact docs-repo sync:**
 
 Set `SKILL_DIR` to the canonical directory of this loaded skill file
@@ -427,7 +415,25 @@ Complete both PREFLIGHT and APPLY phases of the recipe. The recipe
 handles build/snapshot/preflight/copy/index/retirement/metadata as a
 single canonical execution. Do not duplicate those steps inline.
 
-**Commit and push** after the recipe completes:
+**After the recipe's APPLY phase completes**, copy the design
+document and render provenance. The recipe's APPLY created the
+feature directory:
+
+```bash
+cp ".artifacts/design/{issue-key}/03-design.md" "{docs_repo_path}/{design_file_path}"
+```
+
+Read and follow `../../_shared/recipes/render-provenance-footer.md` with
+`WORKFLOW=design`, `ISSUE_KEY={issue-key}`,
+`TARGET_FILE="{docs_repo_path}/{design_file_path}"`.
+
+Stage the design file independently of artifact existence:
+
+```bash
+git -C "{docs_repo_path}" add "{design_file_path}"
+```
+
+**Commit and push:**
 
 ```bash
 git -C "{docs_repo_path}" commit -m "Design {issue-key}: revise — {brief description}"

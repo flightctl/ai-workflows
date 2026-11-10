@@ -223,161 +223,9 @@ git -C "{docs_repo_path}" checkout -b {branch-name} publish-push/{branch-name}
 git -C "{docs_repo_path}" checkout -b {branch-name}
 ```
 
-**Validation artifact resolution and preflight (before any docs-repo
-mutation):**
+### Step 5: Preflight and Sync Artifacts, Copy Design
 
-All resolution, snapshot, and preflight operations below run
-against local `.artifacts/` and read from the docs repo without
-modifying it. No file in `{docs_repo_path}` is copied, staged, or
-committed until all preflights pass and any required confirmations
-are obtained.
-
-**Resolve current artifacts.** Resolve the local validation
-artifact set:
-
-```bash
-python3 "$VALIDATION_INDEX_SCRIPT" resolve --local ".artifacts/design/{issue-key}"
-```
-
-If the command exits 0, parse the JSON array output as the current
-set (may be empty `[]`). If the command exits non-zero, a
-validation error occurred (malformed index, missing listed files) —
-**stop and report the error to the user.** Do not fall back to
-legacy behavior when a malformed index is present.
-
-If `validation-index.json` does not exist in
-`.artifacts/design/{issue-key}` and `04-testplan.md` exists (legacy
-layout), build a normalized index first:
-
-```bash
-python3 "$VALIDATION_INDEX_SCRIPT" build-legacy ".artifacts/design/{issue-key}" ".artifacts/design/{issue-key}/validation-index.json"
-```
-
-This writes `validation-index.json` with the single primary entry.
-Re-run `resolve --local` to get the normalized set.
-
-Remove any snapshot left by a previous run before capturing:
-
-```bash
-rm -f -- ".artifacts/design/{issue-key}/prev-published-index.json"
-```
-
-If the removal command fails (non-zero exit for a reason other than
-file-not-found), stop and report the error.
-
-**Snapshot previous published state.** Before writing any
-files to the docs repo, snapshot the previously published index so
-stale files can be identified after the new set is written.
-
-If `{docs_repo_path}/{release}/{feature}/validation-index.json`
-exists, reject it if it is a symlink (including dangling) before
-copying — the `cp` command follows symlinks by default and would
-accept ownership from the linked target:
-
-```bash
-if [ -L "{docs_repo_path}/{release}/{feature}/validation-index.json" ]; then
-  echo "Published index is a symlink — refusing to copy" >&2; exit 1
-fi
-```
-
-**Validate the published index at its source before capturing.**
-Validate the original published index in place — before `cp` —
-to ensure it conforms to the published schema and is trustworthy
-for later removal decisions:
-
-```bash
-python3 "$VALIDATION_INDEX_SCRIPT" validate --published "{docs_repo_path}/{release}/{feature}/validation-index.json" || { echo "Published index validation failed — aborting" >&2; exit 1; }
-```
-
-If validation fails, **stop and report** — do not copy or proceed
-with a malformed published index. Only after validation passes,
-capture the snapshot:
-
-```bash
-cp "{docs_repo_path}/{release}/{feature}/validation-index.json" ".artifacts/design/{issue-key}/prev-published-index.json" || { echo "Snapshot copy failed" >&2; exit 1; }
-```
-
-If it does not exist but `{docs_repo_path}/{release}/{feature}/testplan.md`
-exists (legacy single-testplan), write a minimal published snapshot:
-
-```json
-{
-  "schema_version": "1.0",
-  "primary_testplan": "testplan.md",
-  "artifacts": [{"file": "testplan.md", "type": "testplan"}]
-}
-```
-
-Save to `.artifacts/design/{issue-key}/prev-published-index.json`.
-
-If neither exists, there is no previous set — skip the snapshot
-and proceed with an empty previous set.
-
-**Distinguish absent from failed.** When copying an existing
-published index or building a legacy snapshot, check that the copy
-or write succeeded. If a published `validation-index.json` or
-legacy `testplan.md` exists at the source but the snapshot file
-could not be created (I/O error, permission denied), **stop and
-report** — do not proceed with an empty previous set when a prior
-publication exists. An empty previous set is correct only when
-no prior published state exists (first publish).
-
-**Removal preflight (non-empty current set with previous snapshot):**
-Before copying any artifacts or overwriting the published index,
-identify proposed removals so the user can approve them first.
-Transform the current local index to a candidate published index
-under `.artifacts`:
-
-```bash
-python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{issue-key}/validation-index.json" ".artifacts/design/{issue-key}/candidate-published-index.json" --trusted-output-base "." || { echo "Transform failed — aborting" >&2; exit 1; }
-```
-
-Diff the previous snapshot against the candidate:
-
-```bash
-python3 "$VALIDATION_INDEX_SCRIPT" diff ".artifacts/design/{issue-key}/prev-published-index.json" ".artifacts/design/{issue-key}/candidate-published-index.json" || { echo "Diff failed — aborting" >&2; exit 1; }
-```
-
-If the `removed` list is non-empty, present each removal with its full
-published path `{release}/{feature}/{filename}` and require named
-confirmation of each removal before proceeding.
-An earlier explicit named-artifact approval (from a prior `/revise` or
-`/publish` step that named these specific `{release}/{feature}/{filename}` paths) counts as confirmation
-only if the artifact's published state has not changed since approval —
-approval is consumed by the operation it authorized, and is not reusable
-after an intervening synchronization, restoration, or content
-replacement. When state continuity cannot be established, require fresh
-confirmation. Generic update approval does not authorize removal. If the user declines, stop — preserve
-published artifacts and metadata unchanged. Clean up the candidate file
-after the preflight completes (it is not published directly).
-
-If no previous snapshot was captured (first publish), skip this
-preflight — first-publish has no removals.
-
-**If the current set is empty** and a previous snapshot exists, this
-is an empty-set retirement. Present the exact filenames from the
-previous snapshot to the user and require named confirmation before
-any docs-repo mutation occurs:
-
-- For each artifact in the previous snapshot, show:
-  `{release}/{feature}/{filename}`
-- Show: `{release}/{feature}/validation-index.json` (if the previous
-  publication included one)
-
-Ask the user: **"The following published validation artifacts will
-be removed. Confirm retirement, or restore the local artifact set
-before proceeding."** The user must explicitly confirm removal of
-these specific filenames. Generic publish approval is not sufficient.
-If the user declines, stop — no docs-repo files are copied, staged,
-or committed. Record the confirmation for Step 7 to execute.
-
-### Step 5: Copy Design Document and Current Artifacts
-
-All preflights have passed and any required confirmations have been
-obtained. Before modifying the docs repo, verify ALL destination paths
-first so a rejected publication leaves the checkout unchanged.
-
-**Check all destinations before any copy:**
+**Check design destination before any copy:**
 
 Verify the design document destination before creating directories:
 - If any **existing** ancestor in the destination path between
@@ -390,9 +238,10 @@ Verify the design document destination before creating directories:
 
 Only after the ancestor check passes, sync validation artifacts
 to the docs repo using the shared recipe. The recipe handles all
-artifact/destination validation, directory creation, copying,
-index publishing, and removal — including empty-set retirement
-approval — as a single canonical procedure.
+resolution, snapshot, preflight, artifact/destination validation,
+directory creation, copying, index publishing, removal — including
+empty-set retirement approval — and metadata update as a single
+canonical procedure. Do not duplicate those steps inline.
 
 Read and follow `../../_shared/recipes/sync-validation-artifacts.md`
 with `ISSUE_KEY={issue-key}`,
@@ -401,11 +250,11 @@ with `ISSUE_KEY={issue-key}`,
 `FEATURE_DIR="{release}/{feature}"`,
 `DESIGN_FILE_PATH="{release}/{feature}/design.md"`.
 
-Complete both PREFLIGHT and APPLY phases of the recipe. The recipe's
-APPLY phase includes design file staging, so the design copy and
-provenance rendering below happen inside the APPLY window.
+Complete both PREFLIGHT and APPLY phases of the recipe.
 
-**Copy the design document** (during APPLY, after mkdir):
+**After the recipe's APPLY phase completes**, copy the design
+document and render provenance. The recipe's APPLY created the
+feature directory, so the copy target exists:
 
 ```bash
 cp ".artifacts/design/{issue-key}/03-design.md" "{docs_repo_path}/{release}/{feature}/design.md"
@@ -415,8 +264,13 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=design`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{docs_repo_path}/{release}/{feature}/design.md"`.
 
-The recipe's step 6 stages the design file. The recipe's steps 5–9
-handle artifact copy, index publish, removal, and metadata update.
+Stage the design file — design staging is independent of artifact
+existence (a pure design update must commit even when both
+validation sets are empty):
+
+```bash
+git -C "{docs_repo_path}" add "{release}/{feature}/design.md"
+```
 
 ### Step 6: Commit
 

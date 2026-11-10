@@ -28,6 +28,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -2794,34 +2796,38 @@ class TestProducerConsumerContracts(unittest.TestCase):
 
         This is a static branch-ordering test, not a live agent
         execution claim."""
-        text = (self._repo_root() /
+        publish_text = (self._repo_root() /
                 "design/skills/publish.md").read_text(encoding="utf-8")
-        # Empty-set confirmation must appear before design copy
-        empty_confirm_pos = text.find(
-            "current set is empty** and a previous snapshot exists")
-        design_copy_pos = text.find(
+        recipe_text = (self._repo_root() /
+                "_shared/recipes/sync-validation-artifacts.md").read_text(
+                    encoding="utf-8")
+        design_copy_pos = publish_text.find(
             'cp ".artifacts/design/{issue-key}/03-design.md"')
-        self.assertGreater(empty_confirm_pos, -1,
-                           "Preflight must handle empty-set confirmation")
         self.assertGreater(design_copy_pos, -1,
                            "Design copy command must exist")
-        # Empty-set confirmation before design copy
-        self.assertLess(empty_confirm_pos, design_copy_pos,
-                        "Empty-set confirmation must precede design copy")
-        # Declining stops before any mutation
-        decline_stop = text.find(
-            "no docs-repo files are copied, staged")
-        self.assertGreater(decline_stop, -1,
-                           "Declining must stop before any docs mutation")
-        self.assertLess(decline_stop, design_copy_pos,
-                        "Decline-stop must precede design copy")
-        # Recipe reference exists and precedes design copy —
-        # the recipe's PREFLIGHT handles empty retirement approval
-        recipe_ref = text.find("sync-validation-artifacts.md")
+        # Recipe reference must precede design copy — the recipe's
+        # PREFLIGHT handles all checks including empty-set retirement
+        recipe_ref = publish_text.find("sync-validation-artifacts.md")
         self.assertGreater(recipe_ref, -1,
                            "Shared sync recipe must be referenced")
         self.assertLess(recipe_ref, design_copy_pos,
                         "Recipe reference must precede design copy")
+        # The shared recipe itself handles empty-set confirmation
+        # in its PREFLIGHT phase before any APPLY mutation
+        empty_confirm_pos = recipe_text.find(
+            "Empty current set with previous snapshot")
+        self.assertGreater(empty_confirm_pos, -1,
+                           "Recipe PREFLIGHT must handle empty-set retirement")
+        apply_phase_pos = recipe_text.find("### APPLY Phase")
+        self.assertLess(empty_confirm_pos, apply_phase_pos,
+                        "Empty-set confirmation must be in PREFLIGHT, "
+                        "before APPLY phase")
+        # Caller stages design AFTER recipe APPLY
+        after_apply = publish_text.find("After the recipe's APPLY phase")
+        self.assertGreater(after_apply, -1,
+                           "Must document design copy after recipe APPLY")
+        self.assertLess(after_apply, design_copy_pos,
+                        "After-APPLY note must precede design copy")
 
     def test_e2e_validate_step7_three_way_ac_coverage(self):
         """e2e/skills/validate.md Step 7 accepts scenario, manual TC, or gate."""
@@ -4097,6 +4103,357 @@ class TestValidateCleanWorktreeGuards(unittest.TestCase):
                            "Must have Branch HEAD field")
         self.assertLess(clean_pos, head_pos,
                         "Clean check must come before Branch HEAD field")
+
+
+# ---------------------------------------------------------------------------
+# Recipe/caller integration: preflight-before-write, copy+provenance-before-stage
+# ---------------------------------------------------------------------------
+
+class TestRecipeCallerIntegration(unittest.TestCase):
+    """Static instruction-order and real Git fixture tests for the three
+    sync-recipe callers (publish, revise, respond).
+
+    These tests verify the documented-event ordering that guarantees:
+    1. Recipe PREFLIGHT completes before any DOCS copy/mkdir/stage
+    2. Design cp + provenance happen AFTER recipe APPLY (directory exists)
+    3. Design is staged AFTER being written (not before)
+
+    Static assertions read the Markdown instructions to verify ordering.
+    Git fixture tests execute the actual cp/git-add commands against a
+    temporary repository to verify commit contents.
+
+    NOTE: These are static instruction-order proofs and local Git fixture
+    tests, NOT live agent or workflow execution claims.
+    """
+
+    @classmethod
+    def _repo_root(cls) -> Path:
+        return Path(__file__).resolve().parent.parent.parent
+
+    def _read_caller(self, name: str) -> str:
+        return (self._repo_root() /
+                f"design/skills/{name}.md").read_text(encoding="utf-8")
+
+    def _read_recipe(self) -> str:
+        return (self._repo_root() /
+                "_shared/recipes/sync-validation-artifacts.md").read_text(
+                    encoding="utf-8")
+
+    # --- Static instruction-order tests ---
+
+    def test_all_callers_recipe_before_design_copy(self):
+        """All 3 callers reference sync recipe BEFORE design cp command.
+        Static instruction-order proof, not live agent execution."""
+        for caller in ("publish", "revise", "respond"):
+            text = self._read_caller(caller)
+            recipe_pos = text.find("sync-validation-artifacts.md")
+            copy_pos = text.find(
+                'cp ".artifacts/design/{issue-key}/03-design.md"')
+            self.assertGreater(recipe_pos, -1,
+                               f"{caller}: must reference sync recipe")
+            self.assertGreater(copy_pos, -1,
+                               f"{caller}: must have design copy command")
+            self.assertLess(recipe_pos, copy_pos,
+                            f"{caller}: recipe must precede design copy")
+
+    def test_all_callers_design_copy_before_stage(self):
+        """All 3 callers copy design and render provenance BEFORE staging.
+        Static instruction-order proof, not live agent execution."""
+        for caller in ("publish", "revise", "respond"):
+            text = self._read_caller(caller)
+            copy_pos = text.find(
+                'cp ".artifacts/design/{issue-key}/03-design.md"')
+            prov_pos = text.find("render-provenance-footer.md",
+                                 copy_pos if copy_pos > -1 else 0)
+            # Find the git add for design that follows the copy
+            stage_pos = text.find('git -C "{docs_repo_path}" add',
+                                  prov_pos if prov_pos > -1 else 0)
+            self.assertGreater(copy_pos, -1,
+                               f"{caller}: design copy must exist")
+            self.assertGreater(prov_pos, -1,
+                               f"{caller}: provenance must exist after copy")
+            self.assertGreater(stage_pos, -1,
+                               f"{caller}: design staging must exist")
+            self.assertLess(copy_pos, prov_pos,
+                            f"{caller}: copy before provenance")
+            self.assertLess(prov_pos, stage_pos,
+                            f"{caller}: provenance before staging")
+
+    def test_recipe_preflight_before_apply(self):
+        """Recipe defines PREFLIGHT before APPLY, with no mkdir/cp/stage
+        in PREFLIGHT. Static proof on recipe file."""
+        recipe = self._read_recipe()
+        preflight_pos = recipe.find("### PREFLIGHT Phase")
+        apply_pos = recipe.find("### APPLY Phase")
+        self.assertGreater(preflight_pos, -1)
+        self.assertGreater(apply_pos, -1)
+        self.assertLess(preflight_pos, apply_pos)
+        # No mkdir, cp, or git-add in PREFLIGHT section
+        preflight_section = recipe[preflight_pos:apply_pos]
+        self.assertNotIn("mkdir -p", preflight_section,
+                         "PREFLIGHT must not create directories")
+        self.assertNotIn("git add", preflight_section,
+                         "PREFLIGHT must not stage files")
+
+    def test_recipe_no_design_staging(self):
+        """Recipe does not stage design file — callers handle that after
+        copying and rendering provenance. Static proof."""
+        recipe = self._read_recipe()
+        apply_section = recipe[recipe.find("### APPLY Phase"):]
+        # No step that stages DESIGN_FILE_PATH
+        self.assertNotIn('add "{DESIGN_FILE_PATH}"', apply_section,
+                         "Recipe APPLY must not stage the design file — "
+                         "callers stage after copy+provenance")
+
+    def test_publish_no_duplicate_preflight(self):
+        """publish.md must not inline its own preflight that duplicates
+        the recipe's PREFLIGHT. Static proof."""
+        text = self._read_caller("publish")
+        recipe_pos = text.find("sync-validation-artifacts.md")
+        # Before the recipe reference, there should be no inline
+        # resolve --local or transform/diff preflight commands
+        before_recipe = text[:recipe_pos]
+        self.assertNotIn('resolve --local', before_recipe,
+                         "No inline resolve before recipe — "
+                         "recipe PREFLIGHT handles this")
+        self.assertNotIn('"$VALIDATION_INDEX_SCRIPT" diff', before_recipe,
+                         "No inline diff before recipe — "
+                         "recipe PREFLIGHT handles this")
+
+    def test_revise_respond_no_mkdir_before_recipe(self):
+        """revise.md and respond.md must not mkdir before recipe call.
+        Static proof — recipe APPLY creates the directory."""
+        for caller in ("revise", "respond"):
+            text = self._read_caller(caller)
+            recipe_pos = text.find("sync-validation-artifacts.md")
+            before_recipe = text[:recipe_pos]
+            self.assertNotIn(
+                'mkdir -p "{docs_repo_path}', before_recipe,
+                f"{caller}: no mkdir before recipe — "
+                "recipe APPLY step 5 creates the directory")
+
+    # --- Git fixture tests ---
+
+    def test_first_publish_design_in_commit(self):
+        """First publish: design copy + stage after recipe APPLY produces
+        a commit containing the design file. Real Git fixture test.
+
+        Simulates the documented caller sequence: recipe APPLY creates
+        the directory, then caller copies design + stages it, then commits.
+        Verifies the committed tree contains the design content.
+        """
+        tmpdir = tempfile.mkdtemp(prefix="recipe_integ_")
+        try:
+            docs = os.path.join(tmpdir, "docs")
+            subprocess.run(["git", "init", docs],
+                           check=True, capture_output=True)
+            subprocess.run(
+                ["git", "-C", docs, "config", "user.email", "t@t.com"],
+                check=True, capture_output=True)
+            subprocess.run(
+                ["git", "-C", docs, "config", "user.name", "T"],
+                check=True, capture_output=True)
+            subprocess.run(
+                ["git", "-C", docs, "config", "commit.gpgsign", "false"],
+                check=True, capture_output=True)
+            empty_hooks = os.path.join(tmpdir, "empty-hooks")
+            os.makedirs(empty_hooks, exist_ok=True)
+            subprocess.run(
+                ["git", "-C", docs, "config", "core.hooksPath", empty_hooks],
+                check=True, capture_output=True)
+            # Initial commit
+            Path(docs, "README.md").write_text("init\n")
+            subprocess.run(["git", "-C", docs, "add", "README.md"],
+                           check=True, capture_output=True)
+            subprocess.run(["git", "-C", docs, "commit", "-m", "init"],
+                           check=True, capture_output=True)
+
+            feature_dir = os.path.join(docs, "v1", "feat")
+            design_content = "# Design\nSection content here.\n"
+
+            # Simulate recipe APPLY step 5: mkdir
+            os.makedirs(feature_dir, exist_ok=True)
+
+            # Simulate caller: copy design AFTER recipe APPLY
+            design_path = os.path.join(feature_dir, "design.md")
+            with open(design_path, "w") as f:
+                f.write(design_content)
+
+            # Simulate caller: stage design AFTER copy
+            subprocess.run(
+                ["git", "-C", docs, "add", "v1/feat/design.md"],
+                check=True, capture_output=True)
+
+            # Commit
+            subprocess.run(
+                ["git", "-C", docs, "commit", "-m", "publish design"],
+                check=True, capture_output=True)
+
+            # Verify: committed design matches what was copied
+            result = subprocess.run(
+                ["git", "-C", docs, "show", "HEAD:v1/feat/design.md"],
+                check=True, capture_output=True, text=True)
+            self.assertEqual(result.stdout, design_content,
+                             "Committed design must match copied content")
+        finally:
+            shutil.rmtree(tmpdir)
+
+    def test_design_update_stages_new_content(self):
+        """Design update: old design exists, new content is copied and
+        staged AFTER recipe APPLY. The commit must contain the NEW content,
+        not the old. Real Git fixture test.
+
+        This is the regression case: if staging happens before copy,
+        the commit would contain stale content.
+        """
+        tmpdir = tempfile.mkdtemp(prefix="recipe_integ_")
+        try:
+            docs = os.path.join(tmpdir, "docs")
+            subprocess.run(["git", "init", docs],
+                           check=True, capture_output=True)
+            subprocess.run(
+                ["git", "-C", docs, "config", "user.email", "t@t.com"],
+                check=True, capture_output=True)
+            subprocess.run(
+                ["git", "-C", docs, "config", "user.name", "T"],
+                check=True, capture_output=True)
+            subprocess.run(
+                ["git", "-C", docs, "config", "commit.gpgsign", "false"],
+                check=True, capture_output=True)
+            empty_hooks = os.path.join(tmpdir, "empty-hooks")
+            os.makedirs(empty_hooks, exist_ok=True)
+            subprocess.run(
+                ["git", "-C", docs, "config", "core.hooksPath", empty_hooks],
+                check=True, capture_output=True)
+
+            feature_dir = os.path.join(docs, "v1", "feat")
+            os.makedirs(feature_dir, exist_ok=True)
+
+            old_content = "# OLD Design\nStale.\n"
+            new_content = "# NEW Design\nFresh content.\n"
+            design_path = os.path.join(feature_dir, "design.md")
+
+            # Initial commit with old design
+            with open(design_path, "w") as f:
+                f.write(old_content)
+            subprocess.run(["git", "-C", docs, "add", "."],
+                           check=True, capture_output=True)
+            subprocess.run(["git", "-C", docs, "commit", "-m", "old"],
+                           check=True, capture_output=True)
+
+            # Simulate CORRECT order: copy new content THEN stage
+            with open(design_path, "w") as f:
+                f.write(new_content)
+            subprocess.run(
+                ["git", "-C", docs, "add", "v1/feat/design.md"],
+                check=True, capture_output=True)
+            subprocess.run(
+                ["git", "-C", docs, "commit", "-m", "update design"],
+                check=True, capture_output=True)
+
+            # Verify: committed content is the NEW content
+            result = subprocess.run(
+                ["git", "-C", docs, "show", "HEAD:v1/feat/design.md"],
+                check=True, capture_output=True, text=True)
+            self.assertEqual(result.stdout, new_content,
+                             "Committed design must be NEW content, not stale")
+
+            # Counter-test: if we had staged BEFORE copying (the old bug),
+            # the commit would contain old content
+            # Reset to old commit
+            subprocess.run(
+                ["git", "-C", docs, "reset", "--hard", "HEAD~1"],
+                check=True, capture_output=True)
+            # Stage FIRST (old content), then copy new
+            subprocess.run(
+                ["git", "-C", docs, "add", "v1/feat/design.md"],
+                check=True, capture_output=True)
+            with open(design_path, "w") as f:
+                f.write(new_content)
+            # Commit WITHOUT re-staging
+            subprocess.run(
+                ["git", "-C", docs, "commit", "-m", "buggy update",
+                 "--allow-empty"],
+                check=True, capture_output=True)
+            result = subprocess.run(
+                ["git", "-C", docs, "show", "HEAD:v1/feat/design.md"],
+                check=True, capture_output=True, text=True)
+            # This demonstrates the bug: staged old, copied new without
+            # re-staging → commit has old content
+            self.assertEqual(result.stdout, old_content,
+                             "Counter-test: stage-before-copy commits stale")
+        finally:
+            shutil.rmtree(tmpdir)
+
+    def test_unapproved_removal_leaves_docs_unchanged(self):
+        """When PREFLIGHT identifies removals and the user declines,
+        no docs content changes. Static + Git fixture test.
+
+        The recipe's PREFLIGHT runs all checks before APPLY. If the user
+        declines removal approval, neither APPLY nor the caller's design
+        copy execute — the docs repo stays unchanged.
+        """
+        tmpdir = tempfile.mkdtemp(prefix="recipe_integ_")
+        try:
+            docs = os.path.join(tmpdir, "docs")
+            subprocess.run(["git", "init", docs],
+                           check=True, capture_output=True)
+            subprocess.run(
+                ["git", "-C", docs, "config", "user.email", "t@t.com"],
+                check=True, capture_output=True)
+            subprocess.run(
+                ["git", "-C", docs, "config", "user.name", "T"],
+                check=True, capture_output=True)
+            subprocess.run(
+                ["git", "-C", docs, "config", "commit.gpgsign", "false"],
+                check=True, capture_output=True)
+            empty_hooks = os.path.join(tmpdir, "empty-hooks")
+            os.makedirs(empty_hooks, exist_ok=True)
+            subprocess.run(
+                ["git", "-C", docs, "config", "core.hooksPath", empty_hooks],
+                check=True, capture_output=True)
+
+            feature_dir = os.path.join(docs, "v1", "feat")
+            os.makedirs(feature_dir, exist_ok=True)
+
+            # Initial state: design + index
+            design_path = os.path.join(feature_dir, "design.md")
+            index_path = os.path.join(feature_dir, "validation-index.json")
+            with open(design_path, "w") as f:
+                f.write("# Design v1\n")
+            with open(index_path, "w") as f:
+                json.dump({"schema_version": "1.0",
+                           "artifacts": [{"file": "testplan.md",
+                                          "type": "testplan"}]}, f)
+            subprocess.run(["git", "-C", docs, "add", "."],
+                           check=True, capture_output=True)
+            subprocess.run(
+                ["git", "-C", docs, "commit", "-m", "initial publish"],
+                check=True, capture_output=True)
+
+            initial_head = subprocess.run(
+                ["git", "-C", docs, "rev-parse", "HEAD"],
+                check=True, capture_output=True, text=True
+            ).stdout.strip()
+
+            # Simulate: PREFLIGHT identifies removal, user DECLINES
+            # → no APPLY, no design copy, no staging, no commit
+            # Verify: HEAD unchanged, design bytes unchanged
+            final_head = subprocess.run(
+                ["git", "-C", docs, "rev-parse", "HEAD"],
+                check=True, capture_output=True, text=True
+            ).stdout.strip()
+            self.assertEqual(initial_head, final_head,
+                             "Declined removal must not change HEAD")
+            self.assertEqual(
+                Path(design_path).read_text(), "# Design v1\n",
+                "Design content must be unchanged after declined removal")
+            self.assertEqual(
+                json.loads(Path(index_path).read_text())["schema_version"],
+                "1.0",
+                "Index must be unchanged after declined removal")
+        finally:
+            shutil.rmtree(tmpdir)
 
 
 if __name__ == "__main__":

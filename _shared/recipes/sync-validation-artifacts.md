@@ -17,7 +17,7 @@ artifacts in the docs repo.
 | VALIDATION_INDEX_SCRIPT | Yes | Resolved path to `validation_index.py` — each fresh shell must re-resolve this before use |
 | DOCS_REPO_PATH | Yes | Path to the docs repo checkout |
 | FEATURE_DIR | Yes | Feature directory within the docs repo (e.g., `v2.1/feature-slug`) |
-| DESIGN_FILE_PATH | Yes | Published path of the design file (e.g., `v2.1/feature-slug/design.md`) |
+| DESIGN_FILE_PATH | No | Published path of the design file — not used by the recipe itself but accepted for caller convenience when passing the same parameter block |
 
 ## Phases
 
@@ -175,20 +175,11 @@ cp ".artifacts/design/{ISSUE_KEY}/{LOCAL}" "{DOCS_REPO_PATH}/{FEATURE_DIR}/{PUBL
 git -C "{DOCS_REPO_PATH}" add "{FEATURE_DIR}/{PUBLISHED_AS}"
 ```
 
-When the current set is empty, skip copy but still create the
-directory if design staging requires it.
+When the current set is empty, skip artifact copy but still create
+the feature directory so the caller can copy the design file after
+this recipe completes.
 
-#### 6. Stage design file
-
-Stage the design file independently of validation artifacts — a pure
-design update or retirement must commit the design change even when
-both validation sets are empty:
-
-```bash
-git -C "{DOCS_REPO_PATH}" add "{DESIGN_FILE_PATH}"
-```
-
-#### 7. Update published index
+#### 6. Update published index
 
 If the current set is non-empty, transform and write:
 
@@ -199,7 +190,7 @@ python3 "$VALIDATION_INDEX_SCRIPT" transform ".artifacts/design/{ISSUE_KEY}/vali
 git -C "{DOCS_REPO_PATH}" add "{FEATURE_DIR}/validation-index.json"
 ```
 
-#### 8. Remove retired artifacts
+#### 7. Remove retired artifacts
 
 **Non-empty current set with previous snapshot:** Re-diff using the
 final published index to verify the removal set is unchanged from
@@ -242,7 +233,7 @@ same `git ls-files` / tracked-or-owned removal logic.
 
 Staged deletions must be committed even with an empty current set.
 
-#### 9. Update metadata
+#### 8. Update metadata
 
 Update `publish-metadata.json`: set `validation_artifacts` to match
 the current published set (preserving existing keys and types, with
@@ -256,7 +247,9 @@ testplan's full published path (or remove if no primary testplan).
 - Empty-set retirement approval happens in PREFLIGHT, before any
   docs-repo mutation
 - User-approved removal set is verified unchanged before execution
-- Design staging is independent of artifact existence
+- Callers copy the design file and render provenance AFTER this
+  recipe's APPLY phase completes (the directory exists), then stage it
+  themselves — design staging is independent of artifact existence
 - A state change between PREFLIGHT and APPLY invalidates and restarts
 - Empty/non-empty/first-publish/copy-failure/invalid-index states are
   distinct and handled separately
