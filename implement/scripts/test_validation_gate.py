@@ -1456,6 +1456,10 @@ class TestBranchMismatch(unittest.TestCase):
 
     def test_push_named_branch_pushes_branch_state(self):
         """git push remote branch pushes the named branch's tip, not HEAD."""
+        # Capture the initial branch (varies with init.defaultBranch config)
+        initial_branch = subprocess.run(
+            ["git", "branch", "--show-current"],
+            capture_output=True, text=True, check=True).stdout.strip()
         # Create a bare remote
         bare = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, bare, ignore_errors=True)
@@ -1473,8 +1477,8 @@ class TestBranchMismatch(unittest.TestCase):
         subprocess.run(["git", "commit", "-m", "feat"],
                        check=True, capture_output=True)
         feat_sha = get_head(self.repo)
-        # Switch to main and make a different commit
-        subprocess.run(["git", "checkout", "main"],
+        # Switch back to the initial branch and make a different commit
+        subprocess.run(["git", "checkout", initial_branch],
                        check=True, capture_output=True)
         with open("main.txt", "w") as f:
             f.write("main\n")
