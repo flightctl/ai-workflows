@@ -248,6 +248,23 @@ push, apply these checks in order:
 # Exact head ref query — canonical form for all callers.
 # Checked capture: a failed query is UNKNOWN and must exit nonzero,
 # never treated as empty/absent. Redact credential-bearing errors.
+
+# Second-rewrite guard: verify the frozen push URL is not rewritten
+# again by a local insteadOf/pushInsteadOf rule before the network
+# query.  --get-url expands insteadOf rules WITHOUT remote contact
+# (see git-scm.com/docs/git-ls-remote).  If the effective query URL
+# differs from the validated push URL, a second rewrite would send
+# the query (and subsequent push) to a different repository.
+_effective_url=""
+if ! _effective_url=$(git -C "$DOCS_REPO_PATH" ls-remote --get-url "$push_url" 2>/dev/null); then
+  echo "Error: cannot resolve effective query URL for push destination" >&2
+  exit 1
+fi
+if [ "$_effective_url" != "$push_url" ]; then
+  echo "Error: push URL would be rewritten by insteadOf to a different destination; stopping" >&2
+  exit 1
+fi
+
 _lr_out=""
 if ! _lr_out=$(git -C "$DOCS_REPO_PATH" ls-remote --heads "$push_url" "refs/heads/{branch}" 2>/dev/null); then
   echo "Error: ls-remote query failed; cannot determine remote branch state" >&2

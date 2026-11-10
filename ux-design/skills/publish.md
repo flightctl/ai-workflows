@@ -78,9 +78,9 @@ either check fails, stop, report the failed check, and ask the researcher to
 correct the path before continuing. Capture the remote URL privately via
 `git -C "{docs_repo_path}" remote get-url origin` — do not display
 or persist the raw value. Normalize both the captured URL and any
-existing `docs_repo_remote` from config to credential-free
-canonical identity (`{host}/{owner}/{repo}`), stripping userinfo,
-query, and fragment first. Compare; confirm with the researcher
+existing `docs_repo_remote` from config to canonical identity
+(`{host}[:nondefaultport]/{owner}/{repo}`), stripping userinfo,
+query, and fragment. Compare; confirm with the researcher
 (new config); store only the credential-free canonical form.
 
 If reading or validating the remote fails, stop before publishing, report the

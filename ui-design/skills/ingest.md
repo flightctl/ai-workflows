@@ -458,18 +458,19 @@ structure:
 ### Screenshot Observations
 
 - **Screenshots:** {`inspected` / `partial` / `none` / `deferred` / `unavailable`}
-- **Manifest revision:** {context_revision from manifest, or "N/A"}
-- **Manifest iteration:** {prototype_iteration from manifest, or "N/A"}
+- **Manifest revision:** {context_revision, or "N/A"}
+- **Manifest iteration:** {prototype_iteration, or "N/A"}
 
-- **Excluded embeds:** {excluded unmatched embed IDs with ref/reason, or "None"}
-- **Continuation:** {continuation decision/scope, or "N/A"}
+- **Excluded embeds:** {unmatched embed IDs with ref/reason, or "None"}
+- **Continuation:** {decision/scope, or "N/A"}
 
-{`inspected`/`partial`: one row per declared ID per inspection recipe.}
+{`inspected`/`partial`/`unavailable` with declared IDs: one 9-column
+ row per declared ID preserving Refs, reasons, and decisions.}
 
 | ID | Status | Identity | Ref | Expected SHA | Observed SHA | Observation | Spec Match | Notes |
 |----|--------|----------|-----|-------------|-------------|-------------|------------|-------|
 
-{`none`/`deferred`/`unavailable`: one-line reason and per-image status.}
+{`none`/`deferred` with no declared IDs: no fabricated rows.}
 
 ### Feasibility & Phasing
 

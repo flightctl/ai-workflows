@@ -25,6 +25,16 @@ Read the manifest at `{MANIFEST_PATH}`. It contains per-image `sha256`,
 If the manifest is missing, warn the user and record `manifest: unavailable`
 per image.
 
+**Manifest ID uniqueness.** When the manifest is present and non-empty,
+verify every entry's `id` field is unique among manifest entries. If
+any ID appears more than once, stop before §4 identity verification —
+duplicate manifest IDs make digest selection ambiguous and must not be
+resolved by first-match or arbitrary choice. Direct the researcher to
+repair the authoring manifest (deduplicate or re-curate). Distinct
+entries with different IDs sharing the same `sha256` remain valid.
+Absent or empty manifests bypass this check (existing per-image
+`manifest: unavailable` rules apply).
+
 ### 2. Account for every declared index ID
 
 Read `{HANDOFF_FILE}`'s **Screenshot Index** section and collect all

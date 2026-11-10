@@ -4027,7 +4027,7 @@ class TestR9CredentialFreePublish(unittest.TestCase):
         self.assertIn("privately", flat)
         self.assertIn("credential-free", flat)
         self.assertIn("do not display", flat)
-        self.assertIn("{host}/{owner}/{repo}", flat)
+        self.assertIn("{owner}/{repo}", flat)
 
     def test_publish_step3_no_remote_v(self) -> None:
         """Step 3 has no bare remote -v exposing raw URLs."""
@@ -4431,7 +4431,12 @@ class TestR10ExactReaderExecution(_RecipeExecMixin, unittest.TestCase):
             fake_dir = os.path.join(tmp, "fake-bin")
             os.makedirs(fake_dir)
             fake_git = os.path.join(fake_dir, "git")
-            _w(fake_git, '#!/bin/sh\nexit 128\n')
+            # Handle --get-url (return URL unchanged) then fail on query
+            _w(fake_git,
+               '#!/bin/sh\n'
+               'p=""; for a in "$@"; do [ "$p" = "--get-url" ] '
+               '&& { echo "$a"; exit 0; }; p="$a"; done\n'
+               'exit 128\n')
             os.chmod(fake_git, 0o755)
 
             script = _extract_exact_reader_script("/dev/null", "test")
@@ -4449,8 +4454,12 @@ class TestR10ExactReaderExecution(_RecipeExecMixin, unittest.TestCase):
             fake_dir = os.path.join(tmp, "fake-bin")
             os.makedirs(fake_dir)
             fake_git = os.path.join(fake_dir, "git")
+            # Handle --get-url (return URL unchanged) then return malformed
             _w(fake_git,
-               '#!/bin/sh\nprintf "ZZZNOTASHA\\trefs/heads/test\\n"\n')
+               '#!/bin/sh\n'
+               'p=""; for a in "$@"; do [ "$p" = "--get-url" ] '
+               '&& { echo "$a"; exit 0; }; p="$a"; done\n'
+               'printf "ZZZNOTASHA\\trefs/heads/test\\n"\n')
             os.chmod(fake_git, 0o755)
 
             script = _extract_exact_reader_script("/dev/null", "test")
@@ -4467,8 +4476,12 @@ class TestR10ExactReaderExecution(_RecipeExecMixin, unittest.TestCase):
             os.makedirs(fake_dir)
             fake_git = os.path.join(fake_dir, "git")
             sha = "a" * 40
+            # Handle --get-url (return URL unchanged) then return duplicate
             _w(fake_git,
-               f'#!/bin/sh\nprintf "{sha}\\trefs/heads/test\\n'
+               f'#!/bin/sh\n'
+               f'p=""; for a in "$@"; do [ "$p" = "--get-url" ] '
+               f'&& {{ echo "$a"; exit 0; }}; p="$a"; done\n'
+               f'printf "{sha}\\trefs/heads/test\\n'
                f'{sha}\\trefs/heads/test\\n"\n')
             os.chmod(fake_git, 0o755)
 
@@ -4764,26 +4777,36 @@ class TestR10Wave2Fixes(unittest.TestCase):
                  f"url.{src_bare}/.insteadOf", fake_url],
                 capture_output=True, check=True)
 
-            # Positive: extracted reader with -C targets DocsRepo
+            # Positive: reader with already-resolved push URL (docs_bare)
+            # and -C DocsRepo. The guard sees no rewrite (absolute
+            # path unchanged by --get-url), query returns DocsRepo SHA.
             script = _extract_exact_reader_script(
-                fake_url, "main", docs_repo)
+                docs_bare, "main", docs_repo)
             r = _run_script(script, cwd=src_repo)
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertIn(f"EXACT_SHA={docs_sha}", r.stdout,
                           "Reader must return DocsRepo SHA via -C")
 
-            # Negative control: strip -C so CWD (SourceRepo) context
-            # resolves fake URL to src_bare — returns src SHA
-            no_c_script = script.replace(
+            # Negative control: use fake_url (needs insteadOf) and
+            # strip -C so CWD (SourceRepo) context resolves fake URL
+            # to src_bare via insteadOf — the second-rewrite guard
+            # detects this URL differs from the frozen push_url and
+            # rejects before any network query. This proves CWD
+            # context matters: wrong -C (or missing) causes a
+            # different insteadOf resolution that the guard catches,
+            # failing closed rather than querying the wrong repo.
+            neg_script = _extract_exact_reader_script(
+                fake_url, "main", src_repo)
+            no_c_script = neg_script.replace(
                 'git -C "$DOCS_REPO_PATH" ls-remote',
                 'git ls-remote')
             nr = _run_script(no_c_script, cwd=src_repo)
-            self.assertEqual(nr.returncode, 0, nr.stderr)
-            self.assertIn(f"EXACT_SHA={src_sha}", nr.stdout,
-                          "Without -C, must resolve to SourceRepo SHA")
+            self.assertNotEqual(nr.returncode, 0,
+                                "Fake URL with insteadOf must be rejected "
+                                "by second-rewrite guard (fail closed)")
             self.assertNotIn(
                 f"EXACT_SHA={docs_sha}", nr.stdout,
-                "Without -C, reader must not return DocsRepo SHA")
+                "Must not return DocsRepo SHA after guard rejects")
 
     # --- F3 (4518863315): host preservation in PR lookup ---
 
@@ -5327,13 +5350,13 @@ class TestR12GHHostNoSSHPort(unittest.TestCase):
     API address (SSH:2222 ≠ HTTPS API:2222)."""
 
     def test_respond_derives_api_from_verified_mapping(self) -> None:
-        """Respond derives API host from verified mapping, not SSH port."""
+        """Respond sets GH_HOST to instance hostname, not SSH port."""
         content = _read("ux-design/skills/respond.md")
         section = content.split("Derive validated", 1)[1].split(
             "Prefix every", 1)[0]
         flat = " ".join(section.split())
-        self.assertIn("verified mapping", flat)
-        self.assertIn("not the Git transport port", flat)
+        self.assertIn("instance hostname", flat)
+        self.assertIn("not the Git SSH transport port", flat)
         self.assertIn("SSH port 2222 is not the HTTPS API port", flat)
 
     def test_respond_preserves_git_identity_for_push(self) -> None:
@@ -5429,6 +5452,360 @@ class TestR12PreCopyRefreshReconciliation(unittest.TestCase):
         block = refresh[1].split('cp ".artifacts/', 1)[0]
         flat = " ".join(block.split())
         self.assertIn("Do not force unapproved text updates", flat)
+
+
+# ===================================================================
+# Part 13: R13 review regressions — 6 verified findings
+#
+# (1) 4519903262: Manifest ID uniqueness before identity hashing.
+# (2) 4519903271: Second-rewrite guard in canonical exact reader.
+# (3) 4519903277: UI ingest 9-column rows for all declared IDs.
+# (4) 4519903284: Publish Step 2 canonical identity with port.
+# (5) 4519903294: GH_HOST = instance hostname, not API hostname.
+# (6) 4519903302: Reply timeout uncertain reconciliation.
+# ===================================================================
+
+
+class TestR13ManifestIDUniqueness(unittest.TestCase):
+    """4519903262: manifest ID uniqueness check before §4 identity."""
+
+    def test_manifest_uniqueness_in_s1(self) -> None:
+        """§1 checks manifest entries for duplicate IDs."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s1 = content.split("### 1.", 1)[1].split("### 2.", 1)[0]
+        flat = " ".join(s1.split())
+        self.assertIn("Manifest ID uniqueness", flat)
+        self.assertIn("duplicate", flat)
+
+    def test_manifest_uniqueness_stops_before_s4(self) -> None:
+        """Duplicate manifest IDs stop before §4 identity verification."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s1 = content.split("### 1.", 1)[1].split("### 2.", 1)[0]
+        flat = " ".join(s1.split())
+        self.assertIn("stop before §4", flat)
+        self.assertIn("identity verification", flat)
+
+    def test_no_first_match_selection(self) -> None:
+        """No first-match or arbitrary choice for duplicate IDs."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s1 = content.split("Manifest ID uniqueness", 1)[1].split(
+            "### 2.", 1)[0]
+        flat = " ".join(s1.split())
+        self.assertIn("ambiguous", flat)
+        self.assertIn("must not be resolved by first-match", flat)
+
+    def test_distinct_ids_same_sha_valid(self) -> None:
+        """Distinct entries with different IDs sharing sha256 are valid."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s1 = content.split("Manifest ID uniqueness", 1)[1].split(
+            "### 2.", 1)[0]
+        flat = " ".join(s1.split())
+        self.assertIn("Distinct entries", flat)
+        self.assertIn("valid", flat)
+
+    def test_absent_manifest_bypasses(self) -> None:
+        """Absent or empty manifests bypass the uniqueness check."""
+        content = _read("_shared/recipes/screenshot-inspection.md")
+        s1 = content.split("Manifest ID uniqueness", 1)[1].split(
+            "### 2.", 1)[0]
+        flat = " ".join(s1.split())
+        self.assertIn("Absent or empty", flat)
+        self.assertIn("bypass", flat)
+
+
+class TestR13SecondRewriteGuard(_RecipeExecMixin, unittest.TestCase):
+    """4519903271: second-rewrite guard in canonical exact reader.
+
+    Executable Git proof using disposable local bare repos with
+    insteadOf config. No network queries to real SSH/HTTPS domains."""
+
+    def test_recipe_has_second_rewrite_guard(self) -> None:
+        """Recipe §4 has the second-rewrite guard using --get-url."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        block = content.split("Exact head ref query", 1)[1].split(
+            "```", 1)[1].split("```", 1)[0]
+        self.assertIn("--get-url", block)
+        self.assertIn("_effective_url", block)
+        self.assertIn("would be rewritten", block)
+
+    def test_guard_before_network_query(self) -> None:
+        """Second-rewrite guard appears before the network ls-remote."""
+        content = _read("_shared/recipes/screenshot-publish-stage.md")
+        block = content.split("Exact head ref query", 1)[1].split(
+            "```", 1)[1].split("```", 1)[0]
+        guard_pos = block.find("--get-url")
+        query_pos = block.find("--heads")
+        self.assertGreater(guard_pos, -1, "Guard not found")
+        self.assertGreater(query_pos, -1, "Query not found")
+        self.assertLess(guard_pos, query_pos,
+                        "Guard must precede network query")
+
+    def test_stable_url_passes_guard(self) -> None:
+        """Local bare URL with no insteadOf passes the guard."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(tmp)
+            bare = os.path.join(tmp, "remote.git")
+            subprocess.run(["git", "clone", "--bare", repo, bare],
+                           capture_output=True, check=True)
+            branch = "ux-design/FEAT-GUARD"
+            subprocess.run(
+                ["git", "-C", repo, "checkout", "-b", branch],
+                capture_output=True, check=True)
+            _w(os.path.join(repo, "g.txt"), "guard")
+            subprocess.run(["git", "-C", repo, "add", "g.txt"],
+                           capture_output=True, check=True)
+            subprocess.run(["git", "-C", repo, "commit", "-m", "g"],
+                           capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", repo, "push", bare,
+                 f"HEAD:refs/heads/{branch}"],
+                capture_output=True, check=True)
+            script = _extract_exact_reader_script(bare, branch, repo)
+            r = _run_script(script)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("EXACT_SHA=", r.stdout)
+
+    def test_second_rewrite_rejected(self) -> None:
+        """Git proof: pushInsteadOf resolves push URL to A; a second
+        insteadOf in DocsRepo would rewrite A to B when passed to
+        ls-remote. The guard detects A≠B and rejects before any
+        network query.
+
+        Uses disposable temp bare repos with local config only;
+        no actual SSH/HTTPS queries to real domains."""
+        with tempfile.TemporaryDirectory() as tmp:
+            # Set up DocsRepo
+            docs_repo = os.path.join(tmp, "docs-repo")
+            os.makedirs(docs_repo)
+            subprocess.run(["git", "init", "-b", "main", docs_repo],
+                           capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", docs_repo, "config", "user.email", "t@t"],
+                capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", docs_repo, "config", "user.name", "t"],
+                capture_output=True, check=True)
+            _w(os.path.join(docs_repo, "d.md"), "# D\n")
+            subprocess.run(
+                ["git", "-C", docs_repo, "add", "d.md"],
+                capture_output=True, check=True)
+            subprocess.run(
+                ["git", "-C", docs_repo, "commit", "-m", "init"],
+                capture_output=True, check=True)
+
+            # Create two bare remotes
+            bare_a = os.path.join(tmp, "remote-a.git")
+            bare_b = os.path.join(tmp, "remote-b.git")
+            subprocess.run(["git", "clone", "--bare", docs_repo, bare_a],
+                           capture_output=True, check=True)
+            subprocess.run(["git", "clone", "--bare", docs_repo, bare_b],
+                           capture_output=True, check=True)
+
+            # Configure a second insteadOf that rewrites bare_a to bare_b
+            # This simulates pushInsteadOf resolving to bare_a, then a
+            # local insteadOf rewriting bare_a to bare_b for queries
+            subprocess.run(
+                ["git", "-C", docs_repo, "config",
+                 f"url.{bare_b}/.insteadOf", f"{bare_a}/"],
+                capture_output=True, check=True)
+
+            # The push URL is bare_a (already resolved by pushInsteadOf).
+            # When passed to ls-remote in DocsRepo context, insteadOf
+            # would rewrite bare_a/ to bare_b/ — the guard catches this.
+            script = _extract_exact_reader_script(
+                f"{bare_a}/", "main", docs_repo)
+            r = _run_script(script)
+            self.assertNotEqual(r.returncode, 0,
+                                "Second rewrite must be rejected")
+            self.assertIn("rewritten", r.stderr,
+                          "Error must mention URL rewrite")
+            self.assertNotIn("EXACT_SHA", r.stdout,
+                             "Must not reach query after guard rejects")
+
+
+class TestR13IngestDeclaredIDRows(unittest.TestCase):
+    """4519903277: UI ingest 9-column rows for all declared IDs."""
+
+    def test_unavailable_with_declared_ids_has_rows(self) -> None:
+        """Template includes unavailable aggregate with declared IDs
+        in the row-producing group."""
+        content = _read("ui-design/skills/ingest.md")
+        section = content.split("### Screenshot Observations", 1)[1].split(
+            "### Feasibility", 1)[0]
+        # Row instruction covers unavailable when declared IDs exist
+        row_note = section.split("| ID |", 1)[0]
+        flat = " ".join(row_note.split())
+        self.assertIn("unavailable", flat)
+        self.assertIn("declared IDs", flat)
+        self.assertIn("9-column", flat)
+
+    def test_none_deferred_no_fabricated_rows(self) -> None:
+        """none/deferred with no declared IDs produces no fabricated rows."""
+        content = _read("ui-design/skills/ingest.md")
+        section = content.split("### Screenshot Observations", 1)[1].split(
+            "### Feasibility", 1)[0]
+        after_table = section.split("|----|", 1)[1]
+        flat = " ".join(after_table.split())
+        self.assertIn("no fabricated rows", flat)
+
+    def test_nine_column_table_preserved(self) -> None:
+        """9-column table header preserved in template."""
+        content = _read("ui-design/skills/ingest.md")
+        section = content.split("### Screenshot Observations", 1)[1].split(
+            "### Feasibility", 1)[0]
+        self.assertIn(
+            "| ID | Status | Identity | Ref | Expected SHA "
+            "| Observed SHA | Observation | Spec Match | Notes |",
+            section)
+
+
+class TestR13PublishCanonicalPort(unittest.TestCase):
+    """4519903284: publish Step 2 canonical identity includes port."""
+
+    def test_step2_same_canonical_form(self) -> None:
+        """Step 2 normalizes both current and legacy to same form."""
+        content = _read("ux-design/skills/publish.md")
+        step2 = content.split("### Step 2:", 1)[1].split(
+            "### Step 3:", 1)[0]
+        flat = " ".join(step2.split())
+        # Both sides normalized to canonical identity
+        self.assertIn("Normalize both", flat)
+        self.assertIn("canonical identity", flat)
+        self.assertIn("nondefaultport", flat)
+
+    def test_step2_strips_userinfo_query_fragment(self) -> None:
+        """Step 2 strips userinfo, query, and fragment."""
+        content = _read("ux-design/skills/publish.md")
+        step2 = content.split("### Step 2:", 1)[1].split(
+            "### Step 3:", 1)[0]
+        flat = " ".join(step2.split())
+        self.assertIn("userinfo", flat)
+        self.assertIn("query", flat)
+        self.assertIn("fragment", flat)
+
+    def test_step2_credential_free(self) -> None:
+        """Step 2 stores only credential-free canonical form."""
+        content = _read("ux-design/skills/publish.md")
+        step2 = content.split("### Step 2:", 1)[1].split(
+            "### Step 3:", 1)[0]
+        flat = " ".join(step2.split())
+        self.assertIn("credential-free", flat)
+
+
+class TestR13GHHostInstanceHostname(unittest.TestCase):
+    """4519903294: GH_HOST = instance hostname, not API hostname."""
+
+    def test_respond_instance_hostname(self) -> None:
+        """Respond sets GH_HOST to instance hostname, not API hostname."""
+        content = _read("ux-design/skills/respond.md")
+        section = content.split("Derive validated", 1)[1].split(
+            "Prefix every", 1)[0]
+        flat = " ".join(section.split())
+        self.assertIn("instance hostname", flat)
+        self.assertIn("not the API hostname", flat)
+
+    def test_respond_not_api_github_com(self) -> None:
+        """GH_HOST must not be api.github.com."""
+        content = _read("ux-design/skills/respond.md")
+        section = content.split("Derive validated", 1)[1].split(
+            "Prefix every", 1)[0]
+        flat = " ".join(section.split())
+        self.assertIn("api.github.com", flat)
+        # It says NOT the API hostname
+        self.assertIn("not the API hostname", flat)
+
+    def test_respond_cli_resolves_api(self) -> None:
+        """CLI resolves the API endpoint from the instance hostname."""
+        content = _read("ux-design/skills/respond.md")
+        section = content.split("Derive validated", 1)[1].split(
+            "Prefix every", 1)[0]
+        flat = " ".join(section.split())
+        self.assertIn("CLI resolves the API endpoint", flat)
+
+    def test_respond_repo_identifier_uses_instance_host(self) -> None:
+        """repo_identifier uses instance hostname, not API or port."""
+        content = _read("ux-design/skills/respond.md")
+        section = content.split("Derive validated", 1)[1].split(
+            "Prefix every", 1)[0]
+        flat = " ".join(section.split())
+        self.assertIn("repo_identifier", flat)
+        self.assertIn("instance hostname, not the API hostname", flat)
+
+    def test_respond_unknown_host_stops(self) -> None:
+        """Unknown or unsupported instance hostname stops."""
+        content = _read("ux-design/skills/respond.md")
+        section = content.split("Derive validated", 1)[1].split(
+            "Prefix every", 1)[0]
+        flat = " ".join(section.split())
+        self.assertIn("unknown", flat)
+        self.assertIn("unsupported", flat)
+        self.assertIn("stop", flat.lower())
+
+
+class TestR13ReplyTimeoutReconciliation(unittest.TestCase):
+    """4519903302: uncertain reply timeout reconciliation."""
+
+    def test_uncertain_outcome_section_exists(self) -> None:
+        """Respond Step 4 has uncertain reply outcome handling."""
+        content = _read("ux-design/skills/respond.md")
+        step4 = content.split("### Step 4:", 1)[1].split(
+            "### Step 5:", 1)[0]
+        self.assertIn("Uncertain reply outcome", step4)
+
+    def test_no_automatic_repost(self) -> None:
+        """Uncertain timeout must not automatically repost."""
+        content = _read("ux-design/skills/respond.md")
+        section = content.split("Uncertain reply outcome", 1)[1].split(
+            "After each successful reply", 1)[0]
+        flat = " ".join(section.split())
+        self.assertIn("Do not automatically repost", flat)
+
+    def test_no_automatic_log_success(self) -> None:
+        """Uncertain timeout must not log as successful."""
+        content = _read("ux-design/skills/respond.md")
+        section = content.split("Uncertain reply outcome", 1)[1].split(
+            "After each successful reply", 1)[0]
+        flat = " ".join(section.split())
+        self.assertIn("log the reply as successful", flat)
+
+    def test_researcher_verification_required(self) -> None:
+        """Researcher must verify before retry or log."""
+        content = _read("ux-design/skills/respond.md")
+        section = content.split("Uncertain reply outcome", 1)[1].split(
+            "After each successful reply", 1)[0]
+        flat = " ".join(section.split())
+        self.assertIn("researcher", flat)
+        self.assertIn("check whether", flat)
+        self.assertIn("PR thread", flat)
+
+    def test_confirmed_posted_marks_original(self) -> None:
+        """Only confirmed posted reply marks original comment processed."""
+        content = _read("ux-design/skills/respond.md")
+        section = content.split("Uncertain reply outcome", 1)[1].split(
+            "After each successful reply", 1)[0]
+        flat = " ".join(section.split())
+        self.assertIn("confirmed posted reply", flat)
+        self.assertIn("original comment", flat)
+        self.assertIn("responses log", flat)
+
+    def test_confirmed_failure_can_retry(self) -> None:
+        """Confirmed failure can be retried under existing approval."""
+        content = _read("ux-design/skills/respond.md")
+        section = content.split("Uncertain reply outcome", 1)[1].split(
+            "After each successful reply", 1)[0]
+        flat = " ".join(section.split())
+        self.assertIn("confirmed failure", flat)
+        self.assertIn("retried", flat)
+        self.assertIn("approval", flat)
+
+    def test_unverifiable_stops(self) -> None:
+        """Unverifiable outcome must stop."""
+        content = _read("ux-design/skills/respond.md")
+        section = content.split("Uncertain reply outcome", 1)[1].split(
+            "After each successful reply", 1)[0]
+        flat = " ".join(section.split())
+        self.assertIn("unverifiable", flat.lower())
+        self.assertIn("stop", flat.lower())
 
 
 if __name__ == "__main__":

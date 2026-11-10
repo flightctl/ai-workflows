@@ -70,17 +70,23 @@ to the current design context.
 
 Derive validated `{repo_host}`, `{owner}`, `{repo}`, and
 `{repo_identifier}` (`[HOST/]OWNER/REPO`) from the frozen
-`docs_repo_remote`. For `{repo_host}` (used as `GH_HOST`),
-derive the API host from a verified mapping, not the Git
+`docs_repo_remote`. Set `{repo_host}` (used as `GH_HOST`) to
+the verified GitHub **instance hostname** (e.g., `github.com`
+or `github.example.com`), not the API hostname
+(`api.github.com`), not a URL or path, and not the Git SSH
 transport port — SSH port 2222 is not the HTTPS API port, and
-the configured CLI rejects colon in host values. For well-known
-GitHub hosts (github.com, *.ghe.com), use the standard API
-endpoint; for other hosts, verify the API endpoint is supported
-by the configured CLI before use. If no verified mapping exists,
-stop and request the researcher to confirm the API endpoint
-before any API calls — do not silently strip a verified
-non-default HTTPS API port, fall back, or guess. Preserve the
-full Git transport identity including port for push separately.
+the CLI resolves the API endpoint from the instance hostname
+internally. For well-known GitHub hosts (github.com,
+*.ghe.com), the instance hostname is sufficient; for other
+hosts, verify the instance hostname is recognized by the
+configured CLI before use. If the host is unknown or the
+instance-to-API mapping is unsupported, stop and request the
+researcher to confirm the GitHub instance hostname before any
+API calls — do not silently strip a verified non-default HTTPS
+API port, fall back, or guess. Preserve the full Git transport
+identity including port for push separately. Set
+`{repo_identifier}` to `[HOST/]OWNER/REPO` using the instance
+hostname, not the API hostname or Git transport port.
 Use these for all PR lookup, view, and reply operations.
 Prefix every `$PR_COMMENTS_SCRIPT` invocation (fetch and reply)
 with command-scoped environment so the helper's `gh` calls target
@@ -418,8 +424,21 @@ For a `review` or `top_level` comment, post a top-level reply:
 GH_HOST="{repo_host}" GH_REPO="{repo_identifier}" python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/ux-design/{issue-key}/tmp-reply.md
 ```
 
-If the reply command fails, report the error and continue without
-logging the failed reply.
+If the reply command fails with a definitive error (nonzero exit,
+HTTP 4xx/5xx), report the error and continue without logging.
+
+**Uncertain reply outcome.** If the reply command times out or
+returns an ambiguous transport error, the reply may have been
+posted before the failure was observed. Do not automatically
+repost or log the reply as successful — either action risks
+duplicates or false records. Instead, stop processing further
+comments and ask the researcher to check whether the intended
+reply appeared on the PR thread. Only a confirmed posted reply
+(researcher verification or visible in a subsequent fetch)
+marks the original comment as processed via the existing
+responses log. A confirmed failure (reply absent after
+verification) may be retried under the existing approval for
+that comment. An unverifiable outcome must stop — do not guess.
 
 After each successful reply, record its `id` so later respond rounds skip it:
 
