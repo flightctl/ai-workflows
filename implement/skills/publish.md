@@ -174,9 +174,12 @@ Immediately before pushing, re-run the validation freshness gate:
 python3 "$GATE_SCRIPT" --report .artifacts/implement/{issue-key}/05-validation-report.md
 ```
 
-If exit code is 1 (gate failure), report the JSON reason and recommend
-`/validate`. If exit code is 2 or other (script crash), report the raw
-stderr. Any non-zero exit blocks the push.
+If exit code is 1 (gate failure), use the same failure-specific
+guidance as Step 1 item 2: dirty worktree → resolve via `/code`,
+`/implement:review`, or `/revise` then `/validate`; unignored
+artifact outputs → see `../guidelines.md` Safety; stale/missing/failed
+report → `/validate`. If exit code is 2 or other (script crash),
+report the raw stderr. Any non-zero exit blocks the push.
 
 On success, record the exact candidate SHA that will be pushed. Use
 this literal 40-character value in Step 7 — do not rely on a shell
@@ -187,6 +190,17 @@ git rev-parse HEAD
 ```
 
 ### Step 5: Push Branch
+
+Verify the current branch matches the planned branch before pushing:
+
+```bash
+git branch --show-current
+```
+
+If the current branch does not exactly equal `{branch-name}` from the
+plan, or HEAD is detached, stop and report — do not push a different
+branch. Also verify `git rev-parse HEAD` still equals the SHA recorded
+in Step 4.
 
 ```bash
 python3 "$PUBLISH_SCRIPT" push --remote origin --branch {branch-name}
@@ -200,7 +214,9 @@ Check the **PR Conventions** section of `01-context.md`:
   with content from the story context and implementation/test reports.
 - If no project template exists, use the default template below.
 
-In either case, save the result to
+Before writing, verify the output path is gitignored:
+`git check-ignore -- .artifacts/implement/{issue-key}/06-pr-description.md`.
+If not ignored, stop — see `../guidelines.md` Safety. Then save to
 `.artifacts/implement/{issue-key}/06-pr-description.md`.
 
 **Default template** (used when the project has no PR template):
@@ -233,8 +249,10 @@ In either case, save the result to
 ### Step 7: Pre-PR Freshness Gate
 
 Immediately before creating the PR, run the pre-PR gate using the
-literal SHA recorded in Step 4 (substitute the actual 40-character
-value — do not rely on a shell variable):
+literal SHA recorded in Step 4. If this value is not available in the
+current context (session break, context limit), stop and request
+re-invoking `/publish` from Step 1 with fresh checks and user
+confirmation — do not infer the SHA from HEAD or the remote:
 
 ```bash
 python3 "$GATE_SCRIPT" \

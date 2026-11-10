@@ -111,6 +111,16 @@ if declining or adjusting the requested approach.
 For an in-scope change with no unresolved conflicts:
 
 1. Identify the files that will need modification or creation.
+   Normalize all target paths to repository-root-relative form before
+   any isolation checks, writes, or staging. Strip leading `./`,
+   resolve `..` components, and resolve existing parent symlinks in
+   directory components — but preserve the final path component for
+   lexical existence checks (`os.path.lexists`). Do not damage
+   leading-dot filenames (e.g., `.env`). If a target resolves outside
+   the repository root, stop and report. If the intended base
+   directory is ambiguous (e.g., a relative path with no clear
+   context), ask the user. Run all git commands from the repository
+   root with these normalized paths.
 2. **Pre-edit isolation check.** Before making any edits:
 
    a. Compare every target path against the pre-existing paths from

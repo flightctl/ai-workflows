@@ -270,9 +270,9 @@ If regressions are found:
 After automated checks pass, review the story's full diff for issues
 that automated tooling does not catch.
 
-Re-run Step 3 (resolve Local Base, verify clean worktree) before
-proceeding — Steps 4–6 may have committed fixes that changed HEAD or
-left the worktree dirty. Stop on any failure per Step 3's rules.
+Re-run Step 3's local-base and clean-worktree checks (not the
+`PASS_START_HEAD` recording — the pass-start SHA is immutable until
+Step 9). Stop on dirty worktree or unresolvable base.
 
 If `02-plan.md` has a Scope Baseline section, compare the branch diff
 (`git diff {local-base}...HEAD`) against all baseline fields: Intended

@@ -1296,6 +1296,13 @@ class TestPreExistingDetection(unittest.TestCase):
                            capture_output=True, text=True)
         self.assertNotEqual(r.returncode, 0,
                             "tracked file should NOT be reported as ignored")
+        # Positive control: an UNTRACKED .dat file IS ignored by the rule
+        with open("untracked.dat", "w") as f:
+            f.write("untracked data\n")
+        r2 = subprocess.run(["git", "check-ignore", "--", "untracked.dat"],
+                            capture_output=True, text=True)
+        self.assertEqual(r2.returncode, 0,
+                         "untracked .dat should be reported as ignored")
 
     def test_artifact_root_vs_report_file_ignore(self):
         """Tests git mechanism: '.artifacts/**' in .gitignore ignores
@@ -1317,6 +1324,119 @@ class TestPreExistingDetection(unittest.TestCase):
                          f"{rpt} should be ignored by .artifacts/**")
         # The root directory itself may or may not match (depends on git)
         # but the file path must match for the preflight to succeed
+
+
+class TestPathNormalization(unittest.TestCase):
+    """Test git mechanism for target path normalization (review.md Step 3).
+
+    These test the git mechanisms the prose instructions rely on, not
+    end-to-end LLM execution of review.md.
+    """
+
+    def setUp(self):
+        self.repo = make_temp_repo()
+        self.orig_dir = os.getcwd()
+        os.chdir(self.repo)
+
+    def tearDown(self):
+        os.chdir(self.orig_dir)
+        subprocess.run(["rm", "-rf", self.repo], check=False)
+
+    def test_dot_slash_target_matches_status(self):
+        """./pkg/a.go normalized to pkg/a.go matches git status output."""
+        os.makedirs("pkg", exist_ok=True)
+        with open("pkg/a.go", "w") as f:
+            f.write("package pkg\n")
+        subprocess.run(["git", "add", "pkg/a.go"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "add"],
+                       check=True, capture_output=True)
+        with open("pkg/a.go", "w") as f:
+            f.write("modified\n")
+        # Status from repo root reports "pkg/a.go"
+        out = subprocess.run(
+            ["git", "status", "--porcelain", "-z",
+             "--untracked-files=all", "--ignore-submodules=none"],
+            capture_output=True, check=True).stdout
+        paths = parse_status_z(out)
+        self.assertIn("pkg/a.go", paths)
+        # Normalize ./pkg/a.go → pkg/a.go
+        target = os.path.normpath("./pkg/a.go")
+        self.assertEqual(target, "pkg/a.go")
+        self.assertIn(target, paths)
+
+    def test_leading_dot_filename_preserved(self):
+        """Leading-dot filenames like .env are not damaged by normalization."""
+        target = os.path.normpath("./.env")
+        self.assertEqual(target, ".env")
+
+    def test_outside_repo_detected(self):
+        """Path resolving outside repo root is detected by relpath."""
+        root = os.path.realpath(self.repo)
+        outside = os.path.realpath(os.path.join(root, "..", "escape.txt"))
+        rel = os.path.relpath(outside, root)
+        self.assertTrue(rel.startswith(".."),
+                        "path outside repo should have .. prefix")
+
+
+class TestBranchMismatch(unittest.TestCase):
+    """Test git mechanism for publish branch verification (Step 5).
+
+    Proves that pushing a named branch pushes that branch's state,
+    which can differ from the current checkout. The branch check in
+    Step 5 prevents publishing an unchecked commit.
+    """
+
+    def setUp(self):
+        self.repo = make_temp_repo()
+        self.orig_dir = os.getcwd()
+        os.chdir(self.repo)
+
+    def tearDown(self):
+        os.chdir(self.orig_dir)
+        subprocess.run(["rm", "-rf", self.repo], check=False)
+
+    def test_push_named_branch_pushes_branch_state(self):
+        """git push remote branch pushes the named branch's tip, not HEAD."""
+        # Create a bare remote
+        bare = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, bare, ignore_errors=True)
+        subprocess.run(["git", "clone", "--bare", self.repo, bare],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "remote", "add", "test-bare", bare],
+                       check=True, capture_output=True)
+        # Create feature branch with a commit
+        subprocess.run(["git", "checkout", "-b", "feature"],
+                       check=True, capture_output=True)
+        with open("feat.txt", "w") as f:
+            f.write("feature\n")
+        subprocess.run(["git", "add", "feat.txt"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "feat"],
+                       check=True, capture_output=True)
+        feat_sha = get_head(self.repo)
+        # Switch to main and make a different commit
+        subprocess.run(["git", "checkout", "main"],
+                       check=True, capture_output=True)
+        with open("main.txt", "w") as f:
+            f.write("main\n")
+        subprocess.run(["git", "add", "main.txt"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "main update"],
+                       check=True, capture_output=True)
+        main_sha = get_head(self.repo)
+        self.assertNotEqual(feat_sha, main_sha)
+        # HEAD is now on main, but push feature branch
+        subprocess.run(["git", "push", "test-bare", "feature"],
+                       check=True, capture_output=True)
+        # Remote has feature at feat_sha, not main_sha (HEAD)
+        r = subprocess.run(
+            ["git", "ls-remote", "test-bare", "refs/heads/feature"],
+            capture_output=True, text=True, check=True)
+        remote_sha = r.stdout.split()[0]
+        self.assertEqual(remote_sha, feat_sha,
+                         "push named branch pushes that branch's tip, not HEAD")
+        self.assertNotEqual(remote_sha, main_sha)
 
 
 if __name__ == "__main__":
