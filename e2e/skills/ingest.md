@@ -1049,11 +1049,16 @@ conditions are met for each gate, remove
   zero-match / no story testplan) satisfy the clearing condition.
 
 Before removing the pending file, the written `01-context.md` must
-not contain the `Gate-Applicability: unresolved` marker. If
-clearing conditions are not met (source discovery failed, some
-gates remain unresolved, downstream plan reconciliation is
-incomplete, or any gate lacks a verified disposition), retain the
-pending file and the marker in the written context.
+not contain the `Gate-Applicability: unresolved` marker. If some
+gates still have unknown relevance (source discovery failed, some
+gates remain unresolved, or any gate lacks a verified disposition),
+retain both the pending file and the marker in the written context.
+If all gate relevance is known but other clearing conditions are
+not yet met (gate recording incomplete or downstream plan
+reconciliation incomplete), omit the `Gate-Applicability: unresolved`
+marker in the written context but retain the
+`gate-applicability.pending` file until all gate-specific clearing
+conditions are satisfied.
 
 ### Step 8a: Diff Against Prior Ingest (Re-invocation Only)
 
@@ -1080,10 +1085,14 @@ verified-irrelevant gates cleared without testplan recording or
 gate obligation — including all-irrelevant outcomes), remove
 `gate-applicability.pending`. Before removing the pending file, the
 written `01-context.md` must not contain the
-`Gate-Applicability: unresolved` marker. If the user declined or
-did not answer the overwrite, do not clear the pending file — the
-legacy marker in the existing `01-context.md` must persist so the
-validator fallback continues to detect the blocker.
+`Gate-Applicability: unresolved` marker. If some gates still have
+unknown relevance, retain both the pending file and the marker. If
+all gate relevance is known but other clearing conditions are not
+yet met, omit the marker in the written context but retain the
+pending file. If the user declined or did not answer the overwrite,
+do not clear the pending file — the legacy marker in the existing
+`01-context.md` must persist so the validator fallback continues to
+detect the blocker.
 
 ### Step 9: Report to User
 

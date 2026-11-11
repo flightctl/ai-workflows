@@ -248,17 +248,26 @@ the current worktree:
    have replaced the report after Step 1. Do not rely on the
    Step 1 verdict alone.
 6. Reassess referenced mandatory evidence from the current
-   approved plan and validation inventory. Check that each
-   mandatory Evidence Reference still has a verified status
-   using the original criteria and current candidate basis.
-   If any mandatory evidence has changed to failed, pending,
-   not-started, unknown, or its candidate applicability cannot
-   be established, stop — require the user to re-run
-   `/validate` or restart the validation cycle. Do not rely
-   on a cached `Overall: PASS` when the underlying evidence
-   it assessed is no longer verified. Stable evidence (content
-   unchanged, no external dependency) and entries where no
-   external evidence is required remain valid without
+   approved plan and validation inventory. For gates with an
+   Evidence Reference in the plan, check that each mandatory
+   reference still has a verified status using the original
+   criteria and current candidate basis. For non-TC gates
+   (no Evidence Reference in the plan), the plan's Qualification Gates
+   table has no Evidence Reference column; instead match each
+   mandatory non-TC gate by its source path and gate heading to
+   the corresponding entry in the validation report's External
+   Validation Evidence section and reassess that entry's
+   evidence link using the original source criteria and current
+   candidate basis. If any mandatory evidence has changed to
+   failed, pending, not-started, unknown, or its candidate
+   applicability cannot be established, or a mandatory non-TC
+   gate has no matching External Validation Evidence entry or
+   its evidence link is missing or unusable, stop — require the
+   user to re-run `/validate` or restart the validation cycle.
+   Do not rely on a cached `Overall: PASS` when the underlying
+   evidence it assessed is no longer verified. Stable evidence
+   (content unchanged, no external dependency) and entries where
+   no external evidence is required remain valid without
    re-collection.
 
 If any check detects a change (new blocker, identity mismatch,

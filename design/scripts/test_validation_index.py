@@ -6073,7 +6073,7 @@ class TestFinalizationVerifiedIrrelevantDisposition(unittest.TestCase):
                 section = self._finalization_section(
                     path, "Pending finalization (first invocation)")
                 self.assertIn(
-                    "retain the pending file", section,
+                    "retain both the pending file", section,
                     f"{workflow}/ingest.md Step 8 must retain "
                     f"pending file for unresolved gates")
 
@@ -6255,17 +6255,71 @@ class TestFinalizationMarkerCondition(unittest.TestCase):
                     f"unconditional marker prohibition")
 
     def test_step8_retains_marker_when_unresolved(self):
-        """Step 8: when clearing conditions are not met, the pending
-        file AND the marker in the written context must be retained."""
+        """Step 8: marker retention depends on relevance knowledge.
+        Unknown relevance retains both marker and pending file.
+        All-known-but-incomplete retains pending but omits marker
+        (matching Step 6 deferred finalization)."""
         for workflow, path in self._INGESTS:
             with self.subTest(workflow=workflow):
                 section = self._finalization_section(
                     path, "Pending finalization (first invocation)")
+                lower = section.lower()
+                # Unknown relevance must retain both marker and pending
                 self.assertIn(
-                    "retain",
+                    "unknown relevance",
+                    lower,
+                    f"{workflow}/ingest.md Step 8 must distinguish "
+                    f"unknown relevance as reason to retain marker")
+                self.assertIn(
+                    "retain both",
+                    lower,
+                    f"{workflow}/ingest.md Step 8 must retain both "
+                    f"marker and pending when relevance unknown")
+                # All-known-but-incomplete must omit marker
+                self.assertIn(
+                    "omit",
+                    lower,
+                    f"{workflow}/ingest.md Step 8 must omit marker "
+                    f"when all relevance known but clearing "
+                    f"conditions incomplete")
+
+    def test_step8_no_unqualified_marker_retention(self):
+        """Counterfactual: the old 'retain the pending file and the
+        marker' without unknown-relevance qualification must not
+        appear — proves marker-retention check is specific."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._finalization_section(
+                    path, "Pending finalization (first invocation)")
+                self.assertNotIn(
+                    "retain the pending file and the marker",
                     section.lower(),
-                    f"{workflow}/ingest.md Step 8 must retain "
-                    f"pending file when conditions not met")
+                    f"{workflow}/ingest.md Step 8 must not use "
+                    f"unqualified retention for all conditions")
+
+    def test_step8a_marker_state_distinction(self):
+        """Step 8a: accepted branch must distinguish unknown-relevance
+        (retain both) from all-known-but-incomplete (omit marker,
+        retain pending). Declined must preserve existing."""
+        step8a_markers = {
+            "e2e": "Apply the same pending finalization as",
+            "implement": "Apply the same pending finalization as",
+        }
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._finalization_section(
+                    path, step8a_markers[workflow])
+                lower = section.lower()
+                self.assertIn(
+                    "unknown relevance",
+                    lower,
+                    f"{workflow}/ingest.md Step 8a must distinguish "
+                    f"unknown relevance")
+                self.assertIn(
+                    "declined",
+                    lower,
+                    f"{workflow}/ingest.md Step 8a must handle "
+                    f"declined case")
 
 
 # ===========================================================================
@@ -6300,6 +6354,17 @@ class TestPublisherMandatoryEvidenceReassessment(unittest.TestCase):
             end = start + 3000
         return content[start:end]
 
+    def _evidence_block(self, workflow_path):
+        """Extract evidence reassessment block (item 6) from Step 4."""
+        step4 = self._step4_section(workflow_path)
+        start = step4.find("6. Reassess")
+        self.assertGreater(start, 0,
+                           f"{workflow_path}: Step 4 must have item 6")
+        end = step4.find("\nIf any check", start)
+        if end < 0:
+            end = start + 2000
+        return " ".join(step4[start:end].split())
+
     def test_step4_reassesses_mandatory_evidence(self):
         """Step 4 must reassess mandatory evidence references."""
         for workflow, path in self._PUBLISHERS:
@@ -6323,29 +6388,29 @@ class TestPublisherMandatoryEvidenceReassessment(unittest.TestCase):
                     f"evidence verified status")
 
     def test_step4_stops_on_evidence_status_change(self):
-        """Step 4 must stop when evidence changes to failed, pending,
-        not-started, or unknown."""
+        """Step 4 item 6 must stop when evidence changes to failed,
+        pending, not-started, or unknown — scoped to the evidence
+        reassessment block, not the full Step 4."""
         for workflow, path in self._PUBLISHERS:
             with self.subTest(workflow=workflow):
-                section = self._step4_section(path)
-                normalized = " ".join(section.split())
+                block = self._evidence_block(path)
                 for status in ["failed", "pending", "not-started",
                                "unknown"]:
                     self.assertIn(
-                        status, normalized,
-                        f"{workflow}/publish.md Step 4 must stop "
-                        f"on evidence status '{status}'")
+                        status, block,
+                        f"{workflow}/publish.md Step 4 item 6 must "
+                        f"stop on evidence status '{status}'")
 
     def test_step4_does_not_trust_cached_pass_alone(self):
-        """Step 4 must not rely on cached Overall: PASS when
-        underlying evidence is no longer verified."""
+        """Step 4 item 6 must not rely on cached Overall: PASS when
+        underlying evidence is no longer verified — scoped to the
+        evidence reassessment block."""
         for workflow, path in self._PUBLISHERS:
             with self.subTest(workflow=workflow):
-                section = self._step4_section(path)
-                normalized = " ".join(section.split())
+                block = self._evidence_block(path)
                 self.assertIn(
-                    "cached", normalized,
-                    f"{workflow}/publish.md Step 4 must warn "
+                    "cached", block,
+                    f"{workflow}/publish.md Step 4 item 6 must warn "
                     f"against relying on cached PASS")
 
     def test_step4_stable_evidence_remains_valid(self):
@@ -6371,6 +6436,109 @@ class TestPublisherMandatoryEvidenceReassessment(unittest.TestCase):
                     "evidence status change", normalized,
                     f"{workflow}/publish.md Step 4 stop conditions "
                     f"must list evidence status change")
+
+    def test_step4_nonTC_gate_evidence_lookup(self):
+        """Step 4 item 6 must explicitly handle non-TC gates by
+        matching source path and gate heading to the report's
+        External Validation Evidence section."""
+        for workflow, path in self._PUBLISHERS:
+            with self.subTest(workflow=workflow):
+                block = self._evidence_block(path)
+                lower = block.lower()
+                self.assertIn(
+                    "non-tc",
+                    lower,
+                    f"{workflow}/publish.md Step 4 item 6 must "
+                    f"explicitly handle non-TC gates")
+                self.assertIn(
+                    "external validation evidence",
+                    lower,
+                    f"{workflow}/publish.md Step 4 item 6 must "
+                    f"reference External Validation Evidence")
+
+    def test_step4_evidence_stop_rule_in_item6(self):
+        """Item 6 stop-rule sentence must contain the evidence status
+        terms (failed, pending, not-started, unknown) AND the stop
+        directive. Negative counterfactual: the same checker applied
+        to item 6 text with the stop-rule sentence removed must fail,
+        proving the clause is load-bearing."""
+        stop_terms = ["failed", "pending", "not-started", "unknown",
+                       "stop"]
+
+        def _extract_stop_rule(block_text):
+            """Return the whitespace-normalised stop-rule sentence
+            from item 6 — starts with 'If any mandatory' and ends at
+            the next sentence boundary (period+space or period+EOB)."""
+            norm = " ".join(block_text.split())
+            start = norm.find("If any mandatory")
+            if start < 0:
+                return ""
+            end = norm.find(". ", start)
+            return norm[start:end + 1] if end >= 0 else norm[start:]
+
+        for workflow, path in self._PUBLISHERS:
+            with self.subTest(workflow=workflow):
+                block = self._evidence_block(path)
+                clause = _extract_stop_rule(block)
+                self.assertTrue(
+                    clause,
+                    f"{workflow}/publish.md item 6 must have a "
+                    f"stop-rule sentence starting with "
+                    f"'If any mandatory'")
+                for term in stop_terms:
+                    self.assertIn(
+                        term, clause,
+                        f"{workflow}/publish.md item 6 stop-rule "
+                        f"must contain '{term}'")
+                # Negative counterfactual: block without stop-rule
+                gutted = block.replace(clause, "")
+                for term in ["not-started", "unknown"]:
+                    self.assertNotIn(
+                        term, gutted,
+                        f"{workflow}/publish.md counterfactual: "
+                        f"'{term}' must not survive removal of the "
+                        f"stop-rule sentence")
+
+    def test_step4_cached_pass_rejection_in_item6(self):
+        """Item 6 cached-PASS-evidence rejection clause must exist
+        within the evidence block. Negative counterfactual: the same
+        checker applied to item 6 text with the rejection clause
+        removed must fail."""
+
+        def _extract_cached_clause(block_text):
+            """Return the whitespace-normalised cached-PASS rejection
+            sentence — starts with 'Do not rely on' and ends at the
+            next sentence boundary."""
+            norm = " ".join(block_text.split())
+            start = norm.find("Do not rely on a cached")
+            if start < 0:
+                return ""
+            end = norm.find(". ", start)
+            return norm[start:end + 1] if end >= 0 else norm[start:]
+
+        for workflow, path in self._PUBLISHERS:
+            with self.subTest(workflow=workflow):
+                block = self._evidence_block(path)
+                clause = _extract_cached_clause(block)
+                self.assertTrue(
+                    clause,
+                    f"{workflow}/publish.md item 6 must have a "
+                    f"cached-PASS rejection clause")
+                self.assertIn(
+                    "cached", clause,
+                    f"{workflow}/publish.md cached-PASS rejection "
+                    f"must mention 'cached'")
+                self.assertIn(
+                    "no longer verified", clause,
+                    f"{workflow}/publish.md cached-PASS rejection "
+                    f"must mention evidence no longer verified")
+                # Negative counterfactual: block without rejection
+                gutted = block.replace(clause, "")
+                self.assertNotIn(
+                    "cached", gutted,
+                    f"{workflow}/publish.md counterfactual: 'cached' "
+                    f"must not survive removal of the rejection "
+                    f"clause")
 
 
 # ===========================================================================
