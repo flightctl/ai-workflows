@@ -149,12 +149,6 @@ def _resolve_content_dir(
     if explicit_root:
         if os.path.isabs(explicit_root) or ".." in Path(explicit_root).parts:
             return None
-        # Forbid the whole prototype artifact root or code clone root —
-        # these would expose private artifacts (rfe-snapshot.md, decisions/,
-        # metadata.json, code/) or the full cloned source tree.
-        # Use string comparison: Path(".").parts is empty, not (".",).
-        if explicit_root.rstrip("/") in (".", "code"):
-            return None
         # Check each raw path segment for symlinks BEFORE resolving.
         # resolve() follows symlinks, so is_symlink() after resolve is
         # always False — we must check the unresolved segments.
@@ -165,6 +159,15 @@ def _resolve_content_dir(
                 return None
         candidate = (prototype_dir / explicit_root).resolve()
         if not _is_path_within(candidate, prototype_dir):
+            return None
+        # Forbid the whole prototype artifact root or code clone root.
+        # Use the resolved candidate (which canonicalises "./code",
+        # "code/.", etc.) rather than raw string comparison.
+        proto_resolved = prototype_dir.resolve()
+        if candidate == proto_resolved:
+            return None
+        code_resolved = (prototype_dir / "code").resolve()
+        if candidate == code_resolved and code_resolved.is_dir():
             return None
         if candidate.is_dir():
             return candidate
@@ -609,6 +612,7 @@ def cmd_package(args: argparse.Namespace) -> int:
     info(f"Content digest: {content_sha256}")
     print(json.dumps({
         "bundle_dir": str(bundle_dir),
+        "revision": revision,
         "entry_point": manifest["entry_point"],
         "file_count": manifest["file_count"],
         "content_sha256": content_sha256,

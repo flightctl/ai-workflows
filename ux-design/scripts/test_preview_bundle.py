@@ -2013,6 +2013,30 @@ class TestExplicitContentRootForbidden(unittest.TestCase):
             )
             self.assertEqual(result, dist.resolve())
 
+    def test_dot_slash_code_bypass_rejected(self) -> None:
+        """'./code' normalises to code root — must be rejected."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "proto"
+            code = proto / "code"
+            code.mkdir(parents=True)
+            (code / "index.html").write_text("<html>Source</html>")
+            result = preview_bundle._resolve_content_dir(
+                proto, "workspace", "./code",
+            )
+            self.assertIsNone(result)
+
+    def test_code_dot_bypass_rejected(self) -> None:
+        """'code/.' normalises to code root — must be rejected."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "proto"
+            code = proto / "code"
+            code.mkdir(parents=True)
+            (code / "index.html").write_text("<html>Source</html>")
+            result = preview_bundle._resolve_content_dir(
+                proto, "workspace", "code/.",
+            )
+            self.assertIsNone(result)
+
     def test_symlink_segment_rejected_before_resolve(self) -> None:
         """Symlink in content root path rejected BEFORE resolve."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -2118,6 +2142,79 @@ class TestCLIRootPrivacy(unittest.TestCase):
                 )
             self.assertEqual(ctx.exception.code, preview_bundle.EXIT_PACKAGE_FAIL)
 
+    def test_dot_slash_code_bypass_rejected(self) -> None:
+        """'./code' canonicalises to code/ root — must be rejected."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source"
+            code = proto / "code"
+            code.mkdir(parents=True)
+            (code / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+            output = Path(tmpdir) / "output"
+            with self.assertRaises(SystemExit) as ctx:
+                preview_bundle.cmd_package(
+                    argparse.Namespace(
+                        prototype_dir=str(proto),
+                        output_dir=str(output),
+                        issue_key="PRIV-4",
+                        revision="r1",
+                        mode="workspace",
+                        entry_point=None,
+                        content_root="./code",
+                    ),
+                )
+            self.assertEqual(ctx.exception.code, preview_bundle.EXIT_PACKAGE_FAIL)
+
+    def test_code_dot_bypass_rejected(self) -> None:
+        """'code/.' canonicalises to code/ root — must be rejected."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source"
+            code = proto / "code"
+            code.mkdir(parents=True)
+            (code / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+            output = Path(tmpdir) / "output"
+            with self.assertRaises(SystemExit) as ctx:
+                preview_bundle.cmd_package(
+                    argparse.Namespace(
+                        prototype_dir=str(proto),
+                        output_dir=str(output),
+                        issue_key="PRIV-5",
+                        revision="r1",
+                        mode="workspace",
+                        entry_point=None,
+                        content_root="code/.",
+                    ),
+                )
+            self.assertEqual(ctx.exception.code, preview_bundle.EXIT_PACKAGE_FAIL)
+
+    def test_code_dist_still_allowed(self) -> None:
+        """'code/dist' is a dedicated build output — must still succeed."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source"
+            dist = proto / "code" / "dist"
+            dist.mkdir(parents=True)
+            (dist / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+            output = Path(tmpdir) / "output"
+            result = preview_bundle.cmd_package(
+                argparse.Namespace(
+                    prototype_dir=str(proto),
+                    output_dir=str(output),
+                    issue_key="PRIV-6",
+                    revision="r1",
+                    mode="workspace",
+                    entry_point=None,
+                    content_root="code/dist",
+                ),
+            )
+            self.assertEqual(result, preview_bundle.EXIT_SUCCESS)
+            bundle = output / "previews" / "PRIV-6" / "r1"
+            self.assertTrue((bundle / "index.html").is_file())
+
 
 # ---------------------------------------------------------------------------
 # Symlink mutation before deploy (ID 4543270531 — canonical digest)
@@ -2206,6 +2303,44 @@ class TestSymlinkMutationBeforeDeploy(unittest.TestCase):
                 marker.exists(),
                 "Deploy command must NOT run when bundle has symlinks",
             )
+
+
+# ---------------------------------------------------------------------------
+# Package output: revision field consumed by docs (additive)
+# ---------------------------------------------------------------------------
+
+class TestPackageOutputRevision(unittest.TestCase):
+    """Verify package JSON output includes the revision for doc consumers."""
+
+    def test_output_includes_revision(self) -> None:
+        """Package output JSON must contain revision matching the CLI arg."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source" / "prototype"
+            proto.mkdir(parents=True)
+            (proto / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+            output = Path(tmpdir) / "output"
+            import io
+            old_stdout = sys.stdout
+            sys.stdout = buf = io.StringIO()
+            try:
+                preview_bundle.cmd_package(
+                    argparse.Namespace(
+                        prototype_dir=str(Path(tmpdir) / "source"),
+                        output_dir=str(output),
+                        issue_key="REV-1",
+                        revision="iteration-3-r2",
+                        mode="standalone",
+                        entry_point=None,
+                        content_root=None,
+                    ),
+                )
+            finally:
+                sys.stdout = old_stdout
+            pkg = json.loads(buf.getvalue())
+            self.assertIn("revision", pkg)
+            self.assertEqual(pkg["revision"], "iteration-3-r2")
 
 
 if __name__ == "__main__":
