@@ -40,16 +40,20 @@ path component.
 Determine the prototype mode from `prototype-notes.md` (`standalone` or
 `workspace`).
 
-Resolve the preview-bundle script to an absolute path relative to this
-workflow's installed location:
+Resolve the preview-bundle script relative to the workflow's installed
+location. From any skill file in `ux-design/skills/`:
 
-```bash
-UX_SCRIPTS="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]:-$0}")")/../scripts" 2>/dev/null && pwd)"
+```text
+UX_SCRIPTS="$(cd "$(dirname "$(readlink -f "$0")")/../../ux-design/scripts" 2>/dev/null && pwd)"
 ```
 
-If running from a symlinked install, resolve the script location from the
-workflow root. The script is at `ux-design/scripts/preview-bundle.py`
-relative to the ai-workflows install root.
+If running in a context where `$0` is not resolvable (e.g., from a
+markdown skill file), locate the ai-workflows install root and resolve:
+
+```text
+AI_WORKFLOWS_ROOT="$(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel 2>/dev/null)"
+UX_SCRIPTS="${AI_WORKFLOWS_ROOT}/ux-design/scripts"
+```
 
 Run validation:
 
@@ -62,19 +66,21 @@ python3 "${UX_SCRIPTS}/preview-bundle.py" validate \
 Parse the JSON output. Check the `valid` field:
 
 **If `valid` is `false` with reason `no_static_content`:**
-The prototype has no pre-built static HTML. For workspace prototypes this
-means the app requires a build step or a live dev server. Stop and present
-the screenshot fallback:
+The prototype requires a build step or live development server and
+cannot be packaged as a static preview.
 
-> The prototype requires a live development server or build step and
-> cannot be packaged as a static preview. Options:
->
-> 1. **Screenshots** — Capture screenshots of the key flows and states,
->    then attach them to the handoff PR for reviewer reference.
-> 2. **Running instance** — Provide a running instance URL if one is
->    available for the reviewer.
->
-> Which approach should we use?
+Before falling back, attempt the project's own static build:
+
+1. Check for build scripts in the prototype's `code/` directory
+   (`package.json` scripts, `Makefile`, etc.)
+2. If a build command exists, run it and re-validate the output
+
+If no build is available or the build fails:
+**Screenshot fallback** — Capture screenshots of the key flows and
+states, then attach them to the handoff PR for reviewer reference.
+The screenshots must be actually accessible to reviewers — attached
+through the platform's attachment mechanism or uploaded to an
+approved location.
 
 If the researcher chooses screenshots, record this decision in
 `preview-metadata.json` with `deploy_status: screenshot-fallback`. Do not
@@ -99,6 +105,11 @@ Present the findings and let the researcher decide:
 
 **If `valid` is `true`:** Proceed to Step 2.
 
+**Important:** Validation is an advisory lint check, not proof of
+correct rendering. The absence of backend-dependency patterns does
+not guarantee the prototype renders correctly in a browser. Visual
+verification occurs in Step 4 after deployment.
+
 ### Step 2: Build the Preview Bundle
 
 ```bash
@@ -113,6 +124,7 @@ python3 "${UX_SCRIPTS}/preview-bundle.py" package \
 Parse the JSON output for `bundle_dir`, `entry_point`, and `file_count`.
 
 Record the build details:
+
 - Entry point path
 - Number of files in the bundle
 - Which components are mocked (from the manifest)
@@ -121,90 +133,94 @@ Record the build details:
 ### Step 3: Resolve the Deployment Interface
 
 Read `{source_repo_root}/.artifacts/config.json` for preview site
-configuration. The config uses the existing shared config pattern:
+configuration:
 
 ```json
 {
-  "docs_repo_path": "/path/to/docs",
-  "docs_repo_remote": "git@github.com:org/docs.git",
-  "preview_pages_repo": "org/preview-site",
+  "preview_site_url": "https://example.com/site",
+  "preview_artifact_method": "workflow_artifact|s3|manual",
+  "preview_deploy_repo": "org/deploy-repo",
   "preview_deploy_workflow": "deploy-preview.yml",
-  "preview_deploy_input": "bundle_path",
-  "preview_site_url": "https://org.github.io/preview-site",
-  "preview_path_prefix": "previews"
+  "preview_deploy_inputs": {
+    "artifact_name": "preview-bundle",
+    "namespace": "previews/{issue-key}/{revision}"
+  }
 }
 ```
 
-**Default behavior:** When `preview_pages_repo` is not configured, derive
-the Pages site from the configured `docs_repo_remote`. Parse `{owner}`
-and `{repo}` from the remote URL and propose
-`https://{owner}.github.io/{repo}/previews/{issue-key}/{revision}/` as
-the preview URL namespace.
+**When preview configuration is not present:**
 
-**Explicit override:** When `preview_pages_repo` is configured, use that
-repository as the deployment target instead.
+Record `deploy_status: awaiting-setup` in preview-metadata.json. Present
+the researcher with:
 
-**Resolve the deployment workflow:** Check whether the target repository
-has a deployment workflow matching `preview_deploy_workflow` (or a
-conventional name like `deploy-preview.yml`, `pages.yml`, or
-`deploy.yml`). The workflow must accept the bundle path and preview
-namespace as inputs.
-
-If no deployment interface is found, present the researcher with options:
-
-> No preview deployment workflow is configured for {target_repo}.
-> Options:
+> No preview deployment is configured for this project.
 >
-> 1. **Configure deployment** — Provide the workflow filename and input
->    parameters for the target repository's deployment mechanism.
->    The preview bundle is ready at:
->    `{bundle_dir}`
-> 2. **Screenshot fallback** — Capture screenshots of the key flows
->    instead of deploying a live preview.
+> The preview bundle is packaged and ready at:
+> `{bundle_dir}`
 >
-> The bundle is packaged and ready for deployment once a workflow is
-> configured. Preview URL namespace:
-> `{site_url}/previews/{issue-key}/{revision}/`
+> To enable preview deployment, the project owner must configure:
+>
+> 1. `preview_site_url` — the actual configured site URL (do not guess
+>    from repository name or assume `*.github.io`)
+> 2. `preview_artifact_method` — how the bundle reaches the deploy job
+> 3. `preview_deploy_repo` and `preview_deploy_workflow` — the
+>    deployment target
+>
+> See the project's deployment documentation for the supported interface.
 
-If the researcher provides deployment configuration, save it to
-`config.json` following the shared config pattern.
+Do not proceed to Step 4. Skip to Step 5.
 
-### Step 4: Deploy the Preview
+**When configuration exists but `preview_site_url` is missing:**
 
-When the deployment interface is resolved and confirmed:
+Stop. The site URL must come from project configuration or explicit
+researcher input, not from repository naming conventions.
+
+### Step 4: Deploy and Verify the Preview
+
+When the deployment interface is fully configured:
 
 1. **Confirm with the researcher** before deploying:
-   > Deploy preview bundle to {target_url}?
-   > Repository: {target_repo}
-   > Workflow: {deploy_workflow}
-   > Namespace: previews/{issue-key}/{revision}/
+   > Deploy preview bundle to {preview_site_url}/previews/{issue-key}/{revision}/?
+   > Repository: {preview_deploy_repo}
+   > Workflow: {preview_deploy_workflow}
 
-2. **Invoke the deployment workflow** using the resolved interface.
-   The exact invocation depends on the project's deployment mechanism.
-   For a GitHub Actions workflow dispatch:
+2. **Transport the bundle** to the location the deploy job can access.
+   The transport method depends on `preview_artifact_method`:
+   - `workflow_artifact` — upload via `gh run` artifact mechanism
+   - `s3` — upload to the configured S3 path
+   - `manual` — instruct the researcher to transfer the bundle
 
-   ```bash
-   gh workflow run "{deploy_workflow}" \
-     --repo "{preview_pages_repo}" \
-     -f "{deploy_input}={bundle_path}" \
-     -f "namespace=previews/{issue-key}/{revision}" \
-     -f "issue_key={issue-key}"
-   ```
+   A local file path cannot be passed as a remote workflow input.
+   The deployment job must receive the actual bundle content, not a
+   path on the author's machine.
 
-   For other mechanisms, follow the project's documented procedure.
+3. **Invoke the deployment** using the project's documented interface.
+   Pass the exact inputs specified in `preview_deploy_inputs`. Do not
+   invent workflow input names or guess namespace formats.
 
-3. **Wait for deployment** and verify the result:
-   - Check workflow run status
-   - Verify the entry point URL returns HTTP 200
-   - Verify at least one asset loads correctly
-   - Record the verified URL
+4. **Wait for deployment receipt:**
+   - Check the workflow/deployment run status until completion
+   - Record the run ID and completion status
 
-   Do not claim the preview is published until the URL is verified.
-   If deployment fails, report the error and offer the screenshot
-   fallback.
+5. **Verify the published preview:**
+   - Request the entry point URL from the configured `preview_site_url`
+     plus the namespace path
+   - Verify HTTP 200 with content matching the bundle's entry point
+   - Verify at least one CSS/JS asset loads (not a 404)
+   - Compare the served content against the bundle's `content_sha256`
+     digest from the manifest
 
-4. If deployment verification succeeds, record the verified URL. If it
-   fails, record the failure and offer alternatives.
+   Do not claim the preview is published until ALL verifications pass.
+   A constructed URL alone is not proof. An HTTP 200 that matches old
+   content is not proof — compare the content digest.
+
+6. **Check site preservation:**
+   If other previews or documentation exist on the site, verify they
+   are still accessible after deployment. The deployment must preserve
+   existing content, not replace the entire site.
+
+If any step fails, record `deploy_status: deploy-failed` with the
+specific error and offer the screenshot fallback.
 
 ### Step 5: Record Preview Metadata
 
@@ -217,10 +233,12 @@ Write `.artifacts/ux-design/{issue-key}/preview-metadata.json`:
   "prototype_mode": "{standalone|workspace}",
   "bundle_path": ".artifacts/ux-design/{issue-key}/preview-bundle/previews/{issue-key}/iteration-{N}",
   "entry_point": "{entry-point}",
-  "deploy_status": "{published|awaiting-setup|screenshot-fallback}",
+  "deploy_status": "{published|awaiting-setup|awaiting-upload|deploy-failed|screenshot-fallback|stale}",
+  "content_sha256": "{digest-from-manifest-or-null}",
   "site_url": "{verified-url-or-null}",
   "target_repo": "{owner/repo-or-null}",
   "deploy_workflow": "{workflow-or-null}",
+  "deploy_run_id": "{run-id-or-null}",
   "mocked_components": [],
   "timestamp": "{ISO-8601}"
 }
@@ -244,6 +262,16 @@ For awaiting-setup:
 > **Preview Bundle Ready:** The static preview bundle is packaged but
 > deployment is not yet configured. See preview-metadata.json for details.
 
+For awaiting-upload:
+> **Preview Bundle Ready:** The static preview bundle is packaged and
+> deployment is configured, but the bundle has not been uploaded to the
+> deploy target. See preview-metadata.json for details.
+
+For stale:
+> **Preview Status: Stale** — The handoff spec has been updated since
+> the preview was last published. Current revision: iteration-{N},
+> deployed revision: {deployed-revision}. Run `/preview` to rebuild.
+
 ## Output
 
 - `.artifacts/ux-design/{issue-key}/preview-bundle/` — packaged static
@@ -254,8 +282,9 @@ For awaiting-setup:
 ## When This Phase Is Done
 
 Present the preview status to the researcher:
+
 - Bundle location and entry point
-- Deployment status (published URL, awaiting setup, or screenshot fallback)
+- Deployment status (published URL, awaiting setup, awaiting upload, or screenshot fallback)
 - Mocked components inventory
 - Whether the handoff PR was updated with the preview link
 

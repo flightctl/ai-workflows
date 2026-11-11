@@ -182,9 +182,9 @@ class TestScanDependencies(unittest.TestCase):
             <html><head><title>CDN</title></head>
             <body>
                 <script>
-                    fetch('https://cdn.example.com/lib.js')
-                        .then(r => r.text());
                     fetch('https://unpkg.com/react/umd/react.production.min.js')
+                        .then(r => r.text());
+                    fetch('https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js')
                         .then(r => r.text());
                 </script>
             </body></html>
@@ -193,15 +193,10 @@ class TestScanDependencies(unittest.TestCase):
             html = Path(tmpdir) / "index.html"
             html.write_text(html_text, encoding="utf-8")
             findings = preview_bundle._scan_directory(Path(tmpdir))
-            # cdn.example.com is not in our allowlist, so it may flag.
-            # But unpkg.com and cdnjs should be exempt.
-            non_cdn = [
-                f for f in findings
-                if "unpkg" not in f.get("file", "")
-                and "cdnjs" not in f.get("file", "")
-            ]
-            # We don't assert zero because cdn.example.com is correctly
-            # ambiguous — the point is that real CDNs are not flagged.
+            self.assertEqual(
+                findings, [],
+                f"Known CDN fetches should not trigger findings, got: {findings}",
+            )
 
     def test_skips_symlinks(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -478,6 +473,443 @@ class TestFileInventory(unittest.TestCase):
             self.assertEqual(categories["style.css"], "style")
             self.assertEqual(categories["app.js"], "script")
             self.assertEqual(categories["logo.png"], "asset")
+
+
+# ---------------------------------------------------------------------------
+# Package safety — private file exclusion
+# ---------------------------------------------------------------------------
+
+class TestPrivateFileExclusion(unittest.TestCase):
+    """Verify that private/hidden files are excluded from bundles."""
+
+    def _package(self, tmpdir: str, **extra: str) -> int:
+        """Run cmd_package with standard args, return exit code."""
+        proto = Path(tmpdir) / "source" / "prototype"
+        proto.mkdir(parents=True, exist_ok=True)
+        (proto / "index.html").write_text(
+            _SELF_CONTAINED_HTML, encoding="utf-8",
+        )
+        # Add private files that should be excluded.
+        (proto / ".env").write_text("SECRET=x", encoding="utf-8")
+        (proto / ".gitignore").write_text("node_modules/", encoding="utf-8")
+        (proto / "prototype-notes.md").write_text("# Notes", encoding="utf-8")
+        hidden_dir = proto / ".hidden"
+        hidden_dir.mkdir()
+        (hidden_dir / "secret.txt").write_text("private", encoding="utf-8")
+
+        output = Path(tmpdir) / "output"
+        return preview_bundle.cmd_package(
+            argparse.Namespace(
+                prototype_dir=str(Path(tmpdir) / "source"),
+                output_dir=str(output),
+                issue_key=extra.get("issue_key", "TEST-1"),
+                revision=extra.get("revision", "r1"),
+                mode="standalone",
+                entry_point=None,
+            ),
+        )
+
+    def test_private_files_excluded_from_bundle(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = self._package(tmpdir)
+            self.assertEqual(result, preview_bundle.EXIT_SUCCESS)
+            bundle = Path(tmpdir) / "output" / "previews" / "TEST-1" / "r1"
+            bundle_files = {f.name for f in bundle.rglob("*") if f.is_file()}
+            self.assertIn("index.html", bundle_files)
+            self.assertNotIn(".env", bundle_files)
+            self.assertNotIn(".gitignore", bundle_files)
+            self.assertNotIn("prototype-notes.md", bundle_files)
+            self.assertNotIn("secret.txt", bundle_files)
+
+    def test_manifest_excludes_private_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._package(tmpdir)
+            bundle = Path(tmpdir) / "output" / "previews" / "TEST-1" / "r1"
+            manifest = json.loads(
+                (bundle / "preview-manifest.json").read_text(encoding="utf-8"),
+            )
+            paths = [f["path"] for f in manifest["files"]]
+            self.assertNotIn(".env", paths)
+            self.assertNotIn("prototype-notes.md", paths)
+
+
+# ---------------------------------------------------------------------------
+# Package safety — entry point containment
+# ---------------------------------------------------------------------------
+
+class TestEntryPointContainment(unittest.TestCase):
+    """Verify entry point must be relative and contained."""
+
+    def test_absolute_entry_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            (Path(tmpdir) / "index.html").write_text("<html></html>")
+            result = preview_bundle._find_entry_point(
+                Path(tmpdir), "/etc/passwd",
+            )
+            self.assertIsNone(result)
+
+    def test_traversal_entry_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            (Path(tmpdir) / "index.html").write_text("<html></html>")
+            result = preview_bundle._find_entry_point(
+                Path(tmpdir), "../../../etc/passwd",
+            )
+            self.assertIsNone(result)
+
+    def test_valid_relative_entry_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            sub = Path(tmpdir) / "pages"
+            sub.mkdir()
+            (sub / "main.html").write_text("<html></html>")
+            result = preview_bundle._find_entry_point(
+                Path(tmpdir), "pages/main.html",
+            )
+            self.assertIsNotNone(result)
+
+
+# ---------------------------------------------------------------------------
+# Package safety — input/output disjointness
+# ---------------------------------------------------------------------------
+
+class TestInputOutputDisjoint(unittest.TestCase):
+    """Verify package fails when input and output directories overlap."""
+
+    def test_output_inside_prototype_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "prototype"
+            proto.mkdir()
+            (proto / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+            with self.assertRaises(SystemExit) as ctx:
+                preview_bundle.cmd_package(
+                    argparse.Namespace(
+                        prototype_dir=str(proto),
+                        output_dir=str(proto / "output"),
+                        issue_key="TEST-1",
+                        revision="r1",
+                        mode="standalone",
+                        entry_point=None,
+                    ),
+                )
+            self.assertEqual(ctx.exception.code, preview_bundle.EXIT_PACKAGE_FAIL)
+
+    def test_prototype_inside_output_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "output"
+            output.mkdir()
+            proto = output / "proto" / "prototype"
+            proto.mkdir(parents=True)
+            (proto / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+            with self.assertRaises(SystemExit) as ctx:
+                preview_bundle.cmd_package(
+                    argparse.Namespace(
+                        prototype_dir=str(output / "proto"),
+                        output_dir=str(output),
+                        issue_key="TEST-1",
+                        revision="r1",
+                        mode="standalone",
+                        entry_point=None,
+                    ),
+                )
+            self.assertEqual(ctx.exception.code, preview_bundle.EXIT_PACKAGE_FAIL)
+
+
+# ---------------------------------------------------------------------------
+# Package safety — existing revision non-destruction
+# ---------------------------------------------------------------------------
+
+class TestExistingRevision(unittest.TestCase):
+    """Verify package does not destroy existing revisions."""
+
+    def test_existing_revision_not_overwritten(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source" / "prototype"
+            proto.mkdir(parents=True)
+            (proto / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+            output = Path(tmpdir) / "output"
+
+            # First package succeeds.
+            result = preview_bundle.cmd_package(
+                argparse.Namespace(
+                    prototype_dir=str(Path(tmpdir) / "source"),
+                    output_dir=str(output),
+                    issue_key="TEST-1",
+                    revision="r1",
+                    mode="standalone",
+                    entry_point=None,
+                ),
+            )
+            self.assertEqual(result, preview_bundle.EXIT_SUCCESS)
+
+            # Second package with same revision fails.
+            with self.assertRaises(SystemExit) as ctx:
+                preview_bundle.cmd_package(
+                    argparse.Namespace(
+                        prototype_dir=str(Path(tmpdir) / "source"),
+                        output_dir=str(output),
+                        issue_key="TEST-1",
+                        revision="r1",
+                        mode="standalone",
+                        entry_point=None,
+                    ),
+                )
+            self.assertEqual(ctx.exception.code, preview_bundle.EXIT_PACKAGE_FAIL)
+
+            # Original bundle still intact.
+            bundle = output / "previews" / "TEST-1" / "r1"
+            self.assertTrue((bundle / "index.html").is_file())
+
+
+# ---------------------------------------------------------------------------
+# Package safety — SHA-256 content digest
+# ---------------------------------------------------------------------------
+
+class TestContentDigest(unittest.TestCase):
+    """Verify manifest includes a deterministic content digest."""
+
+    def test_manifest_has_content_sha256(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source" / "prototype"
+            proto.mkdir(parents=True)
+            (proto / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+            output = Path(tmpdir) / "output"
+            preview_bundle.cmd_package(
+                argparse.Namespace(
+                    prototype_dir=str(Path(tmpdir) / "source"),
+                    output_dir=str(output),
+                    issue_key="TEST-1",
+                    revision="r1",
+                    mode="standalone",
+                    entry_point=None,
+                ),
+            )
+            bundle = output / "previews" / "TEST-1" / "r1"
+            manifest = json.loads(
+                (bundle / "preview-manifest.json").read_text(encoding="utf-8"),
+            )
+            self.assertIn("content_sha256", manifest)
+            self.assertEqual(len(manifest["content_sha256"]), 64)
+
+    def test_digest_is_deterministic(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source" / "prototype"
+            proto.mkdir(parents=True)
+            (proto / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+            output1 = Path(tmpdir) / "out1"
+            output2 = Path(tmpdir) / "out2"
+            for out in (output1, output2):
+                preview_bundle.cmd_package(
+                    argparse.Namespace(
+                        prototype_dir=str(Path(tmpdir) / "source"),
+                        output_dir=str(out),
+                        issue_key="TEST-1",
+                        revision="r1",
+                        mode="standalone",
+                        entry_point=None,
+                    ),
+                )
+            m1 = json.loads(
+                (output1 / "previews" / "TEST-1" / "r1" / "preview-manifest.json")
+                .read_text(encoding="utf-8"),
+            )
+            m2 = json.loads(
+                (output2 / "previews" / "TEST-1" / "r1" / "preview-manifest.json")
+                .read_text(encoding="utf-8"),
+            )
+            self.assertEqual(m1["content_sha256"], m2["content_sha256"])
+
+
+# ---------------------------------------------------------------------------
+# Package safety — symlink escape
+# ---------------------------------------------------------------------------
+
+class TestSymlinkEscape(unittest.TestCase):
+    """Verify symlinks that escape content_dir are excluded."""
+
+    def test_escaping_symlink_excluded(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source" / "prototype"
+            proto.mkdir(parents=True)
+            (proto / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+            # Create a file outside the content directory.
+            secret = Path(tmpdir) / "secret.txt"
+            secret.write_text("TOP SECRET", encoding="utf-8")
+            # Create a symlink inside proto pointing to the secret.
+            (proto / "leaked.txt").symlink_to(secret)
+
+            output = Path(tmpdir) / "output"
+            result = preview_bundle.cmd_package(
+                argparse.Namespace(
+                    prototype_dir=str(Path(tmpdir) / "source"),
+                    output_dir=str(output),
+                    issue_key="TEST-1",
+                    revision="r1",
+                    mode="standalone",
+                    entry_point=None,
+                ),
+            )
+            self.assertEqual(result, preview_bundle.EXIT_SUCCESS)
+            bundle = output / "previews" / "TEST-1" / "r1"
+            self.assertFalse((bundle / "leaked.txt").exists())
+
+
+# ---------------------------------------------------------------------------
+# Packaged bundle → serve (actual packager output, not hand-created)
+# ---------------------------------------------------------------------------
+
+class TestPackageThenServe(unittest.TestCase):
+    """Package via cmd_package, then serve the result and verify.
+
+    Unlike TestStaticServeSmoke which hand-creates a bundle, this test
+    uses the actual packager to build the bundle, ensuring the full
+    pipeline produces a servable result.
+    """
+
+    def test_packaged_bundle_serves(self) -> None:
+        import http.server
+        import threading
+        import urllib.request
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Build a prototype with JS interaction + CSS.
+            proto = Path(tmpdir) / "source" / "prototype"
+            proto.mkdir(parents=True)
+            (proto / "index.html").write_text(textwrap.dedent("""\
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                    <meta charset="utf-8">
+                    <title>Interactive Mock</title>
+                    <link rel="stylesheet" href="style.css">
+                </head>
+                <body>
+                    <h1>Dashboard</h1>
+                    <button id="toggle">Toggle</button>
+                    <div id="panel" class="hidden">Panel Content</div>
+                    <script src="app.js"></script>
+                </body>
+                </html>
+            """), encoding="utf-8")
+            (proto / "style.css").write_text(textwrap.dedent("""\
+                body { font-family: sans-serif; margin: 2rem; }
+                .hidden { display: none; }
+                .visible { display: block; background: #eef; padding: 1rem; }
+            """), encoding="utf-8")
+            (proto / "app.js").write_text(textwrap.dedent("""\
+                document.getElementById('toggle').addEventListener('click', function() {
+                    var panel = document.getElementById('panel');
+                    panel.className = panel.className === 'hidden' ? 'visible' : 'hidden';
+                });
+            """), encoding="utf-8")
+
+            output = Path(tmpdir) / "output"
+            result = preview_bundle.cmd_package(
+                argparse.Namespace(
+                    prototype_dir=str(Path(tmpdir) / "source"),
+                    output_dir=str(output),
+                    issue_key="TEST-1",
+                    revision="r1",
+                    mode="standalone",
+                    entry_point=None,
+                ),
+            )
+            self.assertEqual(result, preview_bundle.EXIT_SUCCESS)
+
+            bundle = output / "previews" / "TEST-1" / "r1"
+
+            # Verify manifest has correct content.
+            manifest = json.loads(
+                (bundle / "preview-manifest.json").read_text(encoding="utf-8"),
+            )
+            self.assertEqual(manifest["entry_point"], "index.html")
+            self.assertIn("content_sha256", manifest)
+            file_paths = {f["path"] for f in manifest["files"]}
+            self.assertIn("style.css", file_paths)
+            self.assertIn("app.js", file_paths)
+
+            # Serve the packaged bundle and verify assets load.
+            handler = http.server.SimpleHTTPRequestHandler
+            original_dir = os.getcwd()
+            os.chdir(str(bundle))
+            try:
+                server = http.server.HTTPServer(("127.0.0.1", 0), handler)
+                port = server.server_address[1]
+                thread = threading.Thread(target=server.serve_forever)
+                thread.daemon = True
+                thread.start()
+
+                # Verify entry point.
+                url = f"http://127.0.0.1:{port}/index.html"
+                with urllib.request.urlopen(url, timeout=5) as resp:
+                    self.assertEqual(resp.status, 200)
+                    body = resp.read().decode("utf-8")
+                    self.assertIn("Dashboard", body)
+                    self.assertIn("app.js", body)
+                    self.assertIn("style.css", body)
+
+                # Verify CSS asset loads.
+                css_url = f"http://127.0.0.1:{port}/style.css"
+                with urllib.request.urlopen(css_url, timeout=5) as resp:
+                    self.assertEqual(resp.status, 200)
+                    css = resp.read().decode("utf-8")
+                    self.assertIn(".hidden", css)
+
+                # Verify JS asset loads.
+                js_url = f"http://127.0.0.1:{port}/app.js"
+                with urllib.request.urlopen(js_url, timeout=5) as resp:
+                    self.assertEqual(resp.status, 200)
+                    js = resp.read().decode("utf-8")
+                    self.assertIn("toggle", js)
+
+                # Verify no external network requests needed.
+                self.assertNotIn("fetch(", body)
+                self.assertNotIn("localhost:", body)
+
+                server.shutdown()
+            finally:
+                os.chdir(original_dir)
+
+
+# ---------------------------------------------------------------------------
+# Private file helper unit tests
+# ---------------------------------------------------------------------------
+
+class TestIsPrivateFile(unittest.TestCase):
+    """Test _is_private_file helper directly."""
+
+    def test_dotenv_is_private(self) -> None:
+        base = Path("/tmp/base")
+        self.assertTrue(
+            preview_bundle._is_private_file(base / ".env", base),
+        )
+
+    def test_hidden_dir_is_private(self) -> None:
+        base = Path("/tmp/base")
+        self.assertTrue(
+            preview_bundle._is_private_file(base / ".git" / "config", base),
+        )
+
+    def test_normal_file_is_not_private(self) -> None:
+        base = Path("/tmp/base")
+        self.assertFalse(
+            preview_bundle._is_private_file(base / "index.html", base),
+        )
+
+    def test_outside_base_is_private(self) -> None:
+        self.assertTrue(
+            preview_bundle._is_private_file(Path("/other/file"), Path("/base")),
+        )
 
 
 if __name__ == "__main__":

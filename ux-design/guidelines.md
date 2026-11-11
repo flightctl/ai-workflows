@@ -123,9 +123,12 @@ Example: `git commit -m "${title}"` not `git commit -m $title`
 ## Preview Constraints
 
 - **Human-only artifact.** The static preview is for human browser review.
-  It must never be consumed by downstream workflows, agents, or automated
+  It must never be consumed by downstream planning or implementation
+  workflows (`ui-design`, `ui-implement`, etc.), agents, or automated
   pipelines. The structured text handoff (`05-handoff.md`) remains the
-  authoritative contract for `ui-design`.
+  authoritative downstream contract. The ux-design workflow itself may
+  build, validate, render, and deploy the preview bundle as part of its
+  own authoring and verification process.
 - **No generated bundles in Git.** Preview bundles stay under `.artifacts/`
   (gitignored). Do not commit preview HTML, JS, or assets to the docs
   repo or any other repository. Deployment uses the site owner's artifact

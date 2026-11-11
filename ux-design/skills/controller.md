@@ -154,10 +154,13 @@ prototype and evaluation have been reviewed against that context.
 - `/publish` completed → recommend `/preview` if reviewers need a browser
   preview alongside the handoff spec, then sharing the PR with reviewers
   and `/respond` when comments arrive
-- `/respond` completed → if handoff changes were made and a preview exists,
-  recommend `/preview` to rebuild the preview with the updated design;
-  otherwise recommend another `/respond` round if new comments arrive,
-  or the workflow is done
+- `/respond` completed → if design-affecting handoff changes were made and
+  a preview exists, it is now marked `stale`; recommend `/prototype` to
+  update the prototype with the accepted changes, then `/preview` to
+  rebuild and republish. If changes were editorial-only, the preview may
+  still be current — recommend `/preview` only if visual presentation
+  was affected. Otherwise recommend another `/respond` round if new
+  comments arrive, or the workflow is done
 
 **When to recommend `/research`:**
 

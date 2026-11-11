@@ -27,6 +27,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -89,6 +90,42 @@ _ASSET_EXTENSIONS = {
 # Maximum file size to scan for backend patterns (2 MiB).
 _MAX_SCAN_BYTES = 2 * 1024 * 1024
 
+# Basenames and patterns excluded from preview bundles to prevent leaking
+# private files, build caches, or source-repo metadata.
+_PRIVATE_BASENAMES: frozenset[str] = frozenset({
+    ".git", ".gitignore", ".gitmodules", ".gitattributes",
+    ".env", ".env.local", ".env.production", ".env.development",
+    "prototype-notes.md", "__pycache__", ".DS_Store",
+    "node_modules", ".vscode", ".idea",
+})
+
+
+def _is_private_file(filepath: Path, base_dir: Path) -> bool:
+    """Return True if *filepath* should be excluded from a preview bundle.
+
+    A file is private when any component of its path relative to *base_dir*
+    starts with ``'.'`` (hidden) or matches a known private basename.
+    """
+    try:
+        rel = filepath.relative_to(base_dir)
+    except ValueError:
+        return True  # outside base_dir — treat as private
+    for part in rel.parts:
+        if part.startswith("."):
+            return True
+        if part in _PRIVATE_BASENAMES:
+            return True
+    return False
+
+
+def _is_path_within(child: Path, parent: Path) -> bool:
+    """Return True if resolved *child* is inside resolved *parent*."""
+    try:
+        child.resolve().relative_to(parent.resolve())
+        return True
+    except ValueError:
+        return False
+
 
 def _resolve_content_dir(prototype_dir: Path, mode: str) -> Path | None:
     """Return the directory containing servable static content.
@@ -126,9 +163,20 @@ def _resolve_content_dir(prototype_dir: Path, mode: str) -> Path | None:
 
 
 def _find_entry_point(content_dir: Path, explicit: str | None = None) -> Path | None:
-    """Locate the HTML entry point within the content directory."""
+    """Locate the HTML entry point within the content directory.
+
+    When *explicit* is provided, it must be a relative path with no ``..``
+    components that resolves to a file inside *content_dir*.  Absolute
+    paths and traversal attempts are rejected.
+    """
     if explicit:
-        candidate = content_dir / explicit
+        # Reject absolute paths and traversal components.
+        if os.path.isabs(explicit) or ".." in Path(explicit).parts:
+            return None
+        candidate = (content_dir / explicit).resolve()
+        # Must resolve inside content_dir.
+        if not _is_path_within(candidate, content_dir):
+            return None
         if candidate.is_file():
             return candidate
         return None
@@ -284,11 +332,39 @@ def cmd_validate(args: argparse.Namespace) -> int:
 # Subcommand: package
 # ---------------------------------------------------------------------------
 
+def _compute_content_digest(directory: Path) -> str:
+    """Compute a SHA-256 digest over all regular files in *directory*.
+
+    Files are processed in sorted order by relative POSIX path so the
+    digest is deterministic across platforms.
+    """
+    hasher = hashlib.sha256()
+    for filepath in sorted(directory.rglob("*")):
+        if not filepath.is_file() or filepath.is_symlink():
+            continue
+        rel = filepath.relative_to(directory).as_posix()
+        hasher.update(rel.encode("utf-8"))
+        try:
+            hasher.update(filepath.read_bytes())
+        except OSError:
+            pass
+    return hasher.hexdigest()
+
+
 def cmd_package(args: argparse.Namespace) -> int:
     """Package prototype output into a deployable preview bundle.
 
     Creates a directory at ``output_dir/previews/{issue_key}/{revision}/``
     containing the static content and a ``preview-manifest.json``.
+
+    Safety checks performed before any writes:
+    - Issue key and revision format validation
+    - Input/output directory disjointness
+    - Content directory discovery and entry-point resolution
+    - Backend dependency scan (advisory warnings only)
+    - Existing revision collision detection (non-destructive)
+    - Private/hidden file exclusion
+    - Symlink escape prevention
     """
     prototype_dir = Path(args.prototype_dir).resolve()
     output_dir = Path(args.output_dir).resolve()
@@ -303,6 +379,22 @@ def cmd_package(args: argparse.Namespace) -> int:
     if not prototype_dir.is_dir():
         fail(f"package: prototype directory does not exist: {prototype_dir}")
 
+    # --- Input/output disjointness check ---
+    if _is_path_within(output_dir, prototype_dir):
+        fail(
+            "package: output directory is inside prototype directory — "
+            "this would cause recursive copying. "
+            "Use a separate output location.",
+            EXIT_PACKAGE_FAIL,
+        )
+    if _is_path_within(prototype_dir, output_dir):
+        fail(
+            "package: prototype directory is inside output directory — "
+            "packaging could overwrite source files. "
+            "Use a separate output location.",
+            EXIT_PACKAGE_FAIL,
+        )
+
     content_dir = _resolve_content_dir(prototype_dir, mode)
     if content_dir is None:
         fail(
@@ -311,24 +403,60 @@ def cmd_package(args: argparse.Namespace) -> int:
             EXIT_PACKAGE_FAIL,
         )
 
+    # --- Pre-write validation: entry point and dependency scan ---
     entry_point = _find_entry_point(content_dir, args.entry_point)
     if entry_point is None:
         fail("package: no HTML entry point found.", EXIT_PACKAGE_FAIL)
 
-    # Build the namespaced bundle directory.
+    findings = _scan_directory(content_dir)
+    if findings:
+        info(
+            f"Advisory: {len(findings)} backend dependency indicator(s) "
+            f"found. The bundle may not render fully without a backend."
+        )
+        for f in findings:
+            info(f"  {f['pattern']} in {f['file']}:{f['line']}")
+
+    # --- Existing revision collision check (non-destructive) ---
     bundle_dir = output_dir / "previews" / issue_key / revision
     if bundle_dir.exists():
-        shutil.rmtree(bundle_dir)
+        fail(
+            f"package: revision already exists at {bundle_dir}. "
+            "Use a different revision identifier to preserve "
+            "the existing bundle.",
+            EXIT_PACKAGE_FAIL,
+        )
     bundle_dir.mkdir(parents=True, exist_ok=True)
 
-    # Copy content tree, skipping symlinks.
+    # Copy content tree, skipping symlinks, private files, and escaping
+    # symlink targets.
+    skipped_private: list[str] = []
+    skipped_symlink: list[str] = []
     for src_file in sorted(content_dir.rglob("*")):
-        if src_file.is_symlink() or not src_file.is_file():
+        if not src_file.is_file():
+            continue
+        # Skip symlinks whose resolved target escapes the content directory.
+        if src_file.is_symlink():
+            resolved = src_file.resolve()
+            if not _is_path_within(resolved, content_dir):
+                skipped_symlink.append(str(src_file.relative_to(content_dir)))
+                continue
+        # Skip private/hidden files.
+        if _is_private_file(src_file, content_dir):
+            skipped_private.append(str(src_file.relative_to(content_dir)))
             continue
         rel = src_file.relative_to(content_dir)
         dest = bundle_dir / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src_file, dest)
+
+    if skipped_private:
+        info(f"Excluded {len(skipped_private)} private file(s) from bundle.")
+    if skipped_symlink:
+        info(f"Excluded {len(skipped_symlink)} escaping symlink(s) from bundle.")
+
+    # Compute content digest for bundle identity.
+    content_sha256 = _compute_content_digest(bundle_dir)
 
     # Collect inventory and write manifest.
     inventory = _collect_file_inventory(bundle_dir)
@@ -338,15 +466,18 @@ def cmd_package(args: argparse.Namespace) -> int:
         "mode": mode,
         "entry_point": entry_point.relative_to(content_dir).as_posix(),
         "file_count": len(inventory),
+        "content_sha256": content_sha256,
         "files": inventory,
         "mocked_components": [],
         "notes": (
-            "Self-contained static preview. "
-            "No runtime backend required for review."
+            "Static preview bundle. Backend dependency scan is advisory — "
+            "actual rendering must be verified in a browser."
         ),
     }
 
     # Read prototype-notes.md for mock inventory if available.
+    # Note: prototype-notes.md is excluded from the bundle itself but its
+    # mock inventory metadata is extracted into the manifest.
     notes_file = prototype_dir / "prototype-notes.md"
     if notes_file.is_file():
         try:
@@ -380,10 +511,12 @@ def cmd_package(args: argparse.Namespace) -> int:
     info(f"Bundle created: {bundle_dir}")
     info(f"Entry point: {manifest['entry_point']}")
     info(f"Files: {manifest['file_count']}")
+    info(f"Content digest: {content_sha256}")
     print(json.dumps({
         "bundle_dir": str(bundle_dir),
         "entry_point": manifest["entry_point"],
         "file_count": manifest["file_count"],
+        "content_sha256": content_sha256,
         "manifest_path": str(manifest_path),
     }, indent=2))
     return EXIT_SUCCESS

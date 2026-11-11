@@ -203,23 +203,49 @@ Delete the temporary reply file after a successful post and log:
 rm .artifacts/ux-design/{issue-key}/tmp-reply.md
 ```
 
-### Step 5: Preview Rebuild Check
+### Step 5: Preview Synchronization Check
 
 After applying handoff changes in Step 4, check whether a preview exists:
 
 Read `.artifacts/ux-design/{issue-key}/preview-metadata.json`. If it
-exists and `deploy_status` is `published`, the published preview now
-reflects an older version of the handoff and prototype.
+exists, evaluate whether the preview is now stale.
 
-**If handoff changes were made and a preview is published:**
-Inform the researcher that the published preview may not reflect the
-updated design. Recommend running `/preview` to rebuild and republish
-the preview bundle. Do not rebuild automatically — the researcher
-decides whether the preview needs updating based on the nature of the
-handoff changes.
+**If handoff changes were design-affecting AND a preview exists:**
+
+The preview no longer reflects the current design. Update
+`preview-metadata.json`:
+- Set `deploy_status` to `stale`
+- Record `stale_reason: respond-handoff-update`
+- Record `current_revision` (from `00-context.md`) and
+  `deployed_revision` (from the existing metadata)
+
+Inform the researcher:
+
+> The published preview is now **stale** — the handoff spec was updated
+> with design-affecting changes. Current revision: {current}, deployed
+> revision: {deployed}.
+>
+> To update the preview:
+> 1. Run `/prototype` to update the prototype with the accepted changes
+> 2. Run `/preview` to rebuild and republish the preview bundle
+>
+> The preview will show `stale` status until it is rebuilt.
+
+Do not rebuild automatically — the researcher decides whether and when
+to update the prototype and preview.
+
+**If handoff changes were editorial-only (clarification, wording):**
+
+The preview may still be representative. Inform the researcher:
+
+> The handoff spec was updated with editorial changes. The published
+> preview may still be representative of the current design. Run
+> `/preview` to rebuild if the changes affect visual presentation.
+
+Leave `deploy_status` unchanged.
 
 **If no preview exists or the preview uses screenshot fallback:**
-No preview rebuild is needed. Proceed to Step 6.
+No preview synchronization is needed. Proceed to Step 6.
 
 ### Step 6: Report to User
 
@@ -227,7 +253,7 @@ Summarize:
 - How many comments were addressed
 - How many handoff spec changes were made
 - Whether any comments remain unresolved
-- Whether a published preview needs rebuilding (from Step 5)
+- Whether a published preview is now stale and needs rebuilding (from Step 5)
 
 ## Output
 
