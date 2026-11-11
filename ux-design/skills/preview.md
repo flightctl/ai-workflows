@@ -40,19 +40,17 @@ path component.
 Determine the prototype mode from `prototype-notes.md` (`standalone` or
 `workspace`).
 
-Resolve the preview-bundle script relative to the workflow's installed
-location. From any skill file in `ux-design/skills/`:
+Resolve `{AI_WORKFLOWS_ROOT}` as the root of the ai-workflows install,
+following the same convention as other skills in this workflow (e.g.,
+`respond.md`). This is typically `~/.ai-workflows` when installed via
+symlinks, or the root of the ai-workflows repository when running from
+source. Do **not** use `$0`, `$BASH_SOURCE`, or run
+`git rev-parse --show-toplevel` against the **source repository** — that
+resolves to the wrong root (the project repo, not the ai-workflows
+install).
 
 ```text
-UX_SCRIPTS="$(cd "$(dirname "$(readlink -f "$0")")/../../ux-design/scripts" 2>/dev/null && pwd)"
-```
-
-If running in a context where `$0` is not resolvable (e.g., from a
-markdown skill file), locate the ai-workflows install root and resolve:
-
-```text
-AI_WORKFLOWS_ROOT="$(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel 2>/dev/null)"
-UX_SCRIPTS="${AI_WORKFLOWS_ROOT}/ux-design/scripts"
+UX_SCRIPTS="{AI_WORKFLOWS_ROOT}/ux-design/scripts"
 ```
 
 Run validation:
@@ -132,92 +130,97 @@ Record the build details:
 
 ### Step 3: Resolve the Deployment Interface
 
-Read `{source_repo_root}/.artifacts/config.json` for preview site
-configuration:
+Read `{source_repo_root}/.artifacts/config.json` for the shared
+configuration. The **default deployment target** is the docs repository
+already configured via `docs_repo_remote` and `docs_repo_path` — the
+same repository used by `/publish` for handoff PRs.
 
-```json
-{
-  "preview_site_url": "https://example.com/site",
-  "preview_artifact_method": "workflow_artifact|s3|manual",
-  "preview_deploy_repo": "org/deploy-repo",
-  "preview_deploy_workflow": "deploy-preview.yml",
-  "preview_deploy_inputs": {
-    "artifact_name": "preview-bundle",
-    "namespace": "previews/{issue-key}/{revision}"
-  }
-}
+The preview publisher is a single command interface at:
+
+```text
+PREVIEW_PUBLISH_SCRIPT="{AI_WORKFLOWS_ROOT}/ux-design/scripts/preview-publish.py"
 ```
 
-**When preview configuration is not present:**
+Required inputs for the publisher:
+- `--bundle-dir` — the packaged bundle from Step 2
+- `--site-dir` — the assembled site directory (typically inside the
+  docs repo or a staging location)
+- `--pr-url` — the handoff PR URL (from `publish-metadata.json`);
+  deployment requires a real PR identity, not just a local build
+- `--target-repo` — the `{owner}/{repo}` from `docs_repo_remote`
+
+**When `docs_repo_remote` is configured (default):**
+
+Use it as the deployment target. The `{owner}/{repo}` is derived from
+`docs_repo_remote` the same way as in `/publish`. Do not guess a Pages
+URL from the repository name.
+
+The project owner may optionally override the deployment target by
+setting `preview_site_url` in `.artifacts/config.json`. This override
+must be explicitly approved — do not construct URLs from repository
+naming conventions.
+
+If `publish-metadata.json` does not exist (no handoff PR yet), record
+`deploy_status: awaiting-setup` — deployment requires a real PR
+identity. Present the researcher with the bundle location and
+recommend `/publish` first.
+
+**When `docs_repo_remote` is not configured:**
 
 Record `deploy_status: awaiting-setup` in preview-metadata.json. Present
 the researcher with:
 
-> No preview deployment is configured for this project.
+> No docs repository is configured for this project.
 >
 > The preview bundle is packaged and ready at:
 > `{bundle_dir}`
 >
-> To enable preview deployment, the project owner must configure:
->
-> 1. `preview_site_url` — the actual configured site URL (do not guess
->    from repository name or assume `*.github.io`)
-> 2. `preview_artifact_method` — how the bundle reaches the deploy job
-> 3. `preview_deploy_repo` and `preview_deploy_workflow` — the
->    deployment target
->
-> See the project's deployment documentation for the supported interface.
+> To enable preview deployment, run `/publish` first to configure the
+> docs repository, or set `docs_repo_remote` in `.artifacts/config.json`.
 
 Do not proceed to Step 4. Skip to Step 5.
 
-**When configuration exists but `preview_site_url` is missing:**
-
-Stop. The site URL must come from project configuration or explicit
-researcher input, not from repository naming conventions.
-
 ### Step 4: Deploy and Verify the Preview
 
-When the deployment interface is fully configured:
+When the deployment interface is available and a handoff PR exists:
 
 1. **Confirm with the researcher** before deploying:
-   > Deploy preview bundle to {preview_site_url}/previews/{issue-key}/{revision}/?
-   > Repository: {preview_deploy_repo}
-   > Workflow: {preview_deploy_workflow}
+   > Deploy preview bundle to {target-repo} at previews/{issue-key}/{revision}/?
+   > PR: {pr-url}
+   > Target repo: {owner}/{repo}
 
-2. **Transport the bundle** to the location the deploy job can access.
-   The transport method depends on `preview_artifact_method`:
-   - `workflow_artifact` — upload via `gh run` artifact mechanism
-   - `s3` — upload to the configured S3 path
-   - `manual` — instruct the researcher to transfer the bundle
+2. **Invoke the publisher:**
 
-   A local file path cannot be passed as a remote workflow input.
-   The deployment job must receive the actual bundle content, not a
-   path on the author's machine.
+   ```bash
+   python3 "$PREVIEW_PUBLISH_SCRIPT" publish \
+     --bundle-dir "{bundle_dir}/previews/{issue-key}/{revision}" \
+     --site-dir "{site_staging_dir}" \
+     --pr-url "{pr-url}" \
+     --target-repo "{owner}/{repo}"
+   ```
 
-3. **Invoke the deployment** using the project's documented interface.
-   Pass the exact inputs specified in `preview_deploy_inputs`. Do not
-   invent workflow input names or guess namespace formats.
+   Parse the JSON receipt. Check `digest_match` — if `false`, the
+   content was corrupted during publish. Record `deploy-failed`.
 
-4. **Wait for deployment receipt:**
-   - Check the workflow/deployment run status until completion
-   - Record the run ID and completion status
+3. **Verify the published content** using the publisher's verify
+   command with per-file hash checking:
 
-5. **Verify the published preview:**
-   - Request the entry point URL from the configured `preview_site_url`
-     plus the namespace path
-   - Verify HTTP 200 with content matching the bundle's entry point
-   - Verify at least one CSS/JS asset loads (not a 404)
-   - Compare the served content against the bundle's `content_sha256`
-     digest from the manifest
+   ```bash
+   python3 "$PREVIEW_PUBLISH_SCRIPT" verify \
+     --site-dir "{site_staging_dir}" \
+     --issue-key "{issue-key}" \
+     --revision "{revision}" \
+     --expected-digest "{content_sha256_from_manifest}"
+   ```
 
-   Do not claim the preview is published until ALL verifications pass.
-   A constructed URL alone is not proof. An HTTP 200 that matches old
-   content is not proof — compare the content digest.
+   Parse the JSON result. Check `verified` — if `false`, report
+   per-file mismatches. Do not claim the preview is published until
+   verification passes. A receipt alone is not verification — all
+   expected files must match their per-file hashes.
 
-6. **Check site preservation:**
-   If other previews or documentation exist on the site, verify they
-   are still accessible after deployment. The deployment must preserve
-   existing content, not replace the entire site.
+4. **Check site preservation:**
+   The publisher verifies existing content is preserved. If the
+   receipt reports a preservation violation, record `deploy-failed`.
 
 If any step fails, record `deploy_status: deploy-failed` with the
 specific error and offer the screenshot fallback.
@@ -236,9 +239,8 @@ Write `.artifacts/ux-design/{issue-key}/preview-metadata.json`:
   "deploy_status": "{published|awaiting-setup|awaiting-upload|deploy-failed|screenshot-fallback|stale}",
   "content_sha256": "{digest-from-manifest-or-null}",
   "site_url": "{verified-url-or-null}",
-  "target_repo": "{owner/repo-or-null}",
-  "deploy_workflow": "{workflow-or-null}",
-  "deploy_run_id": "{run-id-or-null}",
+  "target_repo": "{owner/repo-from-docs_repo_remote-or-null}",
+  "pr_url": "{handoff-pr-url-or-null}",
   "mocked_components": [],
   "timestamp": "{ISO-8601}"
 }

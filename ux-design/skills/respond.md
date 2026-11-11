@@ -244,7 +244,21 @@ The preview may still be representative. Inform the researcher:
 
 Leave `deploy_status` unchanged.
 
-**If no preview exists or the preview uses screenshot fallback:**
+**If the preview uses screenshot fallback AND changes are design-affecting:**
+
+Screenshots are also invalidated by design-affecting changes. Update
+`preview-metadata.json`:
+- Set `deploy_status` to `stale`
+- Record `stale_reason: respond-handoff-update`
+- Preserve `last_published_revision` from the existing metadata
+
+Inform the researcher:
+
+> The attached screenshots are now **stale** — the handoff spec was
+> updated with design-affecting changes. Run `/prototype` to update
+> the prototype, then `/preview` to capture new screenshots.
+
+**If no preview exists:**
 No preview synchronization is needed. Proceed to Step 6.
 
 ### Step 6: Report to User

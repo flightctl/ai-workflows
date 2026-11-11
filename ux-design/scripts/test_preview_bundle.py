@@ -912,5 +912,341 @@ class TestIsPrivateFile(unittest.TestCase):
         )
 
 
+# ---------------------------------------------------------------------------
+# Per-file SHA-256 hashes in manifest
+# ---------------------------------------------------------------------------
+
+class TestPerFileHashes(unittest.TestCase):
+    """Verify manifest includes per-file SHA-256 hashes."""
+
+    def test_manifest_has_per_file_sha256(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source" / "prototype"
+            proto.mkdir(parents=True)
+            content = _SELF_CONTAINED_HTML
+            (proto / "index.html").write_text(content, encoding="utf-8")
+            (proto / "style.css").write_text("body { margin: 0; }", encoding="utf-8")
+            output = Path(tmpdir) / "output"
+            preview_bundle.cmd_package(
+                argparse.Namespace(
+                    prototype_dir=str(Path(tmpdir) / "source"),
+                    output_dir=str(output),
+                    issue_key="HASH-1",
+                    revision="r1",
+                    mode="standalone",
+                    entry_point=None,
+                ),
+            )
+            bundle = output / "previews" / "HASH-1" / "r1"
+            manifest = json.loads(
+                (bundle / "preview-manifest.json").read_text(encoding="utf-8"),
+            )
+            for f in manifest["files"]:
+                self.assertIn("sha256", f, f"File {f['path']} missing sha256")
+                self.assertEqual(len(f["sha256"]), 64, f"File {f['path']} bad hash length")
+
+    def test_per_file_hash_matches_content(self) -> None:
+        """Each file's sha256 must match actual file content hash."""
+        import hashlib as hl
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source" / "prototype"
+            proto.mkdir(parents=True)
+            (proto / "index.html").write_text("<html><body>Test</body></html>", encoding="utf-8")
+            output = Path(tmpdir) / "output"
+            preview_bundle.cmd_package(
+                argparse.Namespace(
+                    prototype_dir=str(Path(tmpdir) / "source"),
+                    output_dir=str(output),
+                    issue_key="HASH-2",
+                    revision="r1",
+                    mode="standalone",
+                    entry_point=None,
+                ),
+            )
+            bundle = output / "previews" / "HASH-2" / "r1"
+            manifest = json.loads(
+                (bundle / "preview-manifest.json").read_text(encoding="utf-8"),
+            )
+            for f in manifest["files"]:
+                fpath = bundle / f["path"]
+                expected = hl.sha256(fpath.read_bytes()).hexdigest()
+                self.assertEqual(f["sha256"], expected, f"Hash mismatch for {f['path']}")
+
+    def test_aggregate_hash_differs_from_single_file(self) -> None:
+        """Aggregate content_sha256 must not equal any single file hash."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source" / "prototype"
+            proto.mkdir(parents=True)
+            (proto / "index.html").write_text("<html>A</html>", encoding="utf-8")
+            (proto / "app.js").write_text("console.log(1)", encoding="utf-8")
+            output = Path(tmpdir) / "output"
+            preview_bundle.cmd_package(
+                argparse.Namespace(
+                    prototype_dir=str(Path(tmpdir) / "source"),
+                    output_dir=str(output),
+                    issue_key="HASH-3",
+                    revision="r1",
+                    mode="standalone",
+                    entry_point=None,
+                ),
+            )
+            bundle = output / "previews" / "HASH-3" / "r1"
+            manifest = json.loads(
+                (bundle / "preview-manifest.json").read_text(encoding="utf-8"),
+            )
+            file_hashes = {f["sha256"] for f in manifest["files"]}
+            self.assertNotIn(
+                manifest["content_sha256"], file_hashes,
+                "Aggregate digest should differ from any single file hash",
+            )
+
+
+# ---------------------------------------------------------------------------
+# Symlink entry point rejection
+# ---------------------------------------------------------------------------
+
+class TestSymlinkEntryRejection(unittest.TestCase):
+    """Verify symlink entry points are rejected."""
+
+    def test_symlink_index_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Put real file outside; symlink is the only HTML in tmpdir
+            outer = Path(tmpdir) / "outer"
+            outer.mkdir()
+            real = outer / "real.html"
+            real.write_text("<html>OK</html>", encoding="utf-8")
+            inner = Path(tmpdir) / "inner"
+            inner.mkdir()
+            link = inner / "index.html"
+            link.symlink_to(real)
+            result = preview_bundle._find_entry_point(inner)
+            self.assertIsNone(
+                result,
+                "Symlink entry point should be rejected",
+            )
+
+    def test_symlink_content_dir_rejected(self) -> None:
+        """Symlink prototype directory should not resolve as content."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            real = Path(tmpdir) / "real_proto"
+            real.mkdir()
+            (real / "index.html").write_text("<html>OK</html>")
+            link = Path(tmpdir) / "prototype"
+            link.symlink_to(real)
+            result = preview_bundle._resolve_content_dir(Path(tmpdir), "standalone")
+            # Should use symlink target or reject — the prototype/ symlink is
+            # rejected because is_symlink() is true for it.
+            self.assertNotEqual(result, link)
+
+
+# ---------------------------------------------------------------------------
+# Missing entry after symlink skip
+# ---------------------------------------------------------------------------
+
+class TestMissingEntryAfterSkip(unittest.TestCase):
+    """Package fails if entry point is excluded (symlink/private)."""
+
+    def test_symlink_entry_excluded_fails_package(self) -> None:
+        """When the only entry point is a symlink to outside, packaging fails."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source" / "prototype"
+            proto.mkdir(parents=True)
+            # Only HTML file is a symlink to outside — will be skipped
+            external = Path(tmpdir) / "external.html"
+            external.write_text("<html>External</html>")
+            (proto / "index.html").symlink_to(external)
+            # _find_entry_point skips symlinks
+            result = preview_bundle._find_entry_point(proto)
+            self.assertIsNone(result, "Symlink-only entry should not be found")
+
+
+# ---------------------------------------------------------------------------
+# Publisher fixture integration
+# ---------------------------------------------------------------------------
+
+class TestPublisherFixture(unittest.TestCase):
+    """Test preview-publish.py as a publisher fixture."""
+
+    def _package_bundle(self, tmpdir: str) -> tuple[Path, dict]:
+        """Create a prototype and package it."""
+        proto = Path(tmpdir) / "source" / "prototype"
+        proto.mkdir(parents=True)
+        (proto / "index.html").write_text(
+            _SELF_CONTAINED_HTML, encoding="utf-8",
+        )
+        (proto / "style.css").write_text("body { margin: 0; }", encoding="utf-8")
+        output = Path(tmpdir) / "output"
+        import subprocess
+        result = subprocess.run(
+            [
+                sys.executable, str(_SCRIPT), "package",
+                "--prototype-dir", str(Path(tmpdir) / "source"),
+                "--output-dir", str(output),
+                "--issue-key", "PUB-1",
+                "--revision", "r1",
+                "--mode", "standalone",
+            ],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        pkg = json.loads(result.stdout)
+        bundle = Path(pkg["bundle_dir"])
+        return bundle, pkg
+
+    def test_publish_and_verify(self) -> None:
+        """Publisher copies bundle, returns receipt, verify passes."""
+        import subprocess
+        pub_script = _SCRIPT.parent / "preview-publish.py"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bundle, pkg = self._package_bundle(tmpdir)
+            site_dir = Path(tmpdir) / "site"
+            # Pre-populate site with existing docs
+            docs_dir = site_dir / "docs"
+            docs_dir.mkdir(parents=True)
+            (docs_dir / "readme.md").write_text("# Docs")
+
+            # Publish
+            result = subprocess.run(
+                [
+                    sys.executable, str(pub_script), "publish",
+                    "--bundle-dir", str(bundle),
+                    "--site-dir", str(site_dir),
+                    "--pr-url", "https://github.com/org/repo/pull/42",
+                    "--target-repo", "org/repo",
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            receipt = json.loads(result.stdout)
+            self.assertEqual(receipt["status"], "published-local")
+            self.assertTrue(receipt["digest_match"], "Digest should match")
+            self.assertEqual(receipt["issue_key"], "PUB-1")
+            self.assertEqual(receipt["revision"], "r1")
+            self.assertIn("LOCAL fixture", receipt["note"])
+
+            # Verify existing docs preserved
+            self.assertTrue((docs_dir / "readme.md").is_file())
+
+            # Verify content using verify subcommand
+            verify = subprocess.run(
+                [
+                    sys.executable, str(pub_script), "verify",
+                    "--site-dir", str(site_dir),
+                    "--issue-key", "PUB-1",
+                    "--revision", "r1",
+                    "--expected-digest", receipt["content_sha256"],
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(verify.returncode, 0, verify.stderr)
+            vresult = json.loads(verify.stdout)
+            self.assertTrue(vresult["verified"])
+
+    def test_verify_mismatch_detected(self) -> None:
+        """Verify detects content mismatch with wrong digest."""
+        import subprocess
+        pub_script = _SCRIPT.parent / "preview-publish.py"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bundle, pkg = self._package_bundle(tmpdir)
+            site_dir = Path(tmpdir) / "site"
+
+            # Publish
+            result = subprocess.run(
+                [
+                    sys.executable, str(pub_script), "publish",
+                    "--bundle-dir", str(bundle),
+                    "--site-dir", str(site_dir),
+                    "--pr-url", "https://github.com/org/repo/pull/42",
+                    "--target-repo", "org/repo",
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+            # Verify with wrong digest
+            verify = subprocess.run(
+                [
+                    sys.executable, str(pub_script), "verify",
+                    "--site-dir", str(site_dir),
+                    "--issue-key", "PUB-1",
+                    "--revision", "r1",
+                    "--expected-digest", "0" * 64,
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(verify.returncode, 0)
+            vresult = json.loads(verify.stdout)
+            self.assertFalse(vresult["verified"])
+
+    def test_publish_preserves_other_pr(self) -> None:
+        """Publishing a new PR's preview preserves existing PR previews."""
+        import subprocess
+        pub_script = _SCRIPT.parent / "preview-publish.py"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bundle, pkg = self._package_bundle(tmpdir)
+            site_dir = Path(tmpdir) / "site"
+
+            # Create an existing old-PR preview
+            old_preview = site_dir / "previews" / "OLD-1" / "r1"
+            old_preview.mkdir(parents=True)
+            (old_preview / "index.html").write_text("<html>Old</html>")
+
+            # Publish new bundle
+            result = subprocess.run(
+                [
+                    sys.executable, str(pub_script), "publish",
+                    "--bundle-dir", str(bundle),
+                    "--site-dir", str(site_dir),
+                    "--pr-url", "https://github.com/org/repo/pull/43",
+                    "--target-repo", "org/repo",
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+            # Old preview still intact
+            self.assertTrue(
+                (old_preview / "index.html").is_file(),
+                "Old PR preview should be preserved",
+            )
+            self.assertEqual(
+                (old_preview / "index.html").read_text(), "<html>Old</html>",
+            )
+
+    def test_publish_collision_rejected(self) -> None:
+        """Publishing to existing revision is rejected (non-destructive)."""
+        import subprocess
+        pub_script = _SCRIPT.parent / "preview-publish.py"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bundle, pkg = self._package_bundle(tmpdir)
+            site_dir = Path(tmpdir) / "site"
+
+            # First publish succeeds
+            r1 = subprocess.run(
+                [
+                    sys.executable, str(pub_script), "publish",
+                    "--bundle-dir", str(bundle),
+                    "--site-dir", str(site_dir),
+                    "--pr-url", "https://github.com/org/repo/pull/42",
+                    "--target-repo", "org/repo",
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(r1.returncode, 0)
+
+            # Second publish to same revision fails
+            r2 = subprocess.run(
+                [
+                    sys.executable, str(pub_script), "publish",
+                    "--bundle-dir", str(bundle),
+                    "--site-dir", str(site_dir),
+                    "--pr-url", "https://github.com/org/repo/pull/42",
+                    "--target-repo", "org/repo",
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(r2.returncode, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

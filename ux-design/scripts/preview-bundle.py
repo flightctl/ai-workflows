@@ -139,7 +139,9 @@ def _resolve_content_dir(prototype_dir: Path, mode: str) -> Path | None:
         candidate = prototype_dir / "prototype"
         if candidate.is_dir() and not candidate.is_symlink():
             return candidate
-        # Fallback: the prototype dir itself may contain HTML.
+        # Fallback: the prototype dir itself may contain HTML (must not be a symlink).
+        if prototype_dir.is_symlink():
+            return None
         html_files = list(prototype_dir.glob("*.html"))
         if html_files:
             return prototype_dir
@@ -147,11 +149,13 @@ def _resolve_content_dir(prototype_dir: Path, mode: str) -> Path | None:
 
     # workspace mode
     code_dir = prototype_dir / "code"
-    if not code_dir.is_dir():
+    if not code_dir.is_dir() or code_dir.is_symlink():
         return None
 
     for subdir in ("dist", "build", "out", "public", "exports"):
         candidate = code_dir / subdir
+        if candidate.is_symlink():
+            continue
         if candidate.is_dir() and list(candidate.glob("*.html")):
             return candidate
 
@@ -177,17 +181,25 @@ def _find_entry_point(content_dir: Path, explicit: str | None = None) -> Path | 
         # Must resolve inside content_dir.
         if not _is_path_within(candidate, content_dir):
             return None
+        # Reject symlink entry points.
+        if (content_dir / explicit).is_symlink():
+            return None
         if candidate.is_file():
             return candidate
         return None
 
     for name in ("index.html", "index.htm"):
         candidate = content_dir / name
+        if candidate.is_symlink():
+            continue
         if candidate.is_file():
             return candidate
 
-    # Fall back to first HTML file found.
-    html_files = sorted(content_dir.glob("**/*.html"))
+    # Fall back to first HTML file found (skip symlinks).
+    html_files = sorted(
+        f for f in content_dir.glob("**/*.html")
+        if not f.is_symlink()
+    )
     return html_files[0] if html_files else None
 
 
@@ -251,10 +263,15 @@ def _collect_file_inventory(
         else:
             category = "other"
         rel = filepath.relative_to(content_dir)
+        try:
+            file_sha256 = hashlib.sha256(filepath.read_bytes()).hexdigest()
+        except OSError:
+            file_sha256 = "read-error"
         inventory.append({
             "path": rel.as_posix(),
             "category": category,
             "size_bytes": str(filepath.stat().st_size),
+            "sha256": file_sha256,
         })
     return inventory
 
@@ -344,10 +361,7 @@ def _compute_content_digest(directory: Path) -> str:
             continue
         rel = filepath.relative_to(directory).as_posix()
         hasher.update(rel.encode("utf-8"))
-        try:
-            hasher.update(filepath.read_bytes())
-        except OSError:
-            pass
+        hasher.update(filepath.read_bytes())
     return hasher.hexdigest()
 
 
@@ -455,11 +469,28 @@ def cmd_package(args: argparse.Namespace) -> int:
     if skipped_symlink:
         info(f"Excluded {len(skipped_symlink)} escaping symlink(s) from bundle.")
 
+    # Verify the entry point was actually copied into the bundle.
+    entry_rel = entry_point.relative_to(content_dir)
+    if not (bundle_dir / entry_rel).is_file():
+        fail(
+            f"package: entry point '{entry_rel}' was not copied into the "
+            "bundle (likely excluded as a symlink or private file). "
+            "Cannot produce a bundle without its entry point.",
+            EXIT_PACKAGE_FAIL,
+        )
+
     # Compute content digest for bundle identity.
     content_sha256 = _compute_content_digest(bundle_dir)
 
-    # Collect inventory and write manifest.
+    # Collect inventory and verify all files are readable.
     inventory = _collect_file_inventory(bundle_dir)
+    read_errors = [f["path"] for f in inventory if f.get("sha256") == "read-error"]
+    if read_errors:
+        fail(
+            f"package: {len(read_errors)} file(s) could not be hashed: "
+            + ", ".join(read_errors),
+            EXIT_PACKAGE_FAIL,
+        )
     manifest: dict[str, Any] = {
         "issue_key": issue_key,
         "revision": revision,
