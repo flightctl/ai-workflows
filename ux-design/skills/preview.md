@@ -16,8 +16,9 @@ the authoritative downstream contract.
 ## Prerequisites
 
 Read `.artifacts/ux-design/{issue-key}/03-prototype/prototype-notes.md` for
-the prototype mode (standalone or workspace), iteration number, and design
-decisions. If it does not exist, stop and recommend `/prototype` first.
+the prototype mode (standalone or workspace), iteration number, design
+decisions, and static review notes (build command, entry point, mocked
+components). If it does not exist, stop and recommend `/prototype` first.
 
 Read `00-context.md` for the current prototype iteration and discovery
 revision. The preview must be built from a prototype that has been
@@ -201,24 +202,20 @@ When the handoff PR exists and deployment is configured:
      --deploy-command "{preview_deploy_command}"
    ```
 
-   Parse the JSON receipt. If `status` is `awaiting-setup`, record that
-   status — the deploy command is not configured. Do not claim published.
+   Parse the JSON receipt:
 
-   If `status` is `published`, check `digest_match`. If `false`, record
-   `deploy-failed` — content was corrupted during deploy.
+   - `status: awaiting-setup` — deploy command is not configured.
+     Record that status. Do not claim published.
+   - `status: published` — the wrapper verified served content at the
+     deploy URL against the local manifest (per-file hashes and
+     aggregate digest). The preview is published.
+   - `status: deployed-unverified` — the deploy command ran but
+     served verification failed. Record `deploy-failed`. The preview
+     is **not** published.
 
-3. **Verify the published content** using the returned `namespace`:
-
-   ```bash
-   python3 "$PREVIEW_PUBLISH" verify \
-     --site-dir "{site_dir}" \
-     --namespace "{namespace_from_receipt}" \
-     --expected-digest "{content_sha256}"
-   ```
-
-   Do not claim the preview is published until verification passes.
-   A receipt alone is not verification — all expected files and their
-   per-file hashes must match the manifest.
+   The wrapper guards identity fields (PR repo, PR number, content
+   SHA, namespace) — the deploy command cannot overwrite them.
+   A receipt alone is not verification.
 
 If any step fails, record `deploy_status: deploy-failed` with the
 specific error and offer the screenshot fallback.

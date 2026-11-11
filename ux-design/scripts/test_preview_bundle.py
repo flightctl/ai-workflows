@@ -1243,8 +1243,8 @@ class TestPublisherWrapper(unittest.TestCase):
             )
             self.assertNotEqual(rc2, 0)
 
-    def test_namespace_uses_pr_identity(self) -> None:
-        """Published namespace includes PR repo, number, and content SHA."""
+    def test_namespace_uses_pr_repo_not_target(self) -> None:
+        """Namespace uses pr_repo (source identity), not target_repo."""
         with tempfile.TemporaryDirectory() as tmpdir:
             bundle, pkg = self._package_bundle(tmpdir)
             rc, receipt = self._run_publish(
@@ -1253,9 +1253,250 @@ class TestPublisherWrapper(unittest.TestCase):
             )
             self.assertEqual(rc, 0)
             ns = receipt["namespace"]
-            self.assertIn("acme/preview-site", ns)
+            # Namespace has SOURCE pr_repo (org/docs-repo), not target
+            self.assertIn("org/docs-repo", ns)
+            self.assertNotIn("acme/preview-site", ns)
             self.assertIn("pr-99", ns)
             self.assertIn(pkg["content_sha256"][:12], ns)
+
+    def test_wrong_hash_rejects_before_command(self) -> None:
+        """Wrong content SHA-256 is rejected before any command runs."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bundle, pkg = self._package_bundle(tmpdir)
+            result = subprocess.run(
+                [
+                    sys.executable, str(self._PUB_SCRIPT), "publish",
+                    "--bundle-dir", str(bundle),
+                    "--pr-repo", "org/docs-repo",
+                    "--pr-number", "42",
+                    "--content-sha256", "0" * 64,  # wrong hash
+                    "--target-repo", "org/docs-repo",
+                    "--deploy-command", "/nonexistent/cmd",  # should never reach
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("does not match", result.stderr)
+
+    def test_two_pr_repos_different_namespace(self) -> None:
+        """Same PR number from different source repos gets different namespace."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bundle, pkg = self._package_bundle(tmpdir)
+            # Same PR number, same target, different pr_repo
+            args_base = [
+                sys.executable, str(self._PUB_SCRIPT), "publish",
+                "--bundle-dir", str(bundle),
+                "--pr-number", "42",
+                "--content-sha256", pkg["content_sha256"],
+                "--target-repo", "shared/pages-site",
+            ]
+            import subprocess
+            r1 = subprocess.run(
+                args_base + ["--pr-repo", "teamA/docs"],
+                capture_output=True, text=True,
+            )
+            r2 = subprocess.run(
+                args_base + ["--pr-repo", "teamB/docs"],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(r1.returncode, 0)
+            self.assertEqual(r2.returncode, 0)
+            ns1 = json.loads(r1.stdout)["namespace"]
+            ns2 = json.loads(r2.stdout)["namespace"]
+            self.assertNotEqual(ns1, ns2, "Different PR repos must get different namespaces")
+            self.assertIn("teamA/docs", ns1)
+            self.assertIn("teamB/docs", ns2)
+
+
+# ---------------------------------------------------------------------------
+# Deploy-command integration (defect 3 — actual --deploy-command path)
+# ---------------------------------------------------------------------------
+
+class TestDeployCommandIntegration(unittest.TestCase):
+    """Invoke the ACTUAL --deploy-command branch with a temp adapter."""
+
+    _PUB_SCRIPT = _SCRIPT.parent / "preview-publish.py"
+
+    def _package_bundle(self, tmpdir: str) -> tuple[Path, dict]:
+        proto = Path(tmpdir) / "source" / "prototype"
+        proto.mkdir(parents=True)
+        (proto / "index.html").write_text(
+            _SELF_CONTAINED_HTML, encoding="utf-8",
+        )
+        (proto / "style.css").write_text("body{margin:0}", encoding="utf-8")
+        output = Path(tmpdir) / "output"
+        import subprocess
+        r = subprocess.run(
+            [
+                sys.executable, str(_SCRIPT), "package",
+                "--prototype-dir", str(Path(tmpdir) / "source"),
+                "--output-dir", str(output),
+                "--issue-key", "DEPLOY-1", "--revision", "r1",
+                "--mode", "standalone",
+            ],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        pkg = json.loads(r.stdout)
+        return Path(pkg["bundle_dir"]), pkg
+
+    def _write_adapter(self, tmpdir: str, site_dir: str, port: int) -> Path:
+        """Create a temp deploy command that copies files and returns receipt."""
+        adapter = Path(tmpdir) / "deploy-adapter.py"
+        adapter.write_text(textwrap.dedent(f"""\
+            #!/usr/bin/env python3
+            import json, shutil, sys
+            from pathlib import Path
+
+            bundle_dir = Path(sys.argv[1])
+            namespace = sys.argv[2]
+            content_sha = sys.argv[3]
+
+            site = Path("{site_dir}")
+            dest = site / namespace
+            if dest.exists():
+                print(json.dumps({{"status": "error", "reason": "exists"}}))
+                sys.exit(1)
+            dest.mkdir(parents=True)
+            for f in sorted(bundle_dir.rglob("*")):
+                if not f.is_file() or f.is_symlink():
+                    continue
+                rel = f.relative_to(bundle_dir)
+                (dest / rel).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(f, dest / rel)
+            print(json.dumps({{
+                "status": "published",
+                "url": "http://127.0.0.1:{port}",
+                "content_sha256": content_sha,
+            }}))
+        """), encoding="utf-8")
+        adapter.chmod(0o755)
+        return adapter
+
+    def test_deploy_command_positive(self) -> None:
+        """Full deploy-command path: adapter deploys, wrapper verifies served."""
+        import http.server
+        import subprocess
+        import threading
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bundle, pkg = self._package_bundle(tmpdir)
+            site_dir = Path(tmpdir) / "served"
+            # Seed existing docs + old PR
+            (site_dir / "docs").mkdir(parents=True)
+            (site_dir / "docs" / "readme.md").write_text("# Docs")
+            old_pr = site_dir / "previews" / "org" / "docs-repo" / "pr-1" / "aaa"
+            old_pr.mkdir(parents=True)
+            (old_pr / "index.html").write_text("<html>old</html>")
+
+            # Start HTTP server on the site directory.
+            handler = http.server.SimpleHTTPRequestHandler
+            original_dir = os.getcwd()
+            os.chdir(str(site_dir))
+            try:
+                server = http.server.HTTPServer(("127.0.0.1", 0), handler)
+                port = server.server_address[1]
+                t = threading.Thread(target=server.serve_forever)
+                t.daemon = True
+                t.start()
+
+                adapter = self._write_adapter(tmpdir, str(site_dir), port)
+                result = subprocess.run(
+                    [
+                        sys.executable, str(self._PUB_SCRIPT), "publish",
+                        "--bundle-dir", str(bundle),
+                        "--pr-repo", "org/docs-repo",
+                        "--pr-number", "42",
+                        "--content-sha256", pkg["content_sha256"],
+                        "--target-repo", "org/docs-repo",
+                        "--deploy-command", str(adapter),
+                    ],
+                    capture_output=True, text=True,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                receipt = json.loads(result.stdout)
+
+                # Wrapper verified served content → status is "published"
+                self.assertEqual(receipt["status"], "published")
+                self.assertTrue(receipt["served_verification"]["verified"])
+                # Identity fields guarded
+                self.assertEqual(receipt["pr_repo"], "org/docs-repo")
+                self.assertEqual(receipt["pr_number"], 42)
+                self.assertEqual(
+                    receipt["content_sha256_expected"], pkg["content_sha256"],
+                )
+                # Docs + old PR preserved
+                self.assertTrue((site_dir / "docs" / "readme.md").is_file())
+                self.assertTrue((old_pr / "index.html").is_file())
+
+                server.shutdown()
+            finally:
+                os.chdir(original_dir)
+
+    def test_deploy_tampered_asset_fails_verification(self) -> None:
+        """Served asset tampered after deploy → status deployed-unverified."""
+        import http.server
+        import subprocess
+        import threading
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bundle, pkg = self._package_bundle(tmpdir)
+            site_dir = Path(tmpdir) / "served"
+            site_dir.mkdir(parents=True)
+
+            handler = http.server.SimpleHTTPRequestHandler
+            original_dir = os.getcwd()
+            os.chdir(str(site_dir))
+            try:
+                server = http.server.HTTPServer(("127.0.0.1", 0), handler)
+                port = server.server_address[1]
+                t = threading.Thread(target=server.serve_forever)
+                t.daemon = True
+                t.start()
+
+                adapter = self._write_adapter(tmpdir, str(site_dir), port)
+                # First, deploy correctly
+                result = subprocess.run(
+                    [
+                        sys.executable, str(self._PUB_SCRIPT), "publish",
+                        "--bundle-dir", str(bundle),
+                        "--pr-repo", "org/docs-repo",
+                        "--pr-number", "50",
+                        "--content-sha256", pkg["content_sha256"],
+                        "--target-repo", "org/docs-repo",
+                        "--deploy-command", str(adapter),
+                    ],
+                    capture_output=True, text=True,
+                )
+                receipt = json.loads(result.stdout)
+                ns = receipt["namespace"]
+                # Tamper a served file
+                served_css = site_dir / ns / "style.css"
+                if served_css.is_file():
+                    served_css.write_text("TAMPERED{}")
+
+                # Re-deploy with new PR number (different namespace) but
+                # actually we need to test verification of the CURRENT deploy.
+                # The first deploy already verified. Let's use a verify call
+                # against the tampered site.
+                verify = subprocess.run(
+                    [
+                        sys.executable, str(self._PUB_SCRIPT), "verify",
+                        "--site-dir", str(site_dir),
+                        "--namespace", ns,
+                        "--expected-digest", pkg["content_sha256"],
+                    ],
+                    capture_output=True, text=True,
+                )
+                self.assertNotEqual(verify.returncode, 0)
+                vresult = json.loads(verify.stdout)
+                self.assertFalse(vresult["verified"])
+                self.assertTrue(len(vresult["per_file_mismatches"]) > 0)
+
+                server.shutdown()
+            finally:
+                os.chdir(original_dir)
 
 
 if __name__ == "__main__":

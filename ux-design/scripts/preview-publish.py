@@ -66,12 +66,55 @@ def _validate_component(value: str, label: str) -> None:
 
 
 def _namespace_prefix(
-    target_repo: str, pr_number: str, content_sha: str,
+    pr_repo: str, pr_number: str, content_sha: str,
 ) -> str:
-    """Build the publication namespace from PR identity + content digest."""
-    owner, repo = target_repo.split("/", 1)
+    """Build the publication namespace from SOURCE PR identity + content digest.
+
+    Uses *pr_repo* (where the PR lives), not target_repo, so that the
+    same PR number from different source repos never collides.
+    """
+    owner, repo = pr_repo.split("/", 1)
     short_sha = content_sha[:12]
     return f"previews/{owner}/{repo}/pr-{pr_number}/{short_sha}"
+
+
+def _verify_served_url(
+    base_url: str, namespace: str, manifest: dict[str, Any],
+) -> dict[str, Any]:
+    """Verify content served at *base_url/namespace/* matches *manifest*.
+
+    Uses HTTP(S) GET for each file.  Returns a dict with ``verified``
+    bool and ``errors`` list.  Loopback HTTP is used in tests; approved
+    HTTPS URLs in production.
+    """
+    import urllib.error
+    import urllib.request
+
+    prefix = f"{base_url.rstrip('/')}/{namespace}"
+    errors: list[str] = []
+
+    # Verify served manifest.
+    try:
+        murl = f"{prefix}/preview-manifest.json"
+        with urllib.request.urlopen(murl, timeout=10) as resp:
+            served = json.loads(resp.read())
+            if served.get("content_sha256") != manifest.get("content_sha256"):
+                errors.append("served manifest content_sha256 differs")
+    except Exception as exc:
+        return {"verified": False, "errors": [f"manifest unreachable: {exc}"]}
+
+    # Verify per-file hashes.
+    for fe in manifest.get("files", []):
+        furl = f"{prefix}/{fe['path']}"
+        try:
+            with urllib.request.urlopen(furl, timeout=10) as resp:
+                actual = hashlib.sha256(resp.read()).hexdigest()
+                if actual != fe.get("sha256", ""):
+                    errors.append(f"hash mismatch: {fe['path']}")
+        except Exception:
+            errors.append(f"unreachable: {fe['path']}")
+
+    return {"verified": len(errors) == 0, "errors": errors}
 
 
 def _local_fixture_publish(
@@ -200,12 +243,23 @@ def cmd_publish(args: list[str]) -> int:
         _validate_component(owner, f"{label} owner")
         _validate_component(repo, f"{label} repo")
 
+    # Validate content SHA-256 is well-formed and matches manifest.
+    if not re.fullmatch(r"[0-9a-f]{64}", opts.content_sha256):
+        _fail("content-sha256 must be 64 lowercase hex characters")
+    if manifest.get("content_sha256") != opts.content_sha256:
+        _fail(
+            "content-sha256 does not match bundle manifest "
+            f"(expected {manifest.get('content_sha256', '?')[:16]}…, "
+            f"got {opts.content_sha256[:16]}…)",
+        )
+
+    # Namespace uses SOURCE PR identity (pr_repo), not target_repo.
     namespace = _namespace_prefix(
-        opts.target_repo, opts.pr_number, opts.content_sha256,
+        opts.pr_repo, opts.pr_number, opts.content_sha256,
     )
 
-    # Base receipt fields (common to all modes).
-    base: dict[str, Any] = {
+    # Guarded identity fields — deploy receipt cannot overwrite these.
+    identity: dict[str, Any] = {
         "pr_repo": opts.pr_repo,
         "pr_number": int(opts.pr_number),
         "target_repo": opts.target_repo,
@@ -219,12 +273,12 @@ def cmd_publish(args: list[str]) -> int:
     # --- Mode selection ---
 
     if opts.local_fixture:
-        # TEST FIXTURE: local file copy.
+        # TEST FIXTURE: local file copy.  Never treated as live deployment.
         site_dir = Path(opts.local_fixture).resolve()
         fixture_result = _local_fixture_publish(
             bundle_dir, site_dir, namespace, manifest,
         )
-        receipt = {**base, **fixture_result}
+        receipt = {**identity, **fixture_result}
         print(json.dumps(receipt, indent=2))
         return EXIT_SUCCESS
 
@@ -246,9 +300,8 @@ def cmd_publish(args: list[str]) -> int:
             _fail("Deploy command timed out after 300s", EXIT_PUBLISH_FAIL)
 
         if result.returncode != 0:
-            print(result.stderr, file=sys.stderr, end="")
             _fail(
-                f"Deploy command exited with code {result.returncode}",
+                f"Deploy command failed (exit {result.returncode})",
                 EXIT_PUBLISH_FAIL,
             )
 
@@ -257,13 +310,36 @@ def cmd_publish(args: list[str]) -> int:
         except json.JSONDecodeError:
             _fail("Deploy command did not return valid JSON", EXIT_PUBLISH_FAIL)
 
-        receipt = {**base, **deploy_receipt}
+        # Validate receipt has required fields.
+        if deploy_receipt.get("status") != "published":
+            _fail(
+                f"Deploy command returned status "
+                f"{deploy_receipt.get('status')!r}, expected 'published'",
+                EXIT_PUBLISH_FAIL,
+            )
+        deploy_url = deploy_receipt.get("url", "")
+        if not deploy_url:
+            _fail("Deploy receipt missing 'url' field", EXIT_PUBLISH_FAIL)
+
+        # Merge receipt but GUARD identity — deploy cannot overwrite these.
+        receipt = {**deploy_receipt, **identity}
+        receipt["deploy_url"] = deploy_url
+        receipt["status"] = "deployed-unverified"
+
+        # Served verification against the returned URL.
+        vresult = _verify_served_url(deploy_url, namespace, manifest)
+        receipt["served_verification"] = vresult
+        if vresult["verified"]:
+            receipt["status"] = "published"
+        else:
+            receipt["status"] = "deployed-unverified"
+
         print(json.dumps(receipt, indent=2))
-        return EXIT_SUCCESS
+        return EXIT_SUCCESS if vresult["verified"] else EXIT_PUBLISH_FAIL
 
     # NO COMMAND CONFIGURED: awaiting-setup.
     receipt = {
-        **base,
+        **identity,
         "status": "awaiting-setup",
         "reason": (
             "No deploy command configured.  The project owner must provide "
