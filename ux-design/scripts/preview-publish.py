@@ -85,12 +85,12 @@ def _namespace_prefix(
     return f"previews/{owner}/{repo}/pr-{pr_number}/{short_sha}"
 
 
-def _load_bundler_digest():
-    """Load the canonical digest function from the bundler module.
+def _load_bundler():
+    """Load the bundler module for shared functions.
 
-    Both scripts share a single implementation — the bundler owns it,
-    the publisher imports it.  This avoids digest divergence between
-    packaging and verification.
+    Both scripts share canonical implementations — the bundler owns
+    digest computation, file inventory, and HTML extension constants.
+    The publisher imports them to avoid divergence.
     """
     bundler_path = Path(__file__).resolve().parent / "preview-bundle.py"
     spec = importlib.util.spec_from_file_location(
@@ -100,10 +100,13 @@ def _load_bundler_digest():
         raise ImportError(f"Cannot load bundler from {bundler_path}")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    return mod._compute_content_digest
+    return mod
 
 
-_compute_content_digest = _load_bundler_digest()
+_bundler = _load_bundler()
+_compute_content_digest = _bundler._compute_content_digest
+_collect_file_inventory = _bundler._collect_file_inventory
+_HTML_EXTENSIONS = _bundler._HTML_EXTENSIONS
 
 
 def _validate_site_url(url: str, allow_test_http: bool = False) -> str:
@@ -347,6 +350,71 @@ def cmd_publish(args: list[str]) -> int:
             "The bundle may have been modified after packaging.",
         )
 
+    # --- Validate manifest inventory against actual bundle ---
+    # Reuse the bundler's inventory routine to compare manifest records
+    # with actual files.  A tampered manifest (empty files list, wrong
+    # hashes, nonexistent entry point) is caught here BEFORE any deploy
+    # command runs.
+    manifest_files = manifest.get("files", [])
+    actual_inventory = _collect_file_inventory(bundle_dir)
+    # Exclude root manifest from comparison — consistent with digest.
+    actual_by_path: dict[str, dict] = {
+        f["path"]: f for f in actual_inventory
+        if f["path"] != "preview-manifest.json"
+    }
+    manifest_by_path: dict[str, dict] = {}
+    for mf in manifest_files:
+        path = mf.get("path", "")
+        if os.path.isabs(path) or ".." in Path(path).parts:
+            _fail(
+                f"Manifest file path is unsafe: {path!r}",
+                EXIT_PUBLISH_FAIL,
+            )
+        if path in manifest_by_path:
+            _fail(
+                f"Manifest contains duplicate file path: {path!r}",
+                EXIT_PUBLISH_FAIL,
+            )
+        manifest_by_path[path] = mf
+
+    # Every manifest entry must exist in actual bundle with matching hash.
+    for path, mf in manifest_by_path.items():
+        if path not in actual_by_path:
+            _fail(
+                f"Manifest lists file not in bundle: {path!r}",
+                EXIT_PUBLISH_FAIL,
+            )
+        if mf.get("sha256") != actual_by_path[path].get("sha256"):
+            _fail(
+                f"Manifest hash mismatch for {path!r}",
+                EXIT_PUBLISH_FAIL,
+            )
+
+    # Every actual file (excluding root manifest) must be in manifest.
+    for path in actual_by_path:
+        if path not in manifest_by_path:
+            _fail(
+                f"Bundle file not in manifest: {path!r}",
+                EXIT_PUBLISH_FAIL,
+            )
+
+    # Validate entry point exists as actual HTML file in bundle.
+    entry = manifest.get("entry_point", "")
+    if not entry:
+        _fail("Manifest has no entry_point", EXIT_PUBLISH_FAIL)
+    entry_path = bundle_dir / entry
+    if not entry_path.is_file() or entry_path.is_symlink():
+        _fail(
+            f"Manifest entry_point {entry!r} does not exist as regular "
+            "file in bundle",
+            EXIT_PUBLISH_FAIL,
+        )
+    if Path(entry).suffix.lower() not in _HTML_EXTENSIONS:
+        _fail(
+            f"Manifest entry_point {entry!r} is not an HTML file",
+            EXIT_PUBLISH_FAIL,
+        )
+
     # Namespace uses SOURCE PR identity (pr_repo), not target_repo.
     namespace = _namespace_prefix(
         opts.pr_repo, opts.pr_number, opts.content_sha256,
@@ -486,7 +554,36 @@ def cmd_verify(args: list[str]) -> int:
     opts = p.parse_args(args)
 
     site_dir = Path(opts.site_dir).resolve()
+
+    # --- Namespace safety validation ---
+    # Reject absolute paths, traversal components, and symlink segments
+    # within the site directory to prevent reads outside the site tree.
+    if os.path.isabs(opts.namespace):
+        _fail("Namespace must be a relative path", EXIT_ARG_ERROR)
+    ns_parts = Path(opts.namespace).parts
+    if ".." in ns_parts:
+        _fail(
+            "Namespace must not contain traversal components",
+            EXIT_ARG_ERROR,
+        )
+    # Check each namespace component for symlinks before resolution.
+    check_ns = site_dir
+    for part in ns_parts:
+        check_ns = check_ns / part
+        if check_ns.is_symlink():
+            _fail(
+                f"Namespace path component is a symlink: {part!r}",
+                EXIT_VERIFY_FAIL,
+            )
     preview_dir = site_dir / opts.namespace
+    # Verify resolved containment within site directory.
+    try:
+        preview_dir.resolve().relative_to(site_dir.resolve())
+    except ValueError:
+        _fail(
+            "Namespace resolves outside site directory",
+            EXIT_VERIFY_FAIL,
+        )
 
     if not preview_dir.is_dir():
         _fail(f"Preview not found at {preview_dir}", EXIT_VERIFY_FAIL)

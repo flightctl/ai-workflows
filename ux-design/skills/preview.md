@@ -17,12 +17,39 @@ the authoritative downstream contract.
 
 Read `.artifacts/ux-design/{issue-key}/03-prototype/prototype-notes.md` for
 the prototype mode (standalone or workspace), iteration number, design
-decisions, and static review notes (build command, entry point, mocked
-components). If it does not exist, stop and recommend `/prototype` first.
+decisions, and static review notes (build command, build directory, entry
+point, mocked components). If it does not exist, stop and recommend
+`/prototype` first.
 
 Read `00-context.md` for the current prototype iteration and discovery
 revision. The preview must be built from a prototype that has been
 reviewed against the current context.
+
+### Pre-Build Context Check
+
+Before running any build or packaging, verify the prototype is current:
+
+1. Read `00-context.md` and extract:
+   - **Context revision** (current context number)
+   - **Active prototype** fields: iteration, original discovery revision,
+     latest reviewed discovery revision
+
+2. Compare the prototype's latest reviewed discovery revision with the
+   current discovery revision in `00-context.md`.
+
+3. If the prototype has not been reviewed against the current discovery
+   revision (mismatch or unknown):
+   - **STOP** — do not build or package the prototype.
+   - If `preview-metadata.json` exists, set `deploy_status` to `stale`,
+     preserving prior `site_url`, `published_namespace`, and verified
+     fields as last-verified references. Record `current_revision` from
+     `00-context.md` and `stale_reason`.
+   - Recommend: run `/prototype` to review or revise the prototype
+     against the current context, then `/preview` to rebuild.
+   - Do not silently rebuild stale bytes — a preview of an outdated
+     design is misleading for reviewers.
+
+4. If the prototype is current, proceed to Step 1.
 
 ## Artifact Path Safety
 
@@ -56,15 +83,25 @@ UX_SCRIPTS="{AI_WORKFLOWS_ROOT}/ux-design/scripts"
 
 Read the **Static Review Notes** section of `prototype-notes.md` for:
 - **Build command** — recorded build command for static export
+- **Build directory** — relative directory within 03-prototype where the
+  build command runs (default: the 03-prototype directory itself when
+  not recorded or set to "none")
 - **Content root** — explicit content directory (relative to 03-prototype)
 - **Entry point** — explicit HTML entry point filename
 
 If the Static Review Notes record a **Build command**, run it now
 before validation — this ensures validation runs against current build
-output rather than a possibly stale export from a previous build:
+output rather than a possibly stale export from a previous build.
+
+When a **Build directory** is recorded and is not "none", validate it
+before use: it must be a relative path with no `..` components, must
+not be an absolute path, and must not traverse a symlink within
+`03-prototype`. If validation fails, stop and ask the researcher for a
+safe build directory rather than silently running from the wrong root.
 
 ```bash
-cd "{source_repo_root}/.artifacts/ux-design/{issue-key}/03-prototype"
+# build_dir defaults to "." when Build directory is "none" or unrecorded
+cd "{source_repo_root}/.artifacts/ux-design/{issue-key}/03-prototype/{build_dir}"
 {recorded_build_command}
 ```
 

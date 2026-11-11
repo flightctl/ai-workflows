@@ -468,6 +468,7 @@ prototype explores design direction without existing page integration."}
 ## Static Review Notes
 
 **Build command:** {build command or "none — already static"}
+**Build directory:** {relative path within 03-prototype where the build command runs, or "none"}
 **Content root:** {prototype/ or code/dist/ or other}
 **Entry point:** {index.html or other}
 **Mocked components:** {list or "none"}

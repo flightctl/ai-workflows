@@ -221,6 +221,10 @@ def _find_entry_point(content_dir: Path, explicit: str | None = None) -> Path | 
         # Reject symlink entry points.
         if (content_dir / explicit).is_symlink():
             return None
+        # Require an HTML file extension — JS/other files are not valid
+        # entry points even when explicitly specified.
+        if candidate.suffix.lower() not in _HTML_EXTENSIONS:
+            return None
         if candidate.is_file():
             return candidate
         return None
@@ -400,6 +404,11 @@ def _compute_content_digest(directory: Path) -> str:
     Files are processed in sorted order by relative POSIX path so the
     digest is deterministic across platforms.
 
+    Each file record is length-framed: ``len(path_bytes) || path_bytes
+    || len(content_bytes) || content_bytes``.  This prevents ambiguity
+    when path/content boundaries differ (e.g. file ``a`` with content
+    ``bc`` vs file ``ab`` with content ``c``).
+
     Raises ``ValueError`` if unexpected symlinks or unreadable files
     are found — these indicate post-packaging mutation.
     """
@@ -417,13 +426,17 @@ def _compute_content_digest(directory: Path) -> str:
         if filepath == root_manifest:
             continue
         rel = filepath.relative_to(directory).as_posix()
-        hasher.update(rel.encode("utf-8"))
+        path_bytes = rel.encode("utf-8")
+        hasher.update(len(path_bytes).to_bytes(8, "big"))
+        hasher.update(path_bytes)
         try:
-            hasher.update(filepath.read_bytes())
+            content_bytes = filepath.read_bytes()
         except OSError as exc:
             raise ValueError(
                 f"Unreadable file in bundle: {rel}: {exc}"
             ) from exc
+        hasher.update(len(content_bytes).to_bytes(8, "big"))
+        hasher.update(content_bytes)
     return hasher.hexdigest()
 
 
@@ -493,6 +506,29 @@ def cmd_package(args: argparse.Namespace) -> int:
         )
         for f in findings:
             info(f"  {f['pattern']} in {f['file']}:{f['line']}")
+
+    # --- Output path component validation ---
+    # Validate that preexisting path components (previews/, issue_key/,
+    # revision/) are not symlinks and resolve within output_dir.
+    # Prevents writes outside the intended output tree via preexisting
+    # symlink components.
+    check_path = output_dir
+    for component in ("previews", issue_key, revision):
+        check_path = check_path / component
+        if check_path.exists():
+            if check_path.is_symlink():
+                fail(
+                    f"package: output path component is a symlink: "
+                    f"{component!r} at {check_path}. "
+                    "Remove the symlink before packaging.",
+                    EXIT_PACKAGE_FAIL,
+                )
+            if not _is_path_within(check_path, output_dir):
+                fail(
+                    f"package: output path escapes output directory: "
+                    f"{component!r} resolves outside {output_dir}",
+                    EXIT_PACKAGE_FAIL,
+                )
 
     # --- Existing revision collision check (non-destructive) ---
     bundle_dir = output_dir / "previews" / issue_key / revision

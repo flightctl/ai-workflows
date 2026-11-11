@@ -2343,5 +2343,647 @@ class TestPackageOutputRevision(unittest.TestCase):
             self.assertEqual(pkg["revision"], "iteration-3-r2")
 
 
+# ---------------------------------------------------------------------------
+# Case 2: Canonical digest collision counterexample (ID 4543973276)
+# ---------------------------------------------------------------------------
+
+class TestDigestCollisionCounterexample(unittest.TestCase):
+    """Verify length-framed digest prevents path/content ambiguity.
+
+    Two bundles where file ``a`` has content ``bc`` vs file ``ab`` has
+    content ``c`` (with another file identical in both) must produce
+    distinct digests.
+    """
+
+    def test_path_content_boundary_collision_prevented(self) -> None:
+        """a='bc' vs ab='c' yields distinct canonical digests."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Bundle 1: file "a" with content "bc", file "x" with "same"
+            b1 = Path(tmpdir) / "b1"
+            b1.mkdir()
+            (b1 / "a").write_text("bc", encoding="utf-8")
+            (b1 / "x").write_text("same", encoding="utf-8")
+
+            # Bundle 2: file "ab" with content "c", file "x" with "same"
+            b2 = Path(tmpdir) / "b2"
+            b2.mkdir()
+            (b2 / "ab").write_text("c", encoding="utf-8")
+            (b2 / "x").write_text("same", encoding="utf-8")
+
+            d1 = preview_bundle._compute_content_digest(b1)
+            d2 = preview_bundle._compute_content_digest(b2)
+            self.assertNotEqual(
+                d1, d2,
+                "Bundles with different path/content boundaries must "
+                "have different digests (length-framing prevents collision)",
+            )
+
+    def test_package_publish_verify_digest_agreement(self) -> None:
+        """Packager, publisher, and verifier agree on digest."""
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source" / "prototype"
+            proto.mkdir(parents=True)
+            (proto / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+            (proto / "style.css").write_text("body{}", encoding="utf-8")
+            output = Path(tmpdir) / "output"
+
+            # Package
+            r = subprocess.run(
+                [
+                    sys.executable, str(_SCRIPT), "package",
+                    "--prototype-dir", str(Path(tmpdir) / "source"),
+                    "--output-dir", str(output),
+                    "--issue-key", "DIGEST-1", "--revision", "r1",
+                    "--mode", "standalone",
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(r.returncode, 0, r.stderr)
+            pkg = json.loads(r.stdout)
+            bundle = Path(pkg["bundle_dir"])
+
+            # Recompute directly
+            direct_digest = preview_bundle._compute_content_digest(bundle)
+            self.assertEqual(pkg["content_sha256"], direct_digest)
+
+            # Publish via local fixture
+            pub_script = _SCRIPT.parent / "preview-publish.py"
+            site_dir = Path(tmpdir) / "site"
+            rp = subprocess.run(
+                [
+                    sys.executable, str(pub_script), "publish",
+                    "--bundle-dir", str(bundle),
+                    "--pr-repo", "org/repo",
+                    "--pr-number", "1",
+                    "--content-sha256", pkg["content_sha256"],
+                    "--target-repo", "org/repo",
+                    "--local-fixture", str(site_dir),
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(rp.returncode, 0, rp.stderr)
+            receipt = json.loads(rp.stdout)
+            self.assertTrue(receipt["digest_match"])
+
+            # Verify
+            rv = subprocess.run(
+                [
+                    sys.executable, str(pub_script), "verify",
+                    "--site-dir", str(site_dir),
+                    "--namespace", receipt["namespace"],
+                    "--expected-digest", pkg["content_sha256"],
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(rv.returncode, 0, rv.stderr)
+            vresult = json.loads(rv.stdout)
+            self.assertTrue(vresult["verified"])
+
+
+# ---------------------------------------------------------------------------
+# Case 1: Manifest inventory/entry binding (ID 4543973263)
+# ---------------------------------------------------------------------------
+
+class TestManifestInventoryBinding(unittest.TestCase):
+    """Verify publisher rejects tampered manifest before deploy command.
+
+    The root preview-manifest.json is excluded from digest, so editing
+    its files list or entry_point can pass digest checks.  The publisher
+    must independently validate manifest records against actual bundle
+    inventory before running any deploy command.
+    """
+
+    _PUB_SCRIPT = _SCRIPT.parent / "preview-publish.py"
+
+    def _package_bundle(self, tmpdir: str) -> tuple[Path, dict]:
+        proto = Path(tmpdir) / "source" / "prototype"
+        proto.mkdir(parents=True)
+        (proto / "index.html").write_text(
+            _SELF_CONTAINED_HTML, encoding="utf-8",
+        )
+        (proto / "style.css").write_text("body{margin:0}", encoding="utf-8")
+        output = Path(tmpdir) / "output"
+        import subprocess
+        r = subprocess.run(
+            [
+                sys.executable, str(_SCRIPT), "package",
+                "--prototype-dir", str(Path(tmpdir) / "source"),
+                "--output-dir", str(output),
+                "--issue-key", "BIND-1", "--revision", "r1",
+                "--mode", "standalone",
+            ],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        pkg = json.loads(r.stdout)
+        return Path(pkg["bundle_dir"]), pkg
+
+    def test_empty_manifest_files_rejected_before_command(self) -> None:
+        """Tampered manifest with files=[] is rejected before deploy."""
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bundle, pkg = self._package_bundle(tmpdir)
+
+            # Tamper: set files to empty list
+            manifest_path = bundle / "preview-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["files"] = []
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2), encoding="utf-8",
+            )
+
+            # Create marker to detect if command runs
+            marker = Path(tmpdir) / "deploy-was-called"
+            adapter = Path(tmpdir) / "marker-adapter.py"
+            adapter.write_text(textwrap.dedent(f"""\
+                #!/usr/bin/env python3
+                import json, sys
+                from pathlib import Path
+                Path("{marker}").write_text("CALLED")
+                print(json.dumps({{"status": "published",
+                    "url": sys.argv[4],
+                    "content_sha256": sys.argv[3]}}))
+            """), encoding="utf-8")
+            adapter.chmod(0o755)
+
+            result = subprocess.run(
+                [
+                    sys.executable, str(self._PUB_SCRIPT), "publish",
+                    "--bundle-dir", str(bundle),
+                    "--pr-repo", "org/docs-repo",
+                    "--pr-number", "42",
+                    "--content-sha256", pkg["content_sha256"],
+                    "--target-repo", "org/docs-repo",
+                    "--deploy-command", str(adapter),
+                    "--site-url", "https://example.com",
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("not in manifest", result.stderr)
+            self.assertFalse(
+                marker.exists(),
+                "Deploy command must NOT run when manifest inventory is tampered",
+            )
+
+    def test_nonexistent_entry_point_rejected_before_command(self) -> None:
+        """Tampered manifest with entry_point=nonexistent.html is rejected."""
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bundle, pkg = self._package_bundle(tmpdir)
+
+            # Tamper: set entry_point to nonexistent file
+            manifest_path = bundle / "preview-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["entry_point"] = "nonexistent.html"
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2), encoding="utf-8",
+            )
+
+            marker = Path(tmpdir) / "deploy-was-called"
+            adapter = Path(tmpdir) / "marker-adapter.py"
+            adapter.write_text(textwrap.dedent(f"""\
+                #!/usr/bin/env python3
+                import json, sys
+                from pathlib import Path
+                Path("{marker}").write_text("CALLED")
+                print(json.dumps({{"status": "published",
+                    "url": sys.argv[4],
+                    "content_sha256": sys.argv[3]}}))
+            """), encoding="utf-8")
+            adapter.chmod(0o755)
+
+            result = subprocess.run(
+                [
+                    sys.executable, str(self._PUB_SCRIPT), "publish",
+                    "--bundle-dir", str(bundle),
+                    "--pr-repo", "org/docs-repo",
+                    "--pr-number", "42",
+                    "--content-sha256", pkg["content_sha256"],
+                    "--target-repo", "org/docs-repo",
+                    "--deploy-command", str(adapter),
+                    "--site-url", "https://example.com",
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("entry_point", result.stderr)
+            self.assertFalse(
+                marker.exists(),
+                "Deploy command must NOT run when entry point is nonexistent",
+            )
+
+    def test_valid_package_publish_still_passes(self) -> None:
+        """Untampered package → local fixture publish succeeds."""
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bundle, pkg = self._package_bundle(tmpdir)
+            site_dir = Path(tmpdir) / "site"
+            result = subprocess.run(
+                [
+                    sys.executable, str(self._PUB_SCRIPT), "publish",
+                    "--bundle-dir", str(bundle),
+                    "--pr-repo", "org/docs-repo",
+                    "--pr-number", "42",
+                    "--content-sha256", pkg["content_sha256"],
+                    "--target-repo", "org/docs-repo",
+                    "--local-fixture", str(site_dir),
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            receipt = json.loads(result.stdout)
+            self.assertEqual(receipt["status"], "published-local")
+            self.assertTrue(receipt["digest_match"])
+
+
+# ---------------------------------------------------------------------------
+# Case 5: cmd_verify namespace confinement (outside-diff)
+# ---------------------------------------------------------------------------
+
+class TestVerifyNamespaceConfinement(unittest.TestCase):
+    """Verify cmd_verify rejects namespace traversal/absolute/symlink escape."""
+
+    _PUB_SCRIPT = _SCRIPT.parent / "preview-publish.py"
+
+    def test_traversal_namespace_rejected(self) -> None:
+        """Namespace with .. components is rejected."""
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            site = Path(tmpdir) / "site"
+            site.mkdir()
+            result = subprocess.run(
+                [
+                    sys.executable, str(self._PUB_SCRIPT), "verify",
+                    "--site-dir", str(site),
+                    "--namespace", "../other/previews",
+                    "--expected-digest", "a" * 64,
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("traversal", result.stderr)
+
+    def test_absolute_namespace_rejected(self) -> None:
+        """Absolute namespace path is rejected."""
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            site = Path(tmpdir) / "site"
+            site.mkdir()
+            result = subprocess.run(
+                [
+                    sys.executable, str(self._PUB_SCRIPT), "verify",
+                    "--site-dir", str(site),
+                    "--namespace", "/etc/passwd",
+                    "--expected-digest", "a" * 64,
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("relative path", result.stderr)
+
+    def test_symlink_namespace_component_rejected(self) -> None:
+        """Symlink component within namespace path is rejected."""
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            site = Path(tmpdir) / "site"
+            site.mkdir()
+            # Create outside target and symlink inside site
+            outside = Path(tmpdir) / "outside"
+            outside.mkdir()
+            (site / "previews").symlink_to(outside)
+
+            result = subprocess.run(
+                [
+                    sys.executable, str(self._PUB_SCRIPT), "verify",
+                    "--site-dir", str(site),
+                    "--namespace", "previews/org/repo/pr-1/abc",
+                    "--expected-digest", "a" * 64,
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("symlink", result.stderr)
+
+    def test_valid_contained_namespace_passes(self) -> None:
+        """Valid contained namespace with real preview data verifies OK."""
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Package a bundle first
+            proto = Path(tmpdir) / "source" / "prototype"
+            proto.mkdir(parents=True)
+            (proto / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+            output = Path(tmpdir) / "output"
+            r = subprocess.run(
+                [
+                    sys.executable, str(_SCRIPT), "package",
+                    "--prototype-dir", str(Path(tmpdir) / "source"),
+                    "--output-dir", str(output),
+                    "--issue-key", "NS-1", "--revision", "r1",
+                    "--mode", "standalone",
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(r.returncode, 0, r.stderr)
+            pkg = json.loads(r.stdout)
+            bundle = Path(pkg["bundle_dir"])
+
+            # Publish to local fixture
+            site = Path(tmpdir) / "site"
+            rp = subprocess.run(
+                [
+                    sys.executable, str(self._PUB_SCRIPT), "publish",
+                    "--bundle-dir", str(bundle),
+                    "--pr-repo", "org/repo",
+                    "--pr-number", "1",
+                    "--content-sha256", pkg["content_sha256"],
+                    "--target-repo", "org/repo",
+                    "--local-fixture", str(site),
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(rp.returncode, 0, rp.stderr)
+            receipt = json.loads(rp.stdout)
+
+            # Verify with valid namespace
+            rv = subprocess.run(
+                [
+                    sys.executable, str(self._PUB_SCRIPT), "verify",
+                    "--site-dir", str(site),
+                    "--namespace", receipt["namespace"],
+                    "--expected-digest", pkg["content_sha256"],
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(rv.returncode, 0, rv.stderr)
+            vresult = json.loads(rv.stdout)
+            self.assertTrue(vresult["verified"])
+
+
+# ---------------------------------------------------------------------------
+# Case 6: _find_entry_point rejects non-HTML explicit entry (outside-diff)
+# ---------------------------------------------------------------------------
+
+class TestEntryPointHTMLSuffix(unittest.TestCase):
+    """Verify explicit entry point must have HTML suffix."""
+
+    def test_explicit_js_entry_rejected_validate(self) -> None:
+        """app.js as explicit entry point is rejected in validate."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "prototype"
+            proto.mkdir()
+            (proto / "app.js").write_text("console.log('hi')")
+            (proto / "index.html").write_text("<html>OK</html>")
+            result = preview_bundle._find_entry_point(proto, "app.js")
+            self.assertIsNone(
+                result,
+                "JS file must not be accepted as explicit entry point",
+            )
+
+    def test_explicit_js_entry_rejected_package(self) -> None:
+        """cmd_package with --entry-point app.js fails."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source" / "prototype"
+            proto.mkdir(parents=True)
+            (proto / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+            (proto / "app.js").write_text("console.log(1)")
+            output = Path(tmpdir) / "output"
+            # With explicit JS entry, package should fail
+            with self.assertRaises(SystemExit) as ctx:
+                preview_bundle.cmd_package(
+                    argparse.Namespace(
+                        prototype_dir=str(Path(tmpdir) / "source"),
+                        output_dir=str(output),
+                        issue_key="ENTRY-1",
+                        revision="r1",
+                        mode="standalone",
+                        entry_point="app.js",
+                        content_root=None,
+                    ),
+                )
+            self.assertEqual(ctx.exception.code, preview_bundle.EXIT_PACKAGE_FAIL)
+
+    def test_explicit_nested_html_accepted(self) -> None:
+        """Nested HTML file as explicit entry point is accepted."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "prototype"
+            proto.mkdir()
+            sub = proto / "pages"
+            sub.mkdir()
+            (sub / "dashboard.html").write_text("<html>Dashboard</html>")
+            result = preview_bundle._find_entry_point(proto, "pages/dashboard.html")
+            self.assertIsNotNone(
+                result,
+                "Nested HTML file must be accepted as explicit entry point",
+            )
+
+    def test_explicit_htm_accepted(self) -> None:
+        """File with .htm extension is accepted as entry point."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "prototype"
+            proto.mkdir()
+            (proto / "main.htm").write_text("<html>OK</html>")
+            result = preview_bundle._find_entry_point(proto, "main.htm")
+            self.assertIsNotNone(result)
+
+
+# ---------------------------------------------------------------------------
+# Case 7: cmd_package output symlink components (outside-diff)
+# ---------------------------------------------------------------------------
+
+class TestPackageOutputSymlinkComponents(unittest.TestCase):
+    """Verify cmd_package rejects preexisting symlink output components."""
+
+    def test_previews_symlink_component_rejected(self) -> None:
+        """Preexisting 'previews/' symlink in output_dir is rejected."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source" / "prototype"
+            proto.mkdir(parents=True)
+            (proto / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+
+            output = Path(tmpdir) / "output"
+            output.mkdir()
+            # Create outside sentinel
+            outside = Path(tmpdir) / "outside"
+            outside.mkdir()
+            sentinel = outside / "sentinel.txt"
+            sentinel.write_text("MUST NOT BE MODIFIED")
+
+            # Create symlink: output/previews -> outside
+            (output / "previews").symlink_to(outside)
+
+            with self.assertRaises(SystemExit) as ctx:
+                preview_bundle.cmd_package(
+                    argparse.Namespace(
+                        prototype_dir=str(Path(tmpdir) / "source"),
+                        output_dir=str(output),
+                        issue_key="SYM-1",
+                        revision="r1",
+                        mode="standalone",
+                        entry_point=None,
+                        content_root=None,
+                    ),
+                )
+            self.assertEqual(ctx.exception.code, preview_bundle.EXIT_PACKAGE_FAIL)
+            # Outside sentinel must be untouched
+            self.assertEqual(sentinel.read_text(), "MUST NOT BE MODIFIED")
+
+    def test_issue_key_symlink_component_rejected(self) -> None:
+        """Preexisting issue-key symlink in output tree is rejected."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source" / "prototype"
+            proto.mkdir(parents=True)
+            (proto / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+
+            output = Path(tmpdir) / "output"
+            previews = output / "previews"
+            previews.mkdir(parents=True)
+            outside = Path(tmpdir) / "outside"
+            outside.mkdir()
+            # Symlink issue key to outside
+            (previews / "SYM-2").symlink_to(outside)
+
+            with self.assertRaises(SystemExit) as ctx:
+                preview_bundle.cmd_package(
+                    argparse.Namespace(
+                        prototype_dir=str(Path(tmpdir) / "source"),
+                        output_dir=str(output),
+                        issue_key="SYM-2",
+                        revision="r1",
+                        mode="standalone",
+                        entry_point=None,
+                        content_root=None,
+                    ),
+                )
+            self.assertEqual(ctx.exception.code, preview_bundle.EXIT_PACKAGE_FAIL)
+
+    def test_valid_fresh_output_passes(self) -> None:
+        """Valid fresh output directory (no preexisting components) passes."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source" / "prototype"
+            proto.mkdir(parents=True)
+            (proto / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+            output = Path(tmpdir) / "output"
+            result = preview_bundle.cmd_package(
+                argparse.Namespace(
+                    prototype_dir=str(Path(tmpdir) / "source"),
+                    output_dir=str(output),
+                    issue_key="VALID-1",
+                    revision="r1",
+                    mode="standalone",
+                    entry_point=None,
+                    content_root=None,
+                ),
+            )
+            self.assertEqual(result, preview_bundle.EXIT_SUCCESS)
+
+
+# ---------------------------------------------------------------------------
+# Case 3/4: Markdown contract — build directory and stale check (labelled)
+# ---------------------------------------------------------------------------
+
+class TestBuildDirectoryContract(unittest.TestCase):
+    """Contract check: prototype.md records Build directory, preview.md consumes it.
+
+    Honestly labelled: these verify the skill documents record the
+    required fields.  Actual LLM procedure cannot be tested here.
+    """
+
+    _PROTO_MD = _SCRIPT.parent.parent / "skills" / "prototype.md"
+    _PREVIEW_MD = _SCRIPT.parent.parent / "skills" / "preview.md"
+
+    def test_prototype_records_build_directory(self) -> None:
+        text = self._PROTO_MD.read_text(encoding="utf-8")
+        self.assertIn(
+            "**Build directory:**",
+            text,
+            "Static Review Notes must record Build directory",
+        )
+
+    def test_preview_consumes_build_directory(self) -> None:
+        text = self._PREVIEW_MD.read_text(encoding="utf-8")
+        self.assertIn(
+            "Build directory",
+            text,
+            "Preview phase must consume Build directory from notes",
+        )
+        self.assertIn(
+            "build_dir",
+            text,
+            "Preview build step must use build_dir variable",
+        )
+
+    def test_preview_validates_build_directory_safety(self) -> None:
+        text = self._PREVIEW_MD.read_text(encoding="utf-8")
+        # Must mention traversal/absolute/symlink rejection
+        self.assertIn("relative path", text)
+        self.assertIn("symlink", text)
+
+
+class TestStalePrototypeContract(unittest.TestCase):
+    """Contract check: preview.md enforces stale prototype STOP.
+
+    Honestly labelled: verifies the skill document contains the required
+    pre-build check.  Actual LLM procedure cannot be tested here.
+    """
+
+    _PREVIEW_MD = _SCRIPT.parent.parent / "skills" / "preview.md"
+
+    def test_preview_has_prebuild_context_check(self) -> None:
+        text = self._PREVIEW_MD.read_text(encoding="utf-8")
+        self.assertIn(
+            "Pre-Build Context Check",
+            text,
+            "Preview must have Pre-Build Context Check section",
+        )
+
+    def test_preview_stops_on_stale(self) -> None:
+        text = self._PREVIEW_MD.read_text(encoding="utf-8")
+        self.assertIn(
+            "STOP",
+            text,
+            "Preview must STOP when prototype is stale",
+        )
+        self.assertIn(
+            "/prototype",
+            text,
+            "Preview must recommend /prototype when stale",
+        )
+
+    def test_preview_preserves_stale_refs(self) -> None:
+        text = self._PREVIEW_MD.read_text(encoding="utf-8")
+        self.assertIn(
+            "last-verified",
+            text,
+            "Preview must preserve last-verified refs when stale",
+        )
+        self.assertIn(
+            "stale_reason",
+            text,
+            "Preview must record stale_reason",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
