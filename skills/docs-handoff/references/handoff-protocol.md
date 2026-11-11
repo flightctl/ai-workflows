@@ -51,6 +51,13 @@ Provide the plan and current issue state (with `key`, `summary`,
 has keys: `plan`, `current_state`, `approved_baseline` (optional),
 `approved_plan_digest` (optional).
 
+When the plan proposes metadata (e.g. `target_release`), include
+`current_state.fields` with the actual Jira field values.
+`fields.fixVersions` is required for metadata writes — missing or
+unknown values are NOT defaulted to `[]` and will appear in
+`skipped_metadata` with the reason the write was blocked.  A
+link-only flow (no metadata proposed) does not require `fields`.
+
 Save the result's `baseline_fingerprint` and `plan_digest` —
 these are the approval tokens for Phase 2.
 
@@ -61,7 +68,12 @@ Show the complete bounded preview including:
 - Per-input evidence status with PR references
 - Findings (missing evidence, unresolved refs, non-contributor evidence)
 - Eligible PR Remote Links (contributor PRs only)
-- Metadata proposals with catalog verification status
+- Metadata: eligible writes (`eligible_metadata`) vs skipped proposals
+  (`skipped_metadata` with per-field reasons) — do not present skipped
+  proposals as eligible operations or declare full handoff readiness
+  while metadata gaps remain
+- Forbidden fields (`forbidden_fields`) — distinct from skipped
+  metadata; these are policy-blocked fields, not conditional gaps
 - Source-change proposal (disabled, with proposed wording)
 - Consumer readiness state
 
@@ -75,11 +87,16 @@ Show the complete bounded preview including:
 3. If stale or invalid, stop and regenerate with a fresh preview
    cycle — do not proceed with writes.
 4. Apply eligible links and metadata via approved runtime capabilities.
+   Report any `skipped_metadata` entries — these are proposed
+   operations that could not become writes due to missing or
+   malformed field state, not silent omissions.
 5. Re-read the issue (POSTWRITE state only in `--readback`, keep
    PREWRITE `current_state` immutable); run
    `check-enrichment --readback` for receipts.
 6. Interpret `all_confirmed` AND each individual receipt status —
    exit code 0 alone does not mean all operations succeeded.
+   Status `ready` with non-empty `skipped_metadata` means some
+   proposed metadata was not eligible for writing.
 
 ### On Rejection
 

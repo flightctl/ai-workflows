@@ -138,10 +138,41 @@ The `check-enrichment` subcommand requires a `current_state` object:
 | `key` | string | Yes | Must match plan's issue key |
 | `summary` | string | Yes | For snapshot drift detection |
 | `description` | string | Yes | Raw description for drift detection |
-| `remote_links` | array | Yes | Current Remote Links |
+| `remote_links` | array | Yes | Current Remote Links — each entry must be a dict with a string `url` |
 | `fields` | object | No | Actual Jira field values |
-| `fields.fixVersions` | array | No | Required for metadata writes; missing/null/non-list fails closed |
+| `fields.fixVersions` | array | Conditional | Required when plan proposes metadata; missing/null/non-list fails closed |
+| `profile_fields` | object | No | Extra control metadata from consumer profile |
+
+`remote_links` is validated before baseline computation: missing,
+non-list, non-dict entries, or entries without a string `url` produce
+an `invalid` result with zero eligible links and zero eligible
+metadata.  An explicit empty list (`[]`) is valid (known empty).
 
 Unknown actual field values (missing `fields` or `fields.fixVersions`)
-must NOT be fabricated as `[]` — they block metadata writes.  An
-explicit empty list (`[]`) is a known absence and permits writes.
+must NOT be fabricated as `[]` — they block metadata writes and appear
+in `skipped_metadata` with the reason.  An explicit empty list (`[]`)
+is a known absence and permits writes.  When the plan has no metadata
+proposals, `fields` is not required (link-only flow).
+
+## Check-Enrichment Output
+
+The `check-enrichment` result contains:
+
+| Field | Type | Notes |
+|---|---|---|
+| `status` | string | `ready`, `stale`, `invalid`, `invalid_plan`, `wrong_issue` |
+| `eligible_links` | array | PR Remote Links approved for writing (empty when stale/invalid) |
+| `existing_links` | array | Proposed links already present |
+| `skipped_links` | array | Proposed links rejected with reason |
+| `eligible_metadata` | object | Metadata fields approved for writing (empty when stale/invalid) |
+| `skipped_metadata` | object | Metadata proposals not eligible — keyed by field name, each `{"reason": "...", "value": ...}` |
+| `forbidden_fields` | array | Policy-blocked field names (distinct from skipped_metadata) |
+| `baseline_fingerprint` | string | Approval token for Phase 2 |
+| `plan_digest` | string | Approval token for Phase 2 |
+| `stale` | boolean | Whether baseline or snapshot drifted |
+
+`skipped_metadata` reports why each proposed metadata field could not
+become an eligible write (e.g. `"not catalog_verified"`,
+`"current_state.fields.fixVersions not present"`, `"must be a list"`).
+`forbidden_fields` is separate — it captures policy-blocked fields
+and uncatalogued entries, not conditional gaps.

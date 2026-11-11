@@ -4062,5 +4062,117 @@ class TestSkillMdLineCount(unittest.TestCase):
         )
 
 
+# ---------------------------------------------------------------------------
+# F3 consumer contract: metadata requested + field state → output shape
+# ---------------------------------------------------------------------------
+
+class TestMetadataConsumerContract(unittest.TestCase):
+    """Scoped consumer contract: when metadata is proposed, the result
+    clearly distinguishes eligible writes from skipped proposals.
+    Link-only flow (no metadata) does not require fields."""
+
+    def _plan_with_catalog(self):
+        """Plan with catalog-verified metadata proposal."""
+        profile = {
+            "allowed_fields": [{
+                "name": "target_release",
+                "value": "v1",
+                "catalog_verified": True,
+                "catalog_entry": {"id": "7", "name": "v1"},
+            }],
+        }
+        snap = _make_docs_snapshot()
+        val = evidence.validate_issue(snap)
+        ev = evidence.normalize_evidence(_make_evidence_items())
+        return evidence.build_change_plan(
+            val, ev,
+            {"release": "v1", "target_branch": "main"},
+            profile,
+        )
+
+    def _plan_link_only(self):
+        """Plan with no metadata (link-only flow)."""
+        snap = _make_docs_snapshot()
+        val = evidence.validate_issue(snap)
+        ev = evidence.normalize_evidence(_make_evidence_items())
+        return evidence.build_change_plan(
+            val, ev,
+            {"release": "", "target_branch": "main"},
+        )
+
+    def _current(self, **overrides):
+        snap = _make_docs_snapshot()
+        base = {
+            "key": "TEST-100",
+            "summary": snap["summary"],
+            "description": snap["description"],
+            "remote_links": [],
+        }
+        base.update(overrides)
+        return base
+
+    def test_metadata_requested_missing_field_skipped(self) -> None:
+        """Metadata proposed + no fields → skipped_metadata with reason,
+        zero eligible_metadata, status still ready."""
+        plan = self._plan_with_catalog()
+        r = evidence.check_enrichment(plan, self._current())
+        self.assertEqual(r["status"], "ready")
+        self.assertEqual(r["eligible_metadata"], {})
+        self.assertIn("target_release", r["skipped_metadata"])
+        reason = r["skipped_metadata"]["target_release"]["reason"]
+        self.assertTrue(len(reason) > 0)
+
+    def test_metadata_requested_known_empty_eligible(self) -> None:
+        """Metadata proposed + fields.fixVersions=[] → eligible, not
+        skipped."""
+        plan = self._plan_with_catalog()
+        r = evidence.check_enrichment(
+            plan, self._current(fields={"fixVersions": []}),
+        )
+        self.assertEqual(r["status"], "ready")
+        self.assertIn("target_release", r["eligible_metadata"])
+        self.assertNotIn("target_release", r["skipped_metadata"])
+
+    def test_link_only_no_fields_required(self) -> None:
+        """Link-only plan (no metadata) + no fields key → ready with
+        eligible links, empty skipped_metadata."""
+        plan = self._plan_link_only()
+        r = evidence.check_enrichment(plan, self._current())
+        self.assertEqual(r["status"], "ready")
+        self.assertTrue(len(r["eligible_links"]) > 0)
+        self.assertEqual(r["eligible_metadata"], {})
+        self.assertEqual(r["skipped_metadata"], {})
+
+    def test_cli_check_enrichment_output_shape(self) -> None:
+        """Consumer contract: check-enrichment result always has
+        skipped_metadata dict, forbidden_fields list, and both
+        approval tokens regardless of status."""
+        plan = self._plan_with_catalog()
+        # Valid current state
+        r = evidence.check_enrichment(
+            plan, self._current(fields={"fixVersions": []}),
+        )
+        for key in (
+            "eligible_links", "existing_links", "skipped_links",
+            "eligible_metadata", "skipped_metadata",
+            "forbidden_fields", "baseline_fingerprint",
+            "plan_digest", "stale",
+        ):
+            self.assertIn(key, r, f"missing output key: {key}")
+        self.assertIsInstance(r["skipped_metadata"], dict)
+        self.assertIsInstance(r["forbidden_fields"], list)
+
+    def test_invalid_result_has_full_shape(self) -> None:
+        """Even invalid/early-return results carry skipped_metadata
+        and forbidden_fields for consumer consistency."""
+        plan = self._plan_with_catalog()
+        # Missing key → invalid
+        r = evidence.check_enrichment(plan, {"remote_links": []})
+        self.assertEqual(r["status"], "invalid")
+        self.assertIn("skipped_metadata", r)
+        self.assertIn("forbidden_fields", r)
+        self.assertEqual(r["skipped_metadata"], {})
+
+
 if __name__ == "__main__":
     unittest.main()
