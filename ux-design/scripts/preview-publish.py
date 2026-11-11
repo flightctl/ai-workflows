@@ -109,6 +109,38 @@ _collect_file_inventory = _bundler._collect_file_inventory
 _HTML_EXTENSIONS = _bundler._HTML_EXTENSIONS
 
 
+def _validate_contained_path(
+    base_dir: Path, rel_path: str, label: str, fail_code: int,
+) -> None:
+    """Reject symlink components and resolved-path escape BEFORE any read.
+
+    Checks that *rel_path* (already known to be relative with no ``..``)
+    does not traverse a symlink within *base_dir* and that the resolved
+    path stays inside *base_dir*.  This prevents reading outside content
+    (including its hash) through a symlink planted in the tree.
+
+    Must be called BEFORE ``is_file()``, ``read_bytes()``, or
+    ``read_text()`` on the joined path.
+    """
+    check = base_dir
+    for part in Path(rel_path).parts:
+        check = check / part
+        if check.is_symlink():
+            _fail(
+                f"{label} path component is a symlink: {part!r} "
+                f"in {rel_path!r}",
+                fail_code,
+            )
+    joined = base_dir / rel_path
+    try:
+        joined.resolve().relative_to(base_dir.resolve())
+    except ValueError:
+        _fail(
+            f"{label} resolves outside base directory: {rel_path!r}",
+            fail_code,
+        )
+
+
 def _validate_manifest_safety(
     manifest: dict[str, Any], fail_code: int,
 ) -> dict[str, dict]:
@@ -354,8 +386,15 @@ def cmd_publish(args: list[str]) -> int:
         _fail(f"Bundle directory does not exist: {bundle_dir}")
 
     manifest_path = bundle_dir / "preview-manifest.json"
+    # Validate root manifest is not a symlink before reading.
+    if manifest_path.is_symlink():
+        _fail("Root preview-manifest.json is a symlink")
     if not manifest_path.is_file():
         _fail(f"No preview-manifest.json in {bundle_dir}")
+    try:
+        manifest_path.resolve().relative_to(bundle_dir.resolve())
+    except ValueError:
+        _fail("Root preview-manifest.json resolves outside bundle")
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
@@ -399,6 +438,18 @@ def cmd_publish(args: list[str]) -> int:
     # Shared safety check: reject unsafe paths, duplicates, and unsafe
     # entry point BEFORE any deploy command runs.
     manifest_by_path = _validate_manifest_safety(manifest, EXIT_PUBLISH_FAIL)
+
+    # Validate every manifest-listed file and entry for symlink/containment
+    # BEFORE reading or hashing any content.
+    for mpath in manifest_by_path:
+        _validate_contained_path(
+            bundle_dir, mpath, "Manifest file", EXIT_PUBLISH_FAIL,
+        )
+    entry = manifest.get("entry_point", "")
+    if entry:
+        _validate_contained_path(
+            bundle_dir, entry, "Manifest entry_point", EXIT_PUBLISH_FAIL,
+        )
 
     actual_inventory = _collect_file_inventory(bundle_dir)
     # Exclude root manifest from comparison — consistent with digest.
@@ -615,13 +666,38 @@ def cmd_verify(args: list[str]) -> int:
         _fail(f"Preview not found at {preview_dir}", EXIT_VERIFY_FAIL)
 
     manifest_path = preview_dir / "preview-manifest.json"
+    # Validate root manifest is not a symlink before reading.
+    if manifest_path.is_symlink():
+        _fail(
+            "Root preview-manifest.json is a symlink",
+            EXIT_VERIFY_FAIL,
+        )
     if not manifest_path.is_file():
         _fail(f"No manifest at {manifest_path}", EXIT_VERIFY_FAIL)
+    try:
+        manifest_path.resolve().relative_to(preview_dir.resolve())
+    except ValueError:
+        _fail(
+            "Root preview-manifest.json resolves outside preview dir",
+            EXIT_VERIFY_FAIL,
+        )
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
     # Validate manifest paths and entry before reading any files.
-    _validate_manifest_safety(manifest, EXIT_VERIFY_FAIL)
+    manifest_by_path = _validate_manifest_safety(manifest, EXIT_VERIFY_FAIL)
+
+    # Validate every manifest-listed file for symlink/containment
+    # BEFORE reading or hashing any content.
+    for mpath in manifest_by_path:
+        _validate_contained_path(
+            preview_dir, mpath, "Manifest file", EXIT_VERIFY_FAIL,
+        )
+    m_entry = manifest.get("entry_point", "")
+    if m_entry:
+        _validate_contained_path(
+            preview_dir, m_entry, "Manifest entry_point", EXIT_VERIFY_FAIL,
+        )
 
     # Verify each file's per-file hash.
     mismatches: list[str] = []

@@ -391,7 +391,8 @@ for the first time. Also report:
   - `published` → include the preview URL from `site_url`
   - `stale` → note the preview is outdated; last verified URL from
     `site_url` may still be accessible but does not reflect current design;
-    recommend `/preview` to rebuild
+    recommend `/prototype` to review against the current context, then
+    `/preview` to rebuild
   - `awaiting-setup` → deployment is not yet configured; recommend the
     project owner configure `preview_deploy_command` and `preview_site_url`
   - `deploy-failed` → deployment failed; recommend retrying `/preview`

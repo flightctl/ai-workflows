@@ -3241,5 +3241,465 @@ class TestBuildDirectoryRequirement(unittest.TestCase):
         )
 
 
+# ---------------------------------------------------------------------------
+# Case A: Symlink/containment validation BEFORE read/hash (ID 4544468989)
+# ---------------------------------------------------------------------------
+
+class TestSymlinkContainmentBeforeRead(unittest.TestCase):
+    """Verify publish/verify reject symlink-planted manifest entries BEFORE
+    reading or hashing content, preventing outside file hash leakage.
+
+    Uses isolated temp directories with a fake outside file.  Asserts
+    that the guard fires (no hash/read of outside content) and that
+    valid contained bundles still pass.
+    """
+
+    _PUB_SCRIPT = _SCRIPT.parent / "preview-publish.py"
+
+    def _package_bundle(self, tmpdir: str) -> tuple[Path, dict]:
+        proto = Path(tmpdir) / "source" / "prototype"
+        proto.mkdir(parents=True)
+        (proto / "index.html").write_text(
+            _SELF_CONTAINED_HTML, encoding="utf-8",
+        )
+        (proto / "style.css").write_text("body{margin:0}", encoding="utf-8")
+        output = Path(tmpdir) / "output"
+        import subprocess
+        r = subprocess.run(
+            [
+                sys.executable, str(_SCRIPT), "package",
+                "--prototype-dir", str(Path(tmpdir) / "source"),
+                "--output-dir", str(output),
+                "--issue-key", "LINK-1", "--revision", "r1",
+                "--mode", "standalone",
+            ],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        pkg = json.loads(r.stdout)
+        return Path(pkg["bundle_dir"]), pkg
+
+    def test_root_manifest_symlink_rejected_publish(self) -> None:
+        """Root preview-manifest.json as symlink is rejected before read."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bundle, pkg = self._package_bundle(tmpdir)
+            # Replace root manifest with symlink to outside file
+            outside = Path(tmpdir) / "outside-manifest.json"
+            outside.write_text('{"files":[],"entry_point":"index.html"}')
+            mpath = bundle / "preview-manifest.json"
+            mpath.unlink()
+            mpath.symlink_to(outside)
+            result = subprocess.run(
+                [
+                    sys.executable, str(self._PUB_SCRIPT), "publish",
+                    "--bundle-dir", str(bundle),
+                    "--pr-repo", "org/docs",
+                    "--pr-number", "1",
+                    "--content-sha256", pkg["content_sha256"],
+                    "--target-repo", "org/docs",
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("symlink", result.stderr.lower())
+
+    def test_asset_symlink_rejected_before_hash_publish(self) -> None:
+        """Symlink asset in manifest rejected before hash/deploy command."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bundle, pkg = self._package_bundle(tmpdir)
+            # Create outside file and symlink it as an asset
+            outside = Path(tmpdir) / "outside-secret.txt"
+            outside.write_text("SECRET DATA")
+            (bundle / "style.css").unlink()
+            (bundle / "style.css").symlink_to(outside)
+            # Create deploy marker to prove command never runs
+            marker = Path(tmpdir) / "deploy-was-called"
+            adapter = Path(tmpdir) / "adapter.py"
+            adapter.write_text(textwrap.dedent(f"""\
+                #!/usr/bin/env python3
+                import json, sys
+                from pathlib import Path
+                Path("{marker}").write_text("CALLED")
+                print(json.dumps({{"status": "published",
+                    "url": sys.argv[4],
+                    "content_sha256": sys.argv[3]}}))
+            """), encoding="utf-8")
+            adapter.chmod(0o755)
+            result = subprocess.run(
+                [
+                    sys.executable, str(self._PUB_SCRIPT), "publish",
+                    "--bundle-dir", str(bundle),
+                    "--pr-repo", "org/docs",
+                    "--pr-number", "1",
+                    "--content-sha256", pkg["content_sha256"],
+                    "--target-repo", "org/docs",
+                    "--deploy-command", str(adapter),
+                    "--site-url", "https://example.com",
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("symlink", result.stderr.lower())
+            self.assertFalse(
+                marker.exists(),
+                "Deploy command must NOT run when asset is a symlink",
+            )
+
+    def test_asset_symlink_rejected_verify(self) -> None:
+        """Symlink asset in published site rejected in verify before hash."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bundle, pkg = self._package_bundle(tmpdir)
+            site_dir = Path(tmpdir) / "site"
+            # Publish normally first
+            rp = subprocess.run(
+                [
+                    sys.executable, str(self._PUB_SCRIPT), "publish",
+                    "--bundle-dir", str(bundle),
+                    "--pr-repo", "org/docs",
+                    "--pr-number", "1",
+                    "--content-sha256", pkg["content_sha256"],
+                    "--target-repo", "org/docs",
+                    "--local-fixture", str(site_dir),
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(rp.returncode, 0, rp.stderr)
+            receipt = json.loads(rp.stdout)
+            ns = receipt["namespace"]
+            # Plant symlink asset in published directory
+            outside = Path(tmpdir) / "secret.dat"
+            outside.write_text("OUTSIDE CONTENT")
+            published_css = site_dir / ns / "style.css"
+            published_css.unlink()
+            published_css.symlink_to(outside)
+            # Verify must reject before reading outside hash
+            rv = subprocess.run(
+                [
+                    sys.executable, str(self._PUB_SCRIPT), "verify",
+                    "--site-dir", str(site_dir),
+                    "--namespace", ns,
+                    "--expected-digest", pkg["content_sha256"],
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(rv.returncode, 0)
+            self.assertIn("symlink", rv.stderr.lower())
+
+    def test_valid_contained_publish_verify_still_passes(self) -> None:
+        """Valid contained bundle still passes publish and verify."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bundle, pkg = self._package_bundle(tmpdir)
+            site_dir = Path(tmpdir) / "site"
+            rp = subprocess.run(
+                [
+                    sys.executable, str(self._PUB_SCRIPT), "publish",
+                    "--bundle-dir", str(bundle),
+                    "--pr-repo", "org/docs",
+                    "--pr-number", "1",
+                    "--content-sha256", pkg["content_sha256"],
+                    "--target-repo", "org/docs",
+                    "--local-fixture", str(site_dir),
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(rp.returncode, 0, rp.stderr)
+            receipt = json.loads(rp.stdout)
+            self.assertTrue(receipt["digest_match"])
+            rv = subprocess.run(
+                [
+                    sys.executable, str(self._PUB_SCRIPT), "verify",
+                    "--site-dir", str(site_dir),
+                    "--namespace", receipt["namespace"],
+                    "--expected-digest", pkg["content_sha256"],
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(rv.returncode, 0, rv.stderr)
+            vresult = json.loads(rv.stdout)
+            self.assertTrue(vresult["verified"])
+
+
+# ---------------------------------------------------------------------------
+# Case B: Producer initial "Not yet revalidated" contract (ID 4544468991)
+# ---------------------------------------------------------------------------
+
+class TestInitialRevalidationContract(unittest.TestCase):
+    """Contract: preview.md allows 'Not yet revalidated' only when
+    context/notes/discovery all align for a fresh iteration.
+    """
+
+    _PREVIEW_MD = _SCRIPT.parent.parent / "skills" / "preview.md"
+
+    def test_initial_marker_explicitly_allowed(self) -> None:
+        """preview.md must explicitly allow 'Not yet revalidated' as valid."""
+        text = self._PREVIEW_MD.read_text(encoding="utf-8")
+        self.assertIn(
+            "Not yet revalidated",
+            text,
+            "Must reference the initial marker value",
+        )
+        self.assertIn(
+            "valid only when",
+            text.lower(),
+            "Must state conditions under which the initial marker is valid",
+        )
+
+    def test_initial_marker_requires_matching_discovery(self) -> None:
+        """Initial marker valid only when discovery revisions all match."""
+        text = self._PREVIEW_MD.read_text(encoding="utf-8")
+        # Must require notes original discovery == current discovery
+        self.assertIn(
+            "Discovery revision",
+            text,
+            "Must reference notes original Discovery revision",
+        )
+        self.assertIn(
+            "current discovery revision",
+            text.lower(),
+            "Must require match with current discovery revision",
+        )
+
+    def test_mismatch_still_stops(self) -> None:
+        """Mismatch/unknown cases must still trigger STOP."""
+        text = self._PREVIEW_MD.read_text(encoding="utf-8")
+        self.assertIn(
+            "mismatch",
+            text.lower(),
+            "Mismatch must be caught as inconsistent",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Case C: Root preview-manifest.json reserved skip (ID 5866829499)
+# ---------------------------------------------------------------------------
+
+class TestRootManifestReservedSkip(unittest.TestCase):
+    """Verify root preview-manifest.json in source is skipped during copy,
+    nested instances are preserved, and the full pipeline still works.
+    """
+
+    _PUB_SCRIPT = _SCRIPT.parent / "preview-publish.py"
+
+    def test_source_root_manifest_skipped(self) -> None:
+        """Source root preview-manifest.json is not copied to bundle."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source" / "prototype"
+            proto.mkdir(parents=True)
+            (proto / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+            # Place a root preview-manifest.json in source
+            (proto / "preview-manifest.json").write_text(
+                '{"stale": "source manifest"}', encoding="utf-8",
+            )
+            output = Path(tmpdir) / "output"
+            result = preview_bundle.cmd_package(
+                argparse.Namespace(
+                    prototype_dir=str(Path(tmpdir) / "source"),
+                    output_dir=str(output),
+                    issue_key="RSVD-1",
+                    revision="r1",
+                    mode="standalone",
+                    entry_point=None,
+                    content_root=None,
+                ),
+            )
+            self.assertEqual(result, preview_bundle.EXIT_SUCCESS)
+            bundle = output / "previews" / "RSVD-1" / "r1"
+            manifest = json.loads(
+                (bundle / "preview-manifest.json").read_text(encoding="utf-8"),
+            )
+            # Generated manifest must NOT list root preview-manifest.json
+            paths = [f["path"] for f in manifest["files"]]
+            self.assertNotIn("preview-manifest.json", paths)
+            # Generated manifest has correct issue_key (not stale source)
+            self.assertEqual(manifest["issue_key"], "RSVD-1")
+            self.assertNotIn("stale", json.dumps(manifest))
+
+    def test_nested_manifest_still_included(self) -> None:
+        """sub/preview-manifest.json is still content and digest-sensitive."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source" / "prototype"
+            proto.mkdir(parents=True)
+            (proto / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+            # Root reserved manifest AND nested manifest
+            (proto / "preview-manifest.json").write_text(
+                '{"root": true}', encoding="utf-8",
+            )
+            sub = proto / "sub"
+            sub.mkdir()
+            (sub / "preview-manifest.json").write_text(
+                '{"nested": true}', encoding="utf-8",
+            )
+            output = Path(tmpdir) / "output"
+            result = preview_bundle.cmd_package(
+                argparse.Namespace(
+                    prototype_dir=str(Path(tmpdir) / "source"),
+                    output_dir=str(output),
+                    issue_key="RSVD-2",
+                    revision="r1",
+                    mode="standalone",
+                    entry_point=None,
+                    content_root=None,
+                ),
+            )
+            self.assertEqual(result, preview_bundle.EXIT_SUCCESS)
+            bundle = output / "previews" / "RSVD-2" / "r1"
+            manifest = json.loads(
+                (bundle / "preview-manifest.json").read_text(encoding="utf-8"),
+            )
+            paths = [f["path"] for f in manifest["files"]]
+            # Nested must be in inventory
+            self.assertIn("sub/preview-manifest.json", paths)
+            # Root must NOT be
+            self.assertNotIn("preview-manifest.json", paths)
+
+    def test_reserved_root_publish_verify_passes(self) -> None:
+        """Package with source root manifest → publish+verify passes."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source" / "prototype"
+            proto.mkdir(parents=True)
+            (proto / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+            (proto / "preview-manifest.json").write_text(
+                '{"root": true}', encoding="utf-8",
+            )
+            output = Path(tmpdir) / "output"
+            r = subprocess.run(
+                [
+                    sys.executable, str(_SCRIPT), "package",
+                    "--prototype-dir", str(Path(tmpdir) / "source"),
+                    "--output-dir", str(output),
+                    "--issue-key", "RSVD-3", "--revision", "r1",
+                    "--mode", "standalone",
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(r.returncode, 0, r.stderr)
+            pkg = json.loads(r.stdout)
+            bundle = Path(pkg["bundle_dir"])
+            site_dir = Path(tmpdir) / "site"
+            rp = subprocess.run(
+                [
+                    sys.executable, str(self._PUB_SCRIPT), "publish",
+                    "--bundle-dir", str(bundle),
+                    "--pr-repo", "org/docs",
+                    "--pr-number", "1",
+                    "--content-sha256", pkg["content_sha256"],
+                    "--target-repo", "org/docs",
+                    "--local-fixture", str(site_dir),
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(rp.returncode, 0, rp.stderr)
+            receipt = json.loads(rp.stdout)
+            self.assertTrue(receipt["digest_match"])
+            # Verify
+            rv = subprocess.run(
+                [
+                    sys.executable, str(self._PUB_SCRIPT), "verify",
+                    "--site-dir", str(site_dir),
+                    "--namespace", receipt["namespace"],
+                    "--expected-digest", pkg["content_sha256"],
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(rv.returncode, 0, rv.stderr)
+            vresult = json.loads(rv.stdout)
+            self.assertTrue(vresult["verified"])
+
+    def test_nested_change_affects_digest(self) -> None:
+        """Changing nested preview-manifest.json changes the digest."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source" / "prototype"
+            proto.mkdir(parents=True)
+            (proto / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+            sub = proto / "sub"
+            sub.mkdir()
+            # First build with nested content A
+            (sub / "preview-manifest.json").write_text(
+                '{"version": "A"}', encoding="utf-8",
+            )
+            output1 = Path(tmpdir) / "out1"
+            preview_bundle.cmd_package(
+                argparse.Namespace(
+                    prototype_dir=str(Path(tmpdir) / "source"),
+                    output_dir=str(output1),
+                    issue_key="DIG-1", revision="r1",
+                    mode="standalone", entry_point=None, content_root=None,
+                ),
+            )
+            m1 = json.loads(
+                (output1 / "previews" / "DIG-1" / "r1" / "preview-manifest.json")
+                .read_text(encoding="utf-8"),
+            )
+            # Second build with nested content B
+            (sub / "preview-manifest.json").write_text(
+                '{"version": "B"}', encoding="utf-8",
+            )
+            output2 = Path(tmpdir) / "out2"
+            preview_bundle.cmd_package(
+                argparse.Namespace(
+                    prototype_dir=str(Path(tmpdir) / "source"),
+                    output_dir=str(output2),
+                    issue_key="DIG-1", revision="r1",
+                    mode="standalone", entry_point=None, content_root=None,
+                ),
+            )
+            m2 = json.loads(
+                (output2 / "previews" / "DIG-1" / "r1" / "preview-manifest.json")
+                .read_text(encoding="utf-8"),
+            )
+            self.assertNotEqual(
+                m1["content_sha256"], m2["content_sha256"],
+                "Changing nested manifest must change digest",
+            )
+
+
+# ---------------------------------------------------------------------------
+# Case D: Publish Step 8 stale recommendation contract (ID 4544475314)
+# ---------------------------------------------------------------------------
+
+class TestPublishStaleRecommendation(unittest.TestCase):
+    """Contract: publish.md stale status recommends /prototype then /preview.
+
+    The reviewer requested /prototype BEFORE /preview for stale previews.
+    """
+
+    _PUBLISH_MD = _SCRIPT.parent.parent / "skills" / "publish.md"
+
+    def test_stale_recommends_prototype_before_preview(self) -> None:
+        """Stale status must recommend /prototype before /preview."""
+        text = self._PUBLISH_MD.read_text(encoding="utf-8")
+        # Find the stale bullet in Step 8
+        idx_stale = text.find("`stale`")
+        self.assertGreater(idx_stale, 0, "Must have stale status handling")
+        stale_section = text[idx_stale:idx_stale + 300]
+        idx_proto = stale_section.find("/prototype")
+        idx_preview = stale_section.find("/preview")
+        self.assertGreater(
+            idx_proto, 0,
+            "Stale handling must mention /prototype",
+        )
+        self.assertGreater(
+            idx_preview, 0,
+            "Stale handling must mention /preview",
+        )
+        self.assertLess(
+            idx_proto, idx_preview,
+            "Stale handling must recommend /prototype BEFORE /preview",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

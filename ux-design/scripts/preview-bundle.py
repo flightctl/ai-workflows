@@ -555,6 +555,18 @@ def cmd_package(args: argparse.Namespace) -> int:
         if src_file.is_symlink():
             skipped_symlink.append(str(src_file.relative_to(content_dir)))
             continue
+        # Skip root preview-manifest.json — this filename is reserved
+        # for the generated manifest.  The packager writes its own root
+        # manifest after copying; a pre-existing one from the source
+        # would be overwritten and its inventory entry would mismatch
+        # the publisher's actual-file exclusion.  Nested instances
+        # (e.g. sub/preview-manifest.json) are content and still copied.
+        if src_file == content_dir / "preview-manifest.json":
+            info(
+                "Skipped root preview-manifest.json from source "
+                "(reserved filename)."
+            )
+            continue
         # Skip private/hidden files.
         if _is_private_file(src_file, content_dir):
             skipped_private.append(str(src_file.relative_to(content_dir)))

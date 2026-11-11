@@ -48,11 +48,23 @@ Before running any build or packaging, verify the prototype is current:
 4. Compare the prototype's latest reviewed discovery revision (from
    `00-context.md`) with the current discovery revision. Also verify
    that `prototype-notes.md`'s "Revalidated against discovery revision"
-   is consistent with the context's latest reviewed revision (not
-   unknown or contradictory). When `/prototype` reviews the prototype
-   against a new discovery without design changes, it updates the
-   "Revalidated against discovery revision" field and the context's
-   latest reviewed revision together — both must agree.
+   is consistent with the context's latest reviewed revision.
+
+   **Initial prototype (fresh iteration):** When the notes record
+   "Not yet revalidated", this is valid only when ALL of the following
+   hold: the context's latest reviewed discovery revision equals the
+   notes' original "Discovery revision", both equal the current
+   discovery revision, and the notes iteration matches the active
+   iteration. This means the prototype was created for the current
+   discovery and has not yet been separately revalidated — that is the
+   expected initial state, not a staleness indicator.
+
+   **Revalidated prototype:** When `/prototype` reviews the prototype
+   against a new discovery without design changes, it replaces "Not yet
+   revalidated" with the revision number and updates the context's
+   latest reviewed revision together — both must agree. Any mismatch
+   between the notes' revalidation value and the context's latest
+   reviewed revision is treated as inconsistent (step 5).
 
 5. If the prototype has not been reviewed against the current discovery
    revision (mismatch or unknown), or the notes iteration or reviewed
