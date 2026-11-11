@@ -3708,5 +3708,359 @@ class TestPhase1Phase2Lifecycle(unittest.TestCase):
         self.assertEqual(r["eligible_metadata"], {})
 
 
+# ---------------------------------------------------------------------------
+# F1: remote_links validation in check_enrichment
+# ---------------------------------------------------------------------------
+
+class TestRemoteLinksValidation(unittest.TestCase):
+    """F1: check_enrichment must reject missing/non-list/malformed
+    remote_links BEFORE baseline/eligibility.  Known empty [] is valid."""
+
+    def _build_plan(self):
+        snap = _make_docs_snapshot()
+        val = evidence.validate_issue(snap)
+        ev = evidence.normalize_evidence(_make_evidence_items())
+        return evidence.build_change_plan(
+            val, ev,
+            {"release": "v1", "target_branch": "main"},
+        )
+
+    def _make_current(self, **overrides):
+        snap = _make_docs_snapshot()
+        current = {
+            "key": "TEST-100",
+            "summary": snap["summary"],
+            "description": snap["description"],
+        }
+        current.update(overrides)
+        return current
+
+    def test_missing_remote_links_rejected(self) -> None:
+        """current_state without remote_links → invalid."""
+        plan = self._build_plan()
+        current = self._make_current()  # no remote_links key
+        r = evidence.check_enrichment(plan, current)
+        self.assertEqual(r["status"], "invalid")
+        self.assertIn("remote_links", r["reason"])
+        self.assertEqual(r["eligible_links"], [])
+        self.assertEqual(r["eligible_metadata"], {})
+
+    def test_null_remote_links_rejected(self) -> None:
+        """remote_links=None → invalid."""
+        plan = self._build_plan()
+        current = self._make_current(remote_links=None)
+        r = evidence.check_enrichment(plan, current)
+        self.assertEqual(r["status"], "invalid")
+        self.assertIn("list", r["reason"])
+
+    def test_dict_remote_links_rejected(self) -> None:
+        """remote_links={} (dict, not list) → invalid."""
+        plan = self._build_plan()
+        current = self._make_current(remote_links={})
+        r = evidence.check_enrichment(plan, current)
+        self.assertEqual(r["status"], "invalid")
+        self.assertIn("dict", r["reason"])
+
+    def test_string_remote_links_rejected(self) -> None:
+        """remote_links='some-url' → invalid."""
+        plan = self._build_plan()
+        current = self._make_current(remote_links="some-url")
+        r = evidence.check_enrichment(plan, current)
+        self.assertEqual(r["status"], "invalid")
+        self.assertIn("str", r["reason"])
+
+    def test_non_dict_entries_rejected(self) -> None:
+        """remote_links=['url1', 'url2'] (strings not dicts) → invalid."""
+        plan = self._build_plan()
+        current = self._make_current(
+            remote_links=["https://example.invalid/1"]
+        )
+        r = evidence.check_enrichment(plan, current)
+        self.assertEqual(r["status"], "invalid")
+        self.assertIn("remote_links[0]", r["reason"])
+
+    def test_entry_without_url_rejected(self) -> None:
+        """remote_links=[{"title": "x"}] (missing url) → invalid."""
+        plan = self._build_plan()
+        current = self._make_current(
+            remote_links=[{"title": "link without url"}]
+        )
+        r = evidence.check_enrichment(plan, current)
+        self.assertEqual(r["status"], "invalid")
+        self.assertIn("url", r["reason"])
+
+    def test_entry_with_non_string_url_rejected(self) -> None:
+        """remote_links=[{"url": 123}] → invalid."""
+        plan = self._build_plan()
+        current = self._make_current(
+            remote_links=[{"url": 123}]
+        )
+        r = evidence.check_enrichment(plan, current)
+        self.assertEqual(r["status"], "invalid")
+        self.assertIn("url", r["reason"])
+
+    def test_empty_list_valid(self) -> None:
+        """remote_links=[] (known empty) → valid, status ready."""
+        plan = self._build_plan()
+        current = self._make_current(remote_links=[])
+        r = evidence.check_enrichment(plan, current)
+        self.assertEqual(r["status"], "ready")
+        self.assertFalse(r["stale"])
+
+    def test_known_existing_link_valid(self) -> None:
+        """Legitimate existing link passes validation."""
+        plan = self._build_plan()
+        current = self._make_current(
+            remote_links=[{
+                "url": "https://github.example.invalid/org/repo/pull/101",
+            }]
+        )
+        r = evidence.check_enrichment(plan, current)
+        self.assertEqual(r["status"], "ready")
+        self.assertTrue(len(r["existing_links"]) > 0)
+
+    def test_bad_remote_links_blocks_metadata_writes(self) -> None:
+        """Metadata with catalog entry but bad remote_links → ZERO
+        eligible across both links and metadata."""
+        profile = {
+            "allowed_fields": [{
+                "name": "target_release",
+                "value": "v1",
+                "catalog_verified": True,
+                "catalog_entry": {"id": "7", "name": "v1"},
+            }],
+        }
+        snap = _make_docs_snapshot()
+        val = evidence.validate_issue(snap)
+        ev = evidence.normalize_evidence(_make_evidence_items())
+        plan = evidence.build_change_plan(
+            val, ev,
+            {"release": "v1", "target_branch": "main"},
+            profile,
+        )
+        # Bad remote_links: not a list
+        current = {
+            "key": "TEST-100",
+            "summary": snap["summary"],
+            "description": snap["description"],
+            "remote_links": "not-a-list",
+            "fields": {"fixVersions": []},
+        }
+        r = evidence.check_enrichment(plan, current)
+        self.assertEqual(r["status"], "invalid")
+        self.assertEqual(r["eligible_links"], [])
+        self.assertEqual(r["eligible_metadata"], {})
+
+
+# ---------------------------------------------------------------------------
+# F2: profile_fields case-insensitive forbidden check
+# ---------------------------------------------------------------------------
+
+class TestProfileFieldsCaseInsensitive(unittest.TestCase):
+    """F2: profile_fields loop must check .lower() while preserving
+    original name in finding; no TypeError on non-string keys."""
+
+    def _build_plan(self):
+        snap = _make_docs_snapshot()
+        val = evidence.validate_issue(snap)
+        ev = evidence.normalize_evidence(_make_evidence_items())
+        return evidence.build_change_plan(
+            val, ev,
+            {"release": "v1", "target_branch": "main"},
+        )
+
+    def _make_current(self, profile_fields):
+        snap = _make_docs_snapshot()
+        return {
+            "key": "TEST-100",
+            "summary": snap["summary"],
+            "description": snap["description"],
+            "remote_links": [],
+            "profile_fields": profile_fields,
+        }
+
+    def test_uppercase_summary_forbidden(self) -> None:
+        """'Summary' (capitalized) → detected as forbidden."""
+        plan = self._build_plan()
+        current = self._make_current({"Summary": True})
+        r = evidence.check_enrichment(plan, current)
+        self.assertIn("profile:Summary", r["forbidden_fields"])
+
+    def test_camelcase_fixversions_forbidden(self) -> None:
+        """'fixVersions' (camelCase) → detected as forbidden."""
+        plan = self._build_plan()
+        current = self._make_current({"fixVersions": True})
+        r = evidence.check_enrichment(plan, current)
+        self.assertIn("profile:fixVersions", r["forbidden_fields"])
+
+    def test_allcaps_comments_forbidden(self) -> None:
+        """'COMMENTS' (all caps) → detected as forbidden."""
+        plan = self._build_plan()
+        current = self._make_current({"COMMENTS": True})
+        r = evidence.check_enrichment(plan, current)
+        self.assertIn("profile:COMMENTS", r["forbidden_fields"])
+
+    def test_lowercase_still_works(self) -> None:
+        """'summary' (lowercase) → still detected as before."""
+        plan = self._build_plan()
+        current = self._make_current({"summary": True})
+        r = evidence.check_enrichment(plan, current)
+        self.assertIn("profile:summary", r["forbidden_fields"])
+
+    def test_non_forbidden_not_reported(self) -> None:
+        """Non-forbidden field not in forbidden_fields."""
+        plan = self._build_plan()
+        current = self._make_current({"custom_field": True})
+        r = evidence.check_enrichment(plan, current)
+        forbidden_profiles = [
+            f for f in r["forbidden_fields"]
+            if f.startswith("profile:")
+        ]
+        self.assertEqual(forbidden_profiles, [])
+
+    def test_non_string_key_no_typeerror(self) -> None:
+        """Non-string key in profile_fields → no crash."""
+        plan = self._build_plan()
+        current = self._make_current({42: True, None: False})
+        r = evidence.check_enrichment(plan, current)
+        # Should not raise TypeError; non-string keys don't match
+        self.assertEqual(r["status"], "ready")
+
+
+# ---------------------------------------------------------------------------
+# F3: Protocol conditional field contract — skipped_metadata
+# ---------------------------------------------------------------------------
+
+class TestSkippedMetadata(unittest.TestCase):
+    """F3: When metadata is in the plan but field state prevents a
+    write, skipped_metadata must report the gap explicitly."""
+
+    def _build_plan_with_catalog(self):
+        profile = {
+            "allowed_fields": [{
+                "name": "target_release",
+                "value": "v1",
+                "catalog_verified": True,
+                "catalog_entry": {"id": "7", "name": "v1"},
+            }],
+        }
+        snap = _make_docs_snapshot()
+        val = evidence.validate_issue(snap)
+        ev = evidence.normalize_evidence(_make_evidence_items())
+        return evidence.build_change_plan(
+            val, ev,
+            {"release": "v1", "target_branch": "main"},
+            profile,
+        )
+
+    def _make_current(self, **overrides):
+        snap = _make_docs_snapshot()
+        current = {
+            "key": "TEST-100",
+            "summary": snap["summary"],
+            "description": snap["description"],
+            "remote_links": [],
+        }
+        current.update(overrides)
+        return current
+
+    def test_missing_fields_reports_gap(self) -> None:
+        """No fields key → target_release in skipped_metadata."""
+        plan = self._build_plan_with_catalog()
+        current = self._make_current()  # no fields key
+        r = evidence.check_enrichment(plan, current)
+        self.assertEqual(r["status"], "ready")
+        self.assertEqual(r["eligible_metadata"], {})
+        self.assertIn("target_release", r["skipped_metadata"])
+        self.assertIn("not present", r["skipped_metadata"]["target_release"]["reason"])
+
+    def test_missing_fixversions_field_reports_gap(self) -> None:
+        """fields={} (no fixVersions) → gap reported."""
+        plan = self._build_plan_with_catalog()
+        current = self._make_current(fields={})
+        r = evidence.check_enrichment(plan, current)
+        self.assertEqual(r["eligible_metadata"], {})
+        self.assertIn("target_release", r["skipped_metadata"])
+        self.assertIn("not present", r["skipped_metadata"]["target_release"]["reason"])
+
+    def test_null_fixversions_reports_gap(self) -> None:
+        """fields.fixVersions=None → gap reported."""
+        plan = self._build_plan_with_catalog()
+        current = self._make_current(fields={"fixVersions": None})
+        r = evidence.check_enrichment(plan, current)
+        self.assertEqual(r["eligible_metadata"], {})
+        self.assertIn("target_release", r["skipped_metadata"])
+        self.assertIn("list", r["skipped_metadata"]["target_release"]["reason"])
+
+    def test_known_empty_fixversions_eligible(self) -> None:
+        """fields.fixVersions=[] → eligible, not skipped."""
+        plan = self._build_plan_with_catalog()
+        current = self._make_current(fields={"fixVersions": []})
+        r = evidence.check_enrichment(plan, current)
+        self.assertIn("target_release", r["eligible_metadata"])
+        self.assertNotIn("target_release", r.get("skipped_metadata", {}))
+
+    def test_not_catalog_verified_skipped(self) -> None:
+        """Metadata without catalog_verified → skipped with reason."""
+        snap = _make_docs_snapshot()
+        val = evidence.validate_issue(snap)
+        ev = evidence.normalize_evidence(_make_evidence_items())
+        # Default plan has target_release with catalog_verified=False
+        plan = evidence.build_change_plan(
+            val, ev,
+            {"release": "v1", "target_branch": "main"},
+        )
+        current = self._make_current(fields={"fixVersions": []})
+        r = evidence.check_enrichment(plan, current)
+        self.assertNotIn("target_release", r["eligible_metadata"])
+        self.assertIn("target_release", r["skipped_metadata"])
+        self.assertIn(
+            "not catalog_verified",
+            r["skipped_metadata"]["target_release"]["reason"],
+        )
+
+    def test_skipped_metadata_in_invalid_result(self) -> None:
+        """Early invalid returns also have skipped_metadata key."""
+        plan = self._build_plan_with_catalog()
+        current = {"remote_links": []}  # missing key
+        r = evidence.check_enrichment(plan, current)
+        self.assertEqual(r["status"], "invalid")
+        self.assertIn("skipped_metadata", r)
+        self.assertEqual(r["skipped_metadata"], {})
+
+    def test_stale_preserves_skipped_metadata(self) -> None:
+        """Stale result shows skipped_metadata even with zero
+        eligible."""
+        plan = self._build_plan_with_catalog()
+        current = self._make_current(fields={})
+        # Force stale via wrong baseline
+        r = evidence.check_enrichment(
+            plan, current, "wrong-baseline",
+        )
+        self.assertTrue(r["stale"])
+        self.assertEqual(r["eligible_metadata"], {})
+        # skipped_metadata still reported (field was missing)
+        self.assertIn("target_release", r["skipped_metadata"])
+
+
+# ---------------------------------------------------------------------------
+# F4: SKILL.md line count contract
+# ---------------------------------------------------------------------------
+
+class TestSkillMdLineCount(unittest.TestCase):
+    """F4: SKILL.md must be under 30 lines including frontmatter."""
+
+    def test_skill_md_under_30_lines(self) -> None:
+        import pathlib
+        skill_md = (
+            pathlib.Path(__file__).parent.parent / "SKILL.md"
+        )
+        lines = skill_md.read_text().splitlines()
+        self.assertLess(
+            len(lines), 30,
+            f"SKILL.md has {len(lines)} lines, must be under 30",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

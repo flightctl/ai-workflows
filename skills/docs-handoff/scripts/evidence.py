@@ -1365,6 +1365,7 @@ def check_enrichment(
         "existing_links": [],
         "skipped_links": [],
         "eligible_metadata": {},
+        "skipped_metadata": {},
         "forbidden_fields": [],
         "plan_digest": plan.get("plan_digest", ""),
         "baseline_fingerprint": "",
@@ -1456,9 +1457,47 @@ def check_enrichment(
             "reason": "plan has changed since approval",
         }
 
-    existing_links = current_state.get("remote_links", [])
+    # Validate remote_links: must be present as a list of dicts with
+    # string URLs.  Missing/non-list/malformed → invalid, not default
+    # to [].  An explicit [] is valid (known empty).
+    if "remote_links" not in current_state:
+        return {
+            **_empty_result,
+            "status": "invalid",
+            "reason": "current state missing remote_links",
+        }
+
+    existing_links = current_state["remote_links"]
     if not isinstance(existing_links, list):
-        existing_links = []
+        return {
+            **_empty_result,
+            "status": "invalid",
+            "reason": (
+                f"remote_links must be a list, "
+                f"got {type(existing_links).__name__}"
+            ),
+        }
+
+    for idx, link in enumerate(existing_links):
+        if not isinstance(link, dict):
+            return {
+                **_empty_result,
+                "status": "invalid",
+                "reason": (
+                    f"remote_links[{idx}] must be a dict, "
+                    f"got {type(link).__name__}"
+                ),
+            }
+        link_url = link.get("url")
+        if not isinstance(link_url, str):
+            return {
+                **_empty_result,
+                "status": "invalid",
+                "reason": (
+                    f"remote_links[{idx}].url must be a string, "
+                    f"got {type(link_url).__name__}"
+                ),
+            }
 
     # Canonical link set for comparison (sorted for stable fingerprint)
     existing_urls: set[str] = set()
@@ -1554,6 +1593,7 @@ def check_enrichment(
 
     # Metadata eligibility (D: catalog_verified + validated catalog_entry)
     eligible_metadata: dict[str, Any] = {}
+    skipped_metadata: dict[str, Any] = {}
     forbidden_found: list[str] = []
 
     for field, spec in plan.get("metadata", {}).items():
@@ -1564,11 +1604,22 @@ def check_enrichment(
             forbidden_found.append(f"uncatalogued:{field}")
             continue
         if not isinstance(spec, dict):
+            skipped_metadata[field] = {
+                "reason": "metadata spec must be a dict",
+            }
             continue
         if not spec.get("catalog_verified", False):
+            skipped_metadata[field] = {
+                "reason": "not catalog_verified",
+                "value": spec.get("value"),
+            }
             continue
         entry = spec.get("catalog_entry")
         if not isinstance(entry, dict):
+            skipped_metadata[field] = {
+                "reason": "catalog_entry must be a dict",
+                "value": spec.get("value"),
+            }
             continue
         cat = _METADATA_CATALOG_V1.get(field, {})
         schema = cat.get("jira_item_schema", {})
@@ -1576,9 +1627,20 @@ def check_enrichment(
         name_key = schema.get("name_field", "name")
         # Validate catalog_entry has non-empty id and name
         if not entry.get(id_key) or not entry.get(name_key):
+            skipped_metadata[field] = {
+                "reason": "catalog_entry missing id or name",
+                "value": spec.get("value"),
+            }
             continue
         # Name must match requested value
         if entry.get(name_key) != spec.get("value"):
+            skipped_metadata[field] = {
+                "reason": (
+                    f"catalog_entry name '{entry.get(name_key)}' "
+                    f"does not match requested '{spec.get('value')}'"
+                ),
+                "value": spec.get("value"),
+            }
             continue
         # Build additive payload from actual current field state.
         # Fail closed: unknown/malformed field state must NOT default
@@ -1589,12 +1651,30 @@ def check_enrichment(
         # Fail closed: current_fields must be a dict with the field
         # present.  Missing fields key → no metadata write.
         if not isinstance(current_fields, dict):
+            skipped_metadata[field] = {
+                "reason": "current_state.fields is not a dict",
+                "value": spec.get("value"),
+            }
             continue
         if jira_fld not in current_fields:
+            skipped_metadata[field] = {
+                "reason": (
+                    f"current_state.fields.{jira_fld} not present "
+                    f"— unknown value cannot be defaulted to []"
+                ),
+                "value": spec.get("value"),
+            }
             continue
         before = current_fields[jira_fld]
         # Fail closed: field value must be a list (null/str/int → skip)
         if not isinstance(before, list):
+            skipped_metadata[field] = {
+                "reason": (
+                    f"current_state.fields.{jira_fld} must be a "
+                    f"list, got {type(before).__name__}"
+                ),
+                "value": spec.get("value"),
+            }
             continue
         # Fail closed: every entry must be a dict with a valid id
         before_valid = True
@@ -1606,6 +1686,13 @@ def check_enrichment(
                 before_valid = False
                 break
         if not before_valid:
+            skipped_metadata[field] = {
+                "reason": (
+                    f"current_state.fields.{jira_fld} contains "
+                    f"malformed entries"
+                ),
+                "value": spec.get("value"),
+            }
             continue
         # Check if already present — no-op if so
         already = any(
@@ -1633,11 +1720,13 @@ def check_enrichment(
             "already_present": already,
         }
 
-    # Profile forbidden fields
+    # Profile forbidden fields (case-insensitive check, preserve
+    # original name in finding)
     profile_fields = current_state.get("profile_fields", {})
     if isinstance(profile_fields, dict):
         for pf in profile_fields:
-            if pf in _FORBIDDEN_FIELDS:
+            pf_lower = pf.lower() if isinstance(pf, str) else ""
+            if pf_lower in _FORBIDDEN_FIELDS:
                 forbidden_found.append(f"profile:{pf}")
 
     return {
@@ -1646,6 +1735,7 @@ def check_enrichment(
         "existing_links": existing,
         "skipped_links": skipped,
         "eligible_metadata": {} if stale else eligible_metadata,
+        "skipped_metadata": skipped_metadata,
         "forbidden_fields": forbidden_found,
         "plan_digest": plan.get("plan_digest", ""),
         "baseline_fingerprint": baseline_fp,

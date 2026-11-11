@@ -24,7 +24,5 @@ caller-supplied consumer profile. Outputs: delivery-evidence findings,
 enrichment plan, and an owning-source narrative proposal when supported.
 
 **Boundaries:** No external write before the user explicitly approves
-the exact bounded plan. Phase 2 passes both saved
-`baseline_fingerprint` and `plan_digest`; stale or invalid requires
-fresh preview and re-approval. Source/narrative apply is always
-disabled; summary, description, and source content are never modified.
+the exact bounded plan; stale or invalid requires fresh preview and
+re-approval. Source/narrative apply is always disabled.
