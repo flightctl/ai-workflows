@@ -247,12 +247,25 @@ the current worktree:
    missing result verdict, stop — a concurrent validation run may
    have replaced the report after Step 1. Do not rely on the
    Step 1 verdict alone.
+6. Reassess referenced mandatory evidence from the current
+   approved plan and validation inventory. Check that each
+   mandatory Evidence Reference still has a verified status
+   using the original criteria and current candidate basis.
+   If any mandatory evidence has changed to failed, pending,
+   not-started, unknown, or its candidate applicability cannot
+   be established, stop — require the user to re-run
+   `/validate` or restart the validation cycle. Do not rely
+   on a cached `Overall: PASS` when the underlying evidence
+   it assessed is no longer verified. Stable evidence (content
+   unchanged, no external dependency) and entries where no
+   external evidence is required remain valid without
+   re-collection.
 
 If any check detects a change (new blocker, identity mismatch,
-dirty worktree, branch switch, or non-PASS report verdict), stop —
-do not rebind the old PASS to the changed state. Require the user
-to re-run `/ingest`, `/validate`, or restart `/publish` as
-appropriate.
+dirty worktree, branch switch, non-PASS report verdict, or
+evidence status change), stop — do not rebind the old PASS to the
+changed state. Require the user to re-run `/ingest`, `/validate`,
+or restart `/publish` as appropriate.
 
 ### Step 5: Push Branch
 

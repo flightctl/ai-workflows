@@ -6176,5 +6176,290 @@ class TestPublisherPostConfirmationVerdictCheck(unittest.TestCase):
                     f"must list non-PASS report verdict")
 
 
+# ===========================================================================
+# Defect A regression: Step 8/8a marker condition (r4532402064)
+# ===========================================================================
+
+class TestFinalizationMarkerCondition(unittest.TestCase):
+    """Static contract: Step 8 and Step 8a finalizers must qualify the
+    Gate-Applicability: unresolved marker absence as a condition for
+    pending-file removal only. The marker must remain in the written
+    context while gates are unresolved — Step 6 requires it. The
+    unconditional 'must not contain' contradicts Step 6 when gates
+    are unknown. Static Markdown section checks — not native agent
+    execution."""
+
+    _INGESTS = [
+        ("e2e", "e2e/skills/ingest.md"),
+        ("implement", "implement/skills/ingest.md"),
+    ]
+
+    def _repo_root(self):
+        return Path(__file__).resolve().parent.parent.parent
+
+    def _finalization_section(self, workflow_path, step_marker):
+        """Extract finalization section from a step marker."""
+        content = (self._repo_root() / workflow_path).read_text(
+            encoding="utf-8")
+        start = content.find(step_marker)
+        self.assertGreater(
+            start, 0,
+            f"{workflow_path}: must have '{step_marker}'")
+        end = content.find("\n### Step ", start + len(step_marker))
+        if end < 0:
+            end = start + 3000
+        return " ".join(content[start:end].split())
+
+    def test_step8_marker_qualified_by_pending_removal(self):
+        """Step 8: marker absence must be conditioned on pending-file
+        removal, not unconditional."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._finalization_section(
+                    path, "Pending finalization (first invocation)")
+                self.assertIn(
+                    "Before removing the pending file",
+                    section,
+                    f"{workflow}/ingest.md Step 8 marker absence "
+                    f"must be qualified by pending-file removal")
+
+    def test_step8a_marker_qualified_by_pending_removal(self):
+        """Step 8a: marker absence must be conditioned on pending-file
+        removal, not unconditional."""
+        step8a_markers = {
+            "e2e": "Apply the same pending finalization as",
+            "implement": "Apply the same pending finalization as",
+        }
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._finalization_section(
+                    path, step8a_markers[workflow])
+                self.assertIn(
+                    "Before removing the pending file",
+                    section,
+                    f"{workflow}/ingest.md Step 8a marker absence "
+                    f"must be qualified by pending-file removal")
+
+    def test_step8_unconditional_must_not_absent(self):
+        """Step 8: the old unconditional 'The written `01-context.md`
+        must not contain' (without the pending-file qualification)
+        must NOT appear."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._finalization_section(
+                    path, "Pending finalization (first invocation)")
+                self.assertNotIn(
+                    "The written `01-context.md` must not contain",
+                    section,
+                    f"{workflow}/ingest.md Step 8 must not have "
+                    f"unconditional marker prohibition")
+
+    def test_step8_retains_marker_when_unresolved(self):
+        """Step 8: when clearing conditions are not met, the pending
+        file AND the marker in the written context must be retained."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._finalization_section(
+                    path, "Pending finalization (first invocation)")
+                self.assertIn(
+                    "retain",
+                    section.lower(),
+                    f"{workflow}/ingest.md Step 8 must retain "
+                    f"pending file when conditions not met")
+
+
+# ===========================================================================
+# Defect B regression: Post-confirmation evidence reassessment (r4532402081)
+# ===========================================================================
+
+class TestPublisherMandatoryEvidenceReassessment(unittest.TestCase):
+    """Static contract: both publishers' Step 4 pre-push checkpoint
+    must reassess referenced mandatory evidence status, not just
+    verify identity binding and cached PASS. Evidence may change to
+    failed/pending while SHAs and stored Overall PASS remain
+    unchanged. Static Markdown section checks — not native agent
+    execution."""
+
+    _PUBLISHERS = [
+        ("e2e", "e2e/skills/publish.md"),
+        ("implement", "implement/skills/publish.md"),
+    ]
+
+    def _repo_root(self):
+        return Path(__file__).resolve().parent.parent.parent
+
+    def _step4_section(self, workflow_path):
+        """Extract Step 4 pre-push checkpoint section."""
+        content = (self._repo_root() / workflow_path).read_text(
+            encoding="utf-8")
+        start = content.find("### Step 4:")
+        self.assertGreater(start, 0,
+                           f"{workflow_path}: must have Step 4")
+        end = content.find("### Step 5:", start)
+        if end < 0:
+            end = start + 3000
+        return content[start:end]
+
+    def test_step4_reassesses_mandatory_evidence(self):
+        """Step 4 must reassess mandatory evidence references."""
+        for workflow, path in self._PUBLISHERS:
+            with self.subTest(workflow=workflow):
+                section = self._step4_section(path)
+                normalized = " ".join(section.split())
+                self.assertIn(
+                    "mandatory evidence", normalized.lower(),
+                    f"{workflow}/publish.md Step 4 must reassess "
+                    f"mandatory evidence")
+
+    def test_step4_checks_evidence_verified_status(self):
+        """Step 4 must require evidence status to remain verified."""
+        for workflow, path in self._PUBLISHERS:
+            with self.subTest(workflow=workflow):
+                section = self._step4_section(path)
+                normalized = " ".join(section.split())
+                self.assertIn(
+                    "verified status", normalized,
+                    f"{workflow}/publish.md Step 4 must check "
+                    f"evidence verified status")
+
+    def test_step4_stops_on_evidence_status_change(self):
+        """Step 4 must stop when evidence changes to failed, pending,
+        not-started, or unknown."""
+        for workflow, path in self._PUBLISHERS:
+            with self.subTest(workflow=workflow):
+                section = self._step4_section(path)
+                normalized = " ".join(section.split())
+                for status in ["failed", "pending", "not-started",
+                               "unknown"]:
+                    self.assertIn(
+                        status, normalized,
+                        f"{workflow}/publish.md Step 4 must stop "
+                        f"on evidence status '{status}'")
+
+    def test_step4_does_not_trust_cached_pass_alone(self):
+        """Step 4 must not rely on cached Overall: PASS when
+        underlying evidence is no longer verified."""
+        for workflow, path in self._PUBLISHERS:
+            with self.subTest(workflow=workflow):
+                section = self._step4_section(path)
+                normalized = " ".join(section.split())
+                self.assertIn(
+                    "cached", normalized,
+                    f"{workflow}/publish.md Step 4 must warn "
+                    f"against relying on cached PASS")
+
+    def test_step4_stable_evidence_remains_valid(self):
+        """Step 4 must not impose re-collection on stable evidence
+        or entries with no required external evidence."""
+        for workflow, path in self._PUBLISHERS:
+            with self.subTest(workflow=workflow):
+                section = self._step4_section(path)
+                normalized = " ".join(section.split())
+                self.assertIn(
+                    "Stable evidence", normalized,
+                    f"{workflow}/publish.md Step 4 must preserve "
+                    f"stable evidence validity")
+
+    def test_step4_evidence_in_stop_conditions(self):
+        """Step 4 stop-condition paragraph must include evidence
+        status change alongside existing blockers."""
+        for workflow, path in self._PUBLISHERS:
+            with self.subTest(workflow=workflow):
+                section = self._step4_section(path)
+                normalized = " ".join(section.split())
+                self.assertIn(
+                    "evidence status change", normalized,
+                    f"{workflow}/publish.md Step 4 stop conditions "
+                    f"must list evidence status change")
+
+
+# ===========================================================================
+# Defect C regression: Pending gate merge by origin+name (r4532402091)
+# ===========================================================================
+
+class TestPendingGateMergeOriginName(unittest.TestCase):
+    """Static contract: both ingests' pending gate merge instructions
+    must identify gates by origin+name pair, not just name. Same name
+    from different origins must remain as separate entries. Distinct
+    gates with same origin+name pair must retain separate entries and
+    request clarification. Static Markdown section checks — not native
+    agent execution."""
+
+    _INGESTS = [
+        ("e2e", "e2e/skills/ingest.md"),
+        ("implement", "implement/skills/ingest.md"),
+    ]
+
+    def _repo_root(self):
+        return Path(__file__).resolve().parent.parent.parent
+
+    def _pending_merge_section(self, workflow_path):
+        """Extract the pending-file merge paragraph."""
+        content = (self._repo_root() / workflow_path).read_text(
+            encoding="utf-8")
+        start = content.find(
+            "In both cases, update the "
+            "`gate-applicability.pending` file")
+        self.assertGreater(start, 0,
+                           f"{workflow_path}: must have pending merge")
+        end = content.find("\n\nThis marker is distinct", start)
+        if end < 0:
+            end = start + 1200
+        return " ".join(content[start:end].split())
+
+    def test_merge_uses_origin_and_name(self):
+        """Pending gate merge must use origin and name pair."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._pending_merge_section(path)
+                self.assertIn(
+                    "origin and name", section,
+                    f"{workflow}/ingest.md pending merge must use "
+                    f"origin and name pair")
+
+    def test_merge_not_name_only(self):
+        """Pending gate merge must NOT merge by name alone (old
+        'merge... gate names into the... set' pattern)."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._pending_merge_section(path)
+                self.assertNotIn(
+                    "gate names into the existing set", section,
+                    f"{workflow}/ingest.md must not merge by name "
+                    f"alone")
+
+    def test_distinct_same_pair_retained(self):
+        """Distinct gates sharing the same origin+name pair must
+        retain separate entries."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._pending_merge_section(path)
+                self.assertIn(
+                    "retain separate entries", section,
+                    f"{workflow}/ingest.md must retain separate "
+                    f"entries for ambiguous same-pair gates")
+
+    def test_ambiguous_pair_requests_clarification(self):
+        """Ambiguous same-pair gates must request clarification."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._pending_merge_section(path)
+                self.assertIn(
+                    "clarification", section,
+                    f"{workflow}/ingest.md must request "
+                    f"clarification for ambiguous same-pair gates")
+
+    def test_blocker_until_all_resolved(self):
+        """The blocker must persist until every gate (including
+        ambiguous same-pair duplicates) is resolved."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._pending_merge_section(path)
+                self.assertIn(
+                    "every such gate is resolved", section,
+                    f"{workflow}/ingest.md must keep blocker until "
+                    f"all gates resolved")
+
+
 if __name__ == "__main__":
     unittest.main()

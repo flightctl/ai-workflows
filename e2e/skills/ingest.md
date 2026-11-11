@@ -371,9 +371,13 @@ artifact directory
 file already exists, read it first and preserve its existing
 entries — a gate absent from the latest artifact set is not
 verified irrelevant, and newly unresolved gates must not overwrite
-previously recorded ones. Merge newly unresolved gate names into
-the existing set, preserving each entry's origin, name, and
-status. Remove an entry only through the allowed checked clearing
+previously recorded ones. Merge newly unresolved gates by origin and name — when that pair
+unambiguously identifies the same source gate, merge the entries.
+Preserve each entry's origin, name, and status. If distinct gates
+share both origin and name, retain separate entries and request
+clarification in the existing handoff; keep the blocker until
+every such gate is resolved. Remove an entry only through the
+allowed checked clearing
 procedure (re-ingestion with gate recording and plan
 reconciliation, or verified irrelevance). Write the merged result
 immediately during gate analysis, before Step 8 compilation — it
@@ -1044,11 +1048,12 @@ conditions are met for each gate, remove
   All-irrelevant outcomes (every gate verified irrelevant, including
   zero-match / no story testplan) satisfy the clearing condition.
 
-The written `01-context.md` must not contain the
-`Gate-Applicability: unresolved` marker. If clearing conditions are
-not met (source discovery failed, some gates remain unresolved,
-downstream plan reconciliation is incomplete, or any gate lacks a
-verified disposition), retain the pending file.
+Before removing the pending file, the written `01-context.md` must
+not contain the `Gate-Applicability: unresolved` marker. If
+clearing conditions are not met (source discovery failed, some
+gates remain unresolved, downstream plan reconciliation is
+incomplete, or any gate lacks a verified disposition), retain the
+pending file and the marker in the written context.
 
 ### Step 8a: Diff Against Prior Ingest (Re-invocation Only)
 
@@ -1073,9 +1078,9 @@ conditions are met for each gate (relevant gates recorded with
 original mappings/origin/evidence and downstream plan reconciled;
 verified-irrelevant gates cleared without testplan recording or
 gate obligation — including all-irrelevant outcomes), remove
-`gate-applicability.pending`. The written `01-context.md` must
-not contain the `Gate-Applicability: unresolved` marker. If the
-user declined or
+`gate-applicability.pending`. Before removing the pending file, the
+written `01-context.md` must not contain the
+`Gate-Applicability: unresolved` marker. If the user declined or
 did not answer the overwrite, do not clear the pending file — the
 legacy marker in the existing `01-context.md` must persist so the
 validator fallback continues to detect the blocker.
