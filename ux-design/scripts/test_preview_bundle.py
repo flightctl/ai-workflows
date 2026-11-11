@@ -1971,5 +1971,242 @@ class TestDeployCommandMustWait(unittest.TestCase):
         )
 
 
+# ---------------------------------------------------------------------------
+# Content root forbidden values (ID 4543270531 — privacy)
+# ---------------------------------------------------------------------------
+
+class TestExplicitContentRootForbidden(unittest.TestCase):
+    """Verify forbidden content roots and symlink segments rejected."""
+
+    def test_dot_root_rejected(self) -> None:
+        """Content root '.' (whole prototype dir) is rejected."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "proto"
+            proto.mkdir()
+            (proto / "index.html").write_text("<html>OK</html>")
+            result = preview_bundle._resolve_content_dir(
+                proto, "standalone", ".",
+            )
+            self.assertIsNone(result)
+
+    def test_code_root_rejected(self) -> None:
+        """Content root 'code' (whole code clone) is rejected."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "proto"
+            code = proto / "code"
+            code.mkdir(parents=True)
+            (code / "index.html").write_text("<html>Source</html>")
+            result = preview_bundle._resolve_content_dir(
+                proto, "workspace", "code",
+            )
+            self.assertIsNone(result)
+
+    def test_code_subdir_still_accepted(self) -> None:
+        """Content root 'code/dist' (specific build output) is valid."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "proto"
+            dist = proto / "code" / "dist"
+            dist.mkdir(parents=True)
+            (dist / "index.html").write_text("<html>Built</html>")
+            result = preview_bundle._resolve_content_dir(
+                proto, "workspace", "code/dist",
+            )
+            self.assertEqual(result, dist.resolve())
+
+    def test_symlink_segment_rejected_before_resolve(self) -> None:
+        """Symlink in content root path rejected BEFORE resolve."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "proto"
+            proto.mkdir()
+            real = Path(tmpdir) / "real-output"
+            real.mkdir()
+            (real / "index.html").write_text("<html>OK</html>")
+            (proto / "my-export").symlink_to(real)
+            result = preview_bundle._resolve_content_dir(
+                proto, "standalone", "my-export",
+            )
+            self.assertIsNone(
+                result,
+                "Symlink content root segment must be rejected before resolve",
+            )
+
+
+# ---------------------------------------------------------------------------
+# CLI root privacy — actual cmd_package proof (ID 4543270531)
+# ---------------------------------------------------------------------------
+
+class TestCLIRootPrivacy(unittest.TestCase):
+    """Verify cmd_package refuses root/code exposure via actual CLI path.
+
+    These tests call the actual cmd_package consumer (not just the
+    _resolve_content_dir helper) to prove no output bytes are produced
+    when the content root would expose private artifacts.
+    """
+
+    def test_standalone_no_prototype_subdir_no_bundle(self) -> None:
+        """cmd_package fails when only the root has HTML (no prototype/ subdir)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source"
+            proto.mkdir()
+            (proto / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+            (proto / "rfe-snapshot.md").write_text("# Requirements")
+            (proto / ".env").write_text("SECRET=x")
+            output = Path(tmpdir) / "output"
+            with self.assertRaises(SystemExit) as ctx:
+                preview_bundle.cmd_package(
+                    argparse.Namespace(
+                        prototype_dir=str(proto),
+                        output_dir=str(output),
+                        issue_key="PRIV-1",
+                        revision="r1",
+                        mode="standalone",
+                        entry_point=None,
+                        content_root=None,
+                    ),
+                )
+            self.assertEqual(ctx.exception.code, preview_bundle.EXIT_PACKAGE_FAIL)
+            bundle = output / "previews" / "PRIV-1" / "r1"
+            self.assertFalse(bundle.exists(), "No bundle from exposed root")
+
+    def test_explicit_dot_root_no_bundle(self) -> None:
+        """cmd_package fails when explicit content root is '.'."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source"
+            proto.mkdir()
+            (proto / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+            (proto / ".env").write_text("SECRET=x")
+            output = Path(tmpdir) / "output"
+            with self.assertRaises(SystemExit) as ctx:
+                preview_bundle.cmd_package(
+                    argparse.Namespace(
+                        prototype_dir=str(proto),
+                        output_dir=str(output),
+                        issue_key="PRIV-2",
+                        revision="r1",
+                        mode="standalone",
+                        entry_point=None,
+                        content_root=".",
+                    ),
+                )
+            self.assertEqual(ctx.exception.code, preview_bundle.EXIT_PACKAGE_FAIL)
+
+    def test_explicit_code_root_no_bundle(self) -> None:
+        """cmd_package fails when explicit content root is 'code'."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source"
+            code = proto / "code"
+            code.mkdir(parents=True)
+            (code / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+            output = Path(tmpdir) / "output"
+            with self.assertRaises(SystemExit) as ctx:
+                preview_bundle.cmd_package(
+                    argparse.Namespace(
+                        prototype_dir=str(proto),
+                        output_dir=str(output),
+                        issue_key="PRIV-3",
+                        revision="r1",
+                        mode="workspace",
+                        entry_point=None,
+                        content_root="code",
+                    ),
+                )
+            self.assertEqual(ctx.exception.code, preview_bundle.EXIT_PACKAGE_FAIL)
+
+
+# ---------------------------------------------------------------------------
+# Symlink mutation before deploy (ID 4543270531 — canonical digest)
+# ---------------------------------------------------------------------------
+
+class TestSymlinkMutationBeforeDeploy(unittest.TestCase):
+    """Red-green: symlink added post-packaging stops publisher BEFORE command.
+
+    After a valid package, adding a symlink to a fake private.env must
+    cause the publisher to STOP before running the deploy command —
+    proving no bytes are uploaded through the alias bypass.
+    """
+
+    _PUB_SCRIPT = _SCRIPT.parent / "preview-publish.py"
+
+    def _package_bundle(self, tmpdir: str) -> tuple[Path, dict]:
+        proto = Path(tmpdir) / "source" / "prototype"
+        proto.mkdir(parents=True)
+        (proto / "index.html").write_text(
+            _SELF_CONTAINED_HTML, encoding="utf-8",
+        )
+        (proto / "style.css").write_text("body{margin:0}", encoding="utf-8")
+        output = Path(tmpdir) / "output"
+        import subprocess
+        r = subprocess.run(
+            [
+                sys.executable, str(_SCRIPT), "package",
+                "--prototype-dir", str(Path(tmpdir) / "source"),
+                "--output-dir", str(output),
+                "--issue-key", "MUTATE-1", "--revision", "r1",
+                "--mode", "standalone",
+            ],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        pkg = json.loads(r.stdout)
+        return Path(pkg["bundle_dir"]), pkg
+
+    def test_symlink_mutation_stops_before_deploy(self) -> None:
+        """Symlink added post-packaging → publisher fails before command."""
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bundle, pkg = self._package_bundle(tmpdir)
+
+            # --- Mutate: add a symlink to a fake private file ---
+            private = Path(tmpdir) / "private.env"
+            private.write_text("SECRET_KEY=hunter2")
+            (bundle / "leaked.txt").symlink_to(private)
+
+            # --- Create deploy command that writes marker when called ---
+            marker = Path(tmpdir) / "deploy-was-called"
+            adapter = Path(tmpdir) / "marker-adapter.py"
+            adapter.write_text(textwrap.dedent(f"""\
+                #!/usr/bin/env python3
+                import json, sys
+                from pathlib import Path
+                Path("{marker}").write_text("CALLED")
+                print(json.dumps({{"status": "published",
+                    "url": sys.argv[4],
+                    "content_sha256": sys.argv[3]}}))
+            """), encoding="utf-8")
+            adapter.chmod(0o755)
+
+            # --- Run publisher → must fail before deploy command ---
+            result = subprocess.run(
+                [
+                    sys.executable, str(self._PUB_SCRIPT), "publish",
+                    "--bundle-dir", str(bundle),
+                    "--pr-repo", "org/docs-repo",
+                    "--pr-number", "42",
+                    "--content-sha256", pkg["content_sha256"],
+                    "--target-repo", "org/docs-repo",
+                    "--deploy-command", str(adapter),
+                    "--site-url", "https://example.com",
+                ],
+                capture_output=True, text=True,
+            )
+
+            # RED: publisher must fail
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("symlink", result.stderr.lower())
+
+            # GREEN: deploy command was never called — no bytes uploaded
+            self.assertFalse(
+                marker.exists(),
+                "Deploy command must NOT run when bundle has symlinks",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

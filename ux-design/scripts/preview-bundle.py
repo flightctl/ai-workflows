@@ -149,10 +149,22 @@ def _resolve_content_dir(
     if explicit_root:
         if os.path.isabs(explicit_root) or ".." in Path(explicit_root).parts:
             return None
+        # Forbid the whole prototype artifact root or code clone root —
+        # these would expose private artifacts (rfe-snapshot.md, decisions/,
+        # metadata.json, code/) or the full cloned source tree.
+        # Use string comparison: Path(".").parts is empty, not (".",).
+        if explicit_root.rstrip("/") in (".", "code"):
+            return None
+        # Check each raw path segment for symlinks BEFORE resolving.
+        # resolve() follows symlinks, so is_symlink() after resolve is
+        # always False — we must check the unresolved segments.
+        check_path = prototype_dir
+        for part in Path(explicit_root).parts:
+            check_path = check_path / part
+            if check_path.is_symlink():
+                return None
         candidate = (prototype_dir / explicit_root).resolve()
         if not _is_path_within(candidate, prototype_dir):
-            return None
-        if candidate.is_symlink():
             return None
         if candidate.is_dir():
             return candidate
@@ -375,16 +387,40 @@ def cmd_validate(args: argparse.Namespace) -> int:
 def _compute_content_digest(directory: Path) -> str:
     """Compute a SHA-256 digest over all regular files in *directory*.
 
+    Excludes only the root ``preview-manifest.json`` — nested manifests
+    (e.g. ``sub/preview-manifest.json``) are content and included.
+
+    This is the canonical digest implementation.  The publisher
+    (``preview-publish.py``) imports this function rather than
+    maintaining a duplicate.
+
     Files are processed in sorted order by relative POSIX path so the
     digest is deterministic across platforms.
+
+    Raises ``ValueError`` if unexpected symlinks or unreadable files
+    are found — these indicate post-packaging mutation.
     """
     hasher = hashlib.sha256()
+    root_manifest = directory / "preview-manifest.json"
     for filepath in sorted(directory.rglob("*")):
-        if not filepath.is_file() or filepath.is_symlink():
+        if filepath.is_symlink():
+            rel = filepath.relative_to(directory).as_posix()
+            raise ValueError(
+                f"Unexpected symlink in bundle: {rel}"
+            )
+        if not filepath.is_file():
+            continue
+        # Exclude only the root manifest, not nested ones.
+        if filepath == root_manifest:
             continue
         rel = filepath.relative_to(directory).as_posix()
         hasher.update(rel.encode("utf-8"))
-        hasher.update(filepath.read_bytes())
+        try:
+            hasher.update(filepath.read_bytes())
+        except OSError as exc:
+            raise ValueError(
+                f"Unreadable file in bundle: {rel}: {exc}"
+            ) from exc
     return hasher.hexdigest()
 
 
@@ -505,7 +541,10 @@ def cmd_package(args: argparse.Namespace) -> int:
         )
 
     # Compute content digest for bundle identity.
-    content_sha256 = _compute_content_digest(bundle_dir)
+    try:
+        content_sha256 = _compute_content_digest(bundle_dir)
+    except ValueError as exc:
+        fail(f"Bundle integrity check failed: {exc}", EXIT_PACKAGE_FAIL)
 
     # Collect inventory and verify all files are readable.
     inventory = _collect_file_inventory(bundle_dir)

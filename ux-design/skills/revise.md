@@ -76,6 +76,29 @@ Summarize what changed:
 - {any cascading updates to maintain coherence}
 ```
 
+### Step 6: Preview Invalidation
+
+After applying changes, check for
+`.artifacts/ux-design/{issue-key}/preview-metadata.json`. If a preview
+exists and the changes were design-affecting (not editorial-only), the
+preview is now stale regardless of its current `deploy_status`
+(including `screenshot-fallback`):
+
+- Set `deploy_status` to `stale`
+- Record `stale_reason: revise-handoff-update`
+- Record `current_revision` from `00-context.md`
+- Preserve existing `revision`, `published_namespace`, `content_sha256`,
+  and `site_url` as last-verified artifacts (outdated, not current)
+
+Screenshots are also invalidated by design-affecting changes. The
+researcher must explicitly confirm that the visual design is unaffected
+to keep the preview current; do not assume screenshots still represent
+the updated design.
+
+If the changes were editorial-only (wording, clarification) and the
+researcher confirms the visual design is unaffected, leave
+`deploy_status` unchanged.
+
 ## Output
 
 - `.artifacts/ux-design/{issue-key}/05-handoff.md` (updated)
@@ -92,27 +115,6 @@ docs repo. Do **not** push it manually. Tell the researcher to run `/publish`
 to update the existing open PR branch through the workflow's publish path;
 `/publish` uses the saved metadata and does not create a second PR. Use
 `/respond` separately to address reviewer comments.
-
-### Step 6: Preview Invalidation
-
-After applying design-affecting changes, check for
-`.artifacts/ux-design/{issue-key}/preview-metadata.json`. If a preview
-exists (any `deploy_status` except `screenshot-fallback`), the revision
-is now stale:
-
-- Set `deploy_status` to `stale`
-- Record `stale_reason: revise-handoff-update`
-- Record `current_revision` from `00-context.md`
-- Preserve existing `revision`, `published_namespace`, `content_sha256`,
-  and `site_url` as last-verified artifacts (outdated, not current)
-
-If the changes were editorial-only (wording, clarification), note that
-the preview may still be representative and leave `deploy_status`
-unchanged.
-
-**If `deploy_status` was `screenshot-fallback`:** the screenshots may
-still be representative of the design. Leave `deploy_status` unchanged
-but inform the researcher that a re-capture may be needed.
 
 ## When This Phase Is Done
 

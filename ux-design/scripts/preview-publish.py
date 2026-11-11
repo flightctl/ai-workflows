@@ -44,6 +44,7 @@ Exit codes:
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -84,29 +85,25 @@ def _namespace_prefix(
     return f"previews/{owner}/{repo}/pr-{pr_number}/{short_sha}"
 
 
-def _compute_content_digest(directory: Path) -> str:
-    """Compute SHA-256 digest over regular files in *directory*.
+def _load_bundler_digest():
+    """Load the canonical digest function from the bundler module.
 
-    Excludes only the generated ROOT ``preview-manifest.json`` — nested
-    manifests (e.g. ``sub/preview-manifest.json``) are content and are
-    included.  This is the canonical digest implementation shared between
-    the bundler (``preview-bundle.py``) and this publisher.
-
-    Files are processed in sorted order by relative POSIX path so the
-    digest is deterministic across platforms.
+    Both scripts share a single implementation — the bundler owns it,
+    the publisher imports it.  This avoids digest divergence between
+    packaging and verification.
     """
-    hasher = hashlib.sha256()
-    root_manifest = directory / "preview-manifest.json"
-    for filepath in sorted(directory.rglob("*")):
-        if not filepath.is_file() or filepath.is_symlink():
-            continue
-        # Exclude only the root manifest, not nested ones.
-        if filepath == root_manifest:
-            continue
-        rel = filepath.relative_to(directory).as_posix()
-        hasher.update(rel.encode("utf-8"))
-        hasher.update(filepath.read_bytes())
-    return hasher.hexdigest()
+    bundler_path = Path(__file__).resolve().parent / "preview-bundle.py"
+    spec = importlib.util.spec_from_file_location(
+        "preview_bundle", bundler_path,
+    )
+    if not spec or not spec.loader:
+        raise ImportError(f"Cannot load bundler from {bundler_path}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod._compute_content_digest
+
+
+_compute_content_digest = _load_bundler_digest()
 
 
 def _validate_site_url(url: str, allow_test_http: bool = False) -> str:
@@ -243,7 +240,10 @@ def _local_fixture_publish(
         shutil.copy2(src_file, dst_file)
 
     # Compute published content digest using the canonical function.
-    published_digest = _compute_content_digest(dest)
+    try:
+        published_digest = _compute_content_digest(dest)
+    except ValueError as exc:
+        _fail(f"Published content integrity failed: {exc}", EXIT_PUBLISH_FAIL)
 
     # Verify existing content untouched.
     existing_after: set[str] = set()
@@ -332,7 +332,13 @@ def cmd_publish(args: list[str]) -> int:
         )
 
     # Recompute actual bundle bytes digest to catch post-packaging mutations.
-    actual_digest = _compute_content_digest(bundle_dir)
+    try:
+        actual_digest = _compute_content_digest(bundle_dir)
+    except ValueError as exc:
+        _fail(
+            f"Bundle integrity check failed: {exc}",
+            EXIT_PUBLISH_FAIL,
+        )
     if actual_digest != opts.content_sha256:
         _fail(
             "Bundle bytes do not match expected digest "
@@ -507,7 +513,10 @@ def cmd_verify(args: list[str]) -> int:
             )
 
     # Verify aggregate digest using the canonical function.
-    actual_digest = _compute_content_digest(preview_dir)
+    try:
+        actual_digest = _compute_content_digest(preview_dir)
+    except ValueError as exc:
+        _fail(f"Content integrity check failed: {exc}", EXIT_VERIFY_FAIL)
 
     file_count = sum(
         1 for f in preview_dir.rglob("*")

@@ -210,11 +210,11 @@ After applying handoff changes in Step 4, check whether a preview exists:
 Read `.artifacts/ux-design/{issue-key}/preview-metadata.json`. If it
 exists, evaluate whether the preview is now stale.
 
-**If handoff changes were design-affecting AND a preview exists
-(any `deploy_status` except `screenshot-fallback`):**
+**If handoff changes were design-affecting AND a preview exists:**
 
 The preview no longer reflects the current design. Update
-`preview-metadata.json`:
+`preview-metadata.json` regardless of current `deploy_status`
+(including `screenshot-fallback`):
 - Set `deploy_status` to `stale`
 - Record `stale_reason: respond-handoff-update`
 - Record `current_revision` from `00-context.md`
@@ -224,8 +224,8 @@ The preview no longer reflects the current design. Update
 Inform the researcher:
 
 > The published preview is now **stale** — the handoff spec was updated
-> with design-affecting changes. Current revision: {current}, deployed
-> revision: {deployed}.
+> with design-affecting changes. Current revision: {current}, preview
+> revision: {revision}.
 >
 > To update the preview:
 > 1. Run `/prototype` to update the prototype with the accepted changes
@@ -238,27 +238,8 @@ to update the prototype and preview.
 
 **If handoff changes were editorial-only (clarification, wording):**
 
-The preview may still be representative. Inform the researcher:
-
-> The handoff spec was updated with editorial changes. The published
-> preview may still be representative of the current design. Run
-> `/preview` to rebuild if the changes affect visual presentation.
-
-Leave `deploy_status` unchanged.
-
-**If the preview uses screenshot fallback AND changes are design-affecting:**
-
-Screenshots are also invalidated by design-affecting changes. Update
-`preview-metadata.json`:
-- Set `deploy_status` to `stale`
-- Record `stale_reason: respond-handoff-update`
-- Preserve `last_published_revision` from the existing metadata
-
-Inform the researcher:
-
-> The attached screenshots are now **stale** — the handoff spec was
-> updated with design-affecting changes. Run `/prototype` to update
-> the prototype, then `/preview` to capture new screenshots.
+The preview may still be representative if the researcher confirms the
+visual design is unaffected. Leave `deploy_status` unchanged.
 
 **If no preview exists:**
 No preview synchronization is needed. Proceed to Step 6.

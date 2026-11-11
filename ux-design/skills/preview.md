@@ -59,6 +59,15 @@ Read the **Static Review Notes** section of `prototype-notes.md` for:
 - **Content root** — explicit content directory (relative to 03-prototype)
 - **Entry point** — explicit HTML entry point filename
 
+If the Static Review Notes record a **Build command**, run it now
+before validation — this ensures validation runs against current build
+output rather than a possibly stale export from a previous build:
+
+```bash
+cd "{source_repo_root}/.artifacts/ux-design/{issue-key}/03-prototype"
+{recorded_build_command}
+```
+
 Run validation (pass `--content-root` and `--entry-point` when the notes
 record them):
 
@@ -81,12 +90,11 @@ Check the `valid` field and `reason`:
 The prototype requires a build step or live development server and
 cannot be packaged as a static preview.
 
-Before falling back, attempt the project's recorded or discovered build:
+If no build command was recorded, attempt discovery:
 
-1. If `prototype-notes.md` records a **Build command**, run it first
-2. Otherwise check for build scripts in the prototype's `code/` directory
+1. Check for build scripts in the prototype's `code/` directory
    (`package.json` scripts, `Makefile`, etc.)
-3. If a build command exists, run it and re-validate the output
+2. If a build command is found, run it and re-validate the output
 
 If no build is available or the build fails:
 **Screenshot fallback** — Capture screenshots of the key flows and
@@ -130,27 +138,31 @@ verification occurs in Step 4 after deployment.
 
 ### Step 2: Build the Preview Bundle
 
-When repeating `/preview` for the same iteration (e.g. after a build
-fix), choose a fresh revision identifier (`iteration-{N}-r{K}`) — the
-bundler rejects an existing revision to prevent destructive overwrites.
-Record the actual returned revision and bundle path.
+Define the revision identifier once: use `iteration-{N}` for the first
+build of an iteration, or `iteration-{N}-r{K}` when repeating `/preview`
+for the same iteration (e.g. after a build fix).  Store this as
+`{revision}`.  The bundler rejects an existing revision to prevent
+destructive overwrites.
 
 ```bash
 python3 "${UX_SCRIPTS}/preview-bundle.py" package \
   --prototype-dir "{source_repo_root}/.artifacts/ux-design/{issue-key}/03-prototype" \
   --output-dir "{source_repo_root}/.artifacts/ux-design/{issue-key}/preview-bundle" \
   --issue-key "{issue-key}" \
-  --revision "iteration-{N}" \
+  --revision "{revision}" \
   --mode {standalone|workspace} \
   [--content-root "{content_root}"] \
   [--entry-point "{entry_point}"]
 ```
 
 Parse the JSON output for `bundle_dir`, `entry_point`, `file_count`, and
-`content_sha256`.  The `content_sha256` is required for Step 4.
+`content_sha256`.  Use these actual output values (not reconstructed
+paths) in Step 5 metadata and all subsequent steps.  The `content_sha256`
+is required for Step 4.
 
 Record the build details:
 
+- Actual `bundle_dir` and `revision` from the package output
 - Entry point path
 - Number of files in the bundle
 - Which components are mocked (from the manifest)
@@ -267,12 +279,12 @@ Write `.artifacts/ux-design/{issue-key}/preview-metadata.json`:
 ```json
 {
   "issue_key": "{issue-key}",
-  "revision": "iteration-{N}",
+  "revision": "{revision from Step 2 package output}",
   "prototype_mode": "{standalone|workspace}",
-  "bundle_path": ".artifacts/ux-design/{issue-key}/preview-bundle/previews/{issue-key}/iteration-{N}",
-  "entry_point": "{entry-point}",
+  "bundle_path": "{bundle_dir from Step 2 package output — relative to source_repo_root}",
+  "entry_point": "{entry_point from Step 2 package output}",
   "deploy_status": "{published|awaiting-setup|deploy-failed|screenshot-fallback|stale}",
-  "content_sha256": "{digest-from-package-output-or-null}",
+  "content_sha256": "{content_sha256 from Step 2 package output, or null}",
   "pr_repo": "{owner/repo-from-docs_repo_remote}",
   "pr_number": "{pr-number-from-publish-metadata}",
   "target_repo": "{owner/repo-or-null}",
@@ -282,6 +294,10 @@ Write `.artifacts/ux-design/{issue-key}/preview-metadata.json`:
   "timestamp": "{ISO-8601}"
 }
 ```
+
+When `/revise` or `/respond` sets `deploy_status` to `stale`, they also
+record `current_revision` (from `00-context.md`) and `stale_reason`
+alongside the preserved last-verified fields.
 
 ### Step 6: Update the Handoff PR (with researcher approval)
 
@@ -305,17 +321,21 @@ For screenshot fallback:
 > **Review Screenshots:** Screenshots of key flows are attached to this PR.
 > Built from prototype iteration {N} ({mode} mode).
 
-For deploy-failed:
-> **Preview Status: Deploy Failed** — The static preview bundle was
-> packaged but deployment verification failed. See
-> preview-metadata.json for details. The bundle can be retried with
-> `/preview` or the screenshot fallback can be used.
+For other statuses (`deploy-failed`, `stale`, `awaiting-setup`): report
+them in the phase completion output but do not propose PR comments
+unless the researcher explicitly requests a status update and approves
+the comment text.
 
-For stale:
+For stale (only when researcher approves posting, and `site_url` is not null):
 > **Preview Status: Stale** — The handoff spec has been updated since
 > the preview was last published. Last verified URL:
 > [{site_url}]({site_url}) (outdated — not current).
 > Run `/preview` to rebuild.
+
+For deploy-failed (only when researcher approves posting):
+> **Preview Status: Deploy Failed** — The static preview bundle was
+> packaged but deployment verification failed. The bundle can be
+> retried with `/preview` or the screenshot fallback can be used.
 
 ## Output
 
@@ -329,7 +349,7 @@ For stale:
 Present the preview status to the researcher:
 
 - Bundle location and entry point
-- Deployment status (published URL, awaiting setup, awaiting upload, or screenshot fallback)
+- Deployment status (published URL, awaiting setup, deploy failed, or screenshot fallback)
 - Mocked components inventory
 - Whether the handoff PR was updated with the preview link
 
