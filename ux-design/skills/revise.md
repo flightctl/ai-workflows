@@ -80,6 +80,8 @@ Summarize what changed:
 
 - `.artifacts/ux-design/{issue-key}/05-handoff.md` (updated)
 - `.artifacts/ux-design/{issue-key}/provenance.json` (updated)
+- `.artifacts/ux-design/{issue-key}/preview-metadata.json` (updated when
+  a preview exists and design-affecting changes were made)
 
 ## If a PR Already Exists
 
@@ -91,21 +93,26 @@ to update the existing open PR branch through the workflow's publish path;
 `/publish` uses the saved metadata and does not create a second PR. Use
 `/respond` separately to address reviewer comments.
 
-## Preview Invalidation
+### Step 6: Preview Invalidation
 
 After applying design-affecting changes, check for
 `.artifacts/ux-design/{issue-key}/preview-metadata.json`. If a preview
-exists (any `deploy_status` including `screenshot-fallback`), the revision
+exists (any `deploy_status` except `screenshot-fallback`), the revision
 is now stale:
 
 - Set `deploy_status` to `stale`
 - Record `stale_reason: revise-handoff-update`
-- Preserve the `published_namespace` and `content_sha256` from the
-  existing metadata
+- Record `current_revision` from `00-context.md`
+- Preserve existing `revision`, `published_namespace`, `content_sha256`,
+  and `site_url` as last-verified artifacts (outdated, not current)
 
-Inform the researcher that the preview needs rebuilding. If the changes
-were editorial-only (wording, clarification), note that the preview may
-still be representative and leave `deploy_status` unchanged.
+If the changes were editorial-only (wording, clarification), note that
+the preview may still be representative and leave `deploy_status`
+unchanged.
+
+**If `deploy_status` was `screenshot-fallback`:** the screenshots may
+still be representative of the design. Leave `deploy_status` unchanged
+but inform the researcher that a re-capture may be needed.
 
 ## When This Phase Is Done
 
@@ -113,6 +120,7 @@ Report your results:
 - What was changed and why
 - Any consistency updates made as a side effect
 - Whether a PR already exists and the spec now needs re-publishing
+- Whether the preview was marked stale (if a preview existed)
 - Any remaining open questions
 
 Then **re-read the controller** (`controller.md`) for next-step guidance.

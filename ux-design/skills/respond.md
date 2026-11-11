@@ -210,14 +210,16 @@ After applying handoff changes in Step 4, check whether a preview exists:
 Read `.artifacts/ux-design/{issue-key}/preview-metadata.json`. If it
 exists, evaluate whether the preview is now stale.
 
-**If handoff changes were design-affecting AND a preview exists:**
+**If handoff changes were design-affecting AND a preview exists
+(any `deploy_status` except `screenshot-fallback`):**
 
 The preview no longer reflects the current design. Update
 `preview-metadata.json`:
 - Set `deploy_status` to `stale`
 - Record `stale_reason: respond-handoff-update`
-- Record `current_revision` (from `00-context.md`) and
-  `deployed_revision` (from the existing metadata)
+- Record `current_revision` from `00-context.md`
+- Preserve existing `revision`, `published_namespace`, `content_sha256`,
+  and `site_url` as last-verified artifacts (outdated, not current)
 
 Inform the researcher:
 

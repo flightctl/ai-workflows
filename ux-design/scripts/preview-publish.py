@@ -9,11 +9,15 @@ Contract:
   publish   Invoke the configured deploy command (or report awaiting-setup)
   verify    Check published content against its manifest
 
-The deploy command receives:
+The deploy command receives four positional arguments:
   argv[1]  bundle directory (absolute path)
-  argv[2]  namespace prefix (e.g. previews/org/repo/pr-42/a1b2c3d4)
+  argv[2]  namespace prefix (e.g. previews/org/repo/pr-42/a1b2c3d4e5f6)
   argv[3]  expected content SHA-256
-  argv[4]  approved site base URL
+  argv[4]  approved site base URL (HTTPS; HTTP only for loopback in tests)
+
+The command MUST NOT return until the namespace and all assets are served
+at the approved site URL.  The wrapper verifies served content immediately
+after the command exits.
 
 It must print a JSON receipt to stdout with at minimum:
   {"status": "published", "url": "...", "content_sha256": "..."}
@@ -80,18 +84,26 @@ def _namespace_prefix(
     return f"previews/{owner}/{repo}/pr-{pr_number}/{short_sha}"
 
 
-def _recompute_bundle_digest(bundle_dir: Path) -> str:
-    """Recompute SHA-256 digest from actual bundle files (excludes manifest).
+def _compute_content_digest(directory: Path) -> str:
+    """Compute SHA-256 digest over regular files in *directory*.
 
-    Uses the same algorithm as preview-bundle.py ``_compute_content_digest``.
+    Excludes only the generated ROOT ``preview-manifest.json`` — nested
+    manifests (e.g. ``sub/preview-manifest.json``) are content and are
+    included.  This is the canonical digest implementation shared between
+    the bundler (``preview-bundle.py``) and this publisher.
+
+    Files are processed in sorted order by relative POSIX path so the
+    digest is deterministic across platforms.
     """
     hasher = hashlib.sha256()
-    for filepath in sorted(bundle_dir.rglob("*")):
+    root_manifest = directory / "preview-manifest.json"
+    for filepath in sorted(directory.rglob("*")):
         if not filepath.is_file() or filepath.is_symlink():
             continue
-        if filepath.name == "preview-manifest.json":
+        # Exclude only the root manifest, not nested ones.
+        if filepath == root_manifest:
             continue
-        rel = filepath.relative_to(bundle_dir).as_posix()
+        rel = filepath.relative_to(directory).as_posix()
         hasher.update(rel.encode("utf-8"))
         hasher.update(filepath.read_bytes())
     return hasher.hexdigest()
@@ -169,8 +181,9 @@ def _verify_served_url(
         return {"verified": False, "errors": [f"manifest unreachable: {exc}"]}
 
     # Verify per-file hashes.
+    from urllib.parse import quote
     for fe in manifest.get("files", []):
-        furl = f"{prefix}/{fe['path']}"
+        furl = f"{prefix}/{quote(fe['path'], safe='/')}"
         try:
             with opener.open(furl, timeout=10) as resp:
                 actual = hashlib.sha256(resp.read()).hexdigest()
@@ -229,18 +242,8 @@ def _local_fixture_publish(
         dst_file.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src_file, dst_file)
 
-    # Compute published content digest (excluding manifest).
-    content_files = sorted(
-        f for f in dest.rglob("*")
-        if f.is_file() and not f.is_symlink()
-        and f.name != "preview-manifest.json"
-    )
-    hasher = hashlib.sha256()
-    for fp in content_files:
-        rel = fp.relative_to(dest).as_posix()
-        hasher.update(rel.encode("utf-8"))
-        hasher.update(fp.read_bytes())
-    published_digest = hasher.hexdigest()
+    # Compute published content digest using the canonical function.
+    published_digest = _compute_content_digest(dest)
 
     # Verify existing content untouched.
     existing_after: set[str] = set()
@@ -258,13 +261,19 @@ def _local_fixture_publish(
             EXIT_PUBLISH_FAIL,
         )
 
+    file_count = sum(
+        1 for f in dest.rglob("*")
+        if f.is_file() and not f.is_symlink()
+        and f != dest / "preview-manifest.json"
+    )
+
     return {
         "status": "published-local",
         "content_sha256": published_digest,
         "manifest_sha256": manifest.get("content_sha256", ""),
         "digest_match": published_digest == manifest.get("content_sha256", ""),
         "namespace": namespace,
-        "file_count": len(content_files),
+        "file_count": file_count,
         "site_dir": str(site_dir),
         "note": "LOCAL test fixture — not a live Pages deployment",
     }
@@ -323,7 +332,7 @@ def cmd_publish(args: list[str]) -> int:
         )
 
     # Recompute actual bundle bytes digest to catch post-packaging mutations.
-    actual_digest = _recompute_bundle_digest(bundle_dir)
+    actual_digest = _compute_content_digest(bundle_dir)
     if actual_digest != opts.content_sha256:
         _fail(
             "Bundle bytes do not match expected digest "
@@ -497,18 +506,14 @@ def cmd_verify(args: list[str]) -> int:
                 f"actual={actual_hash[:12]}…"
             )
 
-    # Verify aggregate digest.
-    content_files = sorted(
-        f for f in preview_dir.rglob("*")
+    # Verify aggregate digest using the canonical function.
+    actual_digest = _compute_content_digest(preview_dir)
+
+    file_count = sum(
+        1 for f in preview_dir.rglob("*")
         if f.is_file() and not f.is_symlink()
-        and f.name != "preview-manifest.json"
+        and f != preview_dir / "preview-manifest.json"
     )
-    hasher = hashlib.sha256()
-    for fp in content_files:
-        rel = fp.relative_to(preview_dir).as_posix()
-        hasher.update(rel.encode("utf-8"))
-        hasher.update(fp.read_bytes())
-    actual_digest = hasher.hexdigest()
 
     result: dict[str, Any] = {
         "verified": actual_digest == opts.expected_digest and not mismatches,
@@ -516,7 +521,7 @@ def cmd_verify(args: list[str]) -> int:
         "actual_digest": actual_digest,
         "digest_match": actual_digest == opts.expected_digest,
         "per_file_mismatches": mismatches,
-        "file_count": len(content_files),
+        "file_count": file_count,
     }
 
     print(json.dumps(result, indent=2))

@@ -141,9 +141,11 @@ Example: `git commit -m "${title}"` not `git commit -m $title`
 - **Verified deployment.** Do not claim a preview is published until the
   URL is verified (HTTP 200 with correct content). A constructed URL or
   deployment dispatch alone is not proof of publication.
-- **Revision scoping.** Preview URLs use a PR/revision namespace
-  (`previews/{issue-key}/{revision}/`) to preserve other content on the
-  site. One Pages site serves multiple previews without collision.
+- **Revision scoping.** Published preview URLs use a PR-and-digest
+  namespace (`previews/{owner}/{repo}/pr-{N}/{sha12}`) to preserve other
+  content on the site.  The local bundle layout under `.artifacts/` uses
+  `previews/{issue-key}/{revision}/`.  One Pages site serves multiple
+  previews without collision.
 - **No automatic cleanup.** Preview lifetime is managed by the site owner,
   not by this workflow. Document that previews persist until the site
   owner removes them. Do not force-push, delete branches, or run

@@ -54,25 +54,39 @@ install).
 UX_SCRIPTS="{AI_WORKFLOWS_ROOT}/ux-design/scripts"
 ```
 
-Run validation:
+Read the **Static Review Notes** section of `prototype-notes.md` for:
+- **Build command** — recorded build command for static export
+- **Content root** — explicit content directory (relative to 03-prototype)
+- **Entry point** — explicit HTML entry point filename
+
+Run validation (pass `--content-root` and `--entry-point` when the notes
+record them):
 
 ```bash
 python3 "${UX_SCRIPTS}/preview-bundle.py" validate \
   --prototype-dir "{source_repo_root}/.artifacts/ux-design/{issue-key}/03-prototype" \
-  --mode {standalone|workspace}
+  --mode {standalone|workspace} \
+  [--content-root "{content_root}"] \
+  [--entry-point "{entry_point}"]
 ```
 
-Parse the JSON output. Check the `valid` field:
+The validator exits with code 2 when validation produces a `valid: false`
+result.  This is a normal validation outcome, not a tool error.  Parse the
+JSON output from stdout regardless of exit code (exit 0 = valid,
+exit 2 = invalid with JSON report, exit 1 = argument error).
+
+Check the `valid` field and `reason`:
 
 **If `valid` is `false` with reason `no_static_content`:**
 The prototype requires a build step or live development server and
 cannot be packaged as a static preview.
 
-Before falling back, attempt the project's own static build:
+Before falling back, attempt the project's recorded or discovered build:
 
-1. Check for build scripts in the prototype's `code/` directory
+1. If `prototype-notes.md` records a **Build command**, run it first
+2. Otherwise check for build scripts in the prototype's `code/` directory
    (`package.json` scripts, `Makefile`, etc.)
-2. If a build command exists, run it and re-validate the output
+3. If a build command exists, run it and re-validate the output
 
 If no build is available or the build fails:
 **Screenshot fallback** — Capture screenshots of the key flows and
@@ -102,6 +116,11 @@ Present the findings and let the researcher decide:
 > 3. **Return to /prototype** — add controlled mocks to replace the
 >    backend calls
 
+**If `valid` is `false` with reason `no_entry_point`:**
+The content directory exists but has no HTML entry point. Ask the
+researcher for the entry point filename and re-run with `--entry-point`,
+or offer the screenshot fallback.
+
 **If `valid` is `true`:** Proceed to Step 2.
 
 **Important:** Validation is an advisory lint check, not proof of
@@ -111,16 +130,24 @@ verification occurs in Step 4 after deployment.
 
 ### Step 2: Build the Preview Bundle
 
+When repeating `/preview` for the same iteration (e.g. after a build
+fix), choose a fresh revision identifier (`iteration-{N}-r{K}`) — the
+bundler rejects an existing revision to prevent destructive overwrites.
+Record the actual returned revision and bundle path.
+
 ```bash
 python3 "${UX_SCRIPTS}/preview-bundle.py" package \
   --prototype-dir "{source_repo_root}/.artifacts/ux-design/{issue-key}/03-prototype" \
   --output-dir "{source_repo_root}/.artifacts/ux-design/{issue-key}/preview-bundle" \
   --issue-key "{issue-key}" \
   --revision "iteration-{N}" \
-  --mode {standalone|workspace}
+  --mode {standalone|workspace} \
+  [--content-root "{content_root}"] \
+  [--entry-point "{entry_point}"]
 ```
 
-Parse the JSON output for `bundle_dir`, `entry_point`, and `file_count`.
+Parse the JSON output for `bundle_dir`, `entry_point`, `file_count`, and
+`content_sha256`.  The `content_sha256` is required for Step 4.
 
 Record the build details:
 
@@ -163,13 +190,25 @@ Derive `{pr_repo}` from `docs_repo_remote` (the PR's repository) and
 If neither is configured, record `deploy_status: awaiting-setup`. Do
 not proceed to Step 4.
 
-**Resolve the deploy command:**
+**Resolve the deploy command and site URL:**
 
 Check `.artifacts/config.json` for `preview_deploy_command` — a path
 to a project-owned executable that owns byte transport, whole-site
 assembly (preserving docs and other PRs), and deployment. The command
-must accept: `<bundle-dir> <namespace> <content-sha256>` and return a
-JSON receipt on stdout.
+receives four positional arguments:
+`<bundle-dir> <namespace> <content-sha256> <site-base-url>` and must
+print a JSON receipt to stdout with at minimum
+`{"status": "published", "url": "...", "content_sha256": "..."}`.
+
+The command must not return until the namespace and all assets are
+served at the site URL.  The wrapper verifies content immediately.
+
+Check `.artifacts/config.json` for `preview_site_url` — the approved
+HTTPS base URL where previews are served. If `preview_deploy_command`
+is configured but `preview_site_url` is not, record
+`deploy_status: awaiting-setup` and do not proceed to Step 4 — the
+wrapper requires a site URL to verify served content. Do not construct
+or guess a site URL.
 
 The project owner must approve the deploy command and confirm:
 - Reviewer visibility and access to the deployed preview
@@ -233,24 +272,32 @@ Write `.artifacts/ux-design/{issue-key}/preview-metadata.json`:
   "bundle_path": ".artifacts/ux-design/{issue-key}/preview-bundle/previews/{issue-key}/iteration-{N}",
   "entry_point": "{entry-point}",
   "deploy_status": "{published|awaiting-setup|deploy-failed|screenshot-fallback|stale}",
-  "content_sha256": "{digest-from-manifest-or-null}",
+  "content_sha256": "{digest-from-package-output-or-null}",
   "pr_repo": "{owner/repo-from-docs_repo_remote}",
   "pr_number": "{pr-number-from-publish-metadata}",
   "target_repo": "{owner/repo-or-null}",
   "published_namespace": "{previews/owner/repo/pr-N/sha12-or-null}",
-  "site_url": "{verified-url-from-deploy-receipt-or-null}",
+  "site_url": "{verified_url from publisher output when status is published; preserved as last-verified when stale; null otherwise}",
   "mocked_components": [],
   "timestamp": "{ISO-8601}"
 }
 ```
 
-### Step 6: Update the Handoff PR
+### Step 6: Update the Handoff PR (with researcher approval)
 
-If `publish-metadata.json` exists (the handoff PR is open), add the
-preview link to the PR:
+If `publish-metadata.json` does not exist (no handoff PR), skip this
+step.  The researcher can see the preview status in the phase completion
+report.  Do not post `awaiting-setup` comments unless the researcher
+explicitly requests it.
+
+If `publish-metadata.json` exists and `deploy_status` is `published` or
+`screenshot-fallback`, compose the comment text below and **present it
+to the researcher for approval before posting**.  Use the existing
+PR-comments script (`pr-comments.py reply`) that `/respond` uses to
+post the approved comment.
 
 For a published preview:
-> **Review Preview:** [{verified-url}]({verified-url})
+> **Review Preview:** [{site_url}]({site_url})
 > Built from prototype iteration {N} ({mode} mode).
 > Entry point: `{entry-point}`
 
@@ -258,19 +305,17 @@ For screenshot fallback:
 > **Review Screenshots:** Screenshots of key flows are attached to this PR.
 > Built from prototype iteration {N} ({mode} mode).
 
-For awaiting-setup:
-> **Preview Bundle Ready:** The static preview bundle is packaged but
-> deployment is not yet configured. See preview-metadata.json for details.
-
-For awaiting-upload:
-> **Preview Bundle Ready:** The static preview bundle is packaged and
-> deployment is configured, but the bundle has not been uploaded to the
-> deploy target. See preview-metadata.json for details.
+For deploy-failed:
+> **Preview Status: Deploy Failed** — The static preview bundle was
+> packaged but deployment verification failed. See
+> preview-metadata.json for details. The bundle can be retried with
+> `/preview` or the screenshot fallback can be used.
 
 For stale:
 > **Preview Status: Stale** — The handoff spec has been updated since
-> the preview was last published. Current revision: iteration-{N},
-> deployed revision: {deployed-revision}. Run `/preview` to rebuild.
+> the preview was last published. Last verified URL:
+> [{site_url}]({site_url}) (outdated — not current).
+> Run `/preview` to rebuild.
 
 ## Output
 

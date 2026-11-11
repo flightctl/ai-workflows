@@ -224,11 +224,12 @@ class TestResolveContentDir(unittest.TestCase):
             result = preview_bundle._resolve_content_dir(Path(tmpdir), "standalone")
             self.assertEqual(result, proto)
 
-    def test_standalone_html_in_root(self) -> None:
+    def test_standalone_html_in_root_rejected(self) -> None:
+        """Root HTML without prototype/ subdir returns None (privacy fix)."""
         with tempfile.TemporaryDirectory() as tmpdir:
             (Path(tmpdir) / "index.html").write_text("<html></html>")
             result = preview_bundle._resolve_content_dir(Path(tmpdir), "standalone")
-            self.assertEqual(result, Path(tmpdir))
+            self.assertIsNone(result)
 
     def test_standalone_no_content(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1628,6 +1629,346 @@ class TestDeployCommandIntegration(unittest.TestCase):
                 server.shutdown()
             finally:
                 os.chdir(original_dir)
+
+
+# ---------------------------------------------------------------------------
+# Package safety — symlink alias to private file (ID 4543270531)
+# ---------------------------------------------------------------------------
+
+class TestSymlinkAliasPrivateFile(unittest.TestCase):
+    """Verify symlink that aliases a private file is excluded from bundle."""
+
+    def test_symlink_alias_to_env_not_copied(self) -> None:
+        """config.txt -> .env must not copy .env bytes into the bundle."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source" / "prototype"
+            proto.mkdir(parents=True)
+            (proto / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+            # Create private .env file and a symlink aliasing it.
+            (proto / ".env").write_text("SECRET=x", encoding="utf-8")
+            (proto / "config.txt").symlink_to(proto / ".env")
+
+            output = Path(tmpdir) / "output"
+            result = preview_bundle.cmd_package(
+                argparse.Namespace(
+                    prototype_dir=str(Path(tmpdir) / "source"),
+                    output_dir=str(output),
+                    issue_key="ALIAS-1",
+                    revision="r1",
+                    mode="standalone",
+                    entry_point=None,
+                    content_root=None,
+                ),
+            )
+            self.assertEqual(result, preview_bundle.EXIT_SUCCESS)
+            bundle = output / "previews" / "ALIAS-1" / "r1"
+            # The symlink config.txt must not appear in the bundle.
+            self.assertFalse(
+                (bundle / "config.txt").exists(),
+                "Symlink alias to private file must be excluded",
+            )
+            # The private .env must not appear either.
+            self.assertFalse((bundle / ".env").exists())
+            # The real file (index.html) must be present.
+            self.assertTrue((bundle / "index.html").is_file())
+
+    def test_symlink_entry_excluded_fails_cmd_package(self) -> None:
+        """Package fails when the only entry point is a symlink."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source" / "prototype"
+            proto.mkdir(parents=True)
+            # Only HTML file is a symlink to outside.
+            external = Path(tmpdir) / "external.html"
+            external.write_text("<html>External</html>")
+            (proto / "index.html").symlink_to(external)
+            # Add a non-HTML real file so content_dir is found.
+            (proto / "style.css").write_text("body{}")
+            with self.assertRaises(SystemExit) as ctx:
+                preview_bundle.cmd_package(
+                    argparse.Namespace(
+                        prototype_dir=str(Path(tmpdir) / "source"),
+                        output_dir=str(Path(tmpdir) / "output"),
+                        issue_key="SYML-1",
+                        revision="r1",
+                        mode="standalone",
+                        entry_point=None,
+                        content_root=None,
+                    ),
+                )
+            self.assertEqual(ctx.exception.code, preview_bundle.EXIT_PACKAGE_FAIL)
+
+
+# ---------------------------------------------------------------------------
+# Content root removal — standalone fallback rejects private siblings
+# ---------------------------------------------------------------------------
+
+class TestStandaloneFallbackRemoved(unittest.TestCase):
+    """Verify standalone fallback to prototype_dir is removed (privacy)."""
+
+    def test_private_siblings_not_exposed(self) -> None:
+        """Without prototype/ subdir, private artifacts are not packagable."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "03-prototype"
+            proto.mkdir()
+            (proto / "index.html").write_text("<html>Proto</html>")
+            (proto / "rfe-snapshot.md").write_text("# Requirements")
+            (proto / "metadata.json").write_text("{}")
+            decisions = proto / "decisions"
+            decisions.mkdir()
+            (decisions / "d1.md").write_text("# Decision 1")
+
+            # Without prototype/ subdir, _resolve_content_dir returns None.
+            result = preview_bundle._resolve_content_dir(proto, "standalone")
+            self.assertIsNone(
+                result,
+                "Should not fall back to prototype dir with private siblings",
+            )
+
+
+# ---------------------------------------------------------------------------
+# Explicit content root (--content-root)
+# ---------------------------------------------------------------------------
+
+class TestExplicitContentRoot(unittest.TestCase):
+    """Verify --content-root option for Static Review Notes."""
+
+    def test_explicit_content_root_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "proto"
+            proto.mkdir()
+            custom = proto / "my-output"
+            custom.mkdir()
+            (custom / "index.html").write_text("<html>Custom</html>")
+            result = preview_bundle._resolve_content_dir(
+                proto, "standalone", "my-output",
+            )
+            self.assertEqual(result, custom.resolve())
+
+    def test_traversal_content_root_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "proto"
+            proto.mkdir()
+            result = preview_bundle._resolve_content_dir(
+                proto, "standalone", "../escape",
+            )
+            self.assertIsNone(result)
+
+    def test_absolute_content_root_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "proto"
+            proto.mkdir()
+            result = preview_bundle._resolve_content_dir(
+                proto, "standalone", "/etc/passwd",
+            )
+            self.assertIsNone(result)
+
+
+# ---------------------------------------------------------------------------
+# Workspace public/ removed
+# ---------------------------------------------------------------------------
+
+class TestWorkspacePublicRemoved(unittest.TestCase):
+    """Verify public/ is no longer accepted as build output."""
+
+    def test_public_dir_not_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            code = Path(tmpdir) / "code"
+            pub = code / "public"
+            pub.mkdir(parents=True)
+            (pub / "index.html").write_text("<html>Template</html>")
+            result = preview_bundle._resolve_content_dir(
+                Path(tmpdir), "workspace",
+            )
+            self.assertIsNone(
+                result,
+                "public/ should not be accepted (may be an unbuilt template)",
+            )
+
+    def test_dist_still_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            code = Path(tmpdir) / "code"
+            dist = code / "dist"
+            dist.mkdir(parents=True)
+            (dist / "index.html").write_text("<html>Built</html>")
+            result = preview_bundle._resolve_content_dir(
+                Path(tmpdir), "workspace",
+            )
+            self.assertEqual(result, dist)
+
+
+# ---------------------------------------------------------------------------
+# Publisher: canonical digest with nested manifest (ID 4543280476)
+# ---------------------------------------------------------------------------
+
+class TestCanonicalDigestNestedManifest(unittest.TestCase):
+    """Verify nested preview-manifest.json is included in digest."""
+
+    _PUB_SCRIPT = _SCRIPT.parent / "preview-publish.py"
+
+    def test_nested_manifest_included_in_digest(self) -> None:
+        """sub/preview-manifest.json must be hashed as content."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source" / "prototype"
+            proto.mkdir(parents=True)
+            (proto / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+            sub = proto / "sub"
+            sub.mkdir()
+            (sub / "preview-manifest.json").write_text(
+                '{"nested": true}', encoding="utf-8",
+            )
+            output = Path(tmpdir) / "output"
+            result = preview_bundle.cmd_package(
+                argparse.Namespace(
+                    prototype_dir=str(Path(tmpdir) / "source"),
+                    output_dir=str(output),
+                    issue_key="NEST-1",
+                    revision="r1",
+                    mode="standalone",
+                    entry_point=None,
+                    content_root=None,
+                ),
+            )
+            self.assertEqual(result, preview_bundle.EXIT_SUCCESS)
+            bundle = output / "previews" / "NEST-1" / "r1"
+
+            # The nested manifest must be in the bundle.
+            self.assertTrue(
+                (bundle / "sub" / "preview-manifest.json").is_file(),
+            )
+
+            # Verify the publisher's digest matches.
+            import subprocess
+            site_dir = Path(tmpdir) / "site"
+            manifest = json.loads(
+                (bundle / "preview-manifest.json").read_text(encoding="utf-8"),
+            )
+            pub_result = subprocess.run(
+                [
+                    sys.executable, str(self._PUB_SCRIPT), "publish",
+                    "--bundle-dir", str(bundle),
+                    "--pr-repo", "org/docs",
+                    "--pr-number", "1",
+                    "--content-sha256", manifest["content_sha256"],
+                    "--target-repo", "org/docs",
+                    "--local-fixture", str(site_dir),
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(pub_result.returncode, 0, pub_result.stderr)
+            receipt = json.loads(pub_result.stdout)
+            self.assertTrue(
+                receipt["digest_match"],
+                "Publisher digest must match bundler (nested manifest included)",
+            )
+
+
+# ---------------------------------------------------------------------------
+# Publisher: URL-encoded HTTP asset verification (ID 4543280488)
+# ---------------------------------------------------------------------------
+
+class TestURLEncodedAssetVerification(unittest.TestCase):
+    """Verify files with spaces/special chars in served verification."""
+
+    _PUB_SCRIPT = _SCRIPT.parent / "preview-publish.py"
+
+    def test_space_in_filename_verified(self) -> None:
+        """A file named 'my logo.png' must be URL-encoded in verification."""
+        import http.server
+        import threading
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source" / "prototype"
+            proto.mkdir(parents=True)
+            (proto / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+            (proto / "my logo.png").write_bytes(b"\x89PNG")
+
+            output = Path(tmpdir) / "output"
+            result = preview_bundle.cmd_package(
+                argparse.Namespace(
+                    prototype_dir=str(Path(tmpdir) / "source"),
+                    output_dir=str(output),
+                    issue_key="URL-1",
+                    revision="r1",
+                    mode="standalone",
+                    entry_point=None,
+                    content_root=None,
+                ),
+            )
+            self.assertEqual(result, preview_bundle.EXIT_SUCCESS)
+            bundle = output / "previews" / "URL-1" / "r1"
+            manifest = json.loads(
+                (bundle / "preview-manifest.json").read_text(encoding="utf-8"),
+            )
+
+            # Deploy via adapter, then verify via HTTP.
+            site_dir = Path(tmpdir) / "served"
+            ns = f"previews/org/docs/pr-1/{manifest['content_sha256'][:12]}"
+            dest = site_dir / ns
+            dest.mkdir(parents=True)
+            import shutil
+            for f in sorted(bundle.rglob("*")):
+                if f.is_file() and not f.is_symlink():
+                    rel = f.relative_to(bundle)
+                    (dest / rel).parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(f, dest / rel)
+
+            original_dir = os.getcwd()
+            os.chdir(str(site_dir))
+            try:
+                handler = http.server.SimpleHTTPRequestHandler
+                server = http.server.HTTPServer(("127.0.0.1", 0), handler)
+                port = server.server_address[1]
+                t = threading.Thread(target=server.serve_forever)
+                t.daemon = True
+                t.start()
+
+                # Import the publisher's verify function.
+                pub_spec = importlib.util.spec_from_file_location(
+                    "preview_publish", self._PUB_SCRIPT,
+                )
+                assert pub_spec and pub_spec.loader
+                pub = importlib.util.module_from_spec(pub_spec)
+                pub_spec.loader.exec_module(pub)
+
+                vresult = pub._verify_served_url(
+                    f"http://127.0.0.1:{port}", ns, manifest,
+                )
+                self.assertTrue(
+                    vresult["verified"],
+                    f"URL-encoded verification must pass: {vresult['errors']}",
+                )
+                server.shutdown()
+            finally:
+                os.chdir(original_dir)
+
+
+# ---------------------------------------------------------------------------
+# Phase contract: deploy command MUST wait (labelled check, ID 4543280521)
+# ---------------------------------------------------------------------------
+
+class TestDeployCommandMustWait(unittest.TestCase):
+    """Contract check: deploy command docstring documents MUST-wait.
+
+    This is an honestly labelled phase-contract check — it verifies that
+    the publisher's docstring documents the requirement that the deploy
+    command must not return until content is served.  The actual LLM
+    procedure cannot be tested here.
+    """
+
+    def test_docstring_documents_must_wait(self) -> None:
+        pub_script = _SCRIPT.parent / "preview-publish.py"
+        text = pub_script.read_text(encoding="utf-8")
+        self.assertIn(
+            "MUST NOT return until",
+            text,
+            "Deploy command contract must document MUST-wait requirement",
+        )
 
 
 if __name__ == "__main__":

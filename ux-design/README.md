@@ -48,6 +48,10 @@ prototype against the enriched context before handoff.
 | UXD Research, Prototype, and Design plugins | Required | Discovery, prototyping, evaluation, and handoff skills |
 | Jira access (Atlassian MCP) | For Full `/evaluate` | `uxd-prototype-evaluate` fetches story acceptance criteria |
 | `python3`, Node/npm, and Playwright Chromium | For Full `/evaluate` | Prototype evaluation helper scripts and browser walkthroughs |
+| Reviewed prototype with `prototype-notes.md` | For `/preview` | Prototype output and Static Review Notes (build command, content root, entry point) |
+| Handoff PR from `/publish` | For `/preview` deployment | PR identity for publication namespace; bundle is built without it but not deployed |
+| `preview_deploy_command` in `.artifacts/config.json` | For `/preview` deployment | Project-owned executable for byte transport and site assembly |
+| `preview_site_url` in `.artifacts/config.json` | For `/preview` deployment | Approved HTTPS base URL where previews are served |
 
 `/ingest` loads upstream inputs from **shared** locations (Jira and the
 published docs repo or an explicitly supplied published PRD path) — never from

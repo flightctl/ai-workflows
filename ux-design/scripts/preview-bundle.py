@@ -127,24 +127,44 @@ def _is_path_within(child: Path, parent: Path) -> bool:
         return False
 
 
-def _resolve_content_dir(prototype_dir: Path, mode: str) -> Path | None:
+def _resolve_content_dir(
+    prototype_dir: Path, mode: str, explicit_root: str | None = None,
+) -> Path | None:
     """Return the directory containing servable static content.
 
-    For standalone mode, looks for ``prototype/`` under the prototype dir.
-    For workspace mode, looks for pre-built static output directories
-    (``dist/``, ``build/``, ``out/``, ``public/``) under ``code/``.
-    Returns None when no static content directory is found.
+    When *explicit_root* is provided it must be a relative path with no
+    ``..`` components that resolves inside *prototype_dir*.  This is the
+    recorded content root from the prototype's Static Review Notes.
+
+    Without an explicit root:
+    - Standalone mode requires a ``prototype/`` subdirectory.
+    - Workspace mode requires a pre-built output directory
+      (``dist/``, ``build/``, ``out/``, ``exports/``) under ``code/``.
+
+    Returns None when no valid content directory is found; the caller
+    reports ``no_static_content`` so the agent can offer the screenshot
+    fallback or ask for an explicit content root.
     """
+    # Explicit content root from Static Review Notes.
+    if explicit_root:
+        if os.path.isabs(explicit_root) or ".." in Path(explicit_root).parts:
+            return None
+        candidate = (prototype_dir / explicit_root).resolve()
+        if not _is_path_within(candidate, prototype_dir):
+            return None
+        if candidate.is_symlink():
+            return None
+        if candidate.is_dir():
+            return candidate
+        return None
+
     if mode == "standalone":
         candidate = prototype_dir / "prototype"
         if candidate.is_dir() and not candidate.is_symlink():
             return candidate
-        # Fallback: the prototype dir itself may contain HTML (must not be a symlink).
-        if prototype_dir.is_symlink():
-            return None
-        html_files = list(prototype_dir.glob("*.html"))
-        if html_files:
-            return prototype_dir
+        # No fallback to prototype_dir itself — that would expose private
+        # artifacts (rfe-snapshot.md, decisions/, metadata.json, code/).
+        # Use --content-root or create a prototype/ subdirectory.
         return None
 
     # workspace mode
@@ -152,17 +172,19 @@ def _resolve_content_dir(prototype_dir: Path, mode: str) -> Path | None:
     if not code_dir.is_dir() or code_dir.is_symlink():
         return None
 
-    for subdir in ("dist", "build", "out", "public", "exports"):
+    # Only accept recognised build-output directories.  ``public/`` is
+    # excluded because it is typically an unbuilt source template in
+    # many toolchains (e.g. CRA ``public/index.html`` with %PUBLIC_URL%
+    # placeholders).
+    for subdir in ("dist", "build", "out", "exports"):
         candidate = code_dir / subdir
         if candidate.is_symlink():
             continue
         if candidate.is_dir() and list(candidate.glob("*.html")):
             return candidate
 
-    # Check if code/ itself has HTML files (single-page prototype).
-    if list(code_dir.glob("*.html")):
-        return code_dir
-
+    # No fallback to code/ itself — that would expose the full cloned
+    # source tree.  Use --content-root for non-standard build outputs.
     return None
 
 
@@ -292,7 +314,8 @@ def cmd_validate(args: argparse.Namespace) -> int:
     if not prototype_dir.is_dir():
         fail(f"validate: prototype directory does not exist: {prototype_dir}")
 
-    content_dir = _resolve_content_dir(prototype_dir, mode)
+    content_root = getattr(args, "content_root", None)
+    content_dir = _resolve_content_dir(prototype_dir, mode, content_root)
     if content_dir is None:
         report: dict[str, Any] = {
             "valid": False,
@@ -409,7 +432,8 @@ def cmd_package(args: argparse.Namespace) -> int:
             EXIT_PACKAGE_FAIL,
         )
 
-    content_dir = _resolve_content_dir(prototype_dir, mode)
+    content_root = getattr(args, "content_root", None)
+    content_dir = _resolve_content_dir(prototype_dir, mode, content_root)
     if content_dir is None:
         fail(
             "package: no static content found. "
@@ -442,19 +466,20 @@ def cmd_package(args: argparse.Namespace) -> int:
         )
     bundle_dir.mkdir(parents=True, exist_ok=True)
 
-    # Copy content tree, skipping symlinks, private files, and escaping
-    # symlink targets.
+    # Copy content tree, skipping ALL symlinks and private files.
+    # Symlinks are skipped unconditionally — consistent with
+    # _scan_directory, _collect_file_inventory, and _find_entry_point.
+    # A symlink inside the content root (e.g. config.txt -> .env) could
+    # alias a private file under a public name, bypassing _is_private_file.
     skipped_private: list[str] = []
     skipped_symlink: list[str] = []
     for src_file in sorted(content_dir.rglob("*")):
         if not src_file.is_file():
             continue
-        # Skip symlinks whose resolved target escapes the content directory.
+        # Skip ALL symlinks to prevent private-file aliasing.
         if src_file.is_symlink():
-            resolved = src_file.resolve()
-            if not _is_path_within(resolved, content_dir):
-                skipped_symlink.append(str(src_file.relative_to(content_dir)))
-                continue
+            skipped_symlink.append(str(src_file.relative_to(content_dir)))
+            continue
         # Skip private/hidden files.
         if _is_private_file(src_file, content_dir):
             skipped_private.append(str(src_file.relative_to(content_dir)))
@@ -602,6 +627,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--entry-point", default=None,
         help="Explicit entry point filename (default: auto-detect)",
     )
+    p_validate.add_argument(
+        "--content-root", default=None,
+        help="Explicit content root relative to prototype dir (from Static Review Notes)",
+    )
 
     # -- package --
     p_package = subparsers.add_parser(
@@ -631,6 +660,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_package.add_argument(
         "--entry-point", default=None,
         help="Explicit entry point filename (default: auto-detect)",
+    )
+    p_package.add_argument(
+        "--content-root", default=None,
+        help="Explicit content root relative to prototype dir (from Static Review Notes)",
     )
 
     # -- manifest --
