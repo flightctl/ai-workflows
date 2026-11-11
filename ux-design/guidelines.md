@@ -120,6 +120,40 @@ titles, branch names, user input):
 
 Example: `git commit -m "${title}"` not `git commit -m $title`
 
+## Preview Constraints
+
+- **Human-only artifact.** The static preview is for human browser review.
+  It must never be consumed by downstream workflows, agents, or automated
+  pipelines. The structured text handoff (`05-handoff.md`) remains the
+  authoritative contract for `ui-design`.
+- **No generated bundles in Git.** Preview bundles stay under `.artifacts/`
+  (gitignored). Do not commit preview HTML, JS, or assets to the docs
+  repo or any other repository. Deployment uses the site owner's artifact
+  or deployment interface — not Git commits.
+- **Self-contained or explicit fallback.** A preview bundle must work
+  without a live backend, dev server, or author's workspace. When a
+  faithful static preview is impossible, the workflow must explicitly
+  request the screenshot fallback — not silently produce a broken preview
+  or claim readiness without verification.
+- **Verified deployment.** Do not claim a preview is published until the
+  URL is verified (HTTP 200 with correct content). A constructed URL or
+  deployment dispatch alone is not proof of publication.
+- **Revision scoping.** Preview URLs use a PR/revision namespace
+  (`previews/{issue-key}/{revision}/`) to preserve other content on the
+  site. One Pages site serves multiple previews without collision.
+- **No automatic cleanup.** Preview lifetime is managed by the site owner,
+  not by this workflow. Document that previews persist until the site
+  owner removes them. Do not force-push, delete branches, or run
+  destructive operations on the preview site.
+- **Private evaluation captures unchanged.** The existing Standard and
+  Full evaluation captures in `04-eval-raw/` are private working
+  artifacts. `/preview` does not expose them or make them public.
+- **Screenshot fallback must be accessible.** When using screenshot
+  fallback, the images must be actually accessible to reviewers — attached
+  to the PR through the platform's mechanism or uploaded to an approved
+  location. Do not create markdown image references to local file paths
+  that reviewers cannot access.
+
 ## Working With the Project
 
 This workflow gets deployed into different projects. Respect the target project:

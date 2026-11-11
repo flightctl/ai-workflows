@@ -45,6 +45,12 @@ by executing phases and handling transitions between them.
 8. **Respond** (`/respond`) — [respond.md](respond.md)
    Fetch and address PR reviewer comments on the published handoff spec.
 
+9. **Preview** (`/preview`) — [preview.md](preview.md)
+   Build a self-contained static preview bundle from the current prototype
+   for human browser review. Publishes to the configured Pages site or
+   offers screenshot fallback when deployment is unavailable. The preview
+   is for human inspection only — never consumed by downstream workflows.
+
 ## Workspace
 
 All work happens in the **source repo** — the researcher needs codebase
@@ -75,6 +81,8 @@ within the source repo:
 | PR description | `06-pr-description.md` | `/publish` |
 | Publish metadata | `publish-metadata.json` | `/publish` |
 | Reviewer response log | `responses.jsonl` | `/respond` |
+| Preview bundle | `preview-bundle/` | `/preview` |
+| Preview metadata | `preview-metadata.json` | `/preview` |
 
 When context is enriched, `/ingest` preserves the prior active artifacts in
 `history/context-r{N}/`. Never overwrite history snapshots. Prototype
@@ -139,12 +147,17 @@ prototype and evaluation have been reviewed against that context.
 - `/evaluate` Confirmed on exploratory context → keep work exploratory; recommend enrichment when the design document and linked `[UX]` story are available
 - `/evaluate` Confirmed (critical issues, `Authorized fixes: None`) → recommend ordinary `/prototype` iteration based on researcher direction; `Authorized fixes: None` means no evaluation findings are authorized as repair inputs — do not use evaluation findings to drive the prototype without explicit fix authorization
 - `/handoff` completed → recommend `/revise` if the researcher wants
-  stakeholder feedback, or `/publish` to push the spec to the docs repo
-- `/revise` completed → recommend `/publish` (or another `/revise` round)
-- `/publish` completed → recommend sharing the PR with reviewers, then
-  `/respond` when comments arrive
-- `/respond` completed → recommend another `/respond` round if new comments
-  arrive, or the workflow is done
+  stakeholder feedback, `/preview` to build a static review bundle for
+  browser inspection, or `/publish` to push the spec to the docs repo
+- `/revise` completed → recommend `/publish` (or another `/revise` round);
+  if a preview was previously published, recommend `/preview` to rebuild it
+- `/publish` completed → recommend `/preview` if reviewers need a browser
+  preview alongside the handoff spec, then sharing the PR with reviewers
+  and `/respond` when comments arrive
+- `/respond` completed → if handoff changes were made and a preview exists,
+  recommend `/preview` to rebuild the preview with the updated design;
+  otherwise recommend another `/respond` round if new comments arrive,
+  or the workflow is done
 
 **When to recommend `/research`:**
 
@@ -194,6 +207,7 @@ Researchers can enter at any phase if they bring the prerequisite artifact:
 | `/revise` | `05-handoff.md` |
 | `/publish` | `05-handoff.md` |
 | `/respond` | `publish-metadata.json` (PR must exist) |
+| `/preview` | `03-prototype/` with prototype reviewed against current context |
 
 If a prerequisite artifact is missing, tell the researcher which phase
 produces it and offer to run that phase first. For `/handoff`, do not offer a

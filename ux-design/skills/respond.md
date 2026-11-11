@@ -203,12 +203,31 @@ Delete the temporary reply file after a successful post and log:
 rm .artifacts/ux-design/{issue-key}/tmp-reply.md
 ```
 
-### Step 5: Report to User
+### Step 5: Preview Rebuild Check
+
+After applying handoff changes in Step 4, check whether a preview exists:
+
+Read `.artifacts/ux-design/{issue-key}/preview-metadata.json`. If it
+exists and `deploy_status` is `published`, the published preview now
+reflects an older version of the handoff and prototype.
+
+**If handoff changes were made and a preview is published:**
+Inform the researcher that the published preview may not reflect the
+updated design. Recommend running `/preview` to rebuild and republish
+the preview bundle. Do not rebuild automatically — the researcher
+decides whether the preview needs updating based on the nature of the
+handoff changes.
+
+**If no preview exists or the preview uses screenshot fallback:**
+No preview rebuild is needed. Proceed to Step 6.
+
+### Step 6: Report to User
 
 Summarize:
 - How many comments were addressed
 - How many handoff spec changes were made
 - Whether any comments remain unresolved
+- Whether a published preview needs rebuilding (from Step 5)
 
 ## Output
 
@@ -220,6 +239,7 @@ Summarize:
 Report your results:
 - Comments addressed and responses posted
 - Handoff spec changes made
+- Whether a preview rebuild was recommended
 - Outstanding items
 
 Then **re-read the controller** (`controller.md`) for next-step guidance.
