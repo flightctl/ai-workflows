@@ -5373,7 +5373,8 @@ class TestGateApplicabilityPendingFileContract(unittest.TestCase):
                     encoding="utf-8")
                 # Find the pending-file write paragraph
                 write_pos = text.find(
-                    "gate-applicability.pending")
+                    "In both cases, update the "
+                    "`gate-applicability.pending` file")
                 self.assertGreater(write_pos, 0)
                 write_section = text[write_pos:write_pos + 800]
                 normalized = " ".join(write_section.split())
@@ -5964,6 +5965,215 @@ class TestVerdictEmissionLiteralFail(unittest.TestCase):
                     f"{workflow}/validate.md must prohibit fabricating "
                     f"evidence for gate-applicability FAIL")
 
+
+
+# ===========================================================================
+# Step 8/8a Finalization: Verified-Irrelevant Gate Disposition (r4532085062)
+# ===========================================================================
+
+class TestFinalizationVerifiedIrrelevantDisposition(unittest.TestCase):
+    """Static contract: Step 8 and Step 8a finalizers in both ingest
+    guides must allow verified-irrelevant gates to clear without
+    testplan recording or gate obligation, including the all-irrelevant
+    / no-story-testplan case. Relevant gates must still require
+    recording with original mappings/origin/evidence and downstream
+    plan reconciliation. Static Markdown section checks — not native
+    agent execution."""
+
+    _INGESTS = [
+        ("e2e", "e2e/skills/ingest.md"),
+        ("implement", "implement/skills/ingest.md"),
+    ]
+
+    def _repo_root(self):
+        return Path(__file__).resolve().parent.parent.parent
+
+    def _finalization_section(self, workflow_path, step_marker):
+        """Extract the finalization section starting from a Step 8 or
+        Step 8a marker."""
+        content = (self._repo_root() / workflow_path).read_text(
+            encoding="utf-8")
+        start = content.find(step_marker)
+        self.assertGreater(
+            start, 0,
+            f"{workflow_path}: must have '{step_marker}'")
+        # Read enough to capture the finalization paragraph
+        end = content.find("\n### Step ", start + len(step_marker))
+        if end < 0:
+            end = start + 3000
+        return " ".join(content[start:end].split())
+
+    def test_step8_allows_irrelevant_without_testplan(self):
+        """Step 8 finalization: verified-irrelevant gates cleared
+        without testplan recording or gate obligation."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._finalization_section(
+                    path, "Pending finalization (first invocation)")
+                self.assertIn(
+                    "Verified-irrelevant gates", section,
+                    f"{workflow}/ingest.md Step 8 must distinguish "
+                    f"verified-irrelevant gates")
+                self.assertIn(
+                    "without testplan recording or gate obligation",
+                    section,
+                    f"{workflow}/ingest.md Step 8 must not require "
+                    f"testplan for irrelevant gates")
+
+    def test_step8_allows_all_irrelevant(self):
+        """Step 8 finalization: all-irrelevant / no-testplan satisfies
+        the clearing condition."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._finalization_section(
+                    path, "Pending finalization (first invocation)")
+                self.assertIn(
+                    "All-irrelevant outcomes", section,
+                    f"{workflow}/ingest.md Step 8 must explicitly "
+                    f"allow all-irrelevant clearing")
+
+    def test_step8_relevant_gates_still_require_recording(self):
+        """Step 8 finalization: relevant gates must still be recorded
+        with original mappings, origin, and evidence."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._finalization_section(
+                    path, "Pending finalization (first invocation)")
+                self.assertIn(
+                    "Relevant gates", section,
+                    f"{workflow}/ingest.md Step 8 must distinguish "
+                    f"relevant gates")
+                self.assertIn(
+                    "original mappings, origin, and evidence",
+                    section,
+                    f"{workflow}/ingest.md Step 8 relevant gates "
+                    f"must require recording")
+
+    def test_step8a_allows_irrelevant_on_reingest(self):
+        """Step 8a finalization (accepted re-invocation): same
+        irrelevant-gate disposition as Step 8."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._finalization_section(
+                    path, "Step 8a:")
+                self.assertIn(
+                    "verified-irrelevant gates", section,
+                    f"{workflow}/ingest.md Step 8a must allow "
+                    f"verified-irrelevant clearing")
+                self.assertIn(
+                    "all-irrelevant", section,
+                    f"{workflow}/ingest.md Step 8a must allow "
+                    f"all-irrelevant outcomes")
+
+    def test_step8_unresolved_gates_still_block(self):
+        """Step 8 finalization: unresolved gates or missing disposition
+        must still retain the pending file."""
+        for workflow, path in self._INGESTS:
+            with self.subTest(workflow=workflow):
+                section = self._finalization_section(
+                    path, "Pending finalization (first invocation)")
+                self.assertIn(
+                    "retain the pending file", section,
+                    f"{workflow}/ingest.md Step 8 must retain "
+                    f"pending file for unresolved gates")
+
+
+# ===========================================================================
+# Publisher Post-Confirmation Report Verdict Check (r4532085070)
+# ===========================================================================
+
+class TestPublisherPostConfirmationVerdictCheck(unittest.TestCase):
+    """Static contract: both publishers' Step 4 pre-push checkpoint
+    must re-read the current report Result and require unqualified
+    Overall: PASS, not rely on the Step 1 verdict alone. A concurrent
+    validation run may replace the report between Step 1 and push.
+    Static Markdown section checks — not native agent execution."""
+
+    _PUBLISHERS = [
+        ("e2e", "e2e/skills/publish.md"),
+        ("implement", "implement/skills/publish.md"),
+    ]
+
+    def _repo_root(self):
+        return Path(__file__).resolve().parent.parent.parent
+
+    def _step4_section(self, workflow_path):
+        """Extract Step 4 pre-push checkpoint section."""
+        content = (self._repo_root() / workflow_path).read_text(
+            encoding="utf-8")
+        start = content.find("### Step 4:")
+        self.assertGreater(start, 0,
+                           f"{workflow_path}: must have Step 4")
+        end = content.find("### Step 5:", start)
+        if end < 0:
+            end = start + 3000
+        return content[start:end]
+
+    def test_step4_rereads_report_verdict(self):
+        """Step 4 must re-read the current report's Result section."""
+        for workflow, path in self._PUBLISHERS:
+            with self.subTest(workflow=workflow):
+                section = self._step4_section(path)
+                normalized = " ".join(section.split())
+                self.assertIn(
+                    "Re-read the current validation report",
+                    normalized,
+                    f"{workflow}/publish.md Step 4 must re-read "
+                    f"current report")
+
+    def test_step4_requires_unqualified_pass(self):
+        """Step 4 must require unqualified Overall: PASS."""
+        for workflow, path in self._PUBLISHERS:
+            with self.subTest(workflow=workflow):
+                section = self._step4_section(path)
+                normalized = " ".join(section.split())
+                self.assertIn(
+                    "Overall: PASS", normalized,
+                    f"{workflow}/publish.md Step 4 must require "
+                    f"unqualified Overall: PASS")
+
+    def test_step4_rejects_fail_pending_qualified(self):
+        """Step 4 must reject FAIL, PENDING, and qualified PASS."""
+        for workflow, path in self._PUBLISHERS:
+            with self.subTest(workflow=workflow):
+                section = self._step4_section(path)
+                normalized = " ".join(section.split())
+                self.assertIn(
+                    "Overall: FAIL", normalized,
+                    f"{workflow}/publish.md Step 4 must reject "
+                    f"Overall: FAIL")
+                self.assertIn(
+                    "Overall: PENDING", normalized,
+                    f"{workflow}/publish.md Step 4 must reject "
+                    f"Overall: PENDING")
+                self.assertIn(
+                    "qualified PASS", normalized,
+                    f"{workflow}/publish.md Step 4 must reject "
+                    f"qualified PASS")
+
+    def test_step4_does_not_rely_on_step1_alone(self):
+        """Step 4 must explicitly state not to rely on Step 1
+        verdict alone."""
+        for workflow, path in self._PUBLISHERS:
+            with self.subTest(workflow=workflow):
+                section = self._step4_section(path)
+                normalized = " ".join(section.split())
+                self.assertIn(
+                    "Step 1 verdict alone", normalized,
+                    f"{workflow}/publish.md Step 4 must not rely "
+                    f"on Step 1 verdict alone")
+
+    def test_step4_verdict_in_stop_conditions(self):
+        """Step 4's stop-condition paragraph must include non-PASS
+        report verdict alongside the existing blockers."""
+        for workflow, path in self._PUBLISHERS:
+            with self.subTest(workflow=workflow):
+                section = self._step4_section(path)
+                normalized = " ".join(section.split())
+                self.assertIn(
+                    "non-PASS report verdict", normalized,
+                    f"{workflow}/publish.md Step 4 stop conditions "
+                    f"must list non-PASS report verdict")
 
 
 if __name__ == "__main__":

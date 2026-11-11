@@ -233,11 +233,18 @@ the current worktree:
 3. Re-verify the worktree is clean (`git status --porcelain`),
    ignoring `.artifacts/` paths.
 4. Re-verify the current branch matches the planned branch.
+5. Re-read the current validation report's `## Result` section and
+   require an unqualified `Overall: PASS`. If the report now shows
+   `Overall: FAIL`, `Overall: PENDING`, a qualified PASS, or a
+   missing result verdict, stop — a concurrent validation run may
+   have replaced the report after Step 1. Do not rely on the
+   Step 1 verdict alone.
 
 If any check detects a change (new blocker, identity mismatch,
-dirty worktree, or branch switch), stop — do not rebind the old
-PASS to the changed state. Require the user to re-run `/ingest`,
-`/validate`, or restart `/publish` as appropriate.
+dirty worktree, branch switch, or non-PASS report verdict), stop —
+do not rebind the old PASS to the changed state. Require the user
+to re-run `/ingest`, `/validate`, or restart `/publish` as
+appropriate.
 
 ### Step 5: Push Branch
 

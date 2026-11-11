@@ -629,15 +629,24 @@ only; every open-question slot filled or N/A), Write `01-context.md`
 
 **Pending finalization (first invocation).** After writing
 `01-context.md`, if Step 6 determined that all previously
-unresolved gates now have known relevance and the clearing
-conditions are met (gates recorded in story testplan with original
-mappings, origin, and evidence; and either no downstream plan
-(`02-plan.md`) exists or the plan acknowledges the newly recorded
-gates), remove `gate-applicability.pending`. The written
-`01-context.md` must not contain the `Gate-Applicability:
-unresolved` marker. If clearing conditions are not met (source
-discovery failed, some gates remain unresolved, or downstream plan
-reconciliation is incomplete), retain the pending file.
+unresolved gates now have a known disposition and the clearing
+conditions are met for each gate, remove
+`gate-applicability.pending`:
+- **Relevant gates** must be recorded in the story testplan with
+  original mappings, origin, and evidence; and either no downstream
+  plan (`02-plan.md`) exists or the plan acknowledges the newly
+  recorded gates.
+- **Verified-irrelevant gates** (explicit gate-specific proof of
+  fully known non-overlap on both requirement and IC dimensions)
+  are cleared without testplan recording or gate obligation.
+  All-irrelevant outcomes (every gate verified irrelevant, including
+  zero-match / no story testplan) satisfy the clearing condition.
+
+The written `01-context.md` must not contain the
+`Gate-Applicability: unresolved` marker. If clearing conditions are
+not met (source discovery failed, some gates remain unresolved,
+downstream plan reconciliation is incomplete, or any gate lacks a
+verified disposition), retain the pending file.
 
 ### Step 8a: Diff Against Prior Ingest (Re-invocation Only)
 
@@ -651,13 +660,17 @@ Diff compiled content vs `.prev`. Focus on:
 If `02-plan.md` or later artifacts exist, list them. Wait for
 confirmation. If confirmed, Write `01-context.md` **once** and
 delete `.prev`. Apply the same pending finalization as Step 8: if
-Step 6 determined clearing eligibility and all conditions are met,
-remove `gate-applicability.pending`. The written `01-context.md`
-must not contain the `Gate-Applicability: unresolved` marker. If
-the user declined or did not answer the overwrite, do not clear
-the pending file — the legacy marker in the existing
-`01-context.md` must persist so the validator fallback continues
-to detect the blocker.
+Step 6 determined clearing eligibility and all conditions are met
+for each gate (relevant gates recorded with original
+mappings/origin/evidence and downstream plan reconciled;
+verified-irrelevant gates cleared without testplan recording or
+gate obligation — including all-irrelevant outcomes), remove
+`gate-applicability.pending`. The written `01-context.md` must
+not contain the `Gate-Applicability: unresolved` marker. If the
+user declined or did not answer the overwrite, do not clear the
+pending file — the legacy marker in the existing `01-context.md`
+must persist so the validator fallback continues to detect the
+blocker.
 
 ### Step 9: Report
 
