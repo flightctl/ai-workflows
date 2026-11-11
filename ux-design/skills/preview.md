@@ -34,11 +34,29 @@ Before running any build or packaging, verify the prototype is current:
    - **Active prototype** fields: iteration, original discovery revision,
      latest reviewed discovery revision
 
-2. Compare the prototype's latest reviewed discovery revision with the
-   current discovery revision in `00-context.md`.
+2. Read `prototype-notes.md` and extract:
+   - **Iteration** number
+   - **Revalidated against discovery revision** value
 
-3. If the prototype has not been reviewed against the current discovery
-   revision (mismatch or unknown):
+3. Verify the notes iteration matches the active prototype iteration
+   from `00-context.md`. If they do not match (the notes describe a
+   different iteration than the context considers active), **STOP** —
+   the prototype artifacts are out of sync with the context manifest.
+   Record `stale_reason` as "notes iteration N does not match active
+   iteration M" and follow the stale handling in step 5.
+
+4. Compare the prototype's latest reviewed discovery revision (from
+   `00-context.md`) with the current discovery revision. Also verify
+   that `prototype-notes.md`'s "Revalidated against discovery revision"
+   is consistent with the context's latest reviewed revision (not
+   unknown or contradictory). When `/prototype` reviews the prototype
+   against a new discovery without design changes, it updates the
+   "Revalidated against discovery revision" field and the context's
+   latest reviewed revision together — both must agree.
+
+5. If the prototype has not been reviewed against the current discovery
+   revision (mismatch or unknown), or the notes iteration or reviewed
+   discovery bindings are inconsistent with the context manifest:
    - **STOP** — do not build or package the prototype.
    - If `preview-metadata.json` exists, set `deploy_status` to `stale`,
      preserving prior `site_url`, `published_namespace`, and verified
@@ -49,7 +67,7 @@ Before running any build or packaging, verify the prototype is current:
    - Do not silently rebuild stale bytes — a preview of an outdated
      design is misleading for reviewers.
 
-4. If the prototype is current, proceed to Step 1.
+6. If the prototype is current and consistent, proceed to Step 1.
 
 ## Artifact Path Safety
 
@@ -89,18 +107,24 @@ Read the **Static Review Notes** section of `prototype-notes.md` for:
 - **Content root** — explicit content directory (relative to 03-prototype)
 - **Entry point** — explicit HTML entry point filename
 
-If the Static Review Notes record a **Build command**, run it now
-before validation — this ensures validation runs against current build
-output rather than a possibly stale export from a previous build.
+If the Static Review Notes record a **Build command** that is
+"none — already static", skip the build step entirely and proceed
+directly to validation. No build directory is needed.
 
-When a **Build directory** is recorded and is not "none", validate it
-before use: it must be a relative path with no `..` components, must
-not be an absolute path, and must not traverse a symlink within
-`03-prototype`. If validation fails, stop and ask the researcher for a
-safe build directory rather than silently running from the wrong root.
+If the Build command is a real command (not "none — already static"),
+a recorded **Build directory** is required. If the Build directory is
+unrecorded or empty, **STOP** and ask the researcher to record the
+build directory in `prototype-notes.md` rather than silently defaulting
+to the prototype root (which would run the command in the wrong
+working directory for workspace prototypes with code in a subdirectory).
+
+When recorded, validate the Build directory before use: it must be a
+relative path with no `..` components, must not be an absolute path,
+and must not traverse a symlink within `03-prototype`. If validation
+fails, stop and ask the researcher for a safe build directory.
 
 ```bash
-# build_dir defaults to "." when Build directory is "none" or unrecorded
+# Only when Build command exists and Build directory is recorded:
 cd "{source_repo_root}/.artifacts/ux-design/{issue-key}/03-prototype/{build_dir}"
 {recorded_build_command}
 ```

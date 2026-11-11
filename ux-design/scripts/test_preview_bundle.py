@@ -2985,5 +2985,261 @@ class TestStalePrototypeContract(unittest.TestCase):
         )
 
 
+# ---------------------------------------------------------------------------
+# Case A: Verify manifest path safety in cmd_verify (ID 4543973263)
+# ---------------------------------------------------------------------------
+
+class TestVerifyManifestSafety(unittest.TestCase):
+    """Verify cmd_verify rejects unsafe manifest file paths and entry points.
+
+    Tampered manifests with traversal paths or unlisted entry points must
+    be caught BEFORE any file reads, preventing escape from the preview
+    namespace.
+    """
+
+    _PUB_SCRIPT = _SCRIPT.parent / "preview-publish.py"
+
+    def _publish_to_local(self, tmpdir: str) -> tuple[Path, str, str]:
+        """Package and publish a valid bundle, return (site, namespace, digest)."""
+        proto = Path(tmpdir) / "source" / "prototype"
+        proto.mkdir(parents=True)
+        (proto / "index.html").write_text(
+            _SELF_CONTAINED_HTML, encoding="utf-8",
+        )
+        output = Path(tmpdir) / "output"
+        import subprocess
+        r = subprocess.run(
+            [
+                sys.executable, str(_SCRIPT), "package",
+                "--prototype-dir", str(Path(tmpdir) / "source"),
+                "--output-dir", str(output),
+                "--issue-key", "VSAFE-1", "--revision", "r1",
+                "--mode", "standalone",
+            ],
+            capture_output=True, text=True,
+        )
+        assert r.returncode == 0, r.stderr
+        pkg = json.loads(r.stdout)
+        bundle = Path(pkg["bundle_dir"])
+        site = Path(tmpdir) / "site"
+        rp = subprocess.run(
+            [
+                sys.executable, str(self._PUB_SCRIPT), "publish",
+                "--bundle-dir", str(bundle),
+                "--pr-repo", "org/repo", "--pr-number", "1",
+                "--content-sha256", pkg["content_sha256"],
+                "--target-repo", "org/repo",
+                "--local-fixture", str(site),
+            ],
+            capture_output=True, text=True,
+        )
+        assert rp.returncode == 0, rp.stderr
+        receipt = json.loads(rp.stdout)
+        return site, receipt["namespace"], pkg["content_sha256"]
+
+    def test_traversal_file_path_rejected(self) -> None:
+        """Manifest with ../escape file path is rejected before file read."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmpdir:
+            site, ns, digest = self._publish_to_local(tmpdir)
+            mpath = site / ns / "preview-manifest.json"
+            m = json.loads(mpath.read_text(encoding="utf-8"))
+            m["files"].append({
+                "path": "../../../etc/passwd",
+                "sha256": "a" * 64,
+                "category": "other",
+                "size_bytes": "0",
+            })
+            mpath.write_text(json.dumps(m), encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable, str(self._PUB_SCRIPT), "verify",
+                    "--site-dir", str(site), "--namespace", ns,
+                    "--expected-digest", digest,
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("unsafe", result.stderr)
+
+    def test_entry_not_in_inventory_rejected(self) -> None:
+        """Entry_point not listed in manifest files is rejected."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmpdir:
+            site, ns, digest = self._publish_to_local(tmpdir)
+            mpath = site / ns / "preview-manifest.json"
+            m = json.loads(mpath.read_text(encoding="utf-8"))
+            m["entry_point"] = "unlisted.html"
+            mpath.write_text(json.dumps(m), encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable, str(self._PUB_SCRIPT), "verify",
+                    "--site-dir", str(site), "--namespace", ns,
+                    "--expected-digest", digest,
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("not in manifest", result.stderr)
+
+
+# ---------------------------------------------------------------------------
+# Case A: Publish entry point must be in manifest inventory
+# ---------------------------------------------------------------------------
+
+class TestPublishEntryInventoryBinding(unittest.TestCase):
+    """Verify publish rejects entry_point not in manifest file inventory.
+
+    Even when the entry point exists on disk and passes HTML suffix
+    checks, it must be listed in the manifest files inventory to
+    prevent deploy of tampered bundles.
+    """
+
+    _PUB_SCRIPT = _SCRIPT.parent / "preview-publish.py"
+
+    def test_entry_removed_from_inventory_rejected(self) -> None:
+        """Entry point exists on disk but removed from manifest files list."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proto = Path(tmpdir) / "source" / "prototype"
+            proto.mkdir(parents=True)
+            (proto / "index.html").write_text(
+                _SELF_CONTAINED_HTML, encoding="utf-8",
+            )
+            (proto / "other.html").write_text(
+                "<html>Other</html>", encoding="utf-8",
+            )
+            output = Path(tmpdir) / "output"
+            r = subprocess.run(
+                [
+                    sys.executable, str(_SCRIPT), "package",
+                    "--prototype-dir", str(Path(tmpdir) / "source"),
+                    "--output-dir", str(output),
+                    "--issue-key", "EINV-1", "--revision", "r1",
+                    "--mode", "standalone",
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(r.returncode, 0, r.stderr)
+            pkg = json.loads(r.stdout)
+            bundle = Path(pkg["bundle_dir"])
+
+            # Tamper: change entry to other.html but remove it from files
+            mpath = bundle / "preview-manifest.json"
+            m = json.loads(mpath.read_text(encoding="utf-8"))
+            m["entry_point"] = "other.html"
+            m["files"] = [
+                f for f in m["files"] if f["path"] != "other.html"
+            ]
+            mpath.write_text(json.dumps(m), encoding="utf-8")
+
+            marker = Path(tmpdir) / "deploy-was-called"
+            adapter = Path(tmpdir) / "marker-adapter.py"
+            adapter.write_text(textwrap.dedent(f"""\
+                #!/usr/bin/env python3
+                import json, sys
+                from pathlib import Path
+                Path("{marker}").write_text("CALLED")
+                print(json.dumps({{"status": "published",
+                    "url": sys.argv[4],
+                    "content_sha256": sys.argv[3]}}))
+            """), encoding="utf-8")
+            adapter.chmod(0o755)
+
+            result = subprocess.run(
+                [
+                    sys.executable, str(self._PUB_SCRIPT), "publish",
+                    "--bundle-dir", str(bundle),
+                    "--pr-repo", "org/docs-repo", "--pr-number", "42",
+                    "--content-sha256", pkg["content_sha256"],
+                    "--target-repo", "org/docs-repo",
+                    "--deploy-command", str(adapter),
+                    "--site-url", "https://example.com",
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("not in manifest", result.stderr)
+            self.assertFalse(
+                marker.exists(),
+                "Deploy command must NOT run when entry is not in inventory",
+            )
+
+
+# ---------------------------------------------------------------------------
+# Case B: Iteration binding contract (Pre-Build Context Check)
+# ---------------------------------------------------------------------------
+
+class TestIterationBindingContract(unittest.TestCase):
+    """Contract: preview.md verifies notes iteration matches active iteration.
+
+    The Pre-Build Context Check must compare prototype-notes.md iteration
+    with 00-context.md active prototype iteration before building.
+    """
+
+    _PREVIEW_MD = _SCRIPT.parent.parent / "skills" / "preview.md"
+
+    def test_prebuild_reads_notes_iteration(self) -> None:
+        """Pre-Build Context Check must read iteration from notes."""
+        text = self._PREVIEW_MD.read_text(encoding="utf-8")
+        # Must reference reading prototype-notes.md
+        self.assertIn("prototype-notes.md", text)
+        # Must extract Iteration from notes
+        self.assertIn("**Iteration**", text)
+
+    def test_prebuild_compares_notes_vs_active_iteration(self) -> None:
+        """Pre-Build Context Check must compare notes iteration with active."""
+        text = self._PREVIEW_MD.read_text(encoding="utf-8")
+        self.assertIn(
+            "notes iteration",
+            text.lower(),
+            "Must reference notes iteration vs active comparison",
+        )
+
+    def test_prebuild_checks_reviewed_discovery_consistency(self) -> None:
+        """Pre-Build Context Check must verify reviewed discovery consistency."""
+        text = self._PREVIEW_MD.read_text(encoding="utf-8")
+        self.assertIn("Revalidated against discovery revision", text)
+
+
+# ---------------------------------------------------------------------------
+# Case C: Build directory requirement contract
+# ---------------------------------------------------------------------------
+
+class TestBuildDirectoryRequirement(unittest.TestCase):
+    """Contract: preview.md requires recorded build directory when command exists.
+
+    When a real build command is configured but no Build directory is
+    recorded, preview.md must STOP rather than silently defaulting to
+    the prototype root directory.
+    """
+
+    _PREVIEW_MD = _SCRIPT.parent.parent / "skills" / "preview.md"
+
+    def test_no_silent_default_to_dot(self) -> None:
+        """preview.md must not silently default build_dir to '.'."""
+        text = self._PREVIEW_MD.read_text(encoding="utf-8")
+        self.assertNotIn(
+            'defaults to "."',
+            text,
+            "Must not default build_dir to '.' — require explicit record",
+        )
+
+    def test_already_static_skips_build(self) -> None:
+        """'none — already static' must skip the build step."""
+        text = self._PREVIEW_MD.read_text(encoding="utf-8")
+        self.assertIn("already static", text)
+        self.assertIn("skip", text.lower())
+
+    def test_requires_recorded_build_directory(self) -> None:
+        """Must require recorded Build directory when command exists."""
+        text = self._PREVIEW_MD.read_text(encoding="utf-8")
+        self.assertIn(
+            "**Build directory** is required",
+            text,
+            "Must state that Build directory is required for real commands",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

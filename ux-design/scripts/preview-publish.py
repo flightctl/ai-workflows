@@ -109,6 +109,51 @@ _collect_file_inventory = _bundler._collect_file_inventory
 _HTML_EXTENSIONS = _bundler._HTML_EXTENSIONS
 
 
+def _validate_manifest_safety(
+    manifest: dict[str, Any], fail_code: int,
+) -> dict[str, dict]:
+    """Validate manifest file paths and entry_point are safe.
+
+    Returns a dict mapping path → file entry for callers that need the
+    inventory.  Raises SystemExit on any violation.
+
+    Shared by cmd_publish (before deploy) and cmd_verify (before
+    reading published files) to prevent escape via tampered manifest
+    records.
+    """
+    by_path: dict[str, dict] = {}
+    for mf in manifest.get("files", []):
+        path = mf.get("path", "")
+        if os.path.isabs(path) or ".." in Path(path).parts:
+            _fail(f"Manifest file path is unsafe: {path!r}", fail_code)
+        if path in by_path:
+            _fail(
+                f"Manifest contains duplicate file path: {path!r}",
+                fail_code,
+            )
+        by_path[path] = mf
+
+    entry = manifest.get("entry_point", "")
+    if entry:
+        if os.path.isabs(entry) or ".." in Path(entry).parts:
+            _fail(
+                f"Manifest entry_point path is unsafe: {entry!r}",
+                fail_code,
+            )
+        if Path(entry).suffix.lower() not in _HTML_EXTENSIONS:
+            _fail(
+                f"Manifest entry_point {entry!r} is not an HTML file",
+                fail_code,
+            )
+        if entry not in by_path:
+            _fail(
+                f"Manifest entry_point {entry!r} not in manifest file "
+                "inventory",
+                fail_code,
+            )
+    return by_path
+
+
 def _validate_site_url(url: str, allow_test_http: bool = False) -> str:
     """Validate and normalize an approved site URL. Returns normalized URL."""
     from urllib.parse import urlparse
@@ -351,31 +396,16 @@ def cmd_publish(args: list[str]) -> int:
         )
 
     # --- Validate manifest inventory against actual bundle ---
-    # Reuse the bundler's inventory routine to compare manifest records
-    # with actual files.  A tampered manifest (empty files list, wrong
-    # hashes, nonexistent entry point) is caught here BEFORE any deploy
-    # command runs.
-    manifest_files = manifest.get("files", [])
+    # Shared safety check: reject unsafe paths, duplicates, and unsafe
+    # entry point BEFORE any deploy command runs.
+    manifest_by_path = _validate_manifest_safety(manifest, EXIT_PUBLISH_FAIL)
+
     actual_inventory = _collect_file_inventory(bundle_dir)
     # Exclude root manifest from comparison — consistent with digest.
     actual_by_path: dict[str, dict] = {
         f["path"]: f for f in actual_inventory
         if f["path"] != "preview-manifest.json"
     }
-    manifest_by_path: dict[str, dict] = {}
-    for mf in manifest_files:
-        path = mf.get("path", "")
-        if os.path.isabs(path) or ".." in Path(path).parts:
-            _fail(
-                f"Manifest file path is unsafe: {path!r}",
-                EXIT_PUBLISH_FAIL,
-            )
-        if path in manifest_by_path:
-            _fail(
-                f"Manifest contains duplicate file path: {path!r}",
-                EXIT_PUBLISH_FAIL,
-            )
-        manifest_by_path[path] = mf
 
     # Every manifest entry must exist in actual bundle with matching hash.
     for path, mf in manifest_by_path.items():
@@ -398,7 +428,8 @@ def cmd_publish(args: list[str]) -> int:
                 EXIT_PUBLISH_FAIL,
             )
 
-    # Validate entry point exists as actual HTML file in bundle.
+    # Entry point must exist and be a real file (shared check already
+    # validated path safety, HTML suffix, and inventory membership).
     entry = manifest.get("entry_point", "")
     if not entry:
         _fail("Manifest has no entry_point", EXIT_PUBLISH_FAIL)
@@ -407,11 +438,6 @@ def cmd_publish(args: list[str]) -> int:
         _fail(
             f"Manifest entry_point {entry!r} does not exist as regular "
             "file in bundle",
-            EXIT_PUBLISH_FAIL,
-        )
-    if Path(entry).suffix.lower() not in _HTML_EXTENSIONS:
-        _fail(
-            f"Manifest entry_point {entry!r} is not an HTML file",
             EXIT_PUBLISH_FAIL,
         )
 
@@ -593,6 +619,9 @@ def cmd_verify(args: list[str]) -> int:
         _fail(f"No manifest at {manifest_path}", EXIT_VERIFY_FAIL)
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    # Validate manifest paths and entry before reading any files.
+    _validate_manifest_safety(manifest, EXIT_VERIFY_FAIL)
 
     # Verify each file's per-file hash.
     mismatches: list[str] = []
