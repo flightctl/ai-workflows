@@ -118,25 +118,50 @@ def _validate_site_url(url: str, allow_test_http: bool = False) -> str:
     return url.rstrip("/")
 
 
+def _same_origin_opener(approved_url: str) -> tuple:
+    """Build a urllib opener that rejects cross-origin redirects."""
+    import urllib.request
+    from urllib.parse import urlparse
+
+    approved_origin = urlparse(approved_url)
+
+    class _SameOriginRedirectHandler(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            target = urlparse(newurl)
+            if (target.scheme, target.hostname, target.port) != (
+                approved_origin.scheme, approved_origin.hostname,
+                approved_origin.port,
+            ):
+                raise urllib.error.URLError(
+                    f"Cross-origin redirect to {target.scheme}://"
+                    f"{target.hostname} rejected"
+                )
+            return super().redirect_request(
+                req, fp, code, msg, headers, newurl,
+            )
+
+    opener = urllib.request.build_opener(_SameOriginRedirectHandler)
+    return opener
+
+
 def _verify_served_url(
     base_url: str, namespace: str, manifest: dict[str, Any],
 ) -> dict[str, Any]:
     """Verify content served at *base_url/namespace/* matches *manifest*.
 
-    Uses HTTP(S) GET for each file.  Returns a dict with ``verified``
-    bool and ``errors`` list.  Loopback HTTP is used in tests; approved
-    HTTPS URLs in production.
+    Uses HTTP(S) GET for each file with same-origin redirect guard.
+    Returns a dict with ``verified`` bool and ``errors`` list.
     """
     import urllib.error
-    import urllib.request
 
     prefix = f"{base_url.rstrip('/')}/{namespace}"
     errors: list[str] = []
+    opener = _same_origin_opener(base_url)
 
     # Verify served manifest.
     try:
         murl = f"{prefix}/preview-manifest.json"
-        with urllib.request.urlopen(murl, timeout=10) as resp:
+        with opener.open(murl, timeout=10) as resp:
             served = json.loads(resp.read())
             if served.get("content_sha256") != manifest.get("content_sha256"):
                 errors.append("served manifest content_sha256 differs")
@@ -147,7 +172,7 @@ def _verify_served_url(
     for fe in manifest.get("files", []):
         furl = f"{prefix}/{fe['path']}"
         try:
-            with urllib.request.urlopen(furl, timeout=10) as resp:
+            with opener.open(furl, timeout=10) as resp:
                 actual = hashlib.sha256(resp.read()).hexdigest()
                 if actual != fe.get("sha256", ""):
                     errors.append(f"hash mismatch: {fe['path']}")
@@ -376,8 +401,14 @@ def cmd_publish(args: list[str]) -> int:
                 f"{deploy_receipt.get('status')!r}, expected 'published'",
                 EXIT_PUBLISH_FAIL,
             )
-        if not deploy_receipt.get("url", ""):
-            _fail("Deploy receipt missing 'url' field", EXIT_PUBLISH_FAIL)
+        # Reject receipt URL outside approved site.
+        receipt_url = deploy_receipt.get("url", "")
+        if receipt_url and not receipt_url.rstrip("/").startswith(approved_url):
+            _fail(
+                f"Deploy receipt URL {receipt_url!r} is outside approved "
+                f"site {approved_url!r}",
+                EXIT_PUBLISH_FAIL,
+            )
 
         # Validate receipt identity — returned fields must agree with expected.
         for key, expected in [
@@ -402,6 +433,15 @@ def cmd_publish(args: list[str]) -> int:
         receipt["served_verification"] = vresult
         if vresult["verified"]:
             receipt["status"] = "published"
+            # Canonical verified entry URL — never forward raw receipt URL.
+            from urllib.parse import quote
+            entry = manifest.get("entry_point", "index.html")
+            receipt["verified_url"] = (
+                f"{approved_url}/{namespace}/{quote(entry, safe='/')}"
+            )
+
+        # Remove raw receipt URL to prevent forwarding unverified link.
+        receipt.pop("url", None)
 
         print(json.dumps(receipt, indent=2))
         return EXIT_SUCCESS if vresult["verified"] else EXIT_PUBLISH_FAIL

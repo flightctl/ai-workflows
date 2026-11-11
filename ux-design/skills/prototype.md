@@ -112,16 +112,22 @@ path the resolver validates it exists (`type: local`) and ignores
 
 **Baseline SHA — pre-invocation (local workspace only):** Capture the
 local workspace SHA (`git -C <path> rev-parse HEAD`) and compare with
-`01-discovery.md` § Current State. Match → proceed. Differ → stop, present
-both, require researcher to refresh or accept. Unknown → confirm with
-researcher. Record in `prototype-notes.md`. Standalone: "standalone — N/A".
-Git URL workspace: handled in Step 2 (clone is inside the create skill).
+`01-discovery.md` § Current State. Match → proceed. Differ (both known) →
+stop, present both SHAs, require researcher to refresh discovery or
+explicitly accept — recording both SHAs and the reason in
+`prototype-notes.md` and refreshing affected Current State before claiming
+fidelity. Unknown (no SHA in discovery) → stop, confirm with researcher,
+record confirmed SHA. Do not silently switch the researcher's checkout.
+Standalone: "standalone — N/A". Git URL: handled in Step 2 (clone inside
+create skill). Reuse unchanged page scaffolding and real components;
+mock only scenario-specific parts — no full production backend required.
 Mark page sections as unchanged, changed, or mocked in `prototype-notes.md`.
 
 **Standalone exploration** (greenfield or no accessible source):
-Use `standalone` when no existing UI source is available. Acknowledge when
-source is inaccessible for a feature that modifies existing UI — do not
-claim faithful integration without source access.
+Use `standalone` when no existing UI source is available. When source is
+inaccessible for a feature that modifies existing UI, acknowledge this —
+do not claim faithful integration without source access. If the researcher
+has references, label what is approximated vs unverified baseline.
 
 Record the chosen strategy and rationale in `prototype-notes.md`.
 

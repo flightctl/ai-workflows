@@ -1444,6 +1444,14 @@ class TestDeployCommandIntegration(unittest.TestCase):
                 self.assertTrue(receipt["served_verification"]["verified"])
                 self.assertEqual(receipt["pr_repo"], "org/docs-repo")
                 self.assertEqual(receipt["pr_number"], 42)
+                # Canonical verified entry URL returned, raw receipt URL removed
+                self.assertIn("verified_url", receipt)
+                self.assertTrue(
+                    receipt["verified_url"].startswith(site_url),
+                    "verified_url must start with approved site URL",
+                )
+                self.assertIn("index.html", receipt["verified_url"])
+                self.assertNotIn("url", receipt, "Raw receipt URL must be removed")
                 self.assertTrue((site_dir / "docs" / "readme.md").is_file())
                 self.assertTrue((old_pr / "index.html").is_file())
                 server.shutdown()
@@ -1553,7 +1561,6 @@ class TestDeployCommandIntegration(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             bundle, pkg = self._package_bundle(tmpdir)
-            # Mutate a file in the bundle
             css = bundle / "style.css"
             css.write_text("MUTATED{}")
             result = subprocess.run(
@@ -1571,6 +1578,56 @@ class TestDeployCommandIntegration(unittest.TestCase):
             )
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("Bundle bytes do not match", result.stderr)
+
+    def test_foreign_receipt_url_rejected(self) -> None:
+        """Receipt URL outside approved site base is rejected."""
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bundle, pkg = self._package_bundle(tmpdir)
+            site_dir = Path(tmpdir) / "served"
+            site_dir.mkdir(parents=True)
+
+            original_dir = os.getcwd()
+            try:
+                server, port = self._start_server(site_dir)
+                approved = f"http://127.0.0.1:{port}"
+                # Adapter returns receipt with foreign URL
+                adapter = Path(tmpdir) / "foreign-adapter.py"
+                adapter.write_text(textwrap.dedent(f"""\
+                    #!/usr/bin/env python3
+                    import json, shutil, sys
+                    from pathlib import Path
+                    bd = Path(sys.argv[1]); ns = sys.argv[2]
+                    site = Path("{site_dir}")
+                    dest = site / ns
+                    dest.mkdir(parents=True)
+                    for f in sorted(bd.rglob("*")):
+                        if not f.is_file() or f.is_symlink(): continue
+                        r = f.relative_to(bd); (dest/r).parent.mkdir(parents=True,exist_ok=True)
+                        shutil.copy2(f, dest/r)
+                    print(json.dumps({{"status":"published","url":"https://evil.example.com","content_sha256":sys.argv[3]}}))
+                """), encoding="utf-8")
+                adapter.chmod(0o755)
+                result = subprocess.run(
+                    [
+                        sys.executable, str(self._PUB_SCRIPT), "publish",
+                        "--bundle-dir", str(bundle),
+                        "--pr-repo", "org/docs-repo",
+                        "--pr-number", "95",
+                        "--content-sha256", pkg["content_sha256"],
+                        "--target-repo", "org/docs-repo",
+                        "--deploy-command", str(adapter),
+                        "--site-url", approved,
+                        "--allow-test-http",
+                    ],
+                    capture_output=True, text=True,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("outside approved", result.stderr)
+                server.shutdown()
+            finally:
+                os.chdir(original_dir)
 
 
 if __name__ == "__main__":
