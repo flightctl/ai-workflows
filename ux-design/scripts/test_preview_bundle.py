@@ -1064,11 +1064,13 @@ class TestMissingEntryAfterSkip(unittest.TestCase):
 # Publisher fixture integration
 # ---------------------------------------------------------------------------
 
-class TestPublisherFixture(unittest.TestCase):
-    """Test preview-publish.py as a publisher fixture."""
+class TestPublisherWrapper(unittest.TestCase):
+    """Test preview-publish.py production wrapper + local fixture."""
+
+    _PUB_SCRIPT = _SCRIPT.parent / "preview-publish.py"
 
     def _package_bundle(self, tmpdir: str) -> tuple[Path, dict]:
-        """Create a prototype and package it."""
+        """Create a prototype and package it via CLI."""
         proto = Path(tmpdir) / "source" / "prototype"
         proto.mkdir(parents=True)
         (proto / "index.html").write_text(
@@ -1090,50 +1092,91 @@ class TestPublisherFixture(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         pkg = json.loads(result.stdout)
-        bundle = Path(pkg["bundle_dir"])
-        return bundle, pkg
+        return Path(pkg["bundle_dir"]), pkg
 
-    def test_publish_and_verify(self) -> None:
-        """Publisher copies bundle, returns receipt, verify passes."""
+    def _run_publish(self, bundle: Path, tmpdir: str, **kw: str) -> tuple[int, dict]:
+        """Run the publisher wrapper and return (returncode, receipt)."""
         import subprocess
-        pub_script = _SCRIPT.parent / "preview-publish.py"
+        site_dir = kw.pop("site_dir", str(Path(tmpdir) / "site"))
+        pr_number = kw.pop("pr_number", "42")
+        content_sha = kw.pop("content_sha256", "")
+        if not content_sha:
+            manifest = json.loads(
+                (bundle / "preview-manifest.json").read_text(encoding="utf-8"),
+            )
+            content_sha = manifest["content_sha256"]
+        args = [
+            sys.executable, str(self._PUB_SCRIPT), "publish",
+            "--bundle-dir", str(bundle),
+            "--pr-repo", "org/docs-repo",
+            "--pr-number", pr_number,
+            "--content-sha256", content_sha,
+            "--target-repo", kw.pop("target_repo", "org/docs-repo"),
+        ]
+        if "deploy_command" in kw:
+            args += ["--deploy-command", kw["deploy_command"]]
+        if "local_fixture" in kw:
+            args += ["--local-fixture", kw["local_fixture"]]
+        elif site_dir:
+            args += ["--local-fixture", site_dir]
+        result = subprocess.run(args, capture_output=True, text=True)
+        try:
+            receipt = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            receipt = {}
+        return result.returncode, receipt
+
+    def test_no_command_returns_awaiting_setup(self) -> None:
+        """Without deploy-command or local-fixture, returns awaiting-setup."""
+        import subprocess
         with tempfile.TemporaryDirectory() as tmpdir:
             bundle, pkg = self._package_bundle(tmpdir)
-            site_dir = Path(tmpdir) / "site"
-            # Pre-populate site with existing docs
-            docs_dir = site_dir / "docs"
-            docs_dir.mkdir(parents=True)
-            (docs_dir / "readme.md").write_text("# Docs")
-
-            # Publish
             result = subprocess.run(
                 [
-                    sys.executable, str(pub_script), "publish",
+                    sys.executable, str(self._PUB_SCRIPT), "publish",
                     "--bundle-dir", str(bundle),
-                    "--site-dir", str(site_dir),
-                    "--pr-url", "https://github.com/org/repo/pull/42",
-                    "--target-repo", "org/repo",
+                    "--pr-repo", "org/docs-repo",
+                    "--pr-number", "42",
+                    "--content-sha256", pkg["content_sha256"],
+                    "--target-repo", "org/docs-repo",
                 ],
                 capture_output=True, text=True,
             )
-            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.returncode, 0)
             receipt = json.loads(result.stdout)
+            self.assertEqual(receipt["status"], "awaiting-setup")
+            self.assertIn("pr_number", receipt)
+            self.assertEqual(receipt["pr_number"], 42)
+
+    def test_local_fixture_publish_and_verify(self) -> None:
+        """Local fixture publishes, receipt matches, verify passes."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bundle, pkg = self._package_bundle(tmpdir)
+            site_dir = Path(tmpdir) / "site"
+            # Pre-populate with docs
+            (site_dir / "docs").mkdir(parents=True)
+            (site_dir / "docs" / "readme.md").write_text("# Docs")
+
+            rc, receipt = self._run_publish(
+                bundle, tmpdir, local_fixture=str(site_dir),
+            )
+            self.assertEqual(rc, 0, f"Publish failed: {receipt}")
             self.assertEqual(receipt["status"], "published-local")
-            self.assertTrue(receipt["digest_match"], "Digest should match")
-            self.assertEqual(receipt["issue_key"], "PUB-1")
-            self.assertEqual(receipt["revision"], "r1")
-            self.assertIn("LOCAL fixture", receipt["note"])
+            self.assertTrue(receipt["digest_match"])
+            self.assertIn("LOCAL", receipt["note"])
+            self.assertIn("pr-42", receipt["namespace"])
+            self.assertEqual(receipt["pr_number"], 42)
 
-            # Verify existing docs preserved
-            self.assertTrue((docs_dir / "readme.md").is_file())
+            # Existing docs preserved
+            self.assertTrue((site_dir / "docs" / "readme.md").is_file())
 
-            # Verify content using verify subcommand
+            # Verify via verify subcommand
             verify = subprocess.run(
                 [
-                    sys.executable, str(pub_script), "verify",
+                    sys.executable, str(self._PUB_SCRIPT), "verify",
                     "--site-dir", str(site_dir),
-                    "--issue-key", "PUB-1",
-                    "--revision", "r1",
+                    "--namespace", receipt["namespace"],
                     "--expected-digest", receipt["content_sha256"],
                 ],
                 capture_output=True, text=True,
@@ -1143,33 +1186,21 @@ class TestPublisherFixture(unittest.TestCase):
             self.assertTrue(vresult["verified"])
 
     def test_verify_mismatch_detected(self) -> None:
-        """Verify detects content mismatch with wrong digest."""
+        """Verify fails on wrong digest (negative test)."""
         import subprocess
-        pub_script = _SCRIPT.parent / "preview-publish.py"
         with tempfile.TemporaryDirectory() as tmpdir:
             bundle, pkg = self._package_bundle(tmpdir)
-            site_dir = Path(tmpdir) / "site"
-
-            # Publish
-            result = subprocess.run(
-                [
-                    sys.executable, str(pub_script), "publish",
-                    "--bundle-dir", str(bundle),
-                    "--site-dir", str(site_dir),
-                    "--pr-url", "https://github.com/org/repo/pull/42",
-                    "--target-repo", "org/repo",
-                ],
-                capture_output=True, text=True,
+            site_dir = str(Path(tmpdir) / "site")
+            rc, receipt = self._run_publish(
+                bundle, tmpdir, local_fixture=site_dir,
             )
-            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(rc, 0)
 
-            # Verify with wrong digest
             verify = subprocess.run(
                 [
-                    sys.executable, str(pub_script), "verify",
-                    "--site-dir", str(site_dir),
-                    "--issue-key", "PUB-1",
-                    "--revision", "r1",
+                    sys.executable, str(self._PUB_SCRIPT), "verify",
+                    "--site-dir", site_dir,
+                    "--namespace", receipt["namespace"],
                     "--expected-digest", "0" * 64,
                 ],
                 capture_output=True, text=True,
@@ -1178,74 +1209,53 @@ class TestPublisherFixture(unittest.TestCase):
             vresult = json.loads(verify.stdout)
             self.assertFalse(vresult["verified"])
 
-    def test_publish_preserves_other_pr(self) -> None:
+    def test_preserves_other_pr_preview(self) -> None:
         """Publishing a new PR's preview preserves existing PR previews."""
-        import subprocess
-        pub_script = _SCRIPT.parent / "preview-publish.py"
         with tempfile.TemporaryDirectory() as tmpdir:
             bundle, pkg = self._package_bundle(tmpdir)
             site_dir = Path(tmpdir) / "site"
+            # Old PR preview
+            old = site_dir / "previews" / "org" / "docs-repo" / "pr-10" / "abc"
+            old.mkdir(parents=True)
+            (old / "index.html").write_text("<html>Old</html>")
 
-            # Create an existing old-PR preview
-            old_preview = site_dir / "previews" / "OLD-1" / "r1"
-            old_preview.mkdir(parents=True)
-            (old_preview / "index.html").write_text("<html>Old</html>")
-
-            # Publish new bundle
-            result = subprocess.run(
-                [
-                    sys.executable, str(pub_script), "publish",
-                    "--bundle-dir", str(bundle),
-                    "--site-dir", str(site_dir),
-                    "--pr-url", "https://github.com/org/repo/pull/43",
-                    "--target-repo", "org/repo",
-                ],
-                capture_output=True, text=True,
+            rc, receipt = self._run_publish(
+                bundle, tmpdir, local_fixture=str(site_dir),
             )
-            self.assertEqual(result.returncode, 0, result.stderr)
-
-            # Old preview still intact
-            self.assertTrue(
-                (old_preview / "index.html").is_file(),
-                "Old PR preview should be preserved",
-            )
+            self.assertEqual(rc, 0)
+            # Old preview untouched
+            self.assertTrue((old / "index.html").is_file())
             self.assertEqual(
-                (old_preview / "index.html").read_text(), "<html>Old</html>",
+                (old / "index.html").read_text(), "<html>Old</html>",
             )
 
-    def test_publish_collision_rejected(self) -> None:
-        """Publishing to existing revision is rejected (non-destructive)."""
-        import subprocess
-        pub_script = _SCRIPT.parent / "preview-publish.py"
+    def test_collision_rejected(self) -> None:
+        """Same PR+digest namespace is rejected (non-destructive)."""
         with tempfile.TemporaryDirectory() as tmpdir:
             bundle, pkg = self._package_bundle(tmpdir)
-            site_dir = Path(tmpdir) / "site"
-
-            # First publish succeeds
-            r1 = subprocess.run(
-                [
-                    sys.executable, str(pub_script), "publish",
-                    "--bundle-dir", str(bundle),
-                    "--site-dir", str(site_dir),
-                    "--pr-url", "https://github.com/org/repo/pull/42",
-                    "--target-repo", "org/repo",
-                ],
-                capture_output=True, text=True,
+            site_dir = str(Path(tmpdir) / "site")
+            rc1, _ = self._run_publish(
+                bundle, tmpdir, local_fixture=site_dir,
             )
-            self.assertEqual(r1.returncode, 0)
-
-            # Second publish to same revision fails
-            r2 = subprocess.run(
-                [
-                    sys.executable, str(pub_script), "publish",
-                    "--bundle-dir", str(bundle),
-                    "--site-dir", str(site_dir),
-                    "--pr-url", "https://github.com/org/repo/pull/42",
-                    "--target-repo", "org/repo",
-                ],
-                capture_output=True, text=True,
+            self.assertEqual(rc1, 0)
+            rc2, _ = self._run_publish(
+                bundle, tmpdir, local_fixture=site_dir,
             )
-            self.assertNotEqual(r2.returncode, 0)
+            self.assertNotEqual(rc2, 0)
+
+    def test_namespace_uses_pr_identity(self) -> None:
+        """Published namespace includes PR repo, number, and content SHA."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bundle, pkg = self._package_bundle(tmpdir)
+            rc, receipt = self._run_publish(
+                bundle, tmpdir, pr_number="99",
+                target_repo="acme/preview-site",
+            )
+            self.assertEqual(rc, 0)
+            ns = receipt["namespace"]
+            self.assertIn("acme/preview-site", ns)
+            self.assertIn("pr-99", ns)
+            self.assertIn(pkg["content_sha256"][:12], ns)
 
 
 if __name__ == "__main__":

@@ -91,6 +91,22 @@ to update the existing open PR branch through the workflow's publish path;
 `/publish` uses the saved metadata and does not create a second PR. Use
 `/respond` separately to address reviewer comments.
 
+## Preview Invalidation
+
+After applying design-affecting changes, check for
+`.artifacts/ux-design/{issue-key}/preview-metadata.json`. If a preview
+exists (any `deploy_status` including `screenshot-fallback`), the revision
+is now stale:
+
+- Set `deploy_status` to `stale`
+- Record `stale_reason: revise-handoff-update`
+- Preserve the `published_namespace` and `content_sha256` from the
+  existing metadata
+
+Inform the researcher that the preview needs rebuilding. If the changes
+were editorial-only (wording, clarification), note that the preview may
+still be representative and leave `deploy_status` unchanged.
+
 ## When This Phase Is Done
 
 Report your results:

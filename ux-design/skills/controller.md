@@ -150,10 +150,13 @@ prototype and evaluation have been reviewed against that context.
   stakeholder feedback, `/preview` to build a static review bundle for
   browser inspection, or `/publish` to push the spec to the docs repo
 - `/revise` completed → recommend `/publish` (or another `/revise` round);
-  if a preview was previously published, recommend `/preview` to rebuild it
-- `/publish` completed → recommend `/preview` if reviewers need a browser
-  preview alongside the handoff spec, then sharing the PR with reviewers
-  and `/respond` when comments arrive
+  if a preview existed and design-affecting changes were made, it is now
+  `stale` — recommend `/prototype` to update, then `/preview` to rebuild
+- `/publish` completed → the handoff PR is live but visual review is
+  pending until `/preview` runs; recommend `/preview` to build the static
+  review bundle, then share the PR with reviewers and use `/respond` when
+  comments arrive. Document any build command for static export in
+  `prototype-notes.md` so `/preview` can attempt it before fallback
 - `/respond` completed → if design-affecting handoff changes were made and
   a preview exists, it is now marked `stale`; recommend `/prototype` to
   update the prototype with the accepted changes, then `/preview` to

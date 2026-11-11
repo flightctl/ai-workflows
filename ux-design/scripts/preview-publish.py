@@ -1,23 +1,35 @@
 #!/usr/bin/env python3
-"""Minimal preview publisher — local fixture for the ux-design preview phase.
+"""Preview publisher wrapper for the ux-design preview phase.
 
-Assembles a preview bundle into a site directory while preserving existing
-content (docs, other PR previews).  Returns a JSON receipt with content
-identity.  This is a LOCAL development/test fixture, not a live Pages
-deployment.
+A small UX-specific project-approved PUBLISHER COMMAND wrapper.  It does
+NOT perform deployment itself — it delegates to a project-owned deploy
+command.  When no deploy command is configured, it returns awaiting-setup.
 
-Subcommands:
-  publish   Copy a packaged bundle into a site directory, return receipt
-  verify    Check a published bundle's content against its manifest
+Contract:
+  publish   Invoke the configured deploy command (or report awaiting-setup)
+  verify    Check published content against its manifest
+
+The deploy command receives:
+  argv[1]  bundle directory (absolute path)
+  argv[2]  namespace prefix (e.g. previews/org/repo/pr-42/a1b2c3d4)
+  argv[3]  expected content SHA-256
+
+It must print a JSON receipt to stdout with at minimum:
+  {"status": "published", "url": "...", "content_sha256": "..."}
+
+For testing, --local-fixture <site-dir> provides a built-in adapter
+that copies into a local directory.  Its receipt is clearly marked
+"published-local" and must never be treated as live deployment.
 
 Usage:
-  preview-publish.py publish --bundle-dir <path> --site-dir <path>
-                     --pr-url <url> --target-repo <owner/repo>
-  preview-publish.py verify  --site-dir <path> --issue-key <key>
-                     --revision <rev> --expected-digest <sha256>
+  preview-publish.py publish --bundle-dir <path> --pr-repo <owner/repo>
+      --pr-number <N> --content-sha256 <hash> --target-repo <owner/repo>
+      [--deploy-command <path>] [--local-fixture <site-dir>]
+  preview-publish.py verify --site-dir <path> --namespace <prefix>
+      --expected-digest <sha256>
 
 Exit codes:
-  0 -- success
+  0 -- success (or awaiting-setup)
   1 -- argument or configuration error
   2 -- verification failure (content mismatch)
   3 -- publish failure
@@ -27,7 +39,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import re
 import shutil
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -44,59 +59,59 @@ def _fail(msg: str, code: int = EXIT_ARG_ERROR) -> NoReturn:
     sys.exit(code)
 
 
-def _compute_digest(directory: Path) -> str:
-    """SHA-256 over sorted file paths and contents — matches preview-bundle.py."""
-    hasher = hashlib.sha256()
-    for filepath in sorted(directory.rglob("*")):
-        if not filepath.is_file() or filepath.is_symlink():
-            continue
-        rel = filepath.relative_to(directory).as_posix()
-        hasher.update(rel.encode("utf-8"))
-        hasher.update(filepath.read_bytes())
-    return hasher.hexdigest()
+def _validate_component(value: str, label: str) -> None:
+    """Require a path-safe single component."""
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", value):
+        _fail(f"Invalid {label}: {value!r}")
 
 
-def cmd_publish(args: list[str]) -> int:
-    """Publish a bundle into a site directory, preserving existing content."""
-    import argparse
-    p = argparse.ArgumentParser(prog="preview-publish publish")
-    p.add_argument("--bundle-dir", required=True)
-    p.add_argument("--site-dir", required=True)
-    p.add_argument("--pr-url", required=True)
-    p.add_argument("--target-repo", required=True)
-    opts = p.parse_args(args)
+def _namespace_prefix(
+    target_repo: str, pr_number: str, content_sha: str,
+) -> str:
+    """Build the publication namespace from PR identity + content digest."""
+    owner, repo = target_repo.split("/", 1)
+    short_sha = content_sha[:12]
+    return f"previews/{owner}/{repo}/pr-{pr_number}/{short_sha}"
 
-    bundle_dir = Path(opts.bundle_dir).resolve()
-    site_dir = Path(opts.site_dir).resolve()
 
-    manifest_path = bundle_dir / "preview-manifest.json"
-    if not manifest_path.is_file():
-        _fail(f"No preview-manifest.json in {bundle_dir}")
+def _local_fixture_publish(
+    bundle_dir: Path, site_dir: Path, namespace: str,
+    manifest: dict[str, Any],
+) -> dict[str, Any]:
+    """TEST FIXTURE: copy bundle into a local site directory.
 
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    issue_key = manifest.get("issue_key", "")
-    revision = manifest.get("revision", "")
-    if not issue_key or not revision:
-        _fail("Manifest missing issue_key or revision")
-
-    # Destination preserves namespace: site/previews/{issue_key}/{revision}/
-    dest = site_dir / "previews" / issue_key / revision
+    Returns a receipt clearly marked as local.  This must never be
+    treated as a live Pages deployment.
+    """
+    dest = site_dir / namespace
     if dest.exists():
         _fail(
             f"Destination already exists: {dest}. "
-            "Use a different revision to preserve existing content.",
+            "Use a different content revision to preserve existing content.",
             EXIT_PUBLISH_FAIL,
         )
 
-    # Verify existing site content is preserved (list before).
-    existing_before = set()
+    # Snapshot existing site content.
+    existing_before: set[str] = set()
     if site_dir.exists():
         existing_before = {
             str(f.relative_to(site_dir))
             for f in site_dir.rglob("*") if f.is_file()
         }
 
-    # Copy bundle content into namespaced destination.
+    # Path containment: bundle_dir must not be inside site_dir or vice versa.
+    try:
+        bundle_dir.resolve().relative_to(site_dir.resolve())
+        _fail("bundle-dir is inside site-dir", EXIT_PUBLISH_FAIL)
+    except ValueError:
+        pass
+    try:
+        site_dir.resolve().relative_to(bundle_dir.resolve())
+        _fail("site-dir is inside bundle-dir", EXIT_PUBLISH_FAIL)
+    except ValueError:
+        pass
+
+    # Copy bundle into namespaced destination.
     dest.mkdir(parents=True, exist_ok=True)
     for src_file in sorted(bundle_dir.rglob("*")):
         if not src_file.is_file() or src_file.is_symlink():
@@ -106,57 +121,156 @@ def cmd_publish(args: list[str]) -> int:
         dst_file.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src_file, dst_file)
 
-    # Verify content identity matches manifest.
-    # Compute digest over content files only (exclude the manifest itself
-    # from the digest comparison, matching preview-bundle.py's convention).
+    # Compute published content digest (excluding manifest).
     content_files = sorted(
         f for f in dest.rglob("*")
         if f.is_file() and not f.is_symlink()
         and f.name != "preview-manifest.json"
     )
-    content_hasher = hashlib.sha256()
-    for filepath in content_files:
-        rel = filepath.relative_to(dest).as_posix()
-        content_hasher.update(rel.encode("utf-8"))
-        content_hasher.update(filepath.read_bytes())
-    published_digest = content_hasher.hexdigest()
+    hasher = hashlib.sha256()
+    for fp in content_files:
+        rel = fp.relative_to(dest).as_posix()
+        hasher.update(rel.encode("utf-8"))
+        hasher.update(fp.read_bytes())
+    published_digest = hasher.hexdigest()
 
-    # Verify existing content still intact.
-    existing_after = set()
+    # Verify existing content untouched.
+    existing_after: set[str] = set()
     if site_dir.exists():
         existing_after = {
             str(f.relative_to(site_dir))
             for f in site_dir.rglob("*") if f.is_file()
-            if not str(f.relative_to(site_dir)).startswith(
-                f"previews/{issue_key}/{revision}"
-            )
+            if not str(f.relative_to(site_dir)).startswith(namespace)
         }
-
     if existing_before != existing_after:
         missing = existing_before - existing_after
         _fail(
-            f"Site preservation violated: {len(missing)} existing file(s) "
-            f"lost during publish: {sorted(missing)[:5]}",
+            f"Site preservation violated: {len(missing)} file(s) lost: "
+            + ", ".join(sorted(missing)[:5]),
             EXIT_PUBLISH_FAIL,
         )
 
-    receipt: dict[str, Any] = {
+    return {
         "status": "published-local",
-        "issue_key": issue_key,
-        "revision": revision,
-        "entry_point": manifest.get("entry_point", "index.html"),
         "content_sha256": published_digest,
         "manifest_sha256": manifest.get("content_sha256", ""),
         "digest_match": published_digest == manifest.get("content_sha256", ""),
-        "pr_url": opts.pr_url,
-        "target_repo": opts.target_repo,
-        "site_dir": str(site_dir),
-        "preview_path": f"previews/{issue_key}/{revision}",
+        "namespace": namespace,
         "file_count": len(content_files),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "note": "LOCAL fixture — not a live Pages deployment",
+        "site_dir": str(site_dir),
+        "note": "LOCAL test fixture — not a live Pages deployment",
     }
 
+
+def cmd_publish(args: list[str]) -> int:
+    """Invoke the configured deploy command or report awaiting-setup."""
+    import argparse
+    p = argparse.ArgumentParser(prog="preview-publish publish")
+    p.add_argument("--bundle-dir", required=True)
+    p.add_argument("--pr-repo", required=True,
+                   help="PR repository (owner/repo)")
+    p.add_argument("--pr-number", required=True)
+    p.add_argument("--content-sha256", required=True,
+                   help="Expected content digest from manifest")
+    p.add_argument("--target-repo", required=True,
+                   help="Deployment target repository (owner/repo)")
+    p.add_argument("--deploy-command", default=None,
+                   help="Project-owned deploy command path")
+    p.add_argument("--local-fixture", default=None, metavar="SITE_DIR",
+                   help="TEST ONLY: local file copy to site directory")
+    opts = p.parse_args(args)
+
+    bundle_dir = Path(opts.bundle_dir).resolve()
+    if not bundle_dir.is_dir():
+        _fail(f"Bundle directory does not exist: {bundle_dir}")
+
+    manifest_path = bundle_dir / "preview-manifest.json"
+    if not manifest_path.is_file():
+        _fail(f"No preview-manifest.json in {bundle_dir}")
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    # Validate PR identity.
+    if not re.fullmatch(r"\d+", opts.pr_number):
+        _fail(f"Invalid PR number: {opts.pr_number!r}")
+    for label, val in [("pr-repo", opts.pr_repo), ("target-repo", opts.target_repo)]:
+        if "/" not in val:
+            _fail(f"Invalid {label}: {val!r} (expected owner/repo)")
+        owner, repo = val.split("/", 1)
+        _validate_component(owner, f"{label} owner")
+        _validate_component(repo, f"{label} repo")
+
+    namespace = _namespace_prefix(
+        opts.target_repo, opts.pr_number, opts.content_sha256,
+    )
+
+    # Base receipt fields (common to all modes).
+    base: dict[str, Any] = {
+        "pr_repo": opts.pr_repo,
+        "pr_number": int(opts.pr_number),
+        "target_repo": opts.target_repo,
+        "content_sha256_expected": opts.content_sha256,
+        "namespace": namespace,
+        "issue_key": manifest.get("issue_key", ""),
+        "entry_point": manifest.get("entry_point", "index.html"),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+    # --- Mode selection ---
+
+    if opts.local_fixture:
+        # TEST FIXTURE: local file copy.
+        site_dir = Path(opts.local_fixture).resolve()
+        fixture_result = _local_fixture_publish(
+            bundle_dir, site_dir, namespace, manifest,
+        )
+        receipt = {**base, **fixture_result}
+        print(json.dumps(receipt, indent=2))
+        return EXIT_SUCCESS
+
+    if opts.deploy_command:
+        # PRODUCTION: execute project-owned deploy command.
+        cmd_path = Path(opts.deploy_command).resolve()
+        if not cmd_path.is_file():
+            _fail(f"Deploy command not found: {cmd_path}")
+        if not os.access(cmd_path, os.X_OK):
+            _fail(f"Deploy command not executable: {cmd_path}")
+
+        try:
+            result = subprocess.run(
+                [str(cmd_path), str(bundle_dir), namespace, opts.content_sha256],
+                capture_output=True, text=True, timeout=300,
+                shell=False,
+            )
+        except subprocess.TimeoutExpired:
+            _fail("Deploy command timed out after 300s", EXIT_PUBLISH_FAIL)
+
+        if result.returncode != 0:
+            print(result.stderr, file=sys.stderr, end="")
+            _fail(
+                f"Deploy command exited with code {result.returncode}",
+                EXIT_PUBLISH_FAIL,
+            )
+
+        try:
+            deploy_receipt = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            _fail("Deploy command did not return valid JSON", EXIT_PUBLISH_FAIL)
+
+        receipt = {**base, **deploy_receipt}
+        print(json.dumps(receipt, indent=2))
+        return EXIT_SUCCESS
+
+    # NO COMMAND CONFIGURED: awaiting-setup.
+    receipt = {
+        **base,
+        "status": "awaiting-setup",
+        "reason": (
+            "No deploy command configured.  The project owner must provide "
+            "a deploy command that owns byte transport, whole-site assembly, "
+            "and deployment.  Pass --deploy-command <path> to configure."
+        ),
+    }
     print(json.dumps(receipt, indent=2))
     return EXIT_SUCCESS
 
@@ -166,13 +280,13 @@ def cmd_verify(args: list[str]) -> int:
     import argparse
     p = argparse.ArgumentParser(prog="preview-publish verify")
     p.add_argument("--site-dir", required=True)
-    p.add_argument("--issue-key", required=True)
-    p.add_argument("--revision", required=True)
+    p.add_argument("--namespace", required=True,
+                   help="Publication namespace prefix")
     p.add_argument("--expected-digest", required=True)
     opts = p.parse_args(args)
 
     site_dir = Path(opts.site_dir).resolve()
-    preview_dir = site_dir / "previews" / opts.issue_key / opts.revision
+    preview_dir = site_dir / opts.namespace
 
     if not preview_dir.is_dir():
         _fail(f"Preview not found at {preview_dir}", EXIT_VERIFY_FAIL)
@@ -204,12 +318,12 @@ def cmd_verify(args: list[str]) -> int:
         if f.is_file() and not f.is_symlink()
         and f.name != "preview-manifest.json"
     )
-    content_hasher = hashlib.sha256()
-    for filepath in content_files:
-        rel = filepath.relative_to(preview_dir).as_posix()
-        content_hasher.update(rel.encode("utf-8"))
-        content_hasher.update(filepath.read_bytes())
-    actual_digest = content_hasher.hexdigest()
+    hasher = hashlib.sha256()
+    for fp in content_files:
+        rel = fp.relative_to(preview_dir).as_posix()
+        hasher.update(rel.encode("utf-8"))
+        hasher.update(fp.read_bytes())
+    actual_digest = hasher.hexdigest()
 
     result: dict[str, Any] = {
         "verified": actual_digest == opts.expected_digest and not mismatches,
@@ -228,8 +342,10 @@ def cmd_verify(args: list[str]) -> int:
 
 def main() -> int:
     if len(sys.argv) < 2:
-        print("Usage: preview-publish.py {publish|verify} [args...]",
-              file=sys.stderr)
+        print(
+            "Usage: preview-publish.py {publish|verify} [args...]",
+            file=sys.stderr,
+        )
         return EXIT_ARG_ERROR
     cmd = sys.argv[1]
     if cmd == "publish":

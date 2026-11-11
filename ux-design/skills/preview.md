@@ -131,96 +131,94 @@ Record the build details:
 ### Step 3: Resolve the Deployment Interface
 
 Read `{source_repo_root}/.artifacts/config.json` for the shared
-configuration. The **default deployment target** is the docs repository
-already configured via `docs_repo_remote` and `docs_repo_path` — the
-same repository used by `/publish` for handoff PRs.
+configuration.
 
-The preview publisher is a single command interface at:
+The preview publisher wrapper is at:
 
 ```text
-PREVIEW_PUBLISH_SCRIPT="{AI_WORKFLOWS_ROOT}/ux-design/scripts/preview-publish.py"
+PREVIEW_PUBLISH="{AI_WORKFLOWS_ROOT}/ux-design/scripts/preview-publish.py"
 ```
 
-Required inputs for the publisher:
-- `--bundle-dir` — the packaged bundle from Step 2
-- `--site-dir` — the assembled site directory (typically inside the
-  docs repo or a staging location)
-- `--pr-url` — the handoff PR URL (from `publish-metadata.json`);
-  deployment requires a real PR identity, not just a local build
-- `--target-repo` — the `{owner}/{repo}` from `docs_repo_remote`
+Read `publish-metadata.json` for the handoff PR identity:
+- `pr_number` — the PR number (required for publication namespace)
+- `branch` — the PR branch
 
-**When `docs_repo_remote` is configured (default):**
+If `publish-metadata.json` does not exist, record
+`deploy_status: awaiting-setup` — publication requires a real PR
+identity. Present the bundle location and recommend `/publish` first.
+Do not proceed to Step 4.
 
-Use it as the deployment target. The `{owner}/{repo}` is derived from
-`docs_repo_remote` the same way as in `/publish`. Do not guess a Pages
-URL from the repository name.
+**Resolve the target repository:**
 
-The project owner may optionally override the deployment target by
-setting `preview_site_url` in `.artifacts/config.json`. This override
-must be explicitly approved — do not construct URLs from repository
-naming conventions.
+The **default target** is `docs_repo_remote` from `.artifacts/config.json`
+(the same docs repository used by `/publish`). The project owner may
+override this with `preview_target_repo` in `.artifacts/config.json` —
+this is a separate repo override, distinct from any site URL.
 
-If `publish-metadata.json` does not exist (no handoff PR yet), record
-`deploy_status: awaiting-setup` — deployment requires a real PR
-identity. Present the researcher with the bundle location and
-recommend `/publish` first.
+Derive `{pr_repo}` from `docs_repo_remote` (the PR's repository) and
+`{target_repo}` from `preview_target_repo` if set, otherwise from
+`docs_repo_remote`.
 
-**When `docs_repo_remote` is not configured:**
+If neither is configured, record `deploy_status: awaiting-setup`. Do
+not proceed to Step 4.
 
-Record `deploy_status: awaiting-setup` in preview-metadata.json. Present
-the researcher with:
+**Resolve the deploy command:**
 
-> No docs repository is configured for this project.
->
-> The preview bundle is packaged and ready at:
-> `{bundle_dir}`
->
-> To enable preview deployment, run `/publish` first to configure the
-> docs repository, or set `docs_repo_remote` in `.artifacts/config.json`.
+Check `.artifacts/config.json` for `preview_deploy_command` — a path
+to a project-owned executable that owns byte transport, whole-site
+assembly (preserving docs and other PRs), and deployment. The command
+must accept: `<bundle-dir> <namespace> <content-sha256>` and return a
+JSON receipt on stdout.
 
-Do not proceed to Step 4. Skip to Step 5.
+The project owner must approve the deploy command and confirm:
+- Reviewer visibility and access to the deployed preview
+- Site-preserving integration (existing content not replaced)
+- Namespace ownership (no collision with other PRs)
+
+If no `preview_deploy_command` is configured, the wrapper returns
+`awaiting-setup`. Do not claim the preview is published.
 
 ### Step 4: Deploy and Verify the Preview
 
-When the deployment interface is available and a handoff PR exists:
+When the handoff PR exists and deployment is configured:
 
 1. **Confirm with the researcher** before deploying:
-   > Deploy preview bundle to {target-repo} at previews/{issue-key}/{revision}/?
-   > PR: {pr-url}
-   > Target repo: {owner}/{repo}
+   > Deploy preview to {target_repo} for PR #{pr_number}?
+   > Content digest: {content_sha256[:12]}…
 
-2. **Invoke the publisher:**
+2. **Invoke the publisher wrapper:**
 
-   ```bash
-   python3 "$PREVIEW_PUBLISH_SCRIPT" publish \
-     --bundle-dir "{bundle_dir}/previews/{issue-key}/{revision}" \
-     --site-dir "{site_staging_dir}" \
-     --pr-url "{pr-url}" \
-     --target-repo "{owner}/{repo}"
-   ```
-
-   Parse the JSON receipt. Check `digest_match` — if `false`, the
-   content was corrupted during publish. Record `deploy-failed`.
-
-3. **Verify the published content** using the publisher's verify
-   command with per-file hash checking:
+   The `{bundle_dir}` from Step 2's JSON output already points to the
+   full namespaced bundle path — do not append another level.
 
    ```bash
-   python3 "$PREVIEW_PUBLISH_SCRIPT" verify \
-     --site-dir "{site_staging_dir}" \
-     --issue-key "{issue-key}" \
-     --revision "{revision}" \
-     --expected-digest "{content_sha256_from_manifest}"
+   python3 "$PREVIEW_PUBLISH" publish \
+     --bundle-dir "{bundle_dir}" \
+     --pr-repo "{pr_repo}" \
+     --pr-number "{pr_number}" \
+     --content-sha256 "{content_sha256}" \
+     --target-repo "{target_repo}" \
+     --deploy-command "{preview_deploy_command}"
    ```
 
-   Parse the JSON result. Check `verified` — if `false`, report
-   per-file mismatches. Do not claim the preview is published until
-   verification passes. A receipt alone is not verification — all
-   expected files must match their per-file hashes.
+   Parse the JSON receipt. If `status` is `awaiting-setup`, record that
+   status — the deploy command is not configured. Do not claim published.
 
-4. **Check site preservation:**
-   The publisher verifies existing content is preserved. If the
-   receipt reports a preservation violation, record `deploy-failed`.
+   If `status` is `published`, check `digest_match`. If `false`, record
+   `deploy-failed` — content was corrupted during deploy.
+
+3. **Verify the published content** using the returned `namespace`:
+
+   ```bash
+   python3 "$PREVIEW_PUBLISH" verify \
+     --site-dir "{site_dir}" \
+     --namespace "{namespace_from_receipt}" \
+     --expected-digest "{content_sha256}"
+   ```
+
+   Do not claim the preview is published until verification passes.
+   A receipt alone is not verification — all expected files and their
+   per-file hashes must match the manifest.
 
 If any step fails, record `deploy_status: deploy-failed` with the
 specific error and offer the screenshot fallback.
@@ -236,11 +234,13 @@ Write `.artifacts/ux-design/{issue-key}/preview-metadata.json`:
   "prototype_mode": "{standalone|workspace}",
   "bundle_path": ".artifacts/ux-design/{issue-key}/preview-bundle/previews/{issue-key}/iteration-{N}",
   "entry_point": "{entry-point}",
-  "deploy_status": "{published|awaiting-setup|awaiting-upload|deploy-failed|screenshot-fallback|stale}",
+  "deploy_status": "{published|awaiting-setup|deploy-failed|screenshot-fallback|stale}",
   "content_sha256": "{digest-from-manifest-or-null}",
-  "site_url": "{verified-url-or-null}",
-  "target_repo": "{owner/repo-from-docs_repo_remote-or-null}",
-  "pr_url": "{handoff-pr-url-or-null}",
+  "pr_repo": "{owner/repo-from-docs_repo_remote}",
+  "pr_number": "{pr-number-from-publish-metadata}",
+  "target_repo": "{owner/repo-or-null}",
+  "published_namespace": "{previews/owner/repo/pr-N/sha12-or-null}",
+  "site_url": "{verified-url-from-deploy-receipt-or-null}",
   "mocked_components": [],
   "timestamp": "{ISO-8601}"
 }
