@@ -199,23 +199,24 @@ When the handoff PR exists and deployment is configured:
      --pr-number "{pr_number}" \
      --content-sha256 "{content_sha256}" \
      --target-repo "{target_repo}" \
-     --deploy-command "{preview_deploy_command}"
+     --deploy-command "{preview_deploy_command}" \
+     --site-url "{preview_site_url}"
    ```
 
+   The wrapper recomputes the bundle's actual byte digest before
+   deploying and rejects modified bundles. It verifies served content
+   at the approved `preview_site_url` (not the deploy receipt's URL).
    Parse the JSON receipt:
 
    - `status: awaiting-setup` — deploy command is not configured.
-     Record that status. Do not claim published.
-   - `status: published` — the wrapper verified served content at the
-     deploy URL against the local manifest (per-file hashes and
-     aggregate digest). The preview is published.
-   - `status: deployed-unverified` — the deploy command ran but
-     served verification failed. Record `deploy-failed`. The preview
-     is **not** published.
+   - `status: published` — served content verified against the
+     approved site URL using per-file hashes and aggregate digest.
+   - `status: deployed-unverified` — deploy ran but served
+     verification failed. Record `deploy-failed`.
 
-   The wrapper guards identity fields (PR repo, PR number, content
-   SHA, namespace) — the deploy command cannot overwrite them.
-   A receipt alone is not verification.
+   Identity fields (PR repo, number, content SHA, namespace) are
+   guarded — the deploy command cannot overwrite them. A receipt
+   alone is not verification.
 
 If any step fails, record `deploy_status: deploy-failed` with the
 specific error and offer the screenshot fallback.

@@ -13,6 +13,7 @@ The deploy command receives:
   argv[1]  bundle directory (absolute path)
   argv[2]  namespace prefix (e.g. previews/org/repo/pr-42/a1b2c3d4)
   argv[3]  expected content SHA-256
+  argv[4]  approved site base URL
 
 It must print a JSON receipt to stdout with at minimum:
   {"status": "published", "url": "...", "content_sha256": "..."}
@@ -24,7 +25,8 @@ that copies into a local directory.  Its receipt is clearly marked
 Usage:
   preview-publish.py publish --bundle-dir <path> --pr-repo <owner/repo>
       --pr-number <N> --content-sha256 <hash> --target-repo <owner/repo>
-      [--deploy-command <path>] [--local-fixture <site-dir>]
+      [--deploy-command <path> --site-url <url>] [--local-fixture <dir>]
+      [--allow-test-http]
   preview-publish.py verify --site-dir <path> --namespace <prefix>
       --expected-digest <sha256>
 
@@ -76,6 +78,44 @@ def _namespace_prefix(
     owner, repo = pr_repo.split("/", 1)
     short_sha = content_sha[:12]
     return f"previews/{owner}/{repo}/pr-{pr_number}/{short_sha}"
+
+
+def _recompute_bundle_digest(bundle_dir: Path) -> str:
+    """Recompute SHA-256 digest from actual bundle files (excludes manifest).
+
+    Uses the same algorithm as preview-bundle.py ``_compute_content_digest``.
+    """
+    hasher = hashlib.sha256()
+    for filepath in sorted(bundle_dir.rglob("*")):
+        if not filepath.is_file() or filepath.is_symlink():
+            continue
+        if filepath.name == "preview-manifest.json":
+            continue
+        rel = filepath.relative_to(bundle_dir).as_posix()
+        hasher.update(rel.encode("utf-8"))
+        hasher.update(filepath.read_bytes())
+    return hasher.hexdigest()
+
+
+def _validate_site_url(url: str, allow_test_http: bool = False) -> str:
+    """Validate and normalize an approved site URL. Returns normalized URL."""
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    if parsed.username or parsed.password:
+        _fail("Site URL must not contain credentials")
+    if parsed.query or parsed.fragment:
+        _fail("Site URL must not contain query or fragment")
+    if parsed.scheme == "https":
+        pass  # normal production
+    elif parsed.scheme == "http":
+        if not allow_test_http:
+            _fail("HTTP site URLs require --allow-test-http (test only)")
+        if parsed.hostname not in ("127.0.0.1", "localhost", "::1"):
+            _fail("HTTP only allowed for loopback addresses in test mode")
+    else:
+        _fail(f"Unsupported URL scheme: {parsed.scheme!r}")
+    return url.rstrip("/")
 
 
 def _verify_served_url(
@@ -219,8 +259,12 @@ def cmd_publish(args: list[str]) -> int:
                    help="Deployment target repository (owner/repo)")
     p.add_argument("--deploy-command", default=None,
                    help="Project-owned deploy command path")
+    p.add_argument("--site-url", default=None,
+                   help="Approved preview site base URL (required with --deploy-command)")
     p.add_argument("--local-fixture", default=None, metavar="SITE_DIR",
                    help="TEST ONLY: local file copy to site directory")
+    p.add_argument("--allow-test-http", action="store_true",
+                   help="TEST ONLY: allow http:// loopback URLs for adapter tests")
     opts = p.parse_args(args)
 
     bundle_dir = Path(opts.bundle_dir).resolve()
@@ -251,6 +295,16 @@ def cmd_publish(args: list[str]) -> int:
             "content-sha256 does not match bundle manifest "
             f"(expected {manifest.get('content_sha256', '?')[:16]}…, "
             f"got {opts.content_sha256[:16]}…)",
+        )
+
+    # Recompute actual bundle bytes digest to catch post-packaging mutations.
+    actual_digest = _recompute_bundle_digest(bundle_dir)
+    if actual_digest != opts.content_sha256:
+        _fail(
+            "Bundle bytes do not match expected digest "
+            f"(recomputed {actual_digest[:16]}…, "
+            f"expected {opts.content_sha256[:16]}…). "
+            "The bundle may have been modified after packaging.",
         )
 
     # Namespace uses SOURCE PR identity (pr_repo), not target_repo.
@@ -284,6 +338,10 @@ def cmd_publish(args: list[str]) -> int:
 
     if opts.deploy_command:
         # PRODUCTION: execute project-owned deploy command.
+        if not opts.site_url:
+            _fail("--site-url is required when --deploy-command is used")
+        approved_url = _validate_site_url(opts.site_url, opts.allow_test_http)
+
         cmd_path = Path(opts.deploy_command).resolve()
         if not cmd_path.is_file():
             _fail(f"Deploy command not found: {cmd_path}")
@@ -292,7 +350,8 @@ def cmd_publish(args: list[str]) -> int:
 
         try:
             result = subprocess.run(
-                [str(cmd_path), str(bundle_dir), namespace, opts.content_sha256],
+                [str(cmd_path), str(bundle_dir), namespace,
+                 opts.content_sha256, approved_url],
                 capture_output=True, text=True, timeout=300,
                 shell=False,
             )
@@ -317,22 +376,32 @@ def cmd_publish(args: list[str]) -> int:
                 f"{deploy_receipt.get('status')!r}, expected 'published'",
                 EXIT_PUBLISH_FAIL,
             )
-        deploy_url = deploy_receipt.get("url", "")
-        if not deploy_url:
+        if not deploy_receipt.get("url", ""):
             _fail("Deploy receipt missing 'url' field", EXIT_PUBLISH_FAIL)
+
+        # Validate receipt identity — returned fields must agree with expected.
+        for key, expected in [
+            ("namespace", namespace),
+            ("pr_repo", opts.pr_repo),
+            ("pr_number", int(opts.pr_number)),
+            ("content_sha256", opts.content_sha256),
+        ]:
+            if key in deploy_receipt and deploy_receipt[key] != expected:
+                _fail(
+                    f"Deploy receipt {key}={deploy_receipt[key]!r} "
+                    f"disagrees with expected {expected!r}",
+                    EXIT_PUBLISH_FAIL,
+                )
 
         # Merge receipt but GUARD identity — deploy cannot overwrite these.
         receipt = {**deploy_receipt, **identity}
-        receipt["deploy_url"] = deploy_url
         receipt["status"] = "deployed-unverified"
 
-        # Served verification against the returned URL.
-        vresult = _verify_served_url(deploy_url, namespace, manifest)
+        # Served verification against APPROVED site URL (not receipt URL).
+        vresult = _verify_served_url(approved_url, namespace, manifest)
         receipt["served_verification"] = vresult
         if vresult["verified"]:
             receipt["status"] = "published"
-        else:
-            receipt["status"] = "deployed-unverified"
 
         print(json.dumps(receipt, indent=2))
         return EXIT_SUCCESS if vresult["verified"] else EXIT_PUBLISH_FAIL
