@@ -18,7 +18,7 @@ Subcommands:
 
 Usage:
   publish.py preflight [--platform github|gitlab]
-  publish.py push --remote <name> --branch <branch>
+  publish.py push --remote <name> --branch <branch> [--expected-sha <sha>]
   publish.py check-existing --repo <owner/repo> --head <branch>
              [--platform github|gitlab]
   publish.py create-pr --repo <owner/repo> --base <branch> --head <ref>
@@ -27,7 +27,7 @@ Usage:
   publish.py create-mr --project <path> --source <branch>
              --target <branch> --title <title> [--description <text>]
              [--desc-file <path>] [--draft] [--head <project>]
-  publish.py save-metadata --file <path> [--pair key=value ...]
+  publish.py save-metadata --file <path> [--merge] [--pair key=value ...]
 
 Exit codes:
   0 -- success
@@ -43,6 +43,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -448,9 +449,22 @@ def cmd_preflight(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 def cmd_push(args: argparse.Namespace) -> int:
-    """Push a branch to the specified remote with upstream tracking (-u)."""
+    """Push a branch to the specified remote with upstream tracking (-u).
+
+    When ``--expected-sha`` is provided the function verifies that:
+    1. The current HEAD matches the expected SHA (guards against branch
+       movement between validation and push).
+    2. HEAD is on the requested branch (not detached or on a different
+       branch).
+
+    The push refspec is then pinned to the exact validated SHA so that
+    any subsequent local branch movement cannot publish an unvalidated
+    commit.  Legacy callers that omit ``--expected-sha`` retain the
+    original branch-name push behaviour.
+    """
     remote = args.remote
     branch = args.branch
+    expected_sha = getattr(args, "expected_sha", None)
 
     if not remote:
         fail("Missing required argument: --remote")
@@ -465,11 +479,70 @@ def cmd_push(args: argparse.Namespace) -> int:
         fail(f"push: remote '{remote}' does not exist. "
              f"Available remotes: {available}", EXIT_PUSH_FAIL)
 
-    info(f"Pushing {branch} to {remote}...")
-    result = run(["git", "push", "-u", remote, branch], capture=False)
-    if result.returncode != 0:
-        fail(f"push: git push failed (remote={remote}, branch={branch})",
-             EXIT_PUSH_FAIL)
+    if expected_sha is not None:
+        # Validate SHA format before any comparison or refspec use.
+        # An explicit --expected-sha with an empty or malformed value
+        # must error, never silently fall through to unpinned push.
+        # Accept exactly SHA-1 (40 hex) or SHA-256 (64 hex).
+        if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", expected_sha):
+            fail(f"push: expected_sha is not a valid full hex object "
+                 f"name (got {len(expected_sha)} chars: "
+                 f"{expected_sha!r}). Provide the full commit SHA.",
+                 EXIT_ARG_ERROR)
+
+        # Verify current HEAD matches the validated SHA.
+        head_r = run(["git", "rev-parse", "HEAD"])
+        if head_r.returncode != 0:
+            fail("push: cannot resolve HEAD", EXIT_PUSH_FAIL)
+        actual_head = head_r.stdout.strip()
+        if actual_head != expected_sha:
+            fail(f"push: HEAD ({actual_head}) does not match "
+                 f"expected validated SHA ({expected_sha}). "
+                 f"The branch may have moved after validation.",
+                 EXIT_PUSH_FAIL)
+
+        # Verify HEAD is on the intended branch.
+        branch_r = run(["git", "symbolic-ref", "--short", "HEAD"])
+        if branch_r.returncode != 0:
+            fail("push: HEAD is detached — cannot verify branch",
+                 EXIT_PUSH_FAIL)
+        current_branch = branch_r.stdout.strip()
+        if current_branch != branch:
+            fail(f"push: current branch ({current_branch}) does not "
+                 f"match requested branch ({branch})",
+                 EXIT_PUSH_FAIL)
+
+        # Pin push to exact validated SHA so branch movement after
+        # this point cannot change what is published.
+        refspec = f"{expected_sha}:refs/heads/{branch}"
+        info(f"Pushing validated {expected_sha[:12]} to "
+             f"{remote}/{branch}...")
+        result = run(["git", "push", remote, refspec],
+                     capture=False)
+
+        if result.returncode != 0:
+            fail(f"push: git push failed (remote={remote}, "
+                 f"branch={branch})", EXIT_PUSH_FAIL)
+
+        # SHA-pinned refspecs don't set upstream tracking via -u
+        # (git requires a local branch ref as source for -u to work).
+        # Set tracking explicitly after successful push.
+        tracking_r = run(
+            ["git", "branch",
+             f"--set-upstream-to={remote}/{branch}", branch]
+        )
+        if tracking_r.returncode != 0:
+            info(f"Push succeeded but upstream tracking could not be "
+                 f"set for {branch} -> {remote}/{branch}. "
+                 f"The remote branch has the correct content.")
+    else:
+        info(f"Pushing {branch} to {remote}...")
+        result = run(["git", "push", "-u", remote, branch],
+                     capture=False)
+
+        if result.returncode != 0:
+            fail(f"push: git push failed (remote={remote}, "
+                 f"branch={branch})", EXIT_PUSH_FAIL)
 
     info(f"Push successful: {remote}/{branch}")
     return EXIT_SUCCESS
@@ -754,16 +827,27 @@ def cmd_save_metadata(args: argparse.Namespace) -> int:
     All values are stored as JSON strings to avoid leading-zero truncation
     and to keep the output type-stable.  Keys are sorted alphabetically
     for deterministic output.
+
+    When ``--merge`` is given, existing file content is loaded first and
+    new key=value pairs are merged into it.  Pre-existing keys that are
+    not supplied in the current invocation are preserved — including
+    non-string values such as typed arrays (e.g. ``validation_artifacts``).
+    If the existing file contains invalid JSON, the command fails rather
+    than silently overwriting.  Without ``--merge`` (the default), the
+    file is overwritten with only the supplied pairs — this preserves
+    the legacy behaviour for callers that do not opt in.
     """
     file_path = args.file
     pairs: list[str] = args.pair or []
+    merge = getattr(args, "merge", False)
 
     if not file_path:
         fail("Missing required argument: --file")
     if not pairs:
         fail("save-metadata: no key=value pairs provided")
 
-    data: dict[str, str] = {}
+    # Parse new key=value pairs
+    new_data: dict[str, str] = {}
     for pair in pairs:
         if "=" not in pair:
             fail(f"save-metadata: unexpected argument: {pair} "
@@ -771,13 +855,31 @@ def cmd_save_metadata(args: argparse.Namespace) -> int:
         key, _, value = pair.partition("=")
         # All values stored as JSON strings to avoid leading-zero truncation
         # (e.g., "007" -> 7) and to keep the output type-stable.
-        data[key] = value
+        new_data[key] = value
+
+    out_path = Path(file_path)
+
+    # In merge mode, load existing data first
+    if merge and out_path.is_file():
+        try:
+            raw = out_path.read_text(encoding="utf-8")
+            existing = json.loads(raw)
+        except (json.JSONDecodeError, OSError) as exc:
+            fail(f"save-metadata: --merge cannot read existing "
+                 f"file {file_path}: {exc}")
+        if not isinstance(existing, dict):
+            fail(f"save-metadata: --merge expects existing file to "
+                 f"contain a JSON object, got {type(existing).__name__}")
+        # Merge: new string pairs update/add; existing keys preserved
+        data: dict[str, Any] = dict(existing)
+        data.update(new_data)
+    else:
+        data = dict(new_data)
 
     # Sort keys for stable output (Python dicts preserve insertion order)
     sorted_data = dict(sorted(data.items()))
 
     # Create parent directory if needed
-    out_path = Path(file_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Write with json.dumps -- proper encoding of all special characters
@@ -831,6 +933,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_push.add_argument("--remote", required=True, help="Git remote name")
     p_push.add_argument("--branch", required=True, help="Branch name to push")
+    p_push.add_argument(
+        "--expected-sha",
+        default=None,
+        help="Validated commit SHA. When set, push verifies HEAD matches "
+             "this SHA and the branch is current, then pins the push "
+             "refspec to the exact SHA. Legacy callers may omit this.",
+    )
 
     # -- check-existing --
     p_check = subparsers.add_parser(
@@ -894,6 +1003,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Write publish-metadata.json",
     )
     p_meta.add_argument("--file", required=True, help="Output file path")
+    p_meta.add_argument(
+        "--merge", action="store_true", default=False,
+        help="Merge into existing file instead of overwriting. "
+             "Preserves pre-existing keys (including non-string values "
+             "like validation_artifacts). Fails if existing file "
+             "contains invalid JSON.",
+    )
     p_meta.add_argument(
         "pair", nargs="*", metavar="key=value",
         help="Key=value pairs (positional, repeatable)",

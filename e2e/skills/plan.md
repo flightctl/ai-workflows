@@ -19,7 +19,7 @@ review checkpoint before any test code is written.
 
 ## Critical Rules
 
-- **Every acceptance criterion must have at least one test scenario.** If an AC has no scenario, it's a coverage gap.
+- **Every acceptance criterion must be covered.** Each AC must have at least one test scenario, be covered by a manual TC with tracked evidence, or be covered by a qualification gate with tracked evidence. An AC with none of these is a coverage gap.
 - **Follow the reference suite's patterns.** The e2e infrastructure context from `/ingest` shows how tests are written in this project. Match those patterns exactly.
 - **Be specific.** Name the test files, test grouping blocks, test infrastructure methods, and labels. A plan that says "test the feature" without specifying how is too vague.
 - **Scenarios are the plan, not an afterthought.** The scenario breakdown is the primary output — not a task breakdown with scenarios appended.
@@ -77,7 +77,7 @@ Do not conflate Local Base with PR Target. A stacked story rebases locally onto 
 
 Before writing the plan, create a mental map:
 - Which acceptance criteria describe user-facing behaviors that can be verified through e2e tests?
-- For each AC, what are the concrete scenarios? (happy path, error paths, edge cases)
+- For each AC with automated test coverage, what are the concrete scenarios? (happy path, error paths, edge cases). ACs covered by manual TCs or qualification gates do not need automated scenarios.
 - What test infrastructure methods will each scenario use?
 - What auxiliary services does each scenario need (if any)?
 - What setup and teardown does each scenario require beyond the suite-level patterns?
@@ -151,7 +151,10 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
 
 ## Test Scenarios
 
-{Map each acceptance criterion to concrete test scenarios. Each scenario
+{Map each acceptance criterion that has automated test coverage to
+ concrete test scenarios. ACs covered by manual TCs or qualification
+ gates are tracked in the Acceptance Criteria Coverage matrix, not
+ in this section. Each scenario
  is a specific test case that verifies observable behavior through the
  project's test infrastructure.
 
@@ -268,31 +271,166 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
 
 ## Acceptance Criteria Coverage
 
-| AC | Description | Scenarios | Task |
-|----|-------------|-----------|------|
-| AC-1 | {brief} | C1 | Task 2 |
-| AC-2 | {brief} | S1 | Task 3 |
-| AC-3 | {brief} | C1 | Task 2 |
+| AC | Description | Coverage | Reference | Method | Evidence Reference | Evidence Status |
+|----|-------------|----------|-----------|--------|--------------------|-----------------|
+| AC-1 | {brief} | C1 | Task 2 | automated-test | — | — |
+| AC-2 | {brief} | S1 | Task 3 | automated-test | — | — |
+| AC-3 | {brief} | Gate: {heading} | — | qualification-gate | {gate evidence source or "pending"} | pending |
+| AC-4 | {brief} | Manual: TC-NFR2-01 | — | manual-test | {manual evidence source or "pending"} | pending |
+| AC-5 | {brief} | External: {source} | — | external-evidence | {external evidence source or "pending"} | pending |
 
-{Every AC must appear in at least one scenario. Consolidated scenarios
- will appear in multiple AC rows — this is expected. Flag any gaps.}
+{Every AC must appear in at least one scenario, be covered by a
+ qualification gate with tracked evidence, or be covered by a manual
+ TC with tracked verification evidence. Consolidated scenarios
+ will appear in multiple AC rows — this is expected. An AC covered
+ solely by a gate appears with status "Gate: {gate heading}" instead
+ of a scenario reference. An AC covered solely by a manual TC
+ appears with status "Manual: {TC ID}" — its coverage remains
+ pending until manual verification evidence is reviewed and accepted.
+ Gate-covered ACs have pending evidence until actual validation —
+ planned gate coverage is not verified coverage. Flag any gaps where
+ an AC has neither a scenario, a gate, nor a manual TC.
+
+ **Method column:** Record the approved verification method for each
+ AC: `automated-test`, `manual-test`, `qualification-gate`,
+ `external-evidence`, or `unresolved — clarify with user`. This
+ drives `/validate` Step 7 — the validator reads Method from this
+ matrix to select the verification path for each AC. ACs with no
+ mapped scenarios or tasks must have their method explicitly set
+ (typically `unresolved — clarify with user`). Do not leave it
+ blank.
+
+ **Evidence Reference column:** For manual-test, qualification-gate,
+ and external-evidence methods, record the specific evidence source
+ that `/validate` Step 7 should locate and assess: a test report
+ path, certification document, external system URL, or gate evidence
+ location. For automated-test ACs, use `—` (evidence is the test
+ itself). For ACs whose evidence is not yet identified, use
+ `pending` — `/validate` will prompt for clarification.}
 
 ## Test Plan Coverage
 
 {Include this section only if `.artifacts/e2e/{issue-key}/testplan.md`
- exists. If no story-scoped testplan: omit this section entirely.}
+ exists. If no story-scoped testplan: omit this section entirely.
+
+ **Testplan source authority:** If `testplan.md` contains
+ `Freshness: unresolved-source`, the source could not be checked
+ during ingest. Omit the Test Plan Coverage section — do not
+ plan coverage for an unresolved testplan. Note "testplan source
+ unresolved" and continue with AC-based planning.
+
+ If `testplan.md` does NOT contain a `Freshness: unverified`,
+ `**Freshness:** unverified`, or `Freshness: unresolved-source`
+ marker (the plan was freshly ingested from an authoritative
+ source), its TCs are authoritative — use them as normative
+ coverage requirements directly without requiring user
+ confirmation or SHA-256 binding.
+
+ If `testplan.md` contains `Freshness: unverified` (or the legacy
+ bold form `**Freshness:** unverified`), the testplan was retained
+ from a prior ingest. Present the TC list to the user and require
+ explicit confirmation that the retained TCs are still applicable
+ before using them as normative coverage requirements. Until
+ confirmed, mark Test Plan Coverage as "unverified — awaiting user
+ confirmation." Do not block AC-based work. Retained TCs that are
+ unconfirmed are provisional — they may keep unmapped rows in the
+ table and are exempt from the set-diff gate (changes to
+ unconfirmed TCs are not enforced until confirmation). Once the
+ user confirms, the normal disposition and set-diff requirements
+ apply.
+
+ When the user confirms, record in this section:
+ - Status: "confirmed — user verified TC applicability on {date}"
+ - Confirmed TC IDs: the exact list of TC IDs confirmed
+ - Content binding: SHA-256 of the story-scoped
+   `.artifacts/e2e/{issue-key}/testplan.md` bytes at confirmation
+   time (computed as
+   `sha256sum .artifacts/e2e/{issue-key}/testplan.md`)
+
+ This binding is required: `/code` and `/validate` compare the
+ current `.artifacts/e2e/{issue-key}/testplan.md` SHA-256 against
+ the recorded hash before treating confirmed TCs as normative.
+ If the hash differs (e.g., after re-ingest replaces the
+ testplan), the confirmation is invalid — mark "unverified — TC
+ content changed since confirmation" and require the user to
+ re-confirm. Missing binding (no SHA-256 recorded) is treated
+ as unconfirmed.
+
+ **Source-Discovery: unresolved** is an independent constraint
+ checked FIRST, regardless of Freshness or confirmation state.
+ Confirmation does not clear `Source-Discovery: unresolved` —
+ only a successful re-ingest that checks and resolves the source
+ can clear it. TCs from an unresolved-source plan remain
+ provisional even after user confirmation. Ordinary AC-based
+ coding and existing tests continue; `/validate` blocks
+ `Overall: PASS` until source discovery is resolved.}
 
 | TC ID | Title | Covered by Scenario | Notes |
 |-------|-------|---------------------|-------|
 | TC-FR1-01 | {title} | C1 | |
 | TC-FR1-02 | {title} | S1 | |
 | TC-NFR1-01 | {title} | N/A | {rationale} |
+| TC-NFR2-01 | {title} | Manual verification | {verification method} |
+| TC-NFR3-01 | {title} | Qualification gate | hardware device lab |
 
-{Every TC ID from testplan.md must appear. Each must be assigned to a
- scenario or marked N/A with a rationale. This is a set-diff gate:
- compute the difference between the set of TC IDs in testplan.md and
- the set assigned to scenarios or marked N/A. If the difference is
- non-empty, the plan is incomplete — resolve before proceeding.}
+{Every authoritative or individually confirmed TC ID from testplan.md
+ must appear. Unconfirmed provisional TCs may be listed separately as
+ provisional without scenario assignment. Each confirmed TC must be
+ assigned to a scenario, marked N/A with a rationale, listed as a
+ manual verification (TCs with a `[Manual verification]` marker), or
+ listed as a qualification gate (TCs with a `[Qualification gate]`
+ marker).
+ Manual-verification TCs require human verification — they are NOT
+ assigned to e2e test scenarios but must appear in the table with
+ status `Manual verification` and the verification method as rationale.
+ Qualification-gate TCs are external validation evidence — they are NOT
+ assigned to e2e test scenarios but must appear in the table with status
+ `Qualification gate` and the designated execution environment as
+ rationale.
+
+ **Set-diff gate (verified/confirmed TCs only):** This gate applies
+ only when the testplan source is verified or the user has confirmed
+ retained TCs with a valid SHA-256 binding. Compute the difference
+ between the set of confirmed TC IDs in testplan.md and the set
+ assigned to scenarios, marked N/A, listed as manual verification,
+ or listed as qualification gates. If the difference is non-empty,
+ the plan is incomplete — resolve before proceeding.
+
+ **Unconfirmed TCs (Freshness: unverified, no confirmation):** list
+ all TC IDs in the table but mark unmapped rows as provisional. Do
+ not mandate scenario assignments or block the plan on unconfirmed
+ TC gaps — AC-based quality work still proceeds.
+
+ A gate-only testplan (zero TC IDs, only a Qualification Gates
+ section) is valid — omit the TC table and include only the
+ Qualification Gates section below.}
+
+## Qualification Gates
+
+{Include this section only if `testplan.md` contains a
+ `## Qualification Gates` section (gate-only or mixed plans).
+ Omit entirely if no gates exist.}
+
+| Gate | Source | Requirements | ICs | Type | Required Evidence | Status |
+|------|--------|-------------|-----|------|-------------------|--------|
+| {gate heading} | {source path, e.g., testplan.md §Review and Qualification Gates} | {FR-N, NFR-N} | {IC-N or —} | {type} | {required evidence} | not-started |
+
+{Gates use source path + gate heading as identity — no TC IDs.
+ Status values: not-started, pending, verified, failed.
+ All gates remain pending until actual evidence is provided;
+ do not infer complete from automated test results.
+
+ Required Evidence must come from the source gate definition or
+ linked source document. If the source gate specifies criteria,
+ carry them verbatim. If the source does not specify criteria, set
+ Required Evidence to "criteria not specified in source —
+ clarification needed." Do not invent evidence requirements.
+ TC-based gates use the TC's Expected Results as evidence criteria.
+ Record each qualification-gate TC's Expected Results in Notes. If
+ the story testplan does not include Expected Results for a gate TC,
+ read the TC from its Source artifact. If the source is unavailable
+ or has no Expected Results, mark the criteria as "criteria not
+ available from source — clarification needed."}
 
 ## Risk Assessment
 
@@ -310,7 +448,7 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
 
 Before presenting the plan, verify:
 
-- [ ] Every acceptance criterion has at least one test scenario
+- [ ] Every acceptance criterion has at least one test scenario, is covered by a qualification gate with tracked external evidence, or is covered by a manual TC with tracked verification evidence (manual TC coverage remains pending until evidence is verified)
 - [ ] Test scenarios validate user-facing behavior, not internal logic that `[DEV]` tests already cover
 - [ ] Suite file follows the reference suite's lifecycle hook pattern
 - [ ] Test infrastructure methods referenced actually exist (verified during `/ingest`)
@@ -326,7 +464,7 @@ Before presenting the plan, verify:
 - [ ] Each validation in a consolidated scenario is tagged with its source AC
 - [ ] Scenario identifiers and titles are unique across the plan (no duplicate C#/S# or repeated names)
 - [ ] The plan is achievable — no scenarios depend on unmerged features or unavailable test infrastructure methods
-- [ ] If story-scoped testplan exists: every TC ID is assigned to a scenario or marked N/A with rationale (Test Plan Coverage set-diff is clean)
+- [ ] If story-scoped testplan exists: every authoritative or individually confirmed TC ID is assigned to a scenario, marked N/A with rationale, listed as manual verification, or listed as a qualification gate (Test Plan Coverage set-diff is clean). Unconfirmed provisional TCs remain listed as provisional.
 
 ### Step 7: Present to User
 

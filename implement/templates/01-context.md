@@ -50,7 +50,9 @@
 
  If feature testplan exists but no matches (anomalous): "Feature-level testplan found but no cases reference this {story-type} story (anomalous). No story-scoped testplan written."
 
- If no feature testplan: "No feature-level testplan available. No story-scoped testplan written."}
+ If no feature testplan: "No feature-level testplan available. No story-scoped testplan written."
+
+ If any gate has unknown applicability (append to whichever case above applies): "Gate-Applicability: unresolved — gates {gate-names} have unknown relevance to this story. Clarification needed before validation can confirm coverage completeness."}
 
 ## Codebase Context
 

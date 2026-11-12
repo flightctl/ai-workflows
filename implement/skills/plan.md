@@ -184,30 +184,177 @@ Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
 
 {Matrix showing which tasks cover which acceptance criteria.}
 
-| AC | Description | Covered by |
-|----|-------------|------------|
-| AC-1 | {brief} | Task 1, Task 3 |
-| AC-2 | {brief} | Task 2, Task 4 |
+| AC | Description | Covered by | Method | Evidence Reference |
+|----|-------------|------------|--------|-------------------|
+| AC-1 | {brief} | Task 1, Task 3 | automated-test | TC-FR1-01, TC-FR1-02 |
+| AC-2 | {brief} | Task 2, Task 4 | automated-test | TC-FR2-01 |
+| AC-3 | {brief} | N/A | qualification-gate | {gate name / lab ref} |
+| AC-4 | {brief} | N/A | manual-test | TC-NFR2-01 |
 
-{Every AC must appear in at least one task. Flag any gaps.}
+{Every AC must appear in at least one task or be covered by a gate or
+ manual verification. Flag any gaps.
+
+ **Method column:** Record the approved verification method for each
+ AC: `automated-test`, `manual-test`, `qualification-gate`,
+ `external-evidence`, or `unresolved — clarify with user`. This is
+ the same vocabulary as the TC coverage table's Method column and
+ drives `/validate` Step 8 — the validator reads Method from this
+ matrix to select the verification path for each AC. ACs with no
+ mapped TCs or tasks must have their method explicitly set (typically
+ `unresolved — clarify with user` until the user designates a
+ verification approach). Do not leave the Method column blank.
+
+ **Evidence Reference column:** Record the specific evidence source
+ for the AC: TC IDs for test-based methods, the gate name or lab
+ reference for qualification gates, or a link/description for
+ external evidence. This allows `/validate` to locate and assess
+ evidence without guessing.}
 
 ## Test Plan Coverage
 
 {Include this section only if `.artifacts/implement/{issue-key}/testplan.md`
- exists. If no story-scoped testplan: omit this section entirely.}
+ exists. If no story-scoped testplan: omit this section entirely.
 
-| TC ID | Title | Covered by Task | Notes |
-|-------|-------|-----------------|-------|
-| TC-FR1-01 | {title} | Task 2 | |
-| TC-FR1-02 | {title} | Task 3 | |
-| TC-NFR1-01 | {title} | N/A | {rationale} |
+ **Testplan source authority:** If `testplan.md` contains
+ `Freshness: unresolved-source`, the source could not be checked
+ during ingest. Omit the Test Plan Coverage section — do not
+ plan coverage for an unresolved testplan. Note "testplan source
+ unresolved" and continue with AC-based planning.
 
-{Every TC ID from testplan.md must appear. Each must be assigned to a
- task or marked N/A with a rationale (e.g., "NFR verified by load test
- infrastructure, not unit/integration tests"). This is a set-diff gate:
- compute the difference between the set of TC IDs in testplan.md and
- the set assigned to tasks or marked N/A. If the difference is
- non-empty, the plan is incomplete — resolve before proceeding.}
+ If `testplan.md` does NOT contain a `Freshness: unverified`,
+ `**Freshness:** unverified`, or `Freshness: unresolved-source`
+ marker (the plan was freshly ingested from an authoritative
+ source), its TCs are authoritative — use them as normative
+ coverage requirements directly without requiring user
+ confirmation or SHA-256 binding.
+
+ If `testplan.md` contains `Freshness: unverified` or
+ `**Freshness:** unverified` (set by `/ingest` when the upstream
+ source was not found on re-ingest), the testplan was retained from
+ a prior ingest. Present the TC list to the user and require
+ explicit confirmation that the retained TCs are still applicable
+ before using them as normative coverage requirements. Until
+ confirmed, mark Test Plan Coverage as "unverified — awaiting user
+ confirmation of retained TC applicability." Do not block AC-based
+ work or add extra approval stages — the user may confirm and
+ proceed, or discard the stale testplan.
+
+ When the user confirms retained TCs, record the confirmation in
+ `02-plan.md` by changing the Test Plan Coverage status to
+ "confirmed — user verified TC applicability on {date}" and listing
+ the confirmed TC IDs. Additionally, record the SHA-256 of the
+ `testplan.md` bytes at confirmation time (computed as
+ `sha256sum .artifacts/implement/{issue-key}/testplan.md`).
+
+ If a later re-ingest replaces `testplan.md` with different content,
+ `/code` and `/validate` must compute the current `testplan.md`
+ SHA-256 and compare against the recorded hash. If the hash differs,
+ the confirmation is invalid: mark Test Plan Coverage as "unverified
+ — TC content changed since confirmation" and require the user to
+ re-confirm before treating the replacement TCs as normative.
+ TC-specific gap-fill and commit gates remain provisional until
+ re-confirmed. Missing SHA-256 binding (no hash recorded) is
+ treated as unconfirmed.
+
+ Confirmation does NOT restore `Freshness` to verified — the
+ upstream source remains absent.
+
+ **Source-Discovery: unresolved** is an independent constraint
+ checked FIRST, regardless of Freshness or confirmation state.
+ Confirmation does not clear `Source-Discovery: unresolved` —
+ only a successful re-ingest that checks and resolves the source
+ can clear it. TCs from an unresolved-source plan remain
+ provisional even after user confirmation. Ordinary AC-based
+ coding and existing tests continue; `/validate` blocks
+ `Overall: PASS` until source discovery is resolved.}
+
+| TC ID | Title | Covered by Task | Method | Evidence Reference | Notes |
+|-------|-------|-----------------|--------|-------------------|-------|
+| TC-FR1-01 | {title} | Task 2 | automated-test | TC-FR1-01 | |
+| TC-FR1-02 | {title} | Task 3 | automated-test | TC-FR1-02 | |
+| TC-NFR1-01 | {title} | N/A | external-evidence | {link or description} | {rationale} |
+| TC-NFR2-01 | {title} | Manual verification | manual-test | TC-NFR2-01 | {verification method} |
+| TC-NFR3-01 | {title} | Qualification gate | qualification-gate | {gate name / lab ref} | hardware device lab |
+
+{Every authoritative or individually confirmed TC ID from testplan.md
+ must appear. Unconfirmed provisional TCs may be listed separately as
+ provisional without task assignment. Each confirmed TC must be
+ assigned to a task, marked N/A with a rationale (e.g., "NFR verified
+ by load test infrastructure, not unit/integration tests"), listed as
+ a manual verification (TCs with a `[Manual verification]` marker), or
+ listed as a qualification gate (TCs with a `[Qualification gate]`
+ marker).
+
+ **Method column:** Record the approved verification method for each
+ TC: `automated-test`, `manual-test`, `qualification-gate`, or
+ `external-evidence`. If the method is not yet determined from the
+ design or testplan, record `unresolved — clarify with user` and
+ flag for resolution before `/validate`. This column drives the
+ verification path selection in `/validate` Step 8 — the validator
+ reads it to determine how each AC is assessed. Do not leave it blank.
+
+ **Evidence Reference column:** Record the specific evidence source:
+ the TC ID for test-based methods, the gate name or lab reference for
+ qualification gates, or a link/description for external evidence. This
+ allows `/validate` to locate and assess evidence without guessing.
+
+ Manual-verification TCs require human verification (visual checks,
+ exploratory testing) — they are NOT assigned to implementation tasks
+ but must appear in the table with status `Manual verification` and
+ the verification method as rationale.
+ Qualification-gate TCs are external validation evidence — they are NOT
+ assigned to implementation tasks but must appear in the table with
+ status `Qualification gate` and the designated execution environment as
+ rationale.
+
+ **Set-diff gate (verified/confirmed TCs only):** This gate applies
+ only when the testplan source is verified or the user has confirmed
+ retained TCs with a valid SHA-256 binding. Compute the difference
+ between the set of **confirmed** TC IDs (source-verified or
+ individually user-confirmed with a valid SHA-256) and the set
+ assigned to tasks, marked N/A, listed as manual verification, or
+ listed as qualification gates. Exclude unconfirmed TC IDs from
+ this computation — partial confirmation activates the gate only
+ for confirmed IDs, not for all IDs in testplan.md. If the
+ difference is non-empty, the plan is incomplete — resolve before
+ proceeding.
+
+ **Unconfirmed TCs (Freshness: unverified, no confirmation):** list
+ all TC IDs in the table but mark unmapped rows as provisional. Do
+ not mandate task assignments or block the plan on unconfirmed TC
+ gaps — AC-based quality work still proceeds.
+
+ A gate-only testplan (zero TC IDs, only a Qualification Gates
+ section) is valid — omit the TC table and include only the
+ Qualification Gates section below.}
+
+## Qualification Gates
+
+{Include this section only if `testplan.md` contains a
+ `## Qualification Gates` section (gate-only or mixed plans).
+ Omit entirely if no gates exist.}
+
+| Gate | Source | Requirements | ICs | Type | Required Evidence | Status |
+|------|--------|-------------|-----|------|-------------------|--------|
+| {gate heading} | {source path, e.g., testplan.md §Review and Qualification Gates} | {FR-N, NFR-N} | {IC-N or —} | {type} | {required evidence} | not-started |
+
+{Gates use source path + gate heading as identity — no TC IDs.
+ Status values: not-started, pending, verified, failed.
+ All gates remain pending until actual evidence is provided;
+ do not infer complete from automated test results.
+
+ Required Evidence must come from the source gate definition or the
+ linked source document (design testplan or external specification).
+ If the source gate specifies criteria (e.g., "security audit report
+ from accredited lab"), carry them verbatim. If the source does not
+ specify criteria, set Required Evidence to "criteria not specified
+ in source — clarification needed" rather than inventing requirements.
+ TC-based gates use the TC's own Expected Results as evidence
+ criteria. Record each qualification-gate TC's Expected Results in
+ Notes. If the story testplan does not include Expected Results for
+ a gate TC, read the TC from its Source artifact. If the source is
+ unavailable or has no Expected Results, mark the criteria as
+ "criteria not available from source — clarification needed."}
 
 ## Scope Baseline
 
@@ -261,7 +408,7 @@ Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
 
 Before presenting the plan, verify:
 
-- [ ] Every acceptance criterion is addressed by at least one task
+- [ ] Every acceptance criterion is addressed by at least one task, gate, or manual verification method
 - [ ] Task ordering respects dependencies (e.g., types defined before tests that use them)
 - [ ] New interfaces and types follow the project's naming conventions
 - [ ] Test strategy covers all public interface behavioral paths
@@ -272,7 +419,7 @@ Before presenting the plan, verify:
 - [ ] No tasks modify code outside the story's scope
 - [ ] Task count is reasonable — if you have more than 10 tasks, consider whether the story needs re-scoping
 - [ ] The plan is achievable — no tasks depend on unavailable infrastructure or unmerged code
-- [ ] If story-scoped testplan exists: every TC ID is assigned to a task or marked N/A with rationale (Test Plan Coverage set-diff is clean)
+- [ ] If story-scoped testplan exists: every authoritative or individually confirmed TC ID is assigned to a task, marked N/A with rationale, listed as manual verification, or listed as a qualification gate (Test Plan Coverage set-diff is clean). Unconfirmed provisional TCs remain listed as provisional.
 - [ ] Every ingest open question is a locked decision (specified or implementer default) or a product fork still listed
 - [ ] Open Questions contains only product forks, not pins/timeouts/names `/code` could default
 - [ ] Cited Reads stayed within the cap; `02-plan.md` has no pasted file bodies

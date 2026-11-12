@@ -36,17 +36,32 @@ full usage.
 
 ## Process
 
-### Prerequisites: Resolve Script Path
+### Prerequisites: Resolve Script Paths
 
 Before any `cd` or subshell that changes the working directory, resolve
-the shared script to an absolute path so it remains valid:
+shared scripts to absolute paths so they remain valid:
 
 ```bash
 PUBLISH_SCRIPT="${HOME}/.ai-workflows/_shared/scripts/publish.py"
 ```
 
-Use `$PUBLISH_SCRIPT` instead of the relative path in all subsequent
-commands.
+Set `SKILL_DIR` to the canonical directory of this loaded skill file
+(resolved from the path provided by the phase dispatcher or file-read
+context, following symlinks). If the loaded file path is unavailable,
+stop and report — do not fall back to `$HOME`, `BASH_SOURCE`, or the
+current working directory:
+
+```bash
+# SKILL_DIR: set by the agent to this skill file's canonical directory
+VALIDATION_INDEX_SCRIPT="$(realpath "${SKILL_DIR}/../scripts/validation_index.py")" || { echo "Cannot resolve ../scripts/validation_index.py" >&2; exit 1; }
+```
+
+If the resolution fails (script not found at the expected relative
+location), stop and report the error — do not fall back to a different
+install or guess the path.
+
+Use `$PUBLISH_SCRIPT` and `$VALIDATION_INDEX_SCRIPT` instead of the
+relative paths in all subsequent commands.
 
 ### Step 1: Read the Design Document
 
@@ -208,11 +223,38 @@ git -C "{docs_repo_path}" checkout -b {branch-name} publish-push/{branch-name}
 git -C "{docs_repo_path}" checkout -b {branch-name}
 ```
 
-Copy the design document artifact to the docs repo:
+### Step 5: Preflight and Sync Artifacts, Copy Design
 
-```bash
-mkdir -p "{docs_repo_path}/{release}/{feature}"
-```
+**Check design destination before any copy:**
+
+Verify the design document destination before creating directories:
+- If any **existing** ancestor in the destination path between
+  `{docs_repo_path}` and `design.md` is a symlink, stop and report —
+  the destination could escape the docs checkout. Symlinks at or above
+  `{docs_repo_path}` itself are permitted (the checkout root may
+  be an alias).
+- If `{docs_repo_path}/{release}/{feature}/design.md` itself is a
+  symlink, stop and report.
+
+Only after the ancestor check passes, sync validation artifacts
+to the docs repo using the shared recipe. The recipe handles all
+resolution, snapshot, preflight, artifact/destination validation,
+directory creation, copying, index publishing, removal — including
+empty-set retirement approval — and metadata update as a single
+canonical procedure. Do not duplicate those steps inline.
+
+Read and follow `../../_shared/recipes/sync-validation-artifacts.md`
+with `ISSUE_KEY={issue-key}`,
+`VALIDATION_INDEX_SCRIPT="$VALIDATION_INDEX_SCRIPT"`,
+`DOCS_REPO_PATH="{docs_repo_path}"`,
+`FEATURE_DIR="{release}/{feature}"`,
+`DESIGN_FILE_PATH="{release}/{feature}/design.md"`.
+
+Complete both PREFLIGHT and APPLY phases of the recipe.
+
+**After the recipe's APPLY phase completes**, copy the design
+document and render provenance. The recipe's APPLY created the
+feature directory, so the copy target exists:
 
 ```bash
 cp ".artifacts/design/{issue-key}/03-design.md" "{docs_repo_path}/{release}/{feature}/design.md"
@@ -222,49 +264,57 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=design`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{docs_repo_path}/{release}/{feature}/design.md"`.
 
+Stage the design file — design staging is independent of artifact
+existence (a pure design update must commit even when both
+validation sets are empty):
+
 ```bash
 git -C "{docs_repo_path}" add "{release}/{feature}/design.md"
 ```
 
-**Testplan publication:**
+### Step 6: Commit
 
-**If `04-testplan.md` does not exist:** check whether a previously
-published testplan exists at
-`{docs_repo_path}/{release}/{feature}/testplan.md`. If it does, remove
-it:
+Commit with a message reflecting what was published:
 
 ```bash
-git -C "{docs_repo_path}" rm -- "{release}/{feature}/testplan.md"
-```
+# If validation artifacts were published:
+git -C "{docs_repo_path}" commit -m "Add design document and validation artifacts for {issue-key}: {title}"
 
-Commit with the design-only message (regardless of whether a stale
-testplan was removed) and skip to Step 5:
-
-```bash
+# If no validation artifacts (design-only):
 git -C "{docs_repo_path}" commit -m "Add design document for {issue-key}: {title}"
 ```
 
-**If `04-testplan.md` exists**, copy it to the docs repo:
+Capture the commit SHA immediately after the commit and persist it
+in the local publish-metadata so Step 7 can read it from a fresh
+shell. This ensures the push pins to the exact Step 6 commit even
+if HEAD moves between steps:
 
 ```bash
-cp ".artifacts/design/{issue-key}/04-testplan.md" "{docs_repo_path}/{release}/{feature}/testplan.md"
+DOCS_HEAD=$(git -C "{docs_repo_path}" rev-parse HEAD)
+python3 "$PUBLISH_SCRIPT" save-metadata \
+  --file .artifacts/design/{issue-key}/publish-metadata.json \
+  --merge \
+  docs_commit_sha="$DOCS_HEAD"
 ```
+
+### Step 7: Push and Create PR
+
+Push the branch using the shared script (run from the docs repo).
+Read the persisted `docs_commit_sha` from publish-metadata — do NOT
+recapture `git rev-parse HEAD`, as HEAD may have moved since Step 6:
 
 ```bash
-git -C "{docs_repo_path}" add "{release}/{feature}/testplan.md"
+DOCS_HEAD=$(python3 -c "import json,sys; d=json.load(open('.artifacts/design/{issue-key}/publish-metadata.json')); v=d.get('docs_commit_sha',''); sys.exit(1) if not v else print(v)")
+if [ -z "$DOCS_HEAD" ]; then echo "ERROR: docs_commit_sha not found in publish-metadata" >&2; exit 1; fi
+(cd "{docs_repo_path}" && python3 "$PUBLISH_SCRIPT" push --remote {push-remote} --branch {branch-name} --expected-sha "$DOCS_HEAD")
 ```
 
-```bash
-git -C "{docs_repo_path}" commit -m "Add design document and testplan for {issue-key}: {title}"
-```
-
-### Step 5: Push and Create PR
-
-Push the branch using the shared script (run from the docs repo):
-
-```bash
-(cd "{docs_repo_path}" && python3 "$PUBLISH_SCRIPT" push --remote {push-remote} --branch {branch-name})
-```
+The `--expected-sha` flag verifies that the docs repo HEAD still
+matches the Step 6 commit and pins the push refspec to that exact
+SHA. If HEAD moved between Step 6 and the push, the helper's own
+HEAD comparison detects the mismatch and rejects the push. Because
+`DOCS_HEAD` is read from persisted metadata (not recaptured), this
+guard cannot be bypassed by concurrent docs-repo commits.
 
 Read the design document and identify specific areas that warrant reviewer
 attention (AI-dependent):
@@ -291,9 +341,11 @@ exist, write "General review — no specific items flagged."}
 
 ### Documents
 - `design.md` — technical design document
-{If `04-testplan.md` was published, add:
-- `testplan.md` — behavioral test cases mapped to PRD requirements
-Otherwise, omit the testplan bullet entirely.}
+{For each published validation artifact, add a bullet using the
+ file names from the published validation-index.json (Step 5):
+- `{primary_testplan}` — acceptance test cases mapped to PRD requirements
+- `{companion-file}` — {companion purpose}
+If no validation artifacts were published, omit these bullets entirely.}
 
 ### How to Review
 - Comment inline on specific sections
@@ -314,7 +366,7 @@ First, check whether a PR already exists for this branch:
 python3 "$PUBLISH_SCRIPT" check-existing --repo {owner}/{repo} --head {head-ref}
 ```
 
-If exit code is 5, a PR already exists — skip to Step 6 and report its
+If exit code is 5, a PR already exists — skip to Step 8 and report its
 URL. Parse the PR number from the returned JSON. If the command fails
 (non-zero exit other than 5), stop and report the error. If exit code
 is 0, create a new PR:
@@ -331,17 +383,25 @@ python3 "$PUBLISH_SCRIPT" create-pr \
 
 The script prints the PR URL on stdout. Parse the PR number from the URL path.
 
-### Step 6: Save Publish Metadata
+### Step 8: Save Metadata and Report
 
-If `04-testplan.md` was published:
+Save the core metadata using the shared script. If the primary
+testplan was published, include `testplan_file_path` for backwards
+compatibility with consumers that do not read `validation_artifacts`.
+Derive the primary testplan filename from the published
+`validation-index.json` written in Step 5 — read its
+`primary_testplan` value (e.g., `testplan.md` for the default, or a
+custom name if the index specifies one). For the legacy case where
+no index was written, fall back to the literal `testplan.md`:
 
 ```bash
 python3 "$PUBLISH_SCRIPT" save-metadata \
   --file .artifacts/design/{issue-key}/publish-metadata.json \
+  --merge \
   release={release} \
   feature={feature} \
   design_file_path={release}/{feature}/design.md \
-  testplan_file_path={release}/{feature}/testplan.md \
+  testplan_file_path={release}/{feature}/{primary_testplan} \
   pr_number={pr-number} \
   branch={branch-name}
 ```
@@ -351,6 +411,7 @@ If no testplan was published, omit `testplan_file_path`:
 ```bash
 python3 "$PUBLISH_SCRIPT" save-metadata \
   --file .artifacts/design/{issue-key}/publish-metadata.json \
+  --merge \
   release={release} \
   feature={feature} \
   design_file_path={release}/{feature}/design.md \
@@ -358,7 +419,42 @@ python3 "$PUBLISH_SCRIPT" save-metadata \
   branch={branch-name}
 ```
 
-### Step 7: Report to User
+**Add the validation artifact list.** After `save-metadata` writes
+the file, read it, add the `validation_artifacts` array, and write it
+back. This list is the authoritative record of all published
+validation artifacts. Note: `validation_artifacts` is a structured
+typed array, not subject to `save-metadata`'s string-only key-value
+convention. When rewriting the JSON file, preserve all existing keys
+and values (including their types) and use stable key ordering
+(sorted alphabetically).
+
+Read `.artifacts/design/{issue-key}/publish-metadata.json`, parse as
+JSON. Add a `validation_artifacts` key with the same array as the
+published `validation-index.json` (using `file`, `type`, and for
+companions, `purpose` and `audience`). Write the updated JSON back to
+the same file.
+
+Example resulting metadata:
+
+```json
+{
+  "branch": "design/EDM-1471",
+  "design_file_path": "v2.1/feature-slug/design.md",
+  "feature": "feature-slug",
+  "pr_number": "42",
+  "release": "v2.1",
+  "testplan_file_path": "v2.1/feature-slug/testplan.md",
+  "validation_artifacts": [
+    {"file": "testplan.md", "type": "testplan"},
+    {"file": "hw-validation.md", "type": "companion", "purpose": "Hardware qualification", "audience": "Hardware QE"}
+  ]
+}
+```
+
+When no validation artifacts were published, omit the
+`validation_artifacts` key entirely (legacy-only metadata).
+
+**Report to the user:**
 
 Present:
 - PR URL
@@ -369,8 +465,9 @@ Present:
 ## Output
 
 - `.artifacts/config.json` (workspace-level config, created if it didn't exist)
-- `.artifacts/design/{issue-key}/publish-metadata.json`
-- Design document committed and pushed to feature branch in the docs repo
+- `.artifacts/design/{issue-key}/publish-metadata.json` (includes `validation_artifacts` when artifacts were published)
+- Design document and validation artifacts committed and pushed to feature branch in the docs repo
+- `validation-index.json` published to docs repo feature directory for downstream discovery
 - Draft PR created against the docs repo
 - `.artifacts/design/{issue-key}/08-pr-description.md`
 
