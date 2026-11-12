@@ -27,7 +27,7 @@ Usage:
   publish.py create-mr --project <path> --source <branch>
              --target <branch> --title <title> [--description <text>]
              [--desc-file <path>] [--draft] [--head <project>]
-  publish.py save-metadata --file <path> [--pair key=value ...]
+  publish.py save-metadata --file <path> [--merge] [--pair key=value ...]
 
 Exit codes:
   0 -- success
@@ -827,16 +827,27 @@ def cmd_save_metadata(args: argparse.Namespace) -> int:
     All values are stored as JSON strings to avoid leading-zero truncation
     and to keep the output type-stable.  Keys are sorted alphabetically
     for deterministic output.
+
+    When ``--merge`` is given, existing file content is loaded first and
+    new key=value pairs are merged into it.  Pre-existing keys that are
+    not supplied in the current invocation are preserved — including
+    non-string values such as typed arrays (e.g. ``validation_artifacts``).
+    If the existing file contains invalid JSON, the command fails rather
+    than silently overwriting.  Without ``--merge`` (the default), the
+    file is overwritten with only the supplied pairs — this preserves
+    the legacy behaviour for callers that do not opt in.
     """
     file_path = args.file
     pairs: list[str] = args.pair or []
+    merge = getattr(args, "merge", False)
 
     if not file_path:
         fail("Missing required argument: --file")
     if not pairs:
         fail("save-metadata: no key=value pairs provided")
 
-    data: dict[str, str] = {}
+    # Parse new key=value pairs
+    new_data: dict[str, str] = {}
     for pair in pairs:
         if "=" not in pair:
             fail(f"save-metadata: unexpected argument: {pair} "
@@ -844,13 +855,31 @@ def cmd_save_metadata(args: argparse.Namespace) -> int:
         key, _, value = pair.partition("=")
         # All values stored as JSON strings to avoid leading-zero truncation
         # (e.g., "007" -> 7) and to keep the output type-stable.
-        data[key] = value
+        new_data[key] = value
+
+    out_path = Path(file_path)
+
+    # In merge mode, load existing data first
+    if merge and out_path.is_file():
+        try:
+            raw = out_path.read_text(encoding="utf-8")
+            existing = json.loads(raw)
+        except (json.JSONDecodeError, OSError) as exc:
+            fail(f"save-metadata: --merge cannot read existing "
+                 f"file {file_path}: {exc}")
+        if not isinstance(existing, dict):
+            fail(f"save-metadata: --merge expects existing file to "
+                 f"contain a JSON object, got {type(existing).__name__}")
+        # Merge: new string pairs update/add; existing keys preserved
+        data: dict[str, Any] = dict(existing)
+        data.update(new_data)
+    else:
+        data = dict(new_data)
 
     # Sort keys for stable output (Python dicts preserve insertion order)
     sorted_data = dict(sorted(data.items()))
 
     # Create parent directory if needed
-    out_path = Path(file_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Write with json.dumps -- proper encoding of all special characters
@@ -974,6 +1003,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Write publish-metadata.json",
     )
     p_meta.add_argument("--file", required=True, help="Output file path")
+    p_meta.add_argument(
+        "--merge", action="store_true", default=False,
+        help="Merge into existing file instead of overwriting. "
+             "Preserves pre-existing keys (including non-string values "
+             "like validation_artifacts). Fails if existing file "
+             "contains invalid JSON.",
+    )
     p_meta.add_argument(
         "pair", nargs="*", metavar="key=value",
         help="Key=value pairs (positional, repeatable)",

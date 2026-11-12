@@ -59,6 +59,14 @@ _LOCAL_FILENAME_RE = re.compile(
 )
 
 
+# TC definition heading: H2–H6 marker followed by TC-{ID}: or TC-{ID} EOL.
+# Matches the draft.md H4 format (#### TC-FR1-01: scenario) and legacy
+# H2/H3 forms.  The TC-ID portion is captured as group 1.
+_TC_HEADING_RE = re.compile(
+    r"^#{2,6}\s+(TC-[A-Za-z][A-Za-z0-9]*-\d+)\s*(?::|$)"
+)
+
+
 class ValidationIndexError(Exception):
     """Raised when a validation index is malformed or unsafe."""
 
@@ -511,8 +519,77 @@ def resolve_artifacts(artifact_dir: Path) -> list[dict[str, Any]]:
     return []
 
 
+def _check_directory_containment(
+    target: Path,
+    trusted_root: Path,
+) -> None:
+    """Reject symlink components below *trusted_root* in *target*'s path.
+
+    Ensures that *target* and every ancestor directory between it and
+    *trusted_root* (exclusive) are not symlinks.  This prevents a
+    directory symlink from redirecting artifact reads outside the
+    trusted docs checkout.
+
+    Components **at** *trusted_root* are operator-trusted and not
+    checked.  An explicitly approved alias path above the root (e.g.
+    ``/opt/docs -> /mnt/docs``) is preserved — only components
+    strictly below the root are guarded.
+
+    Also verifies that *target* resolves to a location under
+    *trusted_root* (resolved containment), catching escapes via
+    ``..`` or symlinks pointing outside the root.
+
+    Raises :class:`ValidationIndexError` on any violation.
+    """
+    # Use lexical (non-resolved) paths so symlinks are visible.
+    lex_target = (target if target.is_absolute()
+                  else Path.cwd() / target)
+    lex_root = (trusted_root if trusted_root.is_absolute()
+                else Path.cwd() / trusted_root)
+
+    # Walk from target upward to (but not including) the trusted root,
+    # checking each component for symlinks BEFORE resolving.
+    # This ensures symlink-specific errors are reported for symlink
+    # escapes rather than a generic "escapes root" message.
+    cur = lex_target
+    while True:
+        try:
+            rel = cur.relative_to(lex_root)
+        except ValueError:
+            raise ValidationIndexError(
+                f"path has unexpected root relative to trusted "
+                f"docs root: {target}")
+        if rel == Path('.'):
+            break  # at the root itself — trusted
+        # Below the root: reject any symlink
+        if cur.is_symlink():
+            raise ValidationIndexError(
+                f"directory component is a symlink below trusted "
+                f"docs root: {cur}")
+        next_cur = cur.parent
+        if next_cur == cur:
+            break  # filesystem root
+        cur = next_cur
+
+    # Resolved containment: target must resolve to under the root.
+    # This catches escapes via .. or other non-symlink mechanisms
+    # that survive the lexical walk.
+    abs_target = target.resolve() if target.is_absolute() else (
+        Path.cwd() / target).resolve()
+    abs_root = trusted_root.resolve() if trusted_root.is_absolute() else (
+        Path.cwd() / trusted_root).resolve()
+    try:
+        abs_target.relative_to(abs_root)
+    except ValueError:
+        raise ValidationIndexError(
+            f"path escapes trusted docs root: {target} "
+            f"is not under {trusted_root}")
+
+
 def resolve_published_artifacts(
     feature_dir: Path,
+    *,
+    docs_root: Path | None = None,
 ) -> list[dict[str, Any]]:
     """Resolve validation artifacts from a published docs-repo directory.
 
@@ -521,9 +598,16 @@ def resolve_published_artifacts(
     Returns a list of artifact entries (published index format).
     Returns empty list if no artifacts found.
 
+    When *docs_root* is given, validates that *feature_dir* and all
+    its ancestor components below *docs_root* are not symlinks,
+    preventing directory-symlink escapes.
+
     Raises ValidationIndexError on malformed index, missing listed
-    files, or symlink artifacts.
+    files, symlink artifacts, or directory containment violations.
     """
+    # Directory containment check when a trusted root is provided
+    if docs_root is not None:
+        _check_directory_containment(feature_dir, docs_root)
     index_path = feature_dir / "validation-index.json"
     # Check dangling symlinks/directories BEFORE is_file
     if index_path.is_symlink():
@@ -575,6 +659,8 @@ def resolve_published_artifacts(
 
 def primary_testplan_path(
     feature_dir: Path,
+    *,
+    docs_root: Path | None = None,
 ) -> Path | None:
     """Return the path to the primary testplan in a docs-repo directory.
 
@@ -582,10 +668,14 @@ def primary_testplan_path(
     Returns None if no validation artifacts are found (no index and
     no legacy testplan.md).
 
+    When *docs_root* is given, validates directory containment first.
+
     Raises ValidationIndexError if the index lists a primary testplan
     that does not exist on disk or is a symlink — this indicates a
     corrupted published state, not an absent testplan.
     """
+    if docs_root is not None:
+        _check_directory_containment(feature_dir, docs_root)
     index_path = feature_dir / "validation-index.json"
     # Check dangling symlinks/directories BEFORE is_file
     if index_path.is_symlink():
@@ -679,6 +769,66 @@ def build_metadata_artifacts(
 
 
 # ---------------------------------------------------------------------------
+# TC definition heading validation
+# ---------------------------------------------------------------------------
+
+def extract_tc_definitions(
+    content: str,
+) -> list[tuple[int, str]]:
+    """Extract TC definition headings from Markdown content.
+
+    Returns a list of ``(line_number, tc_id)`` tuples for each TC
+    definition heading found.  Line numbers are 1-based.
+
+    Skips lines inside fenced code blocks (triple-backtick or
+    triple-tilde) so that example snippets and traceability tables
+    are not mistaken for definitions.
+    """
+    results: list[tuple[int, str]] = []
+    in_fence = False
+    for lineno, line in enumerate(content.splitlines(), start=1):
+        stripped = line.strip()
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        m = _TC_HEADING_RE.match(stripped)
+        if m:
+            results.append((lineno, m.group(1)))
+    return results
+
+
+def validate_tc_definitions(
+    artifacts: list[tuple[str, str]],
+) -> list[str]:
+    """Check for duplicate TC definition headings across artifacts.
+
+    Args:
+        artifacts: List of ``(artifact_name, content)`` pairs.
+
+    Returns a list of error messages (empty = no duplicates).
+    Each error includes the TC ID and the artifact names and line
+    numbers where the duplicate was found.
+    """
+    # Map: tc_id -> list of (artifact_name, line_number)
+    seen: dict[str, list[tuple[str, int]]] = {}
+    for art_name, content in artifacts:
+        for lineno, tc_id in extract_tc_definitions(content):
+            seen.setdefault(tc_id, []).append((art_name, lineno))
+
+    errors: list[str] = []
+    for tc_id in sorted(seen):
+        locations = seen[tc_id]
+        if len(locations) > 1:
+            loc_strs = [f"{name}:{line}" for name, line in locations]
+            errors.append(
+                f"duplicate TC definition '{tc_id}' in: "
+                f"{', '.join(loc_strs)}")
+    return errors
+
+
+# ---------------------------------------------------------------------------
 # CLI subcommands
 # ---------------------------------------------------------------------------
 
@@ -736,7 +886,8 @@ def cmd_resolve(args: argparse.Namespace) -> int:
     """Resolve validation artifacts from a directory.
 
     Exit 0 with JSON array (may be empty []) on success.
-    Exit 1 on error (malformed index, missing listed files, etc.).
+    Exit 1 on error (malformed index, missing listed files, duplicate
+    TC definitions, etc.).
     Callers distinguish empty-success from error by exit code.
     """
     d = Path(args.local or args.published)
@@ -748,10 +899,36 @@ def cmd_resolve(args: argparse.Namespace) -> int:
         if args.local:
             arts = resolve_artifacts(d)
         else:
-            arts = resolve_published_artifacts(d)
+            docs_root = None
+            if getattr(args, 'docs_root', None):
+                docs_root = Path(args.docs_root)
+            arts = resolve_published_artifacts(d, docs_root=docs_root)
     except ValidationIndexError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
+
+    # Content-level TC definition validation: check for duplicate
+    # TC IDs across the resolved artifact set.
+    if arts:
+        tc_artifacts: list[tuple[str, str]] = []
+        for art in arts:
+            # Determine filename and base directory
+            if args.local:
+                fname = art.get("local", "")
+            else:
+                fname = art.get("file", "")
+            art_path = d / fname
+            if art_path.is_file() and not art_path.is_symlink():
+                try:
+                    content = art_path.read_text(encoding="utf-8")
+                    tc_artifacts.append((fname, content))
+                except OSError:
+                    pass  # file-read errors already caught by resolve
+        tc_errors = validate_tc_definitions(tc_artifacts)
+        if tc_errors:
+            for e in tc_errors:
+                print(f"ERROR: {e}", file=sys.stderr)
+            return 1
 
     print(json.dumps(arts, indent=2))
     return 0
@@ -1154,6 +1331,11 @@ def build_parser() -> argparse.ArgumentParser:
                            help="Resolve from local artifact directory")
     res_group.add_argument("--published", metavar="DIR",
                            help="Resolve from published docs-repo directory")
+    p_res.add_argument("--docs-root", metavar="DIR",
+                       help="Trusted docs checkout root. When set with "
+                            "--published, rejects symlink components "
+                            "below this root in the feature directory "
+                            "path (prevents directory-symlink escapes).")
 
     # --- transform ---
     p_tx = sub.add_parser("transform",

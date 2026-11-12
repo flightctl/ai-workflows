@@ -6629,5 +6629,353 @@ class TestPendingGateMergeOriginName(unittest.TestCase):
                     f"all gates resolved")
 
 
+# ---------------------------------------------------------------------------
+# Directory containment: symlink escape via feature_dir
+# ---------------------------------------------------------------------------
+
+
+class TestDirectoryContainment(unittest.TestCase):
+    """Reject directory symlinks below a trusted docs root.
+
+    Reproduces the reviewer finding: resolve --published follows a
+    feature-directory symlink pointing outside the docs repo.
+    """
+
+    def test_feature_dir_symlink_escape_rejected(self):
+        """A feature-dir symlink pointing outside docs root is rejected."""
+        with tempfile.TemporaryDirectory() as tmp:
+            docs_root = Path(tmp) / "docs"
+            docs_root.mkdir()
+            release_dir = docs_root / "v2.1"
+            release_dir.mkdir()
+
+            # Outside directory with a valid testplan
+            outside = Path(tmp) / "outside"
+            outside.mkdir()
+            _write(outside / "testplan.md", "# Malicious\n")
+
+            # Symlink: docs/v2.1/feature -> outside
+            feature_link = release_dir / "feature"
+            feature_link.symlink_to(outside)
+
+            # Without docs_root, the symlink is followed (old behavior)
+            # With docs_root, it should be rejected
+            with self.assertRaises(vi.ValidationIndexError) as ctx:
+                vi.resolve_published_artifacts(
+                    feature_link, docs_root=docs_root)
+            self.assertIn("symlink", str(ctx.exception).lower())
+
+    def test_ancestor_symlink_below_root_rejected(self):
+        """A symlink in an ancestor directory below root is rejected."""
+        with tempfile.TemporaryDirectory() as tmp:
+            docs_root = Path(tmp) / "docs"
+            docs_root.mkdir()
+
+            # Outside target for ancestor symlink
+            outside = Path(tmp) / "outside"
+            outside.mkdir()
+            outside_release = outside / "v2.1"
+            outside_release.mkdir()
+            outside_feature = outside_release / "feature"
+            outside_feature.mkdir()
+            _write(outside_feature / "testplan.md", "# Escaped\n")
+
+            # Symlink: docs/v2.1 -> outside/v2.1
+            release_link = docs_root / "v2.1"
+            release_link.symlink_to(outside_release)
+
+            feature_dir = release_link / "feature"
+            with self.assertRaises(vi.ValidationIndexError) as ctx:
+                vi.resolve_published_artifacts(
+                    feature_dir, docs_root=docs_root)
+            self.assertIn("symlink", str(ctx.exception).lower())
+
+    def test_valid_path_no_docs_root_succeeds(self):
+        """Without docs_root, normal paths still work (legacy compat)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            feature_dir = Path(tmp) / "v2.1" / "feature"
+            feature_dir.mkdir(parents=True)
+            _write(feature_dir / "testplan.md", "# Plan\n")
+
+            arts = vi.resolve_published_artifacts(feature_dir)
+            self.assertEqual(len(arts), 1)
+            self.assertEqual(arts[0]["file"], "testplan.md")
+
+    def test_valid_path_with_docs_root_succeeds(self):
+        """Normal non-symlink path with docs_root passes containment."""
+        with tempfile.TemporaryDirectory() as tmp:
+            docs_root = Path(tmp) / "docs"
+            docs_root.mkdir()
+            feature_dir = docs_root / "v2.1" / "feature"
+            feature_dir.mkdir(parents=True)
+            _write(feature_dir / "testplan.md", "# Plan\n")
+
+            arts = vi.resolve_published_artifacts(
+                feature_dir, docs_root=docs_root)
+            self.assertEqual(len(arts), 1)
+
+    def test_cli_resolve_published_with_docs_root(self):
+        """CLI resolve --published --docs-root rejects symlink escape."""
+        with tempfile.TemporaryDirectory() as tmp:
+            docs_root = Path(tmp) / "docs"
+            docs_root.mkdir()
+            release_dir = docs_root / "v2.1"
+            release_dir.mkdir()
+
+            outside = Path(tmp) / "outside"
+            outside.mkdir()
+            _write(outside / "testplan.md", "# Escaped\n")
+
+            feature_link = release_dir / "feature"
+            feature_link.symlink_to(outside)
+
+            rc = vi.main([
+                "resolve", "--published", str(feature_link),
+                "--docs-root", str(docs_root),
+            ])
+            self.assertEqual(rc, 1)
+
+    def test_cli_resolve_published_docs_root_valid(self):
+        """CLI resolve --published --docs-root with valid path succeeds."""
+        with tempfile.TemporaryDirectory() as tmp:
+            docs_root = Path(tmp) / "docs"
+            docs_root.mkdir()
+            feature_dir = docs_root / "v2.1" / "feature"
+            feature_dir.mkdir(parents=True)
+            _write(feature_dir / "testplan.md", "# Plan\n")
+
+            rc = vi.main([
+                "resolve", "--published", str(feature_dir),
+                "--docs-root", str(docs_root),
+            ])
+            self.assertEqual(rc, 0)
+
+    def test_dotdot_escape_rejected(self):
+        """Path traversal via .. below docs root is rejected."""
+        with tempfile.TemporaryDirectory() as tmp:
+            docs_root = Path(tmp) / "docs"
+            docs_root.mkdir()
+            release_dir = docs_root / "v2.1"
+            release_dir.mkdir()
+
+            # outside/feature has a testplan
+            outside = Path(tmp) / "outside"
+            outside.mkdir()
+            _write(outside / "testplan.md", "# Traversal\n")
+
+            # Try to resolve docs/v2.1/../../outside
+            escape_path = release_dir / ".." / ".." / "outside"
+            with self.assertRaises(vi.ValidationIndexError) as ctx:
+                vi.resolve_published_artifacts(
+                    escape_path, docs_root=docs_root)
+            self.assertIn("escapes", str(ctx.exception).lower())
+
+    def test_primary_testplan_path_containment(self):
+        """primary_testplan_path also enforces containment."""
+        with tempfile.TemporaryDirectory() as tmp:
+            docs_root = Path(tmp) / "docs"
+            docs_root.mkdir()
+            release_dir = docs_root / "v2.1"
+            release_dir.mkdir()
+
+            outside = Path(tmp) / "outside"
+            outside.mkdir()
+            _write(outside / "testplan.md", "# Escaped\n")
+
+            feature_link = release_dir / "feature"
+            feature_link.symlink_to(outside)
+
+            with self.assertRaises(vi.ValidationIndexError):
+                vi.primary_testplan_path(
+                    feature_link, docs_root=docs_root)
+
+
+# ---------------------------------------------------------------------------
+# TC definition heading: duplicate detection
+# ---------------------------------------------------------------------------
+
+
+class TestTCDefinitionValidation(unittest.TestCase):
+    """Detect duplicate TC definition headings across artifacts."""
+
+    def test_extract_h4_definitions(self):
+        """H4 TC headings (draft.md format) are extracted."""
+        content = (
+            "# Testplan\n"
+            "### FR-1\n"
+            "#### TC-FR1-01: Login scenario\n"
+            "#### TC-FR1-02: Logout scenario\n"
+        )
+        defs = vi.extract_tc_definitions(content)
+        self.assertEqual(len(defs), 2)
+        self.assertEqual(defs[0], (3, "TC-FR1-01"))
+        self.assertEqual(defs[1], (4, "TC-FR1-02"))
+
+    def test_extract_h2_legacy_definitions(self):
+        """H2 TC headings (legacy format) are extracted."""
+        content = "# Plan\n## TC-FR1-01\n## TC-FR1-02\n"
+        defs = vi.extract_tc_definitions(content)
+        self.assertEqual(len(defs), 2)
+        self.assertEqual(defs[0], (2, "TC-FR1-01"))
+        self.assertEqual(defs[1], (3, "TC-FR1-02"))
+
+    def test_fenced_code_block_skipped(self):
+        """TC headings inside fenced code blocks are not definitions."""
+        content = (
+            "# Plan\n"
+            "#### TC-FR1-01: Real definition\n"
+            "```\n"
+            "#### TC-FR1-02: Example in code block\n"
+            "```\n"
+            "#### TC-FR1-03: Another real one\n"
+        )
+        defs = vi.extract_tc_definitions(content)
+        ids = [tc_id for _, tc_id in defs]
+        self.assertIn("TC-FR1-01", ids)
+        self.assertIn("TC-FR1-03", ids)
+        self.assertNotIn("TC-FR1-02", ids)
+
+    def test_traceability_reference_not_definition(self):
+        """Traceability rows and bullet references are not definitions."""
+        content = (
+            "# Plan\n"
+            "#### TC-FR1-01: Real definition\n"
+            "- TC-FR1-01: covered by test_login.py\n"
+            "| TC-FR1-01 | test_login | pass |\n"
+        )
+        defs = vi.extract_tc_definitions(content)
+        self.assertEqual(len(defs), 1)
+        self.assertEqual(defs[0][1], "TC-FR1-01")
+
+    def test_no_duplicates_passes(self):
+        """Unique TC IDs across artifacts produce no errors."""
+        artifacts = [
+            ("04-testplan.md",
+             "#### TC-FR1-01: Login\n#### TC-FR1-02: Logout\n"),
+            ("04-hw-validation.md",
+             "#### TC-NFR3-01: HW qual\n"),
+        ]
+        errors = vi.validate_tc_definitions(artifacts)
+        self.assertEqual(errors, [])
+
+    def test_duplicate_across_artifacts_detected(self):
+        """Same TC ID in two artifacts produces an error."""
+        artifacts = [
+            ("04-testplan.md",
+             "#### TC-FR1-01: Login scenario\n"),
+            ("04-hw-validation.md",
+             "#### TC-FR1-01: Login scenario copy\n"),
+        ]
+        errors = vi.validate_tc_definitions(artifacts)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("TC-FR1-01", errors[0])
+        self.assertIn("04-testplan.md", errors[0])
+        self.assertIn("04-hw-validation.md", errors[0])
+
+    def test_duplicate_within_same_artifact_detected(self):
+        """Same TC ID defined twice in one artifact is caught."""
+        artifacts = [
+            ("04-testplan.md",
+             "#### TC-FR1-01: First\n#### TC-FR1-01: Duplicate\n"),
+        ]
+        errors = vi.validate_tc_definitions(artifacts)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("TC-FR1-01", errors[0])
+
+    def test_cmd_resolve_rejects_duplicate_tc(self):
+        """CLI resolve --local rejects duplicate TC IDs across artifacts."""
+        with tempfile.TemporaryDirectory() as tmp:
+            art_dir = Path(tmp)
+            index = {
+                "schema_version": "1.0",
+                "primary_testplan": "04-testplan.md",
+                "artifacts": [
+                    {"local": "04-testplan.md",
+                     "published_as": "testplan.md",
+                     "type": "testplan"},
+                    {"local": "04-hw-validation.md",
+                     "published_as": "hw-validation.md",
+                     "type": "companion",
+                     "purpose": "HW",
+                     "audience": "QE"},
+                ],
+            }
+            _write(art_dir / "validation-index.json",
+                   json.dumps(index, indent=2))
+            _write(art_dir / "04-testplan.md",
+                   "### FR-1\n#### TC-FR1-01: API test\n")
+            _write(art_dir / "04-hw-validation.md",
+                   "### NFR-3\n#### TC-FR1-01: Duplicate ID\n")
+
+            rc = vi.main(["resolve", "--local", str(art_dir)])
+            self.assertEqual(rc, 1)
+
+    def test_cmd_resolve_accepts_unique_tc(self):
+        """CLI resolve --local succeeds with unique TC IDs."""
+        with tempfile.TemporaryDirectory() as tmp:
+            art_dir = Path(tmp)
+            index = {
+                "schema_version": "1.0",
+                "primary_testplan": "04-testplan.md",
+                "artifacts": [
+                    {"local": "04-testplan.md",
+                     "published_as": "testplan.md",
+                     "type": "testplan"},
+                    {"local": "04-hw-validation.md",
+                     "published_as": "hw-validation.md",
+                     "type": "companion",
+                     "purpose": "HW",
+                     "audience": "QE"},
+                ],
+            }
+            _write(art_dir / "validation-index.json",
+                   json.dumps(index, indent=2))
+            _write(art_dir / "04-testplan.md",
+                   "### FR-1\n#### TC-FR1-01: API test\n"
+                   "#### TC-FR1-02: Another\n")
+            _write(art_dir / "04-hw-validation.md",
+                   "### NFR-3\n#### TC-NFR3-01: HW qual\n")
+
+            rc = vi.main(["resolve", "--local", str(art_dir)])
+            self.assertEqual(rc, 0)
+
+    def test_cmd_resolve_published_rejects_duplicate_tc(self):
+        """CLI resolve --published rejects duplicate TC IDs."""
+        with tempfile.TemporaryDirectory() as tmp:
+            fdir = Path(tmp)
+            index = {
+                "schema_version": "1.0",
+                "primary_testplan": "testplan.md",
+                "artifacts": [
+                    {"file": "testplan.md", "type": "testplan"},
+                    {"file": "hw-validation.md",
+                     "type": "companion",
+                     "purpose": "HW",
+                     "audience": "QE"},
+                ],
+            }
+            _write(fdir / "validation-index.json",
+                   json.dumps(index, indent=2))
+            _write(fdir / "testplan.md",
+                   "#### TC-FR1-01: API test\n")
+            _write(fdir / "hw-validation.md",
+                   "#### TC-FR1-01: Same ID\n")
+
+            rc = vi.main(["resolve", "--published", str(fdir)])
+            self.assertEqual(rc, 1)
+
+    def test_tilde_fence_skipped(self):
+        """TC headings in ~~~ fenced blocks are not definitions."""
+        content = (
+            "#### TC-FR1-01: Real\n"
+            "~~~\n"
+            "#### TC-FR1-02: In tilde fence\n"
+            "~~~\n"
+        )
+        defs = vi.extract_tc_definitions(content)
+        self.assertEqual(len(defs), 1)
+        self.assertEqual(defs[0][1], "TC-FR1-01")
+
+
 if __name__ == "__main__":
     unittest.main()

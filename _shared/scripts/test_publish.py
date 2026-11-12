@@ -276,6 +276,201 @@ class TestSaveMetadata(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# save-metadata --merge tests
+# ---------------------------------------------------------------------------
+
+
+class TestSaveMetadataMerge(unittest.TestCase):
+    """Verify --merge preserves existing metadata fields."""
+
+    def test_merge_preserves_existing_keys(self) -> None:
+        """Step 6 adds docs_commit_sha without dropping prior fields."""
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "meta.json")
+            # Simulate prior state: sync recipe wrote validation_artifacts
+            prior = {
+                "design_path": "v2.1/feature-slug",
+                "branch": "design/EDM-1471",
+                "validation_artifacts": [
+                    {"file": "testplan.md", "type": "testplan"}
+                ],
+            }
+            Path(out).write_text(
+                json.dumps(prior, indent=2) + "\n", encoding="utf-8")
+
+            # Step 6: merge docs_commit_sha
+            code = publish.main([
+                "save-metadata", "--file", out, "--merge",
+                "docs_commit_sha=abc123",
+            ])
+            self.assertEqual(code, 0)
+            data = json.loads(Path(out).read_text(encoding="utf-8"))
+            # New key added
+            self.assertEqual(data["docs_commit_sha"], "abc123")
+            # Prior keys preserved (including typed array)
+            self.assertEqual(data["design_path"], "v2.1/feature-slug")
+            self.assertEqual(data["branch"], "design/EDM-1471")
+            self.assertIsInstance(data["validation_artifacts"], list)
+            self.assertEqual(len(data["validation_artifacts"]), 1)
+
+    def test_merge_step8_preserves_step6_sha(self) -> None:
+        """Step 8 adds fields without dropping Step 6 docs_commit_sha."""
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "meta.json")
+            # After Step 6: file has docs_commit_sha
+            step6 = {"docs_commit_sha": "deadbeef"}
+            Path(out).write_text(
+                json.dumps(step6, indent=2) + "\n", encoding="utf-8")
+
+            # Step 8: merge additional fields
+            code = publish.main([
+                "save-metadata", "--file", out, "--merge",
+                "release=v2.1",
+                "feature=feature-slug",
+                "pr_number=42",
+                "branch=design/EDM-1471",
+            ])
+            self.assertEqual(code, 0)
+            data = json.loads(Path(out).read_text(encoding="utf-8"))
+            # Step 6 SHA preserved
+            self.assertEqual(data["docs_commit_sha"], "deadbeef")
+            # Step 8 fields present
+            self.assertEqual(data["release"], "v2.1")
+            self.assertEqual(data["feature"], "feature-slug")
+            self.assertEqual(data["pr_number"], "42")
+
+    def test_merge_updates_existing_string_key(self) -> None:
+        """Merge mode overwrites existing string values with new ones."""
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "meta.json")
+            Path(out).write_text('{"key": "old"}\n', encoding="utf-8")
+            code = publish.main([
+                "save-metadata", "--file", out, "--merge",
+                "key=new",
+            ])
+            self.assertEqual(code, 0)
+            data = json.loads(Path(out).read_text(encoding="utf-8"))
+            self.assertEqual(data["key"], "new")
+
+    def test_merge_invalid_existing_json_fails(self) -> None:
+        """Merge mode fails on invalid existing JSON instead of wiping."""
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "meta.json")
+            Path(out).write_text("not json", encoding="utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                publish.main([
+                    "save-metadata", "--file", out, "--merge",
+                    "key=val",
+                ])
+            self.assertEqual(ctx.exception.code, publish.EXIT_ARG_ERROR)
+            # Original file not wiped
+            self.assertEqual(
+                Path(out).read_text(encoding="utf-8"), "not json")
+
+    def test_merge_nonexistent_file_creates(self) -> None:
+        """Merge mode on a new file behaves like overwrite."""
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "new.json")
+            code = publish.main([
+                "save-metadata", "--file", out, "--merge",
+                "key=val",
+            ])
+            self.assertEqual(code, 0)
+            data = json.loads(Path(out).read_text(encoding="utf-8"))
+            self.assertEqual(data, {"key": "val"})
+
+    def test_merge_non_object_existing_fails(self) -> None:
+        """Merge mode fails when existing file is a JSON array."""
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "meta.json")
+            Path(out).write_text("[1, 2, 3]\n", encoding="utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                publish.main([
+                    "save-metadata", "--file", out, "--merge",
+                    "key=val",
+                ])
+            self.assertEqual(ctx.exception.code, publish.EXIT_ARG_ERROR)
+
+    def test_no_merge_still_overwrites(self) -> None:
+        """Without --merge, legacy overwrite behavior is preserved."""
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "meta.json")
+            Path(out).write_text(
+                '{"old_key": "old_val"}\n', encoding="utf-8")
+            code = publish.main([
+                "save-metadata", "--file", out,
+                "new_key=new_val",
+            ])
+            self.assertEqual(code, 0)
+            data = json.loads(Path(out).read_text(encoding="utf-8"))
+            self.assertNotIn("old_key", data)
+            self.assertEqual(data["new_key"], "new_val")
+
+    def test_merge_preserves_sorted_keys(self) -> None:
+        """Merged output has keys sorted alphabetically."""
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "meta.json")
+            Path(out).write_text(
+                '{"z_key": "z", "a_key": "a"}\n', encoding="utf-8")
+            code = publish.main([
+                "save-metadata", "--file", out, "--merge",
+                "m_key=m",
+            ])
+            self.assertEqual(code, 0)
+            data = json.loads(Path(out).read_text(encoding="utf-8"))
+            self.assertEqual(
+                list(data.keys()), ["a_key", "m_key", "z_key"])
+
+    def test_merge_full_publish_lifecycle(self) -> None:
+        """Simulate the full Step 6 → push fail → Step 8 lifecycle.
+
+        Verifies that docs_commit_sha survives across Step 8 and that
+        pre-existing validation_artifacts survive both steps.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "meta.json")
+            # Initial state: sync recipe wrote metadata
+            initial = {
+                "branch": "design/EDM-1471",
+                "design_path": "v2.1/feature",
+                "validation_artifacts": [
+                    {"file": "testplan.md", "type": "testplan"},
+                    {"file": "hw.md", "type": "companion",
+                     "purpose": "HW", "audience": "QE"},
+                ],
+            }
+            Path(out).write_text(
+                json.dumps(initial, indent=2) + "\n", encoding="utf-8")
+
+            # Step 6: save docs_commit_sha
+            publish.main([
+                "save-metadata", "--file", out, "--merge",
+                "docs_commit_sha=abc123def456",
+            ])
+            data = json.loads(Path(out).read_text(encoding="utf-8"))
+            self.assertEqual(data["docs_commit_sha"], "abc123def456")
+            self.assertEqual(len(data["validation_artifacts"]), 2)
+
+            # Simulate push failure -- docs_commit_sha must survive
+            # Step 8: save more metadata
+            publish.main([
+                "save-metadata", "--file", out, "--merge",
+                "release=v2.1",
+                "feature=feature",
+                "pr_number=42",
+            ])
+            data = json.loads(Path(out).read_text(encoding="utf-8"))
+            # All fields preserved
+            self.assertEqual(data["docs_commit_sha"], "abc123def456")
+            self.assertEqual(data["release"], "v2.1")
+            self.assertEqual(data["feature"], "feature")
+            self.assertEqual(data["pr_number"], "42")
+            self.assertEqual(data["branch"], "design/EDM-1471")
+            self.assertIsInstance(data["validation_artifacts"], list)
+            self.assertEqual(len(data["validation_artifacts"]), 2)
+
+
+# ---------------------------------------------------------------------------
 # Exit code contract tests
 # ---------------------------------------------------------------------------
 

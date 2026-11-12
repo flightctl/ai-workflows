@@ -293,6 +293,7 @@ if HEAD moves between steps:
 DOCS_HEAD=$(git -C "{docs_repo_path}" rev-parse HEAD)
 python3 "$PUBLISH_SCRIPT" save-metadata \
   --file .artifacts/design/{issue-key}/publish-metadata.json \
+  --merge \
   docs_commit_sha="$DOCS_HEAD"
 ```
 
@@ -396,6 +397,7 @@ no index was written, fall back to the literal `testplan.md`:
 ```bash
 python3 "$PUBLISH_SCRIPT" save-metadata \
   --file .artifacts/design/{issue-key}/publish-metadata.json \
+  --merge \
   release={release} \
   feature={feature} \
   design_file_path={release}/{feature}/design.md \
@@ -409,6 +411,7 @@ If no testplan was published, omit `testplan_file_path`:
 ```bash
 python3 "$PUBLISH_SCRIPT" save-metadata \
   --file .artifacts/design/{issue-key}/publish-metadata.json \
+  --merge \
   release={release} \
   feature={feature} \
   design_file_path={release}/{feature}/design.md \
