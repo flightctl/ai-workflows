@@ -3737,23 +3737,37 @@ class TestInitialRevalidationContract(unittest.TestCase):
         self.assertIn("valid only when all", norm,
                        "Initial branch must state ALL conditions")
 
+    def _assert_initial_branch_conditions(self, norm_branch: str) -> None:
+        """Assert ALL required comparison relationships in the initial branch.
+
+        Checks actual equality phrases, not just keyword presence.
+        Used by both the positive test and the negative control so that
+        if the helper stops checking a required condition, the meta-test
+        fails.
+        """
+        self.assertIn(
+            "latest reviewed discovery revision equals the "
+            "notes' original \"discovery revision\"",
+            norm_branch,
+            "Must require latest reviewed equals notes' original",
+        )
+        self.assertIn(
+            "both equal the current discovery revision",
+            norm_branch,
+            "Must require both equal current discovery revision",
+        )
+        self.assertIn(
+            "notes iteration matches the active",
+            norm_branch,
+            "Must require notes iteration matches active iteration",
+        )
+
     def test_initial_marker_requires_matching_discovery(self) -> None:
         """Initial branch must require all three discovery revision checks."""
         text = self._PREVIEW_MD.read_text(encoding="utf-8")
         branch = self._extract_initial_branch(text)
         norm = " ".join(branch.split()).lower()
-        self.assertIn(
-            "latest reviewed discovery revision", norm,
-            "Must reference context's latest reviewed discovery revision",
-        )
-        self.assertIn(
-            "current discovery revision", norm,
-            "Must require match with current discovery revision",
-        )
-        self.assertIn(
-            "notes iteration matches the active", norm,
-            "Must require notes iteration matches active iteration",
-        )
+        self._assert_initial_branch_conditions(norm)
 
     def test_mismatch_stop_scoped_to_step5(self) -> None:
         """Mismatch/unknown must trigger STOP specifically in step 5."""
@@ -3767,30 +3781,29 @@ class TestInitialRevalidationContract(unittest.TestCase):
                        "Step 5 must prohibit building")
 
     def test_negative_control_scoped_initial_branch(self) -> None:
-        """Negative control: removing comparison from Initial branch is
-        detected even when the term persists elsewhere in preview.md."""
+        """Negative control: mutating a comparison in the Initial branch
+        causes the shared helper to fail, even though similar terms
+        persist elsewhere in preview.md."""
         text = self._PREVIEW_MD.read_text(encoding="utf-8")
         branch = self._extract_initial_branch(text)
         norm_branch = " ".join(branch.split()).lower()
-        # Precondition: the term exists in the scoped branch
-        self.assertIn("current discovery revision", norm_branch,
-                       "Precondition: term must exist in branch")
-        # Mutate: remove the comparison from the branch
+        # Precondition: the positive helper passes on the real branch
+        self._assert_initial_branch_conditions(norm_branch)
+        # Mutate: remove one actual comparison from the branch
         mutated = norm_branch.replace(
-            "current discovery revision", "REDACTED",
+            "both equal the current discovery revision", "REDACTED",
         )
-        # The term still exists in the rest of the file
+        # Precondition: "current discovery revision" persists outside
         rest = text.replace(branch, "")
         rest_norm = " ".join(rest.split()).lower()
         self.assertIn(
             "current discovery revision", rest_norm,
             "Precondition: term must exist outside the branch",
         )
-        # Scoped check on mutated branch correctly detects absence
-        self.assertNotIn(
-            "current discovery revision", mutated,
-            "Negative control: scoped check detects removal from branch",
-        )
+        # Same helper must fail on the mutated branch
+        with self.assertRaises(AssertionError,
+                               msg="Helper must detect removed comparison"):
+            self._assert_initial_branch_conditions(mutated)
 
 
 # ---------------------------------------------------------------------------
