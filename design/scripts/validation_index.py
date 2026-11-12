@@ -598,14 +598,22 @@ def resolve_published_artifacts(
     Returns a list of artifact entries (published index format).
     Returns empty list if no artifacts found.
 
-    When *docs_root* is given, validates that *feature_dir* and all
-    its ancestor components below *docs_root* are not symlinks,
-    preventing directory-symlink escapes.
+    The *feature_dir* itself is always checked for being a symlink,
+    preventing the primary directory-symlink escape regardless of
+    whether *docs_root* is set.  When *docs_root* is given, the full
+    ancestor containment walk is performed — rejecting symlinks in
+    every component between *feature_dir* and the trusted root.
 
     Raises ValidationIndexError on malformed index, missing listed
     files, symlink artifacts, or directory containment violations.
     """
-    # Directory containment check when a trusted root is provided
+    # Always reject a feature_dir that is itself a symlink.
+    # This catches the primary escape vector unconditionally.
+    if feature_dir.is_symlink():
+        raise ValidationIndexError(
+            f"feature directory is a symlink (not allowed): "
+            f"{feature_dir}")
+    # Full ancestor containment check when a trusted root is provided
     if docs_root is not None:
         _check_directory_containment(feature_dir, docs_root)
     index_path = feature_dir / "validation-index.json"
@@ -668,12 +676,17 @@ def primary_testplan_path(
     Returns None if no validation artifacts are found (no index and
     no legacy testplan.md).
 
-    When *docs_root* is given, validates directory containment first.
+    When *docs_root* is given, validates full ancestor containment.
+    The *feature_dir* itself is always checked for being a symlink.
 
     Raises ValidationIndexError if the index lists a primary testplan
     that does not exist on disk or is a symlink — this indicates a
     corrupted published state, not an absent testplan.
     """
+    if feature_dir.is_symlink():
+        raise ValidationIndexError(
+            f"feature directory is a symlink (not allowed): "
+            f"{feature_dir}")
     if docs_root is not None:
         _check_directory_containment(feature_dir, docs_root)
     index_path = feature_dir / "validation-index.json"
@@ -922,8 +935,12 @@ def cmd_resolve(args: argparse.Namespace) -> int:
                 try:
                     content = art_path.read_text(encoding="utf-8")
                     tc_artifacts.append((fname, content))
-                except OSError:
-                    pass  # file-read errors already caught by resolve
+                except OSError as exc:
+                    # Fail closed: an indexed artifact that exists but
+                    # cannot be read must not be silently skipped.
+                    print(f"ERROR: cannot read indexed artifact "
+                          f"{fname}: {exc}", file=sys.stderr)
+                    return 1
         tc_errors = validate_tc_definitions(tc_artifacts)
         if tc_errors:
             for e in tc_errors:

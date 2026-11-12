@@ -6641,28 +6641,68 @@ class TestDirectoryContainment(unittest.TestCase):
     feature-directory symlink pointing outside the docs repo.
     """
 
-    def test_feature_dir_symlink_escape_rejected(self):
-        """A feature-dir symlink pointing outside docs root is rejected."""
+    def test_feature_dir_symlink_rejected_without_flag(self):
+        """Feature-dir symlink rejected even without --docs-root."""
+        with tempfile.TemporaryDirectory() as tmp:
+            outside = Path(tmp) / "outside"
+            outside.mkdir()
+            _write(outside / "testplan.md", "# Malicious\n")
+
+            feature_link = Path(tmp) / "feature"
+            feature_link.symlink_to(outside)
+
+            # Must reject WITHOUT docs_root — safe strict default
+            with self.assertRaises(vi.ValidationIndexError) as ctx:
+                vi.resolve_published_artifacts(feature_link)
+            self.assertIn("symlink", str(ctx.exception).lower())
+
+    def test_cli_unflagged_symlink_escape_rejected(self):
+        """CLI resolve --published rejects symlink escape without --docs-root."""
+        with tempfile.TemporaryDirectory() as tmp:
+            outside = Path(tmp) / "outside"
+            outside.mkdir()
+            _write(outside / "testplan.md", "# Escaped\n")
+
+            feature_link = Path(tmp) / "feature"
+            feature_link.symlink_to(outside)
+
+            rc = vi.main([
+                "resolve", "--published", str(feature_link),
+            ])
+            self.assertEqual(rc, 1)
+
+    def test_feature_dir_symlink_escape_with_docs_root(self):
+        """A feature-dir symlink rejected with docs_root too."""
         with tempfile.TemporaryDirectory() as tmp:
             docs_root = Path(tmp) / "docs"
             docs_root.mkdir()
             release_dir = docs_root / "v2.1"
             release_dir.mkdir()
 
-            # Outside directory with a valid testplan
             outside = Path(tmp) / "outside"
             outside.mkdir()
             _write(outside / "testplan.md", "# Malicious\n")
 
-            # Symlink: docs/v2.1/feature -> outside
             feature_link = release_dir / "feature"
             feature_link.symlink_to(outside)
 
-            # Without docs_root, the symlink is followed (old behavior)
-            # With docs_root, it should be rejected
             with self.assertRaises(vi.ValidationIndexError) as ctx:
                 vi.resolve_published_artifacts(
                     feature_link, docs_root=docs_root)
+            self.assertIn("symlink", str(ctx.exception).lower())
+
+    def test_primary_testplan_path_rejects_symlink_without_root(self):
+        """primary_testplan_path rejects feature_dir symlink without root."""
+        with tempfile.TemporaryDirectory() as tmp:
+            outside = Path(tmp) / "outside"
+            outside.mkdir()
+            _write(outside / "testplan.md", "# Escaped\n")
+
+            feature_link = Path(tmp) / "feature"
+            feature_link.symlink_to(outside)
+
+            with self.assertRaises(vi.ValidationIndexError) as ctx:
+                vi.primary_testplan_path(feature_link)
             self.assertIn("symlink", str(ctx.exception).lower())
 
     def test_ancestor_symlink_below_root_rejected(self):
@@ -6975,6 +7015,46 @@ class TestTCDefinitionValidation(unittest.TestCase):
         defs = vi.extract_tc_definitions(content)
         self.assertEqual(len(defs), 1)
         self.assertEqual(defs[0][1], "TC-FR1-01")
+
+    def test_unreadable_artifact_fails_closed(self):
+        """Indexed artifact that exists but can't be read fails closed.
+
+        Uses a deterministic approach: write the index listing an artifact,
+        then remove the artifact after resolve_artifacts validates paths but
+        before cmd_resolve reads content — simulated by using a directory
+        with the artifact's name (not a regular file but passes is_file=False
+        after resolve saw it). Instead, use monkeypatch on read_text.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            art_dir = Path(tmp)
+            index = {
+                "schema_version": "1.0",
+                "primary_testplan": "04-testplan.md",
+                "artifacts": [
+                    {"local": "04-testplan.md",
+                     "published_as": "testplan.md",
+                     "type": "testplan"},
+                ],
+            }
+            _write(art_dir / "validation-index.json",
+                   json.dumps(index, indent=2))
+            _write(art_dir / "04-testplan.md",
+                   "#### TC-FR1-01: Normal\n")
+
+            # Patch read_text on the artifact path to raise OSError
+            original_read = Path.read_text
+
+            def failing_read(self_path, *a, **kw):
+                if self_path.name == "04-testplan.md" and \
+                        "validation-index" not in str(self_path):
+                    raise OSError("simulated I/O error")
+                return original_read(self_path, *a, **kw)
+
+            import unittest.mock
+            with unittest.mock.patch.object(
+                    Path, 'read_text', failing_read):
+                rc = vi.main(["resolve", "--local", str(art_dir)])
+            self.assertEqual(rc, 1)
 
 
 if __name__ == "__main__":
