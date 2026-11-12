@@ -39,17 +39,27 @@ The script provides subcommands: `preflight`, `push`, `check-existing`,
 
 ## Process
 
-### Prerequisites: Resolve Script Path
+### Prerequisites: Resolve Script Paths
 
-Before running any subcommands, resolve the shared script to an
-absolute path so it remains valid regardless of working directory:
+Before running any subcommands, resolve both scripts to absolute paths.
+
+The publish script uses the existing shared convention:
 
 ```bash
 PUBLISH_SCRIPT="${HOME}/.ai-workflows/_shared/scripts/publish.py"
 ```
 
-Use `$PUBLISH_SCRIPT` instead of the relative path in all subsequent
-commands.
+The gate script belongs to this loaded workflow package. Resolve it
+relative to this skill file's location (`../scripts/validation_gate.py`
+from `skills/publish.md`), following symlinks to find the actual
+installed path. In every shell call below, `"{gate-script-path}"` is a
+placeholder — replace it with the resolved absolute path as a quoted
+shell argument. Resolve once at the start; substitute the literal
+value into each separate call. Do not rely on a shell variable
+surviving across agent calls. If the script is not at the resolved
+path, stop and report an installation problem.
+
+If either script is not available, stop before proceeding.
 
 ### Step 1: Pre-Flight Checks
 
@@ -65,10 +75,24 @@ Verify readiness:
      prerequisite has merged. An old PASS report cannot override an
      unresolved dependency.
 
-2. Read `.artifacts/implement/{issue-key}/05-validation-report.md`. Check
-   that the `## Result` section contains `PASS`. If the file doesn't exist,
-   the `## Result` section is missing, or it contains `FAIL`, tell the user
-   that `/validate` should be run (or re-run) first.
+2. Run the validation freshness gate. This gate is fail-closed — all
+   conditions must pass:
+
+   ```bash
+   python3 "{gate-script-path}" --report .artifacts/implement/{issue-key}/05-validation-report.md
+   ```
+
+   If exit code is 1, report the JSON failure reason. For a dirty
+   worktree, report the paths and explain that uncommitted changes
+   must be resolved outside `/publish` — via `/code`,
+   `/implement:review` for feedback, or user-approved `/revise` — then
+   `/validate` must pass on the clean state before retrying `/publish`.
+   For stale/missing/failed reports, recommend `/validate`. If exit
+   code is 2 or other (script crash), report the raw stderr. Do not
+   auto-launch `/validate`, auto-stage, commit, or stash. If dirty
+   paths are workflow outputs under `.artifacts/`, the project's
+   artifact exclusion is misconfigured — see `../guidelines.md` Safety
+   for the required setup before retrying.
 
 3. Verify the feature branch exists and has commits:
 
@@ -84,17 +108,14 @@ Verify readiness:
 
    If there are no commits ahead of the Local Base, there's nothing to publish.
 
-4. Run the shared pre-flight checks:
+4. Run the shared pre-flight checks for authentication:
 
    ```bash
    python3 "$PUBLISH_SCRIPT" preflight --platform github
    ```
 
    Parse the output to confirm `auth_ok=true`. If `auth_ok=false`, stop
-   and tell the user to authenticate first. Check for
-   `has_uncommitted=true`, `has_staged=true`, or `has_untracked=true`.
-   If there are uncommitted or untracked changes, ask the user how to
-   proceed.
+   and tell the user to authenticate first.
 
 ### Step 2: Cross-Cutting Review
 
@@ -120,29 +141,44 @@ how to handle them.
 If the gate reported PASS **without making any code fixes** (candidate
 unchanged), proceed directly to Step 3.
 
-If the gate made code fixes, re-run the validation profile's required
-checks on the post-fix working-tree candidate **before** staging or
-committing. If checks fail or produce further unreviewed code changes,
-stop and present the gap to the user — hand back to the existing
-`/validate` and review workflow rather than entering an unbounded
-automatic cycle. Once checks pass on the unchanged post-fix candidate,
-commit the gate fixes:
+If the gate made code fixes — regardless of whether it also ran checks
+inline — the validated commit no longer matches HEAD once the fixes are
+committed. Commit the gate fixes:
 
 ```bash
 git add {fixed files}
 git commit -m "{issue-key}: address cross-cutting review findings"
 ```
 
-Then proceed to Step 3.
+After committing, **stop and recommend `/validate`**. Do not proceed to
+Step 3. The self-review commit changed HEAD, so the validation report's
+`## Validated Commit` no longer matches the current state. A fresh
+`/validate` must run the full check suite on the new candidate and write
+a new report before `/publish` can proceed. The user invokes `/publish`
+again after `/validate` passes.
 
 ### Step 3: Confirm Details
 
+Read the `## Branch` section of `02-plan.md` to get `{branch-name}`,
+Local Base, and PR Target. If the planned branch name is missing or
+ambiguous, stop and ask the user.
+
+Verify the current branch matches the planned branch:
+
+```bash
+git branch --show-current
+```
+
+If the result does not exactly equal `{branch-name}`, or HEAD is
+detached, stop and report the mismatch. Do not auto-checkout or
+rename the plan's branch.
+
 Present the PR details to the user for confirmation:
 
-- **Branch:** `{branch-name}` (from the plan)
-- **Local Base:** `{local-base}` (branch this story is stacked on — from `## Branch` in `02-plan.md`)
-- **PR Target:** `{pr-target}` (upstream branch the PR will target — from `## Branch` in `02-plan.md`)
-- **Commits:** List the commits that will be included (only this story's commits)
+- **Branch:** `{branch-name}` (verified above)
+- **Local Base:** `{local-base}`
+- **PR Target:** `{pr-target}`
+- **Commits:**
 
 ```bash
 git log --oneline {local-base}..HEAD
@@ -153,13 +189,47 @@ git log --oneline {local-base}..HEAD
 
 Confirm with the user before proceeding.
 
-### Step 4: Push Branch
+### Step 4: Pre-Push Freshness Re-Check
+
+Immediately before pushing, re-run the validation freshness gate:
+
+```bash
+python3 "{gate-script-path}" --report .artifacts/implement/{issue-key}/05-validation-report.md
+```
+
+If exit code is 1 (gate failure), use the same failure-specific
+guidance as Step 1 item 2: dirty worktree → resolve via `/code`,
+`/implement:review`, or `/revise` then `/validate`; unignored
+artifact outputs → see `../guidelines.md` Safety; stale/missing/failed
+report → `/validate`. If exit code is 2 or other (script crash),
+report the raw stderr. Any non-zero exit blocks the push.
+
+On success, record the exact candidate SHA that will be pushed. Use
+this literal 40-character value in Step 7 — do not rely on a shell
+variable surviving across agent calls:
+
+```bash
+git rev-parse HEAD
+```
+
+### Step 5: Push Branch
+
+Verify the current branch matches the planned branch before pushing:
+
+```bash
+git branch --show-current
+```
+
+If the current branch does not exactly equal `{branch-name}` from the
+plan, or HEAD is detached, stop and report — do not push a different
+branch. Also verify `git rev-parse HEAD` still equals the SHA recorded
+in Step 4.
 
 ```bash
 python3 "$PUBLISH_SCRIPT" push --remote origin --branch {branch-name}
 ```
 
-### Step 5: Create PR Description
+### Step 6: Create PR Description
 
 Check the **PR Conventions** section of `01-context.md`:
 
@@ -167,7 +237,9 @@ Check the **PR Conventions** section of `01-context.md`:
   with content from the story context and implementation/test reports.
 - If no project template exists, use the default template below.
 
-In either case, save the result to
+Before writing, verify the output path is gitignored:
+`git check-ignore -- .artifacts/implement/{issue-key}/06-pr-description.md`.
+If not ignored, stop — see `../guidelines.md` Safety. Then save to
 `.artifacts/implement/{issue-key}/06-pr-description.md`.
 
 **Default template** (used when the project has no PR template):
@@ -197,7 +269,30 @@ In either case, save the result to
 - [ ] AC-2: {description}
 ```
 
-### Step 6: Create Draft PR
+### Step 7: Pre-PR Freshness Gate
+
+Immediately before creating the PR, run the pre-PR gate using the
+literal SHA recorded in Step 4. If this value is not available in the
+current context (session break, context limit), stop and request
+re-invoking `/publish` from Step 1 with fresh checks and user
+confirmation — do not infer the SHA from HEAD or the remote:
+
+```bash
+python3 "{gate-script-path}" \
+  --report .artifacts/implement/{issue-key}/05-validation-report.md \
+  --expected-sha {literal-pushed-sha} \
+  --remote origin \
+  --branch {branch-name}
+```
+
+This runs the full validation gate AND verifies that local HEAD equals
+the pushed SHA AND queries `git ls-remote --exit-code` to confirm the
+remote branch points to exactly that commit. Any failure — HEAD drift,
+remote drift, dirty worktree, stale report — blocks PR creation. If
+exit code is 1, report the JSON reason. If exit code is 2 or other
+(script crash), report raw stderr. If the gate script is missing, stop.
+
+### Step 8: Create Draft PR
 
 Check the **Repository Topology** section of `01-context.md` to determine
 whether this is a fork-based workflow.
@@ -209,7 +304,7 @@ python3 "$PUBLISH_SCRIPT" check-existing --repo {upstream-owner}/{repo} --head {
 ```
 
 If exit code is 5, a PR already exists — parse the PR number and URL
-from the returned JSON output, then skip to Step 7 and use those values
+from the returned JSON output, then skip to Step 9 and use those values
 in the metadata. If the command fails (non-zero exit other than 5),
 stop and report the error. If exit code is 0, create a new PR.
 
@@ -250,7 +345,7 @@ providing the user with a GitHub compare URL:
 - Fork-based: `https://github.com/{upstream-owner}/{repo}/compare/{pr-target}...{fork-owner}:{branch-name}?expand=1`
 - Direct clone: `https://github.com/{upstream-owner}/{repo}/compare/{pr-target}...{branch-name}?expand=1`
 
-### Step 7: Save Publish Metadata
+### Step 9: Save Publish Metadata
 
 Read `{owner}/{repo}` from the **Origin** field of the Repository
 Topology section of `01-context.md`. If the repo is a fork, also read
@@ -287,7 +382,7 @@ python3 "$PUBLISH_SCRIPT" save-metadata \
   jira_key={issue-key}
 ```
 
-### Step 8: Report to User
+### Step 10: Report to User
 
 Present:
 - PR URL (the full `https://github.com/...` link, not just `owner/repo#number`)

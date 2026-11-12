@@ -39,6 +39,37 @@ artifacts and published output from this workflow.
 - No committing to `main` directly. Use a feature branch.
 - No force-push or destructive git operations.
 
+## Documented Requirement Conflicts
+
+When user feedback or reviewer comments conflict with documented
+requirements (Jira acceptance criteria, linked design/PRD requirements,
+or the approved implementation plan), the workflow must:
+
+1. Identify the exact source document and requirement text.
+2. Explain the conflict and its behavioral effect.
+3. Ask whether the documented requirement remains authoritative or is
+   intentionally superseded.
+4. Do not apply the conflicting code change or post a PR response until
+   the user resolves the conflict.
+
+If the documented requirement is kept:
+- Explain the rationale to the user.
+- For `/respond`: prepare an evidence-based response supporting the
+  requirement for user approval before posting.
+
+If the documented requirement is superseded:
+- This workflow is Jira-read-only: the user must update the canonical
+  requirement source through its approved process first.
+- The user then runs `/ingest` to refresh `01-context.md` (ingest
+  preserves the old context and shows a diff before overwriting).
+- After the refreshed context is confirmed, `/revise` aligns the
+  implementation plan before coding resumes.
+- Update tests to match the resolved requirement.
+
+Both `/implement:review` and `/respond` follow this policy. Neither
+phase may apply a conflicting change or post a response before the user
+resolves the conflict. Neither phase may modify Jira.
+
 ## Safety
 
 - Show your work before finalizing. After `/plan`, present the task breakdown for review — do not assume it's ready.
@@ -47,6 +78,15 @@ artifacts and published output from this workflow.
 - **Read before writing.** Before modifying any file, read it first. Before writing tests for a package, read existing tests in that package to match patterns.
 - **Deviation transparency.** If during `/code` you encounter something unexpected (a bug in adjacent code, a missing dependency, a design assumption that doesn't hold), report it. Apply deviation rules (see `skills/code.md`) but never silently change approach.
 - Flag assumptions explicitly. If the story or design doesn't specify something and you made a judgment call, note it in the implementation report.
+- **Artifact outputs must be excluded from version control.** Before
+  `/validate` or `/publish` writes a report or PR description, verify
+  its exact output path is gitignored (`git check-ignore --
+  {output-file-path}` exits 0). If not, stop and explain that the
+  project must exclude the path (via `.gitignore` or local exclude)
+  before writing — do not auto-edit ignore files, commit artifacts,
+  or path-exempt unignored outputs. `/ingest` retains its existing
+  warn-only behavior for artifact directory setup; unignored outputs
+  still block at the validation and publication gates.
 
 ## Quality
 

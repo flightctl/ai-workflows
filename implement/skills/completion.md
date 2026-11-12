@@ -16,16 +16,21 @@ user.
   user has already reviewed and accepted the plan.
 - **revise:** Recommend `/code` when the user is satisfied, or another
   `/revise` round when further changes remain.
-- **code:** Recommend `/validate`. If implementation exposed a plan gap, note
-  the inline plan update or offer `/plan` when redesign requires user review.
-  If `/code` paused for a pending scope decision (a `## Pending Scope
-  Decision` section exists in `02-plan.md`), recommend `/revise` to update
-  the plan with the user's decision before resuming `/code`. The user can
-  invoke `/revise` directly even though `/code` did not complete — `/revise`
-  requires `02-plan.md` and `01-context.md` (for acceptance criteria and
-  validation profile), not the code/test/implementation reports that `/code`
-  writes on completion. Do not recommend `/validate` or `/publish`
-  while a scope decision is pending.
+- **code:** Recommend `/implement:review` for direct local feedback on the
+  implementation, or `/validate` when the user is satisfied with the code. If
+  implementation exposed a plan gap, note the inline plan update or offer
+  `/plan` when redesign requires user review. If `/code` paused for a pending
+  scope decision (a `## Pending Scope Decision` section exists in
+  `02-plan.md`), recommend `/revise` to update the plan with the user's
+  decision before resuming `/code`. The user can invoke `/revise` directly
+  even though `/code` did not complete — `/revise` requires `02-plan.md` and
+  `01-context.md` (for acceptance criteria and validation profile), not the
+  code/test/implementation reports that `/code` writes on completion. Do not
+  recommend `/validate` or `/publish` while a scope decision is pending.
+- **review:** Recommend another `/implement:review` call for more feedback,
+  or `/validate` when the user's feedback is complete. Note that any commit
+  from `/implement:review` makes a previous validation report stale. Do not
+  auto-advance to `/validate`.
 - **validate:** Recommend `/publish` only when validation passed and no scope
   decisions are pending. When failures remain, recommend fixing them and
   rerunning `/validate`; offer `/plan` for a design concern or ambiguous
