@@ -280,12 +280,12 @@ VALIDATION_INDEX_SCRIPT="$(realpath "${SKILL_DIR}/../../design/scripts/validatio
 
 If a `validation-index.json` exists in the source feature directory,
 run `python3 "$VALIDATION_INDEX_SCRIPT" resolve --published
-"{source-feature-directory}"` and use its returned validated artifact
-list for all subsequent reading and filtering. If no
-`validation-index.json` exists (legacy design), run the resolver on
-the feature directory to validate the legacy `testplan.md` path
-before reading it. Do not read or filter any artifact file that the
-resolver has not validated.
+"{source-feature-directory}" --docs-root "{docs_repo_path}"` and use
+its returned validated artifact list for all subsequent reading and
+filtering. If no `validation-index.json` exists (legacy design), run
+the resolver on the feature directory to validate the legacy
+`testplan.md` path before reading it. Do not read or filter any
+artifact file that the resolver has not validated.
 
 **Artifact discovery (using validated resolver output):** Use the
 resolver's returned artifact list to identify the published

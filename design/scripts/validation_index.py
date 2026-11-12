@@ -18,7 +18,7 @@ Usage:
   validation_index.py validate --local PATH [--artifact-dir DIR]
   validation_index.py validate --published PATH [--feature-dir DIR]
   validation_index.py resolve --local DIR
-  validation_index.py resolve --published DIR
+  validation_index.py resolve --published DIR --docs-root ROOT
   validation_index.py transform LOCAL_INDEX OUTPUT
   validation_index.py diff OLD_INDEX NEW_INDEX
   validation_index.py build-legacy DIR OUTPUT
@@ -589,7 +589,7 @@ def _check_directory_containment(
 def resolve_published_artifacts(
     feature_dir: Path,
     *,
-    docs_root: Path | None = None,
+    docs_root: Path,
 ) -> list[dict[str, Any]]:
     """Resolve validation artifacts from a published docs-repo directory.
 
@@ -598,24 +598,17 @@ def resolve_published_artifacts(
     Returns a list of artifact entries (published index format).
     Returns empty list if no artifacts found.
 
-    The *feature_dir* itself is always checked for being a symlink,
-    preventing the primary directory-symlink escape regardless of
-    whether *docs_root* is set.  When *docs_root* is given, the full
-    ancestor containment walk is performed — rejecting symlinks in
-    every component between *feature_dir* and the trusted root.
+    *docs_root* is the operator-configured checkout root (e.g. the
+    docs repo path or the project root for ``.artifacts/`` snapshots).
+    It must be an existing directory.  All components of *feature_dir*
+    below *docs_root* are checked for symlinks before any content is
+    read, preventing both direct and ancestor-level directory-symlink
+    escapes.  Components at or above *docs_root* are operator-trusted.
 
     Raises ValidationIndexError on malformed index, missing listed
     files, symlink artifacts, or directory containment violations.
     """
-    # Always reject a feature_dir that is itself a symlink.
-    # This catches the primary escape vector unconditionally.
-    if feature_dir.is_symlink():
-        raise ValidationIndexError(
-            f"feature directory is a symlink (not allowed): "
-            f"{feature_dir}")
-    # Full ancestor containment check when a trusted root is provided
-    if docs_root is not None:
-        _check_directory_containment(feature_dir, docs_root)
+    _check_directory_containment(feature_dir, docs_root)
     index_path = feature_dir / "validation-index.json"
     # Check dangling symlinks/directories BEFORE is_file
     if index_path.is_symlink():
@@ -668,7 +661,7 @@ def resolve_published_artifacts(
 def primary_testplan_path(
     feature_dir: Path,
     *,
-    docs_root: Path | None = None,
+    docs_root: Path,
 ) -> Path | None:
     """Return the path to the primary testplan in a docs-repo directory.
 
@@ -676,19 +669,14 @@ def primary_testplan_path(
     Returns None if no validation artifacts are found (no index and
     no legacy testplan.md).
 
-    When *docs_root* is given, validates full ancestor containment.
-    The *feature_dir* itself is always checked for being a symlink.
+    *docs_root* is required — see :func:`resolve_published_artifacts`
+    for the containment contract.
 
     Raises ValidationIndexError if the index lists a primary testplan
     that does not exist on disk or is a symlink — this indicates a
     corrupted published state, not an absent testplan.
     """
-    if feature_dir.is_symlink():
-        raise ValidationIndexError(
-            f"feature directory is a symlink (not allowed): "
-            f"{feature_dir}")
-    if docs_root is not None:
-        _check_directory_containment(feature_dir, docs_root)
+    _check_directory_containment(feature_dir, docs_root)
     index_path = feature_dir / "validation-index.json"
     # Check dangling symlinks/directories BEFORE is_file
     if index_path.is_symlink():
@@ -912,10 +900,14 @@ def cmd_resolve(args: argparse.Namespace) -> int:
         if args.local:
             arts = resolve_artifacts(d)
         else:
-            docs_root = None
-            if getattr(args, 'docs_root', None):
-                docs_root = Path(args.docs_root)
-            arts = resolve_published_artifacts(d, docs_root=docs_root)
+            docs_root_str = getattr(args, 'docs_root', None)
+            if not docs_root_str:
+                print("ERROR: --docs-root is required with "
+                      "--published to enforce directory "
+                      "containment", file=sys.stderr)
+                return 1
+            arts = resolve_published_artifacts(
+                d, docs_root=Path(docs_root_str))
     except ValidationIndexError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

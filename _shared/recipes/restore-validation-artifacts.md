@@ -70,7 +70,8 @@ Do not apply any primary or companion edits until validation passes.
 
 ### 5. Compare with current published set
 
-After restoration and local validation, run `resolve --published` on
+After restoration and local validation, run `resolve --published
+"{DOCS_REPO_PATH}/{FEATURE_DIR}" --docs-root "{DOCS_REPO_PATH}"` on
 the published feature directory and compare the restored local mapping
 and file content against the current published set. If they differ
 (e.g., a companion was added or content changed since the local

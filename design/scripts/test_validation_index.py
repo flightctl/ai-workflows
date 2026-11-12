@@ -566,7 +566,7 @@ class TestCLIResolve(unittest.TestCase):
             _write_json(Path(td) / "validation-index.json", pub)
             _write(Path(td) / "testplan.md", "# Plan")
             _write(Path(td) / "hw.md", "# HW")
-            r = _run_cli("resolve", "--published", td)
+            r = _run_cli("resolve", "--published", td, "--docs-root", td)
             self.assertEqual(r.returncode, 0, r.stderr)
             arts = json.loads(r.stdout)
             self.assertEqual(len(arts), 2)
@@ -574,7 +574,7 @@ class TestCLIResolve(unittest.TestCase):
     def test_resolve_published_legacy(self):
         with tempfile.TemporaryDirectory() as td:
             _write(Path(td) / "testplan.md", "# Plan")
-            r = _run_cli("resolve", "--published", td)
+            r = _run_cli("resolve", "--published", td, "--docs-root", td)
             self.assertEqual(r.returncode, 0, r.stderr)
             arts = json.loads(r.stdout)
             self.assertEqual(len(arts), 1)
@@ -806,20 +806,23 @@ class TestResolvePublished(unittest.TestCase):
             _write_json(d / "validation-index.json", pub)
             _write(d / "testplan.md", "# Plan")
             _write(d / "hw.md", "# HW")
-            arts = vi.resolve_published_artifacts(d)
+            arts = vi.resolve_published_artifacts(
+                d, docs_root=d.parent)
             self.assertEqual(len(arts), 2)
 
     def test_legacy_single_testplan(self):
         with tempfile.TemporaryDirectory() as td:
             _write(Path(td) / "testplan.md", "# Plan")
-            arts = vi.resolve_published_artifacts(Path(td))
+            arts = vi.resolve_published_artifacts(
+                Path(td), docs_root=Path(td).parent)
             self.assertEqual(len(arts), 1)
             self.assertEqual(arts[0]["file"], "testplan.md")
 
     def test_no_artifacts(self):
         with tempfile.TemporaryDirectory() as td:
             _write(Path(td) / "design.md", "# Design only")
-            arts = vi.resolve_published_artifacts(Path(td))
+            arts = vi.resolve_published_artifacts(
+                Path(td), docs_root=Path(td).parent)
             self.assertEqual(arts, [])
 
     def test_primary_path_with_index(self):
@@ -834,7 +837,7 @@ class TestResolvePublished(unittest.TestCase):
             }
             _write_json(d / "validation-index.json", pub)
             _write(d / "testplan.md", "# Plan")
-            p = vi.primary_testplan_path(d)
+            p = vi.primary_testplan_path(d, docs_root=d.parent)
             self.assertEqual(p, d / "testplan.md")
 
     def test_primary_path_malformed_fails_closed(self):
@@ -844,7 +847,7 @@ class TestResolvePublished(unittest.TestCase):
             _write_json(d / "validation-index.json", {"bad": True})
             _write(d / "testplan.md", "# Plan")
             with self.assertRaises(vi.ValidationIndexError):
-                vi.primary_testplan_path(d)
+                vi.primary_testplan_path(d, docs_root=d.parent)
 
 
 # ===========================================================================
@@ -921,7 +924,8 @@ class TestLifecycle(unittest.TestCase):
                 (art_dir / "04-testplan.md").read_text())
 
             # Fresh consumer discovers
-            r = _run_cli("resolve", "--published", str(docs_dir))
+            r = _run_cli("resolve", "--published", str(docs_dir),
+                         "--docs-root", str(docs_dir.parent))
             self.assertEqual(r.returncode, 0, r.stderr)
             arts = json.loads(r.stdout)
             self.assertEqual(len(arts), 1)
@@ -960,7 +964,8 @@ class TestLifecycle(unittest.TestCase):
                     (art_dir / art["local"]).read_text())
 
             # Fresh consumer discovers both
-            r = _run_cli("resolve", "--published", str(docs_dir))
+            r = _run_cli("resolve", "--published", str(docs_dir),
+                         "--docs-root", str(docs_dir.parent))
             arts = json.loads(r.stdout)
             self.assertEqual(len(arts), 2)
             files = {a["file"] for a in arts}
@@ -1086,7 +1091,8 @@ class TestLifecycle(unittest.TestCase):
                    "### NFR-3\n#### TC-NFR3-01: HW qual")
 
             # Use production API to resolve artifacts
-            arts = vi.resolve_published_artifacts(d)
+            arts = vi.resolve_published_artifacts(
+                d, docs_root=d.parent)
             self.assertEqual(len(arts), 2)
 
             # Verify type metadata is preserved for routing
@@ -1095,7 +1101,8 @@ class TestLifecycle(unittest.TestCase):
             self.assertEqual(types["hw.md"], "companion")
 
             # Verify primary testplan path API
-            primary = vi.primary_testplan_path(d)
+            primary = vi.primary_testplan_path(
+                d, docs_root=d.parent)
             self.assertEqual(primary, d / "testplan.md")
 
     def test_companion_not_named_testplan(self):
@@ -1122,7 +1129,8 @@ class TestLifecycle(unittest.TestCase):
             _write_json(d / "validation-index.json", pub)
             _write(d / "testplan.md", "# Plan")
             _write(d / "security-cert.md", "# Security")
-            arts = vi.resolve_published_artifacts(d)
+            arts = vi.resolve_published_artifacts(
+                d, docs_root=d.parent)
             self.assertEqual(len(arts), 2)
 
             # Verify companion metadata is preserved
@@ -1220,7 +1228,8 @@ class TestSymlinkRejection(unittest.TestCase):
             }
             _write_json(d / "validation-index.json", pub)
             with self.assertRaises(vi.ValidationIndexError) as ctx:
-                vi.resolve_published_artifacts(d)
+                vi.resolve_published_artifacts(
+                    d, docs_root=d.parent)
             self.assertIn("symlink", str(ctx.exception))
 
     def test_symlink_legacy_rejected(self):
@@ -1252,7 +1261,8 @@ class TestSymlinkRejection(unittest.TestCase):
             }
             _write_json(d / "validation-index.json", pub)
             with self.assertRaises(vi.ValidationIndexError) as ctx:
-                vi.primary_testplan_path(d)
+                vi.primary_testplan_path(
+                    d, docs_root=d.parent)
             self.assertIn("symlink", str(ctx.exception))
 
 
@@ -1281,7 +1291,8 @@ class TestDanglingSymlinkAndDirectory(unittest.TestCase):
             (d / "validation-index.json").symlink_to("/nonexistent/target")
             _write(d / "testplan.md", "# Plan")
             with self.assertRaises(vi.ValidationIndexError) as ctx:
-                vi.resolve_published_artifacts(d)
+                vi.resolve_published_artifacts(
+                    d, docs_root=d.parent)
             self.assertIn("symlink", str(ctx.exception))
 
     def test_dangling_symlink_index_primary_path(self):
@@ -1291,7 +1302,8 @@ class TestDanglingSymlinkAndDirectory(unittest.TestCase):
             (d / "validation-index.json").symlink_to("/nonexistent/target")
             _write(d / "testplan.md", "# Plan")
             with self.assertRaises(vi.ValidationIndexError) as ctx:
-                vi.primary_testplan_path(d)
+                vi.primary_testplan_path(
+                    d, docs_root=d.parent)
             self.assertIn("symlink", str(ctx.exception))
 
     def test_directory_as_index_local(self):
@@ -1311,7 +1323,8 @@ class TestDanglingSymlinkAndDirectory(unittest.TestCase):
             (d / "validation-index.json").mkdir()
             _write(d / "testplan.md", "# Plan")
             with self.assertRaises(vi.ValidationIndexError) as ctx:
-                vi.resolve_published_artifacts(d)
+                vi.resolve_published_artifacts(
+                    d, docs_root=d.parent)
             self.assertIn("not a regular file", str(ctx.exception))
 
     def test_dangling_symlink_legacy_local(self):
@@ -1329,7 +1342,8 @@ class TestDanglingSymlinkAndDirectory(unittest.TestCase):
             d = Path(td)
             (d / "testplan.md").symlink_to("/nonexistent/plan")
             with self.assertRaises(vi.ValidationIndexError) as ctx:
-                vi.resolve_published_artifacts(d)
+                vi.resolve_published_artifacts(
+                    d, docs_root=d.parent)
             self.assertIn("symlink", str(ctx.exception))
 
 
@@ -1354,13 +1368,15 @@ class TestPrimaryTestplanPath(unittest.TestCase):
             _write_json(d / "validation-index.json", pub)
             # Don't create testplan.md
             with self.assertRaises(vi.ValidationIndexError) as ctx:
-                vi.primary_testplan_path(d)
+                vi.primary_testplan_path(
+                    d, docs_root=d.parent)
             self.assertIn("not found", str(ctx.exception))
 
     def test_no_artifacts_returns_none(self):
         """No index and no legacy file → None (not error)."""
         with tempfile.TemporaryDirectory() as td:
-            result = vi.primary_testplan_path(Path(td))
+            result = vi.primary_testplan_path(
+                Path(td), docs_root=Path(td).parent)
             self.assertIsNone(result)
 
 
@@ -1388,7 +1404,8 @@ class TestPublishedFileExistence(unittest.TestCase):
             _write(d / "testplan.md", "# Plan")
             # Don't create hw.md
             with self.assertRaises(vi.ValidationIndexError) as ctx:
-                vi.resolve_published_artifacts(d)
+                vi.resolve_published_artifacts(
+                    d, docs_root=d.parent)
             self.assertIn("not found", str(ctx.exception))
 
 
@@ -2237,7 +2254,8 @@ class TestCLIWorkflowSequence(unittest.TestCase):
             self.assertEqual(r.returncode, 0, r.stderr)
 
             # Step 6: resolve published from fresh docs dir
-            r = _run_cli("resolve", "--published", str(docs_dir))
+            r = _run_cli("resolve", "--published", str(docs_dir),
+                         "--docs-root", str(docs_dir.parent))
             self.assertEqual(r.returncode, 0, r.stderr)
             pub_arts = json.loads(r.stdout)
             self.assertEqual(len(pub_arts), 1)
@@ -3033,7 +3051,8 @@ class TestSnapshotGitConsumerRegressions(unittest.TestCase):
             _write_json(docs_dir / "validation-index.json", pub)
             _write(docs_dir / "testplan.md", "# Plan")
             # hw.md NOT on disk — stale snapshot
-            r = _run_cli("resolve", "--published", str(docs_dir))
+            r = _run_cli("resolve", "--published", str(docs_dir),
+                         "--docs-root", str(docs_dir.parent))
             self.assertEqual(r.returncode, 1,
                              "Stale snapshot must fail when listed file "
                              "is missing")
@@ -3064,13 +3083,15 @@ class TestSnapshotGitConsumerRegressions(unittest.TestCase):
                     (art_dir / art["local"]).read_text())
 
             # Resolve from published
-            r = _run_cli("resolve", "--published", str(docs_dir))
+            r = _run_cli("resolve", "--published", str(docs_dir),
+                         "--docs-root", str(docs_dir.parent))
             self.assertEqual(r.returncode, 0, r.stderr)
             arts = json.loads(r.stdout)
             self.assertEqual(len(arts), 2)
 
             # Primary path
-            primary = vi.primary_testplan_path(docs_dir)
+            primary = vi.primary_testplan_path(
+                docs_dir, docs_root=docs_dir.parent)
             self.assertEqual(primary, docs_dir / "testplan.md")
 
     def test_canonical_legacy_snapshot(self):
@@ -3084,7 +3105,8 @@ class TestSnapshotGitConsumerRegressions(unittest.TestCase):
             _write(docs_dir / "testplan.md", "# Plan")
 
             # Resolve published (legacy fallback)
-            arts = vi.resolve_published_artifacts(docs_dir)
+            arts = vi.resolve_published_artifacts(
+                docs_dir, docs_root=docs_dir.parent)
             self.assertEqual(len(arts), 1)
             self.assertEqual(arts[0]["file"], "testplan.md")
 
@@ -6641,38 +6663,28 @@ class TestDirectoryContainment(unittest.TestCase):
     feature-directory symlink pointing outside the docs repo.
     """
 
-    def test_feature_dir_symlink_rejected_without_flag(self):
-        """Feature-dir symlink rejected even without --docs-root."""
+    def test_api_missing_docs_root_is_error(self):
+        """Calling resolve_published_artifacts without docs_root fails."""
         with tempfile.TemporaryDirectory() as tmp:
-            outside = Path(tmp) / "outside"
-            outside.mkdir()
-            _write(outside / "testplan.md", "# Malicious\n")
+            feature_dir = Path(tmp) / "feature"
+            feature_dir.mkdir()
+            _write(feature_dir / "testplan.md", "# Plan\n")
+            with self.assertRaises(TypeError):
+                vi.resolve_published_artifacts(feature_dir)
 
-            feature_link = Path(tmp) / "feature"
-            feature_link.symlink_to(outside)
-
-            # Must reject WITHOUT docs_root — safe strict default
-            with self.assertRaises(vi.ValidationIndexError) as ctx:
-                vi.resolve_published_artifacts(feature_link)
-            self.assertIn("symlink", str(ctx.exception).lower())
-
-    def test_cli_unflagged_symlink_escape_rejected(self):
-        """CLI resolve --published rejects symlink escape without --docs-root."""
+    def test_cli_missing_docs_root_fails_closed(self):
+        """CLI resolve --published without --docs-root fails closed."""
         with tempfile.TemporaryDirectory() as tmp:
-            outside = Path(tmp) / "outside"
-            outside.mkdir()
-            _write(outside / "testplan.md", "# Escaped\n")
-
-            feature_link = Path(tmp) / "feature"
-            feature_link.symlink_to(outside)
-
+            feature_dir = Path(tmp) / "feature"
+            feature_dir.mkdir()
+            _write(feature_dir / "testplan.md", "# Plan\n")
             rc = vi.main([
-                "resolve", "--published", str(feature_link),
+                "resolve", "--published", str(feature_dir),
             ])
             self.assertEqual(rc, 1)
 
-    def test_feature_dir_symlink_escape_with_docs_root(self):
-        """A feature-dir symlink rejected with docs_root too."""
+    def test_feature_dir_symlink_escape_rejected(self):
+        """A feature-dir symlink is rejected by containment check."""
         with tempfile.TemporaryDirectory() as tmp:
             docs_root = Path(tmp) / "docs"
             docs_root.mkdir()
@@ -6691,18 +6703,21 @@ class TestDirectoryContainment(unittest.TestCase):
                     feature_link, docs_root=docs_root)
             self.assertIn("symlink", str(ctx.exception).lower())
 
-    def test_primary_testplan_path_rejects_symlink_without_root(self):
-        """primary_testplan_path rejects feature_dir symlink without root."""
+    def test_primary_testplan_path_rejects_symlink(self):
+        """primary_testplan_path rejects feature_dir symlink."""
         with tempfile.TemporaryDirectory() as tmp:
+            docs_root = Path(tmp) / "docs"
+            docs_root.mkdir()
             outside = Path(tmp) / "outside"
             outside.mkdir()
             _write(outside / "testplan.md", "# Escaped\n")
 
-            feature_link = Path(tmp) / "feature"
+            feature_link = docs_root / "feature"
             feature_link.symlink_to(outside)
 
             with self.assertRaises(vi.ValidationIndexError) as ctx:
-                vi.primary_testplan_path(feature_link)
+                vi.primary_testplan_path(
+                    feature_link, docs_root=docs_root)
             self.assertIn("symlink", str(ctx.exception).lower())
 
     def test_ancestor_symlink_below_root_rejected(self):
@@ -6730,14 +6745,15 @@ class TestDirectoryContainment(unittest.TestCase):
                     feature_dir, docs_root=docs_root)
             self.assertIn("symlink", str(ctx.exception).lower())
 
-    def test_valid_path_no_docs_root_succeeds(self):
-        """Without docs_root, normal paths still work (legacy compat)."""
+    def test_valid_path_with_parent_root_succeeds(self):
+        """Normal non-symlink path with parent as root succeeds."""
         with tempfile.TemporaryDirectory() as tmp:
             feature_dir = Path(tmp) / "v2.1" / "feature"
             feature_dir.mkdir(parents=True)
             _write(feature_dir / "testplan.md", "# Plan\n")
 
-            arts = vi.resolve_published_artifacts(feature_dir)
+            arts = vi.resolve_published_artifacts(
+                feature_dir, docs_root=Path(tmp))
             self.assertEqual(len(arts), 1)
             self.assertEqual(arts[0]["file"], "testplan.md")
 
@@ -7001,7 +7017,8 @@ class TestTCDefinitionValidation(unittest.TestCase):
             _write(fdir / "hw-validation.md",
                    "#### TC-FR1-01: Same ID\n")
 
-            rc = vi.main(["resolve", "--published", str(fdir)])
+            rc = vi.main(["resolve", "--published", str(fdir),
+                          "--docs-root", str(fdir.parent)])
             self.assertEqual(rc, 1)
 
     def test_tilde_fence_skipped(self):
