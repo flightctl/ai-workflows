@@ -3424,52 +3424,372 @@ class TestSymlinkContainmentBeforeRead(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Case A-2: Symlink guard read instrumentation (review 5866998559)
+# ---------------------------------------------------------------------------
+
+class TestSymlinkReadInstrumentation(unittest.TestCase):
+    """Prove publisher never reads outside file content through symlinks.
+
+    Instruments actual preview-publish.py module with tracked
+    Path.read_text/read_bytes to verify containment guards fire BEFORE
+    any read of outside targets.  Includes negative control proving
+    instrumentation detects forbidden reads when guards are disabled.
+    """
+
+    _PUB_PATH = _SCRIPT.parent / "preview-publish.py"
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        spec = importlib.util.spec_from_file_location(
+            "_test_preview_publish", cls._PUB_PATH,
+        )
+        assert spec and spec.loader
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        cls._pub = mod
+
+    def _package_bundle(self, tmpdir: str) -> tuple[Path, dict]:
+        """Create a valid bundle.  Reuses fixture pattern from Case A."""
+        import subprocess
+        proto = Path(tmpdir) / "source" / "prototype"
+        proto.mkdir(parents=True)
+        (proto / "index.html").write_text(
+            _SELF_CONTAINED_HTML, encoding="utf-8",
+        )
+        (proto / "style.css").write_text("body{margin:0}", encoding="utf-8")
+        output = Path(tmpdir) / "output"
+        r = subprocess.run(
+            [
+                sys.executable, str(_SCRIPT), "package",
+                "--prototype-dir", str(Path(tmpdir) / "source"),
+                "--output-dir", str(output),
+                "--issue-key", "INST-1", "--revision", "r1",
+                "--mode", "standalone",
+            ],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        pkg = json.loads(r.stdout)
+        return Path(pkg["bundle_dir"]), pkg
+
+    def _run_instrumented(self, cmd_func, cmd_args, outside_path):
+        """Run a publisher command with Path read instrumentation.
+
+        Returns (exit_code, stderr_text, reads_of_outside).
+        Tracks reads matching raw symlink alias AND resolved target.
+        """
+        import contextlib
+        import io
+        from unittest.mock import patch
+
+        outside_resolved = str(outside_path.resolve())
+        outside_str = str(outside_path)
+        reads = []
+
+        orig_read_text = Path.read_text
+        orig_read_bytes = Path.read_bytes
+
+        def track_read_text(self_path, *a, **kw):
+            try:
+                resolved = str(self_path.resolve())
+            except OSError:
+                resolved = str(self_path)
+            if resolved == outside_resolved or str(self_path) == outside_str:
+                reads.append(("read_text", str(self_path), resolved))
+            return orig_read_text(self_path, *a, **kw)
+
+        def track_read_bytes(self_path, *a, **kw):
+            try:
+                resolved = str(self_path.resolve())
+            except OSError:
+                resolved = str(self_path)
+            if resolved == outside_resolved or str(self_path) == outside_str:
+                reads.append(("read_bytes", str(self_path), resolved))
+            return orig_read_bytes(self_path, *a, **kw)
+
+        stderr_buf = io.StringIO()
+        stdout_buf = io.StringIO()
+        exit_code = None
+        with patch.object(Path, "read_text", track_read_text), \
+             patch.object(Path, "read_bytes", track_read_bytes), \
+             contextlib.redirect_stderr(stderr_buf), \
+             contextlib.redirect_stdout(stdout_buf):
+            try:
+                exit_code = cmd_func(cmd_args)
+            except SystemExit as exc:
+                exit_code = exc.code
+
+        return exit_code, stderr_buf.getvalue(), reads
+
+    def test_publish_asset_symlink_outside_never_read(self) -> None:
+        """Instrumented: outside file never read via symlinked asset
+        in publish.  The digest function's symlink guard fires first."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bundle, pkg = self._package_bundle(tmpdir)
+            outside = Path(tmpdir) / "outside-secret.dat"
+            outside.write_text("TOP SECRET", encoding="utf-8")
+            (bundle / "style.css").unlink()
+            (bundle / "style.css").symlink_to(outside)
+
+            exit_code, stderr, reads = self._run_instrumented(
+                self._pub.cmd_publish,
+                [
+                    "--bundle-dir", str(bundle),
+                    "--pr-repo", "org/docs", "--pr-number", "1",
+                    "--content-sha256", pkg["content_sha256"],
+                    "--target-repo", "org/docs",
+                ],
+                outside,
+            )
+            self.assertNotEqual(exit_code, 0)
+            self.assertIn("symlink", stderr.lower())
+            self.assertEqual(
+                reads, [],
+                f"Outside file must never be read; got: {reads}",
+            )
+
+    def test_verify_asset_symlink_outside_never_read(self) -> None:
+        """Instrumented: outside file never read via symlinked asset
+        in verify.  The _validate_contained_path guard fires first."""
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bundle, pkg = self._package_bundle(tmpdir)
+            site_dir = Path(tmpdir) / "site"
+            rp = subprocess.run(
+                [
+                    sys.executable, str(self._PUB_PATH), "publish",
+                    "--bundle-dir", str(bundle),
+                    "--pr-repo", "org/docs", "--pr-number", "1",
+                    "--content-sha256", pkg["content_sha256"],
+                    "--target-repo", "org/docs",
+                    "--local-fixture", str(site_dir),
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(rp.returncode, 0, rp.stderr)
+            receipt = json.loads(rp.stdout)
+            ns = receipt["namespace"]
+            outside = Path(tmpdir) / "secret.dat"
+            outside.write_text("OUTSIDE CONTENT", encoding="utf-8")
+            published_css = site_dir / ns / "style.css"
+            published_css.unlink()
+            published_css.symlink_to(outside)
+
+            exit_code, stderr, reads = self._run_instrumented(
+                self._pub.cmd_verify,
+                [
+                    "--site-dir", str(site_dir),
+                    "--namespace", ns,
+                    "--expected-digest", pkg["content_sha256"],
+                ],
+                outside,
+            )
+            self.assertNotEqual(exit_code, 0)
+            self.assertIn("symlink", stderr.lower())
+            self.assertEqual(
+                reads, [],
+                f"Outside file must never be read; got: {reads}",
+            )
+
+    def test_publish_manifest_symlink_outside_never_read(self) -> None:
+        """Instrumented: outside file never read via symlinked root manifest
+        in publish."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bundle, pkg = self._package_bundle(tmpdir)
+            outside = Path(tmpdir) / "outside-manifest.json"
+            outside.write_text(
+                '{"files":[],"entry_point":"index.html"}',
+                encoding="utf-8",
+            )
+            mpath = bundle / "preview-manifest.json"
+            mpath.unlink()
+            mpath.symlink_to(outside)
+
+            exit_code, stderr, reads = self._run_instrumented(
+                self._pub.cmd_publish,
+                [
+                    "--bundle-dir", str(bundle),
+                    "--pr-repo", "org/docs", "--pr-number", "1",
+                    "--content-sha256", pkg["content_sha256"],
+                    "--target-repo", "org/docs",
+                ],
+                outside,
+            )
+            self.assertNotEqual(exit_code, 0)
+            self.assertIn("symlink", stderr.lower())
+            self.assertEqual(
+                reads, [],
+                f"Outside manifest must never be read; got: {reads}",
+            )
+
+    def test_negative_control_guard_disabled_catches_read(self) -> None:
+        """Negative control: with _validate_contained_path disabled,
+        the per-file verify loop reads the outside file through the
+        symlink — proving the instrumentation actually detects it."""
+        import contextlib
+        import io
+        import subprocess
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bundle, pkg = self._package_bundle(tmpdir)
+            site_dir = Path(tmpdir) / "site"
+            rp = subprocess.run(
+                [
+                    sys.executable, str(self._PUB_PATH), "publish",
+                    "--bundle-dir", str(bundle),
+                    "--pr-repo", "org/docs", "--pr-number", "1",
+                    "--content-sha256", pkg["content_sha256"],
+                    "--target-repo", "org/docs",
+                    "--local-fixture", str(site_dir),
+                ],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(rp.returncode, 0, rp.stderr)
+            receipt = json.loads(rp.stdout)
+            ns = receipt["namespace"]
+            outside = Path(tmpdir) / "secret.dat"
+            outside.write_text("OUTSIDE CONTENT", encoding="utf-8")
+            published_css = site_dir / ns / "style.css"
+            published_css.unlink()
+            published_css.symlink_to(outside)
+
+            outside_resolved = str(outside.resolve())
+            outside_str = str(outside)
+            reads = []
+            orig_read_bytes = Path.read_bytes
+
+            def track_read_bytes(self_path, *a, **kw):
+                try:
+                    resolved = str(self_path.resolve())
+                except OSError:
+                    resolved = str(self_path)
+                if resolved == outside_resolved or str(self_path) == outside_str:
+                    reads.append(("read_bytes", str(self_path), resolved))
+                return orig_read_bytes(self_path, *a, **kw)
+
+            stderr_buf = io.StringIO()
+            stdout_buf = io.StringIO()
+            with patch.object(Path, "read_bytes", track_read_bytes), \
+                 patch.object(
+                     self._pub, "_validate_contained_path",
+                     lambda *a, **kw: None,
+                 ), \
+                 contextlib.redirect_stderr(stderr_buf), \
+                 contextlib.redirect_stdout(stdout_buf):
+                try:
+                    self._pub.cmd_verify([
+                        "--site-dir", str(site_dir),
+                        "--namespace", ns,
+                        "--expected-digest", pkg["content_sha256"],
+                    ])
+                except SystemExit:
+                    pass  # Expected: digest function detects symlink
+
+            self.assertGreater(
+                len(reads), 0,
+                "Negative control: with guard disabled, outside file "
+                "must be read — proving instrumentation works",
+            )
+
+
+# ---------------------------------------------------------------------------
 # Case B: Producer initial "Not yet revalidated" contract (ID 4544468991)
 # ---------------------------------------------------------------------------
 
 class TestInitialRevalidationContract(unittest.TestCase):
     """Contract: preview.md allows 'Not yet revalidated' only when
     context/notes/discovery all align for a fresh iteration.
+
+    Scoped to the actual **Initial prototype (fresh iteration):** clause
+    and Pre-Build Context Check step 5 to prevent false passes from
+    unrelated occurrences of the same terms elsewhere in preview.md.
     """
 
     _PREVIEW_MD = _SCRIPT.parent.parent / "skills" / "preview.md"
 
+    def _extract_initial_branch(self, text: str) -> str:
+        """Extract the **Initial prototype (fresh iteration):** clause."""
+        start_marker = "**Initial prototype (fresh iteration):**"
+        end_marker = "**Revalidated prototype:**"
+        start = text.find(start_marker)
+        self.assertGreater(start, -1, "Must contain Initial prototype marker")
+        end = text.find(end_marker, start)
+        self.assertGreater(end, start,
+                           "Must contain Revalidated prototype marker after Initial")
+        return text[start:end]
+
+    def _extract_step5(self, text: str) -> str:
+        """Extract Pre-Build Context Check step 5."""
+        idx5 = text.find("5. If the prototype has not been reviewed")
+        self.assertGreater(idx5, -1, "Must contain step 5")
+        idx6 = text.find("6. If the prototype is current", idx5)
+        self.assertGreater(idx6, idx5, "Must contain step 6 after step 5")
+        return text[idx5:idx6]
+
     def test_initial_marker_explicitly_allowed(self) -> None:
-        """preview.md must explicitly allow 'Not yet revalidated' as valid."""
+        """Initial branch must explicitly allow 'Not yet revalidated'."""
         text = self._PREVIEW_MD.read_text(encoding="utf-8")
-        self.assertIn(
-            "Not yet revalidated",
-            text,
-            "Must reference the initial marker value",
-        )
-        self.assertIn(
-            "valid only when",
-            text.lower(),
-            "Must state conditions under which the initial marker is valid",
-        )
+        branch = self._extract_initial_branch(text)
+        self.assertIn("Not yet revalidated", branch,
+                       "Initial branch must reference the marker value")
+        norm = " ".join(branch.split()).lower()
+        self.assertIn("valid only when all", norm,
+                       "Initial branch must state ALL conditions")
 
     def test_initial_marker_requires_matching_discovery(self) -> None:
-        """Initial marker valid only when discovery revisions all match."""
+        """Initial branch must require all three discovery revision checks."""
         text = self._PREVIEW_MD.read_text(encoding="utf-8")
-        # Must require notes original discovery == current discovery
+        branch = self._extract_initial_branch(text)
+        norm = " ".join(branch.split()).lower()
         self.assertIn(
-            "Discovery revision",
-            text,
-            "Must reference notes original Discovery revision",
+            "latest reviewed discovery revision", norm,
+            "Must reference context's latest reviewed discovery revision",
         )
         self.assertIn(
-            "current discovery revision",
-            text.lower(),
+            "current discovery revision", norm,
             "Must require match with current discovery revision",
         )
-
-    def test_mismatch_still_stops(self) -> None:
-        """Mismatch/unknown cases must still trigger STOP."""
-        text = self._PREVIEW_MD.read_text(encoding="utf-8")
         self.assertIn(
-            "mismatch",
-            text.lower(),
-            "Mismatch must be caught as inconsistent",
+            "notes iteration matches the active", norm,
+            "Must require notes iteration matches active iteration",
+        )
+
+    def test_mismatch_stop_scoped_to_step5(self) -> None:
+        """Mismatch/unknown must trigger STOP specifically in step 5."""
+        text = self._PREVIEW_MD.read_text(encoding="utf-8")
+        step5 = self._extract_step5(text)
+        self.assertIn("mismatch", step5.lower(),
+                       "Step 5 must reference mismatch")
+        self.assertIn("STOP", step5,
+                       "Step 5 must contain STOP directive")
+        self.assertIn("do not build", step5.lower(),
+                       "Step 5 must prohibit building")
+
+    def test_negative_control_scoped_initial_branch(self) -> None:
+        """Negative control: removing comparison from Initial branch is
+        detected even when the term persists elsewhere in preview.md."""
+        text = self._PREVIEW_MD.read_text(encoding="utf-8")
+        branch = self._extract_initial_branch(text)
+        norm_branch = " ".join(branch.split()).lower()
+        # Precondition: the term exists in the scoped branch
+        self.assertIn("current discovery revision", norm_branch,
+                       "Precondition: term must exist in branch")
+        # Mutate: remove the comparison from the branch
+        mutated = norm_branch.replace(
+            "current discovery revision", "REDACTED",
+        )
+        # The term still exists in the rest of the file
+        rest = text.replace(branch, "")
+        rest_norm = " ".join(rest.split()).lower()
+        self.assertIn(
+            "current discovery revision", rest_norm,
+            "Precondition: term must exist outside the branch",
+        )
+        # Scoped check on mutated branch correctly detects absence
+        self.assertNotIn(
+            "current discovery revision", mutated,
+            "Negative control: scoped check detects removal from branch",
         )
 
 
