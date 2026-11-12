@@ -110,42 +110,24 @@ path the resolver validates it exists (`type: local`) and ignores
 `--workspace-branch`. For a Git URL the resolver clones into
 `.artifacts/{ID}/code/`. For a monorepo, record the frontend subdirectory.
 
-**Baseline SHA — pre-invocation (local workspace only):** Before invoking
-the create skill, capture the local workspace commit SHA
-(`git -C <path> rev-parse HEAD`) and read the expected **commit SHA** from
-`01-discovery.md` § Current State. Compare them:
+**Baseline SHA — pre-invocation (local workspace only):** Capture the
+local workspace SHA (`git -C <path> rev-parse HEAD`) and compare with
+`01-discovery.md` § Current State. Match → proceed. Differ (both known) →
+stop, present both SHAs, require researcher to refresh discovery or
+explicitly accept — recording both SHAs and the reason in
+`prototype-notes.md` and refreshing affected Current State before claiming
+fidelity. Unknown (no SHA in discovery) → stop, confirm with researcher,
+record confirmed SHA. Do not silently switch the researcher's checkout.
+Standalone: "standalone — N/A". Git URL: handled in Step 2 (clone inside
+create skill). Reuse unchanged page scaffolding and real components;
+mock only scenario-specific parts — no full production backend required.
+Mark page sections as unchanged, changed, or mocked in `prototype-notes.md`.
 
-- **Match:** proceed with create invocation.
-- **Differ (both known):** the baseline differs from discovery. Stop and
-  present both SHAs. The researcher must either refresh discovery with
-  `/ingest` or explicitly accept the new baseline — recording both SHAs and
-  the reason in `prototype-notes.md`, and refreshing affected Current State
-  context before claiming fidelity.
-- **Unknown (discovery has no SHA):** baseline is unverified. Stop, explain
-  that discovery did not capture a SHA, and ask the researcher to confirm the
-  current workspace as the intended baseline. Record the confirmed SHA.
-
-Do not silently switch the researcher's checkout. Standalone mode has no
-workspace SHA — record "standalone — N/A" and skip this check.
-
-For a Git URL workspace, the clone happens inside the create skill during
-Step 2; the pre-edit baseline SHA is not available until then. Handle it in
-Step 2 below. The prototype should reuse
-unchanged page scaffolding and real components, replacing only the
-scenario-specific parts with mocks — no full production backend or reusable
-production code required. Mark which page sections are unchanged (reused from
-source), changed (new or modified), and mocked (stand-in data or interactions)
-in `prototype-notes.md`.
-
-**Standalone exploration** (for greenfield features or no accessible source):
-When there is no existing UI to modify, or the frontend source is neither
-locally available nor accessible as a Git URL, use `standalone`. When the
-source is inaccessible for a feature that modifies existing UI, acknowledge
-this to the researcher: the prototype explores the design direction without
-existing page integration. Do not claim faithful integration when working
-standalone without source access. If the researcher has screenshots or design
-references, agree on a labeled baseline: note what is approximated from
-references and what is explored without source verification.
+**Standalone exploration** (greenfield or no accessible source):
+Use `standalone` when no existing UI source is available. When source is
+inaccessible for a feature that modifies existing UI, acknowledge this —
+do not claim faithful integration without source access. If the researcher
+has references, label what is approximated vs unverified baseline.
 
 Record the chosen strategy and rationale in `prototype-notes.md`.
 
@@ -482,6 +464,15 @@ prototype explores design direction without existing page integration."}
 
 - {What should the evaluator focus on?}
 - {Where is the design most uncertain?}
+
+## Static Review Notes
+
+**Build command:** {build command or "none — already static"}
+**Build directory:** {relative path within 03-prototype where the build command runs, or "none"}
+**Content root:** {prototype/ or code/dist/ or other}
+**Entry point:** {index.html or other}
+**Mocked components:** {list or "none"}
+**Representative flows:** {key user flows for visual review}
 ```
 
 Present the prototype and its scope to the researcher. Wait for feedback before

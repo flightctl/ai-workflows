@@ -387,6 +387,18 @@ for the first time. Also report:
 - Whether the existing PR was updated, was already current, or a new draft PR
   was created
 - Next steps (share with reviewers, then use `/respond` when comments arrive)
+- Static review preview status (from `preview-metadata.json` if it exists):
+  - `published` → include the preview URL from `site_url`
+  - `stale` → note the preview is outdated; last verified URL from
+    `site_url` may still be accessible but does not reflect current design;
+    recommend `/prototype` to review against the current context, then
+    `/preview` to rebuild
+  - `awaiting-setup` → deployment is not yet configured; recommend the
+    project owner configure `preview_deploy_command` and `preview_site_url`
+  - `deploy-failed` → deployment failed; recommend retrying `/preview`
+  - `screenshot-fallback` → screenshots were used instead of a live preview
+  - No `preview-metadata.json` → note that `/preview` can build a
+    browser-viewable static preview for reviewers
 
 ## Output
 

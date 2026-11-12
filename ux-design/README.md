@@ -24,8 +24,12 @@ graph TD
     evaluate -->|current context and prototype| handoff
     handoff --> revise
     handoff --> publish
+    handoff --> preview
     revise --> publish
+    revise --> preview
     publish --> respond
+    publish --> preview
+    respond -->|handoff changed| preview
 ```
 
 Research is conditional — skip directly to `/prototype` if the researcher
@@ -44,6 +48,10 @@ prototype against the enriched context before handoff.
 | UXD Research, Prototype, and Design plugins | Required | Discovery, prototyping, evaluation, and handoff skills |
 | Jira access (Atlassian MCP) | For Full `/evaluate` | `uxd-prototype-evaluate` fetches story acceptance criteria |
 | `python3`, Node/npm, and Playwright Chromium | For Full `/evaluate` | Prototype evaluation helper scripts and browser walkthroughs |
+| Reviewed prototype with `prototype-notes.md` | For `/preview` | Prototype output and Static Review Notes (build command, content root, entry point) |
+| Handoff PR from `/publish` | For `/preview` deployment | PR identity for publication namespace; bundle is built without it but not deployed |
+| `preview_deploy_command` in `.artifacts/config.json` | For `/preview` deployment | Project-owned executable for byte transport and site assembly |
+| `preview_site_url` in `.artifacts/config.json` | For `/preview` deployment | Approved HTTPS base URL where previews are served |
 
 `/ingest` loads upstream inputs from **shared** locations (Jira and the
 published docs repo or an explicitly supplied published PRD path) — never from
@@ -63,6 +71,7 @@ and linked `[UX]` story to be ingested.
 | Revise | `/revise` | Incorporate stakeholder feedback | `05-handoff.md` (updated) |
 | Publish | `/publish` | Create a draft PR or update the existing PR with the handoff spec | `06-pr-description.md`, `publish-metadata.json`, PR in docs repo |
 | Respond | `/respond` | Address PR reviewer comments | Updated `05-handoff.md` |
+| Preview | `/preview` | Build and publish a static review preview | `preview-bundle/`, `preview-metadata.json` |
 
 ## Typical Flow
 
@@ -152,6 +161,8 @@ context, use the stable key agreed during `/ingest` (for example,
   06-pr-description.md         (generated PR body for /publish)
   publish-metadata.json        (PR number, branch, canonical handoff and source paths)
   provenance.json              (authoring provenance log)
+  preview-bundle/              (packaged static preview for deployment)
+  preview-metadata.json        (preview deployment status and verified URLs)
 ```
 
 ## Contract for the handoff
@@ -220,6 +231,9 @@ ux-design/
 ├── SKILL.md                    # Workflow entry point
 ├── guidelines.md               # Behavioral rules and guardrails
 ├── README.md                   # This file
+├── scripts/
+│   ├── preview-bundle.py       # Static preview bundle builder/validator
+│   └── test_preview_bundle.py  # Unit tests for preview-bundle.py
 ├── skills/
 │   ├── controller.md           # Phase dispatcher and transitions
 │   ├── ingest.md               # Frame problem, identify user groups
@@ -229,7 +243,8 @@ ux-design/
 │   ├── handoff.md              # Design-to-implementation spec
 │   ├── revise.md               # Incorporate stakeholder feedback
 │   ├── publish.md              # Push to docs repo PR
-│   └── respond.md              # Address PR review comments
+│   ├── respond.md              # Address PR review comments
+│   └── preview.md              # Static review preview bundle
 └── commands/
     ├── ingest.md               # /ingest command
     ├── research.md             # /research command
@@ -238,7 +253,8 @@ ux-design/
     ├── handoff.md              # /handoff command
     ├── revise.md               # /revise command
     ├── publish.md              # /publish command
-    └── respond.md              # /respond command
+    ├── respond.md              # /respond command
+    └── preview.md              # /preview command
 ```
 
 ## Getting Started

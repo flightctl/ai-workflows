@@ -76,10 +76,35 @@ Summarize what changed:
 - {any cascading updates to maintain coherence}
 ```
 
+### Step 6: Preview Invalidation
+
+After applying changes, check for
+`.artifacts/ux-design/{issue-key}/preview-metadata.json`. If a preview
+exists and the changes were design-affecting (not editorial-only), the
+preview is now stale regardless of its current `deploy_status`
+(including `screenshot-fallback`):
+
+- Set `deploy_status` to `stale`
+- Record `stale_reason: revise-handoff-update`
+- Record `current_revision` from `00-context.md`
+- Preserve existing `revision`, `published_namespace`, `content_sha256`,
+  and `site_url` as last-verified artifacts (outdated, not current)
+
+Screenshots are also invalidated by design-affecting changes. The
+researcher must explicitly confirm that the visual design is unaffected
+to keep the preview current; do not assume screenshots still represent
+the updated design.
+
+If the changes were editorial-only (wording, clarification) and the
+researcher confirms the visual design is unaffected, leave
+`deploy_status` unchanged.
+
 ## Output
 
 - `.artifacts/ux-design/{issue-key}/05-handoff.md` (updated)
 - `.artifacts/ux-design/{issue-key}/provenance.json` (updated)
+- `.artifacts/ux-design/{issue-key}/preview-metadata.json` (updated when
+  a preview exists and design-affecting changes were made)
 
 ## If a PR Already Exists
 
@@ -97,6 +122,7 @@ Report your results:
 - What was changed and why
 - Any consistency updates made as a side effect
 - Whether a PR already exists and the spec now needs re-publishing
+- Whether the preview was marked stale (if a preview existed)
 - Any remaining open questions
 
 Then **re-read the controller** (`controller.md`) for next-step guidance.
