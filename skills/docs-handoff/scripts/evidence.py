@@ -150,16 +150,26 @@ def validate_pr_url(url: str, label: str = "pr_url") -> str:
     clean_path = parsed.path.rstrip("/")
     clean = f"{parsed.scheme}://{parsed.hostname}{clean_path}"
 
-    # Verify the path matches a supported PR/MR structure
-    if not (_GITHUB_PR_PATH.match(clean_path)
-            or _GITLAB_MR_PATH.match(clean_path)
-            or _GITLAB_MR_LEGACY_PATH.match(clean_path)):
-        raise ValueError(
-            f"{label}: not a recognized PR/MR URL "
-            f"(requires /owner/repo/pull/N or "
-            f"/owner/repo/-/merge_requests/N): {url}"
+    # Verify the path matches a supported PR/MR structure.
+    # Legacy GitLab URLs are canonicalized to modern form so that
+    # /group/repo/merge_requests/N and /group/repo/-/merge_requests/N
+    # produce the same normalized string for deduplication.
+    if _GITHUB_PR_PATH.match(clean_path):
+        return clean
+    if _GITLAB_MR_PATH.match(clean_path):
+        return clean
+    m = _GITLAB_MR_LEGACY_PATH.match(clean_path)
+    if m:
+        canonical_path = (
+            f"/{m.group(1)}/{m.group(2)}"
+            f"/-/merge_requests/{m.group(3)}"
         )
-    return clean
+        return f"{parsed.scheme}://{parsed.hostname}{canonical_path}"
+    raise ValueError(
+        f"{label}: not a recognized PR/MR URL "
+        f"(requires /owner/repo/pull/N or "
+        f"/owner/repo/-/merge_requests/N): {url}"
+    )
 
 
 def extract_pr_identity(url: str) -> dict[str, str]:
@@ -260,14 +270,27 @@ _DOCS_SECTIONS = {
 
 
 def _extract_sections(text: str) -> dict[str, str]:
-    """Extract ## sections from rendered Jira markdown description."""
+    """Extract ## sections from rendered Jira markdown description.
+
+    Headings inside fenced code blocks (backtick or tilde fences) are
+    treated as literal content, not section boundaries.
+    """
     sections: dict[str, str] = {}
     current: str | None = None
     lines: list[str] = []
+    in_fence = False
 
     for raw in text.splitlines():
         stripped = raw.strip()
-        if stripped.startswith("## "):
+
+        # Toggle fence state on ``` or ~~~ lines
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            in_fence = not in_fence
+            if current is not None:
+                lines.append(raw)
+            continue
+
+        if not in_fence and stripped.startswith("## "):
             if current is not None:
                 sections[current] = "\n".join(lines).strip()
             current = stripped[3:].strip()
@@ -366,7 +389,7 @@ def _parse_documentation_inputs(text: str) -> list[dict[str, Any]]:
             continue
 
         bullet_match = re.match(r"[-*+]\s+(.*)", stripped)
-        if bullet_match and current_contributor is not None:
+        if bullet_match:
             raw_text = bullet_match.group(1).strip()
             marker = "planned"
             open_ref = None
@@ -433,7 +456,9 @@ def validate_issue(snapshot: dict[str, Any]) -> dict[str, Any]:
     for ms in sorted(missing_sections):
         errors.append(f"missing required section: {ms}")
 
-    contributors = _extract_contributing_stories(description)
+    contributors = _extract_contributing_stories(
+        sections.get("Design Reference", "")
+    )
     unresolved = [c for c in contributors if c.startswith("story-")]
     if unresolved:
         for u in unresolved:
@@ -449,6 +474,15 @@ def validate_issue(snapshot: dict[str, Any]) -> dict[str, Any]:
         warnings.append(
             "Documentation Inputs section exists but no structured "
             "items parsed"
+        )
+    orphan_inputs = [
+        di for di in documentation_inputs
+        if di.get("contributor") is None
+    ]
+    if orphan_inputs:
+        warnings.append(
+            f"Documentation Inputs: {len(orphan_inputs)} "
+            f"unattributed bullet(s) before first contributor header"
         )
 
     return {
@@ -964,6 +998,13 @@ def build_change_plan(
                             f"PR {ev['pr_url']} targets {ev_target}, "
                             f"expected {target_branch}"
                         )
+                    elif target_branch and not ev_target:
+                        pr_status = "merged_unverified_target"
+                        target_notes.append(
+                            f"PR {ev['pr_url']} merged but "
+                            f"target_branch unknown; cannot verify "
+                            f"merge to expected '{target_branch}'"
+                        )
                     else:
                         pr_status = "merged"
                 elif ev_merged is False:
@@ -985,6 +1026,8 @@ def build_change_plan(
                 status = "merged_pr_exists"
             elif "merged_wrong_target" in pr_statuses:
                 status = "merged_wrong_target"
+            elif "merged_unverified_target" in pr_statuses:
+                status = "merged_unverified_target"
             elif "not_merged" in pr_statuses:
                 status = "in_progress"
             else:
@@ -1558,8 +1601,11 @@ def check_enrichment(
     elif not isinstance(current_summary, str):
         stale = True
     else:
+        current_sections = _extract_sections(current_description)
         current_contribs = sorted(
-            _extract_contributing_stories(current_description)
+            _extract_contributing_stories(
+                current_sections.get("Design Reference", "")
+            )
         )
         current_deps = sorted(
             _extract_dependencies(current_description)
@@ -2002,7 +2048,7 @@ def render_handoff(plan: dict[str, Any]) -> str:
         parts.append("|---|---|---|---|")
         for inp in inputs:
             text = inp.get("text", "")[:60]
-            contrib = inp.get("contributor", "")
+            contrib = inp.get("contributor") or ""
             status = inp.get("status", "unknown")
             ev_refs = inp.get("evidence_refs", [])
             ev_summary = ", ".join(

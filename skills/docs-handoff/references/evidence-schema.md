@@ -101,6 +101,9 @@ receives a per-PR evidence status — not a blanket delivery claim:
   expected branch
 - `merged_wrong_target` — contributor has a merged PR but it targets a
   different branch than expected
+- `merged_unverified_target` — contributor has a merged PR but the
+  evidence target branch is unknown; merge to the expected branch cannot
+  be verified
 - `in_progress` — contributor has PRs but none merged
 - `no_evidence` — no PR evidence found for this contributor
 - `evidence_unverified` — PRs exist but merge status is unknown (null)

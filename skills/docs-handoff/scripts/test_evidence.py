@@ -628,6 +628,7 @@ class TestBuildChangePlan(unittest.TestCase):
         for inp in plan["inputs"]:
             self.assertIn(inp["status"], (
                 "merged_pr_exists", "merged_wrong_target",
+                "merged_unverified_target",
                 "in_progress", "no_evidence",
                 "evidence_unverified", "conflicting",
             ))
@@ -4172,6 +4173,851 @@ class TestMetadataConsumerContract(unittest.TestCase):
         self.assertIn("skipped_metadata", r)
         self.assertIn("forbidden_fields", r)
         self.assertEqual(r["skipped_metadata"], {})
+
+
+# ---------------------------------------------------------------------------
+# R1: Fence-aware section parser + scoped contributor extraction
+# ---------------------------------------------------------------------------
+
+class TestFenceAwareSections(unittest.TestCase):
+    """R1: Headings inside fenced code blocks are literal content,
+    not section boundaries.  Contributing stories extraction is scoped
+    to the Design Reference section only."""
+
+    def test_fenced_heading_not_section_boundary(self) -> None:
+        """## heading inside ``` fence must not split sections."""
+        desc = textwrap.dedent("""\
+            ## Documentation Scope
+
+            Example format:
+
+            ```markdown
+            ## Design Reference
+            Contributing stories: TEST-888
+            ```
+
+            Scope continues after fence.
+
+            ## Documentation Inputs
+
+            **TEST-201 — Add widget:**
+            - New CLI command
+
+            ## Acceptance Criteria
+
+            - [ ] Done
+
+            ## Design Reference
+
+            Contributing stories: TEST-201
+        """)
+        sections = evidence._extract_sections(desc)
+        # Documentation Scope should include content after fenced block
+        scope = sections.get("Documentation Scope", "")
+        self.assertIn("Scope continues after fence", scope)
+        # Design Reference should be the REAL one, not the fenced one
+        dr = sections.get("Design Reference", "")
+        self.assertIn("TEST-201", dr)
+        self.assertNotIn("TEST-888", dr)
+
+    def test_fenced_contributing_stories_not_extracted(self) -> None:
+        """Contributing stories inside a fenced code block in
+        Documentation Scope must not appear in extracted contributors."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+
+            - [ ] Done
+
+            ## Documentation Scope
+
+            Example DOCS format:
+
+            ```
+            Contributing stories: TEST-999
+            ```
+
+            ## Documentation Inputs
+
+            **TEST-201 — Add widget:**
+            - New CLI command
+
+            ## Design Reference
+
+            Contributing stories: TEST-201
+        """)
+        snap = {
+            "key": "TEST-100",
+            "summary": "[DOCS] Widget docs",
+            "description": desc,
+        }
+        result = evidence.validate_issue(snap)
+        self.assertTrue(result["valid"])
+        self.assertIn("TEST-201", result["contributors"])
+        self.assertNotIn(
+            "TEST-999", result["contributors"],
+            "Fenced example must not widen contributor extraction",
+        )
+
+    def test_fenced_heading_contributing_not_extracted(self) -> None:
+        """Fenced ## Design Reference heading with Contributing stories
+        must not create contributors."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+
+            - [ ] Done
+
+            ## Documentation Scope
+
+            Example:
+
+            ```markdown
+            ## Design Reference
+            Contributing stories: TEST-888
+            ```
+
+            ## Documentation Inputs
+
+            **TEST-201 — Config:**
+            - New command
+
+            ## Design Reference
+
+            Contributing stories: TEST-201
+        """)
+        snap = {
+            "key": "TEST-100",
+            "summary": "[DOCS] Widget docs",
+            "description": desc,
+        }
+        result = evidence.validate_issue(snap)
+        self.assertTrue(result["valid"])
+        self.assertIn("TEST-201", result["contributors"])
+        self.assertNotIn(
+            "TEST-888", result["contributors"],
+            "Fenced heading must not create contributors",
+        )
+
+    def test_fenced_contributor_pr_not_eligible(self) -> None:
+        """PR attributed to fenced-only contributor must NOT become
+        an eligible link."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+
+            - [ ] Done
+
+            ## Documentation Scope
+
+            ```
+            Contributing stories: TEST-999
+            ```
+
+            ## Documentation Inputs
+
+            **TEST-201 — Widget:**
+            - New CLI
+
+            ## Design Reference
+
+            Contributing stories: TEST-201
+        """)
+        snap = {
+            "key": "TEST-100",
+            "summary": "[DOCS] Widget docs",
+            "description": desc,
+        }
+        val = evidence.validate_issue(snap)
+        ev = evidence.normalize_evidence([
+            {
+                "pr_url": (
+                    "https://github.example.invalid/org/repo/pull/101"
+                ),
+                "contributor_key": "TEST-201",
+                "merged": True,
+                "target_branch": "main",
+            },
+            {
+                "pr_url": (
+                    "https://github.example.invalid/org/repo/pull/999"
+                ),
+                "contributor_key": "TEST-999",
+                "merged": True,
+                "target_branch": "main",
+            },
+        ])
+        plan = evidence.build_change_plan(
+            val, ev, {"release": "4.19", "target_branch": "main"},
+        )
+        self.assertEqual(plan["status"], "complete")
+        link_urls = {l["url"] for l in plan["pr_links"]}
+        self.assertIn(
+            "https://github.example.invalid/org/repo/pull/101",
+            link_urls,
+        )
+        self.assertNotIn(
+            "https://github.example.invalid/org/repo/pull/999",
+            link_urls,
+            "PR attributed to fenced-only key must not be eligible",
+        )
+        # TEST-999 should be flagged as non-contributor evidence
+        nc_findings = [
+            f for f in plan["findings"]
+            if f["type"] == "non_contributor_evidence"
+            and f["ref"] == "TEST-999"
+        ]
+        self.assertTrue(len(nc_findings) > 0)
+
+    def test_fresh_fingerprint_uses_scoped_contributors(self) -> None:
+        """check_enrichment fresh fingerprint must use the same
+        Design-Reference-scoped contributor projection as
+        build_change_plan."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+
+            - [ ] Done
+
+            ## Documentation Scope
+
+            ```
+            Contributing stories: TEST-999
+            ```
+
+            ## Documentation Inputs
+
+            **TEST-201 — Widget:**
+            - New CLI
+
+            ## Design Reference
+
+            Contributing stories: TEST-201
+        """)
+        snap = {
+            "key": "TEST-100",
+            "summary": "[DOCS] Widget docs",
+            "description": desc,
+        }
+        val = evidence.validate_issue(snap)
+        ev = evidence.normalize_evidence([{
+            "pr_url": (
+                "https://github.example.invalid/org/repo/pull/101"
+            ),
+            "contributor_key": "TEST-201",
+            "merged": True,
+            "target_branch": "main",
+        }])
+        plan = evidence.build_change_plan(
+            val, ev, {"release": "4.19", "target_branch": "main"},
+        )
+        # Same description → fresh check should NOT be stale
+        current = {
+            "key": "TEST-100",
+            "summary": "[DOCS] Widget docs",
+            "description": desc,
+            "remote_links": [],
+        }
+        result = evidence.check_enrichment(plan, current)
+        self.assertFalse(
+            result["stale"],
+            "Same description must not appear stale after scoping fix",
+        )
+
+    def test_tilde_fence_also_recognized(self) -> None:
+        """~~~ fences are recognized alongside ``` fences."""
+        desc = textwrap.dedent("""\
+            ## Documentation Scope
+
+            ~~~
+            ## Fake Section
+            Content inside tilde fence
+            ~~~
+
+            Real scope content.
+        """)
+        sections = evidence._extract_sections(desc)
+        scope = sections.get("Documentation Scope", "")
+        self.assertIn("Real scope content", scope)
+        self.assertNotIn("Fake Section", sections)
+
+
+# ---------------------------------------------------------------------------
+# R2: GitLab modern/legacy URL canonicalization
+# ---------------------------------------------------------------------------
+
+class TestGitLabLegacyCanonicalization(unittest.TestCase):
+    """R2: Legacy GitLab URLs are canonicalized to modern form."""
+
+    def test_legacy_canonicalized_to_modern(self) -> None:
+        """Legacy /merge_requests/N → modern /-/merge_requests/N."""
+        r = evidence.validate_pr_url(
+            "https://gitlab.example.invalid/org/repo"
+            "/merge_requests/7"
+        )
+        self.assertEqual(
+            r,
+            "https://gitlab.example.invalid/org/repo"
+            "/-/merge_requests/7",
+        )
+
+    def test_modern_stable_after_canonicalization(self) -> None:
+        """Modern URL is idempotent under canonicalization."""
+        url = (
+            "https://gitlab.example.invalid/org/repo"
+            "/-/merge_requests/7"
+        )
+        self.assertEqual(evidence.validate_pr_url(url), url)
+
+    def test_nested_namespace_legacy_canonicalized(self) -> None:
+        """Nested namespace legacy URL canonicalized correctly."""
+        r = evidence.validate_pr_url(
+            "https://gitlab.example.invalid/group/sub/repo"
+            "/merge_requests/42"
+        )
+        self.assertEqual(
+            r,
+            "https://gitlab.example.invalid/group/sub/repo"
+            "/-/merge_requests/42",
+        )
+
+    def test_modern_legacy_dedup_modern_first(self) -> None:
+        """Same MR via modern then legacy URL → deduplicated."""
+        items = [
+            {
+                "pr_url": (
+                    "https://gitlab.example.invalid/g/s/repo"
+                    "/-/merge_requests/7"
+                ),
+                "contributor_key": "TEST-201",
+                "merged": True,
+                "observations": ["First observation"],
+            },
+            {
+                "pr_url": (
+                    "https://gitlab.example.invalid/g/s/repo"
+                    "/merge_requests/7"
+                ),
+                "contributor_key": "TEST-201",
+                "merged": True,
+                "observations": ["Second observation"],
+            },
+        ]
+        r = evidence.normalize_evidence(items)
+        self.assertEqual(len(r["items"]), 1)
+        self.assertIn(
+            "First observation", r["items"][0]["observations"]
+        )
+        self.assertIn(
+            "Second observation", r["items"][0]["observations"]
+        )
+
+    def test_modern_legacy_dedup_legacy_first(self) -> None:
+        """Same MR via legacy then modern URL → deduplicated."""
+        items = [
+            {
+                "pr_url": (
+                    "https://gitlab.example.invalid/g/s/repo"
+                    "/merge_requests/7"
+                ),
+                "contributor_key": "TEST-201",
+                "merged": True,
+            },
+            {
+                "pr_url": (
+                    "https://gitlab.example.invalid/g/s/repo"
+                    "/-/merge_requests/7"
+                ),
+                "contributor_key": "TEST-201",
+                "merged": True,
+            },
+        ]
+        r = evidence.normalize_evidence(items)
+        self.assertEqual(len(r["items"]), 1)
+        # Canonical URL should be modern form
+        self.assertIn("/-/merge_requests/7", r["items"][0]["pr_url"])
+
+    def test_modern_legacy_contradictory_merged(self) -> None:
+        """Same MR with contradictory merged via different URL forms
+        → single item with conflict warning."""
+        items = [
+            {
+                "pr_url": (
+                    "https://gitlab.example.invalid/g/s/repo"
+                    "/-/merge_requests/7"
+                ),
+                "contributor_key": "TEST-201",
+                "merged": True,
+            },
+            {
+                "pr_url": (
+                    "https://gitlab.example.invalid/g/s/repo"
+                    "/merge_requests/7"
+                ),
+                "contributor_key": "TEST-201",
+                "merged": False,
+            },
+        ]
+        r = evidence.normalize_evidence(items)
+        self.assertEqual(len(r["items"]), 1)
+        self.assertTrue(
+            len(r["items"][0]["conflicts"]) > 0,
+            "Contradictory merged must produce conflict",
+        )
+        self.assertTrue(
+            any("contradictory" in w.lower() for w in r["warnings"]),
+            "Contradictory merged must produce warning",
+        )
+
+    def test_distinct_host_not_dedup(self) -> None:
+        """Same path on different hosts must NOT be deduplicated."""
+        items = [
+            {
+                "pr_url": (
+                    "https://gitlab.example.invalid/org/repo"
+                    "/-/merge_requests/7"
+                ),
+                "contributor_key": "TEST-201",
+                "merged": True,
+            },
+            {
+                "pr_url": (
+                    "https://gitlab2.example.invalid/org/repo"
+                    "/-/merge_requests/7"
+                ),
+                "contributor_key": "TEST-201",
+                "merged": True,
+            },
+        ]
+        r = evidence.normalize_evidence(items)
+        self.assertEqual(len(r["items"]), 2)
+
+    def test_distinct_project_not_dedup(self) -> None:
+        """Same host+number but different project must stay distinct."""
+        items = [
+            {
+                "pr_url": (
+                    "https://gitlab.example.invalid/org/repo-a"
+                    "/-/merge_requests/7"
+                ),
+                "contributor_key": "TEST-201",
+                "merged": True,
+            },
+            {
+                "pr_url": (
+                    "https://gitlab.example.invalid/org/repo-b"
+                    "/-/merge_requests/7"
+                ),
+                "contributor_key": "TEST-201",
+                "merged": True,
+            },
+        ]
+        r = evidence.normalize_evidence(items)
+        self.assertEqual(len(r["items"]), 2)
+
+    def test_existing_legacy_link_prevents_modern_eligible(self) -> None:
+        """Jira remote link with legacy URL must prevent modern URL
+        from appearing as eligible (same MR)."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+            - done
+            ## Documentation Scope
+            scope
+            ## Documentation Inputs
+            **TEST-201 — Config:**
+            - item
+            ## Design Reference
+            Contributing stories: TEST-201
+        """)
+        snap = {
+            "key": "TEST-100",
+            "summary": "[DOCS] Widget docs",
+            "description": desc,
+        }
+        val = evidence.validate_issue(snap)
+        ev = evidence.normalize_evidence([{
+            "pr_url": (
+                "https://gitlab.example.invalid/g/s/repo"
+                "/-/merge_requests/7"
+            ),
+            "contributor_key": "TEST-201",
+            "merged": True,
+            "target_branch": "main",
+        }])
+        plan = evidence.build_change_plan(
+            val, ev, {"release": "4.19", "target_branch": "main"},
+        )
+        # Existing remote link uses LEGACY URL
+        current = {
+            "key": "TEST-100",
+            "summary": "[DOCS] Widget docs",
+            "description": desc,
+            "remote_links": [{
+                "url": (
+                    "https://gitlab.example.invalid/g/s/repo"
+                    "/merge_requests/7"
+                ),
+                "title": "MR !7",
+            }],
+        }
+        result = evidence.check_enrichment(plan, current)
+        self.assertEqual(
+            len(result["eligible_links"]), 0,
+            "Legacy existing link must prevent modern duplicate",
+        )
+        self.assertEqual(len(result["existing_links"]), 1)
+
+    def test_readback_legacy_accepts_modern(self) -> None:
+        """Receipt verification accepts legacy readback URL for
+        modern eligible link (same MR)."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+            - done
+            ## Documentation Scope
+            scope
+            ## Documentation Inputs
+            **TEST-201 — Config:**
+            - item
+            ## Design Reference
+            Contributing stories: TEST-201
+        """)
+        snap = {
+            "key": "TEST-100",
+            "summary": "[DOCS] Widget docs",
+            "description": desc,
+        }
+        val = evidence.validate_issue(snap)
+        ev = evidence.normalize_evidence([{
+            "pr_url": (
+                "https://gitlab.example.invalid/g/s/repo"
+                "/-/merge_requests/7"
+            ),
+            "contributor_key": "TEST-201",
+            "merged": True,
+            "target_branch": "main",
+        }])
+        plan = evidence.build_change_plan(
+            val, ev, {"release": "4.19", "target_branch": "main"},
+        )
+        current = {
+            "key": "TEST-100",
+            "summary": "[DOCS] Widget docs",
+            "description": desc,
+            "remote_links": [],
+        }
+        enrichment = evidence.check_enrichment(plan, current)
+        self.assertEqual(len(enrichment["eligible_links"]), 1)
+        # Readback uses LEGACY URL
+        readback = {
+            "key": "TEST-100",
+            "remote_links": [{
+                "url": (
+                    "https://gitlab.example.invalid/g/s/repo"
+                    "/merge_requests/7"
+                ),
+            }],
+        }
+        receipt = evidence.verify_enrichment(
+            enrichment, readback, "TEST-100",
+        )
+        self.assertEqual(receipt["status"], "verified")
+        link_r = receipt["link_receipts"]
+        self.assertTrue(
+            any(r["status"] == "confirmed" for r in link_r),
+            "Legacy readback must confirm modern eligible link",
+        )
+
+
+# ---------------------------------------------------------------------------
+# R3: Merged PR with missing/null target
+# ---------------------------------------------------------------------------
+
+class TestMergedUnverifiedTarget(unittest.TestCase):
+    """R3: merged=True with missing/null target_branch must NOT yield
+    status meaning 'merged into expected branch'."""
+
+    def _make_plan(
+        self,
+        ev_target: str | None = None,
+        plan_target: str = "main",
+    ) -> dict:
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+            - [ ] Done
+            ## Documentation Scope
+            scope
+            ## Documentation Inputs
+            **TEST-201 — Widget config:**
+            - New CLI command
+            ## Design Reference
+            Contributing stories: TEST-201
+        """)
+        snap = {
+            "key": "TEST-100",
+            "summary": "[DOCS] Widget docs",
+            "description": desc,
+        }
+        val = evidence.validate_issue(snap)
+        raw_items = [{
+            "pr_url": (
+                "https://github.example.invalid/org/repo/pull/101"
+            ),
+            "contributor_key": "TEST-201",
+            "merged": True,
+            "target_branch": ev_target,
+            "state": "merged",
+            "title": "feat: widget config",
+        }]
+        ev = evidence.normalize_evidence(raw_items)
+        return evidence.build_change_plan(
+            val, ev,
+            {"release": "4.19", "target_branch": plan_target},
+        )
+
+    def test_empty_target_unverified(self) -> None:
+        """merged=True + empty target_branch → merged_unverified_target."""
+        plan = self._make_plan(ev_target="")
+        inp = plan["inputs"][0]
+        self.assertEqual(inp["status"], "merged_unverified_target")
+        eref = inp["evidence_refs"][0]
+        self.assertEqual(eref["pr_status"], "merged_unverified_target")
+        self.assertTrue(
+            len(inp["target_notes"]) > 0,
+            "Missing target must produce visible target note",
+        )
+
+    def test_null_target_unverified(self) -> None:
+        """merged=True + null target_branch → merged_unverified_target."""
+        plan = self._make_plan(ev_target=None)
+        inp = plan["inputs"][0]
+        self.assertEqual(inp["status"], "merged_unverified_target")
+        self.assertTrue(len(inp["target_notes"]) > 0)
+
+    def test_correct_target_still_merged(self) -> None:
+        """merged=True + matching target → merged_pr_exists (control)."""
+        plan = self._make_plan(ev_target="main")
+        inp = plan["inputs"][0]
+        self.assertEqual(inp["status"], "merged_pr_exists")
+
+    def test_wrong_target_still_wrong(self) -> None:
+        """merged=True + wrong target → merged_wrong_target (control)."""
+        plan = self._make_plan(ev_target="release-4.18")
+        inp = plan["inputs"][0]
+        self.assertEqual(inp["status"], "merged_wrong_target")
+
+    def test_no_plan_target_allows_merged(self) -> None:
+        """When plan has no target_branch, merged=True + empty ev_target
+        is just 'merged' (no target to verify against)."""
+        plan = self._make_plan(ev_target="", plan_target="")
+        inp = plan["inputs"][0]
+        self.assertEqual(inp["status"], "merged_pr_exists")
+
+    def test_unverified_target_note_visible_in_render(self) -> None:
+        """Target note about unverified target appears in handoff."""
+        plan = self._make_plan(ev_target="")
+        rendered = evidence.render_handoff(plan)
+        self.assertIn("target_branch unknown", rendered)
+
+
+# ---------------------------------------------------------------------------
+# R4: Unheaded Documentation Inputs bullets
+# ---------------------------------------------------------------------------
+
+class TestOrphanDocumentationInputs(unittest.TestCase):
+    """R4: Bullets before any contributor header must be retained
+    with contributor=None and produce a warning."""
+
+    def test_orphan_bullet_retained(self) -> None:
+        """Orphan bullet appears in documentation_inputs with
+        contributor=None."""
+        text = textwrap.dedent("""\
+            - Orphan bullet with important context
+
+            **TEST-201 — Add widget:**
+            - New CLI command
+        """)
+        items = evidence._parse_documentation_inputs(text)
+        self.assertEqual(len(items), 2)
+        orphan = items[0]
+        self.assertIsNone(orphan["contributor"])
+        self.assertIsNone(orphan["contributor_header"])
+        self.assertIn("Orphan bullet", orphan["text"])
+        # Valid item after header
+        valid = items[1]
+        self.assertEqual(valid["contributor"], "TEST-201")
+
+    def test_orphan_bullet_preserves_markers(self) -> None:
+        """[Assumption] marker on orphan bullet is preserved."""
+        text = textwrap.dedent("""\
+            - Must support JSON format [Assumption]
+
+            **TEST-201 — Widget:**
+            - New CLI command
+        """)
+        items = evidence._parse_documentation_inputs(text)
+        orphan = items[0]
+        self.assertEqual(orphan["marker"], "assumption")
+        self.assertIsNone(orphan["contributor"])
+
+    def test_orphan_warning_generated(self) -> None:
+        """validate_issue emits warning about unattributed bullets."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+            - [ ] Done
+            ## Documentation Scope
+            scope
+            ## Documentation Inputs
+
+            - Orphan bullet here
+            - Another orphan
+
+            **TEST-201 — Widget:**
+            - New CLI command
+
+            ## Design Reference
+            Contributing stories: TEST-201
+        """)
+        snap = {
+            "key": "TEST-100",
+            "summary": "[DOCS] Widget docs",
+            "description": desc,
+        }
+        result = evidence.validate_issue(snap)
+        self.assertTrue(result["valid"])
+        self.assertTrue(
+            any("unattributed" in w for w in result["warnings"]),
+            "Must warn about orphan bullets",
+        )
+        self.assertTrue(
+            any("2" in w for w in result["warnings"]
+                if "unattributed" in w),
+            "Warning should count orphan bullets",
+        )
+
+    def test_orphan_flows_through_plan(self) -> None:
+        """Orphan items appear in plan inputs with no_evidence status."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+            - [ ] Done
+            ## Documentation Scope
+            scope
+            ## Documentation Inputs
+
+            - Orphan context bullet
+
+            **TEST-201 — Widget:**
+            - New CLI command
+
+            ## Design Reference
+            Contributing stories: TEST-201
+        """)
+        snap = {
+            "key": "TEST-100",
+            "summary": "[DOCS] Widget docs",
+            "description": desc,
+        }
+        val = evidence.validate_issue(snap)
+        ev = evidence.normalize_evidence([{
+            "pr_url": (
+                "https://github.example.invalid/org/repo/pull/101"
+            ),
+            "contributor_key": "TEST-201",
+            "merged": True,
+            "target_branch": "main",
+        }])
+        plan = evidence.build_change_plan(
+            val, ev, {"release": "4.19", "target_branch": "main"},
+        )
+        self.assertEqual(plan["status"], "complete")
+        # Should have 2 inputs: orphan + valid
+        self.assertEqual(len(plan["inputs"]), 2)
+        orphan_inp = [
+            i for i in plan["inputs"]
+            if i["contributor"] is None
+        ]
+        self.assertEqual(len(orphan_inp), 1)
+        self.assertEqual(orphan_inp[0]["status"], "no_evidence")
+        self.assertIn("Orphan", orphan_inp[0]["text"])
+
+    def test_orphan_visible_in_render(self) -> None:
+        """Orphan input text appears in rendered handoff."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+            - [ ] Done
+            ## Documentation Scope
+            scope
+            ## Documentation Inputs
+
+            - Important orphan context
+
+            **TEST-201 — Widget:**
+            - New CLI command
+
+            ## Design Reference
+            Contributing stories: TEST-201
+        """)
+        snap = {
+            "key": "TEST-100",
+            "summary": "[DOCS] Widget docs",
+            "description": desc,
+        }
+        val = evidence.validate_issue(snap)
+        ev = evidence.normalize_evidence([])
+        plan = evidence.build_change_plan(
+            val, ev, {"release": "4.19", "target_branch": "main"},
+        )
+        rendered = evidence.render_handoff(plan)
+        self.assertIn("Important orphan context", rendered)
+
+    def test_no_orphan_no_warning(self) -> None:
+        """Normal inputs without orphan bullets produce no warning."""
+        snap = _make_docs_snapshot()
+        result = evidence.validate_issue(snap)
+        self.assertTrue(result["valid"])
+        self.assertFalse(
+            any("unattributed" in w for w in result["warnings"]),
+        )
+
+    def test_orphan_does_not_expand_contributors(self) -> None:
+        """Orphan bullets must not add None to contributor allowlist
+        or affect PR link eligibility."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+            - [ ] Done
+            ## Documentation Scope
+            scope
+            ## Documentation Inputs
+
+            - Orphan bullet
+
+            **TEST-201 — Widget:**
+            - New CLI command
+
+            ## Design Reference
+            Contributing stories: TEST-201
+        """)
+        snap = {
+            "key": "TEST-100",
+            "summary": "[DOCS] Widget docs",
+            "description": desc,
+        }
+        val = evidence.validate_issue(snap)
+        ev = evidence.normalize_evidence([{
+            "pr_url": (
+                "https://github.example.invalid/org/repo/pull/101"
+            ),
+            "contributor_key": "TEST-201",
+            "merged": True,
+            "target_branch": "main",
+        }])
+        plan = evidence.build_change_plan(
+            val, ev, {"release": "4.19", "target_branch": "main"},
+        )
+        # Only TEST-201's PR should be eligible
+        self.assertEqual(len(plan["pr_links"]), 1)
+        # No input_contributor_mismatch for None
+        mismatch = [
+            f for f in plan["findings"]
+            if f["type"] == "input_contributor_mismatch"
+            and f["ref"] is None
+        ]
+        self.assertEqual(len(mismatch), 0)
 
 
 if __name__ == "__main__":
