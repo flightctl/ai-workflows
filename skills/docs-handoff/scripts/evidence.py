@@ -286,13 +286,15 @@ def _parse_fence_line(stripped: str) -> tuple[str, int] | None:
 
 
 class _FenceTracker:
-    """Track fenced code block state per CommonMark spec.
+    """Track fenced code block state per CommonMark fence rules.
 
     A closing fence must use the **same character** (backtick or
-    tilde) as the opening fence **and** be at least as long.
-    Shorter fences or fences of a different character inside an
-    open block are treated as literal content — they do not toggle
-    the fence state.
+    tilde) as the opening fence, be **at least as long**, and may
+    only be followed by spaces or tabs (no info string).  Shorter
+    fences, fences of a different character, or fence-like lines
+    with trailing non-whitespace (e.g. ````` ```python ````` inside
+    a backtick block) are treated as literal content — they do not
+    toggle the fence state.
 
     Usage::
 
@@ -320,6 +322,16 @@ class _FenceTracker:
         """Return True when inside an unclosed fenced code block."""
         return self._char is not None
 
+    @staticmethod
+    def _is_valid_close(stripped: str, length: int) -> bool:
+        """Check that text after fence characters is only spaces/tabs.
+
+        Per CommonMark, a closing code fence may optionally be followed
+        by spaces or tabs but must not contain an info string.
+        """
+        remainder = stripped[length:]
+        return not remainder or all(c in (' ', '\t') for c in remainder)
+
     def update(self, stripped: str) -> None:
         """Update fence state for a stripped line."""
         parsed = _parse_fence_line(stripped)
@@ -329,11 +341,13 @@ class _FenceTracker:
         if not self.in_fence:
             self._char = char
             self._length = length
-        elif char == self._char and length >= self._length:
-            # Valid close: same character, length >= opening
+        elif (char == self._char
+              and length >= self._length
+              and self._is_valid_close(stripped, length)):
+            # Valid close: same character, length >= opening, no info string
             self._char = None
             self._length = 0
-        # Different char or shorter run → stays fenced (literal)
+        # Different char, shorter run, or trailing content → stays fenced
 
 
 # ---------------------------------------------------------------------------
@@ -352,8 +366,9 @@ def _extract_sections(text: str) -> dict[str, str]:
 
     Headings inside fenced code blocks are treated as literal content,
     not section boundaries.  Per CommonMark, a closing fence must use
-    the same character (backtick or tilde) and be at least as long as
-    the opening fence.
+    the same character (backtick or tilde), be at least as long as
+    the opening fence, and contain no info string (only optional
+    trailing spaces/tabs).
     """
     sections: dict[str, str] = {}
     current: str | None = None
@@ -388,8 +403,9 @@ def _extract_contributing_stories(description: str) -> list[str]:
 
     Lines inside fenced code blocks are skipped so that example
     Contributing stories lines in code samples are not extracted.
-    Per CommonMark, a closing fence must use the same character and
-    be at least as long as the opening fence.
+    Per CommonMark, a closing fence must use the same character, be
+    at least as long as the opening fence, and contain no info
+    string (only optional trailing spaces/tabs).
     """
     result: list[str] = []
     seen: set[str] = set()

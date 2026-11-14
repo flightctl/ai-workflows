@@ -5318,6 +5318,70 @@ class TestCommonMarkFenceMatching(unittest.TestCase):
         self.assertIn("TEST-201", val["contributors"])
         self.assertNotIn("TEST-FENCED", val["contributors"])
 
+    def test_info_string_on_closing_fence_stays_fenced(self) -> None:
+        """A would-be closing fence with an info string (e.g. ```python)
+        is NOT a valid closing fence per CommonMark — a closing fence
+        may only be followed by spaces or tabs.  Without fix: the inner
+        ```python line closes the fence, exposing the fake Contributing
+        stories: TEST-999 line as an extractable contributor."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+            - [ ] Something
+            ## Documentation Scope
+            Some scope
+            ## Documentation Inputs
+            **TEST-201 — Add widget:**
+            - Real CLI command input
+            ## Design Reference
+            Here is a fenced example showing language-tagged blocks:
+            ```
+            ```python
+            Contributing stories: TEST-999
+            print("hello")
+            ```
+            Contributing stories: TEST-201
+        """)
+        snap = _make_docs_snapshot(description=desc)
+        val = evidence.validate_issue(snap)
+        self.assertTrue(val["valid"])
+        # Real contributor from outside fence
+        self.assertIn("TEST-201", val["contributors"])
+        # Fake contributor inside fence must NOT appear — the inner
+        # ```python line must not close the outer ``` fence
+        self.assertNotIn(
+            "TEST-999", val["contributors"],
+            "Info string on would-be closing fence must not end block",
+        )
+        # Verify plan also excludes the fenced contributor
+        items = [
+            {
+                "pr_url": (
+                    "https://github.example.invalid/org/repo/pull/1"
+                ),
+                "contributor_key": "TEST-201",
+                "merged": True,
+                "target_branch": "main",
+            },
+            {
+                "pr_url": (
+                    "https://github.example.invalid/org/repo/pull/999"
+                ),
+                "contributor_key": "TEST-999",
+            },
+        ]
+        ev = evidence.normalize_evidence(items)
+        plan = evidence.build_change_plan(
+            val, ev,
+            {"release": "v1", "target_branch": "main"},
+        )
+        self.assertEqual(plan["status"], "complete")
+        link_urls = {link["url"] for link in plan["pr_links"]}
+        self.assertNotIn(
+            "https://github.example.invalid/org/repo/pull/999",
+            link_urls,
+            "TEST-999 PR must not be eligible (info-string fence)",
+        )
+
 
 # ---------------------------------------------------------------------------
 # R2-1812: Fence guard in _parse_documentation_inputs
