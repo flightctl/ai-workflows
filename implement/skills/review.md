@@ -202,7 +202,7 @@ interpretation to prevent filenames with special characters (brackets,
 asterisks) from being treated as glob patterns:
 
 ```bash
-GIT_LITERAL_PATHSPECS=1 git add {explicit paths changed in Steps 3-5}
+GIT_LITERAL_PATHSPECS=1 git add -- {explicit paths changed in Steps 3-5}
 ```
 
 Verify the staged diff contains only this phase's changes:

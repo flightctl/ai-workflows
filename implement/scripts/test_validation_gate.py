@@ -1723,7 +1723,8 @@ class TestLiteralPathspecIsolation(unittest.TestCase):
             ["git", "show", ":i.tsx"],
             capture_output=True, check=True).stdout
         self.assertEqual(idx_before, b"user staged work\n")
-        wt_before = open("i.tsx", "rb").read()
+        with open("i.tsx", "rb") as f:
+            wt_before = f.read()
         status_before = subprocess.run(
             ["git", "status", "--porcelain"],
             capture_output=True, text=True, check=True).stdout
@@ -1731,8 +1732,8 @@ class TestLiteralPathspecIsolation(unittest.TestCase):
         # Simulate review edit
         with open("[id].tsx", "w") as f:
             f.write("review change\n")
-        # FIXED recipe: literal pathspecs for add, diff, commit
-        subprocess.run(["git", "add", "[id].tsx"],
+        # FIXED recipe: literal pathspecs with -- for add, diff, commit
+        subprocess.run(["git", "add", "--", "[id].tsx"],
                        check=True, capture_output=True, env=env_lit)
         diff = subprocess.run(
             ["git", "diff", "--cached", "--", "[id].tsx"],
@@ -1742,12 +1743,16 @@ class TestLiteralPathspecIsolation(unittest.TestCase):
             ["git", "commit", "--only", "-m", "review fix",
              "--", "[id].tsx"],
             check=True, capture_output=True, env=env_lit)
-        # Verify: only [id].tsx committed
+        # Verify: only [id].tsx committed with correct content
         committed = subprocess.run(
             ["git", "diff-tree", "--no-commit-id", "--name-only", "-r",
              "HEAD"],
             capture_output=True, text=True, check=True).stdout.strip()
         self.assertEqual(committed, "[id].tsx")
+        content = subprocess.run(
+            ["git", "show", "HEAD:[id].tsx"],
+            capture_output=True, check=True, env=env_lit).stdout
+        self.assertEqual(content, b"review change\n")
         # Verify: i.tsx index preserved
         idx_after = subprocess.run(
             ["git", "show", ":i.tsx"],
@@ -1755,7 +1760,8 @@ class TestLiteralPathspecIsolation(unittest.TestCase):
         self.assertEqual(idx_after, idx_before,
                          "user staged index must be preserved")
         # Verify: i.tsx worktree preserved
-        wt_after = open("i.tsx", "rb").read()
+        with open("i.tsx", "rb") as f:
+            wt_after = f.read()
         self.assertEqual(wt_after, wt_before,
                          "user worktree bytes must be preserved")
         # Verify: MM state preserved
@@ -1763,12 +1769,19 @@ class TestLiteralPathspecIsolation(unittest.TestCase):
             ["git", "status", "--porcelain"],
             capture_output=True, text=True, check=True).stdout
         self.assertIn("MM i.tsx", status_after)
-        # Source consistency: review.md mentions GIT_LITERAL_PATHSPECS
-        review_md = os.path.join(self.orig_dir, "implement",
+        # Source consistency: review.md documents all three recipes with
+        # GIT_LITERAL_PATHSPECS and -- option boundary. This checks the
+        # documented recipe text, not agent execution of the prose.
+        review_md = os.path.join(validation_gate.SCRIPT_DIR, "..",
                                  "skills", "review.md")
-        if os.path.isfile(review_md):
-            with open(review_md) as f:
-                self.assertIn("GIT_LITERAL_PATHSPECS", f.read())
+        self.assertTrue(os.path.isfile(review_md),
+                        "review.md must exist relative to SCRIPT_DIR")
+        with open(review_md) as f:
+            text = f.read()
+        for recipe in ["GIT_LITERAL_PATHSPECS=1 git add --",
+                        "GIT_LITERAL_PATHSPECS=1 git diff --cached --",
+                        "GIT_LITERAL_PATHSPECS=1 git commit --only"]:
+            self.assertIn(recipe, text, f"review.md must contain: {recipe}")
 
 
 class TestStalePASSInvalidation(unittest.TestCase):
