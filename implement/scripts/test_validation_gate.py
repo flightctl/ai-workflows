@@ -1642,6 +1642,135 @@ class TestGatePathResolution(unittest.TestCase):
         self.assertEqual(parsed["gate"], "fail")
 
 
+class TestLiteralPathspecIsolation(unittest.TestCase):
+    """Test that GIT_LITERAL_PATHSPECS prevents bracket-glob pathspec
+    expansion during the review.md Step 6 staging recipe.
+
+    Demonstrates the bug: `git add -- '[id].tsx'` treats [id] as a
+    glob matching 'i.tsx', clobbering its staged index content.
+    The fix uses GIT_LITERAL_PATHSPECS=1 for add, diff, and commit.
+    """
+
+    def setUp(self):
+        self.repo = make_temp_repo()
+        self.orig_dir = os.getcwd()
+        os.chdir(self.repo)
+
+    def tearDown(self):
+        os.chdir(self.orig_dir)
+        shutil.rmtree(self.repo, ignore_errors=True)
+
+    def test_bracket_filename_without_literal_clobbers_index(self):
+        """Old recipe: git add -- '[id].tsx' treats brackets as glob,
+        clobbers unrelated i.tsx index content."""
+        # Create tracked files
+        with open("[id].tsx", "w") as f:
+            f.write("bracket\n")
+        with open("i.tsx", "w") as f:
+            f.write("i content\n")
+        env_lit = {**os.environ, "GIT_LITERAL_PATHSPECS": "1"}
+        subprocess.run(["git", "add", "[id].tsx", "i.tsx"],
+                       check=True, capture_output=True, env=env_lit)
+        subprocess.run(["git", "commit", "-m", "init"],
+                       check=True, capture_output=True)
+        # Pre-existing user work on i.tsx (MM state)
+        with open("i.tsx", "w") as f:
+            f.write("user staged work\n")
+        subprocess.run(["git", "add", "--", "i.tsx"],
+                       check=True, capture_output=True)
+        with open("i.tsx", "w") as f:
+            f.write("user unstaged work\n")
+        # Record baseline index
+        idx_before = subprocess.run(
+            ["git", "show", ":i.tsx"],
+            capture_output=True, check=True).stdout
+        self.assertEqual(idx_before, b"user staged work\n")
+        # Simulate review edit
+        with open("[id].tsx", "w") as f:
+            f.write("review change\n")
+        # OLD recipe: git add -- '[id].tsx' (no literal pathspecs)
+        subprocess.run(["git", "add", "--", "[id].tsx"],
+                       check=True, capture_output=True)
+        # Bug: i.tsx index was clobbered
+        idx_after = subprocess.run(
+            ["git", "show", ":i.tsx"],
+            capture_output=True, check=True).stdout
+        self.assertNotEqual(idx_after, idx_before,
+                            "old recipe should clobber i.tsx index via glob")
+
+    def test_bracket_filename_with_literal_preserves_index(self):
+        """Fixed recipe: GIT_LITERAL_PATHSPECS=1 preserves unrelated
+        staged+unstaged state while committing only the target file."""
+        env_lit = {**os.environ, "GIT_LITERAL_PATHSPECS": "1"}
+        # Create tracked files
+        with open("[id].tsx", "w") as f:
+            f.write("bracket\n")
+        with open("i.tsx", "w") as f:
+            f.write("i content\n")
+        subprocess.run(["git", "add", "[id].tsx", "i.tsx"],
+                       check=True, capture_output=True, env=env_lit)
+        subprocess.run(["git", "commit", "-m", "init"],
+                       check=True, capture_output=True)
+        # Pre-existing user work on i.tsx (MM state)
+        with open("i.tsx", "w") as f:
+            f.write("user staged work\n")
+        subprocess.run(["git", "add", "--", "i.tsx"],
+                       check=True, capture_output=True)
+        with open("i.tsx", "w") as f:
+            f.write("user unstaged work\n")
+        # Record baseline
+        idx_before = subprocess.run(
+            ["git", "show", ":i.tsx"],
+            capture_output=True, check=True).stdout
+        self.assertEqual(idx_before, b"user staged work\n")
+        wt_before = open("i.tsx", "rb").read()
+        status_before = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True, text=True, check=True).stdout
+        self.assertIn("MM i.tsx", status_before)
+        # Simulate review edit
+        with open("[id].tsx", "w") as f:
+            f.write("review change\n")
+        # FIXED recipe: literal pathspecs for add, diff, commit
+        subprocess.run(["git", "add", "[id].tsx"],
+                       check=True, capture_output=True, env=env_lit)
+        diff = subprocess.run(
+            ["git", "diff", "--cached", "--", "[id].tsx"],
+            capture_output=True, check=True, env=env_lit).stdout
+        self.assertIn(b"review change", diff)
+        subprocess.run(
+            ["git", "commit", "--only", "-m", "review fix",
+             "--", "[id].tsx"],
+            check=True, capture_output=True, env=env_lit)
+        # Verify: only [id].tsx committed
+        committed = subprocess.run(
+            ["git", "diff-tree", "--no-commit-id", "--name-only", "-r",
+             "HEAD"],
+            capture_output=True, text=True, check=True).stdout.strip()
+        self.assertEqual(committed, "[id].tsx")
+        # Verify: i.tsx index preserved
+        idx_after = subprocess.run(
+            ["git", "show", ":i.tsx"],
+            capture_output=True, check=True).stdout
+        self.assertEqual(idx_after, idx_before,
+                         "user staged index must be preserved")
+        # Verify: i.tsx worktree preserved
+        wt_after = open("i.tsx", "rb").read()
+        self.assertEqual(wt_after, wt_before,
+                         "user worktree bytes must be preserved")
+        # Verify: MM state preserved
+        status_after = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True, text=True, check=True).stdout
+        self.assertIn("MM i.tsx", status_after)
+        # Source consistency: review.md mentions GIT_LITERAL_PATHSPECS
+        review_md = os.path.join(self.orig_dir, "implement",
+                                 "skills", "review.md")
+        if os.path.isfile(review_md):
+            with open(review_md) as f:
+                self.assertIn("GIT_LITERAL_PATHSPECS", f.read())
+
+
 class TestStalePASSInvalidation(unittest.TestCase):
     """Verify gate consumer rejects overwritten reports on same HEAD.
 

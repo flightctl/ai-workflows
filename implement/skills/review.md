@@ -197,16 +197,18 @@ Do not run the full validation suite — save expensive checks for `/validate`.
 ### Step 6: Stage and Commit
 
 Stage ONLY the specific files changed by this feedback request,
-including any newly created test or code files:
+including any newly created test or code files. Use literal pathspec
+interpretation to prevent filenames with special characters (brackets,
+asterisks) from being treated as glob patterns:
 
 ```bash
-git add -- {explicit paths changed in Steps 3-5}
+GIT_LITERAL_PATHSPECS=1 git add {explicit paths changed in Steps 3-5}
 ```
 
 Verify the staged diff contains only this phase's changes:
 
 ```bash
-git diff --cached -- {same explicit paths}
+GIT_LITERAL_PATHSPECS=1 git diff --cached -- {same explicit paths}
 ```
 
 Then commit using `--only` on the same paths, which creates a commit
@@ -214,7 +216,7 @@ from exactly those paths without disturbing other pre-existing staged
 content:
 
 ```bash
-git commit --only -m "{issue-key}: {brief description}" -- {same explicit paths}
+GIT_LITERAL_PATHSPECS=1 git commit --only -m "{issue-key}: {brief description}" -- {same explicit paths}
 ```
 
 Use the commit format from the **Commit Format** section of
