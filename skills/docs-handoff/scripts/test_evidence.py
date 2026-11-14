@@ -4437,6 +4437,156 @@ class TestFenceAwareSections(unittest.TestCase):
         self.assertIn("Real scope content", scope)
         self.assertNotIn("Fake Section", sections)
 
+    def test_fenced_contributing_inside_design_reference(self) -> None:
+        """Contributing stories inside a fenced block WITHIN the real
+        Design Reference section must not be extracted — the fence-aware
+        projection applies to section content, not just boundaries."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+            - [ ] Done
+            ## Documentation Scope
+            scope
+            ## Documentation Inputs
+            **TEST-201 — Widget:**
+            - New CLI
+            ## Design Reference
+            Contributing stories: TEST-201
+
+            Example DOCS issue format:
+            ```
+            Contributing stories: TEST-999
+            ```
+        """)
+        snap = {
+            "key": "TEST-100",
+            "summary": "[DOCS] Widget docs",
+            "description": desc,
+        }
+        result = evidence.validate_issue(snap)
+        self.assertTrue(result["valid"])
+        self.assertIn("TEST-201", result["contributors"])
+        self.assertNotIn(
+            "TEST-999", result["contributors"],
+            "Fenced Contributing stories inside Design Reference "
+            "must not be extracted",
+        )
+        # Verify the PR for TEST-999 is non-contributor
+        ev = evidence.normalize_evidence([
+            {
+                "pr_url": (
+                    "https://github.example.invalid/org/r/pull/101"
+                ),
+                "contributor_key": "TEST-201",
+                "merged": True,
+                "target_branch": "main",
+            },
+            {
+                "pr_url": (
+                    "https://github.example.invalid/org/r/pull/999"
+                ),
+                "contributor_key": "TEST-999",
+                "merged": True,
+                "target_branch": "main",
+            },
+        ])
+        plan = evidence.build_change_plan(
+            result, ev,
+            {"release": "4.19", "target_branch": "main"},
+        )
+        self.assertEqual(plan["status"], "complete")
+        link_urls = {l["url"] for l in plan["pr_links"]}
+        self.assertNotIn(
+            "https://github.example.invalid/org/r/pull/999",
+            link_urls,
+        )
+        nc = [
+            f for f in plan["findings"]
+            if f["type"] == "non_contributor_evidence"
+            and f["ref"] == "TEST-999"
+        ]
+        self.assertTrue(len(nc) > 0)
+
+    def test_real_design_ref_before_fenced_fake(self) -> None:
+        """Real Design Reference appearing BEFORE a section with a
+        fenced fake heading still works correctly."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+            - [ ] Done
+            ## Design Reference
+            Contributing stories: TEST-201
+            ## Documentation Scope
+
+            Example:
+            ```markdown
+            ## Design Reference
+            Contributing stories: TEST-888
+            ```
+
+            Scope continues.
+
+            ## Documentation Inputs
+            **TEST-201 — Widget:**
+            - New CLI
+        """)
+        snap = {
+            "key": "TEST-100",
+            "summary": "[DOCS] Widget docs",
+            "description": desc,
+        }
+        result = evidence.validate_issue(snap)
+        self.assertTrue(result["valid"])
+        self.assertIn("TEST-201", result["contributors"])
+        self.assertNotIn("TEST-888", result["contributors"])
+        # Documentation Scope should not be truncated
+        scope = result["sections"].get("Documentation Scope", "")
+        self.assertIn("Scope continues", scope)
+
+    def test_fresh_fingerprint_fenced_inside_section(self) -> None:
+        """check_enrichment fresh fingerprint must agree with
+        validate_issue when Design Reference has fenced examples."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+            - [ ] Done
+            ## Documentation Scope
+            scope
+            ## Documentation Inputs
+            **TEST-201 — Widget:**
+            - New CLI
+            ## Design Reference
+            Contributing stories: TEST-201
+
+            ```
+            Contributing stories: TEST-999
+            ```
+        """)
+        snap = {
+            "key": "TEST-100",
+            "summary": "[DOCS] Widget docs",
+            "description": desc,
+        }
+        val = evidence.validate_issue(snap)
+        ev = evidence.normalize_evidence([{
+            "pr_url": (
+                "https://github.example.invalid/org/repo/pull/101"
+            ),
+            "contributor_key": "TEST-201",
+            "merged": True,
+            "target_branch": "main",
+        }])
+        plan = evidence.build_change_plan(
+            val, ev,
+            {"release": "4.19", "target_branch": "main"},
+        )
+        current = {
+            "key": "TEST-100",
+            "summary": "[DOCS] Widget docs",
+            "description": desc,
+            "remote_links": [],
+        }
+        result = evidence.check_enrichment(plan, current)
+        self.assertEqual(result["status"], "ready")
+        self.assertFalse(result["stale"])
+
 
 # ---------------------------------------------------------------------------
 # R2: GitLab modern/legacy URL canonicalization
@@ -4656,7 +4806,12 @@ class TestGitLabLegacyCanonicalization(unittest.TestCase):
                 "title": "MR !7",
             }],
         }
-        result = evidence.check_enrichment(plan, current)
+        result = evidence.check_enrichment(
+            plan, current,
+            approved_plan_digest=plan["plan_digest"],
+        )
+        self.assertEqual(result["status"], "ready")
+        self.assertFalse(result["stale"])
         self.assertEqual(
             len(result["eligible_links"]), 0,
             "Legacy existing link must prevent modern duplicate",
@@ -4701,7 +4856,12 @@ class TestGitLabLegacyCanonicalization(unittest.TestCase):
             "description": desc,
             "remote_links": [],
         }
-        enrichment = evidence.check_enrichment(plan, current)
+        enrichment = evidence.check_enrichment(
+            plan, current,
+            approved_plan_digest=plan["plan_digest"],
+        )
+        self.assertEqual(enrichment["status"], "ready")
+        self.assertFalse(enrichment["stale"])
         self.assertEqual(len(enrichment["eligible_links"]), 1)
         # Readback uses LEGACY URL
         readback = {

@@ -304,11 +304,23 @@ def _extract_sections(text: str) -> dict[str, str]:
 
 
 def _extract_contributing_stories(description: str) -> list[str]:
-    """Extract Contributing stories references from a rendered description."""
+    """Extract Contributing stories references from text.
+
+    Lines inside fenced code blocks (backtick or tilde fences) are
+    skipped so that example Contributing stories lines in code samples
+    are not extracted.
+    """
     result: list[str] = []
     seen: set[str] = set()
+    in_fence = False
     for line in description.splitlines():
         stripped = line.strip()
+        # Track fenced code blocks
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
         for pfx in ("- ", "* ", "+ "):
             if stripped.startswith(pfx):
                 stripped = stripped[len(pfx):].strip()
