@@ -5707,6 +5707,72 @@ class TestFenceIndentationAndBacktickInfo(unittest.TestCase):
             "Valid backtick opener with language info works correctly",
         )
 
+    # -- R1 follow-up: tab indentation ---------------------------------
+
+    def test_tab_indented_fence_does_not_close_outer(self) -> None:
+        """R1 tab variant: a leading-tab ``` inside an outer ```
+        fence must NOT close it.  Without fix: raw.lstrip(' ')
+        ignores tabs, indent counted as 0, tab-indented ```
+        incorrectly closes fence, exposing fake TEST-999.
+
+        After fix: tab = 4-column tab stop ≥ 4 → rejected;
+        real TEST-201 after genuine close is extracted."""
+        # Build description with literal tab before inner fences
+        desc = (
+            "## Acceptance Criteria\n"
+            "- [ ] Something\n"
+            "## Documentation Scope\n"
+            "Some scope\n"
+            "## Documentation Inputs\n"
+            "**TEST-201 — Add widget:**\n"
+            "- Real CLI command input\n"
+            "## Design Reference\n"
+            "```\n"
+            "\t```\n"
+            "Contributing stories: TEST-999\n"
+            "\t```\n"
+            "```\n"
+            "Contributing stories: TEST-201\n"
+        )
+        snap = _make_docs_snapshot(description=desc)
+        val = evidence.validate_issue(snap)
+        self.assertTrue(val["valid"])
+        self.assertIn("TEST-201", val["contributors"])
+        self.assertNotIn(
+            "TEST-999", val["contributors"],
+            "Tab-indented inner fence must not close outer; "
+            "TEST-999 must stay inside fence",
+        )
+
+    def test_mixed_space_tab_fence_does_not_close(self) -> None:
+        """R1 mixed variant: one space + tab = column 4 (tab
+        advances to next four-column tab stop).  Must not close
+        fence or expose fenced contributor."""
+        desc = (
+            "## Acceptance Criteria\n"
+            "- [ ] Something\n"
+            "## Documentation Scope\n"
+            "Some scope\n"
+            "## Documentation Inputs\n"
+            "**TEST-201 — Add widget:**\n"
+            "- Real CLI command input\n"
+            "## Design Reference\n"
+            "```\n"
+            " \t```\n"
+            "Contributing stories: TEST-999\n"
+            " \t```\n"
+            "```\n"
+            "Contributing stories: TEST-201\n"
+        )
+        snap = _make_docs_snapshot(description=desc)
+        val = evidence.validate_issue(snap)
+        self.assertTrue(val["valid"])
+        self.assertIn("TEST-201", val["contributors"])
+        self.assertNotIn(
+            "TEST-999", val["contributors"],
+            "Mixed space+tab (4 columns) must not close outer fence",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -263,6 +263,24 @@ def extract_story_refs(text: str) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
+def _leading_indent_columns(raw: str) -> int:
+    """Count leading indentation columns with four-column tab stops.
+
+    Per CommonMark, tabs in indentation advance to the next tab stop
+    (every four columns).  Only leading spaces and tabs count as
+    indentation characters.
+    """
+    cols = 0
+    for ch in raw:
+        if ch == ' ':
+            cols += 1
+        elif ch == '\t':
+            cols += 4 - cols % 4
+        else:
+            break
+    return cols
+
+
 def _parse_fence_line(stripped: str) -> tuple[str, int] | None:
     """Parse a potential fence line (3+ backticks or tildes).
 
@@ -299,9 +317,11 @@ class _FenceTracker:
     Additional CommonMark constraints enforced when *raw* is
     passed to :meth:`update`:
 
-    - **Indentation**: a code fence must be preceded by 0–3 spaces
-      of indentation.  Lines indented four or more spaces are
-      rejected as fence boundaries (neither openers nor closers).
+    - **Indentation**: a code fence must be preceded by 0–3 columns
+      of indentation.  Lines whose leading whitespace reaches four
+      or more columns are rejected as fence boundaries (neither
+      openers nor closers).  Tabs advance to the next four-column
+      tab stop per CommonMark.
     - **Backtick info string**: the info string of a backtick code
       fence may not contain any backtick characters.  A line like
       ````` ```example``` ````` is not a valid opener.  Tilde fence
@@ -346,9 +366,10 @@ class _FenceTracker:
     def update(self, stripped: str, raw: str = "") -> None:
         """Update fence state for a stripped line.
 
-        When *raw* is provided, lines with four or more leading
-        spaces are rejected as fence boundaries (CommonMark requires
-        0–3 spaces of indentation before a code fence).  Backtick
+        When *raw* is provided, lines whose leading indentation
+        reaches four or more columns are rejected as fence boundaries
+        (CommonMark requires 0–3 columns of indentation before a code
+        fence; tabs advance to the next four-column tab stop).  Backtick
         openers whose info string contains a backtick character are
         also rejected (CommonMark: the info string of a backtick
         code fence may not contain any backtick characters).
@@ -356,10 +377,9 @@ class _FenceTracker:
         parsed = _parse_fence_line(stripped)
         if parsed is None:
             return
-        # CommonMark: a code fence is preceded by 0-3 spaces
+        # CommonMark: a code fence is preceded by 0-3 columns
         if raw:
-            indent = len(raw) - len(raw.lstrip(' '))
-            if indent >= 4:
+            if _leading_indent_columns(raw) >= 4:
                 return
         char, length = parsed
         if not self.in_fence:
