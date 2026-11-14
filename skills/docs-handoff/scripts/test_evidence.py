@@ -5180,5 +5180,253 @@ class TestOrphanDocumentationInputs(unittest.TestCase):
         self.assertEqual(len(mismatch), 0)
 
 
+# ---------------------------------------------------------------------------
+# R1-1808: CommonMark fence length/character matching
+# ---------------------------------------------------------------------------
+
+class TestCommonMarkFenceMatching(unittest.TestCase):
+    """R1 root 1808: Closing fence must use the same character AND
+    have length >= the opening fence.  Shorter inner fences or fences
+    of a different character must NOT toggle the fence state."""
+
+    def test_shorter_inner_fence_prevents_fake_contributor(self) -> None:
+        """Outer ```` with inner ``` must not prematurely end the
+        fence.  Without fix: inner ``` toggles fence off, the fake
+        Design Reference heading re-creates the section, and
+        Contributing stories: TEST-999 becomes an eligible contributor
+        whose PR would be added as a link."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+            - [ ] Something
+            ## Documentation Scope
+            Some scope
+            ## Documentation Inputs
+            **TEST-201 — Add widget:**
+            - Real CLI command input
+            ## Design Reference
+            ````
+            ```
+            ## Design Reference
+            Contributing stories: TEST-999
+            ```
+            ````
+            Contributing stories: TEST-201
+        """)
+        snap = _make_docs_snapshot(description=desc)
+        val = evidence.validate_issue(snap)
+        self.assertTrue(val["valid"])
+        # Real contributor from outside fence
+        self.assertIn("TEST-201", val["contributors"])
+        # Fake contributor inside fence must NOT appear
+        self.assertNotIn(
+            "TEST-999", val["contributors"],
+            "Shorter inner fence must not expose fenced contributor",
+        )
+        # Plan: TEST-999 must not become eligible PR link
+        items = [
+            {
+                "pr_url": (
+                    "https://github.example.invalid/org/repo/pull/1"
+                ),
+                "contributor_key": "TEST-201",
+                "merged": True,
+                "target_branch": "main",
+            },
+            {
+                "pr_url": (
+                    "https://github.example.invalid/org/repo/pull/999"
+                ),
+                "contributor_key": "TEST-999",
+            },
+        ]
+        ev = evidence.normalize_evidence(items)
+        plan = evidence.build_change_plan(
+            val, ev,
+            {"release": "v1", "target_branch": "main"},
+        )
+        self.assertEqual(plan["status"], "complete")
+        link_urls = {link["url"] for link in plan["pr_links"]}
+        self.assertNotIn(
+            "https://github.example.invalid/org/repo/pull/999",
+            link_urls,
+            "TEST-999 PR must not be eligible (fenced contributor)",
+        )
+        # TEST-999 flagged as non-contributor evidence
+        non_contrib = [
+            f for f in plan["findings"]
+            if f["type"] == "non_contributor_evidence"
+            and f["ref"] == "TEST-999"
+        ]
+        self.assertTrue(
+            len(non_contrib) > 0,
+            "TEST-999 must be flagged as non-contributor",
+        )
+        # Genuine Design Reference content after fence close preserved
+        dr = val["sections"].get("Design Reference", "")
+        self.assertIn("TEST-201", dr)
+
+    def test_different_fence_char_stays_fenced(self) -> None:
+        """~~~ inside backtick fence must not end it.  Without fix:
+        ~~~ toggles fence off, Contributing stories: TEST-999
+        becomes extractable."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+            - [ ] Something
+            ## Documentation Scope
+            Some scope
+            ## Documentation Inputs
+            **TEST-201 — Add widget:**
+            - New CLI command
+            ## Design Reference
+            ```
+            ~~~
+            Contributing stories: TEST-999
+            ~~~
+            ```
+            Contributing stories: TEST-201
+        """)
+        snap = _make_docs_snapshot(description=desc)
+        val = evidence.validate_issue(snap)
+        self.assertTrue(val["valid"])
+        self.assertIn("TEST-201", val["contributors"])
+        self.assertNotIn(
+            "TEST-999", val["contributors"],
+            "Different fence char must not expose fenced contributor",
+        )
+
+    def test_matching_close_resumes_normal_processing(self) -> None:
+        """Valid matching close (same char, length >= opening) does
+        end the fence, and content after resumes normal extraction.
+        Control: same-length close works correctly."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+            - [ ] Something
+            ## Documentation Scope
+            Some scope
+            ## Documentation Inputs
+            **TEST-201 — Add widget:**
+            - New CLI command
+            ## Design Reference
+            ````
+            Contributing stories: TEST-FENCED
+            ````
+            Contributing stories: TEST-201
+        """)
+        snap = _make_docs_snapshot(description=desc)
+        val = evidence.validate_issue(snap)
+        self.assertTrue(val["valid"])
+        self.assertIn("TEST-201", val["contributors"])
+        self.assertNotIn("TEST-FENCED", val["contributors"])
+
+
+# ---------------------------------------------------------------------------
+# R2-1812: Fence guard in _parse_documentation_inputs
+# ---------------------------------------------------------------------------
+
+class TestDocumentationInputsFenceGuard(unittest.TestCase):
+    """R2 root 1812: _parse_documentation_inputs must skip fenced code
+    blocks so that example headers and bullets do not contaminate the
+    parsed input list, plan counts, or delivery rendering."""
+
+    def test_fenced_inputs_excluded_from_parse_and_plan(self) -> None:
+        """Fenced bold header + bullet inside Documentation Inputs
+        must NOT be parsed as real input items.  Genuine unheaded
+        bullet outside fence retained unattributed (R4 contract)."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+            - [ ] Something
+            ## Documentation Scope
+            Some scope
+            ## Documentation Inputs
+            - Orphan requirement outside fence
+            **TEST-201 — Add widget:**
+            - Real CLI command input
+            ```
+            **TEST-FAKE — Example header:**
+            - Example option inside fence
+            ```
+            ## Design Reference
+            Contributing stories: TEST-201
+        """)
+        snap = _make_docs_snapshot(description=desc)
+        val = evidence.validate_issue(snap)
+        self.assertTrue(val["valid"])
+        inputs = val["documentation_inputs"]
+        # Exactly 2 items: orphan + TEST-201 real input
+        self.assertEqual(
+            len(inputs), 2,
+            f"Expected 2 items (orphan + real), got {len(inputs)}: "
+            f"{[i.get('contributor') for i in inputs]}",
+        )
+        # No fenced example parsed
+        fake = [
+            i for i in inputs
+            if i.get("contributor") == "TEST-FAKE"
+        ]
+        self.assertEqual(
+            len(fake), 0,
+            "Fenced example header must not be parsed as input",
+        )
+        example = [
+            i for i in inputs
+            if "Example option" in i.get("text", "")
+        ]
+        self.assertEqual(
+            len(example), 0,
+            "Fenced example bullet must not be parsed as input",
+        )
+        # Orphan retained unattributed (R4 preserved)
+        orphans = [
+            i for i in inputs if i["contributor"] is None
+        ]
+        self.assertEqual(len(orphans), 1)
+        self.assertTrue(
+            any("unattributed" in w for w in val["warnings"]),
+            "Genuine orphan bullet must still produce warning",
+        )
+        # Plan has correct input count
+        ev = evidence.normalize_evidence([{
+            "pr_url": (
+                "https://github.example.invalid/org/repo/pull/1"
+            ),
+            "contributor_key": "TEST-201",
+            "merged": True,
+            "target_branch": "main",
+        }])
+        plan = evidence.build_change_plan(
+            val, ev,
+            {"release": "v1", "target_branch": "main"},
+        )
+        self.assertEqual(plan["status"], "complete")
+        self.assertEqual(
+            len(plan["inputs"]), 2,
+            "Plan must have 2 inputs (orphan + real), not 4",
+        )
+        # Render shows correct total
+        md = evidence.render_handoff(plan)
+        self.assertIn("Total inputs: 2", md)
+
+    def test_fenced_header_does_not_change_attribution(self) -> None:
+        """A fenced bold header must not change the current contributor
+        attribution for subsequent real items outside the fence."""
+        text = textwrap.dedent("""\
+            **TEST-201 — Add widget:**
+            - Real item under TEST-201
+            ```
+            **TEST-FAKE — Example:**
+            - Example bullet
+            ```
+            - Second real item still under TEST-201
+        """)
+        items = evidence._parse_documentation_inputs(text)
+        # Should have 2 items, both under TEST-201
+        self.assertEqual(len(items), 2)
+        for item in items:
+            self.assertEqual(
+                item["contributor"], "TEST-201",
+                f"Item '{item['text']}' should be under TEST-201",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

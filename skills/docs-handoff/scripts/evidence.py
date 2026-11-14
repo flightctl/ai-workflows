@@ -259,6 +259,84 @@ def extract_story_refs(text: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Fenced code block tracking (CommonMark-compliant)
+# ---------------------------------------------------------------------------
+
+
+def _parse_fence_line(stripped: str) -> tuple[str, int] | None:
+    """Parse a potential fence line (3+ backticks or tildes).
+
+    Returns ``(char, run_length)`` if the stripped line opens or
+    closes a fenced code block, ``None`` otherwise.
+    """
+    if len(stripped) < 3:
+        return None
+    ch = stripped[0]
+    if ch not in ("`", "~"):
+        return None
+    run = 0
+    for c in stripped:
+        if c == ch:
+            run += 1
+        else:
+            break
+    if run < 3:
+        return None
+    return (ch, run)
+
+
+class _FenceTracker:
+    """Track fenced code block state per CommonMark spec.
+
+    A closing fence must use the **same character** (backtick or
+    tilde) as the opening fence **and** be at least as long.
+    Shorter fences or fences of a different character inside an
+    open block are treated as literal content — they do not toggle
+    the fence state.
+
+    Usage::
+
+        fence = _FenceTracker()
+        for raw in text.splitlines():
+            stripped = raw.strip()
+            if _parse_fence_line(stripped) is not None:
+                fence.update(stripped)
+                # handle fence-boundary line …
+                continue
+            if fence.in_fence:
+                # literal fenced content …
+                continue
+            # … normal processing …
+    """
+
+    __slots__ = ("_char", "_length")
+
+    def __init__(self) -> None:
+        self._char: str | None = None
+        self._length: int = 0
+
+    @property
+    def in_fence(self) -> bool:
+        """Return True when inside an unclosed fenced code block."""
+        return self._char is not None
+
+    def update(self, stripped: str) -> None:
+        """Update fence state for a stripped line."""
+        parsed = _parse_fence_line(stripped)
+        if parsed is None:
+            return
+        char, length = parsed
+        if not self.in_fence:
+            self._char = char
+            self._length = length
+        elif char == self._char and length >= self._length:
+            # Valid close: same character, length >= opening
+            self._char = None
+            self._length = 0
+        # Different char or shorter run → stays fenced (literal)
+
+
+# ---------------------------------------------------------------------------
 # DOCS issue validation and contributor extraction  (A, B)
 # ---------------------------------------------------------------------------
 
@@ -272,25 +350,27 @@ _DOCS_SECTIONS = {
 def _extract_sections(text: str) -> dict[str, str]:
     """Extract ## sections from rendered Jira markdown description.
 
-    Headings inside fenced code blocks (backtick or tilde fences) are
-    treated as literal content, not section boundaries.
+    Headings inside fenced code blocks are treated as literal content,
+    not section boundaries.  Per CommonMark, a closing fence must use
+    the same character (backtick or tilde) and be at least as long as
+    the opening fence.
     """
     sections: dict[str, str] = {}
     current: str | None = None
     lines: list[str] = []
-    in_fence = False
+    fence = _FenceTracker()
 
     for raw in text.splitlines():
         stripped = raw.strip()
 
-        # Toggle fence state on ``` or ~~~ lines
-        if stripped.startswith("```") or stripped.startswith("~~~"):
-            in_fence = not in_fence
+        # Track fence boundaries (same char + length >= opening to close)
+        if _parse_fence_line(stripped) is not None:
+            fence.update(stripped)
             if current is not None:
                 lines.append(raw)
             continue
 
-        if not in_fence and stripped.startswith("## "):
+        if not fence.in_fence and stripped.startswith("## "):
             if current is not None:
                 sections[current] = "\n".join(lines).strip()
             current = stripped[3:].strip()
@@ -306,20 +386,21 @@ def _extract_sections(text: str) -> dict[str, str]:
 def _extract_contributing_stories(description: str) -> list[str]:
     """Extract Contributing stories references from text.
 
-    Lines inside fenced code blocks (backtick or tilde fences) are
-    skipped so that example Contributing stories lines in code samples
-    are not extracted.
+    Lines inside fenced code blocks are skipped so that example
+    Contributing stories lines in code samples are not extracted.
+    Per CommonMark, a closing fence must use the same character and
+    be at least as long as the opening fence.
     """
     result: list[str] = []
     seen: set[str] = set()
-    in_fence = False
+    fence = _FenceTracker()
     for line in description.splitlines():
         stripped = line.strip()
-        # Track fenced code blocks
-        if stripped.startswith("```") or stripped.startswith("~~~"):
-            in_fence = not in_fence
+        # Track fenced code blocks (same char + length >= opening)
+        if _parse_fence_line(stripped) is not None:
+            fence.update(stripped)
             continue
-        if in_fence:
+        if fence.in_fence:
             continue
         for pfx in ("- ", "* ", "+ "):
             if stripped.startswith(pfx):
@@ -372,14 +453,25 @@ def _parse_documentation_inputs(text: str) -> list[dict[str, Any]]:
 
     Recognizes bold contributor headers followed by bullet-pointed
     input items.  Each input may carry ``[Assumption]`` or
-    ``[Open: ...]`` markers which are preserved.
+    ``[Open: ...]`` markers which are preserved.  Lines inside
+    fenced code blocks are skipped so that example headers and
+    bullets in code samples are not parsed as real inputs.
     """
     items: list[dict[str, Any]] = []
     current_contributor: str | None = None
     contributor_key: str | None = None
+    fence = _FenceTracker()
 
     for line in text.splitlines():
         stripped = line.strip()
+
+        # Skip fenced code blocks (same char + length >= opening)
+        if _parse_fence_line(stripped) is not None:
+            fence.update(stripped)
+            continue
+        if fence.in_fence:
+            continue
+
         header_match = re.match(
             r"\*\*(.+?)(?:\s*(?:--|—)\s*.+?)?\s*:?\*\*:?\s*$",
             stripped,
