@@ -296,13 +296,24 @@ class _FenceTracker:
     a backtick block) are treated as literal content — they do not
     toggle the fence state.
 
+    Additional CommonMark constraints enforced when *raw* is
+    passed to :meth:`update`:
+
+    - **Indentation**: a code fence must be preceded by 0–3 spaces
+      of indentation.  Lines indented four or more spaces are
+      rejected as fence boundaries (neither openers nor closers).
+    - **Backtick info string**: the info string of a backtick code
+      fence may not contain any backtick characters.  A line like
+      ````` ```example``` ````` is not a valid opener.  Tilde fence
+      info strings may contain backticks.
+
     Usage::
 
         fence = _FenceTracker()
         for raw in text.splitlines():
             stripped = raw.strip()
             if _parse_fence_line(stripped) is not None:
-                fence.update(stripped)
+                fence.update(stripped, raw)
                 # handle fence-boundary line …
                 continue
             if fence.in_fence:
@@ -332,13 +343,31 @@ class _FenceTracker:
         remainder = stripped[length:]
         return not remainder or all(c in (' ', '\t') for c in remainder)
 
-    def update(self, stripped: str) -> None:
-        """Update fence state for a stripped line."""
+    def update(self, stripped: str, raw: str = "") -> None:
+        """Update fence state for a stripped line.
+
+        When *raw* is provided, lines with four or more leading
+        spaces are rejected as fence boundaries (CommonMark requires
+        0–3 spaces of indentation before a code fence).  Backtick
+        openers whose info string contains a backtick character are
+        also rejected (CommonMark: the info string of a backtick
+        code fence may not contain any backtick characters).
+        """
         parsed = _parse_fence_line(stripped)
         if parsed is None:
             return
+        # CommonMark: a code fence is preceded by 0-3 spaces
+        if raw:
+            indent = len(raw) - len(raw.lstrip(' '))
+            if indent >= 4:
+                return
         char, length = parsed
         if not self.in_fence:
+            # CommonMark: backtick fence info may not contain backticks
+            if char == '`':
+                info = stripped[length:]
+                if '`' in info:
+                    return
             self._char = char
             self._length = length
         elif (char == self._char
@@ -380,7 +409,7 @@ def _extract_sections(text: str) -> dict[str, str]:
 
         # Track fence boundaries (same char + length >= opening to close)
         if _parse_fence_line(stripped) is not None:
-            fence.update(stripped)
+            fence.update(stripped, raw)
             if current is not None:
                 lines.append(raw)
             continue
@@ -414,7 +443,7 @@ def _extract_contributing_stories(description: str) -> list[str]:
         stripped = line.strip()
         # Track fenced code blocks (same char + length >= opening)
         if _parse_fence_line(stripped) is not None:
-            fence.update(stripped)
+            fence.update(stripped, line)
             continue
         if fence.in_fence:
             continue
@@ -483,7 +512,7 @@ def _parse_documentation_inputs(text: str) -> list[dict[str, Any]]:
 
         # Skip fenced code blocks (same char + length >= opening)
         if _parse_fence_line(stripped) is not None:
-            fence.update(stripped)
+            fence.update(stripped, line)
             continue
         if fence.in_fence:
             continue

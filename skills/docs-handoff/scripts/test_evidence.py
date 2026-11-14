@@ -5492,5 +5492,221 @@ class TestDocumentationInputsFenceGuard(unittest.TestCase):
             )
 
 
+# ---------------------------------------------------------------------------
+# R1-1976: Indented fence boundaries rejected (CommonMark 0-3 spaces)
+# R2-1982: Backtick opener info containing backtick rejected
+# ---------------------------------------------------------------------------
+
+class TestFenceIndentationAndBacktickInfo(unittest.TestCase):
+    """R1 root 1976: fence-like lines indented 4+ spaces must not open
+    or close fences.  R2 root 1982: backtick opener whose info string
+    contains a backtick is not a valid opener."""
+
+    # -- R1: indentation ------------------------------------------------
+
+    def test_indented_fence_does_not_close_outer(self) -> None:
+        """R1: four-space-indented ``` inside an outer ``` fence
+        must NOT close it.  Without fix: the indented ``` closes the
+        outer fence, fake Contributing stories: TEST-999 escapes,
+        and the actual closing ``` then hides real TEST-201.
+
+        After fix: indented ``` is inert content; real TEST-201
+        after the genuine column-0 close is extracted."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+            - [ ] Something
+            ## Documentation Scope
+            Some scope
+            ## Documentation Inputs
+            **TEST-201 — Add widget:**
+            - Real CLI command input
+            ## Design Reference
+            ```
+                ```
+            Contributing stories: TEST-999
+                ```
+            ```
+            Contributing stories: TEST-201
+        """)
+        snap = _make_docs_snapshot(description=desc)
+        val = evidence.validate_issue(snap)
+        self.assertTrue(val["valid"])
+        self.assertIn("TEST-201", val["contributors"])
+        self.assertNotIn(
+            "TEST-999", val["contributors"],
+            "Indented inner fence must not close outer; "
+            "TEST-999 must stay inside fence",
+        )
+        # Plan: TEST-999 must not become eligible PR link
+        items = [
+            {
+                "pr_url": (
+                    "https://github.example.invalid/org/repo/pull/1"
+                ),
+                "contributor_key": "TEST-201",
+                "merged": True,
+                "target_branch": "main",
+            },
+            {
+                "pr_url": (
+                    "https://github.example.invalid/org/repo/pull/999"
+                ),
+                "contributor_key": "TEST-999",
+            },
+        ]
+        ev = evidence.normalize_evidence(items)
+        plan = evidence.build_change_plan(
+            val, ev,
+            {"release": "v1", "target_branch": "main"},
+        )
+        self.assertEqual(plan["status"], "complete")
+        link_urls = {link["url"] for link in plan["pr_links"]}
+        self.assertNotIn(
+            "https://github.example.invalid/org/repo/pull/999",
+            link_urls,
+            "TEST-999 PR must not be eligible (indented fence)",
+        )
+
+    def test_three_space_indented_fence_still_works(self) -> None:
+        """R1 boundary: 0-3 space indentation is valid per CommonMark.
+        A three-space-indented fence correctly opens and closes."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+            - [ ] Something
+            ## Documentation Scope
+            Some scope
+            ## Documentation Inputs
+            **TEST-201 — Add widget:**
+            - Real CLI command input
+            ## Design Reference
+               ```
+            Contributing stories: TEST-FENCED
+               ```
+            Contributing stories: TEST-201
+        """)
+        snap = _make_docs_snapshot(description=desc)
+        val = evidence.validate_issue(snap)
+        self.assertTrue(val["valid"])
+        self.assertIn("TEST-201", val["contributors"])
+        self.assertNotIn(
+            "TEST-FENCED", val["contributors"],
+            "3-space indented fence is valid; fenced content stays hidden",
+        )
+
+    def test_indented_fence_does_not_open(self) -> None:
+        """R1: four-space-indented ``` must NOT open a fence that
+        hides subsequent real section headings."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+            - [ ] Something
+            ## Documentation Scope
+            Some scope
+                ```
+            ## Documentation Inputs
+            **TEST-201 — Add widget:**
+            - Real CLI command input
+                ```
+            ## Design Reference
+            Contributing stories: TEST-201
+        """)
+        snap = _make_docs_snapshot(description=desc)
+        val = evidence.validate_issue(snap)
+        self.assertTrue(val["valid"])
+        self.assertIn("TEST-201", val["contributors"])
+        # Documentation Inputs section must be visible
+        self.assertIn("Documentation Inputs", val["sections"])
+        # Inputs must be parsed
+        self.assertTrue(
+            len(val["documentation_inputs"]) >= 1,
+            "Real inputs after non-opening indented fence must be parsed",
+        )
+
+    # -- R2: backtick info string ---------------------------------------
+
+    def test_backtick_in_info_does_not_open_fence(self) -> None:
+        """R2: standalone ```example``` (backticks within opener
+        info remainder) must NOT open a fence.  Without fix: it
+        opens a fence that swallows ## Documentation Inputs and
+        ## Design Reference, hiding real contributors and inputs.
+
+        After fix: the invalid opener is inert; following sections
+        and their content are parsed normally."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+            - [ ] Something
+            ## Documentation Scope
+            Some scope
+            ```example```
+            ## Documentation Inputs
+            **TEST-201 — Add widget:**
+            - Real CLI command input
+            ## Design Reference
+            Contributing stories: TEST-201
+        """)
+        snap = _make_docs_snapshot(description=desc)
+        val = evidence.validate_issue(snap)
+        self.assertTrue(val["valid"])
+        self.assertIn("TEST-201", val["contributors"])
+        self.assertIn("Documentation Inputs", val["sections"])
+        self.assertTrue(
+            len(val["documentation_inputs"]) >= 1,
+            "Real inputs after invalid opener must be parsed",
+        )
+
+    def test_tilde_fence_with_backtick_info_still_valid(self) -> None:
+        """R2 boundary: tilde fence info string MAY contain backticks
+        per CommonMark — only backtick fences have the restriction.
+        A ~~~`backtick-example opener correctly opens a tilde fence."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+            - [ ] Something
+            ## Documentation Scope
+            Some scope
+            ## Documentation Inputs
+            **TEST-201 — Add widget:**
+            - Real CLI command input
+            ## Design Reference
+            ~~~`backtick-example
+            Contributing stories: TEST-FENCED
+            ~~~
+            Contributing stories: TEST-201
+        """)
+        snap = _make_docs_snapshot(description=desc)
+        val = evidence.validate_issue(snap)
+        self.assertTrue(val["valid"])
+        self.assertIn("TEST-201", val["contributors"])
+        self.assertNotIn(
+            "TEST-FENCED", val["contributors"],
+            "Tilde fence with backtick info is valid; "
+            "content stays hidden",
+        )
+
+    def test_valid_backtick_language_opener_still_works(self) -> None:
+        """R2 boundary: ```python (no backtick in info remainder)
+        correctly opens a backtick fence."""
+        desc = textwrap.dedent("""\
+            ## Acceptance Criteria
+            - [ ] Something
+            ## Documentation Scope
+            Some scope
+            ## Documentation Inputs
+            **TEST-201 — Add widget:**
+            - Real CLI command input
+            ## Design Reference
+            ```python
+            Contributing stories: TEST-FENCED
+            ```
+            Contributing stories: TEST-201
+        """)
+        snap = _make_docs_snapshot(description=desc)
+        val = evidence.validate_issue(snap)
+        self.assertTrue(val["valid"])
+        self.assertIn("TEST-201", val["contributors"])
+        self.assertNotIn(
+            "TEST-FENCED", val["contributors"],
+            "Valid backtick opener with language info works correctly",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
