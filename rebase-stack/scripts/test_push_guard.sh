@@ -16,6 +16,10 @@ set -uo pipefail
 
 SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEST_DIR=$(mktemp -d "${TMPDIR:-/tmp}/rebase-stack-test.XXXXXX")
+export GIT_AUTHOR_NAME="Rebase Stack Tests"
+export GIT_AUTHOR_EMAIL="rebase-stack-tests@example.com"
+export GIT_COMMITTER_NAME="Rebase Stack Tests"
+export GIT_COMMITTER_EMAIL="rebase-stack-tests@example.com"
 
 # File-based counters survive subshells.
 PASS_FILE="$TEST_DIR/.pass-count"
