@@ -276,6 +276,201 @@ class TestSaveMetadata(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# save-metadata --merge tests
+# ---------------------------------------------------------------------------
+
+
+class TestSaveMetadataMerge(unittest.TestCase):
+    """Verify --merge preserves existing metadata fields."""
+
+    def test_merge_preserves_existing_keys(self) -> None:
+        """Step 6 adds docs_commit_sha without dropping prior fields."""
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "meta.json")
+            # Simulate prior state: sync recipe wrote validation_artifacts
+            prior = {
+                "design_path": "v2.1/feature-slug",
+                "branch": "design/EDM-1471",
+                "validation_artifacts": [
+                    {"file": "testplan.md", "type": "testplan"}
+                ],
+            }
+            Path(out).write_text(
+                json.dumps(prior, indent=2) + "\n", encoding="utf-8")
+
+            # Step 6: merge docs_commit_sha
+            code = publish.main([
+                "save-metadata", "--file", out, "--merge",
+                "docs_commit_sha=abc123",
+            ])
+            self.assertEqual(code, 0)
+            data = json.loads(Path(out).read_text(encoding="utf-8"))
+            # New key added
+            self.assertEqual(data["docs_commit_sha"], "abc123")
+            # Prior keys preserved (including typed array)
+            self.assertEqual(data["design_path"], "v2.1/feature-slug")
+            self.assertEqual(data["branch"], "design/EDM-1471")
+            self.assertIsInstance(data["validation_artifacts"], list)
+            self.assertEqual(len(data["validation_artifacts"]), 1)
+
+    def test_merge_step8_preserves_step6_sha(self) -> None:
+        """Step 8 adds fields without dropping Step 6 docs_commit_sha."""
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "meta.json")
+            # After Step 6: file has docs_commit_sha
+            step6 = {"docs_commit_sha": "deadbeef"}
+            Path(out).write_text(
+                json.dumps(step6, indent=2) + "\n", encoding="utf-8")
+
+            # Step 8: merge additional fields
+            code = publish.main([
+                "save-metadata", "--file", out, "--merge",
+                "release=v2.1",
+                "feature=feature-slug",
+                "pr_number=42",
+                "branch=design/EDM-1471",
+            ])
+            self.assertEqual(code, 0)
+            data = json.loads(Path(out).read_text(encoding="utf-8"))
+            # Step 6 SHA preserved
+            self.assertEqual(data["docs_commit_sha"], "deadbeef")
+            # Step 8 fields present
+            self.assertEqual(data["release"], "v2.1")
+            self.assertEqual(data["feature"], "feature-slug")
+            self.assertEqual(data["pr_number"], "42")
+
+    def test_merge_updates_existing_string_key(self) -> None:
+        """Merge mode overwrites existing string values with new ones."""
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "meta.json")
+            Path(out).write_text('{"key": "old"}\n', encoding="utf-8")
+            code = publish.main([
+                "save-metadata", "--file", out, "--merge",
+                "key=new",
+            ])
+            self.assertEqual(code, 0)
+            data = json.loads(Path(out).read_text(encoding="utf-8"))
+            self.assertEqual(data["key"], "new")
+
+    def test_merge_invalid_existing_json_fails(self) -> None:
+        """Merge mode fails on invalid existing JSON instead of wiping."""
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "meta.json")
+            Path(out).write_text("not json", encoding="utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                publish.main([
+                    "save-metadata", "--file", out, "--merge",
+                    "key=val",
+                ])
+            self.assertEqual(ctx.exception.code, publish.EXIT_ARG_ERROR)
+            # Original file not wiped
+            self.assertEqual(
+                Path(out).read_text(encoding="utf-8"), "not json")
+
+    def test_merge_nonexistent_file_creates(self) -> None:
+        """Merge mode on a new file behaves like overwrite."""
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "new.json")
+            code = publish.main([
+                "save-metadata", "--file", out, "--merge",
+                "key=val",
+            ])
+            self.assertEqual(code, 0)
+            data = json.loads(Path(out).read_text(encoding="utf-8"))
+            self.assertEqual(data, {"key": "val"})
+
+    def test_merge_non_object_existing_fails(self) -> None:
+        """Merge mode fails when existing file is a JSON array."""
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "meta.json")
+            Path(out).write_text("[1, 2, 3]\n", encoding="utf-8")
+            with self.assertRaises(SystemExit) as ctx:
+                publish.main([
+                    "save-metadata", "--file", out, "--merge",
+                    "key=val",
+                ])
+            self.assertEqual(ctx.exception.code, publish.EXIT_ARG_ERROR)
+
+    def test_no_merge_still_overwrites(self) -> None:
+        """Without --merge, legacy overwrite behavior is preserved."""
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "meta.json")
+            Path(out).write_text(
+                '{"old_key": "old_val"}\n', encoding="utf-8")
+            code = publish.main([
+                "save-metadata", "--file", out,
+                "new_key=new_val",
+            ])
+            self.assertEqual(code, 0)
+            data = json.loads(Path(out).read_text(encoding="utf-8"))
+            self.assertNotIn("old_key", data)
+            self.assertEqual(data["new_key"], "new_val")
+
+    def test_merge_preserves_sorted_keys(self) -> None:
+        """Merged output has keys sorted alphabetically."""
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "meta.json")
+            Path(out).write_text(
+                '{"z_key": "z", "a_key": "a"}\n', encoding="utf-8")
+            code = publish.main([
+                "save-metadata", "--file", out, "--merge",
+                "m_key=m",
+            ])
+            self.assertEqual(code, 0)
+            data = json.loads(Path(out).read_text(encoding="utf-8"))
+            self.assertEqual(
+                list(data.keys()), ["a_key", "m_key", "z_key"])
+
+    def test_merge_full_publish_lifecycle(self) -> None:
+        """Simulate the full Step 6 → push fail → Step 8 lifecycle.
+
+        Verifies that docs_commit_sha survives across Step 8 and that
+        pre-existing validation_artifacts survive both steps.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "meta.json")
+            # Initial state: sync recipe wrote metadata
+            initial = {
+                "branch": "design/EDM-1471",
+                "design_path": "v2.1/feature",
+                "validation_artifacts": [
+                    {"file": "testplan.md", "type": "testplan"},
+                    {"file": "hw.md", "type": "companion",
+                     "purpose": "HW", "audience": "QE"},
+                ],
+            }
+            Path(out).write_text(
+                json.dumps(initial, indent=2) + "\n", encoding="utf-8")
+
+            # Step 6: save docs_commit_sha
+            publish.main([
+                "save-metadata", "--file", out, "--merge",
+                "docs_commit_sha=abc123def456",
+            ])
+            data = json.loads(Path(out).read_text(encoding="utf-8"))
+            self.assertEqual(data["docs_commit_sha"], "abc123def456")
+            self.assertEqual(len(data["validation_artifacts"]), 2)
+
+            # Simulate push failure -- docs_commit_sha must survive
+            # Step 8: save more metadata
+            publish.main([
+                "save-metadata", "--file", out, "--merge",
+                "release=v2.1",
+                "feature=feature",
+                "pr_number=42",
+            ])
+            data = json.loads(Path(out).read_text(encoding="utf-8"))
+            # All fields preserved
+            self.assertEqual(data["docs_commit_sha"], "abc123def456")
+            self.assertEqual(data["release"], "v2.1")
+            self.assertEqual(data["feature"], "feature")
+            self.assertEqual(data["pr_number"], "42")
+            self.assertEqual(data["branch"], "design/EDM-1471")
+            self.assertIsInstance(data["validation_artifacts"], list)
+            self.assertEqual(len(data["validation_artifacts"]), 2)
+
+
+# ---------------------------------------------------------------------------
 # Exit code contract tests
 # ---------------------------------------------------------------------------
 
@@ -809,6 +1004,382 @@ class TestPush(unittest.TestCase):
         with self.assertRaises(SystemExit) as ctx:
             publish.main(["push", "--remote", "fork", "--branch", "feat/x"])
         self.assertEqual(ctx.exception.code, publish.EXIT_PUSH_FAIL)
+
+
+class TestPushExpectedSHA(unittest.TestCase):
+    """Verify --expected-sha push validation and SHA-pinned refspec."""
+
+    FAKE_SHA = "a" * 40
+    WRONG_SHA = "b" * 40
+
+    @mock.patch.object(publish, "run")
+    def test_expected_sha_match_pins_refspec(self, mock_run: mock.Mock) -> None:
+        """When HEAD matches --expected-sha and branch is correct,
+        push uses a SHA-pinned refspec and sets tracking explicitly."""
+        mock_run.side_effect = [
+            # git remote get-url
+            subprocess.CompletedProcess([], 0, "https://example.com/repo.git\n", ""),
+            # git rev-parse HEAD
+            subprocess.CompletedProcess([], 0, self.FAKE_SHA + "\n", ""),
+            # git symbolic-ref --short HEAD
+            subprocess.CompletedProcess([], 0, "feat/x\n", ""),
+            # git push (SHA-pinned, no -u)
+            subprocess.CompletedProcess([], 0, "", ""),
+            # git branch --set-upstream-to (explicit tracking)
+            subprocess.CompletedProcess([], 0, "", ""),
+        ]
+        code = publish.main([
+            "push", "--remote", "fork", "--branch", "feat/x",
+            "--expected-sha", self.FAKE_SHA,
+        ])
+        self.assertEqual(code, 0)
+        # Verify the push used the pinned refspec without -u
+        push_call = mock_run.call_args_list[3]
+        push_cmd = push_call[0][0]
+        self.assertIn(f"{self.FAKE_SHA}:refs/heads/feat/x", push_cmd)
+        self.assertNotIn("-u", push_cmd)
+        # Verify explicit tracking was set
+        tracking_call = mock_run.call_args_list[4]
+        tracking_cmd = tracking_call[0][0]
+        self.assertEqual(
+            tracking_cmd,
+            ["git", "branch", "--set-upstream-to=fork/feat/x", "feat/x"],
+        )
+
+    @mock.patch.object(publish, "run")
+    def test_expected_sha_mismatch_exits_3(self, mock_run: mock.Mock) -> None:
+        """When HEAD doesn't match --expected-sha, push is rejected."""
+        mock_run.side_effect = [
+            # git remote get-url
+            subprocess.CompletedProcess([], 0, "https://example.com/repo.git\n", ""),
+            # git rev-parse HEAD -> different SHA
+            subprocess.CompletedProcess([], 0, self.WRONG_SHA + "\n", ""),
+        ]
+        with self.assertRaises(SystemExit) as ctx:
+            publish.main([
+                "push", "--remote", "fork", "--branch", "feat/x",
+                "--expected-sha", self.FAKE_SHA,
+            ])
+        self.assertEqual(ctx.exception.code, publish.EXIT_PUSH_FAIL)
+
+    @mock.patch.object(publish, "run")
+    def test_expected_sha_wrong_branch_exits_3(self, mock_run: mock.Mock) -> None:
+        """When HEAD matches but current branch is wrong, push is rejected."""
+        mock_run.side_effect = [
+            # git remote get-url
+            subprocess.CompletedProcess([], 0, "https://example.com/repo.git\n", ""),
+            # git rev-parse HEAD -> matches
+            subprocess.CompletedProcess([], 0, self.FAKE_SHA + "\n", ""),
+            # git symbolic-ref --short HEAD -> different branch
+            subprocess.CompletedProcess([], 0, "other/branch\n", ""),
+        ]
+        with self.assertRaises(SystemExit) as ctx:
+            publish.main([
+                "push", "--remote", "fork", "--branch", "feat/x",
+                "--expected-sha", self.FAKE_SHA,
+            ])
+        self.assertEqual(ctx.exception.code, publish.EXIT_PUSH_FAIL)
+
+    @mock.patch.object(publish, "run")
+    def test_expected_sha_detached_head_exits_3(self, mock_run: mock.Mock) -> None:
+        """Detached HEAD with --expected-sha is rejected."""
+        mock_run.side_effect = [
+            # git remote get-url
+            subprocess.CompletedProcess([], 0, "https://example.com/repo.git\n", ""),
+            # git rev-parse HEAD
+            subprocess.CompletedProcess([], 0, self.FAKE_SHA + "\n", ""),
+            # git symbolic-ref -> fails (detached)
+            subprocess.CompletedProcess([], 128, "", "fatal: not on a branch\n"),
+        ]
+        with self.assertRaises(SystemExit) as ctx:
+            publish.main([
+                "push", "--remote", "fork", "--branch", "feat/x",
+                "--expected-sha", self.FAKE_SHA,
+            ])
+        self.assertEqual(ctx.exception.code, publish.EXIT_PUSH_FAIL)
+
+    @mock.patch.object(publish, "run")
+    def test_legacy_no_expected_sha_uses_branch_name(
+        self, mock_run: mock.Mock,
+    ) -> None:
+        """Legacy callers without --expected-sha push by branch name."""
+        mock_run.side_effect = [
+            # git remote get-url
+            subprocess.CompletedProcess([], 0, "https://example.com/repo.git\n", ""),
+            # git push -u remote branch (branch-name push)
+            subprocess.CompletedProcess([], 0, "", ""),
+        ]
+        code = publish.main([
+            "push", "--remote", "fork", "--branch", "feat/x",
+        ])
+        self.assertEqual(code, 0)
+        # Verify the push used branch name, not a pinned refspec
+        push_call = mock_run.call_args_list[-1]
+        push_cmd = push_call[0][0]
+        self.assertEqual(push_cmd, ["git", "push", "-u", "fork", "feat/x"])
+
+
+# ---------------------------------------------------------------------------
+# Shared temp-Git fixture helper
+# ---------------------------------------------------------------------------
+
+
+def create_isolated_temp_git(
+    prefix: str = "publish_test_",
+    *,
+    with_bare_remote: bool = False,
+    initial_commit: bool = True,
+) -> dict[str, str]:
+    """Create an isolated temporary Git repository.
+
+    Returns a dict with keys:
+      tmpdir  – root of the temporary directory tree
+      repo    – path to the working repository
+      bare    – path to the bare remote (only when with_bare_remote=True)
+
+    The repository is isolated from global signing and hooks config:
+    - commit.gpgsign is disabled
+    - core.hooksPath is set to an empty directory, overriding any
+      global hooksPath (including hostile ones)
+
+    Caller is responsible for cleanup (shutil.rmtree(result["tmpdir"])).
+    """
+    tmpdir = tempfile.mkdtemp(prefix=prefix)
+    repo = os.path.join(tmpdir, "repo")
+    result: dict[str, str] = {"tmpdir": tmpdir, "repo": repo}
+
+    if with_bare_remote:
+        bare = os.path.join(tmpdir, "bare.git")
+        subprocess.run(
+            ["git", "init", "--bare", bare],
+            check=True, capture_output=True,
+        )
+        result["bare"] = bare
+
+    subprocess.run(
+        ["git", "init", repo],
+        check=True, capture_output=True,
+    )
+
+    if with_bare_remote:
+        subprocess.run(
+            ["git", "-C", repo, "remote", "add", "origin", result["bare"]],
+            check=True, capture_output=True,
+        )
+
+    subprocess.run(
+        ["git", "-C", repo, "config", "user.email", "test@test.com"],
+        check=True, capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", repo, "config", "user.name", "Test"],
+        check=True, capture_output=True,
+    )
+    # Isolate temp repo from real global signing/hooks config.
+    # Setting local core.hooksPath to an empty dir overrides any
+    # global hooksPath — --unset-all only clears the local value
+    # and still inherits global config.
+    subprocess.run(
+        ["git", "-C", repo, "config", "commit.gpgsign", "false"],
+        check=True, capture_output=True,
+    )
+    empty_hooks = os.path.join(tmpdir, "empty-hooks")
+    os.makedirs(empty_hooks, exist_ok=True)
+    subprocess.run(
+        ["git", "-C", repo, "config", "core.hooksPath", empty_hooks],
+        check=True, capture_output=True,
+    )
+
+    if initial_commit:
+        dummy = os.path.join(repo, "file.txt")
+        with open(dummy, "w") as f:
+            f.write("initial\n")
+        subprocess.run(
+            ["git", "-C", repo, "add", "file.txt"],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", repo, "commit", "-m", "initial"],
+            check=True, capture_output=True,
+        )
+
+    return result
+
+
+class TestPushExpectedSHAWithGit(unittest.TestCase):
+    """Verify --expected-sha with a real temporary Git repository."""
+
+    def setUp(self) -> None:
+        fixture = create_isolated_temp_git(
+            prefix="publish_push_", with_bare_remote=True,
+        )
+        self._tmpdir = fixture["tmpdir"]
+        self._repo = fixture["repo"]
+        self._bare = fixture["bare"]
+        self._empty_hooks = os.path.join(self._tmpdir, "empty-hooks")
+
+    def tearDown(self) -> None:
+        import shutil
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    def _head_sha(self) -> str:
+        r = subprocess.run(
+            ["git", "-C", self._repo, "rev-parse", "HEAD"],
+            check=True, capture_output=True, text=True,
+        )
+        return r.stdout.strip()
+
+    def _branch_name(self) -> str:
+        r = subprocess.run(
+            ["git", "-C", self._repo, "symbolic-ref", "--short", "HEAD"],
+            check=True, capture_output=True, text=True,
+        )
+        return r.stdout.strip()
+
+    def _remote_sha(self, branch: str) -> str:
+        r = subprocess.run(
+            ["git", "-C", self._bare, "rev-parse", branch],
+            check=True, capture_output=True, text=True,
+        )
+        return r.stdout.strip()
+
+    def test_correct_sha_pushes_exact_commit(self) -> None:
+        """Push with correct --expected-sha succeeds and remote has exact SHA."""
+        sha = self._head_sha()
+        branch = self._branch_name()
+        old_cwd = os.getcwd()
+        os.chdir(self._repo)
+        try:
+            code = publish.main([
+                "push", "--remote", "origin", "--branch", branch,
+                "--expected-sha", sha,
+            ])
+        finally:
+            os.chdir(old_cwd)
+        self.assertEqual(code, 0)
+        self.assertEqual(self._remote_sha(branch), sha)
+
+    def test_sha_push_sets_upstream_tracking(self) -> None:
+        """SHA-pinned push sets upstream tracking for the branch."""
+        sha = self._head_sha()
+        branch = self._branch_name()
+        old_cwd = os.getcwd()
+        os.chdir(self._repo)
+        try:
+            code = publish.main([
+                "push", "--remote", "origin", "--branch", branch,
+                "--expected-sha", sha,
+            ])
+        finally:
+            os.chdir(old_cwd)
+        self.assertEqual(code, 0)
+        self.assertEqual(self._remote_sha(branch), sha)
+        # Verify upstream tracking was set
+        r = subprocess.run(
+            ["git", "-C", self._repo, "config",
+             f"branch.{branch}.remote"],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(r.stdout.strip(), "origin")
+        r = subprocess.run(
+            ["git", "-C", self._repo, "config",
+             f"branch.{branch}.merge"],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(r.stdout.strip(), f"refs/heads/{branch}")
+
+    def test_moved_head_rejects_push(self) -> None:
+        """Push fails when HEAD moves after validation."""
+        sha = self._head_sha()
+        branch = self._branch_name()
+        # Add another commit to move HEAD
+        dummy = os.path.join(self._repo, "file2.txt")
+        with open(dummy, "w") as f:
+            f.write("extra\n")
+        subprocess.run(
+            ["git", "-C", self._repo, "add", "file2.txt"],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", self._repo, "commit", "-m", "extra"],
+            check=True, capture_output=True,
+        )
+        old_cwd = os.getcwd()
+        os.chdir(self._repo)
+        try:
+            with self.assertRaises(SystemExit) as ctx:
+                publish.main([
+                    "push", "--remote", "origin", "--branch", branch,
+                    "--expected-sha", sha,
+                ])
+            self.assertEqual(ctx.exception.code, publish.EXIT_PUSH_FAIL)
+        finally:
+            os.chdir(old_cwd)
+
+    def test_legacy_push_still_works(self) -> None:
+        """Legacy push without --expected-sha works as before."""
+        branch = self._branch_name()
+        sha = self._head_sha()
+        old_cwd = os.getcwd()
+        os.chdir(self._repo)
+        try:
+            code = publish.main([
+                "push", "--remote", "origin", "--branch", branch,
+            ])
+        finally:
+            os.chdir(old_cwd)
+        self.assertEqual(code, 0)
+        self.assertEqual(self._remote_sha(branch), sha)
+
+
+class TestPushFixtureIsolation(unittest.TestCase):
+    """Verify the shared temp-Git fixture is isolated from hostile global config."""
+
+    def test_commit_succeeds_with_hostile_global_hooks(self) -> None:
+        """Fixture's first commit works even with a global hooksPath
+        pointing to a pre-commit hook that always fails."""
+        # Use the shared fixture — the same isolation used by
+        # TestPushExpectedSHAWithGit — so this test proves the
+        # shared helper, not a one-off copy.
+        fixture = create_isolated_temp_git(
+            prefix="publish_hostile_", initial_commit=False,
+        )
+        tmpdir = fixture["tmpdir"]
+        repo = fixture["repo"]
+        try:
+            # Create a hostile hooks directory with a failing pre-commit
+            hostile_dir = os.path.join(tmpdir, "hostile-hooks")
+            os.makedirs(hostile_dir)
+            hook = os.path.join(hostile_dir, "pre-commit")
+            with open(hook, "w") as f:
+                f.write("#!/bin/sh\nexit 1\n")
+            os.chmod(hook, 0o755)
+
+            # Simulate hostile global config via GIT_CONFIG_GLOBAL
+            global_cfg = os.path.join(tmpdir, "hostile-global")
+            with open(global_cfg, "w") as f:
+                f.write(f"[core]\n\thooksPath = {hostile_dir}\n")
+
+            dummy = os.path.join(repo, "file.txt")
+            with open(dummy, "w") as f:
+                f.write("content\n")
+            subprocess.run(
+                ["git", "-C", repo, "add", "file.txt"],
+                check=True, capture_output=True)
+
+            # Commit with hostile global — local override must protect
+            env = {**os.environ, "GIT_CONFIG_GLOBAL": global_cfg}
+            r = subprocess.run(
+                ["git", "-C", repo, "commit", "-m", "test"],
+                capture_output=True, text=True, env=env)
+            self.assertEqual(
+                r.returncode, 0,
+                f"Commit failed despite local hooks isolation: {r.stderr}")
+        finally:
+            import shutil
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 # ---------------------------------------------------------------------------
