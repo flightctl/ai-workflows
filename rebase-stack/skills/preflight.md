@@ -5,6 +5,8 @@ description: Shared gate every rebase-stack phase runs before doing anything els
 
 # Preflight (shared step)
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Every phase starts here. Do not skip it and do not reuse an earlier phase's
 result — the stack, the remotes, and the working tree all change mid-workflow.
 
@@ -31,8 +33,8 @@ below from the repository root of the project being rebased.
 ## Run It
 
 ```bash
-mkdir -p .artifacts/rebase-stack
-bash "{scripts}/preflight.sh" > .artifacts/rebase-stack/context.json
+mkdir -p "${ARTIFACTS_ROOT}/rebase-stack"
+bash "{scripts}/preflight.sh" > "${ARTIFACTS_ROOT}/rebase-stack/context.json"
 echo "preflight exit: $?"
 ```
 
@@ -41,7 +43,7 @@ flag:
 
 ```bash
 bash "{scripts}/preflight.sh" --allow-rebase-in-progress \
-  > .artifacts/rebase-stack/context.json
+  > "${ARTIFACTS_ROOT}/rebase-stack/context.json"
 echo "preflight exit: $?"
 ```
 
@@ -51,9 +53,9 @@ echo "preflight exit: $?"
 
 ```bash
 jq -r '"base=\(.trunk)  base-remote=\(.baseRemote)  push-remote=\(.pushRemote)  validate=\(.validationBranch)"' \
-  .artifacts/rebase-stack/context.json
+  "${ARTIFACTS_ROOT}/rebase-stack/context.json"
 jq -r '.branches[] | "\(.name)  needsRebase=\(.needsRebase)  pr=\(.pr // "none")"' \
-  .artifacts/rebase-stack/context.json
+  "${ARTIFACTS_ROOT}/rebase-stack/context.json"
 ```
 
 Bind these names for the rest of the phase:

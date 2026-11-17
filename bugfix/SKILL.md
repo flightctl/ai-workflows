@@ -1,6 +1,6 @@
 ---
 name: bugfix
-version: 0.10.0
+version: 0.11.0
 description: >-
   Diagnostic and repair workflow that analyzes error logs, traces root causes,
   implements fixes, and verifies with regression tests.
@@ -10,6 +10,7 @@ description: >-
   /test, /review, /document, /pr, /feedback, /start.
 ---
 # Bugfix Workflow Orchestrator
+Before any artifact access, follow [the shared artifact resolver](../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
 
 ## Quick Start
 

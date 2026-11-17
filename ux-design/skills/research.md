@@ -5,20 +5,22 @@ description: User research, data gathering, and synthesis into insights and desi
 
 # Research — User Research
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Conduct and synthesize user research to understand what users actually need.
 The researcher drives data collection (interviews, surveys, observations);
 the AI assists with organization, pattern identification, and synthesis.
 
 ## Prerequisites
 
-Read `.artifacts/ux-design/{issue-key}/01-discovery.md` for the problem
+Read `{ARTIFACTS_ROOT}/ux-design/{issue-key}/01-discovery.md` for the problem
 framing and strategic decisions. For a Feature-scoped workflow, also read
 `00-context.md` to identify the current context revision and any linked
 story. If discovery doesn't exist, ask whether the researcher has equivalent
 problem framing (PRD, feature brief, or description). If they do, use it as
 context. If not, tell the researcher to run `/ingest` first and stop.
 
-If `.artifacts/ux-design/{issue-key}/02-research.md` already exists, continue
+If `{ARTIFACTS_ROOT}/ux-design/{issue-key}/02-research.md` already exists, continue
 from its evidence instead of starting over. When the context revision changed,
 read the archived discovery brief for the revision that informed the research
 and reconcile every prior finding against the current brief. Preserve its
@@ -119,7 +121,7 @@ Based on insights, propose design recommendations:
 
 ## Output
 
-`.artifacts/ux-design/{issue-key}/02-research.md`
+`{ARTIFACTS_ROOT}/ux-design/{issue-key}/02-research.md`
 
 Record the discovery revision that framed this work. When updating prior
 research, keep the earlier report in the history snapshot created by `/ingest`
@@ -200,7 +202,7 @@ insights accurately reflect what you learned? Anything to add or correct
 before we move to prototyping?"
 
 Wait for confirmation, then write the final synthesis to
-`.artifacts/ux-design/{issue-key}/02-research.md`. The handoff phase reads
+`{ARTIFACTS_ROOT}/ux-design/{issue-key}/02-research.md`. The handoff phase reads
 this file for Data Annotations and Persona-Specific Views — it must exist on
 disk before returning control.
 

@@ -5,6 +5,8 @@ description: Incorporate stakeholder feedback into the handoff spec.
 
 # Revise — Update Handoff Spec
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Incorporate the user's feedback into the existing handoff spec while
 maintaining consistency across all prior artifacts. This phase is
 repeatable — the user may request multiple rounds of revision.
@@ -26,11 +28,11 @@ Read `00-context.md`. If the context revision changed after the handoff or the
 handoff is not approved against the current enriched revision, stop and
 recommend `/handoff` to regenerate it before applying stakeholder revisions.
 
-- `.artifacts/ux-design/{issue-key}/05-handoff.md` (the deliverable)
-- `.artifacts/ux-design/{issue-key}/04-evaluation.md` (evaluation context)
-- `.artifacts/ux-design/{issue-key}/02-research.md` (research findings, if it
+- `{ARTIFACTS_ROOT}/ux-design/{issue-key}/05-handoff.md` (the deliverable)
+- `{ARTIFACTS_ROOT}/ux-design/{issue-key}/04-evaluation.md` (evaluation context)
+- `{ARTIFACTS_ROOT}/ux-design/{issue-key}/02-research.md` (research findings, if it
   exists — needed to check acceptance-criteria traceability in Step 4)
-- `.artifacts/ux-design/{issue-key}/01-discovery.md` (problem context)
+- `{ARTIFACTS_ROOT}/ux-design/{issue-key}/01-discovery.md` (problem context)
 
 ### Step 2: Understand the Feedback
 
@@ -78,13 +80,13 @@ Summarize what changed:
 
 ## Output
 
-- `.artifacts/ux-design/{issue-key}/05-handoff.md` (updated)
-- `.artifacts/ux-design/{issue-key}/provenance.json` (updated)
+- `{ARTIFACTS_ROOT}/ux-design/{issue-key}/05-handoff.md` (updated)
+- `{ARTIFACTS_ROOT}/ux-design/{issue-key}/provenance.json` (updated)
 
 ## If a PR Already Exists
 
 `/revise` can run before or after `/publish`. If a PR already exists for this
-handoff spec (check for `.artifacts/ux-design/{issue-key}/publish-metadata.json`),
+handoff spec (check for `{ARTIFACTS_ROOT}/ux-design/{issue-key}/publish-metadata.json`),
 the revised `05-handoff.md` is now out of sync with the published copy in the
 docs repo. Do **not** push it manually. Tell the researcher to run `/publish`
 to update the existing open PR branch through the workflow's publish path;

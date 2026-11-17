@@ -39,7 +39,7 @@ graph TD
 
 ## Inputs
 
-The workflow draws from multiple published sources — never from another workflow's private `.artifacts/` directory:
+The workflow draws from multiple published sources — never from another workflow's private `{ARTIFACTS_ROOT}/` directory:
 
 | Input | Source | Required |
 |-------|--------|----------|
@@ -83,7 +83,7 @@ Jira).
   → reads AGENTS.md, UI-ARCHITECTURE.md
   → explores UI codebase (components, hooks, routes, state, tests)
   → explores backend API (types, endpoints, OpenAPI specs)
-  → writes .artifacts/ui-design/EDM-1234/01-context.md
+  → writes {ARTIFACTS_ROOT}/ui-design/EDM-1234/01-context.md
 
 # Non-Jira entry path (workspace identifier)
 /ui-design:ingest my-feature-slug
@@ -92,7 +92,7 @@ Jira).
   → loads UX handoff, PRD, design doc from docs repo
   → reads AGENTS.md, UI-ARCHITECTURE.md
   → explores UI codebase and backend API
-  → writes .artifacts/ui-design/my-feature-slug/01-context.md
+  → writes {ARTIFACTS_ROOT}/ui-design/my-feature-slug/01-context.md
 
 /ui-design:plan
   → reads context and UX handoff data annotations
@@ -139,10 +139,10 @@ Jira).
 
 ## Artifacts
 
-All artifacts are stored in `.artifacts/ui-design/{workspace-id}/`.
+All artifacts are stored in `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/`.
 
 ```text
-.artifacts/ui-design/EDM-1234/
+{ARTIFACTS_ROOT}/ui-design/EDM-1234/
   01-context.md                    (codebase + upstream doc context)
   02-ui-design.md                  (component architecture, hooks, state, routes, data flow)
   03-api-findings.md               (if API findings are too verbose for inline)

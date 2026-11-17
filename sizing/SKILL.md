@@ -1,6 +1,6 @@
 ---
 name: sizing
-version: 0.4.1
+version: 0.5.0
 description: >-
   Pre-cycle Feature sizing workflow that assesses Features from Jira using
   T-shirt sizes (XS–XXL), produces per-team effort breakdowns (DEV, QE, UX, UI, DOCS),
@@ -11,6 +11,7 @@ description: >-
   Activated by commands: /ingest, /assess, /apply.
 ---
 # Sizing Workflow Orchestrator
+Before any artifact access, follow [the shared artifact resolver](../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
 
 ## Quick Start
 

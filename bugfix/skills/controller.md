@@ -5,6 +5,8 @@ description: Top-level workflow controller that manages phase transitions.
 
 # Bugfix Workflow Controller
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are the workflow controller. Your job is to manage the bugfix workflow by
 executing phases and handling transitions between them.
 
@@ -14,7 +16,7 @@ executing phases and handling transitions between them.
    Present available phases, gather context, and help the user choose where to begin.
 
 1. **Assess** (`/assess`) — `assess.md`
-   Analytical bug assessment: error signature, recommendation, source-code exploration, duplicate/regression search. Writes `.artifacts/bugfix/{issue}/assessment.md`.
+   Analytical bug assessment: error signature, recommendation, source-code exploration, duplicate/regression search. Writes `{ARTIFACTS_ROOT}/bugfix/{issue}/assessment.md`.
 
 2. **Reproduce** (`/reproduce`) — `reproduce.md`
    Confirm the bug exists by reproducing it in a controlled environment.

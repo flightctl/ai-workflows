@@ -5,6 +5,8 @@ description: Incorporate user feedback into the UI implementation plan.
 
 # Revise Plan Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a principal editor. Your job is to incorporate the user's feedback into the
 implementation plan while maintaining internal consistency.
 
@@ -28,11 +30,11 @@ multiple rounds of revision. This phase only modifies the plan, not code.
 
 ### Step 1: Read Current Plan
 
-Read `.artifacts/ui-implement/{issue-key}/02-plan.md`.
+Read `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/02-plan.md`.
 
 If the plan doesn't exist, tell the user that `/plan` should be run first.
 
-Also read `.artifacts/ui-implement/{issue-key}/01-context.md` for reference
+Also read `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/01-context.md` for reference
 (acceptance criteria, validation profile, UI toolchain).
 
 ### Step 2: Understand the Feedback
@@ -131,7 +133,7 @@ After applying changes, verify:
 
 ### Step 5: Update Artifact
 
-Overwrite `.artifacts/ui-implement/{issue-key}/02-plan.md` with the revised plan.
+Overwrite `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/02-plan.md` with the revised plan.
 
 ### Step 6: Present Changes
 
@@ -156,8 +158,8 @@ Summarize what changed:
 
 ## Output
 
-- `.artifacts/ui-implement/{issue-key}/01-context.md` (E2E Coverage Policy section refreshed)
-- `.artifacts/ui-implement/{issue-key}/02-plan.md` (updated)
+- `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/01-context.md` (E2E Coverage Policy section refreshed)
+- `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/02-plan.md` (updated)
 
 ## When This Phase Is Done
 

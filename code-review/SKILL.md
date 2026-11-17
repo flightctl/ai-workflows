@@ -1,6 +1,6 @@
 ---
 name: code-review
-version: 0.5.0
+version: 0.6.0
 description: >-
   AI-driven code review workflow that reviews uncommitted changes using a
   discoverable reviewer profile, presents findings for human decision, and
@@ -9,6 +9,7 @@ description: >-
   Activated by commands: /start, /continue, /clean.
 ---
 # Code Review Workflow Orchestrator
+Before any artifact access, follow [the shared artifact resolver](../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
 
 ## Quick Start
 

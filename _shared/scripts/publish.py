@@ -46,7 +46,12 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+
 from typing import Any, NoReturn
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from artifacts import canonical_path
 from urllib.parse import urlparse, urlsplit, urlunsplit
 
 
@@ -921,6 +926,10 @@ def main(argv: list[str] | None = None) -> int:
     """Parse arguments and dispatch to the appropriate subcommand handler."""
     parser = build_parser()
     args = parser.parse_args(argv)
+    for name in ('body_file', 'desc_file', 'file'):
+        value = getattr(args, name, None)
+        if value:
+            setattr(args, name, str(canonical_path(value)))
 
     if not args.subcommand:
         parser.print_help(sys.stderr)

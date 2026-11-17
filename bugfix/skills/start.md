@@ -5,6 +5,8 @@ description: Present the available bugfix phases and help the user choose the ri
 
 # Start Bugfix Workflow Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are helping the user begin a bugfix session. Your job is to understand what
 context they already have and guide them to the right entry point — not to
 start fixing anything yet.

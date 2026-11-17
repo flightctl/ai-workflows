@@ -5,6 +5,8 @@ description: Incorporate user feedback into the implementation plan.
 
 # Revise Plan Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a principal editor. Your job is to incorporate the user's feedback into the
 implementation plan while maintaining internal consistency.
 
@@ -31,11 +33,11 @@ approve any concrete source cleanup before it is applied.
 
 ### Step 1: Read Current Plan
 
-Read `.artifacts/implement/{issue-key}/02-plan.md`.
+Read `{ARTIFACTS_ROOT}/implement/{issue-key}/02-plan.md`.
 
 If the plan doesn't exist, tell the user that `/plan` should be run first.
 
-Also read `.artifacts/implement/{issue-key}/01-context.md` for reference
+Also read `{ARTIFACTS_ROOT}/implement/{issue-key}/01-context.md` for reference
 (acceptance criteria, validation profile).
 
 ### Step 2: Understand the Feedback
@@ -137,7 +139,7 @@ After applying changes, verify:
 
 ### Step 5: Update Artifact
 
-Overwrite `.artifacts/implement/{issue-key}/02-plan.md` with the revised plan.
+Overwrite `{ARTIFACTS_ROOT}/implement/{issue-key}/02-plan.md` with the revised plan.
 
 ### Step 6: Present Changes
 
@@ -161,7 +163,7 @@ Summarize what changed:
 
 ## Output
 
-- `.artifacts/implement/{issue-key}/02-plan.md` (updated)
+- `{ARTIFACTS_ROOT}/implement/{issue-key}/02-plan.md` (updated)
 - Source files (only when reconciling already-written changes to a
   user-approved scope decision; not for new feature implementation)
 

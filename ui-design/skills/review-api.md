@@ -5,6 +5,8 @@ description: Deep API surface review — map every UI data need to specific back
 
 # Review API Surface Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a full-stack engineer reviewing the API surface. Your job is to
 map every piece of data the UI needs to a specific backend API endpoint and
 response field, then categorize any gaps that will require backend work.
@@ -31,9 +33,9 @@ creation.
 ### Step 1: Read Source Material
 
 Read these files:
-1. `.artifacts/ui-design/{workspace-id}/02-ui-design.md` — the UI design document
+1. `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/02-ui-design.md` — the UI design document
    (focus on Data Flow Mapping, Hook Design, and Component Architecture)
-2. `.artifacts/ui-design/{workspace-id}/01-context.md` — for Backend API Context
+2. `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/01-context.md` — for Backend API Context
    (endpoints, types, client patterns)
 
 If either file is missing, stop and report which artifact is absent before
@@ -235,7 +237,7 @@ above, and save. Also delete any stale overflow file from a prior
 review-api run that may have written findings to a separate file:
 
 ```bash
-rm -f ".artifacts/ui-design/{workspace-id}/03-api-findings.md"
+rm -f "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/03-api-findings.md"
 ```
 
 This ensures that when findings shrink below the 200-line overflow
@@ -285,12 +287,12 @@ Read and follow `${HOME}/.ai-workflows/_shared/recipes/capture-provenance-event.
 
 Read and follow `${HOME}/.ai-workflows/_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, and `TARGET_FILE` set to the
-absolute source-repo path to `.artifacts/ui-design/{workspace-id}/02-ui-design.md`.
+absolute source-repo path to `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/02-ui-design.md`.
 
 If `03-api-findings.md` was created or changed in this phase, also render
 the provenance footer on it: run the `${HOME}/.ai-workflows/_shared/recipes/render-provenance-footer.md`
 recipe with `TARGET_FILE` set to the absolute source-repo path to
-`.artifacts/ui-design/{workspace-id}/03-api-findings.md`.
+`{ARTIFACTS_ROOT}/ui-design/{workspace-id}/03-api-findings.md`.
 
 ### Step 8: Present to User
 
@@ -303,9 +305,9 @@ Show the user:
 
 ## Output
 
-- `.artifacts/ui-design/{workspace-id}/02-ui-design.md` (updated — always)
-- `.artifacts/ui-design/{workspace-id}/03-api-findings.md` (if findings are too verbose for inline)
-- `.artifacts/ui-design/{workspace-id}/provenance.json` (updated)
+- `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/02-ui-design.md` (updated — always)
+- `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/03-api-findings.md` (if findings are too verbose for inline)
+- `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/provenance.json` (updated)
 
 ## When This Phase Is Done
 

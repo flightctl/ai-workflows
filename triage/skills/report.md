@@ -5,6 +5,8 @@ description: Generate a self-contained interactive HTML report from analyzed tri
 
 # Generate Report
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Generate the single-file HTML dashboard from `analyzed.json`. Python prepares a
 compact context and renders the dashboard. AI supplies only the semantic
 stakeholder judgment: the executive summary and release-risk assessment.
@@ -17,9 +19,9 @@ stakeholder judgment: the executive summary and release-risk assessment.
 
 ## Prerequisites
 
-`.artifacts/triage/{PROJECT}/analyzed.json` must exist. If it does not, stop
+`{ARTIFACTS_ROOT}/triage/{PROJECT}/analyzed.json` must exist. If it does not, stop
 and ask the user to run `/analyze` first. The scan's
-`.artifacts/triage/{PROJECT}/issues.json` must contain a non-empty
+`{ARTIFACTS_ROOT}/triage/{PROJECT}/issues.json` must contain a non-empty
 `jiraBaseUrl`; never invent one.
 
 The renderer enforces a shared schema contract, documented in
@@ -41,8 +43,8 @@ PROJECT_ROOT="$PWD"
 (
   cd "{AI_WORKFLOWS_ROOT}"
   python3 triage/scripts/prepare_report.py \
-    --analyzed "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/analyzed.json" \
-    --output "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/report-input.json"
+    --analyzed "${ARTIFACTS_ROOT}/triage/{PROJECT}/analyzed.json" \
+    --output "${ARTIFACTS_ROOT}/triage/{PROJECT}/report-input.json"
 )
 ```
 
@@ -77,8 +79,8 @@ PROJECT_ROOT="$PWD"
 (
   cd "{AI_WORKFLOWS_ROOT}"
   python3 triage/scripts/synthesize_report.py \
-    --analyzed "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/analyzed.json" \
-    --output "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/ai-synthesis.json"
+    --analyzed "${ARTIFACTS_ROOT}/triage/{PROJECT}/analyzed.json" \
+    --output "${ARTIFACTS_ROOT}/triage/{PROJECT}/ai-synthesis.json"
 )
 ```
 
@@ -95,11 +97,11 @@ PROJECT_ROOT="$PWD"
 (
   cd "{AI_WORKFLOWS_ROOT}"
   python3 triage/scripts/render_report.py \
-    --analyzed "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/analyzed.json" \
+    --analyzed "${ARTIFACTS_ROOT}/triage/{PROJECT}/analyzed.json" \
     --template triage/templates/report.html \
-    --issues "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/issues.json" \
-    --ai-input "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/ai-synthesis.json" \
-    --output "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/report.html"
+    --issues "${ARTIFACTS_ROOT}/triage/{PROJECT}/issues.json" \
+    --ai-input "${ARTIFACTS_ROOT}/triage/{PROJECT}/ai-synthesis.json" \
+    --output "${ARTIFACTS_ROOT}/triage/{PROJECT}/report.html"
 )
 ```
 
@@ -118,6 +120,6 @@ string. Stop and report stderr on a non-zero exit:
 
 ### 3. Present completion
 
-Report `.artifacts/triage/{PROJECT}/report.html` and note that it is
+Report `{ARTIFACTS_ROOT}/triage/{PROJECT}/report.html` and note that it is
 self-contained with embedded data. Mention the dashboard's existing filters,
 sorting, simulation, clusters, signatures, regressions, and risk sections.

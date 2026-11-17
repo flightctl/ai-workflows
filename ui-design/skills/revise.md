@@ -5,6 +5,8 @@ description: Incorporate user feedback into the UI design document and API findi
 
 # Revise UI Design Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a frontend architect incorporating feedback. Your job is to update
 the UI design document (and API findings, if separate) based on user
 feedback while maintaining consistency across all sections.
@@ -29,9 +31,9 @@ testing strategy, acceptance criteria mapping, and data flow mapping.
 ### Step 1: Read Current Artifacts
 
 Read these files:
-1. `.artifacts/ui-design/{workspace-id}/02-ui-design.md` (current UI design)
-2. `.artifacts/ui-design/{workspace-id}/03-api-findings.md` (if it exists)
-3. `.artifacts/ui-design/{workspace-id}/01-context.md` (for reference)
+1. `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/02-ui-design.md` (current UI design)
+2. `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/03-api-findings.md` (if it exists)
+3. `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/01-context.md` (for reference)
 
 If `02-ui-design.md` is missing, stop and tell the user that `/plan`
 should be run first. If the user has not provided usable feedback (empty
@@ -106,12 +108,12 @@ Read and follow `${HOME}/.ai-workflows/_shared/recipes/capture-provenance-event.
 
 Read and follow `${HOME}/.ai-workflows/_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, and `TARGET_FILE` set to the
-absolute source-repo path to `.artifacts/ui-design/{workspace-id}/02-ui-design.md`.
+absolute source-repo path to `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/02-ui-design.md`.
 
 If `03-api-findings.md` was changed in this revision, also render the
 `${HOME}/.ai-workflows/_shared/recipes/render-provenance-footer.md` recipe with
 `TARGET_FILE` set to the absolute source-repo path to
-`.artifacts/ui-design/{workspace-id}/03-api-findings.md`.
+`{ARTIFACTS_ROOT}/ui-design/{workspace-id}/03-api-findings.md`.
 
 ### Step 7: Present Changes
 
@@ -124,9 +126,9 @@ Show the user:
 
 ## Output
 
-- `.artifacts/ui-design/{workspace-id}/02-ui-design.md` (updated)
-- `.artifacts/ui-design/{workspace-id}/03-api-findings.md` (updated, if it exists and was affected)
-- `.artifacts/ui-design/{workspace-id}/provenance.json` (updated)
+- `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/02-ui-design.md` (updated)
+- `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/03-api-findings.md` (updated, if it exists and was affected)
+- `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/provenance.json` (updated)
 
 ## When This Phase Is Done
 

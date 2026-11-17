@@ -1,5 +1,7 @@
 # Structured Rendering
 
+Before any artifact access, follow [the shared artifact resolver](../../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 The canonical description is structured JSON, not Markdown or ADF. Use
 `../scripts/render_issue.py` to render the confirmation preview and Jira ADF from
 the same input. Do not hand-convert Markdown to ADF.
@@ -72,5 +74,5 @@ verify that it can represent every approved block. Never silently drop content.
 
 Remove the temporary directory after creation and attachment follow-up, after
 the user cancels, or after any failure. Do not retain the model in the consuming
-repository or `.artifacts/`. If the user explicitly requests retention, agree on
+repository or `{ARTIFACTS_ROOT}/`. If the user explicitly requests retention, agree on
 an approved secure destination and contents before copying anything.

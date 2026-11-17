@@ -1,5 +1,6 @@
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -154,6 +155,7 @@ class ApplyPlanTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         original_cwd = Path.cwd()
+        subprocess.run(["git", "init", "-q", temporary.name], check=True)
         os.chdir(temporary.name)
         self.addCleanup(os.chdir, original_cwd)
 

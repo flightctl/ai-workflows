@@ -1,5 +1,7 @@
 # Skill Analysis Prompt
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are an Explore agent. Your job is to read every file in a skill directory
 and produce a structured **skill map** that faithfully summarizes what you read.
 You do **not** evaluate, judge, or recommend. You comprehend and report.
@@ -24,7 +26,7 @@ If a file is missing, note its absence in the File Inventory.
 
 ## Output
 
-Write the skill map to `.artifacts/skill-reviewer/{skill-name}/skill-map.md`
+Write the skill map to `{ARTIFACTS_ROOT}/skill-reviewer/{skill-name}/skill-map.md`
 using the structure below. After writing, return to the caller — do not take
 any further action.
 

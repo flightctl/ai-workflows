@@ -1,8 +1,10 @@
 ---
 name: provenance-schema
-version: 0.2.1
+version: 0.3.0
 ---
 # Provenance Schema
+
+Before artifact access, follow [the shared artifact resolver](recipes/resolve-artifacts.md).
 
 Tracks environment context when PRD, design, and ui-design workflow phases mutate
 planning documents. See `scripts/provenance.py` for capture and render logic.
@@ -12,8 +14,8 @@ planning documents. See `scripts/provenance.py` for capture and render logic.
 | Artifact | Location | Published? |
 |----------|----------|------------|
 | `## Provenance` footer | Docs-repo `prd.md` / `design.md` / `ui-design.md` | **Yes** — durable triage contract |
-| `provenance.json` | `.artifacts/{workflow}/{issue}/` in source repo | **No** — gitignored session log |
-| `03-prd.md` / `03-design.md` / `02-ui-design.md` | `.artifacts/` in source repo | **No** — working drafts without footer |
+| `provenance.json` | `{ARTIFACTS_ROOT}/{workflow}/{issue}/` in source repo | **No** — gitignored session log |
+| `03-prd.md` / `03-design.md` / `02-ui-design.md` | `{ARTIFACTS_ROOT}/` in source repo | **No** — working drafts without footer |
 
 Fields required for merged-doc triage must appear in the **footer**. The JSON log
 supports same-session drift analysis only.
@@ -37,7 +39,7 @@ supports same-session drift analysis only.
   from origin. This is independent of `provenance_kind` (see below).
 - `origin_untracked` reflects only the *local* session log, not absolute ground truth.
   Because `provenance.json` is gitignored (see "Published vs session-local" above), a
-  fresh clone, a new git worktree, a cleaned `.artifacts/`, or a CI runner all start that
+  fresh clone, a new git worktree, a cleaned `{ARTIFACTS_ROOT}/`, or a CI runner all start that
   log from empty. If the next captured event on that empty log is `respond`, `revise`, or
   `manual-edit`, `origin_untracked` becomes `true` even when the document was genuinely
   drafted in an earlier session whose log no longer exists. It also does not self-heal:

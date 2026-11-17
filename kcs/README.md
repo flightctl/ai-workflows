@@ -75,7 +75,7 @@ gather → draft → validate → handoff
 - Identify information gaps and ask targeted questions
 - Save a structured context document
 
-**Output**: `.artifacts/kcs/{issue-key}/01-context.md`
+**Output**: `{ARTIFACTS_ROOT}/kcs/{issue-key}/01-context.md`
 
 **When to use**: Start here when you have a Jira ticket for a bug with a known workaround.
 
@@ -88,7 +88,7 @@ gather → draft → validate → handoff
 - Apply KCS style rules (present tense, no pronouns, proper formatting)
 - Flag any assumptions made during drafting
 
-**Output**: `.artifacts/kcs/{issue-key}/02-kcs-draft.md`
+**Output**: `{ARTIFACTS_ROOT}/kcs/{issue-key}/02-kcs-draft.md`
 
 **When to use**: After gathering context, or directly if you already have full context.
 
@@ -101,7 +101,7 @@ gather → draft → validate → handoff
 - Report issues requiring user input
 - Surface and confirm any flagged assumptions
 
-**Output**: Updated `.artifacts/kcs/{issue-key}/02-kcs-draft.md`
+**Output**: Updated `{ARTIFACTS_ROOT}/kcs/{issue-key}/02-kcs-draft.md`
 
 **When to use**: After drafting, to verify quality before handoff. Loops back to `/draft` on significant failures.
 
@@ -113,7 +113,7 @@ gather → draft → validate → handoff
 - Compose a concise message: bug summary, Jira reference, KCS compliance note
 - Present the message for user review before sending
 
-**Output**: `.artifacts/kcs/{issue-key}/03-handoff-message.md`
+**Output**: `{ARTIFACTS_ROOT}/kcs/{issue-key}/03-handoff-message.md`
 
 **When to use**: After validation passes and the draft is ready to publish.
 
@@ -133,10 +133,10 @@ gather → draft → validate → handoff
 User: "Write a KCS article for EDM-3340. The workaround is to detach the
 device from the fleet, apply a recovery spec, then re-assign."
 
-/gather   → .artifacts/kcs/EDM-3340/01-context.md
-/draft    → .artifacts/kcs/EDM-3340/02-kcs-draft.md
+/gather   → {ARTIFACTS_ROOT}/kcs/EDM-3340/01-context.md
+/draft    → {ARTIFACTS_ROOT}/kcs/EDM-3340/02-kcs-draft.md
 /validate → checks pass, minor fixes applied
-/handoff  → .artifacts/kcs/EDM-3340/03-handoff-message.md
+/handoff  → {ARTIFACTS_ROOT}/kcs/EDM-3340/03-handoff-message.md
 ```
 
 #### Scenario 2: Context already in hand
@@ -144,15 +144,15 @@ device from the fleet, apply a recovery spec, then re-assign."
 ```text
 User: "I have full context for this bug, skip to drafting."
 
-/draft    → .artifacts/kcs/PROJ-456/02-kcs-draft.md
-/validate → .artifacts/kcs/PROJ-456/02-kcs-draft.md (updated)
-/handoff  → .artifacts/kcs/PROJ-456/03-handoff-message.md
+/draft    → {ARTIFACTS_ROOT}/kcs/PROJ-456/02-kcs-draft.md
+/validate → {ARTIFACTS_ROOT}/kcs/PROJ-456/02-kcs-draft.md (updated)
+/handoff  → {ARTIFACTS_ROOT}/kcs/PROJ-456/03-handoff-message.md
 ```
 
 #### Scenario 3: Validate an existing draft
 
 ```text
-User: "I already wrote a draft at .artifacts/kcs/PROJ-789/02-kcs-draft.md"
+User: "I already wrote a draft at {ARTIFACTS_ROOT}/kcs/PROJ-789/02-kcs-draft.md"
 
 /validate → runs checklist, fixes formatting issues
 /handoff  → composes message for support engineer
@@ -161,7 +161,7 @@ User: "I already wrote a draft at .artifacts/kcs/PROJ-789/02-kcs-draft.md"
 ## Artifacts Generated
 
 ```text
-.artifacts/kcs/{issue-key}/
+{ARTIFACTS_ROOT}/kcs/{issue-key}/
 ├── 01-context.md          # Bug details and user-provided context
 ├── 02-kcs-draft.md        # The KCS Solution article (markdown)
 └── 03-handoff-message.md  # Ready-to-send message for the support engineer

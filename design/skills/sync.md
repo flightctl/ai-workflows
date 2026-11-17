@@ -5,6 +5,8 @@ description: Sync Jira epics and stories with the approved task breakdown — cr
 
 # Sync to Jira Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a project coordinator. Your job is to keep Jira epics and stories
 in sync with the approved task breakdown — creating new items, updating
 changed items, and closing removed items.
@@ -44,7 +46,7 @@ your responsibility.
 - **Sync-owned fields.** Sync owns: summary, description, T-shirt size (epics only), parent link (creation only), and issue links (dependencies). These are set from artifact content on creation and overwritten on updates (except parent link). Sync never touches: assignee, sprint, comments, labels, or any other Jira-managed field. Status transitions are permitted **only** for gated lifecycle operations: reopening a previously closed item (Step 5b/6b), closing a removed or user-selected orphaned item (Step 5c/6c), and closing active child stories as part of an approved parent epic closure cascade (Step 5c — the user's approval of the parent close covers its children). No other status changes are allowed.
 - **Logical deletion via marker.** Stories and epics are closed (not deleted) when their artifact file contains `status: removed` in the YAML frontmatter. The file stays on disk so the manifest can still track it.
 - **Link to source.** Every Jira issue description references the design document.
-- **Jira-native references.** Local identifiers (`Story 1.01`, `Epic 1`) have meaning only within the `.artifacts/` directory. When constructing Jira issue descriptions, resolve all local references (in Dependencies, Documentation Inputs, Design Reference, and any other cross-references) to Jira issue keys using the sync manifest. Jira is the source of truth — readers of a Jira issue should never need to decode a local artifact numbering scheme.
+- **Jira-native references.** Local identifiers (`Story 1.01`, `Epic 1`) have meaning only within the `{ARTIFACTS_ROOT}/` directory. When constructing Jira issue descriptions, resolve all local references (in Dependencies, Documentation Inputs, Design Reference, and any other cross-references) to Jira issue keys using the sync manifest. Jira is the source of truth — readers of a Jira issue should never need to decode a local artifact numbering scheme.
 - **Checkpoint only on success.** Call `update-manifest` only after a Jira operation succeeds. Pass the `content_hash` that was computed *before* the Jira call (the hash of the content actually submitted), not a freshly recomputed hash. Never record failed or unattempted operations.
 - **Close-checkpoint recovery.** For every close path (child, epic, standalone story): retain the exact operation identity (file, Jira key, item type, parent, captured hash) until its checkpoint succeeds. If the Jira close succeeded but `update-manifest` failed, **pause in this run**, remediate the actual local error, and retry **only the exact saved checkpoint invocation** with the original hash. Never repeat a terminal Jira transition, recompute a newer hash, clear the captured state, start other Jira writes, or offer fresh-sync/defer/end while a completed close is uncheckpointed. Pre-transition failures (hash-prep error, transition unavailable, known-rejected Jira call) have no pending Jira success — normal retry/skip/defer choices remain valid. If the Jira outcome is uncertain (network timeout, server error), verify the issue's current status before retrying — do not assume the call was non-mutating. If the captured state is lost (forced abort, new run, lost context) and the manifest entry is still active but Jira is already terminal, **stop for manual reconciliation** rather than blindly repeating the terminal transition or fabricating a hash. Respect a user stop: report incomplete status and hand off rather than ignoring the stop or claiming success.
 
@@ -52,7 +54,7 @@ your responsibility.
 
 ### Step 1: Read Decomposition Artifacts and Detect Changes
 
-Read `.artifacts/design/{issue-key}/03-design.md` (for the Jira link and
+Read `{ARTIFACTS_ROOT}/design/{issue-key}/03-design.md` (for the Jira link and
 title). If the decomposition artifacts directory does not exist or has no
 `06-stories/` subdirectory, tell the user that `/decompose` should be run
 first.
@@ -60,7 +62,7 @@ first.
 Run the sync helper to detect changes:
 
 ```bash
-python3 "$SYNC_HELPER" detect-changes .artifacts/design/{issue-key}/
+python3 "$SYNC_HELPER" detect-changes "${ARTIFACTS_ROOT}/design/{issue-key}/"
 ```
 
 The helper reads all epic and story files under `06-stories/`, compares
@@ -136,7 +138,7 @@ v1 to v2 — all existing items will be updated once to populate content
 hashes."* Then run:
 
 ```bash
-python3 "$SYNC_HELPER" migrate-manifest .artifacts/design/{issue-key}/sync-manifest.json
+python3 "$SYNC_HELPER" migrate-manifest "${ARTIFACTS_ROOT}/design/{issue-key}/sync-manifest.json"
 ```
 
 **If the plan has orphaned items** (`summary.orphaned > 0`): Present
@@ -204,7 +206,7 @@ guard:
 PLAN_ERR=$(mktemp) || { echo "FATAL: cannot create temp file" >&2; exit 1; }
 PLAN_EXIT=0
 PLAN_JSON=$(python3 "$SYNC_HELPER" plan-creation-order \
-  .artifacts/design/{issue-key}/ 2>"$PLAN_ERR") || PLAN_EXIT=$?
+  "${ARTIFACTS_ROOT}/design/{issue-key}/" 2>"$PLAN_ERR") || PLAN_EXIT=$?
 PLAN_ERR_TEXT=$(cat "$PLAN_ERR")
 rm -f "$PLAN_ERR"
 ```
@@ -268,7 +270,7 @@ plan-creation-order call above:
 CASC_ERR=$(mktemp) || { echo "FATAL: cannot create temp file" >&2; exit 1; }
 CASC_EXIT=0
 CASC_JSON=$(python3 "$SYNC_HELPER" compute-cascade-closures \
-  .artifacts/design/{issue-key}/ 2>"$CASC_ERR") || CASC_EXIT=$?
+  "${ARTIFACTS_ROOT}/design/{issue-key}/" 2>"$CASC_ERR") || CASC_EXIT=$?
 CASC_ERR_TEXT=$(cat "$CASC_ERR")
 rm -f "$CASC_ERR"
 ```
@@ -604,7 +606,7 @@ its children, reopening an epic enables its children). Re-run
 manifest state:
 
 ```bash
-STORY_PLAN=$(python3 "$SYNC_HELPER" detect-changes .artifacts/design/{issue-key}/)
+STORY_PLAN=$(python3 "$SYNC_HELPER" detect-changes "${ARTIFACTS_ROOT}/design/{issue-key}/")
 ```
 
 Use the refreshed plan's `type: "story"` items for story operations.
@@ -664,7 +666,7 @@ on-disk manifest with this story's qualified ID:
 REF_ERR=$(mktemp) || { echo "FATAL: cannot create temp file" >&2; exit 1; }
 REF_EXIT=0
 REF_CHECK=$(python3 "$SYNC_HELPER" check-ref-availability \
-  .artifacts/design/{issue-key}/ \
+  "${ARTIFACTS_ROOT}/design/{issue-key}/" \
   "story-{N}.{NN}" 2>"$REF_ERR") || REF_EXIT=$?
 REF_ERR_TEXT=$(cat "$REF_ERR")
 rm -f "$REF_ERR"
@@ -919,7 +921,7 @@ caught in Steps 5-6.
 
 Present a translation table mapping all local artifact identifiers to Jira
 keys. This table is the definitive reference for anyone working with the
-local `.artifacts/` files who needs to find the corresponding Jira issue:
+local `{ARTIFACTS_ROOT}/` files who needs to find the corresponding Jira issue:
 
 ```markdown
 | Local Reference | Jira Key | Status | Title |
@@ -934,7 +936,7 @@ local `.artifacts/` files who needs to find the corresponding Jira issue:
 ## Output
 
 - Jira epics and stories created, updated, or closed (with user approval)
-- `.artifacts/design/{issue-key}/sync-manifest.json` (v2 schema)
+- `{ARTIFACTS_ROOT}/design/{issue-key}/sync-manifest.json` (v2 schema)
 
 ## When This Phase Is Done
 

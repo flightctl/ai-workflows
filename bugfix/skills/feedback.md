@@ -8,6 +8,8 @@ description: >-
 
 # Address PR Review Feedback Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are handling the full review-feedback cycle for an existing pull request.
 Your job is to fetch reviewer comments, understand what they're asking for,
 propose responses for user approval, implement the approved changes, validate,
@@ -80,7 +82,7 @@ If ambiguous, check `session-context.md` for the remote used in the prior
 
 **Then determine the PR number.** Check these sources in order:
 
-1. **Session context**: `.artifacts/bugfix/{issue}/session-context.md` may
+1. **Session context**: `{ARTIFACTS_ROOT}/bugfix/{issue}/session-context.md` may
    contain the PR URL from a prior `/pr` or feedback round.
 2. **Current branch**: Use `gh pr list --repo {owner}/{repo} --head {branch-name}`
    to find the PR for the current branch.
@@ -102,7 +104,7 @@ review comments, top-level comments, and reviews in a single call and
 outputs a unified JSON array to stdout:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" fetch --owner {owner} --repo {repo} --pr {pr-number} --responses-log .artifacts/bugfix/{issue}/responses.jsonl --include-review-threads
+python3 "$PR_COMMENTS_SCRIPT" fetch --owner {owner} --repo {repo} --pr {pr-number} --responses-log "${ARTIFACTS_ROOT}/bugfix/{issue}/responses.jsonl" --include-review-threads
 ```
 
 The `--responses-log` flag excludes comment IDs already addressed in
@@ -115,7 +117,7 @@ clarification.
 ### Step 2: Recover Prior Context
 
 Check for session context from the prior session in
-`.artifacts/bugfix/{issue}/`:
+`{ARTIFACTS_ROOT}/bugfix/{issue}/`:
 
 - **Session context** (`session-context.md`) — summarizes the original
   implementation decisions, test strategy, and known concerns
@@ -225,7 +227,7 @@ parameters:
 |-----------|-------|
 | DIFF_COMMAND | `git diff HEAD` |
 | MAX_ROUNDS | `3` |
-| CONTEXT_FILES | `.artifacts/bugfix/{issue}/root-cause.md`, `.artifacts/bugfix/{issue}/implementation-notes.md` (if they exist) |
+| CONTEXT_FILES | `{ARTIFACTS_ROOT}/bugfix/{issue}/root-cause.md`, `{ARTIFACTS_ROOT}/bugfix/{issue}/implementation-notes.md` (if they exist) |
 
 If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
 present the findings to the user. Do not commit until the user decides how
@@ -233,7 +235,7 @@ to handle them.
 
 #### Stage and Commit
 
-Stage changes selectively — exclude `.artifacts/` unless the user asks
+Stage changes selectively — exclude `{ARTIFACTS_ROOT}/` unless the user asks
 to commit them:
 
 ```bash
@@ -270,7 +272,7 @@ For each approved response from Step 3 that has a `comment_id` or
 `review_id`, post a reply on the PR using the shared script.
 
 Write the reply text to a temp file to avoid shell metacharacter issues.
-Create `.artifacts/bugfix/{issue}/tmp-reply.md` using the host's
+Create `{ARTIFACTS_ROOT}/bugfix/{issue}/tmp-reply.md` using the host's
 file-writing capability — do not use a shell heredoc, as reply content
 containing the delimiter string would break it.
 
@@ -280,14 +282,14 @@ Route each comment based on its `type` field from the fetch output:
 `id`:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/bugfix/{issue}/tmp-reply.md --comment-id {id}
+python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file "${ARTIFACTS_ROOT}/bugfix/{issue}/tmp-reply.md" --comment-id {id}
 ```
 
 **When `type` is `"review"` or `"top_level"`**, post a top-level PR
 comment (omit `--comment-id`):
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/bugfix/{issue}/tmp-reply.md
+python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file "${ARTIFACTS_ROOT}/bugfix/{issue}/tmp-reply.md"
 ```
 
 After each successful reply, record it in the responses log so subsequent
@@ -295,7 +297,7 @@ feedback rounds skip already-addressed comments.  Use the `id` from the
 fetch output:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" log --responses-log .artifacts/bugfix/{issue}/responses.jsonl --comment-id {id}
+python3 "$PR_COMMENTS_SCRIPT" log --responses-log "${ARTIFACTS_ROOT}/bugfix/{issue}/responses.jsonl" --comment-id {id}
 ```
 
 **If the log command fails (non-zero exit), stop immediately** — do not
@@ -305,7 +307,7 @@ replies on the next feedback round.
 Clean up the temporary reply file after each post:
 
 ```bash
-rm .artifacts/bugfix/{issue}/tmp-reply.md
+rm "${ARTIFACTS_ROOT}/bugfix/{issue}/tmp-reply.md"
 ```
 
 Skip feedback items that did not originate from a PR API fetch (e.g.,
@@ -321,7 +323,7 @@ session will have no memory of what you did. Update the session artifacts
 so the next session can pick up where you left off.
 
 Append a feedback round section to
-`.artifacts/bugfix/{issue}/session-context.md`. Determine the round number
+`{ARTIFACTS_ROOT}/bugfix/{issue}/session-context.md`. Determine the round number
 by counting existing headings that start with `## Feedback Round` in the
 file and adding one.
 
@@ -358,7 +360,7 @@ Report to the user:
 - Modified code files addressing review feedback
 - Pushed commit(s) on the existing PR branch
 - Review replies posted on the PR (with user approval)
-- Updated `.artifacts/bugfix/{issue}/session-context.md` with the new
+- Updated `{ARTIFACTS_ROOT}/bugfix/{issue}/session-context.md` with the new
   feedback round
 
 ## Best Practices

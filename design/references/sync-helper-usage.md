@@ -1,5 +1,7 @@
 # Sync Helper Usage Reference
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 This reference documents the deterministic Python helper used by the
 `/sync` phase.  Read this file in full **before** the first helper
 operation in any sync run.
@@ -81,8 +83,8 @@ For each new or changed epic:
 
 ```bash
 PREP=$(python3 "$SYNC_HELPER" prepare \
-  .artifacts/design/{issue-key}/06-stories/{epic-file} \
-  .artifacts/design/{issue-key}/sync-manifest.json \
+  "${ARTIFACTS_ROOT}/design/{issue-key}/06-stories/{epic-file}" \
+  "${ARTIFACTS_ROOT}/design/{issue-key}/sync-manifest.json" \
   --type epic \
   --design-doc-link "{link}" \
   --feature-key "{feature-key}")
@@ -96,8 +98,8 @@ For each new or changed story:
 
 ```bash
 PREP=$(python3 "$SYNC_HELPER" prepare \
-  .artifacts/design/{issue-key}/06-stories/{epic-dir}/{story-file} \
-  .artifacts/design/{issue-key}/sync-manifest.json \
+  "${ARTIFACTS_ROOT}/design/{issue-key}/06-stories/{epic-dir}/{story-file}" \
+  "${ARTIFACTS_ROOT}/design/{issue-key}/sync-manifest.json" \
   --type story \
   --design-doc-link "{link}" \
   --epic-jira-key "{epic-jira-key}" \
@@ -118,7 +120,7 @@ Epic create:
 
 ```bash
 python3 "$SYNC_HELPER" update-manifest \
-  .artifacts/design/{issue-key}/sync-manifest.json \
+  "${ARTIFACTS_ROOT}/design/{issue-key}/sync-manifest.json" \
   --operation create \
   --file "{epic-file}" \
   --jira-key "{jira-key}" \
@@ -134,7 +136,7 @@ after first call):
 
 ```bash
 python3 "$SYNC_HELPER" update-manifest \
-  .artifacts/design/{issue-key}/sync-manifest.json \
+  "${ARTIFACTS_ROOT}/design/{issue-key}/sync-manifest.json" \
   --operation update \
   --file "{epic-file}" \
   --jira-key "{jira-key}" \
@@ -146,7 +148,7 @@ Story create:
 
 ```bash
 python3 "$SYNC_HELPER" update-manifest \
-  .artifacts/design/{issue-key}/sync-manifest.json \
+  "${ARTIFACTS_ROOT}/design/{issue-key}/sync-manifest.json" \
   --operation create \
   --file "{story-file}" \
   --jira-key "{jira-key}" \
@@ -160,7 +162,7 @@ Story update (same args, `--operation update`):
 
 ```bash
 python3 "$SYNC_HELPER" update-manifest \
-  .artifacts/design/{issue-key}/sync-manifest.json \
+  "${ARTIFACTS_ROOT}/design/{issue-key}/sync-manifest.json" \
   --operation update \
   --file "{story-file}" \
   --jira-key "{jira-key}" \
@@ -173,7 +175,7 @@ Child story close (within parent cascade):
 
 ```bash
 python3 "$SYNC_HELPER" update-manifest \
-  .artifacts/design/{issue-key}/sync-manifest.json \
+  "${ARTIFACTS_ROOT}/design/{issue-key}/sync-manifest.json" \
   --operation close \
   --file "{child-story-file}" \
   --jira-key "{child-story-jira-key}" \
@@ -186,7 +188,7 @@ Epic close:
 
 ```bash
 python3 "$SYNC_HELPER" update-manifest \
-  .artifacts/design/{issue-key}/sync-manifest.json \
+  "${ARTIFACTS_ROOT}/design/{issue-key}/sync-manifest.json" \
   --operation close \
   --file "{epic-file}" \
   --jira-key "{jira-key}" \
@@ -198,7 +200,7 @@ Standalone story close:
 
 ```bash
 python3 "$SYNC_HELPER" update-manifest \
-  .artifacts/design/{issue-key}/sync-manifest.json \
+  "${ARTIFACTS_ROOT}/design/{issue-key}/sync-manifest.json" \
   --operation close \
   --file "{story-file}" \
   --jira-key "{jira-key}" \
@@ -229,7 +231,7 @@ with the story's qualified ID:
 REF_ERR=$(mktemp) || { echo "FATAL: cannot create temp file" >&2; exit 1; }
 REF_EXIT=0
 REF_CHECK=$(python3 "$SYNC_HELPER" check-ref-availability \
-  .artifacts/design/{issue-key}/ \
+  "${ARTIFACTS_ROOT}/design/{issue-key}/" \
   "story-{N}.{NN}" 2>"$REF_ERR") || REF_EXIT=$?
 REF_ERR_TEXT=$(cat "$REF_ERR")
 rm -f "$REF_ERR"

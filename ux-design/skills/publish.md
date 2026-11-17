@@ -5,6 +5,8 @@ description: Push the handoff spec as a GitHub PR for external review.
 
 # Publish — Post Handoff Spec
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Post the finalized handoff spec as a GitHub pull request so technical
 reviewers and stakeholders can review it.
 
@@ -29,11 +31,11 @@ single path component.
 
 ### Step 1: Read the Handoff Spec
 
-Read `{source_repo_root}/.artifacts/ux-design/{issue-key}/05-handoff.md`.
+Read `{ARTIFACTS_ROOT}/ux-design/{issue-key}/05-handoff.md`.
 
 If the file doesn't exist, tell the researcher that `/handoff` should be run first.
 
-If `{source_repo_root}/.artifacts/ux-design/{issue-key}/publish-metadata.json`
+If `{ARTIFACTS_ROOT}/ux-design/{issue-key}/publish-metadata.json`
 exists, read it and treat this invocation as an update to the existing PR. Keep
 its PR number, branch, and handoff path; do not create a second PR for the same
 handoff. Older metadata may also contain `release` and `feature` fields; treat
@@ -41,19 +43,19 @@ those as informational and do not use them to reconstruct the handoff path. If
 the metadata is unreadable or lacks its PR number, branch, or handoff path,
 stop and ask the researcher to repair it before publishing.
 
-Read `{source_repo_root}/.artifacts/ux-design/{issue-key}/00-context.md` and
+Read `{ARTIFACTS_ROOT}/ux-design/{issue-key}/00-context.md` and
 verify that the context is `enriched` and the handoff
 is approved against the current discovery revision. If the manifest marks the
 handoff stale or its revision differs, stop and recommend `/handoff` before
 publishing. Never publish a handoff produced from exploratory context.
 
-Also read `{source_repo_root}/.artifacts/ux-design/{issue-key}/01-discovery.md`;
+Also read `{ARTIFACTS_ROOT}/ux-design/{issue-key}/01-discovery.md`;
 its **Upstream References** record the resolved published PRD and design paths.
 
 ### Step 2: Resolve Docs Repo
 
 Check for an existing docs repo configuration at
-`{source_repo_root}/.artifacts/config.json`.
+`{ARTIFACTS_ROOT}/config.json`.
 
 The shared config stores `docs_repo_path` as a normalized absolute path. For
 backward compatibility, expand `~` and resolve a relative configured or
@@ -216,7 +218,7 @@ mkdir -p "{destination_dir}"
 ```
 
 ```bash
-cp "{source_repo_root}/.artifacts/ux-design/{issue-key}/05-handoff.md" "{handoff_target}"
+cp "${ARTIFACTS_ROOT}/ux-design/{issue-key}/05-handoff.md" "{handoff_target}"
 ```
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
@@ -225,7 +227,7 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 
 Provenance at publish time:
 - If the provenance event log at
-  `{source_repo_root}/.artifacts/ux-design/{issue-key}/provenance.json` contains
+  `{ARTIFACTS_ROOT}/ux-design/{issue-key}/provenance.json` contains
   any non-`commit` event, the footer reflects the full authoring session
   (`provenance_kind: session`). The ux-design authoring phases are `/handoff`,
   `/revise`, `/respond`, and `manual-edit`.
@@ -269,7 +271,7 @@ When updating an existing PR, keep its existing description and skip the rest
 of this step. Do not rewrite the PR body as part of a handoff-only update.
 
 Prepare the PR description and save it to
-`{source_repo_root}/.artifacts/ux-design/{issue-key}/06-pr-description.md`
+`{ARTIFACTS_ROOT}/ux-design/{issue-key}/06-pr-description.md`
 (in the source repo's artifact directory):
 
 ```markdown
@@ -318,7 +320,7 @@ pr_repo="{owner}/{repo}"
 base_branch="{base-branch}"
 branch_name="{branch-name}"
 issue_key="{issue-key}"
-pr_body_file="${source_repo_root}/.artifacts/ux-design/${issue_key}/06-pr-description.md"
+pr_body_file="${ARTIFACTS_ROOT}/ux-design/${issue_key}/06-pr-description.md"
 ```
 
 Read the title from the PR description and invoke `gh` through a Python argument
@@ -361,7 +363,7 @@ PY
 ### Step 7: Save Publish Metadata
 
 For a new PR, write
-`{source_repo_root}/.artifacts/ux-design/{issue-key}/publish-metadata.json`:
+`{ARTIFACTS_ROOT}/ux-design/{issue-key}/publish-metadata.json`:
 Store `handoff_file_path`, `upstream_prd_path`, and `upstream_design_path`
 relative to the docs repo root, with `/` separators. The upstream paths are the
 resolved paths used to derive the canonical handoff directory.
@@ -390,8 +392,8 @@ for the first time. Also report:
 
 ## Output
 
-- `{source_repo_root}/.artifacts/ux-design/{issue-key}/06-pr-description.md`
-- `{source_repo_root}/.artifacts/ux-design/{issue-key}/publish-metadata.json`
+- `{ARTIFACTS_ROOT}/ux-design/{issue-key}/06-pr-description.md`
+- `{ARTIFACTS_ROOT}/ux-design/{issue-key}/publish-metadata.json`
 - Handoff spec committed and pushed to feature branch in the docs repo
 - Existing PR updated or draft PR created against the docs repo
 

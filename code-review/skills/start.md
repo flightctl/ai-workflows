@@ -5,6 +5,8 @@ description: Discover project context, analyze uncommitted changes, run initial 
 
 # Start Code Review Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are the orchestrator of a code review workflow. Your job is to discover
 the project's conventions, analyze the uncommitted changes, obtain a code
 review, and present the findings for the user to decide on.
@@ -77,7 +79,7 @@ Set this as `{branch}` for all artifact paths.
 
 ### Step 2: Check for Existing Review
 
-If `.artifacts/code-review/{branch}/review-metadata.json` exists, a review
+If `{ARTIFACTS_ROOT}/code-review/{branch}/review-metadata.json` exists, a review
 is already in progress. Stop and tell the user they can `/continue` or
 confirm a restart. If they confirm restart, delete the existing artifact
 directory before proceeding.
@@ -85,15 +87,15 @@ directory before proceeding.
 ### Step 3: Create Artifact Directory
 
 ```bash
-mkdir -p .artifacts/code-review/{branch}
+mkdir -p "${ARTIFACTS_ROOT}/code-review/{branch}"
 ```
 
-Warn if `.artifacts/` is not gitignored.
+Warn if `{ARTIFACTS_ROOT}/` is not gitignored.
 
 ### Step 4: Discover Project Context
 
-**Cache:** If `.artifacts/code-review/_reviewer-profile.md` exists and
-`.artifacts/code-review/.meta.json` `skill_version` is `0.4.0` and
+**Cache:** If `{ARTIFACTS_ROOT}/code-review/_reviewer-profile.md` exists and
+`{ARTIFACTS_ROOT}/code-review/.meta.json` `skill_version` is `0.4.0` and
 hashes/mtimes for `AGENTS.md`/`CLAUDE.md`, `CONTRIBUTING.md`, Makefile
 (or equivalent), and CI workflow filenames still match, copy the cache
 into `{branch}/00-reviewer-profile.md` and skip convention Reads.
@@ -114,7 +116,7 @@ grep — not full workflow bodies. `git ls-files '.github/workflows/*.yml'
 Extract: languages/frameworks, conventions, quality gates (lint + test
 commands), review focus areas.
 
-`.artifacts/code-review/.meta.json` schema (write **once** on cache miss;
+`{ARTIFACTS_ROOT}/code-review/.meta.json` schema (write **once** on cache miss;
 compare these keys on hit; include `skill_version` so a format change
 invalidates old caches):
 
@@ -225,7 +227,7 @@ summary.
 Do **not** pass `AGENTS.md`, `../guidelines.md`, or raw `git diff HEAD`.
 Parent Reads `../templates/code-review.md` **once**. Instruct the
 subagent to write findings to
-`.artifacts/code-review/{branch}/code-review-001.md` using that
+`{ARTIFACTS_ROOT}/code-review/{branch}/code-review-001.md` using that
 skeleton, then return.
 
 **If subagents are not available:** Read `../../_shared/review-protocol.md`
@@ -279,7 +281,7 @@ not accept findings reflexively just because the reviewer flagged them.
 
 ### Step 8: Write Review Metadata
 
-Write `.artifacts/code-review/{branch}/review-metadata.json` **once**:
+Write `{ARTIFACTS_ROOT}/code-review/{branch}/review-metadata.json` **once**:
 
 ```json
 {
@@ -343,7 +345,7 @@ Then run /continue to implement the accepted changes.
 ```
 
 Once the user states decisions, persist them to
-`.artifacts/code-review/{branch}/decisions-{NNN}.json`. Set `id` to
+`{ARTIFACTS_ROOT}/code-review/{branch}/decisions-{NNN}.json`. Set `id` to
 `{file}|{location}|{title}`; if two findings in this round would share
 that string, append `#{finding_number}`.
 
@@ -397,13 +399,13 @@ After presenting:
 
 ## Output
 
-- `.artifacts/code-review/{branch}/00-reviewer-profile.md`
-- `.artifacts/code-review/{branch}/01-change-summary.md`
-- `.artifacts/code-review/{branch}/diff-index-001.json`
-- `.artifacts/code-review/{branch}/code-review-001.md`
-- `.artifacts/code-review/{branch}/review-metadata.json`
-- `.artifacts/code-review/{branch}/decisions-{NNN}.json`
-- `.artifacts/code-review/_reviewer-profile.md` (+ `.meta.json`) on cache miss
+- `{ARTIFACTS_ROOT}/code-review/{branch}/00-reviewer-profile.md`
+- `{ARTIFACTS_ROOT}/code-review/{branch}/01-change-summary.md`
+- `{ARTIFACTS_ROOT}/code-review/{branch}/diff-index-001.json`
+- `{ARTIFACTS_ROOT}/code-review/{branch}/code-review-001.md`
+- `{ARTIFACTS_ROOT}/code-review/{branch}/review-metadata.json`
+- `{ARTIFACTS_ROOT}/code-review/{branch}/decisions-{NNN}.json`
+- `{ARTIFACTS_ROOT}/code-review/_reviewer-profile.md` (+ `.meta.json`) on cache miss
 
 ## When This Phase Is Done
 

@@ -1,6 +1,6 @@
 ---
 name: triage
-version: 0.8.0
+version: 0.9.0
 description: >-
   Bulk-triage unresolved Jira bugs with AI-driven recommendations and an
   interactive HTML report. Scan also loads recently resolved bugs for regression
@@ -10,6 +10,7 @@ description: >-
   /run, /start, /scan, /analyze, /report, and /assess.
 ---
 # Triage Workflow Orchestrator
+Before any artifact access, follow [the shared artifact resolver](../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
 
 ## Quick Start
 

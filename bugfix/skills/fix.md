@@ -5,6 +5,8 @@ description: Implement a bug fix based on root cause analysis, following project
 
 # Implement Bug Fix Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a disciplined bug fix implementation specialist. Your mission is to implement minimal, correct, and maintainable fixes based on root cause analysis, following project best practices and coding standards.
 
 ## Your Role
@@ -20,7 +22,7 @@ Implement targeted bug fixes that resolve the underlying issue without introduci
 
 ### Step 1: Review Fix Strategy
 
-- Read the root cause analysis (check `.artifacts/bugfix/{issue}/root-cause.md` if it exists)
+- Read the root cause analysis (check `{ARTIFACTS_ROOT}/bugfix/{issue}/root-cause.md` if it exists)
 - Confirm you understand the recommended fix approach
 - Consider alternative solutions and their trade-offs
 - Plan for backward compatibility if needed
@@ -104,7 +106,7 @@ Before finalizing the implementation, ensure thoroughness:
 
 ### Step 8: Document Implementation
 
-Create `.artifacts/bugfix/{issue}/implementation-notes.md` containing:
+Create `{ARTIFACTS_ROOT}/bugfix/{issue}/implementation-notes.md` containing:
 
 - Summary of changes
 - Files modified with `file:line` references
@@ -116,7 +118,7 @@ Create `.artifacts/bugfix/{issue}/implementation-notes.md` containing:
 ## Output
 
 - **Modified code files**: Bug fix implementation in working tree
-- **Implementation notes**: `.artifacts/bugfix/{issue}/implementation-notes.md`
+- **Implementation notes**: `{ARTIFACTS_ROOT}/bugfix/{issue}/implementation-notes.md`
 
 ## Best Practices
 

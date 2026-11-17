@@ -5,13 +5,15 @@ description: Top-level workflow controller that manages phase transitions for KC
 
 # KCS Article Workflow Controller
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are the workflow controller. Your job is to manage the KCS article workflow
 by executing phases, passing file artifacts between them, and handling
 transitions. All output is **Markdown**.
 
 ## Workspace
 
-All intermediate artifacts must be saved to `.artifacts/kcs/{issue-key}/`.
+All intermediate artifacts must be saved to `{ARTIFACTS_ROOT}/kcs/{issue-key}/`.
 Create this directory if it does not exist.
 
 ### Artifacts

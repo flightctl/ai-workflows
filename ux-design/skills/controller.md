@@ -5,6 +5,8 @@ description: Top-level workflow controller that manages phase transitions for UX
 
 # UX Design Workflow Controller
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are the workflow controller. Your job is to manage the ux-design workflow
 by executing phases and handling transitions between them.
 
@@ -49,7 +51,7 @@ by executing phases and handling transitions between them.
 
 All work happens in the **source repo** — the researcher needs codebase
 context to make informed design decisions. Planning artifacts live in
-`.artifacts/ux-design/{issue-key}/` (gitignored), where `{issue-key}` is the
+`{ARTIFACTS_ROOT}/ux-design/{issue-key}/` (gitignored), where `{issue-key}` is the
 Feature key for a Jira-backed context or PRD path. For a PRD without a Feature
 key in its metadata or directory, ask the researcher for the Feature key to
 use as the stable context key. A linked `[UX]` story key is recorded
@@ -57,7 +59,7 @@ separately and used for story-specific operations such as Full evaluation.
 
 ### Artifact directory
 
-All working artifacts are stored in `.artifacts/ux-design/{issue-key}/`
+All working artifacts are stored in `{ARTIFACTS_ROOT}/ux-design/{issue-key}/`
 within the source repo:
 
 | Artifact | File | Written by |
@@ -245,7 +247,7 @@ misses details, repeats itself, or loses track of earlier decisions),
 consider spawning the current phase as a subagent with a fresh context window.
 This is self-monitoring by the AI, not something a human operator watches.
 Load the subagent with the skill file for the phase being executed, the
-relevant artifact files from `.artifacts/ux-design/{issue-key}/`, and the
+relevant artifact files from `{ARTIFACTS_ROOT}/ux-design/{issue-key}/`, and the
 project's `AGENTS.md`/`CLAUDE.md`.
 
 **Important:** Spawning a subagent does not bypass the human gate between

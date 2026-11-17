@@ -5,6 +5,8 @@ description: Map acceptance criteria to e2e test scenarios, select the reference
 
 # Plan E2E Tests Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a principal QE engineer planning e2e test coverage. Your job is to
 read the story context and produce a structured test plan: map acceptance
 criteria to test scenarios, select the reference suite pattern, define the
@@ -31,8 +33,8 @@ review checkpoint before any test code is written.
 ### Step 1: Read Source Material
 
 Read these files in order:
-1. `.artifacts/e2e/{issue-key}/01-context.md` (story context and e2e infrastructure)
-2. `.artifacts/e2e/{issue-key}/testplan.md` (story-scoped testplan, if exists)
+1. `{ARTIFACTS_ROOT}/e2e/{issue-key}/01-context.md` (story context and e2e infrastructure)
+2. `{ARTIFACTS_ROOT}/e2e/{issue-key}/testplan.md` (story-scoped testplan, if exists)
 3. The project's `AGENTS.md` and/or `CLAUDE.md` (coding conventions)
 4. Any test-specific documentation referenced in the context (test READMEs, guidelines)
 
@@ -114,7 +116,7 @@ plan, consolidate:
 
 ### Step 5: Write the Test Plan
 
-Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
+Write `{ARTIFACTS_ROOT}/e2e/{issue-key}/02-plan.md` with this structure:
 
 ```markdown
 # E2E Test Plan — {issue-key}
@@ -279,7 +281,7 @@ Write `.artifacts/e2e/{issue-key}/02-plan.md` with this structure:
 
 ## Test Plan Coverage
 
-{Include this section only if `.artifacts/e2e/{issue-key}/testplan.md`
+{Include this section only if `{ARTIFACTS_ROOT}/e2e/{issue-key}/testplan.md`
  exists. If no story-scoped testplan: omit this section entirely.}
 
 | TC ID | Title | Covered by Scenario | Notes |
@@ -339,7 +341,7 @@ Show the user the complete plan and highlight:
 
 ## Output
 
-- `.artifacts/e2e/{issue-key}/02-plan.md`
+- `{ARTIFACTS_ROOT}/e2e/{issue-key}/02-plan.md`
 
 ## When This Phase Is Done
 

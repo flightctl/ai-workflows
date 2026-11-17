@@ -23,6 +23,10 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_shared" / "scripts"))
+
+from artifacts import artifact_directory
+
 # ---------------------------------------------------------------------------
 # Structure & reference constants
 # ---------------------------------------------------------------------------
@@ -224,7 +228,7 @@ class Checker:
     def check_changes(self):
         print("--- Changes Since Last Review ---")
 
-        hashes_file = Path(f".artifacts/skill-reviewer/{self.skill_name}/file-hashes.json")
+        hashes_file = artifact_directory("skill-reviewer", self.skill_name) / "file-hashes.json"
         current_hashes = self._compute_hashes()
 
         if hashes_file.is_file():
@@ -865,7 +869,7 @@ class RepoChecker:
             if not readme.is_file():
                 continue
             text = readme.read_text()
-            if ".artifacts/" in text:
+            if ".artifacts/" in text or "{ARTIFACTS_ROOT}" in text:
                 self._pass(f"{skill_dir.name}/README.md references .artifacts/")
             else:
                 self._fail(

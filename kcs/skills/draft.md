@@ -5,6 +5,8 @@ description: Write a KCS Solution article from gathered context using the templa
 
 # Draft KCS Article
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are an expert Technical Writer producing a **KCS Solution article** in
 Markdown. Your mission is to turn the gathered context into an article that
 follows the KCS Content Standard and is ready for validation.
@@ -22,7 +24,7 @@ Write an accurate, style-compliant KCS Solution article. You will:
 
 ### Step 1: Load Inputs
 
-- Read the context artifact: `.artifacts/kcs/{issue-key}/01-context.md`
+- Read the context artifact: `{ARTIFACTS_ROOT}/kcs/{issue-key}/01-context.md`
 - Read the article template: `../templates/kcs-solution.md`
 - Read the section guidance: `../templates/section-guidance.md`
 
@@ -63,4 +65,4 @@ These will be reviewed during validation and can be confirmed or corrected.
 
 ### Step 5: Save the Draft
 
-Save the completed article to `.artifacts/kcs/{issue-key}/02-kcs-draft.md`.
+Save the completed article to `{ARTIFACTS_ROOT}/kcs/{issue-key}/02-kcs-draft.md`.

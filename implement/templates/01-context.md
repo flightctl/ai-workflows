@@ -1,5 +1,7 @@
 # Story Context — {issue-key}
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 ## Story Summary
 
 - **Title:** {title}
@@ -44,7 +46,7 @@
 
 ### Story Test Plan
 
-{If written: "Story-scoped test plan written to `.artifacts/implement/{issue-key}/testplan.md` with {N} test cases. TC IDs: {list}."
+{If written: "Story-scoped test plan written to `{ARTIFACTS_ROOT}/implement/{issue-key}/testplan.md` with {N} test cases. TC IDs: {list}."
 
  If feature testplan exists but no matches (expected): "Feature-level testplan found but no cases match this {story-type} story (expected). No story-scoped testplan written."
 

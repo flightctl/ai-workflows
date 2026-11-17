@@ -142,7 +142,7 @@ commits the rebase is about to drop on purpose.
 ## Safety Net
 
 `/start` records every branch tip and commit subject to
-`.artifacts/rebase-stack/pre-rebase-state.json` before rewriting history.
+`{ARTIFACTS_ROOT}/rebase-stack/pre-rebase-state.json` before rewriting history.
 After the rebase, `scripts/snapshot.sh verify` compares the two and reports any
 commit that is no longer reachable. A dropped commit is legitimate only when
 that change already landed in the base, and the workflow makes you confirm each
@@ -170,11 +170,11 @@ same instructions work for global, project-local, and symlinked installs.
 | `scripts/snapshot.sh` | `save`, `verify`, and `restore-plan` for the pre-rebase safety net. |
 
 All four read and write only the current repository and
-`.artifacts/rebase-stack/`. None of them push.
+`{ARTIFACTS_ROOT}/rebase-stack/`. None of them push.
 
 ## Artifacts
 
-Local state under `.artifacts/rebase-stack/` (gitignored):
+Local state under `{ARTIFACTS_ROOT}/rebase-stack/` (gitignored):
 
 | File | Written by | Purpose | How to clear |
 |------|-----------|---------|--------------|
@@ -192,7 +192,7 @@ Local state under `.artifacts/rebase-stack/` (gitignored):
   instead of assuming nothing moved.
 - The base branch is never pushed, and neither are `main`, `master`, or
   `develop`.
-- `/push` refuses to run when `.artifacts/rebase-stack/validated` is missing or
+- `/push` refuses to run when `{ARTIFACTS_ROOT}/rebase-stack/validated` is missing or
   records a SHA that no longer matches, because `/validate` performs the fetch
   that makes the lease check meaningful. The push report states whether the run
   was `mode=tip` or `mode=all`.

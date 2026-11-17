@@ -13,7 +13,12 @@ import json
 import os
 import sys
 from pathlib import Path
+
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_shared" / "scripts"))
+
+from artifacts import artifact_directory, canonical_path
 
 from _common import (
     COMMITTABLE_SIZES,
@@ -33,7 +38,7 @@ from finalize_assessment import finalize_assessment, render_assessment
 
 def _directory(context: str) -> Path:
     validate_context_name(context)
-    return Path(".artifacts") / "sizing" / context
+    return artifact_directory("sizing", context)
 
 
 def _wiki_cell(value: Any) -> str:
@@ -211,7 +216,7 @@ def _json_bytes(value: Any) -> bytes:
 
 
 def _validated_action_output_path(directory: Path, output_path: Path) -> Path:
-    output_path = Path(os.path.abspath(output_path))
+    output_path = Path(os.path.abspath(canonical_path(output_path)))
     if output_path.is_dir():
         raise ValueError("action payload output must be a file path")
     protected_names = (

@@ -5,6 +5,8 @@ description: Confirm, push every stack branch atomically to the resolved push re
 
 # Push Rebase Stack
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 ## Step 1: Preflight
 
 Follow `preflight.md`. Then confirm `/validate` actually ran against the
@@ -16,7 +18,7 @@ Check them all: an intermediate branch that moved since validation must not be
 published even when the trunk-adjacent branch is untouched.
 
 ```bash
-record=.artifacts/rebase-stack/validated
+record="${ARTIFACTS_ROOT}/rebase-stack/validated"
 if [ ! -f "$record" ]; then
   echo "NEVER VALIDATED — run /validate first"
 else
@@ -33,7 +35,7 @@ else
   # added to the stack after /validate ran is absent from it entirely, so it
   # would otherwise be published having never been tested. Drive the second
   # pass from context.json, which is the current stack.
-  jq -r '.branches[].name' .artifacts/rebase-stack/context.json | while read -r b; do
+  jq -r '.branches[].name' "${ARTIFACTS_ROOT}/rebase-stack/context.json" | while read -r b; do
     tail -n +2 "$record" | awk -v b="$b" '$2 == b {found=1} END {exit !found}' \
       || printf '%-28s %-10s NOT RECORDED — not covered by /validate\n' "$b" "absent"
   done
@@ -58,8 +60,8 @@ compare against the pre-rebase baseline. This catches collaborator pushes
 that appeared between `/validate` and `/push`:
 
 ```bash
-ctx=.artifacts/rebase-stack/context.json
-snapshot=.artifacts/rebase-stack/pre-rebase-state.json
+ctx="${ARTIFACTS_ROOT}/rebase-stack/context.json"
+snapshot="${ARTIFACTS_ROOT}/rebase-stack/pre-rebase-state.json"
 push_remote=$(jq -r '.pushRemote' "$ctx")
 git fetch --quiet "$push_remote"
 echo "fetch exit: $?"
@@ -71,7 +73,7 @@ remote refs. Then check every branch against the saved pre-rebase baseline:
 ```bash
 if [ ! -f "$snapshot" ] \
    || ! bash "{scripts}/validate-baseline.sh" "$snapshot" \
-          --context .artifacts/rebase-stack/context.json >/dev/null 2>&1; then
+          --context "${ARTIFACTS_ROOT}/rebase-stack/context.json" >/dev/null 2>&1; then
   echo "NO BASELINE — cannot classify divergence; run /start first"
 fi
 jq -r '.branches[].name' "$ctx" | while read -r branch; do
@@ -107,7 +109,7 @@ Present the exact command and the exact branch list, then wait:
 jq -r '"push remote : \(.pushRemote)  (\(.pushRemoteSource))",
        "base branch : \(.baseRemote)/\(.trunk)",
        "branches    :", (.branches[] | "  - \(.name)  pr=\(.pr // "will be created")")' \
-  .artifacts/rebase-stack/context.json
+  "${ARTIFACTS_ROOT}/rebase-stack/context.json"
 ```
 
 > This force-pushes `{N}` branches to `{push-remote}` with
@@ -130,12 +132,12 @@ state at wire time.
 
 ```bash
 scripts="{scripts}"
-ctx=.artifacts/rebase-stack/context.json
+ctx="${ARTIFACTS_ROOT}/rebase-stack/context.json"
 push_remote=$(jq -r '.pushRemote' "$ctx")
 bash "$scripts/push-guard.sh" \
-  --baseline .artifacts/rebase-stack/pre-rebase-state.json \
+  --baseline "${ARTIFACTS_ROOT}/rebase-stack/pre-rebase-state.json" \
   --remote "$push_remote" \
-  --context .artifacts/rebase-stack/context.json
+  --context "${ARTIFACTS_ROOT}/rebase-stack/context.json"
 echo "push exit: $?"
 ```
 
@@ -179,9 +181,9 @@ after any rejection to re-fetch and see the real state.
 ## Step 4: Open Missing PRs
 
 ```bash
-jq -r '.branches[] | select(.pr == null) | .name' .artifacts/rebase-stack/context.json
+jq -r '.branches[] | select(.pr == null) | .name' "${ARTIFACTS_ROOT}/rebase-stack/context.json"
 jq -r '"isFork=\(.isFork)  repo=\(.repo)  parent=\(.parentRepo)  owner=\(.forkOwner)"' \
-  .artifacts/rebase-stack/context.json
+  "${ARTIFACTS_ROOT}/rebase-stack/context.json"
 ```
 
 If the list is empty, skip to Step 5.
@@ -189,7 +191,7 @@ If the list is empty, skip to Step 5.
 **Direct clone (`isFork` is `false`):**
 
 ```bash
-push_remote=$(jq -r '.pushRemote' .artifacts/rebase-stack/context.json)
+push_remote=$(jq -r '.pushRemote' "${ARTIFACTS_ROOT}/rebase-stack/context.json")
 gh stack submit --auto --remote "$push_remote"
 echo "submit exit: $?"
 ```
@@ -207,7 +209,7 @@ never splice these values into shell syntax, as they may contain shell
 metacharacters:
 
 ```bash
-ctx=.artifacts/rebase-stack/context.json
+ctx="${ARTIFACTS_ROOT}/rebase-stack/context.json"
 parent_repo=$(jq -r '.parentRepo' "$ctx")
 fork_owner=$(jq -r '.forkOwner' "$ctx")
 base=$(jq -r '.trunk' "$ctx")
@@ -244,7 +246,7 @@ Summarize:
 - Each branch pushed and its new tip.
 - Each PR created (number and URL) and each that already existed.
 - Which branches were built and tested, taken from `mode=` in
-  `.artifacts/rebase-stack/validated`. For `mode=tip`, name
+  `{ARTIFACTS_ROOT}/rebase-stack/validated`. For `mode=tip`, name
   `{validation-branch}` and note that per-PR CI is the first independent
   check on the intermediate layers.
 - Any branch still without a PR, and why.
@@ -252,5 +254,5 @@ Summarize:
 Then clear the rebase safety net, which is now stale:
 
 ```bash
-rm -f .artifacts/rebase-stack/pre-rebase-state.json
+rm -f "${ARTIFACTS_ROOT}/rebase-stack/pre-rebase-state.json"
 ```

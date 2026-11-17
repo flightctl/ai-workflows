@@ -5,6 +5,8 @@ description: Recommend next steps after one attended bugfix phase.
 
 # Bugfix Phase Completion
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 After the completed `PHASE` reports its results, recommend the best next step
 for the actual outcome, mention relevant alternatives briefly, and stop for the
 user unless the `/start` guidance below applies.

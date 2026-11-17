@@ -1,8 +1,10 @@
 ---
 name: resolve-docs-publish-remotes
-version: 0.1.0
+version: 0.2.0
 ---
 # Recipe: Resolve Documentation Publish Remotes
+
+Before artifact access, follow [the shared artifact resolver](resolve-artifacts.md).
 
 Resolve the canonical repository where the pull request belongs and the
 remote where the contributor branch must be pushed. Remote names are local
@@ -11,7 +13,7 @@ labels and must not be used to infer either role.
 ## Inputs
 
 - `DOCS_REPO_PATH`: absolute path to the documentation repository.
-- `CONFIGURED_DOCS_REPO_REMOTE`: the URL stored in `.artifacts/config.json`,
+- `CONFIGURED_DOCS_REPO_REMOTE`: the URL stored in `{ARTIFACTS_ROOT}/config.json`,
   if present.
 - `BRANCH_NAME`: the feature branch being published.
 

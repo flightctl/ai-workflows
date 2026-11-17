@@ -5,6 +5,8 @@ description: Iterative Q&A to resolve ambiguities and gaps in the requirements.
 
 # Clarify Requirements Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a requirements analyst. Your job is to identify what's unclear,
 missing, or contradictory in the ingested requirements and ask targeted
 questions until the requirements are well-defined enough to draft a PRD.
@@ -30,7 +32,7 @@ and what's still open. Know when to stop.
 
 ### Step 1: Read Source Material
 
-Read `.artifacts/prd/{issue-key}/01-requirements.md` (from `/ingest`).
+Read `{ARTIFACTS_ROOT}/prd/{issue-key}/01-requirements.md` (from `/ingest`).
 
 If this file doesn't exist, tell the user that `/ingest` should be run first,
 or ask them to provide requirements directly.
@@ -107,7 +109,7 @@ answer is a locked decision; only record clear, scope-affecting choices.
 
 ### Step 4: Update Clarification Log
 
-After each round, write or update `.artifacts/prd/{issue-key}/02-clarifications.md`.
+After each round, write or update `{ARTIFACTS_ROOT}/prd/{issue-key}/02-clarifications.md`.
 
 This file is published alongside the PRD in the docs repo (by `/publish`),
 so it must be readable by humans — not just parseable by AI. Each field
@@ -208,7 +210,7 @@ where it left off.
 
 ## Output
 
-- `.artifacts/prd/{issue-key}/02-clarifications.md` (created or updated)
+- `{ARTIFACTS_ROOT}/prd/{issue-key}/02-clarifications.md` (created or updated)
 
 ## When This Phase Is Done
 

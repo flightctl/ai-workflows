@@ -5,6 +5,8 @@ description: Fetch the [UI] story, load UX handoff, PRD, and design document fro
 
 # Ingest Context Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a frontend architect and technical researcher. Your job is to read the
 `[UI]` story, load all upstream planning artifacts from their published
 locations, explore the UI codebase and backend API, and produce a structured
@@ -22,7 +24,7 @@ to change, and what constraints apply.
 
 - **Read-only.** Jira access is read-only. Never create, update, or modify Jira issues.
 - **Capture, don't design.** Record what you find — architectural decisions happen in `/plan`.
-- **Published sources only.** Read upstream artifacts from the docs repo and Jira, never from another workflow's `.artifacts/` directory.
+- **Published sources only.** Read upstream artifacts from the docs repo and Jira, never from another workflow's `{ARTIFACTS_ROOT}/` directory.
 - **UX handoff is optional.** The `[UI]` story may not have a UX handoff artifact. If none exists, note it and proceed — the workflow must function for purely technical work.
 - **Explore relevant areas only.** Don't map the entire codebase. Focus on UI components, hooks, routes, and API endpoints the story will affect.
 - **Note unknowns.** If you can't determine something from the codebase, say so explicitly.
@@ -79,10 +81,10 @@ proceed directly to Step 4.
 
 **Collision check (non-Jira flow only).** When `{workspace-id}` was
 derived from non-Jira input (a user-provided slug, not a Jira issue
-key), check whether `.artifacts/ui-design/{workspace-id}/` already
+key), check whether `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/` already
 exists. If it does, ask the user to confirm before proceeding:
 
-*"The workspace directory `.artifacts/ui-design/{workspace-id}/`
+*"The workspace directory `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/`
 already exists and contains prior artifacts. If you reuse this
 workspace, `01-context.md` will be regenerated (overwritten) by this
 ingest run, but all other phase artifacts (e.g., `02-ui-design.md`,
@@ -96,14 +98,14 @@ except `01-context.md`, which the ingest phase regenerates. Do not
 delete or overwrite other phase artifacts during ingest.
 
 ```bash
-mkdir -p ".artifacts/ui-design/{workspace-id}"
+mkdir -p "${ARTIFACTS_ROOT}/ui-design/{workspace-id}"
 ```
 
 ### Step 2a: Check for Prior Ingest
 
-If `.artifacts/ui-design/{workspace-id}/01-context.md` already exists, this
+If `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/01-context.md` already exists, this
 is a re-invocation. Copy the existing file to
-`.artifacts/ui-design/{workspace-id}/01-context.md.prev` so it is preserved
+`{ARTIFACTS_ROOT}/ui-design/{workspace-id}/01-context.md.prev` so it is preserved
 for the diff in Step 8a.
 
 ### Step 3: Read the [UI] Story
@@ -184,7 +186,7 @@ of a Jira issue key (as identified in Step 1), do not call
 
 ### Step 4: Resolve the Docs Repo
 
-Read `.artifacts/config.json` for `docs_repo_path` and `docs_repo_remote`.
+Read `{ARTIFACTS_ROOT}/config.json` for `docs_repo_path` and `docs_repo_remote`.
 
 **If the config exists**, validate it:
 1. Verify the path exists on the local filesystem
@@ -193,11 +195,11 @@ Read `.artifacts/config.json` for `docs_repo_path` and `docs_repo_remote`.
 
 If any validation fails, inform the user and re-ask for the correct values.
 Resolve `~` to an absolute path before saving. Update
-`.artifacts/config.json` with the corrected values.
+`{ARTIFACTS_ROOT}/config.json` with the corrected values.
 
 **If the config does not exist**, ask the user for the docs repo local path
 and remote, validate them. Resolve `~` to the user's home directory so
-the stored path is absolute. Write `.artifacts/config.json`.
+the stored path is absolute. Write `{ARTIFACTS_ROOT}/config.json`.
 
 After resolving `docs_repo_path` from configuration (whether loaded from
 an existing config or provided by the user), normalize it to an absolute
@@ -216,7 +218,7 @@ Before using `docs_repo_path` in shell commands, validate that it is a
 clean filesystem path: it must be an absolute path, must not contain
 shell metacharacters (`$`, `` ` ``, `|`, `;`, `&`, newlines), and must
 resolve to an existing directory. If validation fails, stop and ask
-the user to correct the path in `.artifacts/config.json`.
+the user to correct the path in `{ARTIFACTS_ROOT}/config.json`.
 
 Search the docs repo for a directory whose name contains `{workspace-id}` or
 the parent feature key. Pass `docs_repo_path` as a quoted argument.
@@ -414,7 +416,7 @@ where `{source description}` is the path or label the user provided.
 Skip the Linked Stories table if no Jira data is available.
 
 If this is a first invocation, write
-`.artifacts/ui-design/{workspace-id}/01-context.md` with this structure:
+`{ARTIFACTS_ROOT}/ui-design/{workspace-id}/01-context.md` with this structure:
 
 ```markdown
 # UI Design Context — {workspace-id}
@@ -609,7 +611,7 @@ If the user declined a re-invocation overwrite in Step 8a, report instead:
 
 ## Output
 
-- `.artifacts/ui-design/{workspace-id}/01-context.md`
+- `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/01-context.md`
 
 ## When This Phase Is Done
 

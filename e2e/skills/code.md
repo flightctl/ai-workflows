@@ -5,6 +5,8 @@ description: Write e2e test code following discovered patterns, committing incre
 
 # Code E2E Tests Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a principal QE engineer. Your job is to execute the test plan by
 writing e2e test code following the project's conventions and the reference
 suite's patterns, committing incrementally.
@@ -30,9 +32,9 @@ each logical unit of work independently.
 ### Step 1: Read the Plan and Context
 
 Read these files:
-1. `.artifacts/e2e/{issue-key}/02-plan.md` (test plan)
-2. `.artifacts/e2e/{issue-key}/01-context.md` (story context and e2e infrastructure)
-3. `.artifacts/e2e/{issue-key}/testplan.md` (story-scoped testplan, if exists)
+1. `{ARTIFACTS_ROOT}/e2e/{issue-key}/02-plan.md` (test plan)
+2. `{ARTIFACTS_ROOT}/e2e/{issue-key}/01-context.md` (story context and e2e infrastructure)
+3. `{ARTIFACTS_ROOT}/e2e/{issue-key}/testplan.md` (story-scoped testplan, if exists)
 4. The project's `AGENTS.md` and/or `CLAUDE.md` (coding conventions)
 
 If the plan doesn't exist, tell the user that `/plan` should be run first.
@@ -115,7 +117,7 @@ ask how to proceed (stash, commit, or abort) before any rebase/merge
 operation.
 
 Check whether a PR has already been created by looking for
-`.artifacts/e2e/{issue-key}/publish-metadata.json`.
+`{ARTIFACTS_ROOT}/e2e/{issue-key}/publish-metadata.json`.
 
 If no PR exists yet, rebase:
 
@@ -246,7 +248,7 @@ parameters:
 |-----------|-------|
 | DIFF_COMMAND | `git diff --cached` |
 | MAX_ROUNDS | `1` |
-| CONTEXT_FILES | `.artifacts/e2e/{issue-key}/01-context.md`, `.artifacts/e2e/{issue-key}/02-plan.md` (if they exist) |
+| CONTEXT_FILES | `{ARTIFACTS_ROOT}/e2e/{issue-key}/01-context.md`, `{ARTIFACTS_ROOT}/e2e/{issue-key}/02-plan.md` (if they exist) |
 | SUPPLEMENTARY_CRITERIA | Check for e2e-specific issues: (1) Anti-patterns: hardcoded sleeps, shared mutable state, missing cleanup. (2) Test infrastructure bypass: direct API calls instead of project abstractions. (3) Missing async polling: synchronous assertions on async operations. (4) Hardcoded values: inline strings/numbers instead of project-defined constants. (5) Pattern drift: deviations from the reference suite's conventions. (6) Missing labels: tests without CI-filtering labels. |
 
 If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
@@ -356,7 +358,7 @@ If output is non-empty, stop and ask the user how to proceed (commit,
 stash, or abort) before continuing.
 
 Check whether a PR has already been created by looking for
-`.artifacts/e2e/{issue-key}/publish-metadata.json`.
+`{ARTIFACTS_ROOT}/e2e/{issue-key}/publish-metadata.json`.
 
 **If no PR exists yet**, rebase:
 
@@ -410,7 +412,7 @@ During test implementation, you may encounter unexpected situations:
 
 After all tasks are complete (or if interrupted), write:
 
-**Test report** (`.artifacts/e2e/{issue-key}/03-test-report.md`):
+**Test report** (`{ARTIFACTS_ROOT}/e2e/{issue-key}/03-test-report.md`):
 
 ```markdown
 # E2E Test Report — {issue-key}
@@ -463,7 +465,7 @@ After all tasks are complete (or if interrupted), write:
 {Any qualitative observations about test coverage, gaps, or patterns.}
 ```
 
-**Implementation report** (`.artifacts/e2e/{issue-key}/04-impl-report.md`):
+**Implementation report** (`{ARTIFACTS_ROOT}/e2e/{issue-key}/04-impl-report.md`):
 
 ```markdown
 # Implementation Report — {issue-key}
@@ -503,9 +505,9 @@ After all tasks are complete (or if interrupted), write:
 
 - Test files in the source repo (on the feature branch)
 - Incremental commits (following the project's commit format)
-- `.artifacts/e2e/{issue-key}/02-plan.md` (updated with task status)
-- `.artifacts/e2e/{issue-key}/03-test-report.md`
-- `.artifacts/e2e/{issue-key}/04-impl-report.md`
+- `{ARTIFACTS_ROOT}/e2e/{issue-key}/02-plan.md` (updated with task status)
+- `{ARTIFACTS_ROOT}/e2e/{issue-key}/03-test-report.md`
+- `{ARTIFACTS_ROOT}/e2e/{issue-key}/04-impl-report.md`
 
 ## When This Phase Is Done
 

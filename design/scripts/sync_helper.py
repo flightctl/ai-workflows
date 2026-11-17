@@ -53,7 +53,12 @@ import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
 from typing import Any, NoReturn
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_shared" / "scripts"))
+
+from artifacts import canonical_path
 
 
 # ---------------------------------------------------------------------------
@@ -205,7 +210,7 @@ def _validate_manifest_shape(manifest: Any, source: str) -> dict[str, Any]:
 
 def load_manifest(manifest_path: str | Path) -> dict[str, Any] | None:
     """Load and return the sync manifest, or None if it doesn't exist."""
-    p = Path(manifest_path)
+    p = canonical_path(manifest_path)
     if not p.exists():
         return None
     try:
@@ -219,7 +224,7 @@ def load_manifest(manifest_path: str | Path) -> dict[str, Any] | None:
 def save_manifest(manifest: dict[str, Any], manifest_path: str | Path) -> None:
     """Write the manifest atomically (exclusive-tmp-then-rename)."""
     import tempfile as _tmpmod
-    p = Path(manifest_path)
+    p = canonical_path(manifest_path)
     fd = -1
     tmp_path: Path | None = None
     try:
@@ -491,7 +496,7 @@ def detect_changes(artifacts_dir: str | Path) -> dict[str, Any]:
     - ``items``: list of item dicts with category and metadata
     - ``warnings``: list of warning strings
     """
-    artifacts_dir = Path(artifacts_dir)
+    artifacts_dir = canonical_path(artifacts_dir)
     manifest_path = artifacts_dir / "sync-manifest.json"
     manifest = load_manifest(manifest_path)
 
@@ -1188,7 +1193,7 @@ def plan_creation_order(
     Exit semantics: if ``errors`` is non-empty the plan is invalid and
     no Jira writes should proceed until resolved.
     """
-    artifacts_dir = Path(artifacts_dir)
+    artifacts_dir = canonical_path(artifacts_dir)
     stories_dir = artifacts_dir / "06-stories"
 
     # ── Available keys (already-synced or in-item) ──────────────
@@ -1609,9 +1614,9 @@ def check_ref_availability(
     **Invariants**: never mutates the manifest or source files; native
     Jira keys in Dependencies are always treated as available.
     """
-    artifacts_dir = Path(artifacts_dir)
+    artifacts_dir = canonical_path(artifacts_dir)
     stories_dir = artifacts_dir / "06-stories"
-    manifest = load_manifest(Path(manifest_path))
+    manifest = load_manifest(canonical_path(manifest_path))
     available: dict[str, str] = {}
     if manifest:
         available = _build_ref_lookup(manifest)
@@ -1799,7 +1804,7 @@ def render_epic_description(
     of reading the file again (used by ``prepare`` for snapshot
     consistency).
     """
-    epic_path = Path(epic_path)
+    epic_path = canonical_path(epic_path)
     if _content is not None:
         sections = _extract_sections_from_text(_content)
     else:
@@ -1837,7 +1842,7 @@ def render_story_description(
     ``story_type`` should be the story prefix (DEV, UI, UX, QE, CI, DOCS).
     If not provided, it is inferred from the story title.
     """
-    story_path = Path(story_path)
+    story_path = canonical_path(story_path)
     if _content is not None:
         sections = _extract_sections_from_text(_content)
         # Parse frontmatter from content string for metadata
@@ -1982,7 +1987,7 @@ def prepare(
     The caller uses ``summary`` as the Jira Summary field and all other
     metadata directly from this output — no re-reading the file.
     """
-    artifact_path = Path(artifact_path)
+    artifact_path = canonical_path(artifact_path)
     raw_bytes = artifact_path.read_bytes()
     content_hash = _hash_bytes(raw_bytes)
     content_text = raw_bytes.decode("utf-8")
@@ -2106,7 +2111,7 @@ def update_manifest(
     subsequent calls.
     ``content_hash`` may be empty for orphan closures (no file on disk).
     """
-    manifest_path = Path(manifest_path)
+    manifest_path = canonical_path(manifest_path)
     manifest = load_manifest(manifest_path)
 
     if manifest is None:
@@ -2228,7 +2233,7 @@ def migrate_manifest(manifest_path: str | Path) -> dict[str, Any]:
     Migration sets ``synced_status: "active"`` on all entries and leaves
     ``content_hash`` as ``null`` (to be populated on next sync).
     """
-    manifest_path = Path(manifest_path)
+    manifest_path = canonical_path(manifest_path)
     manifest = load_manifest(manifest_path)
     if manifest is None:
         fail(f"Manifest not found: {manifest_path}")
@@ -2401,6 +2406,10 @@ def main(argv: list[str] | None = None) -> int:
     """Entry point."""
     parser = build_parser()
     args = parser.parse_args(argv)
+    for name in ("artifacts_dir", "manifest_path", "artifact_file", "file_path"):
+        value = getattr(args, name, None)
+        if value:
+            setattr(args, name, str(canonical_path(value)))
 
     if args.command == "detect-changes":
         result = detect_changes(args.artifacts_dir)

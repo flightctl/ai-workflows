@@ -1,6 +1,6 @@
 ---
 name: e2e
-version: 0.8.5
+version: 0.9.0
 description: >-
   Story-to-e2e-test workflow that takes a Jira [QE] Story, discovers the
   project's e2e testing infrastructure, plans test scenarios, writes e2e
@@ -10,6 +10,7 @@ description: >-
   Activated by commands: /ingest, /plan, /revise, /code, /validate, /publish, /respond.
 ---
 # E2E Test Workflow Orchestrator
+Before any artifact access, follow [the shared artifact resolver](../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
 
 ## Quick Start
 

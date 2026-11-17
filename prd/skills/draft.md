@@ -5,6 +5,8 @@ description: Generate the PRD from clarified requirements using the template and
 
 # Draft PRD Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are writing from a Product Manager's perspective.
 Your job is to synthesize the ingested requirements and clarification
 answers into a structured PRD that describes user-facing capabilities
@@ -39,8 +41,8 @@ with `WORKFLOW=prd`, `TEMPLATE_FILE=prd.md`.
 ### Step 2: Read Source Material
 
 Read these files in order:
-1. `.artifacts/prd/{issue-key}/01-requirements.md` (raw requirements)
-2. `.artifacts/prd/{issue-key}/02-clarifications.md` (clarification log, if exists)
+1. `{ARTIFACTS_ROOT}/prd/{issue-key}/01-requirements.md` (raw requirements)
+2. `{ARTIFACTS_ROOT}/prd/{issue-key}/02-clarifications.md` (clarification log, if exists)
 3. The PRD template (from Step 1)
 4. The section guidance (from Step 1)
 
@@ -191,7 +193,7 @@ Before presenting the PRD, verify:
 
 ### Step 8: Write Artifact
 
-Save the PRD to `.artifacts/prd/{issue-key}/03-prd.md`.
+Save the PRD to `{ARTIFACTS_ROOT}/prd/{issue-key}/03-prd.md`.
 
 ### Step 8a: Capture Provenance
 
@@ -210,7 +212,7 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with:
 |-----------|-------|
 | WORKFLOW | `prd` |
 | ISSUE_KEY | `{issue-key}` |
-| TARGET_FILE | Absolute source-repo path to `.artifacts/prd/{issue-key}/03-prd.md` |
+| TARGET_FILE | Absolute source-repo path to `{ARTIFACTS_ROOT}/prd/{issue-key}/03-prd.md` |
 
 ### Step 9: Present to User
 
@@ -221,8 +223,8 @@ Show the user the complete PRD and highlight:
 
 ## Output
 
-- `.artifacts/prd/{issue-key}/03-prd.md`
-- `.artifacts/prd/{issue-key}/provenance.json`
+- `{ARTIFACTS_ROOT}/prd/{issue-key}/03-prd.md`
+- `{ARTIFACTS_ROOT}/prd/{issue-key}/provenance.json`
 
 ## When This Phase Is Done
 

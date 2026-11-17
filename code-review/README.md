@@ -53,14 +53,14 @@ No external services (Jira, GitHub CLI) are required. The workflow operates enti
 (on approval, artifacts are cleaned up automatically)
 
 /clean (only for abandoned reviews)
-  -> removes .artifacts/code-review/{branch}/
+  -> removes {ARTIFACTS_ROOT}/code-review/{branch}/
 ```
 
 ## How It Works
 
 ### Project Discovery
 
-On first run, the workflow reads the project's AGENTS.md, CLAUDE.md, CONTRIBUTING.md, linting configs, and CI workflow filenames to build a reviewer profile. The profile is cached at `.artifacts/code-review/` (not under `{branch}/`) so it survives review cleanup. `.meta.json` includes `skill_version`; a mismatch is a cache miss. The reviewer sees an index and hunk slices, not a dump. If more than 20 files need hunk Reads, remaining files get `--stat` coverage only; those paths are listed in the change summary. No manual initialization needed.
+On first run, the workflow reads the project's AGENTS.md, CLAUDE.md, CONTRIBUTING.md, linting configs, and CI workflow filenames to build a reviewer profile. The profile is cached at `{ARTIFACTS_ROOT}/code-review/` (not under `{branch}/`) so it survives review cleanup. `.meta.json` includes `skill_version`; a mismatch is a cache miss. The reviewer sees an index and hunk slices, not a dump. If more than 20 files need hunk Reads, remaining files get `--stat` coverage only; those paths are listed in the change summary. No manual initialization needed.
 
 ### The Decision Table
 
@@ -85,19 +85,19 @@ For genuinely independent review, pair this workflow with external tools (e.g., 
 
 ### Automatic Cleanup
 
-When the reviewer approves and the user confirms, all artifacts in `.artifacts/code-review/{branch}/` are removed. The `/clean` command exists only as an escape hatch for reviews that are started but never completed.
+When the reviewer approves and the user confirms, all artifacts in `{ARTIFACTS_ROOT}/code-review/{branch}/` are removed. The `/clean` command exists only as an escape hatch for reviews that are started but never completed.
 
 ## Artifacts
 
 Review artifacts for a given branch live in
-`.artifacts/code-review/{branch}/`. The reviewer-profile cache
+`{ARTIFACTS_ROOT}/code-review/{branch}/`. The reviewer-profile cache
 (`_reviewer-profile.md` and `.meta.json`) lives at
-`.artifacts/code-review/` (workflow root, not under `{branch}/`) so it
+`{ARTIFACTS_ROOT}/code-review/` (workflow root, not under `{branch}/`) so it
 survives cleanup. Do not place or remove the cache under the branch
 directory.
 
 ```text
-.artifacts/code-review/
+{ARTIFACTS_ROOT}/code-review/
   _reviewer-profile.md       (cached profile; reused while sources match)
   .meta.json
   feature-xyz/

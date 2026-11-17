@@ -113,8 +113,12 @@ Critical for symlink resolution:
 
 ## Key Constraints
 
+Before any workflow state access, follow `_shared/recipes/resolve-artifacts.md`.
+All `.artifacts/` references denote the main worktree's canonical state root,
+including `config.json`; never resolve state relative to a linked worktree CWD.
+
 1. **No IDE-specific syntax**: All workflow and simple-skill content is plain markdown
-2. **Relative paths only**: For symlink compatibility across install scopes
+2. **Relative instruction links**: For symlink compatibility across install scopes; runtime artifact paths use the absolute shared resolver result
 3. **Progressive disclosure**: SKILL.md stays under 30 lines
 4. **No auto-advance in attended mode**: Workflows wait for user input between phases unless an explicit unattended mode is documented for that workflow
 5. **Artifact persistence**: Significant workflow outputs are saved to `.artifacts/{workflow-name}/{context}/`; simple skills persist artifacts only when their contract explicitly requires it
@@ -240,6 +244,7 @@ ai-workflows/
 │   ├── review-protocol.md     # Shared code review criteria and finding format
 │   ├── sizing-rubric.md       # Shared sizing definitions and heuristics
 │   ├── scripts/
+│   │   ├── artifacts.py      # Canonical main-worktree state resolution and legacy refusal
 │   │   ├── provenance.py      # Capture/render CLI for prd/design/ux-design provenance
 │   │   ├── pr-comments.py     # Deterministic PR comment operations (fetch, reply, log)
 │   │   ├── publish.py         # Deterministic publish operations (push, PR/MR, metadata)

@@ -40,7 +40,7 @@ graph TD
 ```text
 /ingest EDM-2324
   → fetches Jira issue, linked issues, comments
-  → writes .artifacts/prd/EDM-2324/01-requirements.md
+  → writes {ARTIFACTS_ROOT}/prd/EDM-2324/01-requirements.md
 
 /clarify
   → asks targeted questions in batches of 3-5
@@ -72,7 +72,7 @@ graph TD
 
 ## Artifacts
 
-All artifacts are stored in `.artifacts/prd/{issue-key}/`.
+All artifacts are stored in `{ARTIFACTS_ROOT}/prd/{issue-key}/`.
 
 Session-local `provenance.json` records environment snapshots from `/draft`,
 `/revise`, and `/respond`. `/publish` renders a durable `## Provenance` footer

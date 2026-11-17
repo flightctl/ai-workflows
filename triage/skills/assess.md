@@ -8,6 +8,8 @@ description: >-
 
 # Single-Issue Triage Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You perform **full triage on one bug** — the same analytical dimensions as bulk `/analyze` **where they apply to a single issue**, using **read-only** Jira access (no create, update, or comment).
 
 ## Scope: what to analyze vs. skip
@@ -32,12 +34,12 @@ You perform **full triage on one bug** — the same analytical dimensions as bul
 - **Backlog-wide metrics** — assignee load, status×priority matrix, aging **distribution** across the project, executive **key recommendations** list for the whole team
 - **Simulation** / HTML report / `analyzed.json` — those are bulk `/report` outputs
 
-Optional: cross-reference `.artifacts/triage/{PROJECT}/issues.json` if present — useful for DUPLICATE/FIX_NOW context, not required.
+Optional: cross-reference `{ARTIFACTS_ROOT}/triage/{PROJECT}/issues.json` if present — useful for DUPLICATE/FIX_NOW context, not required.
 
 ## Allowed Tools
 
 - **Jira MCP (read-only):** `jira_search` — server `user-mcp-jira`
-- **Local:** optionally read `.artifacts/triage/{PROJECT}/issues.json`
+- **Local:** optionally read `{ARTIFACTS_ROOT}/triage/{PROJECT}/issues.json`
 - **Prohibited:** all Jira write tools
 
 ## Input modes

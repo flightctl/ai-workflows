@@ -5,6 +5,8 @@ description: Create a pull request for a bug fix, handling fork workflows, authe
 
 # Create Pull Request Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are preparing to submit a bug fix as a pull request. This skill provides a
 systematic, failure-resistant process for getting code from the working directory
 into a PR. It handles the common obstacles: authentication, fork workflows,
@@ -406,7 +408,7 @@ The snapshot covers:
 - tracked unstaged edits (`git diff`)
 - all relevant untracked files (`git ls-files --others --exclude-standard`)
 
-Exclude only `.artifacts/` outputs and build logs — never exclude a
+Exclude only `{ARTIFACTS_ROOT}/` outputs and build logs — never exclude a
 candidate source file based on extension or unchanged path presence.
 
 **Mode detection:** For tracked files, `git diff` output shows the
@@ -467,7 +469,7 @@ reviewed_candidate = null
    |-----------|-------|
    | DIFF_COMMAND | `git diff HEAD` |
    | MAX_ROUNDS | `{review_rounds_remaining}` |
-   | CONTEXT_FILES | `.artifacts/bugfix/{issue}/root-cause.md`, `.artifacts/bugfix/{issue}/implementation-notes.md` (if they exist) |
+   | CONTEXT_FILES | `{ARTIFACTS_ROOT}/bugfix/{issue}/root-cause.md`, `{ARTIFACTS_ROOT}/bugfix/{issue}/implementation-notes.md` (if they exist) |
 
    Deduct the gate's reported `Rounds: {N}` from
    `review_rounds_remaining` immediately after return.
@@ -596,7 +598,7 @@ If exit code is 5, a PR already exists — skip to Step 10 and report its
 URL. If the command fails (auth error, network error, API error), **stop
 and report the failure** — do not fall through to PR creation.
 
-**PR title format:** Use **`[ISSUE_KEY]: short description in lowercase`**. If the artifact `.artifacts/bugfix/{issue}/pr-description.md` exists and has a `## Title` line in this format, use that title. Otherwise set `ISSUE_KEY` from the branch name or context (e.g. Jira EDM-1234, GitHub #47) and build the title as `[ISSUE_KEY]: short description`.
+**PR title format:** Use **`[ISSUE_KEY]: short description in lowercase`**. If the artifact `{ARTIFACTS_ROOT}/bugfix/{issue}/pr-description.md` exists and has a `## Title` line in this format, use that title. Otherwise set `ISSUE_KEY` from the branch name or context (e.g. Jira EDM-1234, GitHub #47) and build the title as `[ISSUE_KEY]: short description`.
 
 **Create the PR using the shared script** (works for normal user tokens):
 
@@ -608,7 +610,7 @@ python3 "$PUBLISH_SCRIPT" create-pr \
   --head FORK_OWNER:BRANCH_NAME \
   --base main \
   --title "[ISSUE_KEY]: short description in lowercase" \
-  --body-file .artifacts/bugfix/{issue}/pr-description.md \
+  --body-file "${ARTIFACTS_ROOT}/bugfix/{issue}/pr-description.md" \
   --draft
 ```
 
@@ -639,7 +641,7 @@ python3 "$PUBLISH_SCRIPT" create-pr \
 This is the expected outcome when running as a GitHub App bot. Do NOT retry,
 do NOT debug further, do NOT fall back to a patch file. Instead:
 
-1. **Write the PR description** to `.artifacts/bugfix/{issue}/pr-description.md`
+1. **Write the PR description** to `{ARTIFACTS_ROOT}/bugfix/{issue}/pr-description.md`
    (if not already written). This ensures the user has the body ready to paste.
 
 2. **Give the user a pre-filled GitHub compare URL:**
@@ -685,7 +687,7 @@ Diagnose it using the Error Recovery table and retry.
 If `gh pr create` fails but the branch is pushed to the fork (this is the
 **expected** outcome when running as a GitHub App bot):
 
-1. **Write the PR body** to `.artifacts/bugfix/{issue}/pr-description.md`
+1. **Write the PR body** to `{ARTIFACTS_ROOT}/bugfix/{issue}/pr-description.md`
 2. **Provide the compare URL**: `https://github.com/UPSTREAM_OWNER/REPO/compare/main...FORK_OWNER:BRANCH?expand=1`
 3. **Show the PR title and body** for the user to paste in. The PR title must follow `[ISSUE_KEY]: short description in lowercase`.
 4. **Note**: this is a good outcome — the user gets a pre-filled PR form
@@ -704,14 +706,14 @@ Only if ALL of the above fail — for example, the user has no GitHub account,
 or network access is completely blocked:
 
 1. Generate a patch: `git diff > bugfix.patch`
-2. Write it to `.artifacts/bugfix/{issue}/bugfix.patch`
+2. Write it to `{ARTIFACTS_ROOT}/bugfix/{issue}/bugfix.patch`
 3. Explain to the user how to apply it: `git apply bugfix.patch`
 4. **Acknowledge this is a degraded experience** and explain what prevented the normal flow
 
 ## Output
 
 - The PR URL (printed to the user)
-- Optionally updates `.artifacts/bugfix/{issue}/pr-description.md` if it didn't already exist
+- Optionally updates `{ARTIFACTS_ROOT}/bugfix/{issue}/pr-description.md` if it didn't already exist
 
 ## Usage Examples
 
@@ -751,7 +753,7 @@ or network access is completely blocked:
 - This skill assumes the bug fix work (code changes, tests) is already done.
   Run `/fix` and `/test` first.
 - If `/document` was run, the PR description artifact exists at
-  `.artifacts/bugfix/{issue}/pr-description.md`. Use its `## Title` line
+  `{ARTIFACTS_ROOT}/bugfix/{issue}/pr-description.md`. Use its `## Title` line
   for the PR title if it follows `[ISSUE_KEY]: short description in lowercase`.
 - If `/document` was skipped, this skill creates a minimal PR body from
   session context (conversation history, prior artifacts). Build the title as

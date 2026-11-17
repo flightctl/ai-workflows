@@ -5,6 +5,8 @@ description: Run the full validation suite, analyze coverage, and iterate on gap
 
 # Validate Implementation Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a principal quality engineer. Your job is to run the project's full validation
 suite, analyze test coverage, identify gaps, and iterate until the
 implementation meets quality standards.
@@ -65,14 +67,14 @@ step-level remediation behavior applies unchanged.
 ### Step 1: Read Context and Check Entry Conditions
 
 Read:
-1. `.artifacts/implement/{issue-key}/02-plan.md` — check whether it
+1. `{ARTIFACTS_ROOT}/implement/{issue-key}/02-plan.md` — check whether it
    contains a `## Pending Scope Decision` section or records an unmerged
    prerequisite dependency. If either condition holds, stop and recommend
    `/revise` — do not run checks, commit fixes, or write the validation
    report.
-2. `.artifacts/implement/{issue-key}/01-context.md` (validation profile)
-3. `.artifacts/implement/{issue-key}/04-impl-report.md` (implementation status)
-4. `.artifacts/implement/{issue-key}/testplan.md` (story-scoped testplan, if exists)
+2. `{ARTIFACTS_ROOT}/implement/{issue-key}/01-context.md` (validation profile)
+3. `{ARTIFACTS_ROOT}/implement/{issue-key}/04-impl-report.md` (implementation status)
+4. `{ARTIFACTS_ROOT}/implement/{issue-key}/testplan.md` (story-scoped testplan, if exists)
 
 Extract the validation profile's pre-PR checks list.
 
@@ -109,7 +111,7 @@ git rev-list --count HEAD..origin/{local-base}
 ```
 
 If the branch is behind base, check whether a PR has already been
-created by looking for `.artifacts/implement/{issue-key}/publish-metadata.json`.
+created by looking for `{ARTIFACTS_ROOT}/implement/{issue-key}/publish-metadata.json`.
 
 **If no PR exists yet** (pre-publish), offer to rebase:
 
@@ -163,7 +165,7 @@ git status --porcelain --untracked-files=normal
 
 If the command fails (non-zero exit), stop and report the error — do
 not assume an empty result means clean. Otherwise, ignore paths under
-`.artifacts/` (workflow working state, gitignored). If any other
+`{ARTIFACTS_ROOT}/` (workflow working state, gitignored). If any other
 modified, staged, or untracked implementation files remain, stop —
 report the affected paths. Do not auto-commit, stash, reset, or delete
 them. The implementation must be completed and committed through normal
@@ -278,7 +280,7 @@ Run the self-review gate. Read and follow
 |-----------|-------|
 | DIFF_COMMAND | `git diff {local-base}...HEAD` |
 | MAX_ROUNDS | `3` |
-| CONTEXT_FILES | `.artifacts/implement/{issue-key}/01-context.md`, `.artifacts/implement/{issue-key}/02-plan.md` (if they exist) |
+| CONTEXT_FILES | `{ARTIFACTS_ROOT}/implement/{issue-key}/01-context.md`, `{ARTIFACTS_ROOT}/implement/{issue-key}/02-plan.md` (if they exist) |
 | SUPPLEMENTARY_CRITERIA | Full-branch validation review — last quality gate before PR. Evaluate: (1) **Backward compatibility** — public APIs, error formats, configuration, wire protocols changed? Backward-compatible or is the break documented and justified? (2) **Completeness across call sites** — pattern applied in one location but needed in similar locations is a bug. (3) **Scope baseline compliance** — if `02-plan.md` has a Scope Baseline section, compare against all baseline fields (Intended Feature Changes, Known Supporting Refactoring, Affected Interfaces and Components, Expected Delivery Boundaries). Material unapproved work outside any field — including unapproved new behavior within an already-affected component — is HIGH scope drift; do not auto-fix, report unfixed so gate returns FLAG. Ordinary correctness fixes and small cohesive supporting cleanup within boundaries are not scope drift. A pending scope decision already in the plan must be resolved before publishing. |
 
 If the gate reports FLAG, stop and present findings. For scope-drift
@@ -340,7 +342,7 @@ satisfied:
 
 ### Step 8b: Test Plan Verification
 
-If `.artifacts/implement/{issue-key}/testplan.md` exists, independently
+If `{ARTIFACTS_ROOT}/implement/{issue-key}/testplan.md` exists, independently
 verify that every test case has been implemented. This check re-derives
 the required TC ID list from `testplan.md` directly — it does NOT rely
 on the plan's task-to-TC-ID mappings or `/code`'s per-task reconciliation
@@ -382,7 +384,7 @@ has TC mappings but `testplan.md` is missing, unreadable, or malformed
 
 ### Step 9: Write Validation Report
 
-Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
+Write `{ARTIFACTS_ROOT}/implement/{issue-key}/05-validation-report.md`:
 
 ```markdown
 # Validation Report — {issue-key}
@@ -511,7 +513,7 @@ Summarize for the user:
 
 ## Output
 
-- `.artifacts/implement/{issue-key}/05-validation-report.md`
+- `{ARTIFACTS_ROOT}/implement/{issue-key}/05-validation-report.md`
 - Additional test files (if coverage gaps were found)
 - Fix commits (if issues were found and fixed)
 

@@ -5,6 +5,8 @@ description: Fetch the Jira story, load ui-design/PRD/handoff context, explore t
 
 # Ingest Story Context Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Fetch the Jira story, load upstream ui-design/PRD/handoff/api-findings slices,
 index the affected code, discover the UI toolchain, and write `01-context.md`
 for `/plan`.
@@ -68,7 +70,7 @@ and all downstream phases.
 ### Step 2: Create Artifact Directory
 
 ```bash
-mkdir -p .artifacts/ui-implement/{issue-key}
+mkdir -p "${ARTIFACTS_ROOT}/ui-implement/{issue-key}"
 ```
 
 Verify that `.artifacts/` is covered by the project's `.gitignore`. If it
@@ -77,7 +79,7 @@ committed with the code.
 
 ### Step 2a: Check for Prior Ingest
 
-If `.artifacts/ui-implement/{issue-key}/01-context.md` already exists, this is a
+If `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/01-context.md` already exists, this is a
 re-invocation. Copy the existing file to `01-context.md.prev` so it is
 preserved for the diff in Step 8a.
 
@@ -130,7 +132,7 @@ repo by the prd, design, and ui-design workflows. Fetch them from there.
 
 #### 5a: Resolve the Docs Repo
 
-Check for an existing docs repo configuration at `.artifacts/config.json`.
+Check for an existing docs repo configuration at `{ARTIFACTS_ROOT}/config.json`.
 This config is workspace-level and shared across all workflows — a prior
 workflow run may have already created it.
 
@@ -141,7 +143,7 @@ If it exists, Read it and validate:
 
 If any check fails, tell the user and re-ask. Resolve `~` to an absolute path before saving.
 
-If it does not exist, ask for docs repo local path and remote. Resolve `~` to absolute. Write `.artifacts/config.json` with `docs_repo_path` and `docs_repo_remote`.
+If it does not exist, ask for docs repo local path and remote. Resolve `~` to absolute. Write `{ARTIFACTS_ROOT}/config.json` with `docs_repo_path` and `docs_repo_remote`.
 
 #### 5b: Find the Feature Directory
 
@@ -257,7 +259,7 @@ Step 8a confirms the re-invocation. This prevents testplan changes from
 taking effect when the user declines the context overwrite.
 
 No feature testplan: note absence. If
-`.artifacts/ui-implement/{issue-key}/testplan.md` exists from a prior
+`{ARTIFACTS_ROOT}/ui-implement/{issue-key}/testplan.md` exists from a prior
 run, delete it to prevent `/plan` from consuming stale test cases, and
 log the deletion.
 
@@ -268,18 +270,18 @@ affected.
 
 **Budgets (hard):**
 - ≤ **20** Greps, each `head_limit` ≤ 25. **One** Makefile grep for `lint|test|generate|tidy|cover`.
-- ≤ **4** Globs. Never `**/*` on `.artifacts`. Never repo-wide `**/*{story-keyword}*`.
+- ≤ **4** Globs. Never `**/*` on `{ARTIFACTS_ROOT}`. Never repo-wide `**/*{story-keyword}*`.
 - Repo-wide Grep: `output_mode: files_with_matches`. Then signature Reads.
 - ≤ **8** source Reads, `offset`/`limit` ≤ 80 around signatures.
 - Stop after 3 consecutive Reads with no new pattern.
 - Stack: `git branch --show-current`, `git log --oneline -8`, `gh stack view --json`. No `.git/` listing.
 - Topology: parse `{owner}/{repo}` from `git remote get-url origin` (never substitute a well-known upstream name). Then `gh repo view {owner}/{repo} --json isFork,parent`. If `gh` fails, ask the user whether this is a fork and, if so, for upstream `{owner}/{repo}`.
 
-**Validation cache:** If `.artifacts/ui-implement/_validation-profile.md` exists and `.meta.json` hashes/mtimes still match, merge the profile into the in-memory context draft, skip config Reads, and do not Write `01-context.md` until Step 8 or Step 8a. Else one discovery pass: bounded Greps of present `AGENTS.md` and `CONTRIBUTING.md` (unless already in session) for lint/test/coverage commands, one Makefile grep, plus CI filenames via `git ls-files '.github/workflows/*.yml' '.github/workflows/*.yaml'`. For each listed workflow, Grep command-bearing keys (`run:`, `make`, lint/test targets) — not full workflow bodies. Then Write cache files **once**.
+**Validation cache:** If `{ARTIFACTS_ROOT}/ui-implement/_validation-profile.md` exists and `.meta.json` hashes/mtimes still match, merge the profile into the in-memory context draft, skip config Reads, and do not Write `01-context.md` until Step 8 or Step 8a. Else one discovery pass: bounded Greps of present `AGENTS.md` and `CONTRIBUTING.md` (unless already in session) for lint/test/coverage commands, one Makefile grep, plus CI filenames via `git ls-files '.github/workflows/*.yml' '.github/workflows/*.yaml'`. For each listed workflow, Grep command-bearing keys (`run:`, `make`, lint/test targets) — not full workflow bodies. Then Write cache files **once**.
 
 Skip `AGENTS.md` and `CONTRIBUTING.md` Reads if already in session. Path-only for PR template unless the body is required.
 
-`.artifacts/ui-implement/.meta.json` schema (write **once** on cache miss; compare these keys on hit):
+`{ARTIFACTS_ROOT}/ui-implement/.meta.json` schema (write **once** on cache miss; compare these keys on hit):
 
 ```json
 {
@@ -429,9 +431,9 @@ If the user declined overwrite in 8a, report the diff and that existing context 
 
 ## Output
 
-- `.artifacts/ui-implement/{issue-key}/01-context.md`
-- `.artifacts/ui-implement/{issue-key}/testplan.md` (normal testplan outcome only)
-- `.artifacts/ui-implement/_validation-profile.md` (+ `.meta.json`) on cache miss
+- `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/01-context.md`
+- `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/testplan.md` (normal testplan outcome only)
+- `{ARTIFACTS_ROOT}/ui-implement/_validation-profile.md` (+ `.meta.json`) on cache miss
 
 ## Done
 

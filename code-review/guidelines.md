@@ -1,5 +1,7 @@
 # Code Review Workflow Guidelines
 
+Before any artifact access, follow [the shared artifact resolver](../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 ## Shared Review Protocol
 
 Read and follow `../_shared/review-protocol.md` for evaluation criteria,
@@ -17,7 +19,7 @@ artifacts and published output from this workflow.
 - **The human decides.** The reviewer proposes; the implementor assesses; the user approves. No change is applied without the user's explicit decision.
 - **Productive disagreement is valuable.** When the implementor disagrees with a finding, that disagreement must be grounded in evidence (code behavior, test coverage, design constraints). The user resolves ties.
 - **Scope is about relevance, not mechanics.** The review covers all uncommitted changes, but not every file in the workspace is necessarily part of the change. Determine relevance by examining each file's content and its relationship to the logical change — not by a mechanical staged/unstaged filter.
-- **The review is private.** All artifacts stay in `.artifacts/` (gitignored). Review iterations are working documents, not public records.
+- **The review is private.** All artifacts stay in `{ARTIFACTS_ROOT}/` (gitignored). Review iterations are working documents, not public records.
 
 ## Hard Limits
 

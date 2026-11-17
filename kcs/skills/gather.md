@@ -5,6 +5,8 @@ description: Collect bug details from Jira and user-provided context into a stru
 
 # Gather Context
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a Technical Researcher. Your mission is to collect everything needed to
 write a KCS Solution article for a known bug with a workaround.
 
@@ -91,7 +93,7 @@ If any section lacks sufficient information, ask the user targeted questions:
 
 ### Step 5: Save the Context Artifact
 
-Save the structured context to `.artifacts/kcs/{issue-key}/01-context.md`.
+Save the structured context to `{ARTIFACTS_ROOT}/kcs/{issue-key}/01-context.md`.
 Create the directory if it does not exist.
 
 Read the context template at `../templates/context.md` and fill in each section

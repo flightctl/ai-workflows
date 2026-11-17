@@ -1,5 +1,7 @@
 # Triage Workflow
 
+Before any artifact access, follow [the shared artifact resolver](../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Bulk-triage unresolved Jira bugs through these phases:
 
 - **Run** (`/run`) — Execute all bulk phases end-to-end without pausing
@@ -13,7 +15,7 @@ Bulk-triage unresolved Jira bugs through these phases:
 
 Phase skills are at `skills/{name}.md`. Each skill is self-contained with its own instructions, allowed tools, and on-completion recommendations.
 Use `/run` for end-to-end bulk execution, or individual commands for step-by-step control.
-Artifacts go in `.artifacts/triage/{project}/`.
+Artifacts go in `{ARTIFACTS_ROOT}/triage/{project}/`.
 
 ## Principles
 
@@ -78,11 +80,11 @@ User: "Triage unresolved bugs in EDM"
 
 /start   → validates Jira access for project EDM
 /scan    → fetches unresolved bugs + recently resolved bugs (90d window)
-           → writes .artifacts/triage/EDM/issues.json and resolved.json
+           → writes {ARTIFACTS_ROOT}/triage/EDM/issues.json and resolved.json
 /analyze → categorizes each bug; error signatures, duplicate confidence, regressionOf
            → reads resolved.json for regression hints; writes analyzed.json
 /report  → generates interactive HTML dashboard
-           → writes .artifacts/triage/EDM/report.html
+           → writes {ARTIFACTS_ROOT}/triage/EDM/report.html
 
 /assess  → (separate) full triage of one issue in chat — read skills/assess.md
 ```

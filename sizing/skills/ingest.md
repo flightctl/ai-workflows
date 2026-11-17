@@ -5,6 +5,8 @@ description: Fetch and compact Feature data, then record only sizing-relevant co
 
 # Ingest Sizing Context
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Use Python for deterministic Jira retrieval and payload compaction. Use AI only
 to summarize requirements, connect them to the codebase, and identify uncertainty.
 
@@ -28,7 +30,7 @@ to summarize requirements, connect them to the codebase, and identify uncertaint
    trailing hyphens, and use `release` if the result is empty (for example,
    `1.5.0` becomes `1-5-0`). The helper's JSON `context` field confirms this
    value after the Jira fetch.
-2. If `.artifacts/sizing/{context}/01-context.json` already exists and an
+2. If `{ARTIFACTS_ROOT}/sizing/{context}/01-context.json` already exists and an
    assessment exists, explain that re-ingest will invalidate the assessment
    and wait for confirmation before fetching again. Do not remove or overwrite
    existing artifacts before replacement context has been fetched and rendered
@@ -61,8 +63,8 @@ to summarize requirements, connect them to the codebase, and identify uncertaint
    the files safely:
 
    ```bash
-   mkdir -p ".artifacts/sizing/{context}" &&
-     mktemp -d ".artifacts/sizing/{context}/.ingest-XXXXXX"
+   mkdir -p "${ARTIFACTS_ROOT}/sizing/{context}" &&
+     mktemp -d "${ARTIFACTS_ROOT}/sizing/{context}/.ingest-XXXXXX"
    ```
 
    Record mktemp's printed path and use it literally for file writing,
@@ -116,7 +118,7 @@ to summarize requirements, connect them to the codebase, and identify uncertaint
    ```bash
    python3 "${HOME}/.ai-workflows/sizing/scripts/render_context.py" \
      "<recorded-staging-path>/01-context.json" \
-     --commit-to ".artifacts/sizing/{context}"
+     --commit-to "${ARTIFACTS_ROOT}/sizing/{context}"
    ```
 
    The helper validates the staged JSON, renders staged `01-context.md`, then
@@ -147,8 +149,8 @@ to summarize requirements, connect them to the codebase, and identify uncertaint
 
 ## Output
 
-- `.artifacts/sizing/{context}/01-context.json` — compact source for `/assess`
-- `.artifacts/sizing/{context}/01-context.md` — human-readable rendered context
+- `{ARTIFACTS_ROOT}/sizing/{context}/01-context.json` — compact source for `/assess`
+- `{ARTIFACTS_ROOT}/sizing/{context}/01-context.md` — human-readable rendered context
 
 After reporting ingest results, return to the dispatcher for completion
 guidance. Do not start `/assess` automatically.

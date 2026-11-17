@@ -5,6 +5,8 @@ description: Orchestrate the full triage workflow from start to report without p
 
 # Run — Full Workflow Orchestration
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are the end-to-end orchestrator. Your job is to drive the complete triage workflow through all four phases in a single session, without waiting for user input between phases.
 
 ## Allowed Tools

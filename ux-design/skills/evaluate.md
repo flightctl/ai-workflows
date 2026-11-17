@@ -5,6 +5,8 @@ description: Heuristic evaluation, design review, and prototype validation.
 
 # Evaluate — Heuristic Evaluation
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Evaluate the prototype before handoff. AI-driven reviews can identify systematic
 issues; only people can validate context-dependent usability with real users.
 
@@ -15,12 +17,12 @@ required skill is unavailable, stop and ask the researcher to run `./install.sh`
 
 ## Prerequisites
 
-Read `.artifacts/ux-design/{issue-key}/03-prototype/prototype-notes.md` for
+Read `{ARTIFACTS_ROOT}/ux-design/{issue-key}/03-prototype/prototype-notes.md` for
 design decisions and open questions. If it does not exist, stop and recommend
 `/prototype` first.
 
-Read `.artifacts/ux-design/{issue-key}/01-discovery.md` for user groups and
-problem framing. If `.artifacts/ux-design/{issue-key}/02-research.md` exists,
+Read `{ARTIFACTS_ROOT}/ux-design/{issue-key}/01-discovery.md` for user groups and
+problem framing. If `{ARTIFACTS_ROOT}/ux-design/{issue-key}/02-research.md` exists,
 read it for user needs and insights.
 
 Read `00-context.md` and confirm that the active prototype has been reviewed
@@ -84,11 +86,11 @@ not use curl, WebFetch, or page source as a substitute. If no live browser is
 available, ask the researcher for screenshots. Do not evaluate a Figma link or
 raw HTML path directly.
 
-For a standalone prototype, serve `.artifacts/ux-design/{issue-key}/03-prototype/prototype/`
+For a standalone prototype, serve `{ARTIFACTS_ROOT}/ux-design/{issue-key}/03-prototype/prototype/`
 and pass its URL. For workspace mode, run the app using the project's own
 directions. If serving is not possible, capture screenshots of the important
 screens and states into
-`.artifacts/ux-design/{issue-key}/04-eval-raw/screenshots/`.
+`{ARTIFACTS_ROOT}/ux-design/{issue-key}/04-eval-raw/screenshots/`.
 
 Screenshots are required at Standard and Full depth because Step 3 needs them.
 At Quick depth, a live URL or screenshots are sufficient. If the required input
@@ -104,7 +106,7 @@ argument interface, and set the project path from the validated issue key:
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "Failed to find repository root"; exit 1; }
 cd "$REPO_ROOT"
-project_dir=".artifacts/ux-design/{issue-key}/04-eval-raw"
+project_dir="${ARTIFACTS_ROOT}/ux-design/{issue-key}/04-eval-raw"
 uxd-research-heuristic-eval "$prototype_input" \
   --framework "$chosen_framework" --review none \
   --project "$project_dir"
@@ -112,7 +114,7 @@ uxd-research-heuristic-eval "$prototype_input" \
 
 `--review none` requires `--framework`. It emits an Unreviewed Draft so the
 researcher can confirm findings in Step 7. Read the generated report from
-`.artifacts/ux-design/{issue-key}/04-eval-raw/`.
+`{ARTIFACTS_ROOT}/ux-design/{issue-key}/04-eval-raw/`.
 
 ### Step 3: Design Heuristics Scoring (Standard and Full)
 
@@ -153,7 +155,7 @@ each run:
    `config/product-overlay.yaml`, copy it to the same path under the run
    directory; do not invent a product overlay if it is absent.
 4. Read the **Skill prototype ID** from
-   `.artifacts/ux-design/{issue-key}/03-prototype/prototype-notes.md` and call
+   `{ARTIFACTS_ROOT}/ux-design/{issue-key}/03-prototype/prototype-notes.md` and call
    it `{prototype-id}`. Keep this ID separate from the linked `[UX]` story key:
    the evaluator needs the story key for Jira, while prototype refinement
    needs the prototype ID for its native artifact path.
@@ -204,7 +206,7 @@ formal research findings were not available.
 Gather the outputs for methods that ran:
 
 - Heuristic evaluation: reports under
-  `.artifacts/ux-design/{issue-key}/04-eval-raw/`
+  `{ARTIFACTS_ROOT}/ux-design/{issue-key}/04-eval-raw/`
 - Design heuristics: inline scores and findings from Step 3
 - Full prototype evaluation: `evaluation-report.html`,
   `evaluation-report.csv`, and `journey-log.json` under the private run
@@ -341,7 +343,7 @@ producer and consumer.
    `^[A-Za-z0-9][A-Za-z0-9._-]*$`. Reject empty, `.`, `..`, absolute
    paths, or any value containing `/` or `\`.
 2. **Planned-path validation (pre-create).** Starting from the known
-   workflow-private namespace `.artifacts/ux-design/{issue-key}/`, walk
+   workflow-private namespace `{ARTIFACTS_ROOT}/ux-design/{issue-key}/`, walk
    each ancestor toward `04-eval-raw/prototype-evaluate/{run-id}`.
    For each existing component: `lstat` to confirm it is a non-symlink
    directory (reject symlinks including broken ones, regular files, or
@@ -380,10 +382,10 @@ producer and consumer.
 
 ## Output
 
-`.artifacts/ux-design/{issue-key}/04-evaluation.md`
+`{ARTIFACTS_ROOT}/ux-design/{issue-key}/04-evaluation.md`
 
 Before replacing an existing `04-evaluation.md`, preserve it under
-`.artifacts/ux-design/{issue-key}/history/evaluation-r{N}.md`, where `{N}` is
+`{ARTIFACTS_ROOT}/ux-design/{issue-key}/history/evaluation-r{N}.md`, where `{N}` is
 the prior evaluation revision, unless that exact report is already preserved
 in the current context-revision snapshot. Increment the evaluation revision
 for every new assessment; same-assessment annotations retain the existing

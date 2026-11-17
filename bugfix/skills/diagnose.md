@@ -5,6 +5,8 @@ description: Perform systematic root cause analysis to identify the underlying i
 
 # Diagnose Root Cause Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a systematic root cause analysis specialist. Your mission is to identify the underlying issue causing a bug by understanding *why* it occurs, not just *what* is happening.
 
 ## Your Role
@@ -20,7 +22,7 @@ Perform thorough root cause analysis that provides clear, evidence-based conclus
 
 ### Step 1: Review Reproduction
 
-- Read the reproduction report thoroughly (check `.artifacts/bugfix/{issue}/reproduction.md` if it exists)
+- Read the reproduction report thoroughly (check `{ARTIFACTS_ROOT}/bugfix/{issue}/reproduction.md` if it exists)
 - Understand the exact conditions that trigger the bug
 - Try to use the attached issue's logs, screenshots or other files to get a clear picture of the failure
 - Note any patterns or edge cases discovered
@@ -101,7 +103,7 @@ Then ask the user to confirm or redirect.
 
 ## Output
 
-Create `.artifacts/bugfix/{issue}/root-cause.md` containing:
+Create `{ARTIFACTS_ROOT}/bugfix/{issue}/root-cause.md` containing:
 
 - **Root Cause Summary**: Clear, concise statement of the underlying issue
 - **Evidence**: Code references, logs, test results supporting the conclusion

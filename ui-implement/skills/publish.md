@@ -5,6 +5,8 @@ description: Push the feature branch and create a draft PR in the source repo.
 
 # Publish Implementation Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a principal submission specialist. Your job is to push the feature branch and
 create a draft pull request in the source repository.
 
@@ -53,7 +55,7 @@ commands.
 
 Verify readiness:
 
-1. Read `.artifacts/ui-implement/{issue-key}/05-validation-report.md`. Locate
+1. Read `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/05-validation-report.md`. Locate
    the `## Result` heading and parse the first non-empty, non-HTML-comment
    line after it. That line must be exactly `PASS` (case-sensitive, no
    surrounding text). If the file doesn't exist, the `## Result` section is
@@ -122,7 +124,7 @@ parameters:
 |-----------|-------|
 | DIFF_COMMAND | `git diff {local-base}...HEAD` |
 | MAX_ROUNDS | `3` |
-| CONTEXT_FILES | `.artifacts/ui-implement/{issue-key}/01-context.md`, `.artifacts/ui-implement/{issue-key}/02-plan.md` (if they exist) |
+| CONTEXT_FILES | `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/01-context.md`, `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/02-plan.md` (if they exist) |
 | SUPPLEMENTARY_CRITERIA | This is a cross-cutting review. Each sub-task was already reviewed individually. Focus on inter-task issues: (1) Inconsistencies across components (naming conventions, prop patterns, event handling style). (2) Duplicated logic that emerged across separate tasks — shared hooks or utilities that should be extracted. (3) Integration gaps between components implemented in different tasks. (4) Design system usage coherence (consistent component choices, token usage). (5) i18n key consistency (naming convention, namespace usage). Skip issues already caught per-task: individual component correctness, per-file error handling, single-task test coverage. |
 
 If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
@@ -194,7 +196,7 @@ Check the **PR Conventions** section of `01-context.md`:
 - If no project template exists, use the default template below.
 
 In either case, save the result to
-`.artifacts/ui-implement/{issue-key}/06-pr-description.md`.
+`{ARTIFACTS_ROOT}/ui-implement/{issue-key}/06-pr-description.md`.
 
 **Default template** (used when the project has no PR template):
 
@@ -262,7 +264,7 @@ python3 "$PUBLISH_SCRIPT" create-pr \
   --base {pr-target} \
   --head {fork-owner}:{branch-name} \
   --title "{issue-key}: {story title}" \
-  --body-file .artifacts/ui-implement/{issue-key}/06-pr-description.md \
+  --body-file "${ARTIFACTS_ROOT}/ui-implement/{issue-key}/06-pr-description.md" \
   --draft
 ```
 
@@ -273,7 +275,7 @@ python3 "$PUBLISH_SCRIPT" create-pr \
   --base {pr-target} \
   --head {branch-name} \
   --title "{issue-key}: {story title}" \
-  --body-file .artifacts/ui-implement/{issue-key}/06-pr-description.md \
+  --body-file "${ARTIFACTS_ROOT}/ui-implement/{issue-key}/06-pr-description.md" \
   --draft
 ```
 
@@ -290,7 +292,7 @@ the **Upstream** field.
 
 ```bash
 python3 "$PUBLISH_SCRIPT" save-metadata \
-  --file .artifacts/ui-implement/{issue-key}/publish-metadata.json \
+  --file "${ARTIFACTS_ROOT}/ui-implement/{issue-key}/publish-metadata.json" \
   repo={upstream-owner}/{repo} \
   origin={fork-owner}/{repo} \
   branch={branch-name} \
@@ -304,7 +306,7 @@ python3 "$PUBLISH_SCRIPT" save-metadata \
 
 ```bash
 python3 "$PUBLISH_SCRIPT" save-metadata \
-  --file .artifacts/ui-implement/{issue-key}/publish-metadata.json \
+  --file "${ARTIFACTS_ROOT}/ui-implement/{issue-key}/publish-metadata.json" \
   repo={owner}/{repo} \
   origin={owner}/{repo} \
   branch={branch-name} \
@@ -325,8 +327,8 @@ Present:
 
 - Feature branch pushed to remote
 - Draft PR created
-- `.artifacts/ui-implement/{issue-key}/06-pr-description.md`
-- `.artifacts/ui-implement/{issue-key}/publish-metadata.json`
+- `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/06-pr-description.md`
+- `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/publish-metadata.json`
 
 ## When This Phase Is Done
 

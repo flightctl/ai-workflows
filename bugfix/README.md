@@ -115,7 +115,7 @@ The Bug Fix Workflow follows this approach:
 - Search for duplicates and regressions
 - Identify gaps and open questions
 
-**Output**: `.artifacts/bugfix/{issue}/assessment.md` + inline presentation.
+**Output**: `{ARTIFACTS_ROOT}/bugfix/{issue}/assessment.md` + inline presentation.
 
 **When to use**: When you have a bug report or issue URL and want a structured assessment before diving in.
 
@@ -129,7 +129,7 @@ The Bug Fix Workflow follows this approach:
 - Document minimal reproduction steps
 - Create reproduction report with severity assessment
 
-**Output**: `.artifacts/bugfix/{issue}/reproduction.md`
+**Output**: `{ARTIFACTS_ROOT}/bugfix/{issue}/reproduction.md`
 
 **When to use**: Start here if you have a bug report, an issue URL, or a symptom description.
 
@@ -144,7 +144,7 @@ The Bug Fix Workflow follows this approach:
 - Assess impact across the codebase
 - Recommend fix approach
 
-**Output**: `.artifacts/bugfix/{issue}/root-cause.md`
+**Output**: `{ARTIFACTS_ROOT}/bugfix/{issue}/root-cause.md`
 
 **When to use**: After successful reproduction, or skip here if you know the symptoms.
 
@@ -159,7 +159,7 @@ The Bug Fix Workflow follows this approach:
 - Run linters and formatters
 - Document implementation choices
 
-**Output**: Modified code files + `.artifacts/bugfix/{issue}/implementation-notes.md`
+**Output**: Modified code files + `{ARTIFACTS_ROOT}/bugfix/{issue}/implementation-notes.md`
 
 **When to use**: After diagnosis phase, or jump here if you already know the root cause.
 
@@ -174,7 +174,7 @@ The Bug Fix Workflow follows this approach:
 - Perform manual verification of original reproduction steps
 - Check for performance or security impacts
 
-**Output**: New test files + `.artifacts/bugfix/{issue}/verification.md`
+**Output**: New test files + `{ARTIFACTS_ROOT}/bugfix/{issue}/verification.md`
 
 **When to use**: After implementing the fix.
 
@@ -193,7 +193,7 @@ The Bug Fix Workflow follows this approach:
 - **Fix is adequate, tests are incomplete** → Provide instructions for what additional testing is needed (including manual steps for the user)
 - **Fix and tests are solid** → Recommend proceeding to `/document` and `/pr`
 
-**Output**: `.artifacts/bugfix/{issue}/review.md` + findings presented inline to the user.
+**Output**: `{ARTIFACTS_ROOT}/bugfix/{issue}/review.md` + findings presented inline to the user.
 
 **When to use**: After `/test`, especially for complex or high-risk fixes.
 
@@ -207,7 +207,7 @@ The Bug Fix Workflow follows this approach:
 - Update code comments with issue references
 - Draft PR description
 
-**Output**: `.artifacts/bugfix/{issue}/` containing issue updates, release notes, changelog entries, and PR description.
+**Output**: `{ARTIFACTS_ROOT}/bugfix/{issue}/` containing issue updates, release notes, changelog entries, and PR description.
 
 **When to use**: After testing is complete.
 
@@ -237,7 +237,7 @@ The Bug Fix Workflow follows this approach:
 - Submit: self-review gate, commit, push, and post review replies (when code changes are approved; clarification-only rounds skip to reply posting)
 - Repeatable: run again when new comments arrive
 
-**Output**: Review replies posted on the PR + updated `.artifacts/bugfix/{issue}/session-context.md`. When code changes are approved: modified code files + pushed commit(s).
+**Output**: Review replies posted on the PR + updated `{ARTIFACTS_ROOT}/bugfix/{issue}/session-context.md`. When code changes are approved: modified code files + pushed commit(s).
 
 **When to use**: After a PR has been submitted and reviewers have left comments. Run again for each review round.
 
@@ -250,7 +250,7 @@ The Bug Fix Workflow follows this approach:
 - Supports optional `branch` and `max_retries` inputs
 - Includes feedback loops: `/test` failures retry `/fix`, `/review` inadequacy retries `/fix`
 
-**Output**: All phase artifacts in `.artifacts/bugfix/{issue}/` + code changes in the working tree.
+**Output**: All phase artifacts in `{ARTIFACTS_ROOT}/bugfix/{issue}/` + code changes in the working tree.
 
 **When to use**: When a bot or CI pipeline needs to diagnose and fix a bug end-to-end without interactive feedback.
 
@@ -309,10 +309,10 @@ Workflow: Jumps to /fix to implement
 
 ## Artifacts Generated
 
-All workflow artifacts are organized in the `.artifacts/bugfix/{issue}/` directory:
+All workflow artifacts are organized in the `{ARTIFACTS_ROOT}/bugfix/{issue}/` directory:
 
 ```text
-.artifacts/bugfix/{issue}/
+{ARTIFACTS_ROOT}/bugfix/{issue}/
 ├── assessment.md             # Analytical bug assessment
 ├── reproduction.md           # Bug reproduction report
 ├── root-cause.md             # Root cause analysis

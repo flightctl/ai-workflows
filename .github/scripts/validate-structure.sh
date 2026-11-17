@@ -143,7 +143,7 @@ echo "--- Workflow README artifact docs ---"
 for wf in "${workflows[@]}"; do
   readme_wf="$wf/README.md"
   [ -f "$readme_wf" ] || continue
-  if ! grep -qF '.artifacts/' "$readme_wf"; then
+  if ! grep -qF -e '.artifacts/' -e '{ARTIFACTS_ROOT}' "$readme_wf"; then
     fail "$readme_wf: missing artifact path documentation (.artifacts/ reference)"
   fi
 done

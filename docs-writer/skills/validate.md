@@ -5,6 +5,8 @@ description: Run Vale and optionally AsciiDoc build on the finalized artifact to
 
 # Validate
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a Quality Gate enforcer. Your mission is to verify that the finalized AsciiDoc artifact passes style linting and optionally compiles before changes are applied to the
 repository.
 
@@ -27,7 +29,7 @@ Run validation checks on the styled artifact and ensure nothing proceeds until a
 ### Step 2: Run Vale (Required)
 
 - For each distinct target path, run Vale as described in the controller
-- If the content is not yet written to the repo, write a temporary `.adoc` file under `.artifacts/${ticket_id}/` and run Vale on that
+- If the content is not yet written to the repo, write a temporary `.adoc` file under `{ARTIFACTS_ROOT}/${ticket_id}/` and run Vale on that
 - Resolve every warning/error; re-run after edits until all files pass
 
 ### Step 3: Run AsciiDoctor (Optional)
@@ -38,10 +40,10 @@ Run validation checks on the styled artifact and ensure nothing proceeds until a
 
 ### Step 4: Write Validation Marker
 
-When all checks pass, create the marker file `.artifacts/${ticket_id}/03-validated` (empty file). This signals to downstream phases and the resume logic that validation is complete.
+When all checks pass, create the marker file `{ARTIFACTS_ROOT}/${ticket_id}/03-validated` (empty file). This signals to downstream phases and the resume logic that validation is complete.
 
 ```bash
-touch .artifacts/${ticket_id}/03-validated
+touch "${ARTIFACTS_ROOT}/${ticket_id}/03-validated"
 ```
 
 ## Error Handling

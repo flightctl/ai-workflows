@@ -5,6 +5,8 @@ description: Component decomposition, hook design, state management, route struc
 
 # Plan UI Design Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a senior frontend architect. Your job is to synthesize the `[UI]`
 story context, UX handoff, design document, and codebase patterns into a
 structured UI design document that details how the frontend will be built.
@@ -31,7 +33,7 @@ is the user's review checkpoint before any code is written.
 ### Step 1: Read Source Material
 
 Read these files in order:
-1. `.artifacts/ui-design/{workspace-id}/01-context.md` (ingestion context)
+1. `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/01-context.md` (ingestion context)
 2. The project's `AGENTS.md` and/or `CLAUDE.md` (coding conventions)
 3. `UI-ARCHITECTURE.md` if it exists (frontend-specific patterns)
 
@@ -97,7 +99,7 @@ For each section:
    `[Design: §4.3]`, `[Design: IC-N]`, `[PRD: FR-N]`, `[Codebase: path/to/file]`,
    `[User]`
 
-Write `.artifacts/ui-design/{workspace-id}/02-ui-design.md` with this structure:
+Write `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/02-ui-design.md` with this structure:
 
 ```markdown
 # UI Design — {workspace-id}
@@ -514,7 +516,7 @@ Before presenting the UI design document, verify:
 
 ### Step 6: Write Artifact
 
-Save the UI design document to `.artifacts/ui-design/{workspace-id}/02-ui-design.md`.
+Save the UI design document to `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/02-ui-design.md`.
 
 Read and follow `${HOME}/.ai-workflows/_shared/recipes/capture-provenance-event.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, `PHASE=plan`,
@@ -522,7 +524,7 @@ Read and follow `${HOME}/.ai-workflows/_shared/recipes/capture-provenance-event.
 
 Read and follow `${HOME}/.ai-workflows/_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, and `TARGET_FILE` set to the
-absolute source-repo path to `.artifacts/ui-design/{workspace-id}/02-ui-design.md`.
+absolute source-repo path to `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/02-ui-design.md`.
 
 The provenance footer is appended after the last section of the document
 (after the Open Questions section). The `render-provenance-footer` recipe
@@ -545,8 +547,8 @@ Show the user the complete UI design document and highlight:
 
 ## Output
 
-- `.artifacts/ui-design/{workspace-id}/02-ui-design.md`
-- `.artifacts/ui-design/{workspace-id}/provenance.json`
+- `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/02-ui-design.md`
+- `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/provenance.json`
 
 ## When This Phase Is Done
 

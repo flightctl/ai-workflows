@@ -4,6 +4,8 @@ description: Autonomous bugfix workflow that runs diagnose, fix, test, review, a
 ---
 # Unattended Bugfix Workflow
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Runs the bugfix phases from `/diagnose` through `/document` without stopping
 for human input. Designed for bots and CI pipelines where no interactive
 feedback is available.
@@ -44,7 +46,7 @@ is not already on the given branch, check it out first
   as an uncommitted diff. Committing is the responsibility of the `/pr`
   phase, which this workflow does not run.
 - **Do not push code or create PRs.** The calling system handles this.
-- **Do not write files outside `.artifacts/bugfix/{issue}/` and the project
+- **Do not write files outside `{ARTIFACTS_ROOT}/bugfix/{issue}/` and the project
   source tree.** Scratch files, logs, and notes go in the artifact directory.
   Only production source code and test file changes go outside it.
 - **Follow `guidelines.md`** for principles, hard limits, and quality
@@ -59,7 +61,7 @@ is not already on the given branch, check it out first
 2. Extract the issue key (e.g. `EDM-3467` from a Jira URL, `#421` from
    a GitHub issue)
 3. Create the artifact directory immediately:
-   `mkdir -p .artifacts/bugfix/{issue}`
+   `mkdir -p {ARTIFACTS_ROOT}/bugfix/{issue}`
 4. Execute the phase loop below, starting at `/diagnose`
 5. After each phase, proceed directly to the next — do not stop or wait
 
@@ -121,7 +123,7 @@ unattended:
   fix phase. Attempt the fix based on your best-effort diagnosis. The
   self-review in `/review` will catch inadequate fixes.
 - **Write implementation notes** to
-  `.artifacts/bugfix/{issue}/implementation-notes.md`. A future AI session
+  `{ARTIFACTS_ROOT}/bugfix/{issue}/implementation-notes.md`. A future AI session
   may need to address PR review comments without any memory of this session.
   Record the context it will need:
   - Files modified and why (with `file:line` references)
@@ -172,7 +174,7 @@ Fix all reported issues before proceeding.
 ### Session Context
 
 Write a session context manifest to
-`.artifacts/bugfix/{issue}/session-context.md`.
+`{ARTIFACTS_ROOT}/bugfix/{issue}/session-context.md`.
 
 This file is the entry point for any future AI session that works on this
 PR without memory of the current session (e.g., addressing PR review
@@ -230,7 +232,7 @@ those cases degrade gracefully as described in the Feedback Loops section.
 However, when `guidelines.md` escalation criteria are triggered (security
 concerns, architectural decisions, breaking API changes — except where
 overridden in Phase Overrides above), write
-`.artifacts/bugfix/{issue}/escalation.md` with:
+`{ARTIFACTS_ROOT}/bugfix/{issue}/escalation.md` with:
 
 - Which phase triggered escalation and why
 - What was attempted
@@ -247,7 +249,7 @@ When all phases finish, output:
 ## Unattended Run Complete
 
 Phases: diagnose ✓ → fix ✓ → test ✓ → review ✓ → lint ✓ → document ✓ → context ✓
-Artifacts: .artifacts/bugfix/{issue}/
+Artifacts: {ARTIFACTS_ROOT}/bugfix/{issue}/
 Result: <summary of changes or reason for early stop>
 Retries: <any fix/test retry cycles>
 Degraded phases: <phases that exhausted retries and continued with documented concerns, if any>

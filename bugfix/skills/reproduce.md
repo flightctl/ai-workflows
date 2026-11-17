@@ -5,6 +5,8 @@ description: Systematically reproduce a reported bug and document its observable
 
 # Reproduce Bug Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a systematic bug reproduction specialist. Your mission is to confirm and document reported bugs, creating a solid foundation for diagnosis by establishing clear, reproducible test cases.
 
 ## Your Role
@@ -49,7 +51,7 @@ Methodically reproduce bugs and document their behavior so that diagnosis and fi
 
 ### Step 5: Create Reproduction Report
 
-Write comprehensive report to `.artifacts/bugfix/{issue}/reproduction.md` containing:
+Write comprehensive report to `{ARTIFACTS_ROOT}/bugfix/{issue}/reproduction.md` containing:
 
 - **Bug Summary**: One-line description
 - **Severity**: Critical/High/Medium/Low with justification
@@ -63,7 +65,7 @@ Write comprehensive report to `.artifacts/bugfix/{issue}/reproduction.md` contai
 
 ## Output
 
-- `.artifacts/bugfix/{issue}/reproduction.md`
+- `{ARTIFACTS_ROOT}/bugfix/{issue}/reproduction.md`
 
 ## Best Practices
 

@@ -5,6 +5,8 @@ description: Post the design document as a GitHub PR for external review.
 
 # Publish Design Document Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a submission specialist. Your job is to post the finalized design
 document as a GitHub pull request so technical reviewers can review it.
 
@@ -50,13 +52,13 @@ commands.
 
 ### Step 1: Read the Design Document
 
-Read `.artifacts/design/{issue-key}/03-design.md`.
+Read `{ARTIFACTS_ROOT}/design/{issue-key}/03-design.md`.
 
 If the file doesn't exist, tell the user that `/draft` should be run first.
 
 ### Step 2: Resolve Docs Repo
 
-Check for an existing docs repo configuration at `.artifacts/config.json`.
+Check for an existing docs repo configuration at `{ARTIFACTS_ROOT}/config.json`.
 
 **If the config exists**, read it and validate:
 
@@ -67,7 +69,7 @@ Check for an existing docs repo configuration at `.artifacts/config.json`.
 
 If any validation fails, inform the user what failed and re-ask for the
 correct values. Resolve `~` to an absolute path before saving. Update
-`.artifacts/config.json` with the corrected values.
+`{ARTIFACTS_ROOT}/config.json` with the corrected values.
 
 **If the config does not exist**, ask the user:
 
@@ -76,11 +78,11 @@ correct values. Resolve `~` to an absolute path before saving. Update
 - **Docs repo remote:** Run `git -C "{docs_repo_path}" remote -v`, choose the
   docs repository URL without embedded credentials to save, and confirm it
   with the user before proceeding. Never save a token or password in
-  `.artifacts/config.json`.
+  `{ARTIFACTS_ROOT}/config.json`.
   The remote name is not part of the configuration contract.
 
 Validate the path and remote. Resolve `~` to the user's home directory
-so the stored path is absolute. Write `.artifacts/config.json` with the
+so the stored path is absolute. Write `{ARTIFACTS_ROOT}/config.json` with the
 validated `docs_repo_path` and `docs_repo_remote`.
 
 ### Step 3: Pre-Flight Checks
@@ -125,7 +127,7 @@ actual push transport, derive it locally with `git remote get-url --push
 "{push_remote}"`; do not copy credentials into workflow artifacts or prompts.
 
 Provenance at publish time:
-- If `.artifacts/design/{issue-key}/provenance.json` exists from `/draft`, `/revise`,
+- If `{ARTIFACTS_ROOT}/design/{issue-key}/provenance.json` exists from `/draft`, `/revise`,
   or `/respond`, the footer reflects the full authoring session (`provenance_kind:
   session`).
 - If the log is missing, the render recipe **auto-captures a commit-time snapshot**
@@ -215,7 +217,7 @@ mkdir -p "{docs_repo_path}/{release}/{feature}"
 ```
 
 ```bash
-cp ".artifacts/design/{issue-key}/03-design.md" "{docs_repo_path}/{release}/{feature}/design.md"
+cp "${ARTIFACTS_ROOT}/design/{issue-key}/03-design.md" "{docs_repo_path}/{release}/{feature}/design.md"
 ```
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
@@ -247,7 +249,7 @@ git -C "{docs_repo_path}" commit -m "Add design document for {issue-key}: {title
 **If `04-testplan.md` exists**, copy it to the docs repo:
 
 ```bash
-cp ".artifacts/design/{issue-key}/04-testplan.md" "{docs_repo_path}/{release}/{feature}/testplan.md"
+cp "${ARTIFACTS_ROOT}/design/{issue-key}/04-testplan.md" "{docs_repo_path}/{release}/{feature}/testplan.md"
 ```
 
 ```bash
@@ -273,7 +275,7 @@ attention (AI-dependent):
 - Key architectural decisions that have significant trade-offs
 
 Prepare the PR description and save it to
-`.artifacts/design/{issue-key}/08-pr-description.md`:
+`{ARTIFACTS_ROOT}/design/{issue-key}/08-pr-description.md`:
 
 ```markdown
 ## Design: {title}
@@ -325,7 +327,7 @@ python3 "$PUBLISH_SCRIPT" create-pr \
   --base {base-branch} \
   --head {head-ref} \
   --title "{pr-title}" \
-  --body-file .artifacts/design/{issue-key}/08-pr-description.md \
+  --body-file "${ARTIFACTS_ROOT}/design/{issue-key}/08-pr-description.md" \
   --draft
 ```
 
@@ -337,7 +339,7 @@ If `04-testplan.md` was published:
 
 ```bash
 python3 "$PUBLISH_SCRIPT" save-metadata \
-  --file .artifacts/design/{issue-key}/publish-metadata.json \
+  --file "${ARTIFACTS_ROOT}/design/{issue-key}/publish-metadata.json" \
   release={release} \
   feature={feature} \
   design_file_path={release}/{feature}/design.md \
@@ -350,7 +352,7 @@ If no testplan was published, omit `testplan_file_path`:
 
 ```bash
 python3 "$PUBLISH_SCRIPT" save-metadata \
-  --file .artifacts/design/{issue-key}/publish-metadata.json \
+  --file "${ARTIFACTS_ROOT}/design/{issue-key}/publish-metadata.json" \
   release={release} \
   feature={feature} \
   design_file_path={release}/{feature}/design.md \
@@ -368,11 +370,11 @@ Present:
 
 ## Output
 
-- `.artifacts/config.json` (workspace-level config, created if it didn't exist)
-- `.artifacts/design/{issue-key}/publish-metadata.json`
+- `{ARTIFACTS_ROOT}/config.json` (workspace-level config, created if it didn't exist)
+- `{ARTIFACTS_ROOT}/design/{issue-key}/publish-metadata.json`
 - Design document committed and pushed to feature branch in the docs repo
 - Draft PR created against the docs repo
-- `.artifacts/design/{issue-key}/08-pr-description.md`
+- `{ARTIFACTS_ROOT}/design/{issue-key}/08-pr-description.md`
 
 ## When This Phase Is Done
 

@@ -1,5 +1,7 @@
 # Bugfix Workflow
 
+Before any artifact access, follow [the shared artifact resolver](../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Systematic bug resolution through these phases:
 
 1. **Assess** (`/assess`) — Analytical assessment: error signature, recommendation, source-code context, duplicates, regressions
@@ -15,7 +17,7 @@ Systematic bug resolution through these phases:
 The workflow controller lives at `skills/controller.md` (interactive) or
 `skills/unattended.md` (unattended).
 Phase skills are at `skills/{name}.md`.
-Artifacts go in `.artifacts/bugfix/{issue}`.
+Artifacts go in `{ARTIFACTS_ROOT}/bugfix/{issue}`.
 
 ## Principles
 
@@ -75,11 +77,11 @@ details.
 User: "Fix issue #421 — NullPointerException on login"
 
 /assess    → analytical assessment with source-code context
-             → writes .artifacts/bugfix/421/assessment.md
+             → writes {ARTIFACTS_ROOT}/bugfix/421/assessment.md
 /reproduce → confirms the failure with a test
-             → writes .artifacts/bugfix/421/reproduction.md
+             → writes {ARTIFACTS_ROOT}/bugfix/421/reproduction.md
 /diagnose  → traces root cause to AuthService.java:87
-             → writes .artifacts/bugfix/421/root-cause.md
+             → writes {ARTIFACTS_ROOT}/bugfix/421/root-cause.md
 /fix       → adds null-check, minimal diff
 /test      → regression test passes ✓
              → if tests fail: stop and report; offer retry of /fix or escalation

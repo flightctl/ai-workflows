@@ -125,7 +125,7 @@ the dashboard silently.
 All outputs are saved for auditability:
 
 ```
-.artifacts/triage/{project}/
+{ARTIFACTS_ROOT}/triage/{project}/
   issues.json        — raw scanned unresolved bugs from Jira
   resolved.json      — recently resolved bugs (default 90d) for regression matching in analyze
   analyzed.json      — issues with recommendations, signatures, duplicate/regression fields

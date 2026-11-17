@@ -1,8 +1,10 @@
 ---
 name: capture-provenance-event
-version: 0.1.3
+version: 0.2.0
 ---
 # Recipe: Capture Provenance Event
+
+Before artifact access, follow [the shared artifact resolver](resolve-artifacts.md).
 
 Append an environment snapshot to the session-local provenance log after a
 phase mutates the planning document. See `../provenance-schema.md`.
@@ -18,7 +20,7 @@ phase mutates the planning document. See `../provenance-schema.md`.
 
 ## Procedure
 
-From the **source repo** root (where `.artifacts/` lives), run:
+From the **source repo** root (where `{ARTIFACTS_ROOT}/` lives), run:
 
 ```bash
 python3 "{AI_WORKFLOWS_ROOT}/_shared/scripts/provenance.py" capture \
@@ -35,4 +37,4 @@ Resolve `{AI_WORKFLOWS_ROOT}` as the git root of the ai-workflows install
 If the command fails, warn the user but do not block the phase — provenance is
 diagnostic, not a hard gate.
 
-Writes or updates `.artifacts/{WORKFLOW}/{ISSUE_KEY}/provenance.json`.
+Writes or updates `{ARTIFACTS_ROOT}/{WORKFLOW}/{ISSUE_KEY}/provenance.json`.

@@ -1,6 +1,6 @@
 ---
 name: skill-reviewer
-version: 0.3.1
+version: 0.4.0
 description: >-
   Deep review of an AI skill directory. Critically evaluates structure, clarity,
   completeness, and consistency of SKILL.md, skills/*.md, commands/*.md, and
@@ -8,6 +8,7 @@ description: >-
   Activated by commands: /review.
 ---
 # Skill Reviewer Workflow Orchestrator
+Before any artifact access, follow [the shared artifact resolver](../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
 
 ## Quick Start
 
@@ -33,7 +34,7 @@ For principles, hard limits, safety, quality, and escalation rules, see `guideli
    - **Error Handling** — failure modes documented, escalation paths clear
 4. Classify each finding by severity — **CRITICAL** / **HIGH** (blockers) or **MEDIUM** / **LOW** (suggestions).
 5. Validate findings: verify each finding cites a specific file, includes a concrete suggestion, and that blocker/suggestion counts are accurate. Drop any finding you cannot substantiate from the files you read.
-6. Produce a structured report and write it to `.artifacts/skill-reviewer/{skill-name}/review.md`:
+6. Produce a structured report and write it to `{ARTIFACTS_ROOT}/skill-reviewer/{skill-name}/review.md`:
 
 ```text
 ## Skill Review: {skill-name}

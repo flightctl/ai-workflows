@@ -1,6 +1,6 @@
 ---
 name: ux-design
-version: 0.5.0
+version: 0.6.0
 description: >-
   UX design workflow that supports early research and exploratory prototyping
   from a Jira Feature or published PRD, then enriches the same context from its
@@ -10,6 +10,7 @@ description: >-
   Activated by commands: /ingest, /research, /prototype, /evaluate, /handoff, /revise, /publish, /respond.
 ---
 # UX Design Workflow Orchestrator
+Before any artifact access, follow [the shared artifact resolver](../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
 
 ## Quick Start
 

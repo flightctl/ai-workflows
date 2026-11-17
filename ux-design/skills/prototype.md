@@ -5,6 +5,8 @@ description: Generate design prototypes informed by research findings for evalua
 
 # Prototype — Design Exploration
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Generate prototypes that let the researcher react to a design direction and
 iterate before handoff. A prototype should focus on the riskiest user flows and
 states rather than polish that cannot yet be validated.
@@ -32,16 +34,16 @@ copy, or cleanup operations. If a newly created ID fails validation, stop,
 report the invalid ID, and leave the native artifacts in place for manual
 inspection.
 
-Resolve `.artifacts` under the source repo root and require it to be a real
-directory, not a symlink. Resolve `.artifacts/{ID}` and require it to be a
+Resolve `{ARTIFACTS_ROOT}` with the shared resolver and require it to be a real
+directory, not a symlink. Resolve `{ARTIFACTS_ROOT}/{ID}` and require it to be a
 non-symlink directory whose resolved parent is exactly the resolved
-`.artifacts` directory. If any check fails, stop before reading, copying, or
+`{ARTIFACTS_ROOT}` directory. If any check fails, stop before reading, copying, or
 removing the native directory. Repeat the containment check immediately before
 cleanup.
 
 ## Prerequisites
 
-Read `.artifacts/ux-design/{issue-key}/01-discovery.md` for the problem, user
+Read `{ARTIFACTS_ROOT}/ux-design/{issue-key}/01-discovery.md` for the problem, user
 groups, and competitive landscape. If it is missing, ask for an equivalent
 problem framing. If none is available, recommend `/ingest` and stop.
 
@@ -108,7 +110,7 @@ feature modifies existing pages or components, pass it as `--workspace`. For
 a Git URL, use `--workspace-branch` to select the clone branch; for a local
 path the resolver validates it exists (`type: local`) and ignores
 `--workspace-branch`. For a Git URL the resolver clones into
-`.artifacts/{ID}/code/`. For a monorepo, record the frontend subdirectory.
+`{ARTIFACTS_ROOT}/{ID}/code/`. For a monorepo, record the frontend subdirectory.
 
 **Baseline SHA — pre-invocation (local workspace only):** Before invoking
 the create skill, capture the local workspace commit SHA
@@ -202,15 +204,20 @@ the plugin root at `${HOME}/.uxd-ai-skills/plugins/uxd-prototype`. Set the
 expected variable for a helper invocation or substitute its absolute path.
 Do not assume a plugin path based on another runtime.
 
+Run the upstream create/refine skill with CWD set to the main worktree
+(`ARTIFACTS_ROOT`'s parent), so its native relative `.artifacts/{ID}` output
+uses canonical state. Keep the chosen frontend workspace argument absolute and
+unchanged; this CWD is not a source-code or published-output destination.
+
 ### Refinement After `/evaluate`
 
-`uxd-prototype-create refine {ID}` reads `.artifacts/{ID}/eval/evaluation-report.csv`
+`uxd-prototype-create refine {ID}` reads `{ARTIFACTS_ROOT}/{ID}/eval/evaluation-report.csv`
 and `refinement-suggestions.json`; not `reviews/summary.md` or `--mode`.
 
 Before refining:
 
 1. Validate `{ID}` using **Artifact Path Safety** before restoring the
-   prototype's native layout under `.artifacts/{ID}/` from the
+   prototype's native layout under `{ARTIFACTS_ROOT}/{ID}/` from the
    mirrored files in `03-prototype/` as described in Step 3.
 2. **Full-input gate.** Read `Full evaluation run` from `04-evaluation.md`.
    **Stale bindings → stop**; require current `/evaluate`. `N/A` (no
@@ -219,32 +226,32 @@ Before refining:
    edit to `Authorized fixes`. **Pass:** copy `evaluation-report.csv`
    and `refinement-suggestions.json` from
    `04-eval-raw/prototype-evaluate/{validated-run-id}/.artifacts/{ID}/eval/`
-   into `.artifacts/{ID}/eval/`. Ineligible (N/A, unproven mapping,
+   into `{ARTIFACTS_ROOT}/{ID}/eval/`. Ineligible (N/A, unproven mapping,
    broader edits, valid-missing): copy neither; new-create with source
    and authorized feedback only.
 3. Before a refinement or replacement changes the native prototype, preserve
    the current
-   `.artifacts/ux-design/{issue-key}/03-prototype/` tree under
+   `{ARTIFACTS_ROOT}/ux-design/{issue-key}/03-prototype/` tree under
    `history/prototype-iteration-{N}/`, unless that exact tree is already in the
    current context-revision snapshot. Do not overwrite an existing snapshot.
 
 `refine` only when the Full-input gate passes; do not mirror/remove
-`.artifacts/{ID}/` before Step 3.
+`{ARTIFACTS_ROOT}/{ID}/` before Step 3.
 
 ### Step 3: Map Skill Output Into Our Artifact Structure
 
-The create skill writes to `.artifacts/{ID}/`, where `{ID}` is the Jira key or a
+The create skill writes to `{ARTIFACTS_ROOT}/{ID}/`, where `{ID}` is the Jira key or a
 slug. Read the returned ID from the create skill's output, then validate it
 using **Artifact Path Safety** before constructing paths or reading
 `metadata.json`.
 
 **Awaiting-decisions guard (check before any mirroring):** When
-`decisions/` exists under `.artifacts/{ID}/`, read `decisions.json` for
+`decisions/` exists under `{ARTIFACTS_ROOT}/{ID}/`, read `decisions.json` for
 per-decision statuses (`pending`, `auto-resolved`, `user-decided`). If any
 decision has status `pending`, the skill is paused awaiting researcher
 input — not failed and not complete. Surface the pending decision pages and
 `decisions/index.html` to the researcher. Keep all native artifacts under
-`.artifacts/{ID}/` intact so the skill can resume after choices are made.
+`{ARTIFACTS_ROOT}/{ID}/` intact so the skill can resume after choices are made.
 Do not snapshot, mirror, delete native output, or advance to evaluation or
 handoff. Stop here and wait for the researcher to resolve decisions, then
 re-enter Step 3 after the skill resumes and completes.
@@ -269,20 +276,20 @@ refreshing affected Current State context. Standalone mode: skip.
 For a refinement, Step 2 has already preserved the prior active tree;
 reuse that snapshot and do not archive it again. For any other replacement,
 preserve the current tree under
-`.artifacts/ux-design/{issue-key}/history/prototype-iteration-{N}/` before
+`{ARTIFACTS_ROOT}/ux-design/{issue-key}/history/prototype-iteration-{N}/` before
 mirroring, unless that exact tree is already preserved in the current
 context-revision snapshot. Never archive the new output as the previous
 iteration. Mirror the new output under
-`.artifacts/ux-design/{issue-key}/03-prototype/`, preserving the prototype's
+`{ARTIFACTS_ROOT}/ux-design/{issue-key}/03-prototype/`, preserving the prototype's
 native layout so a later refinement can restore it without flattening files.
 
 **Standalone prototype:**
 
-- `.artifacts/{ID}/prototype/` → `03-prototype/prototype/`
+- `{ARTIFACTS_ROOT}/{ID}/prototype/` → `03-prototype/prototype/`
 
 **Workspace prototype:**
 
-- `.artifacts/{ID}/code/` contains the cloned codebase and prototype changes.
+- `{ARTIFACTS_ROOT}/{ID}/code/` contains the cloned codebase and prototype changes.
   Preserve it under `03-prototype/code/` or record its durable path; note the
   prototype's app entry point in `prototype-notes.md`.
 - Mirror `changeset.md` and `workspace-analysis.json` to `03-prototype/`.
@@ -340,20 +347,20 @@ into its private run root. Record the create skill's `{ID}` in
 `prototype-notes.md`.
 
 After mirroring the canonical prototype files, remove the native
-`.artifacts/{ID}/` created by the create or refine skill. This cleanup happens
+`{ARTIFACTS_ROOT}/{ID}/` created by the create or refine skill. This cleanup happens
 only here, after the refined output is safely mirrored. Recheck the ID and
 resolved-path containment immediately before deletion. Never run `rm -rf` on a
 path assembled directly from `{ID}`. Remove only the validated direct child of
-`.artifacts`, using the source-repo root and ID as quoted arguments:
+`{ARTIFACTS_ROOT}`, using the resolved artifact root and ID as quoted arguments:
 
 ```bash
-python3 - "${source_repo_root}" "${prototype_id}" <<'PY'
+python3 - "${ARTIFACTS_ROOT}" "${prototype_id}" <<'PY'
 import re
 import shutil
 import sys
 from pathlib import Path
 
-repo_root = Path(sys.argv[1]).resolve(strict=True)
+artifact_root_path = Path(sys.argv[1])
 prototype_id = sys.argv[2]
 if (
     not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", prototype_id)
@@ -361,11 +368,10 @@ if (
 ):
     raise SystemExit("Refusing to remove an invalid prototype ID")
 
-artifact_root_path = repo_root / ".artifacts"
 if artifact_root_path.is_symlink():
     raise SystemExit("Refusing to remove files through a symlinked .artifacts directory")
 artifact_root = artifact_root_path.resolve(strict=True)
-if artifact_root.parent != repo_root or not artifact_root.is_dir():
+if not artifact_root.is_dir():
     raise SystemExit("Refusing to remove files outside the source repo's .artifacts directory")
 
 native_dir = artifact_root / prototype_id
@@ -380,7 +386,7 @@ PY
 ```
 
 The evaluator uses a separate private run root under `04-eval-raw/`; do not
-move its outputs into `.artifacts/{ID}/` except for the two temporary
+move its outputs into `{ARTIFACTS_ROOT}/{ID}/` except for the two temporary
 refinement inputs described above.
 
 ## Step 4: Document Design Rationale
@@ -391,7 +397,7 @@ Do not invent research evidence.
 
 ## Output
 
-`.artifacts/ux-design/{issue-key}/03-prototype/`
+`{ARTIFACTS_ROOT}/ux-design/{issue-key}/03-prototype/`
 
 ```text
 03-prototype/

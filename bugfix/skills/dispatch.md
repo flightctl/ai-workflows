@@ -5,6 +5,8 @@ description: Resolve and execute one requested bugfix phase.
 
 # Bugfix Phase Dispatch
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Given `PHASE`, initialize `COMPLETION_CONSUMED=false`, then announce
 `Starting /{PHASE}.` Read and follow
 `../../_shared/recipes/phase-override-resolution.md` with `WORKFLOW=bugfix` and

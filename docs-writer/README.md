@@ -87,7 +87,7 @@ gather → plan → [approve] → draft → validate → apply → mr
 - Fetch code diffs to understand technical changes
 - Synthesize a comprehensive context document
 
-**Output**: `.artifacts/${ticket_id}/01-context.md`
+**Output**: `{ARTIFACTS_ROOT}/${ticket_id}/01-context.md`
 
 **When to use**: Start here when you have a Jira ticket, GitHub issue URL, or feature description.
 
@@ -100,7 +100,7 @@ gather → plan → [approve] → draft → validate → apply → mr
 - Search for existing related content
 - Create a structural plan specifying which `.adoc` files to create or modify
 
-**Output**: `.artifacts/${ticket_id}/02-plan.md`
+**Output**: `{ARTIFACTS_ROOT}/${ticket_id}/02-plan.md`
 
 **When to use**: After gathering context, or skip here if you already understand the feature.
 
@@ -122,7 +122,7 @@ After `/plan` completes, the workflow pauses for user approval. Review the plan,
 - Run Vale and fix all violations
 - Format the output for downstream phases
 
-**Output**: `.artifacts/${ticket_id}/03-final-docs.adoc`
+**Output**: `{ARTIFACTS_ROOT}/${ticket_id}/03-final-docs.adoc`
 
 **When to use**: After the plan is approved, or jump here if you already have a plan.
 
@@ -204,7 +204,7 @@ Workflow: Jumps to /plan to determine the target files
 #### Scenario 3: You already have a draft
 
 ```text
-User: "I've written a draft at .artifacts/RHEM-789/03-final-docs.adoc, validate it"
+User: "I've written a draft at {ARTIFACTS_ROOT}/RHEM-789/03-final-docs.adoc, validate it"
 
 Workflow: Jumps to /validate to verify
 → /apply to write to the repository
@@ -212,10 +212,10 @@ Workflow: Jumps to /validate to verify
 
 ## Artifacts Generated
 
-All workflow artifacts are organized in the `.artifacts/${ticket_id}/` directory:
+All workflow artifacts are organized in the `{ARTIFACTS_ROOT}/${ticket_id}/` directory:
 
 ```text
-.artifacts/${ticket_id}/
+{ARTIFACTS_ROOT}/${ticket_id}/
 ├── 01-context.md          # Feature research and context
 ├── 02-plan.md             # Structural plan (which files to create/modify)
 ├── 03-final-docs.adoc     # Style-compliant, validated AsciiDoc (multi-file format)

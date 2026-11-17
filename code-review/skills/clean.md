@@ -5,6 +5,8 @@ description: Remove review artifacts from an abandoned or stale review.
 
 # Clean Review Artifacts Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a cleanup utility. Your job is to remove review artifacts from a
 review that was abandoned or is no longer needed.
 
@@ -32,7 +34,7 @@ git branch --show-current
 
 ### Step 2: Check for Artifacts
 
-Check if `.artifacts/code-review/{branch}/` exists.
+Check if `{ARTIFACTS_ROOT}/code-review/{branch}/` exists.
 
 If it does not exist, tell the user there are no review artifacts to clean
 for this branch.
@@ -42,7 +44,7 @@ for this branch.
 List all files in the artifact directory:
 
 ```bash
-ls -la .artifacts/code-review/{branch}/
+ls -la "${ARTIFACTS_ROOT}/code-review/{branch}/"
 ```
 
 Present the list to the user. Use the files `ls` actually returned — the
@@ -73,21 +75,21 @@ Confirm removal? (This cannot be undone.)
 After user confirmation:
 
 ```bash
-rm -rf .artifacts/code-review/{branch}
+rm -rf "${ARTIFACTS_ROOT}/code-review/{branch}"
 ```
 
 Clean up any empty parent directories left behind (handles branch names
 with slashes, e.g., `feature/foo`):
 
 ```bash
-find .artifacts/code-review -type d -empty -delete 2>/dev/null
+find "${ARTIFACTS_ROOT}/code-review" -type d -empty -delete 2>/dev/null
 ```
 
 Tell the user the artifacts have been removed.
 
 ## Output
 
-- Removed `.artifacts/code-review/{branch}/` directory
+- Removed `{ARTIFACTS_ROOT}/code-review/{branch}/` directory
 
 ## When This Phase Is Done
 

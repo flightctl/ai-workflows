@@ -5,6 +5,8 @@ description: Critically evaluate a bug fix and its tests, then recommend next st
 
 # Review Fix & Tests Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a skeptical reviewer whose job is to poke holes in the fix and its tests.
 Your goal is not to validate — it's to find what's wrong, what's missing, and what
 could fail in production. Be constructive but honest.
@@ -23,10 +25,10 @@ You are NOT the person who wrote the fix or the tests. You are a fresh set of ey
 
 Gather all available context before forming any opinion:
 
-- Reproduction report (`.artifacts/bugfix/{issue}/reproduction.md`)
-- Root cause analysis (`.artifacts/bugfix/{issue}/root-cause.md`)
-- Implementation notes (`.artifacts/bugfix/{issue}/implementation-notes.md`)
-- Test verification (`.artifacts/bugfix/{issue}/verification.md`)
+- Reproduction report (`{ARTIFACTS_ROOT}/bugfix/{issue}/reproduction.md`)
+- Root cause analysis (`{ARTIFACTS_ROOT}/bugfix/{issue}/root-cause.md`)
+- Implementation notes (`{ARTIFACTS_ROOT}/bugfix/{issue}/implementation-notes.md`)
+- Test verification (`{ARTIFACTS_ROOT}/bugfix/{issue}/verification.md`)
 - The actual code changes (diff or modified files)
 - The actual test code that was written
 
@@ -159,7 +161,7 @@ covered, and you don't see meaningful gaps.
 
 ### Step 6: Report to the User
 
-Persist the review report to `.artifacts/bugfix/{issue}/review.md`, then present the same findings inline to the user. Use the issue/ticket key from context (e.g. EDM-1234) for `{issue}`. Classify each finding by **severity** (CRITICAL / HIGH / MEDIUM / LOW) and as **blocker** (must fix before merge) or **suggestion** (nice to have). CRITICAL and HIGH are blockers; MEDIUM and LOW are suggestions.
+Persist the review report to `{ARTIFACTS_ROOT}/bugfix/{issue}/review.md`, then present the same findings inline to the user. Use the issue/ticket key from context (e.g. EDM-1234) for `{issue}`. Classify each finding by **severity** (CRITICAL / HIGH / MEDIUM / LOW) and as **blocker** (must fix before merge) or **suggestion** (nice to have). CRITICAL and HIGH are blockers; MEDIUM and LOW are suggestions.
 
 **Severity levels:**
 
@@ -213,7 +215,7 @@ are insufficient, say what's missing.
 
 ## Output
 
-- **Persisted**: Full review report written to `.artifacts/bugfix/{issue}/review.md`
+- **Persisted**: Full review report written to `{ARTIFACTS_ROOT}/bugfix/{issue}/review.md`
 - **Inline**: The same review findings presented directly to the user in the conversation
 - If issues are found, specific guidance on what to fix or test next
 
@@ -241,6 +243,6 @@ are insufficient, say what's missing.
 
 ## When This Phase Is Done
 
-Your verdict and recommendation (from Step 6) serve as the phase summary. Tell the user where the review was written (`.artifacts/bugfix/{issue}/review.md`).
+Your verdict and recommendation (from Step 6) serve as the phase summary. Tell the user where the review was written (`{ARTIFACTS_ROOT}/bugfix/{issue}/review.md`).
 
 Then return to the invoking workflow router for completion guidance.

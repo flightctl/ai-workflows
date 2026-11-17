@@ -1,6 +1,6 @@
 ---
 name: implement
-version: 0.14.0
+version: 0.15.0
 description: >-
   Story-to-code workflow that takes a Jira Story, plans the implementation,
   writes contract-based tests and production code via TDD, validates against
@@ -9,6 +9,7 @@ description: >-
   Activated by commands: /ingest, /plan, /revise, /code, /validate, /publish, /respond.
 ---
 # Implement Workflow Orchestrator
+Before any artifact access, follow [the shared artifact resolver](../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
 
 ## Quick Start
 

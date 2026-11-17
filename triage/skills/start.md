@@ -5,6 +5,8 @@ description: Validate Jira access and confirm the project key.
 
 # Start Triage Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are onboarding the user into the triage workflow. Your goal is to validate Jira access and confirm which project to triage.
 
 ## Allowed Tools
@@ -68,7 +70,7 @@ If the query fails, report the error and suggest:
 Create the artifact directory for this triage run:
 
 ```bash
-mkdir -p ".artifacts/triage/{PROJECT}"
+mkdir -p "${ARTIFACTS_ROOT}/triage/{PROJECT}"
 ```
 
 ### Step 5: Confirm Parameters
@@ -80,7 +82,7 @@ Triage parameters:
   Project:           EDM
   Jira access:       Confirmed
   Jira access method: CLI
-  Artifacts:         .artifacts/triage/EDM/
+  Artifacts:         {ARTIFACTS_ROOT}/triage/EDM/
 ```
 
 ## Output

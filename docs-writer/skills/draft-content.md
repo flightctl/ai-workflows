@@ -5,6 +5,8 @@ description: Draft style-compliant AsciiDoc documentation from research context 
 
 # Draft Content
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are an expert Technical Writer and Editor producing **AsciiDoc** (`.adoc`) content for this repository. Your mission is to turn the gathered context and approved plan into
 documentation that is ready for validation.
 

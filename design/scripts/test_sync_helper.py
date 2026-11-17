@@ -3424,7 +3424,7 @@ def _substitute_child_bash(
     # "{child-story-file}", which we replace entirely — the
     # shlex.quote wrapping ensures tokens survive shlex.split.
     text = text.replace(
-        ".artifacts/design/{issue-key}/sync-manifest.json",
+        '"${ARTIFACTS_ROOT}/design/{issue-key}/sync-manifest.json"',
         shlex.quote(manifest_path))
     text = text.replace('"{child-story-file}"', shlex.quote(child_file))
     text = text.replace('"{child-story-jira-key}"', shlex.quote(child_key))
@@ -3614,7 +3614,7 @@ class TestCreateUpdateRecipes(_TmpDirMixin, unittest.TestCase):
         import shlex
         text = block.replace('python3 "$SYNC_HELPER" ', "")
         text = text.replace(
-            ".artifacts/design/{issue-key}/sync-manifest.json",
+            '"${ARTIFACTS_ROOT}/design/{issue-key}/sync-manifest.json"',
             shlex.quote(str(self.mf)))
         text = text.replace('"{story-file}"', "story-01-scaffold.md")
         text = text.replace('"{jira-key}"', "EDM-301")
@@ -8532,7 +8532,7 @@ class TestStep3CaptureRecipeExecution(unittest.TestCase):
             f"'{sys.executable}' -I '{_SCRIPT}'")
         # Replace artifact path placeholder
         script = script.replace(
-            ".artifacts/design/{issue-key}/", artifacts_dir + "/")
+            "${ARTIFACTS_ROOT}/design/{issue-key}/", artifacts_dir + "/")
         return script
 
     def test_valid_clean_capture(self) -> None:

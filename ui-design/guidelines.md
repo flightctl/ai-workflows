@@ -1,5 +1,7 @@
 # UI Design Workflow Guidelines
 
+Before any artifact access, follow [the shared artifact resolver](../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 ## Principles
 
 - The UI design document represents the **team's** agreed frontend approach, not the AI's interpretation. Always confirm before committing content.
@@ -57,14 +59,14 @@ Stop and request human guidance when:
 
 ## Artifact Persistence and Isolation
 
-- All workflow artifacts MUST be stored under `.artifacts/ui-design/{workspace-id}/`
-- NEVER read from another workflow's `.artifacts/` directory (`.artifacts/prd/`,
-  `.artifacts/design/`, `.artifacts/ux-design/`, etc.) — those are private working
+- All workflow artifacts MUST be stored under `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/`
+- NEVER read from another workflow's `{ARTIFACTS_ROOT}/` directory (`{ARTIFACTS_ROOT}/prd/`,
+  `{ARTIFACTS_ROOT}/design/`, `{ARTIFACTS_ROOT}/ux-design/`, etc.) — those are private working
   directories, not interfaces
 - Shared inputs MUST come from published locations:
   - Jira issues (read-only until `/sync`)
   - Published docs repository (PRD, design doc, UX handoff)
-  - `.artifacts/config.json` (shared repo configuration)
+  - `{ARTIFACTS_ROOT}/config.json` (shared repo configuration)
   - Project files (AGENTS.md, CLAUDE.md, UI-ARCHITECTURE.md)
   - The actual codebase (source code, API types, route definitions)
 

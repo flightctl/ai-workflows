@@ -13,7 +13,12 @@ import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
+
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_shared" / "scripts"))
+
+from artifacts import canonical_path
 
 ALLOWED_RECOMMENDATIONS = frozenset({
     "CLOSE", "FIX_NOW", "AUTO_FIX", "BACKLOG", "NEEDS_INFO", "DUPLICATE",
@@ -315,6 +320,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--decisions", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
+    for name, value in vars(args).items():
+        if isinstance(value, Path):
+            setattr(args, name, canonical_path(value))
     try:
         result = finalize(_read(args.issues), _read(args.prepared), _read(args.decisions))
         args.output.parent.mkdir(parents=True, exist_ok=True)

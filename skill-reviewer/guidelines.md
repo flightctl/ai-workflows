@@ -1,11 +1,13 @@
 # Skill Reviewer Workflow
 
+Before any artifact access, follow [the shared artifact resolver](../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Structured review of AI skill directories:
 
 1. **Review** (`/review`) — Read all files, evaluate against 8 dimensions, produce findings report
 
 The review skill lives at `skills/review.md`.
-Artifacts go in `.artifacts/skill-reviewer/{skill-name}/`.
+Artifacts go in `{ARTIFACTS_ROOT}/skill-reviewer/{skill-name}/`.
 
 ## Principles
 

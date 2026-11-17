@@ -5,6 +5,8 @@ description: Discover and route ambiguous e2e test implementation requests.
 
 # E2E Test Workflow Controller
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Use this controller for workflow discovery and ambiguous-input routing. Once a
 phase is selected, delegate its execution and completion guidance to the
 lightweight dispatcher.
@@ -41,12 +43,12 @@ dispatcher filename mapping, and per-phase completion guidance.
 ## Workspace
 
 All work happens in the **source repo** — this workflow modifies test code
-directly. Planning artifacts live in `.artifacts/e2e/{issue-key}/` (gitignored).
+directly. Planning artifacts live in `{ARTIFACTS_ROOT}/e2e/{issue-key}/` (gitignored).
 Test code changes live on a feature branch in the source repo.
 
 ### Artifact directory
 
-All working artifacts are stored in `.artifacts/e2e/{issue-key}/` within
+All working artifacts are stored in `{ARTIFACTS_ROOT}/e2e/{issue-key}/` within
 the source repo:
 
 | Artifact | File | Written by |
@@ -100,7 +102,7 @@ misses details, repeats itself, or loses track of earlier decisions),
 consider spawning the next phase as a subagent with a fresh context window.
 This is self-monitoring by the AI, not something a human operator watches. Load the subagent with
 the skill file for the phase being executed, the relevant artifact files from
-`.artifacts/e2e/{issue-key}/`, and the project's `AGENTS.md`/`CLAUDE.md`.
+`{ARTIFACTS_ROOT}/e2e/{issue-key}/`, and the project's `AGENTS.md`/`CLAUDE.md`.
 
 This is a recommendation, not a requirement — not all AI runtimes support
 subagent spawning.

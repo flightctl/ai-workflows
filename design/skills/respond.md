@@ -5,6 +5,8 @@ description: Fetch and address reviewer comments on the published design documen
 
 # Respond to Review Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a review coordinator. Your job is to fetch reviewer comments
 from the GitHub PR, help the user understand and respond to them, and
 apply any resulting design document changes.
@@ -48,8 +50,8 @@ with `WORKFLOW=design`, `TEMPLATE_FILE=design.md`. Per that recipe's
 "Using the Resolved Files" guidance, treat the section-number examples
 below (e.g., "§4.1") as illustrations of the built-in template only.
 
-Read `.artifacts/config.json` to get the docs repo path and
-`.artifacts/design/{issue-key}/publish-metadata.json` to get the PR
+Read `{ARTIFACTS_ROOT}/config.json` to get the docs repo path and
+`{ARTIFACTS_ROOT}/design/{issue-key}/publish-metadata.json` to get the PR
 number, file path, and `{branch-name}` (from the `branch` field). If
 either file doesn't exist, tell the user that
 `/publish` should be run first.
@@ -81,7 +83,7 @@ review comments, top-level comments, and reviews in a single call and
 outputs a unified JSON array to stdout:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" fetch --owner {owner} --repo {repo} --pr {pr-number} --responses-log .artifacts/design/{issue-key}/responses.jsonl --include-review-threads
+python3 "$PR_COMMENTS_SCRIPT" fetch --owner {owner} --repo {repo} --pr {pr-number} --responses-log "${ARTIFACTS_ROOT}/design/{issue-key}/responses.jsonl" --include-review-threads
 ```
 
 The `--responses-log` flag excludes comment IDs already addressed in
@@ -150,7 +152,7 @@ Wait for the user to approve, modify, or reject each response.
 
 ### Step 4: Apply Approved Changes
 
-If the user edited `.artifacts/design/{issue-key}/03-design.md` manually
+If the user edited `{ARTIFACTS_ROOT}/design/{issue-key}/03-design.md` manually
 since the last workflow phase, read and follow
 `../../_shared/recipes/record-manual-edit.md` with `WORKFLOW=design` and
 `ISSUE_KEY={issue-key}` before applying changes.
@@ -158,7 +160,7 @@ since the last workflow phase, read and follow
 **Check locked decisions:** Before applying any design document change —
 whether a direct edit or an open question resolution — read the locked
 decisions from the clarifications file (use the path from
-`.artifacts/design/{issue-key}/01-context.md`'s PRD Summary section, if
+`{ARTIFACTS_ROOT}/design/{issue-key}/01-context.md`'s PRD Summary section, if
 one was recorded). Locked decisions appear as `#### Decision (D{N})`
 sections within Q&A entries. If a requested change contradicts a locked
 decision, flag the conflict rather than applying the change.
@@ -315,7 +317,7 @@ feedback), apply them in this order:
      the story's PRD Requirements in its Design Reference.
    For each affected non-`[DOCS]` story:
    - Re-read the story file at
-     `.artifacts/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md`.
+     `{ARTIFACTS_ROOT}/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md`.
    - Rewrite the `Validated by` line from the **current** (post-
      mutation) testplan state: collect all TC IDs that match this story
      (by IC overlap or requirement-based fallback for `—` TCs),
@@ -330,7 +332,7 @@ feedback), apply them in this order:
    requirement and TC-to-IC mappings.
 
 **Update the local artifact:** Update
-`.artifacts/design/{issue-key}/03-design.md`.
+`{ARTIFACTS_ROOT}/design/{issue-key}/03-design.md`.
 
 Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 `WORKFLOW=design`, `ISSUE_KEY={issue-key}`, `PHASE=respond`,
@@ -338,10 +340,10 @@ Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=design`, `ISSUE_KEY={issue-key}`, and `TARGET_FILE` set to the
-absolute source-repo path to `.artifacts/design/{issue-key}/03-design.md`.
+absolute source-repo path to `{ARTIFACTS_ROOT}/design/{issue-key}/03-design.md`.
 
 **Update the docs repo copy:** Read
-`.artifacts/design/{issue-key}/publish-metadata.json` to get the file
+`{ARTIFACTS_ROOT}/design/{issue-key}/publish-metadata.json` to get the file
 path. If metadata doesn't exist, ask the user for the path.
 
 Copy the updated artifact to the docs repo and commit:
@@ -377,7 +379,7 @@ mkdir -p "{docs_repo_path}/$(dirname "{design_file_path}")"
 ```
 
 ```bash
-cp ".artifacts/design/{issue-key}/03-design.md" "{docs_repo_path}/{design_file_path}"
+cp "${ARTIFACTS_ROOT}/design/{issue-key}/03-design.md" "{docs_repo_path}/{design_file_path}"
 ```
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
@@ -423,7 +425,7 @@ In either case, remove `testplan_file_path` from `publish-metadata.json`.
 `testplan_file_path`**, copy the testplan to the docs repo:
 
 ```bash
-cp ".artifacts/design/{issue-key}/04-testplan.md" "{docs_repo_path}/{testplan_file_path}"
+cp "${ARTIFACTS_ROOT}/design/{issue-key}/04-testplan.md" "{docs_repo_path}/{testplan_file_path}"
 ```
 
 ```bash
@@ -451,7 +453,7 @@ Use the file-writing tool (Write) to create the file — do not use a
 shell heredoc, as reply content containing the delimiter string would
 break the heredoc.
 
-Write `{approved reply text}` to `.artifacts/design/{issue-key}/tmp-reply.md`.
+Write `{approved reply text}` to `{ARTIFACTS_ROOT}/design/{issue-key}/tmp-reply.md`.
 
 Route each comment based on its `type` field from the fetch output:
 
@@ -459,14 +461,14 @@ Route each comment based on its `type` field from the fetch output:
 `id`:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/design/{issue-key}/tmp-reply.md --comment-id {id}
+python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file "${ARTIFACTS_ROOT}/design/{issue-key}/tmp-reply.md" --comment-id {id}
 ```
 
 **When `type` is `"review"` or `"top_level"`**, post a top-level PR
 comment (omit `--comment-id`):
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/design/{issue-key}/tmp-reply.md
+python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file "${ARTIFACTS_ROOT}/design/{issue-key}/tmp-reply.md"
 ```
 
 If the reply command fails (non-zero exit), report the error and
@@ -476,7 +478,7 @@ must remain unaddressed so it is retried on the next respond round.
 After each **successful** reply, record the `id` in the responses log:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" log --responses-log .artifacts/design/{issue-key}/responses.jsonl --comment-id {id}
+python3 "$PR_COMMENTS_SCRIPT" log --responses-log "${ARTIFACTS_ROOT}/design/{issue-key}/responses.jsonl" --comment-id {id}
 ```
 
 **If the log command fails (non-zero exit), stop immediately** — do not
@@ -486,12 +488,12 @@ replies on the next respond round.
 Delete the temp file after posting:
 
 ```bash
-rm .artifacts/design/{issue-key}/tmp-reply.md
+rm "${ARTIFACTS_ROOT}/design/{issue-key}/tmp-reply.md"
 ```
 
 ### Step 5: Update Response Log
 
-Write or update `.artifacts/design/{issue-key}/09-review-responses.md`:
+Write or update `{ARTIFACTS_ROOT}/design/{issue-key}/09-review-responses.md`:
 
 ```markdown
 # Review Responses — {issue-key}
@@ -549,10 +551,10 @@ Summarize:
 ## Output
 
 - PR comments posted (with user approval)
-- `.artifacts/design/{issue-key}/03-design.md` (updated if needed)
-- `.artifacts/design/{issue-key}/04-testplan.md` (updated if testplan feedback was applied)
-- `.artifacts/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md` (Validated by updated in Design Reference if testplan changed)
-- `.artifacts/design/{issue-key}/09-review-responses.md`
+- `{ARTIFACTS_ROOT}/design/{issue-key}/03-design.md` (updated if needed)
+- `{ARTIFACTS_ROOT}/design/{issue-key}/04-testplan.md` (updated if testplan feedback was applied)
+- `{ARTIFACTS_ROOT}/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md` (Validated by updated in Design Reference if testplan changed)
+- `{ARTIFACTS_ROOT}/design/{issue-key}/09-review-responses.md`
 
 ## When This Phase Is Done
 

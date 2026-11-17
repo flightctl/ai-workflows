@@ -5,6 +5,8 @@ description: Draft the design/architecture document from context using the templ
 
 # Draft Design Document Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a software architect. Your job is to synthesize the PRD requirements
 and codebase context into a structured design document that details how the
 feature will be implemented.
@@ -36,8 +38,8 @@ with `WORKFLOW=design`, `TEMPLATE_FILE=design.md`.
 ### Step 2: Read Source Material
 
 Read these files in order:
-1. `.artifacts/design/{issue-key}/01-context.md` (architectural context)
-2. `.artifacts/design/{issue-key}/02-research.md` (if exists — design research findings)
+1. `{ARTIFACTS_ROOT}/design/{issue-key}/01-context.md` (architectural context)
+2. `{ARTIFACTS_ROOT}/design/{issue-key}/02-research.md` (if exists — design research findings)
 3. The PRD — use the path recorded in `01-context.md`'s PRD Summary section
 4. Clarifications — use the path recorded in `01-context.md`'s PRD Summary
    section (if it lists a clarifications path). Read for locked decisions.
@@ -209,7 +211,7 @@ Before presenting the design document, verify:
 
 ### Step 8: Write Artifact
 
-Save the design document to `.artifacts/design/{issue-key}/03-design.md`.
+Save the design document to `{ARTIFACTS_ROOT}/design/{issue-key}/03-design.md`.
 
 Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 `WORKFLOW=design`, `ISSUE_KEY={issue-key}`, `PHASE=draft`,
@@ -217,7 +219,7 @@ Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=design`, `ISSUE_KEY={issue-key}`, and `TARGET_FILE` set to the
-absolute source-repo path to `.artifacts/design/{issue-key}/03-design.md`.
+absolute source-repo path to `{ARTIFACTS_ROOT}/design/{issue-key}/03-design.md`.
 
 ### Step 9: Generate Testplan
 
@@ -402,7 +404,7 @@ contracts not actually established by another test.
 
 #### 9b: Write the Testplan
 
-Write `.artifacts/design/{issue-key}/04-testplan.md`:
+Write `{ARTIFACTS_ROOT}/design/{issue-key}/04-testplan.md`:
 
 ```markdown
 # Testplan — {issue-key}
@@ -547,7 +549,7 @@ Before presenting the testplan, verify:
 
 #### 9d: Write Artifact
 
-Save the testplan to `.artifacts/design/{issue-key}/04-testplan.md`.
+Save the testplan to `{ARTIFACTS_ROOT}/design/{issue-key}/04-testplan.md`.
 
 The Overview counts, Gaps sections, and Summary table written in Step 9b
 are the canonical testplan summary. Step 10 presents those already-written
@@ -570,9 +572,9 @@ Show the user the complete design document and highlight:
 
 ## Output
 
-- `.artifacts/design/{issue-key}/03-design.md`
-- `.artifacts/design/{issue-key}/04-testplan.md`
-- `.artifacts/design/{issue-key}/provenance.json`
+- `{ARTIFACTS_ROOT}/design/{issue-key}/03-design.md`
+- `{ARTIFACTS_ROOT}/design/{issue-key}/04-testplan.md`
+- `{ARTIFACTS_ROOT}/design/{issue-key}/provenance.json`
 
 ## When This Phase Is Done
 

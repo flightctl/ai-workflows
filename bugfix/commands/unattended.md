@@ -4,10 +4,12 @@ description: "Run autonomous bugfix workflow: diagnose, fix, test, review"
 ---
 # /unattended
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You MUST read `../skills/unattended.md` now and follow every step in it.
 
 This command runs the autonomous bugfix workflow. It MUST produce artifact
-files in `.artifacts/bugfix/{issue}/`. If no artifacts are written, the
+files in `{ARTIFACTS_ROOT}/bugfix/{issue}/`. If no artifacts are written, the
 workflow has failed.
 
 Context provided by the user:

@@ -5,6 +5,8 @@ description: Resolve and execute one explicitly requested e2e phase.
 
 # E2E Phase Dispatch
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 E2E phase filenames follow the `{PHASE}.md` convention. If a phase uses a
 different filename, define its mapping here before resolving overrides.
 

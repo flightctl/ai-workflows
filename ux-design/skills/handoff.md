@@ -5,6 +5,8 @@ description: Synthesize research, prototype, and evaluation into an implementati
 
 # Design handoff — Implementation Spec
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Synthesize all prior artifacts into a spec that a developer can implement
 from. This is the contract between the ux-design workflow and `ui-design`.
 
@@ -16,16 +18,16 @@ proceeding.
 
 ## Prerequisites
 
-Read `.artifacts/ux-design/{issue-key}/00-context.md` first. The context must
+Read `{ARTIFACTS_ROOT}/ux-design/{issue-key}/00-context.md` first. The context must
 be marked `enriched` and identify the Jira Feature, a linked `[UX]` story, the
 published PRD, and the published design document. A context that started from
 the Feature issue or PRD alone remains exploratory and is not ready for handoff
 to `ui-design`.
 
 Verify these artifacts exist and apply to the current context before generating:
-- `.artifacts/ux-design/{issue-key}/01-discovery.md` — problem context
-- `.artifacts/ux-design/{issue-key}/03-prototype/` — design prototype
-- `.artifacts/ux-design/{issue-key}/04-evaluation.md` — evaluation results
+- `{ARTIFACTS_ROOT}/ux-design/{issue-key}/01-discovery.md` — problem context
+- `{ARTIFACTS_ROOT}/ux-design/{issue-key}/03-prototype/` — design prototype
+- `{ARTIFACTS_ROOT}/ux-design/{issue-key}/04-evaluation.md` — evaluation results
   (must have `Researcher review: Confirmed` and explicit
   `Authorized fixes: None` with current prototype iteration, discovery
   revision, and context revision bindings; Pending evaluations, reports
@@ -100,7 +102,7 @@ write into our artifact namespace. So:
 3. After you have assembled `05-handoff.md` (Step 5), **move the skill's raw
    output into our namespace** so it is not left untracked at the repo root.
    Move only the selected file:
-   `mv "$handoff_output" ".artifacts/ux-design/{issue-key}/03-prototype/"`
+   `mv "$handoff_output" "{ARTIFACTS_ROOT}/ux-design/{issue-key}/03-prototype/"`
    (the source-repo `.gitignore` covers `.artifacts/` but not the repo root, so
    a stray `design-handoff-*` file there can be committed by accident).
 
@@ -190,7 +192,7 @@ own, so do not imply verification the phase cannot perform.
 ### Step 5: Assemble the handoff artifact
 
 Combine the skill's output with Steps 2, 3, and 4 into the artifact below, and
-save it to `.artifacts/ux-design/{issue-key}/05-handoff.md`.
+save it to `{ARTIFACTS_ROOT}/ux-design/{issue-key}/05-handoff.md`.
 Preserve the skill's Given/When/Then acceptance criteria format — it is
 more precise than a flat table and `ui-design` can consume it.
 
@@ -207,8 +209,8 @@ Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 
 ## Output
 
-- `.artifacts/ux-design/{issue-key}/05-handoff.md`
-- `.artifacts/ux-design/{issue-key}/provenance.json` (provenance log)
+- `{ARTIFACTS_ROOT}/ux-design/{issue-key}/05-handoff.md`
+- `{ARTIFACTS_ROOT}/ux-design/{issue-key}/provenance.json` (provenance log)
 
 ```markdown
 # Implementation Handoff — {issue-key}

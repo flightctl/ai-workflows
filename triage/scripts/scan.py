@@ -39,7 +39,12 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from functools import partial
 from pathlib import Path
+
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_shared" / "scripts"))
+
+from artifacts import artifact_directory, canonical_path
 
 PAGE_SIZE = 50
 MAX_RETRIES = 3
@@ -567,7 +572,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     project = args.project
     window_days = args.window_days
-    output_dir = args.output_dir or Path(f".artifacts/triage/{project}")
+    output_dir = canonical_path(args.output_dir) if args.output_dir else artifact_directory("triage", project)
 
     try:
         validate_project_key(project)

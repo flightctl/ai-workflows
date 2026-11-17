@@ -17,7 +17,8 @@
 
 set -uo pipefail
 
-STATE_DIR=".artifacts/rebase-stack"
+ARTIFACTS_ROOT="$(python3 "$(cd "$(dirname "$0")/../../_shared/scripts" && pwd)/artifacts.py")" || exit 2
+STATE_DIR="${ARTIFACTS_ROOT}/rebase-stack"
 SNAPSHOT="${STATE_DIR}/pre-rebase-state.json"
 
 cmd="${1:-}"

@@ -5,6 +5,8 @@ description: Create, update, or close [DEV] Jira stories for API gaps identified
 
 # Sync API Gap Stories to Jira
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a project coordinator. Your job is to keep Jira `[DEV]` stories
 in sync with the API gaps identified during the UI design review —
 creating new stories for new gaps, updating stories for changed gaps, and
@@ -36,7 +38,7 @@ explicit user approval.
 ## Prerequisites
 
 **Jira-backed workspace required.** Before any other check, read
-`.artifacts/ui-design/{workspace-id}/01-context.md` and check the
+`{ARTIFACTS_ROOT}/ui-design/{workspace-id}/01-context.md` and check the
 `Origin` field in the Story Summary section.
 
 - If `01-context.md` is missing, unreadable, or cannot be parsed,
@@ -84,11 +86,11 @@ resolve the Jira connectivity issue before `/sync` can proceed.
 ### Step 1: Read API Findings and Detect Changes
 
 Read these files:
-1. `.artifacts/ui-design/{workspace-id}/02-ui-design.md` — for the API Findings
+1. `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/02-ui-design.md` — for the API Findings
    section (or the reference to `03-api-findings.md`)
-2. `.artifacts/ui-design/{workspace-id}/03-api-findings.md` — if the API findings
+2. `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/03-api-findings.md` — if the API findings
    are in a separate file
-3. `.artifacts/ui-design/{workspace-id}/01-context.md` — for the parent story
+3. `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/01-context.md` — for the parent story
    and feature context
 
 If no API findings exist (no API Findings section in `02-ui-design.md` and
@@ -175,7 +177,7 @@ findings or explicitly confirm that zero gaps is correct.
 
 **Load `pr_url` (optional — used in Jira descriptions).** Before
 proceeding, attempt to load `pr_url` from
-`.artifacts/ui-design/{workspace-id}/publish-metadata.json`. Apply
+`{ARTIFACTS_ROOT}/ui-design/{workspace-id}/publish-metadata.json`. Apply
 HTTPS URL validation (non-empty string, parseable HTTPS URL with a
 valid host and at least one path segment).
 
@@ -257,7 +259,7 @@ Low-severity gaps are tracked in the manifest but not synced to Jira
 unless the user explicitly requests it.
 
 Check for an existing sync manifest at
-`.artifacts/ui-design/{workspace-id}/sync-manifest.json`.
+`{ARTIFACTS_ROOT}/ui-design/{workspace-id}/sync-manifest.json`.
 
 #### If the manifest is unreadable or invalid
 
@@ -957,7 +959,7 @@ Present a translation table mapping gap numbers to Jira keys:
 ## Output
 
 - Jira `[DEV]` stories created, updated, or closed (with user approval)
-- `.artifacts/ui-design/{workspace-id}/sync-manifest.json` (v2 schema)
+- `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/sync-manifest.json` (v2 schema)
 
 ## When This Phase Is Done
 

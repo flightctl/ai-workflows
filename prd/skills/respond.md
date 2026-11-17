@@ -5,6 +5,8 @@ description: Fetch and address reviewer comments on the published PRD PR.
 
 # Respond to Review Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a review coordinator. Your job is to fetch reviewer comments
 from the GitHub PR, help the user understand and respond to them, and
 apply any resulting PRD changes.
@@ -48,8 +50,8 @@ with `WORKFLOW=prd`, `TEMPLATE_FILE=prd.md`. Per that recipe's "Using the
 Resolved Files" guidance, treat the examples below (e.g., "NFR-3",
 "non-goal") as illustrations of the built-in template only.
 
-Read `.artifacts/config.json` to get the docs repo path and
-`.artifacts/prd/{issue-key}/publish-metadata.json` to get the PR
+Read `{ARTIFACTS_ROOT}/config.json` to get the docs repo path and
+`{ARTIFACTS_ROOT}/prd/{issue-key}/publish-metadata.json` to get the PR
 number, file path, and `{branch-name}` (from the `branch` field). If
 either file doesn't exist, tell the user that
 `/publish` should be run first.
@@ -81,7 +83,7 @@ review comments, top-level comments, and reviews in a single call and
 outputs a unified JSON array to stdout:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" fetch --owner {owner} --repo {repo} --pr {pr-number} --responses-log .artifacts/prd/{issue-key}/responses.jsonl --include-review-threads
+python3 "$PR_COMMENTS_SCRIPT" fetch --owner {owner} --repo {repo} --pr {pr-number} --responses-log "${ARTIFACTS_ROOT}/prd/{issue-key}/responses.jsonl" --include-review-threads
 ```
 
 If fetch returns non-zero, report the error to the user and stop — do
@@ -144,14 +146,14 @@ Wait for the user to approve, modify, or reject each response.
 
 ### Step 4: Apply Approved Changes
 
-If the user edited `.artifacts/prd/{issue-key}/03-prd.md` manually since the
+If the user edited `{ARTIFACTS_ROOT}/prd/{issue-key}/03-prd.md` manually since the
 last workflow phase, read and follow
 `../../_shared/recipes/record-manual-edit.md` with `WORKFLOW=prd` and
 `ISSUE_KEY={issue-key}` before applying changes.
 
 **Check locked decisions:** Before applying any PRD change — whether a
 direct edit or an open question resolution — read the locked decisions
-from `.artifacts/prd/{issue-key}/02-clarifications.md` (if it exists).
+from `{ARTIFACTS_ROOT}/prd/{issue-key}/02-clarifications.md` (if it exists).
 Locked decisions appear as `#### Decision (D{N})` sections within Q&A
 entries. If a requested change contradicts a locked decision, flag the
 conflict to the user rather than applying the change — locked decisions
@@ -209,7 +211,7 @@ synthesize the discussion into a proposed resolution:
    section numbers/headings as-is. Either way, fix any cross-references
    that pointed at the removed content.
 
-**Update the local artifact:** Update `.artifacts/prd/{issue-key}/03-prd.md`
+**Update the local artifact:** Update `{ARTIFACTS_ROOT}/prd/{issue-key}/03-prd.md`
 in the source repo.
 
 Read and follow `../../_shared/recipes/capture-provenance-event.md` with
@@ -218,9 +220,9 @@ Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=prd`, `ISSUE_KEY={issue-key}`, and `TARGET_FILE` set to the
-absolute source-repo path to `.artifacts/prd/{issue-key}/03-prd.md`.
+absolute source-repo path to `{ARTIFACTS_ROOT}/prd/{issue-key}/03-prd.md`.
 
-**Update the docs repo copy:** Read `.artifacts/prd/{issue-key}/publish-metadata.json`
+**Update the docs repo copy:** Read `{ARTIFACTS_ROOT}/prd/{issue-key}/publish-metadata.json`
 to get `{prd-file-path}` (the PRD's location within the docs repo). If the
 metadata file doesn't exist, ask the user for the file path within the docs
 repo. If they provide it, write it to `publish-metadata.json` so subsequent
@@ -228,7 +230,7 @@ runs don't re-ask, then proceed with the docs repo update. If they cannot
 provide it, skip the docs repo update.
 
 Copy the updated artifact to the docs repo and commit. All git operations use
-the docs repo path from `.artifacts/config.json`.
+the docs repo path from `{ARTIFACTS_ROOT}/config.json`.
 
 Fetch the latest state from the remote and verify the working tree is clean:
 
@@ -270,7 +272,7 @@ mkdir -p "{docs_repo_path}/$(dirname "{prd-file-path}")"
 ```
 
 ```bash
-cp ".artifacts/prd/{issue-key}/03-prd.md" "{docs_repo_path}/{prd-file-path}"
+cp "${ARTIFACTS_ROOT}/prd/{issue-key}/03-prd.md" "{docs_repo_path}/{prd-file-path}"
 ```
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
@@ -302,7 +304,7 @@ Use the file-writing tool (Write) to create the file — do not use a
 shell heredoc, as reply content containing the delimiter string would
 break the heredoc.
 
-Write `{approved reply text}` to `.artifacts/prd/{issue-key}/tmp-reply.md`.
+Write `{approved reply text}` to `{ARTIFACTS_ROOT}/prd/{issue-key}/tmp-reply.md`.
 
 Route each comment based on its `type` field from the fetch output:
 
@@ -310,20 +312,20 @@ Route each comment based on its `type` field from the fetch output:
 `id`:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/prd/{issue-key}/tmp-reply.md --comment-id {id}
+python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file "${ARTIFACTS_ROOT}/prd/{issue-key}/tmp-reply.md" --comment-id {id}
 ```
 
 **When `type` is `"review"` or `"top_level"`**, post a top-level PR
 comment (omit `--comment-id`):
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/prd/{issue-key}/tmp-reply.md
+python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file "${ARTIFACTS_ROOT}/prd/{issue-key}/tmp-reply.md"
 ```
 
 After each successful reply, record the `id` in the responses log:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" log --responses-log .artifacts/prd/{issue-key}/responses.jsonl --comment-id {id}
+python3 "$PR_COMMENTS_SCRIPT" log --responses-log "${ARTIFACTS_ROOT}/prd/{issue-key}/responses.jsonl" --comment-id {id}
 ```
 
 **If the log command fails (non-zero exit), stop immediately** — do not
@@ -333,12 +335,12 @@ replies on the next respond round.
 Delete the temp file after posting:
 
 ```bash
-rm .artifacts/prd/{issue-key}/tmp-reply.md
+rm "${ARTIFACTS_ROOT}/prd/{issue-key}/tmp-reply.md"
 ```
 
 ### Step 5: Update Response Log
 
-Write or update `.artifacts/prd/{issue-key}/05-review-responses.md`:
+Write or update `{ARTIFACTS_ROOT}/prd/{issue-key}/05-review-responses.md`:
 
 ```markdown
 # Review Responses — {issue-key}
@@ -369,8 +371,8 @@ Summarize:
 ## Output
 
 - PR comments posted (with user approval)
-- `.artifacts/prd/{issue-key}/03-prd.md` (updated if needed)
-- `.artifacts/prd/{issue-key}/05-review-responses.md`
+- `{ARTIFACTS_ROOT}/prd/{issue-key}/03-prd.md` (updated if needed)
+- `{ARTIFACTS_ROOT}/prd/{issue-key}/05-review-responses.md`
 
 ## When This Phase Is Done
 

@@ -5,6 +5,8 @@ description: Build and test the stack — the trunk-adjacent branch by default, 
 
 # Validate Rebase Stack
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Two modes. The whole stack is rebased either way; only the amount of linting
 and testing changes.
 
@@ -42,8 +44,8 @@ not skip it, and do not let `/push` run without it.
 
 ```bash
 bash "{scripts}/stack-status.sh" \
-  --baseline .artifacts/rebase-stack/pre-rebase-state.json \
-  < .artifacts/rebase-stack/context.json
+  --baseline "${ARTIFACTS_ROOT}/rebase-stack/pre-rebase-state.json" \
+  < "${ARTIFACTS_ROOT}/rebase-stack/context.json"
 echo "status exit: $?"
 ```
 
@@ -110,17 +112,17 @@ Build the branch list from the mode:
 
 ```bash
 # {mode} = tip
-jq -r '.validationBranch' .artifacts/rebase-stack/context.json
+jq -r '.validationBranch' "${ARTIFACTS_ROOT}/rebase-stack/context.json"
 
 # {mode} = all   (bottom to top)
-jq -r '.branches[].name' .artifacts/rebase-stack/context.json
+jq -r '.branches[].name' "${ARTIFACTS_ROOT}/rebase-stack/context.json"
 ```
 
 First invalidate any previous record. A failed attempt must never leave a
 passing record behind for `/push` to accept:
 
 ```bash
-rm -f .artifacts/rebase-stack/validated
+rm -f "${ARTIFACTS_ROOT}/rebase-stack/validated"
 ```
 
 Then run `validate-branches.sh` with that list. It creates and removes its own
@@ -139,7 +141,7 @@ fails to resolve — never a command. The same rule applies to `{push-remote}`,
 
 ```bash
 scripts="{scripts}"
-ctx=.artifacts/rebase-stack/context.json
+ctx="${ARTIFACTS_ROOT}/rebase-stack/context.json"
 branch=$(jq -r '.validationBranch' "$ctx")
 bash "$scripts/validate-branches.sh" \
   --lint "{lint-command}" --test "{test-command}" \
@@ -157,7 +159,7 @@ breaks. `mapfile` preserves that order and keeps each name a single argument:
 
 ```bash
 scripts="{scripts}"
-ctx=.artifacts/rebase-stack/context.json
+ctx="${ARTIFACTS_ROOT}/rebase-stack/context.json"
 mapfile -t branches < <(jq -r '.branches[].name' "$ctx")
 bash "$scripts/validate-branches.sh" \
   --lint "{lint-command}" --test "{test-command}" \
@@ -172,14 +174,14 @@ worktrees will fail on missing files. Switch to sequential checkouts:
 
 ```bash
 scripts="{scripts}"
-ctx=.artifacts/rebase-stack/context.json
+ctx="${ARTIFACTS_ROOT}/rebase-stack/context.json"
 mapfile -t branches < <(jq -r '.branches[].name' "$ctx")
 bash "$scripts/validate-branches.sh" \
   --mode checkout --lint "{lint-command}" --test "{test-command}" \
   "${branches[@]}"
 ```
 
-Logs are written to `.artifacts/rebase-stack/logs/{branch}-{digest}.log` and
+Logs are written to `{ARTIFACTS_ROOT}/rebase-stack/logs/{branch}-{digest}.log` and
 deleted on pass. Never pipe the suite through `head` or `tail` — a truncated
 log hides the failure that matters.
 
@@ -200,7 +202,7 @@ Before issuing a checkout or upstack command, bind the failing branch and base
 remote from the context. Never paste either value into shell source:
 
 ```bash
-ctx=.artifacts/rebase-stack/context.json
+ctx="${ARTIFACTS_ROOT}/rebase-stack/context.json"
 failing_branch=$(jq -r '.validationBranch' "$ctx")
 base_remote=$(jq -r '.baseRemote' "$ctx")
 ```
@@ -238,7 +240,7 @@ only layer that ran:
 > To narrow the failure to a single commit within this layer:
 >
 > ```bash
-> ctx=.artifacts/rebase-stack/context.json
+> ctx="${ARTIFACTS_ROOT}/rebase-stack/context.json"
 > branch=$(jq -r '.validationBranch' "$ctx")
 > base="$(jq -r '.baseRemote' "$ctx")/$(jq -r '.trunk' "$ctx")"
 > git log --oneline "${base}..${branch}"
@@ -272,7 +274,7 @@ command line, so they are compared as data and are not shell syntax.
 - `mode=all` → every `.branches[].name`, bottom to top
 
 ```bash
-ctx=.artifacts/rebase-stack/context.json
+ctx="${ARTIFACTS_ROOT}/rebase-stack/context.json"
 if [ "$mode" = "tip" ]; then
   validated_branches=$(jq -r '.validationBranch' "$ctx")
 else
@@ -281,15 +283,15 @@ else
 fi
 {
   echo "mode=$mode"
-  jq -r '.branches[].name' .artifacts/rebase-stack/context.json | while read -r b; do
+  jq -r '.branches[].name' "${ARTIFACTS_ROOT}/rebase-stack/context.json" | while read -r b; do
     case " $validated_branches " in
       *" $b "*) state=validated ;;
       *)        state=not-run ;;
     esac
     printf '%s %s %s\n' "$state" "$b" "$(git rev-parse "$b")"
   done
-} > .artifacts/rebase-stack/validated
-cat .artifacts/rebase-stack/validated
+} > "${ARTIFACTS_ROOT}/rebase-stack/validated"
+cat "${ARTIFACTS_ROOT}/rebase-stack/validated"
 ```
 
 In `--all` mode every line reads `validated`. In the default mode only the
@@ -310,7 +312,7 @@ ever an argument. The trailing `--` in each `git log` separates the ref from
 any pathspec, so a branch sharing a filename is never read as a path:
 
 ```bash
-ctx=.artifacts/rebase-stack/context.json
+ctx="${ARTIFACTS_ROOT}/rebase-stack/context.json"
 start_branch=$(jq -r '.currentBranch' "$ctx")
 push_remote=$(jq -r '.pushRemote' "$ctx")
 git checkout "$start_branch"
@@ -381,5 +383,5 @@ checked:
 
 In either case take the branch list from the record just written, not from
 memory — `grep '^validated '` and `grep '^not-run '` on
-`.artifacts/rebase-stack/validated` give the two sets exactly as `/push` will
+`{ARTIFACTS_ROOT}/rebase-stack/validated` give the two sets exactly as `/push` will
 read them.

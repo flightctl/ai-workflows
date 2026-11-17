@@ -1,5 +1,7 @@
 # KCS Article Workflow
 
+Before any artifact access, follow [the shared artifact resolver](../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Systematic KCS Solution article creation through these phases:
 
 1. **Gather** (`/gather`) — Collect bug details from Jira and user-provided context
@@ -9,7 +11,7 @@ Systematic KCS Solution article creation through these phases:
 
 The workflow controller lives at `skills/controller.md`.
 Phase skills are at `skills/{name}.md`.
-Artifacts go in `.artifacts/kcs/{issue-key}/`.
+Artifacts go in `{ARTIFACTS_ROOT}/kcs/{issue-key}/`.
 
 ## Principles
 

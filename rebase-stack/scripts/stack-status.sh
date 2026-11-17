@@ -32,6 +32,11 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+resolver="$(cd "$(dirname "$0")/../../_shared/scripts" && pwd)/artifacts.py"
+if [ -n "${baseline_file}" ]; then
+  baseline_file="$(python3 "$resolver" --path "${baseline_file}")" || exit 2
+fi
+
 # Write stdin to a temp file so it can be used as --context for the validator
 ctx_tmp=$(mktemp "${TMPDIR:-/tmp}/rebase-stack-ctx.XXXXXX") \
   || { echo "stack-status: could not create temp file" >&2; exit 2; }

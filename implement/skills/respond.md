@@ -5,6 +5,8 @@ description: Fetch and address PR reviewer comments, applying code changes with 
 
 # Respond to Review Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a principal review coordinator. Your job is to fetch reviewer comments from
 the PR, help the user understand and respond to them, and apply any resulting
 code changes.
@@ -45,12 +47,12 @@ script header for full usage.
 
 ### Step 1: Read Context and Fetch PR Comments
 
-Read `.artifacts/implement/{issue-key}/02-plan.md` and check whether it
+Read `{ARTIFACTS_ROOT}/implement/{issue-key}/02-plan.md` and check whether it
 contains a `## Pending Scope Decision` section or records an unmerged
 prerequisite dependency. If either condition holds, stop and recommend
 `/revise` — do not fetch comments, apply changes, or push.
 
-Read `.artifacts/implement/{issue-key}/publish-metadata.json` to get the
+Read `{ARTIFACTS_ROOT}/implement/{issue-key}/publish-metadata.json` to get the
 PR number and `{owner}/{repo}` (the `repo` field). If metadata doesn't
 exist, tell the user that `/publish` should be run first. If the user
 provides a PR number directly, use that instead.
@@ -92,7 +94,7 @@ review comments, top-level comments, and reviews in a single call and
 outputs a unified JSON array to stdout:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" fetch --owner {owner} --repo {repo} --pr {pr-number} --responses-log .artifacts/implement/{issue-key}/responses.jsonl --include-review-threads
+python3 "$PR_COMMENTS_SCRIPT" fetch --owner {owner} --repo {repo} --pr {pr-number} --responses-log "${ARTIFACTS_ROOT}/implement/{issue-key}/responses.jsonl" --include-review-threads
 ```
 
 If fetch returns non-zero, report the error to the user and stop — do
@@ -232,7 +234,7 @@ Use the file-writing tool (Write) to create the file — do not use a
 shell heredoc, as reply content containing the delimiter string would
 break the heredoc.
 
-Write `{approved reply text}` to `.artifacts/implement/{issue-key}/tmp-reply.md`.
+Write `{approved reply text}` to `{ARTIFACTS_ROOT}/implement/{issue-key}/tmp-reply.md`.
 
 Route each comment based on its `type` field from the fetch output:
 
@@ -240,14 +242,14 @@ Route each comment based on its `type` field from the fetch output:
 `id`:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/implement/{issue-key}/tmp-reply.md --comment-id {id}
+python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file "${ARTIFACTS_ROOT}/implement/{issue-key}/tmp-reply.md" --comment-id {id}
 ```
 
 **When `type` is `"review"` or `"top_level"`**, post a top-level PR
 comment (omit `--comment-id`):
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/implement/{issue-key}/tmp-reply.md
+python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file "${ARTIFACTS_ROOT}/implement/{issue-key}/tmp-reply.md"
 ```
 
 If the reply command fails (non-zero exit), report the error and
@@ -257,7 +259,7 @@ must remain unaddressed so it is retried on the next respond round.
 After each **successful** reply, record the `id` in the responses log:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" log --responses-log .artifacts/implement/{issue-key}/responses.jsonl --comment-id {id}
+python3 "$PR_COMMENTS_SCRIPT" log --responses-log "${ARTIFACTS_ROOT}/implement/{issue-key}/responses.jsonl" --comment-id {id}
 ```
 
 **If the log command fails (non-zero exit), stop immediately** — do not
@@ -267,12 +269,12 @@ replies on the next respond round.
 Clean up the temporary reply file:
 
 ```bash
-rm .artifacts/implement/{issue-key}/tmp-reply.md
+rm "${ARTIFACTS_ROOT}/implement/{issue-key}/tmp-reply.md"
 ```
 
 ### Step 6: Update Response Log
 
-Write or update `.artifacts/implement/{issue-key}/07-review-responses.md`:
+Write or update `{ARTIFACTS_ROOT}/implement/{issue-key}/07-review-responses.md`:
 
 ```markdown
 # Review Responses — {issue-key}
@@ -309,7 +311,7 @@ Summarize:
 
 - PR comments posted (with user approval)
 - Code changes committed and pushed (if applicable)
-- `.artifacts/implement/{issue-key}/07-review-responses.md`
+- `{ARTIFACTS_ROOT}/implement/{issue-key}/07-review-responses.md`
 
 ## When This Phase Is Done
 

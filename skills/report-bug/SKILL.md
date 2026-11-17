@@ -1,12 +1,13 @@
 ---
 name: report-bug
-version: 0.1.2
+version: 0.2.0
 description: >-
   Draft and submit a well-specified Jira bug report after explicit confirmation. Use
   when a user wants to report, file, log, or open a bug rather than fix it now.
 ---
 
 # Report Bug
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
 
 Create a truthful, reproducible report useful to triage and a bug-fixing agent.
 

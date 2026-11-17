@@ -1,6 +1,6 @@
 ---
 name: kcs
-version: 0.3.4
+version: 0.4.0
 description: >-
   KCS article workflow that gathers bug context from Jira and user input,
   drafts a KCS Solution article in markdown, validates it against the KCS
@@ -10,6 +10,7 @@ description: >-
 ---
 
 # KCS Article Workflow Orchestrator
+Before any artifact access, follow [the shared artifact resolver](../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
 
 ## Quick Start
 

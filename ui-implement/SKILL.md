@@ -1,6 +1,6 @@
 ---
 name: ui-implement
-version: 0.3.0
+version: 0.4.0
 description: >-
   Story-to-code workflow for UI/front-end stories. Takes a Jira [UI] Story,
   plans the implementation using discovered design-system and testing
@@ -11,6 +11,7 @@ description: >-
   Activated by commands: /ingest, /plan, /revise, /code, /validate, /publish, /respond.
 ---
 # UI Implement Workflow Orchestrator
+Before any artifact access, follow [the shared artifact resolver](../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
 
 ## Quick Start
 

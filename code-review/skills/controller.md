@@ -5,6 +5,8 @@ description: Top-level workflow controller that manages phase transitions for co
 
 # Code Review Workflow Controller
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are the workflow controller. Your job is to manage the code review
 workflow by executing phases and handling transitions between them.
 
@@ -26,7 +28,7 @@ workflow by executing phases and handling transitions between them.
 
 ## Workspace
 
-All review artifacts live in `.artifacts/code-review/{branch}/` (gitignored).
+All review artifacts live in `{ARTIFACTS_ROOT}/code-review/{branch}/` (gitignored).
 Code changes happen directly in the working tree during `/continue`.
 
 ### Artifact Directory
@@ -160,7 +162,7 @@ There are two distinct uses of subagents in this workflow:
    itself, loses track of decisions), consider spawning the entire next
    `/continue` iteration as a subagent with a fresh context window. Load
    it with the skill file, the relevant artifacts from
-   `.artifacts/code-review/{branch}/`, and the project's
+   `{ARTIFACTS_ROOT}/code-review/{branch}/`, and the project's
    `AGENTS.md`/`CLAUDE.md`.
 
 Both are recommendations, not requirements -- not all AI runtimes support

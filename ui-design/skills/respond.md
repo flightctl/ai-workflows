@@ -5,6 +5,8 @@ description: Fetch and address PR reviewer comments on the published UI design d
 
 # Respond to Review Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a frontend architect responding to PR review feedback. Your job is
 to fetch reviewer comments, propose responses, and update the UI design
 document when changes are needed.
@@ -29,9 +31,9 @@ and push to the docs repo branch.
 ### Step 1: Read Current State
 
 Read these files:
-1. `.artifacts/ui-design/{workspace-id}/publish-metadata.json` (PR details)
-2. `.artifacts/ui-design/{workspace-id}/02-ui-design.md` (current UI design)
-3. `.artifacts/ui-design/{workspace-id}/03-api-findings.md` (if it exists)
+1. `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/publish-metadata.json` (PR details)
+2. `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/02-ui-design.md` (current UI design)
+3. `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/03-api-findings.md` (if it exists)
 
 If `publish-metadata.json` doesn't exist, tell the user that `/publish`
 should be run first.
@@ -44,8 +46,8 @@ changes. Read the branch name from `publish-metadata.json` and check it
 out in the docs repo:
 
 ```bash
-DOCS_REPO_PATH=$(python3 -c "import json; print(json.load(open('.artifacts/config.json'))['docs_repo_path'])")
-PR_BRANCH=$(python3 -c "import json; print(json.load(open('.artifacts/ui-design/{workspace-id}/publish-metadata.json'))['branch'])")
+DOCS_REPO_PATH=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["docs_repo_path"])' "${ARTIFACTS_ROOT}/config.json")
+PR_BRANCH=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["branch"])' "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/publish-metadata.json")
 ```
 
 Check out the branch. If it doesn't exist locally, create a tracking
@@ -55,7 +57,7 @@ branch from the push remote:
 if git -C "${DOCS_REPO_PATH}" show-ref --verify --quiet "refs/heads/${PR_BRANCH}"; then
   git -C "${DOCS_REPO_PATH}" checkout "${PR_BRANCH}"
 else
-  PUSH_REMOTE=$(python3 -c "import json; m=json.load(open('.artifacts/ui-design/{workspace-id}/publish-metadata.json')); print(m.get('push_repo','origin').split('/')[-1] if '/' in m.get('push_repo','origin') else 'origin')")
+  PUSH_REMOTE=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1])).get("push_repo", "origin").split("/")[-1])' "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/publish-metadata.json")
   git -C "${DOCS_REPO_PATH}" fetch "${PUSH_REMOTE}" "${PR_BRANCH}"
   git -C "${DOCS_REPO_PATH}" checkout -b "${PR_BRANCH}" "${PUSH_REMOTE}/${PR_BRANCH}"
 fi
@@ -216,7 +218,7 @@ Read and follow `${HOME}/.ai-workflows/_shared/recipes/capture-provenance-event.
 
 Read and follow `${HOME}/.ai-workflows/_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=ui-design`, `ISSUE_KEY={workspace-id}`, and `TARGET_FILE` set to the
-absolute source-repo path to `.artifacts/ui-design/{workspace-id}/02-ui-design.md`.
+absolute source-repo path to `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/02-ui-design.md`.
 
 Copy the updated files to the docs repo, commit, and push **before
 posting any PR comments** — this ensures responses reference committed
@@ -224,16 +226,16 @@ content:
 
 Resolve `target_directory` from `publish-metadata.json` (the
 `target_directory` field). Load `docs_repo_path` from
-`.artifacts/config.json`. Canonicalize both paths (resolve symlinks
+`{ARTIFACTS_ROOT}/config.json`. Canonicalize both paths (resolve symlinks
 and `..` segments) and verify that `target_directory` is inside
 `docs_repo_path` — if it is not, stop and report the mismatch before
 copying any files. Verify the recorded branch is checked out and
 the push remote is valid before committing.
 
 ```bash
-cp ".artifacts/ui-design/{workspace-id}/02-ui-design.md" "{target_directory}/ui-design-{workspace-id}.md"
+cp "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/02-ui-design.md" "{target_directory}/ui-design-{workspace-id}.md"
 # If api-findings-{workspace-id}.md was updated:
-cp ".artifacts/ui-design/{workspace-id}/03-api-findings.md" "{target_directory}/api-findings-{workspace-id}.md"
+cp "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/03-api-findings.md" "{target_directory}/api-findings-{workspace-id}.md"
 ```
 
 If `03-api-findings.md` does **not** exist (findings fit inline in
@@ -243,7 +245,7 @@ private overflow file from the artifacts directory:
 
 ```bash
 git -C "{docs_repo_path}" rm "{target_directory}/api-findings-{workspace-id}.md" 2>/dev/null || true
-rm -f ".artifacts/ui-design/{workspace-id}/03-api-findings.md"
+rm -f "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/03-api-findings.md"
 ```
 
 Include the docs-repo deletion in the same commit below.
@@ -301,7 +303,7 @@ Use a heredoc with a quoted delimiter so reviewer-controlled content is
 treated as literal data, preventing shell interpolation:
 
 ```bash
-cat > .artifacts/ui-design/{workspace-id}/pr-response-{N}.md << 'ENDOFRESPONSE'
+cat > "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/pr-response-{N}.md" << 'ENDOFRESPONSE'
 {response}
 ENDOFRESPONSE
 ```
@@ -398,7 +400,7 @@ For inline replies, use the resolved `root_comment_id`:
 
 ```bash
 gh api "repos/{upstream_repo}/pulls/{pr_number}/comments/${root_comment_id}/replies" \
-  -F "body=@.artifacts/ui-design/{workspace-id}/pr-response-{N}.md"
+  -F "body=@${ARTIFACTS_ROOT}/ui-design/{workspace-id}/pr-response-{N}.md"
 ```
 
 For general (non-inline) comments, append a hidden correlation marker
@@ -407,9 +409,9 @@ distinguish this response from identical text posted elsewhere:
 
 ```bash
 echo '<!-- respond-correlation: {workspace-id}/{comment_id} -->' \
-  >> .artifacts/ui-design/{workspace-id}/pr-response-{N}.md
+  >> "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/pr-response-{N}.md"
 gh pr comment {pr_number} --repo "{upstream_repo}" \
-  --body-file .artifacts/ui-design/{workspace-id}/pr-response-{N}.md
+  --body-file "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/pr-response-{N}.md"
 ```
 
 **Capture the API response ID.** After each successful post, extract
@@ -423,7 +425,7 @@ field, record `API Response ID` as `"unknown"` rather than omitting it.
 
 Update the entry identified in Step 6c (whether a newly appended
 preliminary entry or an existing entry being retried) in
-`.artifacts/ui-design/{workspace-id}/05-review-responses.md` with the
+`{ARTIFACTS_ROOT}/ui-design/{workspace-id}/05-review-responses.md` with the
 final post result and API response ID. Do this immediately after
 confirmed posting, before moving to the next comment. This ensures
 that if the run is interrupted, already-posted responses are recorded
@@ -442,12 +444,12 @@ After all responses have been posted, clean up the individual response
 files — their content is captured in the per-response log entries above:
 
 ```bash
-rm -f .artifacts/ui-design/{workspace-id}/pr-response-*.md
+rm -f "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/pr-response-*.md"
 ```
 
 ### Step 7: Verify Response Log
 
-Verify that `.artifacts/ui-design/{workspace-id}/05-review-responses.md`
+Verify that `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/05-review-responses.md`
 contains an entry for every response posted in this round. This file is
 the persistent record of all review interactions and must survive across
 sessions.
@@ -463,10 +465,10 @@ Present:
 
 ## Output
 
-- `.artifacts/ui-design/{workspace-id}/02-ui-design.md` (updated, if changes were made)
-- `.artifacts/ui-design/{workspace-id}/03-api-findings.md` (updated, if it exists and was affected)
-- `.artifacts/ui-design/{workspace-id}/05-review-responses.md`
-- `.artifacts/ui-design/{workspace-id}/provenance.json` (updated, if changes were made)
+- `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/02-ui-design.md` (updated, if changes were made)
+- `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/03-api-findings.md` (updated, if it exists and was affected)
+- `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/05-review-responses.md`
+- `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/provenance.json` (updated, if changes were made)
 - Updated PR in docs repo (if changes were pushed)
 
 ## When This Phase Is Done

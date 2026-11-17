@@ -1,6 +1,6 @@
 ---
 name: ui-design
-version: 0.1.0
+version: 0.2.0
 description: >-
   UI design workflow that takes a [UI] Jira story and optional UX handoff artifact,
   produces a component decomposition with hook design, state management,
@@ -9,6 +9,7 @@ description: >-
   Activated by commands: /ingest, /plan, /review-api, /revise, /publish, /respond, /sync.
 ---
 # UI Design Workflow Orchestrator
+Before any artifact access, follow [the shared artifact resolver](../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
 
 ## Quick Start
 

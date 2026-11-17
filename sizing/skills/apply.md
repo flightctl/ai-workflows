@@ -5,7 +5,9 @@ description: Preview selected sizing actions and write approved sizes to Jira.
 
 # Apply Sizing
 
-Use `.artifacts/sizing/{context}/02-assessment.json` as the source of truth.
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
+Use `{ARTIFACTS_ROOT}/sizing/{context}/02-assessment.json` as the source of truth.
 Do not read `02-assessment.md`; it is generated from the JSON artifact.
 
 ## Process
@@ -36,7 +38,7 @@ Do not read `02-assessment.md`; it is generated from the JSON artifact.
    ```bash
    python3 "${HOME}/.ai-workflows/sizing/scripts/apply_plan.py" actions "{context}" \
      --select-key EDM-2324 --override EDM-2324=M \
-     --output ".artifacts/sizing/{context}/03-apply-actions.json"
+     --output "${ARTIFACTS_ROOT}/sizing/{context}/03-apply-actions.json"
    ```
 
    Use `--all` when the user selected every committable Feature. Map preview

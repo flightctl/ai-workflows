@@ -5,6 +5,8 @@ description: Resolve and execute one explicitly requested ui-design phase.
 
 # UI Design Phase Dispatch
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Require `PHASE` to be one of `ingest`, `plan`, `review-api`, `revise`,
 `publish`, `respond`, or `sync`. If it is missing or unsupported, report
 the valid phases and stop before resolving a filename.

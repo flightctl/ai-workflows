@@ -5,6 +5,8 @@ description: Discover the default sizing input and route it to the phase dispatc
 
 # Sizing Workflow Controller
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Use this controller only for the default `/sizing` entry point. Explicit phase
 commands already route through `dispatch.md`. The dispatcher owns phase
 announcements, project guidance, override resolution, execution, and error

@@ -5,6 +5,8 @@ description: Fetch the [QE] story, verify dependencies, explore e2e test infrast
 
 # Ingest Story Context Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a principal QE engineer. Your job is to fetch the [QE] story, verify
 that the features under test have been implemented and merged, explore the
 project's e2e testing infrastructure in depth, and produce a structured
@@ -57,7 +59,7 @@ and all downstream phases.
 ### Step 2: Create Artifact Directory
 
 ```bash
-mkdir -p .artifacts/e2e/{issue-key}
+mkdir -p "${ARTIFACTS_ROOT}/e2e/{issue-key}"
 ```
 
 Verify that `.artifacts/` is covered by the project's `.gitignore`. If it
@@ -66,7 +68,7 @@ with the code.
 
 ### Step 2a: Check for Prior Ingest
 
-If `.artifacts/e2e/{issue-key}/01-context.md` already exists, this is a
+If `{ARTIFACTS_ROOT}/e2e/{issue-key}/01-context.md` already exists, this is a
 re-invocation. Copy the existing file to `01-context.md.prev` so it is
 preserved for the diff in Step 7a.
 
@@ -127,7 +129,7 @@ design workflows. Fetch them from there.
 
 #### 5a: Resolve the Docs Repo
 
-Check for an existing docs repo configuration at `.artifacts/config.json`.
+Check for an existing docs repo configuration at `{ARTIFACTS_ROOT}/config.json`.
 This config is workspace-level and shared across all workflows — a prior
 workflow run may have already created it.
 
@@ -138,7 +140,7 @@ workflow run may have already created it.
 
 If any validation fails, inform the user and re-ask for the correct values.
 Resolve `~` to an absolute path before saving. Update
-`.artifacts/config.json` with the corrected values.
+`{ARTIFACTS_ROOT}/config.json` with the corrected values.
 
 **If the config does not exist**, ask the user:
 - **Docs repo local path:** Where is the planning docs repo checked out?
@@ -146,7 +148,7 @@ Resolve `~` to an absolute path before saving. Update
   and confirm with the user
 
 Validate the path and remote. Resolve `~` to the user's home directory
-so the stored path is absolute. Write `.artifacts/config.json` with the
+so the stored path is absolute. Write `{ARTIFACTS_ROOT}/config.json` with the
 validated `docs_repo_path` and `docs_repo_remote` (workspace-level config
 shared across all workflows).
 
@@ -217,7 +219,7 @@ matching as above.
 
 | Outcome | Condition | Action |
 |---------|-----------|--------|
-| **Normal** | Matching test cases found | Write `.artifacts/e2e/{issue-key}/testplan.md` |
+| **Normal** | Matching test cases found | Write `{ARTIFACTS_ROOT}/e2e/{issue-key}/testplan.md` |
 | **Expected zero** | No matches AND story type is `[DOCS]`, `[UX]`, or `[CI]` | Note in context. |
 | **Anomalous zero** | No matches AND story type is `[QE]`, `[DEV]`, or `[UI]` | Warn the user: "Testplan exists but no test cases match this story's requirements. This may indicate a gap in the testplan or the story's requirement mapping." This is non-blocking. |
 
@@ -226,7 +228,7 @@ zero (warn the user, continue without `testplan.md`).
 
 For non-normal outcomes (expected zero, anomalous zero, or no
 feature-level testplan): if
-`.artifacts/e2e/{issue-key}/testplan.md` exists from a prior ingest
+`{ARTIFACTS_ROOT}/e2e/{issue-key}/testplan.md` exists from a prior ingest
 run, delete it. A stale story-scoped testplan
 would cause downstream gates to enforce obsolete coverage requirements.
 
@@ -236,7 +238,7 @@ a newer feature and older designs may not have one.
 
 **Write story-scoped testplan (Normal outcome only):**
 
-Write `.artifacts/e2e/{issue-key}/testplan.md`:
+Write `{ARTIFACTS_ROOT}/e2e/{issue-key}/testplan.md`:
 
 ```markdown
 # Story Test Plan — {issue-key}
@@ -492,7 +494,7 @@ Compile all findings into the structure below. If this is a re-invocation
 compiled content and proceed to Step 7a first.
 
 If this is a first invocation, write
-`.artifacts/e2e/{issue-key}/01-context.md` with this structure:
+`{ARTIFACTS_ROOT}/e2e/{issue-key}/01-context.md` with this structure:
 
 ```markdown
 # Story Context — {issue-key}
@@ -550,7 +552,7 @@ If this is a first invocation, write
 ### Story Test Plan
 
 {If story-scoped testplan was written: "Story-scoped test plan written
- to `.artifacts/e2e/{issue-key}/testplan.md` with {N} test cases
+ to `{ARTIFACTS_ROOT}/e2e/{issue-key}/testplan.md` with {N} test cases
  covering requirements {FR-1, FR-3, NFR-2}.
  TC IDs: {comma-separated list}."
 
@@ -761,8 +763,8 @@ what changes were found and that the existing context was preserved.
 
 ## Output
 
-- `.artifacts/e2e/{issue-key}/01-context.md`
-- `.artifacts/e2e/{issue-key}/testplan.md` (if testplan exists with matching test cases)
+- `{ARTIFACTS_ROOT}/e2e/{issue-key}/01-context.md`
+- `{ARTIFACTS_ROOT}/e2e/{issue-key}/testplan.md` (if testplan exists with matching test cases)
 
 ## When This Phase Is Done
 

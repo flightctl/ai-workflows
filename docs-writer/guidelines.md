@@ -1,5 +1,7 @@
 # Docs Writer Workflow
 
+Before any artifact access, follow [the shared artifact resolver](../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Systematic documentation creation through these phases:
 
 1. **Gather Context** (`/gather`) — Research the feature from Jira, GitHub, or a description
@@ -12,7 +14,7 @@ Systematic documentation creation through these phases:
 The workflow controller lives at `skills/controller.md`.
 It defines how to execute phases, recommend next steps, and handle transitions.
 Phase skills are at `skills/{name}.md`.
-Artifacts go in `.artifacts/${ticket_id}/`.
+Artifacts go in `{ARTIFACTS_ROOT}/${ticket_id}/`.
 
 ## Principles
 

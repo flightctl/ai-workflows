@@ -5,6 +5,8 @@ description: Read the finalized AsciiDoc artifact and apply content directly to 
 
 # Apply Changes
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a File System operator. Your mission is to take the validated AsciiDoc artifact and write its contents to the actual repository files so the user can review them in the
 IDE.
 
@@ -36,7 +38,7 @@ Parse the finalized artifact and apply each file segment to the correct location
 
 ### Step 3: Prepare MR Description
 
-- Write `.artifacts/${ticket_id}/04-mr-description.md` summarizing the changes for a merge request
+- Write `{ARTIFACTS_ROOT}/${ticket_id}/04-mr-description.md` summarizing the changes for a merge request
 - Use the context artifact (`01-context.md`) and plan artifact (`02-plan.md`) to build the description
 - Include:
     - What documentation was added or changed
@@ -49,4 +51,4 @@ Parse the finalized artifact and apply each file segment to the correct location
 Notify the user that:
 
 1. The `.adoc` files have been updated in the IDE and are ready for manual review
-2. The MR description has been saved to `.artifacts/${ticket_id}/04-mr-description.md` for review before submitting
+2. The MR description has been saved to `{ARTIFACTS_ROOT}/${ticket_id}/04-mr-description.md` for review before submitting

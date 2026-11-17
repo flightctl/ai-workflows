@@ -9,7 +9,7 @@ This workflow provides a skeptical, structured review of any AI skill directory:
 - **8 Review Dimensions**: Orchestration, sequencing, schemas, cognitive load, clarity, documentation, naming, error handling
 - **Severity Classification**: CRITICAL, HIGH, MEDIUM, LOW — with clear blocker vs suggestion distinction
 - **Actionable Output**: Every finding includes a concrete suggestion for improvement
-- **Artifact Persistence**: Review reports saved to `.artifacts/skill-reviewer/{skill-name}/review.md`
+- **Artifact Persistence**: Review reports saved to `{ARTIFACTS_ROOT}/skill-reviewer/{skill-name}/review.md`
 
 ## Phase Flow
 
@@ -61,7 +61,7 @@ The **command** (`commands/review.md`) is a thin wrapper that routes directly to
    - **Error Handling & Edge Cases** — failure modes documented, escalation clear
 4. Classify findings by severity and produce a structured report
 
-**Output**: `.artifacts/skill-reviewer/{skill-name}/review.md` + findings presented inline.
+**Output**: `{ARTIFACTS_ROOT}/skill-reviewer/{skill-name}/review.md` + findings presented inline.
 
 ## Getting Started
 
@@ -83,7 +83,7 @@ User: "Review the docs-writer skill"
 /review  → reads all files in docs-writer/
          → evaluates 8 review dimensions
          → produces findings table
-         → writes .artifacts/skill-reviewer/docs-writer/review.md
+         → writes {ARTIFACTS_ROOT}/skill-reviewer/docs-writer/review.md
 ```
 
 #### Review with specific concerns
@@ -109,7 +109,7 @@ Agent works through findings from highest severity to lowest.
 ## Artifacts Generated
 
 ```text
-.artifacts/skill-reviewer/{skill-name}/
+{ARTIFACTS_ROOT}/skill-reviewer/{skill-name}/
 ├── file-hashes.json    # SHA-256 hashes for change detection between reviews
 ├── skill-map.md        # Structured skill map (comprehension artifact before evaluation)
 └── review.md           # Full review report with findings table

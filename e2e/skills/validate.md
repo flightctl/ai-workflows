@@ -5,6 +5,8 @@ description: Run e2e tests, check for anti-patterns, verify scenario coverage, a
 
 # Validate E2E Tests Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a principal QE engineer reviewing test quality. Your job is to run
 the e2e tests, check for test anti-patterns, verify scenario coverage
 against acceptance criteria, and assess whether the tests are ready for
@@ -30,10 +32,10 @@ re-run checks, and repeat until everything passes.
 ### Step 1: Read Context
 
 Read:
-1. `.artifacts/e2e/{issue-key}/01-context.md` (validation profile and e2e infrastructure)
-2. `.artifacts/e2e/{issue-key}/02-plan.md` (what was planned)
-3. `.artifacts/e2e/{issue-key}/04-impl-report.md` (implementation status)
-4. `.artifacts/e2e/{issue-key}/testplan.md` (story-scoped testplan, if exists)
+1. `{ARTIFACTS_ROOT}/e2e/{issue-key}/01-context.md` (validation profile and e2e infrastructure)
+2. `{ARTIFACTS_ROOT}/e2e/{issue-key}/02-plan.md` (what was planned)
+3. `{ARTIFACTS_ROOT}/e2e/{issue-key}/04-impl-report.md` (implementation status)
+4. `{ARTIFACTS_ROOT}/e2e/{issue-key}/testplan.md` (story-scoped testplan, if exists)
 
 Extract the validation profile's pre-PR checks list and the e2e test
 execution command.
@@ -79,7 +81,7 @@ If output is non-empty, stop and ask the user how to proceed (commit,
 stash, or abort) before continuing.
 
 Check whether a PR has already been created by looking for
-`.artifacts/e2e/{issue-key}/publish-metadata.json`.
+`{ARTIFACTS_ROOT}/e2e/{issue-key}/publish-metadata.json`.
 
 **If no PR exists yet**, offer to rebase:
 
@@ -186,7 +188,7 @@ parameters:
 |-----------|-------|
 | DIFF_COMMAND | `git diff {local-base}...HEAD` |
 | MAX_ROUNDS | `3` |
-| CONTEXT_FILES | `.artifacts/e2e/{issue-key}/01-context.md`, `.artifacts/e2e/{issue-key}/02-plan.md` (if they exist) |
+| CONTEXT_FILES | `{ARTIFACTS_ROOT}/e2e/{issue-key}/01-context.md`, `{ARTIFACTS_ROOT}/e2e/{issue-key}/02-plan.md` (if they exist) |
 | SUPPLEMENTARY_CRITERIA | This is the full-branch validation review for e2e test code. Anti-pattern detection is already complete (Step 4) — skip those checks. Focus on test design depth: (1) **Assertion specificity** — do tests verify the actual behavioral outcome the AC describes, or just assert "no error"? (2) **Brittleness** — will tests break only when real behavior changes, or will they break when unrelated implementation details change? (3) **Test isolation** — could any test leak state (credentials, resources, configuration) that affects other suites or environments? (4) **Reference suite consistency** — does the test structure match the project's reference suite, or does it introduce divergent patterns that will confuse future contributors? |
 
 If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
@@ -233,7 +235,7 @@ covered:
 
 ### Step 7b: Test Plan Verification
 
-If `.artifacts/e2e/{issue-key}/testplan.md` exists, independently verify
+If `{ARTIFACTS_ROOT}/e2e/{issue-key}/testplan.md` exists, independently verify
 that every test case has been covered by the e2e tests. This check
 re-derives the required TC ID list from `testplan.md` directly — it does
 NOT rely on the plan's task-to-TC-ID mappings or `/code`'s per-task
@@ -269,7 +271,7 @@ has TC mappings but `testplan.md` is missing, unreadable, or malformed
 
 ### Step 8: Write Validation Report
 
-Write `.artifacts/e2e/{issue-key}/05-validation-report.md`:
+Write `{ARTIFACTS_ROOT}/e2e/{issue-key}/05-validation-report.md`:
 
 ```markdown
 # Validation Report — {issue-key}
@@ -381,7 +383,7 @@ Summarize for the user:
 
 ## Output
 
-- `.artifacts/e2e/{issue-key}/05-validation-report.md`
+- `{ARTIFACTS_ROOT}/e2e/{issue-key}/05-validation-report.md`
 - Additional test fixes (if anti-patterns or gaps were found)
 - Fix commits (if issues were found and fixed)
 

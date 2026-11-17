@@ -1,6 +1,6 @@
 ---
 name: rebase-stack
-version: 1.1.0
+version: 1.2.0
 description: >-
   Rebases a gh-stack-tracked chain of stacked branches onto its updated base,
   guides conflict resolution, validates the stack, and pushes every branch
@@ -10,6 +10,7 @@ description: >-
   Activated by commands: /start, /continue, /validate, /push.
 ---
 # Rebase Stack Workflow
+Before any artifact access, follow [the shared artifact resolver](../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
 
 Read `skills/controller.md` and follow it. It gates every phase, then routes:
 

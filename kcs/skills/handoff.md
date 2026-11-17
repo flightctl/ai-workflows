@@ -5,6 +5,8 @@ description: Compose a handoff message for the support engineer with the KCS dra
 
 # Handoff to Support Engineer
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are preparing the KCS Solution draft for handoff to the support engineer
 who will publish it on the customer portal.
 
@@ -28,7 +30,7 @@ question and use what was given.
 
 ### Step 2: Load the Draft
 
-Read the validated draft: `.artifacts/kcs/{issue-key}/02-kcs-draft.md`
+Read the validated draft: `{ARTIFACTS_ROOT}/kcs/{issue-key}/02-kcs-draft.md`
 
 If the draft has not been validated (no `/validate` was run), warn the user
 and recommend running `/validate` first. Proceed only if the user explicitly
@@ -54,7 +56,7 @@ the detail.
 
 ### Step 4: Save the Handoff Artifact
 
-Save the message to `.artifacts/kcs/{issue-key}/03-handoff-message.md`.
+Save the message to `{ARTIFACTS_ROOT}/kcs/{issue-key}/03-handoff-message.md`.
 
 Use this structure:
 
@@ -72,7 +74,7 @@ Use this structure:
 
 ## Attachments
 
-- KCS draft: `.artifacts/kcs/{issue-key}/02-kcs-draft.md`
+- KCS draft: `{ARTIFACTS_ROOT}/kcs/{issue-key}/02-kcs-draft.md`
 ```
 
 ### Step 5: Present to User

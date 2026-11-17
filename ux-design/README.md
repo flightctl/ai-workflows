@@ -70,7 +70,7 @@ and linked `[UX]` story to be ingested.
 /ingest EDM-Feature
   → loads the Feature issue without requiring a PRD or design document
   → frames the problem, identifies user groups, and records assumptions
-  → writes exploratory context under .artifacts/ux-design/EDM-Feature/
+  → writes exploratory context under {ARTIFACTS_ROOT}/ux-design/EDM-Feature/
 
 Alternative when the PRD exists before the design document:
 /ingest "path/to/published/feature-directory/prd.md"
@@ -131,14 +131,14 @@ same open PR branch. Use `/respond` to address reviewer comments.
 
 ## Artifacts
 
-All artifacts are stored in `.artifacts/ux-design/{context-key}/`. For a
+All artifacts are stored in `{ARTIFACTS_ROOT}/ux-design/{context-key}/`. For a
 Jira-backed context, the Feature key is the stable context key, including when
 later phases are invoked with the linked `[UX]` story. For a description-only
 context, use the stable key agreed during `/ingest` (for example,
 `description-<slug>`).
 
 ```text
-.artifacts/ux-design/EDM-1234/
+{ARTIFACTS_ROOT}/ux-design/EDM-1234/
   00-context.md                (Feature/story links, revision, maturity, active bases)
   01-discovery.md              (current problem framing and upstream context)
   02-research.md               (research findings, insights, recommendations)

@@ -5,6 +5,8 @@ description: Check the KCS draft against the validation checklist and fix violat
 
 # Validate KCS Article
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a Quality Reviewer. Your mission is to verify that the KCS Solution
 draft meets the style and structural rules defined in
 `../templates/validation-checklist.md` before it is handed off to the support
@@ -19,7 +21,7 @@ Fix minor issues in-place. Report issues that require the user's input.
 
 ### Step 1: Load Inputs
 
-- Read the draft: `.artifacts/kcs/{issue-key}/02-kcs-draft.md`
+- Read the draft: `{ARTIFACTS_ROOT}/kcs/{issue-key}/02-kcs-draft.md`
 - Read the validation checklist: `../templates/validation-checklist.md`
 
 If the draft does not exist, stop and report to the controller.
@@ -62,5 +64,5 @@ Present the validation results to the user:
 
 ### Step 5: Save the Updated Draft
 
-If any fixes were applied, overwrite `.artifacts/kcs/{issue-key}/02-kcs-draft.md`
+If any fixes were applied, overwrite `{ARTIFACTS_ROOT}/kcs/{issue-key}/02-kcs-draft.md`
 with the corrected version.

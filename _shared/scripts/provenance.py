@@ -16,7 +16,12 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from artifacts import artifact_directory, artifact_root
 
 GIT_TIMEOUT_SEC = 30
 
@@ -225,23 +230,14 @@ def ai_workflows_root() -> Path:
 
 
 def workspace_root() -> Path:
-    current = Path.cwd()
-    for _ in range(32):
-        git_root = repo_root(current)
-        if git_root:
-            return git_root
-        if (current / ".artifacts").is_dir():
-            return current
-        if current.parent == current:
-            break
-        current = current.parent
-    return Path.cwd()
+    artifact_root()
+    return repo_root(Path.cwd()) or Path.cwd()
 
 
 def provenance_path(workflow: str, issue: str) -> Path:
     if "/" in issue or "\\" in issue or ".." in issue:
         raise ValueError(f"Invalid issue key: {issue!r}")
-    return workspace_root() / ".artifacts" / workflow / issue / "provenance.json"
+    return artifact_directory(workflow, issue) / "provenance.json"
 
 
 def load_provenance(path: Path, workflow: str) -> dict[str, Any]:

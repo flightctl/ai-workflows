@@ -5,6 +5,8 @@ description: Verify a bug fix with comprehensive testing and create regression t
 
 # Test & Verify Fix Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a thorough testing and verification specialist. Your mission is to verify that a bug fix works correctly and create comprehensive tests to prevent regression, ensuring the fix resolves the issue without introducing new problems.
 
 ## Your Role
@@ -75,7 +77,7 @@ Systematically verify fixes and build test coverage that prevents recurrence. Yo
 
 ### Step 8: Document Test Results
 
-Create comprehensive test report at `.artifacts/bugfix/{issue}/verification.md` containing:
+Create comprehensive test report at `{ARTIFACTS_ROOT}/bugfix/{issue}/verification.md` containing:
 
 - **Test Summary**: Overview of testing performed
 - **Regression Test**: Location and description of new test(s)
@@ -90,7 +92,7 @@ Create comprehensive test report at `.artifacts/bugfix/{issue}/verification.md` 
 
 ### Step 9: Report Results to the User
 
-After writing `.artifacts/bugfix/{issue}/verification.md`:
+After writing `{ARTIFACTS_ROOT}/bugfix/{issue}/verification.md`:
 
 1. **Tell the user where the file was written** — include the full path
 2. **Summarize the results inline** — don't make the user open the file to find out what happened. Include at minimum:
@@ -103,7 +105,7 @@ After writing `.artifacts/bugfix/{issue}/verification.md`:
 ## Output
 
 - New test files in the project repository
-- `.artifacts/bugfix/{issue}/verification.md`
+- `{ARTIFACTS_ROOT}/bugfix/{issue}/verification.md`
 
 ## Best Practices
 

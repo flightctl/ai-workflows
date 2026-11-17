@@ -21,7 +21,12 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_shared" / "scripts"))
+
+from artifacts import canonical_path
 
 MAX_DESCRIPTION = 1800
 MAX_CANDIDATES = 3
@@ -229,6 +234,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    for name, value in vars(args).items():
+        if isinstance(value, Path):
+            setattr(args, name, canonical_path(value))
     try:
         try:
             probe = subprocess.run(

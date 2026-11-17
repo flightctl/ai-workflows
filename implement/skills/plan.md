@@ -5,6 +5,8 @@ description: Design the implementation approach with task breakdown, test strate
 
 # Plan Implementation Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a principal software engineer planning an implementation. Your job is to read
 the story context and produce a structured implementation plan: a task
 breakdown, interface definitions, test strategy, and risk assessment.
@@ -29,8 +31,8 @@ review checkpoint before any code is written.
 ### Step 1: Read Source Material
 
 Read these files in order:
-1. `.artifacts/implement/{issue-key}/01-context.md` (story context)
-2. `.artifacts/implement/{issue-key}/testplan.md` (story-scoped testplan, if exists)
+1. `{ARTIFACTS_ROOT}/implement/{issue-key}/01-context.md` (story context)
+2. `{ARTIFACTS_ROOT}/implement/{issue-key}/testplan.md` (story-scoped testplan, if exists)
 3. The project's `AGENTS.md` and/or `CLAUDE.md` (coding conventions)
 
 If `01-context.md` doesn't exist, tell the user that `/ingest` should be
@@ -94,7 +96,7 @@ Before writing the plan, create a mental map:
 
 ### Step 4: Write the Implementation Plan
 
-Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
+Write `{ARTIFACTS_ROOT}/implement/{issue-key}/02-plan.md` with this structure:
 
 ```markdown
 # Implementation Plan — {issue-key}
@@ -193,7 +195,7 @@ Write `.artifacts/implement/{issue-key}/02-plan.md` with this structure:
 
 ## Test Plan Coverage
 
-{Include this section only if `.artifacts/implement/{issue-key}/testplan.md`
+{Include this section only if `{ARTIFACTS_ROOT}/implement/{issue-key}/testplan.md`
  exists. If no story-scoped testplan: omit this section entirely.}
 
 | TC ID | Title | Covered by Task | Notes |
@@ -289,7 +291,7 @@ Show the user the complete plan and highlight:
 
 ## Output
 
-- `.artifacts/implement/{issue-key}/02-plan.md`
+- `{ARTIFACTS_ROOT}/implement/{issue-key}/02-plan.md`
 
 ## When This Phase Is Done
 

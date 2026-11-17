@@ -33,7 +33,12 @@ import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_shared" / "scripts"))
+
+from artifacts import canonical_path
 
 # Placeholders the template expects, grouped by how their replacement
 # values are serialized into the HTML.
@@ -561,6 +566,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    for name, value in vars(args).items():
+        if isinstance(value, Path):
+            setattr(args, name, canonical_path(value))
 
     analyzed = _read_json(args.analyzed, "analyzed.json")
     issues_data = _read_json(args.issues, "issues.json")

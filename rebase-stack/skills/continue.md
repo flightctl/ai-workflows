@@ -5,6 +5,8 @@ description: Resume a paused gh stack rebase after the user resolved a conflict.
 
 # Continue Rebase Stack
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Repeatable. Each run advances the rebase to the next conflict or to completion.
 Local only — nothing is pushed.
 
@@ -15,7 +17,7 @@ Follow `preflight.md` with `--allow-rebase-in-progress`.
 If preflight reports `rebaseInProgress: false`, no rebase is paused:
 
 ```bash
-jq -r '.rebaseInProgress' .artifacts/rebase-stack/context.json
+jq -r '.rebaseInProgress' "${ARTIFACTS_ROOT}/rebase-stack/context.json"
 ```
 
 Tell the user there is nothing to continue and point them at `/start`, which
@@ -81,7 +83,7 @@ by hand mid-rebase, stop and report it.
 ## Step 3: Continue
 
 ```bash
-base_remote=$(jq -r '.baseRemote' .artifacts/rebase-stack/context.json)
+base_remote=$(jq -r '.baseRemote' "${ARTIFACTS_ROOT}/rebase-stack/context.json")
 gh stack rebase --continue --remote "$base_remote"
 echo "continue exit: $?"
 ```
@@ -103,7 +105,7 @@ When a second or third layer conflicts on the same hunk, say so explicitly:
 
 ```bash
 bash "{scripts}/snapshot.sh" verify \
-  < .artifacts/rebase-stack/context.json
+  < "${ARTIFACTS_ROOT}/rebase-stack/context.json"
 echo "verify exit: $?"
 ```
 

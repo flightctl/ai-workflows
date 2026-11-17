@@ -30,8 +30,9 @@
 
 set -uo pipefail
 
-LOG_DIR=".artifacts/rebase-stack/logs"
-WT_DIR=".artifacts/rebase-stack/worktrees"
+ARTIFACTS_ROOT="$(python3 "$(cd "$(dirname "$0")/../../_shared/scripts" && pwd)/artifacts.py")" || exit 2
+LOG_DIR="${ARTIFACTS_ROOT}/rebase-stack/logs"
+WT_DIR="${ARTIFACTS_ROOT}/rebase-stack/worktrees"
 
 lint_cmd=""
 test_cmd=""

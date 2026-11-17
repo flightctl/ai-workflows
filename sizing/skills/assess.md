@@ -5,10 +5,12 @@ description: Apply the rubric and return compact Feature sizing judgments.
 
 # Assess Sizing
 
-If no context is known, inspect `.artifacts/sizing/` and ask which context to
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
+If no context is known, inspect `{ARTIFACTS_ROOT}/sizing/` and ask which context to
 assess. If no `01-context.json` exists, recommend `/ingest` and stop.
 
-Read `.artifacts/sizing/{context}/01-context.json` and the Feature-relevant
+Read `{ARTIFACTS_ROOT}/sizing/{context}/01-context.json` and the Feature-relevant
 sections of `../../_shared/sizing-rubric.md` (size definitions, XXL protocol,
 heuristics, team effort, and impact classification). Do not read
 `01-context.md`; it is a rendered view of the same data.
@@ -20,7 +22,7 @@ size remains a judgment across the dimensions; do not calculate it from a
 fixed formula. Give short, evidence-specific rationales. Explain disagreement
 with a current Jira size.
 
-Write only model judgments to `.artifacts/sizing/{context}/02-decisions.json`.
+Write only model judgments to `{ARTIFACTS_ROOT}/sizing/{context}/02-decisions.json`.
 For a fresh assessment, omit any prior `user_overrides` map; apply-time
 overrides belong to the previous assessment and are discarded. Use this shape:
 

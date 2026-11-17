@@ -5,6 +5,8 @@ description: Categorize scanned bugs with compact AI decisions and deterministic
 
 # Analyze Bugs
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Analyze every unresolved bug from the scan and produce `analyzed.json` for the
 HTML report. Python owns normalization, signal extraction, candidate matching,
 validation, merging, and aggregation. AI owns semantic judgments: issue
@@ -19,7 +21,7 @@ meaning and actions, and prioritized recommendations.
 
 ## Prerequisites
 
-`.artifacts/triage/{PROJECT}/issues.json` must exist. If it does not, stop and
+`{ARTIFACTS_ROOT}/triage/{PROJECT}/issues.json` must exist. If it does not, stop and
 ask the user to run `/scan` first. `resolved.json` is optional.
 
 **Source repository checkout (required).** `/analyze` must run from inside
@@ -42,10 +44,10 @@ PROJECT_ROOT="$PWD"
 (
   cd "{AI_WORKFLOWS_ROOT}"
   python3 triage/scripts/prepare_analysis.py \
-    --issues "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/issues.json" \
-    --resolved "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/resolved.json" \
+    --issues "${ARTIFACTS_ROOT}/triage/{PROJECT}/issues.json" \
+    --resolved "${ARTIFACTS_ROOT}/triage/{PROJECT}/resolved.json" \
     --source-root "$PROJECT_ROOT" \
-    --output "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/analysis-input.json"
+    --output "${ARTIFACTS_ROOT}/triage/{PROJECT}/analysis-input.json"
 )
 ```
 
@@ -128,7 +130,7 @@ meaningful relationship exists. The top-level clusters and recommendations are
 semantic judgments, not Python templates: provide 2-4 concrete next steps per
 cluster and 5-10 actionable recommendations.
 
-Write or update `.artifacts/triage/{PROJECT}/ai-decisions.json` after each
+Write or update `{ARTIFACTS_ROOT}/triage/{PROJECT}/ai-decisions.json` after each
 batch. Do not repeat metadata, descriptions, signatures, or match candidates.
 Return no prose outside JSON.
 
@@ -166,10 +168,10 @@ PROJECT_ROOT="$PWD"
 (
   cd "{AI_WORKFLOWS_ROOT}"
   python3 triage/scripts/finalize_analysis.py \
-    --issues "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/issues.json" \
-    --prepared "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/analysis-input.json" \
-    --decisions "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/ai-decisions.json" \
-    --output "$PROJECT_ROOT/.artifacts/triage/{PROJECT}/analyzed.json"
+    --issues "${ARTIFACTS_ROOT}/triage/{PROJECT}/issues.json" \
+    --prepared "${ARTIFACTS_ROOT}/triage/{PROJECT}/analysis-input.json" \
+    --decisions "${ARTIFACTS_ROOT}/triage/{PROJECT}/ai-decisions.json" \
+    --output "${ARTIFACTS_ROOT}/triage/{PROJECT}/analyzed.json"
 )
 ```
 
@@ -186,4 +188,4 @@ current.
 ### 4. Present completion
 
 Read the finalizer output and report the total, recommendation counts, cluster
-count, and `.artifacts/triage/{PROJECT}/analyzed.json` path.
+count, and `{ARTIFACTS_ROOT}/triage/{PROJECT}/analyzed.json` path.

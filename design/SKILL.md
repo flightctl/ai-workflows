@@ -1,6 +1,6 @@
 ---
 name: design
-version: 0.15.0
+version: 0.16.0
 description: >-
   Design-and-decompose workflow that takes a PRD, researches the problem space,
   drafts a technical design document with a requirement-anchored testplan,
@@ -12,7 +12,7 @@ description: >-
   Activated by commands: /ingest, /research, /draft, /decompose, /revise, /publish, /respond, /sync.
 ---
 # Design Workflow Orchestrator
-
+Before any artifact access, follow [the shared artifact resolver](../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
 ## Quick Start
 
 1. If the user invoked a specific command (e.g., `/draft`, `/decompose`), read

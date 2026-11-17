@@ -5,6 +5,8 @@ description: Fetch and address PR reviewer comments, applying code changes with 
 
 # Respond to Review Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a principal review coordinator. Your job is to fetch reviewer comments from
 the PR, help the user understand and respond to them, and apply any resulting
 code changes.
@@ -45,7 +47,7 @@ script header for full usage.
 
 ### Step 1: Read Context and Fetch PR Comments
 
-Read `.artifacts/ui-implement/{issue-key}/publish-metadata.json` to get the
+Read `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/publish-metadata.json` to get the
 PR number and `{owner}/{repo}` (the `repo` field). If metadata doesn't
 exist, tell the user that `/publish` should be run first. If the user
 provides a PR number directly, use that instead.
@@ -72,7 +74,7 @@ PR_COMMENTS_SCRIPT="${HOME}/.ai-workflows/_shared/scripts/pr-comments.py"
 Fetch all comments using the shared script:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" fetch --owner {owner} --repo {repo} --pr {pr-number} --responses-log .artifacts/ui-implement/{issue-key}/responses.jsonl --include-review-threads
+python3 "$PR_COMMENTS_SCRIPT" fetch --owner {owner} --repo {repo} --pr {pr-number} --responses-log "${ARTIFACTS_ROOT}/ui-implement/{issue-key}/responses.jsonl" --include-review-threads
 ```
 
 If fetch returns non-zero, report the error to the user and stop.
@@ -164,20 +166,20 @@ For comments requiring code changes:
 Write the reply to a temp file to avoid shell metacharacter issues.
 Use the file-writing tool (Write) to create the file.
 
-Write `{approved reply text}` to `.artifacts/ui-implement/{issue-key}/tmp-reply.md`.
+Write `{approved reply text}` to `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/tmp-reply.md`.
 
 Route each comment based on its `type` field from the fetch output:
 
 **When `type` is `"line_comment"`**, reply in-thread:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/ui-implement/{issue-key}/tmp-reply.md --comment-id {id}
+python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file "${ARTIFACTS_ROOT}/ui-implement/{issue-key}/tmp-reply.md" --comment-id {id}
 ```
 
 **When `type` is `"review"` or `"top_level"`**, post a top-level comment:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/ui-implement/{issue-key}/tmp-reply.md
+python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file "${ARTIFACTS_ROOT}/ui-implement/{issue-key}/tmp-reply.md"
 ```
 
 If the reply command fails, report the error and continue to the next
@@ -186,7 +188,7 @@ comment **without calling `log`**.
 After each **successful** reply, record the `id` in the responses log:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" log --responses-log .artifacts/ui-implement/{issue-key}/responses.jsonl --comment-id {id}
+python3 "$PR_COMMENTS_SCRIPT" log --responses-log "${ARTIFACTS_ROOT}/ui-implement/{issue-key}/responses.jsonl" --comment-id {id}
 ```
 
 **If the log command fails, stop immediately** — continuing without
@@ -195,12 +197,12 @@ logging would allow duplicate replies on the next respond round.
 Clean up the temporary reply file:
 
 ```bash
-rm .artifacts/ui-implement/{issue-key}/tmp-reply.md
+rm "${ARTIFACTS_ROOT}/ui-implement/{issue-key}/tmp-reply.md"
 ```
 
 ### Step 5: Update Response Log
 
-Write or update `.artifacts/ui-implement/{issue-key}/07-review-responses.md`:
+Write or update `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/07-review-responses.md`:
 
 ```markdown
 # Review Responses — {issue-key}
@@ -237,7 +239,7 @@ Summarize:
 
 - PR comments posted (with user approval)
 - Code changes committed and pushed (if applicable)
-- `.artifacts/ui-implement/{issue-key}/07-review-responses.md`
+- `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/07-review-responses.md`
 
 ## When This Phase Is Done
 

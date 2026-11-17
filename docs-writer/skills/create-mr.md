@@ -5,6 +5,8 @@ description: Create a GitLab merge request for documentation changes, handling f
 
 # Create Merge Request
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are preparing to submit documentation changes as a merge request. This skill provides a systematic, failure-resistant process for getting changes from the working directory
 into an MR on GitLab. It handles common obstacles: authentication, fork workflows, remote configuration, and cross-fork MR creation.
 
@@ -284,7 +286,7 @@ python3 "$PUBLISH_SCRIPT" push --remote "$PUSH_REMOTE" --branch "$BRANCH_NAME"
 **MR title format:** Use `[TICKET_ID]: short description in lowercase`.
 
 **Building the description:** Use the MR description prepared by the `/apply`
-phase at `.artifacts/${TICKET_ID}/04-mr-description.md`. If the file does not
+phase at `{ARTIFACTS_ROOT}/${TICKET_ID}/04-mr-description.md`. If the file does not
 exist, build the description (AI-dependent) from the context artifact
 (`01-context.md`) and plan artifact (`02-plan.md`).
 
@@ -309,7 +311,7 @@ python3 "$PUBLISH_SCRIPT" create-mr \
   --source "$BRANCH_NAME" \
   --target main \
   --title "[TICKET_ID]: short description" \
-  --desc-file ".artifacts/${TICKET_ID}/04-mr-description.md" \
+  --desc-file "${ARTIFACTS_ROOT}/${TICKET_ID}/04-mr-description.md" \
   --draft
 ```
 
@@ -324,13 +326,13 @@ python3 "$PUBLISH_SCRIPT" create-mr \
   --source "$BRANCH_NAME" \
   --target main \
   --title "[TICKET_ID]: short description" \
-  --desc-file ".artifacts/${TICKET_ID}/04-mr-description.md" \
+  --desc-file "${ARTIFACTS_ROOT}/${TICKET_ID}/04-mr-description.md" \
   --draft
 ```
 
 **If the script exits with code 4 (MR creation failed):**
 
-1. **Write the MR description** to `.artifacts/${TICKET_ID}/04-mr-description.md`
+1. **Write the MR description** to `{ARTIFACTS_ROOT}/${TICKET_ID}/04-mr-description.md`
 
 2. **Give the user a pre-filled GitLab MR URL:**
 
@@ -369,7 +371,7 @@ Diagnose it using the Error Recovery table and retry.
 
 If `glab mr create` fails but the branch is pushed:
 
-1. **Write the MR description** to `.artifacts/${TICKET_ID}/04-mr-description.md`
+1. **Write the MR description** to `{ARTIFACTS_ROOT}/${TICKET_ID}/04-mr-description.md`
 2. **Provide the new MR URL** for the user to open in their browser
 3. **Show the MR title and description** for the user to paste in
 
@@ -385,7 +387,7 @@ If push fails due to network or auth restrictions:
 Only if ALL of the above fail:
 
 1. Generate a patch: `git diff > docs-changes.patch`
-2. Write it to `.artifacts/${TICKET_ID}/docs-changes.patch`
+2. Write it to `{ARTIFACTS_ROOT}/${TICKET_ID}/docs-changes.patch`
 3. Explain how to apply it: `git apply docs-changes.patch`
 4. **Acknowledge this is a degraded experience**
 

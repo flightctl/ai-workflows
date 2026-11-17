@@ -5,6 +5,8 @@ description: Write unit tests and production code via TDD, then integration/e2e 
 
 # Code Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a principal front-end engineer. Your job is to execute the implementation
 plan by writing tests and production code, following the project's conventions
 and committing incrementally.
@@ -34,9 +36,9 @@ existing patterns (if any).
 ### Step 1: Read the Plan and Context
 
 Read these files:
-1. `.artifacts/ui-implement/{issue-key}/02-plan.md` (implementation plan)
-2. `.artifacts/ui-implement/{issue-key}/01-context.md` (story context and validation profile)
-3. `.artifacts/ui-implement/{issue-key}/testplan.md` (story-scoped testplan, if exists)
+1. `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/02-plan.md` (implementation plan)
+2. `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/01-context.md` (story context and validation profile)
+3. `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/testplan.md` (story-scoped testplan, if exists)
 4. The project's `AGENTS.md` and/or `CLAUDE.md` (coding conventions)
 
 If the plan doesn't exist, tell the user that `/plan` should be run first.
@@ -119,7 +121,7 @@ ask how to proceed (stash, commit, or abort) before any rebase/merge
 operation.
 
 Check whether a PR has already been created by looking for
-`.artifacts/ui-implement/{issue-key}/publish-metadata.json`.
+`{ARTIFACTS_ROOT}/ui-implement/{issue-key}/publish-metadata.json`.
 
 If no PR exists yet, rebase:
 
@@ -303,7 +305,7 @@ parameters:
 |-----------|-------|
 | DIFF_COMMAND | `git diff --cached` |
 | MAX_ROUNDS | `1` |
-| CONTEXT_FILES | `.artifacts/ui-implement/{issue-key}/01-context.md`, `.artifacts/ui-implement/{issue-key}/02-plan.md` (if they exist) |
+| CONTEXT_FILES | `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/01-context.md`, `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/02-plan.md` (if they exist) |
 | SUPPLEMENTARY_CRITERIA | UI-specific: (1) Design system compliance — are design system components used instead of raw HTML where equivalents exist? (2) i18n — are all user-visible strings wrapped with the i18n mechanism? (3) Accessibility — do interactive elements have ARIA attributes and keyboard handlers? (4) State completeness — are loading, error, and empty states handled where applicable? |
 
 If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
@@ -382,12 +384,12 @@ and `/validate` use the correct test runner:
    - **Coverage output directory:** identify where reports are written
      (e.g., `coverage/`, a custom `reportsDirectory` in the config)
      so `/validate` knows where to find them
-3. Overwrite `.artifacts/ui-implement/_validation-profile.md` with the
+3. Overwrite `{ARTIFACTS_ROOT}/ui-implement/_validation-profile.md` with the
    updated profile, preserving the existing section structure (Commit
    Format, Pre-PR Checks, etc.). Include any discovered coverage
    command, configuration file paths, and output directory.
 4. Also update the **Pre-PR Checks** section in
-   `.artifacts/ui-implement/{issue-key}/01-context.md` so that Steps 3d
+   `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/01-context.md` so that Steps 3d
    and 3e use the new commands for the remaining tasks.
 5. Verify that a unit test command now appears in the updated profile.
    If no test command is detected after re-discovery, **STOP** and ask
@@ -431,7 +433,7 @@ If the count is 0, no new upstream commits exist — skip the rebase and
 test re-run, and proceed directly to Step 3i.
 
 If new commits exist, check whether a PR has already been created by
-looking for `.artifacts/ui-implement/{issue-key}/publish-metadata.json`.
+looking for `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/publish-metadata.json`.
 
 **If no PR exists yet** (pre-publish), rebase:
 
@@ -558,7 +560,7 @@ During implementation, you may encounter unexpected situations:
 
 After all tasks are complete (or if interrupted), write:
 
-**Test report** (`.artifacts/ui-implement/{issue-key}/03-test-report.md`):
+**Test report** (`{ARTIFACTS_ROOT}/ui-implement/{issue-key}/03-test-report.md`):
 
 ```markdown
 # Test Report — {issue-key}
@@ -594,7 +596,7 @@ After all tasks are complete (or if interrupted), write:
  known gaps.}
 ```
 
-**Implementation report** (`.artifacts/ui-implement/{issue-key}/04-impl-report.md`):
+**Implementation report** (`{ARTIFACTS_ROOT}/ui-implement/{issue-key}/04-impl-report.md`):
 
 ```markdown
 # Implementation Report — {issue-key}
@@ -644,10 +646,10 @@ After all tasks are complete (or if interrupted), write:
 - Production code in the source repo (on the feature branch)
 - Integration/e2e test stubs (if applicable)
 - Incremental commits (following the project's commit format)
-- `.artifacts/ui-implement/{issue-key}/01-context.md` (E2E Coverage Policy section refreshed)
-- `.artifacts/ui-implement/{issue-key}/02-plan.md` (updated with task status)
-- `.artifacts/ui-implement/{issue-key}/03-test-report.md`
-- `.artifacts/ui-implement/{issue-key}/04-impl-report.md`
+- `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/01-context.md` (E2E Coverage Policy section refreshed)
+- `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/02-plan.md` (updated with task status)
+- `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/03-test-report.md`
+- `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/04-impl-report.md`
 
 ## When This Phase Is Done
 

@@ -5,6 +5,8 @@ description: Implement accepted review changes, re-review, and present new findi
 
 # Continue Code Review Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are the implementor responding to code review feedback. Your job is to
 implement the user's accepted changes, obtain a re-review, assess the new
 findings, and present them for the next decision -- or finalize if approved.
@@ -31,8 +33,8 @@ confirms, clean up all artifacts.
 - **Clean up on approval.** When the reviewer approves and the user
   confirms (or in unattended mode, when the reviewer approves), delete
   all artifacts in the review directory. Keep
-  `.artifacts/code-review/_reviewer-profile.md` and
-  `.artifacts/code-review/.meta.json`.
+  `{ARTIFACTS_ROOT}/code-review/_reviewer-profile.md` and
+  `{ARTIFACTS_ROOT}/code-review/.meta.json`.
 - **Index the diff; do not dump it.** Capture `--stat` and `--name-status`.
   Never paste full `git diff HEAD` into this conversation or a subagent
   prompt. Read hunk neighborhoods (`offset`/`limit` ~80 lines). Cap **≤20**
@@ -44,7 +46,7 @@ confirms, clean up all artifacts.
 
 ### Step 1: Read Context
 
-Read `.artifacts/code-review/{branch}/review-metadata.json` to determine
+Read `{ARTIFACTS_ROOT}/code-review/{branch}/review-metadata.json` to determine
 the current iteration.
 
 Read the latest review file (`code-review-{NNN}.md`) and the reviewer
@@ -87,7 +89,7 @@ already made their decisions in the previous step.
 ### Step 3: Create Response Skeleton
 
 Use the current iteration number (from metadata) for the response file
-`.artifacts/code-review/{branch}/review-response-{NNN}.md` — this pairs it
+`{ARTIFACTS_ROOT}/code-review/{branch}/review-response-{NNN}.md` — this pairs it
 with the review it answers (`code-review-{NNN}.md`). Increment the iteration
 counter after creating the response, before writing the next review file.
 
@@ -323,7 +325,7 @@ table in the report template for every criterion, and additionally:
 
 Parent Reads `../templates/code-review.md` **once**. Instruct the
 subagent to write
-`.artifacts/code-review/{branch}/code-review-{NNN}.md` (incremented
+`{ARTIFACTS_ROOT}/code-review/{branch}/code-review-{NNN}.md` (incremented
 number) using that skeleton. The subagent writes that file. The parent
 writes it **only** when reviewing sequentially (no subagent). Exactly
 one writer. Do not overwrite the subagent file.
@@ -349,7 +351,7 @@ user. Note discarded findings and why in your internal assessment
 
 ### Step 8: Update Metadata
 
-Update `.artifacts/code-review/{branch}/review-metadata.json`:
+Update `{ARTIFACTS_ROOT}/code-review/{branch}/review-metadata.json`:
 
 ```json
 {
@@ -538,24 +540,24 @@ When the review is complete (approved and user confirms, or approved with
 no findings):
 
 ```bash
-rm -rf .artifacts/code-review/{branch}
+rm -rf "${ARTIFACTS_ROOT}/code-review/{branch}"
 ```
 
 Clean up any empty parent directories left behind (handles branch names
 with slashes, e.g., `feature/foo`):
 
 ```bash
-find .artifacts/code-review -type d -empty -delete 2>/dev/null
+find "${ARTIFACTS_ROOT}/code-review" -type d -empty -delete 2>/dev/null
 ```
 
 Tell the user the review is complete and artifacts have been cleaned up.
 
 ## Output
 
-- `.artifacts/code-review/{branch}/review-response-{NNN}.md`
-- `.artifacts/code-review/{branch}/diff-index-{NNN}.json`
-- `.artifacts/code-review/{branch}/code-review-{NNN}.md`
-- `.artifacts/code-review/{branch}/decisions-{NNN}.json`
+- `{ARTIFACTS_ROOT}/code-review/{branch}/review-response-{NNN}.md`
+- `{ARTIFACTS_ROOT}/code-review/{branch}/diff-index-{NNN}.json`
+- `{ARTIFACTS_ROOT}/code-review/{branch}/code-review-{NNN}.md`
+- `{ARTIFACTS_ROOT}/code-review/{branch}/decisions-{NNN}.json`
 - Updated `review-metadata.json`
 - Cleaned-up artifact directory (on approval)
 

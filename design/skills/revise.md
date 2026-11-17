@@ -5,6 +5,8 @@ description: Incorporate user feedback into the design document and/or task brea
 
 # Revise Design Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are an editor. Your job is to incorporate the user's feedback into
 the existing design document and/or task breakdown while maintaining
 consistency across all artifacts.
@@ -35,16 +37,16 @@ with `WORKFLOW=design`, `TEMPLATE_FILE=design.md`. Per that recipe's
 below (e.g., "Section 4.3") as illustrations of the built-in template only.
 
 Determine which artifacts exist and read them:
-- `.artifacts/design/{issue-key}/01-context.md` (requirements context with FR/NFR IDs)
-- `.artifacts/design/{issue-key}/02-research.md` (if exists — research findings)
+- `{ARTIFACTS_ROOT}/design/{issue-key}/01-context.md` (requirements context with FR/NFR IDs)
+- `{ARTIFACTS_ROOT}/design/{issue-key}/02-research.md` (if exists — research findings)
 - Clarifications — use the path from `01-context.md`'s PRD Summary section
   (if one was recorded) — for locked decisions
-- `.artifacts/design/{issue-key}/03-design.md` (design document)
-- `.artifacts/design/{issue-key}/05-epics.md` (epic metadata, if exists)
-- `.artifacts/design/{issue-key}/06-stories/` (epic and story files, if exist)
-- `.artifacts/design/{issue-key}/07-coverage.md` (coverage matrix, if exists)
-- `.artifacts/design/{issue-key}/04-testplan.md` (testplan, if exists)
-- `.artifacts/design/{issue-key}/sync-manifest.json` (if exists —
+- `{ARTIFACTS_ROOT}/design/{issue-key}/03-design.md` (design document)
+- `{ARTIFACTS_ROOT}/design/{issue-key}/05-epics.md` (epic metadata, if exists)
+- `{ARTIFACTS_ROOT}/design/{issue-key}/06-stories/` (epic and story files, if exist)
+- `{ARTIFACTS_ROOT}/design/{issue-key}/07-coverage.md` (coverage matrix, if exists)
+- `{ARTIFACTS_ROOT}/design/{issue-key}/04-testplan.md` (testplan, if exists)
+- `{ARTIFACTS_ROOT}/design/{issue-key}/sync-manifest.json` (if exists —
   records Jira key mappings and content-hash checkpoints from
   previous `/sync` runs; may be partial if sync was interrupted or
   not all items were created)
@@ -192,7 +194,7 @@ not part of the contributing-story inventory.
   test case is edited.
 
 The remaining story cascades apply only when decomposition artifacts
-exist. If `.artifacts/design/{issue-key}/06-stories/` is absent (for
+exist. If `{ARTIFACTS_ROOT}/design/{issue-key}/06-stories/` is absent (for
 example, `/decompose` was deferred per the controller), skip the
 `Interface Changes` and `Validated by` story updates below — the testplan
 updates above are complete on their own.
@@ -232,7 +234,7 @@ updates above are complete on their own.
   the pre-IC-mutation story paths recorded above (to catch stories
   that lost their IC mapping during the IC update). Re-read each
   affected story file at
-  `.artifacts/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md`
+  `{ARTIFACTS_ROOT}/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md`
   before modifying it. Collect all TC IDs from the updated testplan
   that match this story — by IC overlap with the story's (now-updated)
   `Interface Changes`, or by requirement overlap for cross-cutting TCs
@@ -267,11 +269,11 @@ If `03-design.md` was updated, read and follow
 If `03-design.md` was updated, read and follow
 `../../_shared/recipes/render-provenance-footer.md` with `WORKFLOW=design`,
 `ISSUE_KEY={issue-key}`, and `TARGET_FILE` set to the absolute source-repo
-path to `.artifacts/design/{issue-key}/03-design.md`.
+path to `{ARTIFACTS_ROOT}/design/{issue-key}/03-design.md`.
 
 If the design document was published, also update the docs repo copy.
-Check for `.artifacts/design/{issue-key}/publish-metadata.json` and
-`.artifacts/config.json`. If either file does not exist, skip the
+Check for `{ARTIFACTS_ROOT}/design/{issue-key}/publish-metadata.json` and
+`{ARTIFACTS_ROOT}/config.json`. If either file does not exist, skip the
 docs repo update steps — the design has not been published yet.
 
 If both exist:
@@ -318,7 +320,7 @@ mkdir -p "{docs_repo_path}/$(dirname "{design_file_path}")"
 ```
 
 ```bash
-cp ".artifacts/design/{issue-key}/03-design.md" "{docs_repo_path}/{design_file_path}"
+cp "${ARTIFACTS_ROOT}/design/{issue-key}/03-design.md" "{docs_repo_path}/{design_file_path}"
 ```
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
@@ -364,7 +366,7 @@ In either case, remove `testplan_file_path` from `publish-metadata.json`.
 `testplan_file_path`**, copy the testplan to the docs repo:
 
 ```bash
-cp ".artifacts/design/{issue-key}/04-testplan.md" "{docs_repo_path}/{testplan_file_path}"
+cp "${ARTIFACTS_ROOT}/design/{issue-key}/04-testplan.md" "{docs_repo_path}/{testplan_file_path}"
 ```
 
 ```bash
@@ -430,12 +432,12 @@ The following artifacts were modified since the last sync. Re-run
 
 ## Output
 
-- `.artifacts/design/{issue-key}/03-design.md` (updated, if design changed)
-- `.artifacts/design/{issue-key}/05-epics.md` (updated, if decomposition changed)
-- `.artifacts/design/{issue-key}/06-stories/epic-*.md` (updated, if epics changed)
-- `.artifacts/design/{issue-key}/06-stories/epic-*/story-*.md` (updated, if stories changed)
-- `.artifacts/design/{issue-key}/07-coverage.md` (updated, if coverage changed)
-- `.artifacts/design/{issue-key}/04-testplan.md` (updated, if testplan changed)
+- `{ARTIFACTS_ROOT}/design/{issue-key}/03-design.md` (updated, if design changed)
+- `{ARTIFACTS_ROOT}/design/{issue-key}/05-epics.md` (updated, if decomposition changed)
+- `{ARTIFACTS_ROOT}/design/{issue-key}/06-stories/epic-*.md` (updated, if epics changed)
+- `{ARTIFACTS_ROOT}/design/{issue-key}/06-stories/epic-*/story-*.md` (updated, if stories changed)
+- `{ARTIFACTS_ROOT}/design/{issue-key}/07-coverage.md` (updated, if coverage changed)
+- `{ARTIFACTS_ROOT}/design/{issue-key}/04-testplan.md` (updated, if testplan changed)
 
 ## When This Phase Is Done
 

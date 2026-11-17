@@ -5,6 +5,8 @@ description: Discover and route ambiguous UI story implementation requests.
 
 # UI Implement Workflow Controller
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Use this controller for workflow discovery and ambiguous-input routing. Once a
 phase is selected, delegate its execution and completion guidance to the
 lightweight dispatcher.
@@ -39,12 +41,12 @@ lightweight dispatcher.
 ## Workspace
 
 All work happens in the **source repo** — this workflow modifies code directly.
-Planning artifacts live in `.artifacts/ui-implement/{issue-key}/` (gitignored).
+Planning artifacts live in `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/` (gitignored).
 Code changes live on a feature branch in the source repo.
 
 ### Artifact directory
 
-All working artifacts are stored in `.artifacts/ui-implement/{issue-key}/` within
+All working artifacts are stored in `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/` within
 the source repo:
 
 | Artifact | File | Written by |
@@ -99,7 +101,7 @@ misses details, repeats itself, or loses track of earlier decisions),
 consider spawning the next phase as a subagent with a fresh context window.
 This is self-monitoring by the AI, not something a human operator watches. Load the subagent with
 the skill file for the phase being executed, the relevant artifact files from
-`.artifacts/ui-implement/{issue-key}/`, and the project's `AGENTS.md`/`CLAUDE.md`.
+`{ARTIFACTS_ROOT}/ui-implement/{issue-key}/`, and the project's `AGENTS.md`/`CLAUDE.md`.
 
 This is a recommendation, not a requirement — not all AI runtimes support
 subagent spawning.

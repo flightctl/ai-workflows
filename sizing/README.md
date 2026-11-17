@@ -70,8 +70,8 @@ Fetches all Features in the specified project and Fix Version, sizing them toget
 /ingest EDM-2324
   → Python captures and compacts Jira data; raw API JSON stays out of model context
   → explores affected codebase areas and summarizes requirements
-  → writes .artifacts/sizing/EDM-2324/01-context.json
-  → Python renders .artifacts/sizing/EDM-2324/01-context.md
+  → writes {ARTIFACTS_ROOT}/sizing/EDM-2324/01-context.json
+  → Python renders {ARTIFACTS_ROOT}/sizing/EDM-2324/01-context.md
 
 /assess
   → reads 01-context.json and the Feature sizing rubric
@@ -108,11 +108,11 @@ Fetches all Features in the specified project and Fix Version, sizing them toget
 
 ## Artifacts
 
-All artifacts are stored in `.artifacts/sizing/{context}/` where context is
+All artifacts are stored in `{ARTIFACTS_ROOT}/sizing/{context}/` where context is
 the Feature key (single mode) or a kebab-case Fix Version slug (batch mode).
 
 ```text
-.artifacts/sizing/EDM-2324/          (single mode)
+{ARTIFACTS_ROOT}/sizing/EDM-2324/          (single mode)
   01-context.json                    (compact context used by assessment)
   01-context.md                      (rendered Feature context)
   02-decisions.json                  (AI sizing judgments)
@@ -120,7 +120,7 @@ the Feature key (single mode) or a kebab-case Fix Version slug (batch mode).
   02-assessment.md                   (rendered sizing recommendation)
   03-apply-actions.json              (prepared actions before write approval)
 
-.artifacts/sizing/1-5/               (batch mode, Fix Version "1.5")
+{ARTIFACTS_ROOT}/sizing/1-5/               (batch mode, Fix Version "1.5")
   01-context.json                    (all compact Feature contexts)
   01-context.md                      (rendered Feature contexts)
   02-decisions.json                  (AI judgments + batch calibration)

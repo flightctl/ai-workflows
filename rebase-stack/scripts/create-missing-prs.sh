@@ -28,6 +28,11 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+resolver="$(cd "$(dirname "$0")/../../_shared/scripts" && pwd)/artifacts.py"
+if [ -n "${ctx_file}" ]; then
+  ctx_file="$(python3 "$resolver" --path "${ctx_file}")" || exit 2
+fi
+
 [ -n "$ctx_file" ] || { echo "create-missing-prs: --context required" >&2; exit 2; }
 [ -f "$ctx_file" ] || { echo "create-missing-prs: context file not found: $ctx_file" >&2; exit 2; }
 

@@ -5,6 +5,8 @@ description: Discover and route ambiguous UI design requests.
 
 # UI Design Workflow Controller
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Use this controller for workflow discovery and ambiguous-input routing. Once a
 phase is selected, delegate its execution and completion guidance to the
 lightweight dispatcher.
@@ -54,7 +56,7 @@ Jira issue key (e.g., `PROJ-1234`). When starting from non-Jira input,
 
 ### Artifact directory
 
-All working artifacts are stored in `.artifacts/ui-design/{workspace-id}/`
+All working artifacts are stored in `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/`
 within the source repo (this directory should be gitignored in the source
 repo):
 
@@ -71,7 +73,7 @@ repo):
 
 ### Docs repo configuration
 
-The docs repo location is stored in `.artifacts/config.json` (workspace-level
+The docs repo location is stored in `{ARTIFACTS_ROOT}/config.json` (workspace-level
 config shared across all workflows for this source repo). This config is
 created by whichever workflow's `/publish` or `/ingest` phase runs first.
 
@@ -140,7 +142,7 @@ misses details, repeats itself, or loses track of earlier decisions),
 consider spawning the current phase as a subagent with a fresh context window.
 This is self-monitoring by the AI, not something a human operator watches.
 Load the subagent with the skill file for the phase being executed, the
-relevant artifact files from `.artifacts/ui-design/{workspace-id}/`, and the
+relevant artifact files from `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/`, and the
 project's `AGENTS.md`/`CLAUDE.md`/`UI-ARCHITECTURE.md`.
 
 This is a recommendation, not a requirement — not all AI runtimes support

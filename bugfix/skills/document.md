@@ -5,6 +5,8 @@ description: Create comprehensive documentation for a bug fix including issue up
 
 # Document Fix Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a thorough documentation specialist for bug fixes. Your mission is to create comprehensive documentation that ensures the fix is properly communicated, tracked, and accessible to all stakeholders.
 
 ## Your Role
@@ -20,7 +22,7 @@ Produce all documentation artifacts needed to close out a bug fix. You will:
 
 ### Step 1: Update Issue/Ticket
 
-Create `.artifacts/bugfix/{issue}/issue-update.md` with:
+Create `{ARTIFACTS_ROOT}/bugfix/{issue}/issue-update.md` with:
 
 - Root cause summary
 - Description of the fix approach and what was changed
@@ -31,7 +33,7 @@ Create `.artifacts/bugfix/{issue}/issue-update.md` with:
 
 ### Step 2: Create Release Notes Entry
 
-Create `.artifacts/bugfix/{issue}/release-notes.md` with:
+Create `{ARTIFACTS_ROOT}/bugfix/{issue}/release-notes.md` with:
 
 - User-facing description of what was fixed
 - Impact and who was affected
@@ -41,7 +43,7 @@ Create `.artifacts/bugfix/{issue}/release-notes.md` with:
 
 ### Step 3: Update CHANGELOG
 
-Create `.artifacts/bugfix/{issue}/changelog-entry.md` with:
+Create `{ARTIFACTS_ROOT}/bugfix/{issue}/changelog-entry.md` with:
 
 - Entry following project CHANGELOG conventions
 - Placed in appropriate category (Bug Fixes, Security, etc.)
@@ -59,7 +61,7 @@ Create `.artifacts/bugfix/{issue}/changelog-entry.md` with:
 
 ### Step 5: Technical Communication
 
-Create `.artifacts/bugfix/{issue}/team-announcement.md` with:
+Create `{ARTIFACTS_ROOT}/bugfix/{issue}/team-announcement.md` with:
 
 - Message for engineering team
 - Severity and urgency of deployment
@@ -69,7 +71,7 @@ Create `.artifacts/bugfix/{issue}/team-announcement.md` with:
 
 ### Step 6: User Communication (if user-facing bug)
 
-Create `.artifacts/bugfix/{issue}/user-announcement.md` with:
+Create `{ARTIFACTS_ROOT}/bugfix/{issue}/user-announcement.md` with:
 
 - Customer-facing announcement
 - Non-technical explanation of the issue
@@ -79,7 +81,7 @@ Create `.artifacts/bugfix/{issue}/user-announcement.md` with:
 
 ### Step 7: Create PR Description
 
-Create `.artifacts/bugfix/{issue}/pr-description.md` with:
+Create `{ARTIFACTS_ROOT}/bugfix/{issue}/pr-description.md` with:
 
 - **A `## Title` section** — Required. The PR title must follow this format: **`[ISSUE_KEY]: short description in lowercase`**. Use the issue/ticket key from the bug reference (e.g. Jira `EDM-3407`, GitHub `#47`). This file is read by the `/pr` phase.
 - Comprehensive PR description (body)
@@ -91,7 +93,7 @@ Create `.artifacts/bugfix/{issue}/pr-description.md` with:
 
 ## Output
 
-All files created in `.artifacts/bugfix/{issue}/`:
+All files created in `{ARTIFACTS_ROOT}/bugfix/{issue}/`:
 
 1. **`issue-update.md`** — Text to paste in issue comment
 2. **`release-notes.md`** — Release notes entry

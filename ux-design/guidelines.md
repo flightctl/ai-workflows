@@ -1,5 +1,7 @@
 # UX Design Workflow Guidelines
 
+Before any artifact access, follow [the shared artifact resolver](../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 ## Principles
 
 - The handoff spec represents the **team's** agreed UX approach, not the AI's
@@ -90,7 +92,7 @@ Stop and request human guidance when:
 
 ## Artifact Persistence and Isolation
 
-- All workflow artifacts MUST be stored under `.artifacts/ux-design/{issue-key}/`,
+- All workflow artifacts MUST be stored under `{ARTIFACTS_ROOT}/ux-design/{issue-key}/`,
   where `{issue-key}` is the stable Feature key for a Jira-backed context.
 - Keep the Feature key as the artifact key when the workflow later receives a
   linked `[UX]` story. Record story keys separately in `00-context.md`.
@@ -103,10 +105,10 @@ Stop and request human guidance when:
 - Shared inputs MUST come from published locations:
   - Jira issues (read-only)
   - Published docs repository (PRD, design doc, clarifications)
-  - `.artifacts/config.json` (shared repo configuration)
+  - `{ARTIFACTS_ROOT}/config.json` (shared repo configuration)
   - Project files (AGENTS.md, CLAUDE.md, design system docs)
 - When a downstream workflow needs this workflow's output, it reads from the
-  published docs repository (via `/publish`), not from `.artifacts/ux-design/`
+  published docs repository (via `/publish`), not from `{ARTIFACTS_ROOT}/ux-design/`
 
 ## Shell Command Safety
 

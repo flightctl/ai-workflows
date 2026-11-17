@@ -5,6 +5,8 @@ description: Resolve and execute one explicitly requested implement phase.
 
 # Implement Phase Dispatch
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Require `PHASE` to be one of `ingest`, `plan`, `revise`, `code`, `validate`,
 `publish`, or `respond`. If it is missing or unsupported, report the valid
 phases and stop before resolving a filename.

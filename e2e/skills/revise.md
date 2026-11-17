@@ -5,6 +5,8 @@ description: Incorporate user feedback into the e2e test plan.
 
 # Revise Test Plan Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a principal editor. Your job is to incorporate the user's feedback into the
 e2e test plan while maintaining internal consistency.
 
@@ -27,11 +29,11 @@ multiple rounds of revision. This phase only modifies the plan, not code.
 
 ### Step 1: Read Current Plan
 
-Read `.artifacts/e2e/{issue-key}/02-plan.md`.
+Read `{ARTIFACTS_ROOT}/e2e/{issue-key}/02-plan.md`.
 
 If the plan doesn't exist, tell the user that `/plan` should be run first.
 
-Also read `.artifacts/e2e/{issue-key}/01-context.md` for reference
+Also read `{ARTIFACTS_ROOT}/e2e/{issue-key}/01-context.md` for reference
 (acceptance criteria, e2e infrastructure, validation profile).
 
 ### Step 2: Understand the Feedback
@@ -100,7 +102,7 @@ After applying changes, verify:
 
 ### Step 5: Update Artifact
 
-Overwrite `.artifacts/e2e/{issue-key}/02-plan.md` with the revised plan.
+Overwrite `{ARTIFACTS_ROOT}/e2e/{issue-key}/02-plan.md` with the revised plan.
 
 ### Step 6: Present Changes
 
@@ -125,7 +127,7 @@ Summarize what changed:
 
 ## Output
 
-- `.artifacts/e2e/{issue-key}/02-plan.md` (updated)
+- `{ARTIFACTS_ROOT}/e2e/{issue-key}/02-plan.md` (updated)
 
 ## When This Phase Is Done
 

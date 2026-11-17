@@ -5,12 +5,14 @@ description: Top-level workflow controller that manages phase transitions for do
 
 # Docs Writer Workflow Controller
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are the workflow controller. Your job is to manage the docs-writer workflow by executing phases, passing file artifacts between them, and handling
 transitions. All output from drafting onward is **AsciiDoc** (`.adoc`).
 
 ## Workspace
 
-All intermediate artifacts must be saved to `.artifacts/${ticket_id}/`. Create this directory if it does not exist.
+All intermediate artifacts must be saved to `{ARTIFACTS_ROOT}/${ticket_id}/`. Create this directory if it does not exist.
 
 ### Artifacts
 
@@ -50,7 +52,7 @@ From `/draft` onward, the artifact (`03-final-docs.adoc`) uses a multi-file form
 
 Artifacts are the long-term memory of the workflow. A new agent instance must be able to continue from the last completed phase without the user re-explaining prior work.
 
-Before executing any phase, check `.artifacts/${ticket_id}/` for existing artifacts. Each artifact present indicates its phase is complete (see the Artifacts table above).
+Before executing any phase, check `{ARTIFACTS_ROOT}/${ticket_id}/` for existing artifacts. Each artifact present indicates its phase is complete (see the Artifacts table above).
 
 **When artifacts exist at workflow start:** report the detected state and recommend the next incomplete phase. Do not re-run completed phases unless the user explicitly asks.
 
@@ -104,14 +106,14 @@ After completing a phase, report the following to the user:
 
 1. **Status** — whether the phase completed successfully or encountered issues.
 2. **Key observations** — important findings, decisions made, or assumptions flagged during execution.
-3. **Artifacts written** — which files were saved and where (e.g., `.artifacts/${ticket_id}/01-context.md`).
+3. **Artifacts written** — which files were saved and where (e.g., `{ARTIFACTS_ROOT}/${ticket_id}/01-context.md`).
 4. **Next steps** — re-read the "Recommending Next Steps" section below, then propose options to the user.
 
 ## Approval Gate
 
 After `/plan` completes, you **must** pause and ask the user to review the plan before proceeding to `/draft`:
 
-> *"Please review `.artifacts/${ticket_id}/02-plan.md`. Type 'Approve' to
+> *"Please review `{ARTIFACTS_ROOT}/${ticket_id}/02-plan.md`. Type 'Approve' to
 > continue, or modify the file and then reply."*
 
 Do not proceed to `/draft` until the user explicitly approves.
@@ -196,7 +198,7 @@ Other options:
 
 When the user first provides a Jira ticket (URL or key), GitHub issue URL, or text description:
 
-1. Derive the `ticket_id` and check if `.artifacts/${ticket_id}/` exists.
+1. Derive the `ticket_id` and check if `{ARTIFACTS_ROOT}/${ticket_id}/` exists.
 2. If artifacts exist, run **artifact state detection** (see "Resuming Work") — report which phases are complete and recommend the next incomplete phase. Do not re-run `/gather` unless the user says context is stale or explicitly requests it.
 3. If no artifacts exist, execute the **gather** phase.
 4. After gathering or reporting state, present results and wait.

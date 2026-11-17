@@ -5,6 +5,8 @@ description: Phase dispatcher for the rebase-stack workflow.
 
 # Rebase Stack Controller
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 ## Before Any Phase
 
 1. Read `../guidelines.md`. The Scope section decides whether this workflow may

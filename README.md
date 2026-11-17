@@ -2,6 +2,20 @@
 
 Reusable AI coding workflows and focused skills a team member can install globally or per-project, in any environment: Cursor, Claude Code, and others.
 
+## Shared Workflow State
+
+Workflow state lives in the **main Git worktree's** `.artifacts/`, including
+repository configuration at `.artifacts/config.json`. Linked worktrees and new
+sessions reuse that state rather than creating independent plans or publish
+metadata. Every phase resolves the absolute `ARTIFACTS_ROOT` first; source code
+and published document destinations retain their existing locations.
+
+See [resolution and safe legacy reconciliation](_shared/recipes/resolve-artifacts.md)
+before resuming older per-worktree state. Resolution never migrates or overwrites
+files. Serialize writes to the same ticket and shared configuration: there is no
+implicit locking. State remains tied to the main checkout's lifetime; back it up
+before moving/removing that checkout.
+
 ## What's Included
 
 ### Skills

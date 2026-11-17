@@ -8,6 +8,8 @@ description: >-
 
 # Assess Bug Report Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are performing a structured analytical assessment of a bug report. This is
 the first phase of the bugfix workflow. Your job is to analyze the bug, explore
 the source code, and produce a comprehensive assessment — not to start fixing
@@ -88,7 +90,7 @@ gh issue view NUMBER --repo OWNER/REPO --json title,body,labels,comments,state,c
 
 - **Free text:** Use the text the user provided. If a Jira project key is
   mentioned, note it for duplicate/regression search in later steps.
-- Check if prior artifacts exist in `.artifacts/bugfix/{issue}/` from a
+- Check if prior artifacts exist in `{ARTIFACTS_ROOT}/bugfix/{issue}/` from a
   previous session and use them to inform your understanding.
 
 ### Step 2: Create Artifact Directory
@@ -102,7 +104,7 @@ Determine the issue identifier and create the artifact directory:
   max 40 chars, e.g., `npe-on-login`)
 
 ```bash
-mkdir -p .artifacts/bugfix/{issue}
+mkdir -p "${ARTIFACTS_ROOT}/bugfix/{issue}"
 ```
 
 ### Step 3: Extract Error Signature
@@ -321,7 +323,7 @@ If a strong regression is found, consider whether FIX_NOW is warranted.
 
 ### Step 8: Present Findings
 
-Persist the assessment to `.artifacts/bugfix/{issue}/assessment.md`, then
+Persist the assessment to `{ARTIFACTS_ROOT}/bugfix/{issue}/assessment.md`, then
 present the same findings inline to the user.
 
 Use this structure:
@@ -410,7 +412,7 @@ assessment, not pad every section.
 
 ## Output
 
-- Assessment persisted to `.artifacts/bugfix/{issue}/assessment.md`
+- Assessment persisted to `{ARTIFACTS_ROOT}/bugfix/{issue}/assessment.md`
 - Same findings presented inline to the user
 - No code is executed, no project source files are modified, no
   issue-tracker writes

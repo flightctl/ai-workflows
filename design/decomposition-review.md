@@ -1,5 +1,7 @@
 # Decomposition Review Protocol
 
+Before any artifact access, follow [the shared artifact resolver](../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Evaluation criteria, finding format, and assessment model used by the
 decomposition review step in the `/decompose` phase. This protocol is
 runtime-agnostic: it defines what to evaluate and how to report findings,
@@ -229,7 +231,7 @@ every finding:
 
 1. **Verify file references.** Confirm the cited artifact file exists in
    the decomposition output (under
-   `.artifacts/design/{issue-key}/`).
+   `{ARTIFACTS_ROOT}/design/{issue-key}/`).
 2. **Verify section references.** Confirm the cited section exists in
    the artifact file (e.g., an "Acceptance Criteria" heading actually
    appears in the story file).

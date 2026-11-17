@@ -7,6 +7,7 @@ import importlib.util
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -682,6 +683,7 @@ class ProvenanceTests(unittest.TestCase):
     def test_render_refreshes_commit_only_log(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
             issue = "OSAC-TEST"
             workflow = "prd"
             artifact_dir = root / ".artifacts" / workflow / issue
@@ -750,6 +752,7 @@ class ProvenanceTests(unittest.TestCase):
     def test_render_replaces_heading_only_provenance(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
             issue = "OSAC-TEST"
             workflow = "prd"
             artifact_dir = root / ".artifacts" / workflow / issue
@@ -796,6 +799,7 @@ class ProvenanceTests(unittest.TestCase):
     def test_render_footer_replaces_existing_section(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
             issue = "OSAC-TEST"
             workflow = "prd"
             artifact_dir = root / ".artifacts" / workflow / issue
@@ -845,32 +849,32 @@ class ProvenanceTests(unittest.TestCase):
         phases = [
             (
                 "prd/skills/draft.md",
-                ".artifacts/prd/{issue-key}/03-prd.md",
+                "{ARTIFACTS_ROOT}/prd/{issue-key}/03-prd.md",
                 "### Step 9: Present to User",
             ),
             (
                 "prd/skills/revise.md",
-                ".artifacts/prd/{issue-key}/03-prd.md",
-                "Read `.artifacts/config.json`",
+                "{ARTIFACTS_ROOT}/prd/{issue-key}/03-prd.md",
+                "Read `{ARTIFACTS_ROOT}/config.json`",
             ),
             (
                 "prd/skills/respond.md",
-                ".artifacts/prd/{issue-key}/03-prd.md",
+                "{ARTIFACTS_ROOT}/prd/{issue-key}/03-prd.md",
                 "**Update the docs repo copy:**",
             ),
             (
                 "design/skills/draft.md",
-                ".artifacts/design/{issue-key}/03-design.md",
+                "{ARTIFACTS_ROOT}/design/{issue-key}/03-design.md",
                 "### Step 9: Generate Testplan",
             ),
             (
                 "design/skills/revise.md",
-                ".artifacts/design/{issue-key}/03-design.md",
+                "{ARTIFACTS_ROOT}/design/{issue-key}/03-design.md",
                 "If the design document was published, also update",
             ),
             (
                 "design/skills/respond.md",
-                ".artifacts/design/{issue-key}/03-design.md",
+                "{ARTIFACTS_ROOT}/design/{issue-key}/03-design.md",
                 "**Update the docs repo copy:**",
             ),
         ]
@@ -889,6 +893,7 @@ class ProvenanceTests(unittest.TestCase):
     def test_rendered_local_artifact_survives_manual_copy(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
             cwd = Path.cwd()
             try:
                 os.chdir(root)
@@ -943,6 +948,7 @@ class ProvenanceTests(unittest.TestCase):
     def test_local_artifact_render_replaces_footer_after_session_update(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
             workflow = "prd"
             issue = "OSAC-LOCAL-SESSION"
             artifact_dir = root / ".artifacts" / workflow / issue
@@ -1025,6 +1031,7 @@ class ProvenanceTests(unittest.TestCase):
     def test_render_footer_auto_captures_commit_when_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
             issue = "OSAC-TEST"
             workflow = "prd"
             target = root / "prd.md"
@@ -1078,6 +1085,7 @@ class ProvenanceTests(unittest.TestCase):
     def test_render_footer_does_not_auto_capture_when_log_exists(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
             issue = "OSAC-TEST"
             workflow = "prd"
             artifact_dir = root / ".artifacts" / workflow / issue
@@ -1121,6 +1129,7 @@ class ProvenanceTests(unittest.TestCase):
     def test_render_footer_allow_missing_strips_existing_footer(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
             target = root / "prd.md"
             target.write_text(
                 "# PRD\n\n---\n\n## Provenance\n\n"
@@ -1154,9 +1163,9 @@ class ProvenanceTests(unittest.TestCase):
     def test_workspace_root_walks_up_to_git_root(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
             nested = root / "a" / "b"
             nested.mkdir(parents=True)
-            (root / ".git").mkdir()
             cwd = Path.cwd()
             try:
                 os.chdir(nested)

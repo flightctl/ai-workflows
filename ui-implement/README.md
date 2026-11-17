@@ -56,7 +56,7 @@ discovery and ambiguous requests.
   → explores affected components and UI codebase areas
   → discovers UI toolchain (test framework, design system, i18n, state management)
   → discovers validation profile (build, test, lint, type-check commands)
-  → writes .artifacts/ui-implement/EDM-1234/01-context.md
+  → writes {ARTIFACTS_ROOT}/ui-implement/EDM-1234/01-context.md
   → writes testplan.md when story test cases match
 
 /plan
@@ -101,10 +101,10 @@ discovery and ambiguous requests.
 
 ## Artifacts
 
-All artifacts are stored in `.artifacts/ui-implement/{issue-key}/`.
+All artifacts are stored in `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/`.
 
 ```text
-.artifacts/ui-implement/EDM-1234/
+{ARTIFACTS_ROOT}/ui-implement/EDM-1234/
   01-context.md              (story context, UI toolchain, validation profile)
   testplan.md                (story-scoped test cases, when ingest finds matches)
   02-plan.md                 (task breakdown, test strategy — updated as tasks complete)
@@ -115,7 +115,7 @@ All artifacts are stored in `.artifacts/ui-implement/{issue-key}/`.
   07-review-responses.md     (review comment log)
   publish-metadata.json      (PR number, branch, URL)
 
-.artifacts/ui-implement/
+{ARTIFACTS_ROOT}/ui-implement/
   _validation-profile.md     (discovered build/test/lint commands, cached across stories)
   .meta.json                 (file hashes/mtimes for validation cache invalidation)
 ```
@@ -169,7 +169,7 @@ When `/ingest` discovers no unit testing framework exists:
 ### Upstream Design Documents
 
 This workflow reads published docs from the docs repo, never from another
-workflow's `.artifacts/` directory:
+workflow's `{ARTIFACTS_ROOT}/` directory:
 - `ui-design-{workspace-id}.md` — **required** — component architecture, hook designs, state management, accessibility plan
 - `handoff.md` — **optional** — interaction specs, state matrix, acceptance criteria enrichment
 - `api-findings-{workspace-id}.md` — **optional** — resolved endpoints, API gaps

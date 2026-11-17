@@ -5,6 +5,8 @@ description: Gate the context, snapshot every branch tip, then rebase the whole 
 
 # Start Rebase Stack
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Rebases **every** layer in the stack. Local only — nothing is pushed.
 
 ## Step 1: Preflight
@@ -22,14 +24,14 @@ collaborator updates:
 
 ```bash
 baseline_args=""
-if [ -f .artifacts/rebase-stack/pre-rebase-state.json ] \
+if [ -f "${ARTIFACTS_ROOT}/rebase-stack/pre-rebase-state.json" ] \
    && bash "{scripts}/validate-baseline.sh" \
-        .artifacts/rebase-stack/pre-rebase-state.json \
-        --context .artifacts/rebase-stack/context.json >/dev/null 2>&1; then
-  baseline_args="--baseline .artifacts/rebase-stack/pre-rebase-state.json"
+        "${ARTIFACTS_ROOT}/rebase-stack/pre-rebase-state.json" \
+        --context "${ARTIFACTS_ROOT}/rebase-stack/context.json" >/dev/null 2>&1; then
+  baseline_args="--baseline ${ARTIFACTS_ROOT}/rebase-stack/pre-rebase-state.json"
 fi
 bash "{scripts}/stack-status.sh" $baseline_args \
-  < .artifacts/rebase-stack/context.json
+  < "${ARTIFACTS_ROOT}/rebase-stack/context.json"
 echo "status exit: $?"
 ```
 
@@ -49,9 +51,9 @@ the names to shell variables rather than splicing them into the command text:
 a branch name is user-controlled and must never be parsed as shell syntax.
 
 ```bash
-snapshot=.artifacts/rebase-stack/pre-rebase-state.json
-push_remote=$(jq -r '.pushRemote' .artifacts/rebase-stack/context.json)
-jq -r '.branches[].name' .artifacts/rebase-stack/context.json | while read -r branch; do
+snapshot="${ARTIFACTS_ROOT}/rebase-stack/pre-rebase-state.json"
+push_remote=$(jq -r '.pushRemote' "${ARTIFACTS_ROOT}/rebase-stack/context.json")
+jq -r '.branches[].name' "${ARTIFACTS_ROOT}/rebase-stack/context.json" | while read -r branch; do
   if git show-ref --quiet --verify "refs/remotes/${push_remote}/${branch}"; then
     ahead=$(git rev-list --count "${push_remote}/${branch}..${branch}")
     behind=$(git rev-list --count "${branch}..${push_remote}/${branch}")
@@ -60,7 +62,7 @@ jq -r '.branches[].name' .artifacts/rebase-stack/context.json | while read -r br
     divergence_class=""
     if [ "$behind" -gt 0 ] && [ -f "$snapshot" ] \
        && bash "{scripts}/validate-baseline.sh" "$snapshot" \
-              --context .artifacts/rebase-stack/context.json >/dev/null 2>&1; then
+              --context "${ARTIFACTS_ROOT}/rebase-stack/context.json" >/dev/null 2>&1; then
       saved_tip=$(jq -r --arg b "$branch" '.publishedTips[$b] // "ABSENT"' "$snapshot")
       current_tip=$(git rev-parse --verify --quiet "refs/remotes/${push_remote}/${branch}")
       if [ "$saved_tip" != "ABSENT" ] && [ "$saved_tip" = "$current_tip" ]; then
@@ -103,7 +105,7 @@ remote-only commits without publishing anything — again through variables,
 never by splicing the name into the command:
 
 ```bash
-ctx=.artifacts/rebase-stack/context.json
+ctx="${ARTIFACTS_ROOT}/rebase-stack/context.json"
 push_remote=$(jq -r '.pushRemote' "$ctx")
 jq -r '.branches[].name' "$ctx" | while read -r branch; do
   git log --oneline "${branch}..${push_remote}/${branch}" --
@@ -138,22 +140,22 @@ it would silently accept whatever the remote shows now.
 
 ```bash
 bash "{scripts}/snapshot.sh" save \
-  < .artifacts/rebase-stack/context.json
+  < "${ARTIFACTS_ROOT}/rebase-stack/context.json"
 echo "snapshot exit: $?"
 ```
 
-This writes `.artifacts/rebase-stack/pre-rebase-state.json` with every branch
+This writes `{ARTIFACTS_ROOT}/rebase-stack/pre-rebase-state.json` with every branch
 tip and commit identity. It is the recovery path if the rebase goes wrong and
 `gh stack rebase --abort` is no longer available.
 
-**On exit 2 when `.artifacts/rebase-stack/pre-rebase-state.json` exists:**
+**On exit 2 when `{ARTIFACTS_ROOT}/rebase-stack/pre-rebase-state.json` exists:**
 The snapshot refused to overwrite the existing file. Check whether it is from
 a previous `/start` that completed successfully, or a malformed/legacy file:
 
 ```bash
-ls -la .artifacts/rebase-stack/pre-rebase-state.json
+ls -la "${ARTIFACTS_ROOT}/rebase-stack/pre-rebase-state.json"
 bash "{scripts}/validate-baseline.sh" \
-  .artifacts/rebase-stack/pre-rebase-state.json --schema-only
+  "${ARTIFACTS_ROOT}/rebase-stack/pre-rebase-state.json" --schema-only
 echo "schema exit: $?"
 ```
 
@@ -166,7 +168,7 @@ Tell the user:
 >
 > ```bash
 > bash "{scripts}/snapshot.sh" save --force \
->   < .artifacts/rebase-stack/context.json
+>   < "${ARTIFACTS_ROOT}/rebase-stack/context.json"
 > ```
 
 If the schema check fails, the file is malformed or legacy. Tell the user:
@@ -175,22 +177,22 @@ If the schema check fails, the file is malformed or legacy. Tell the user:
 >
 > ```bash
 > bash "{scripts}/snapshot.sh" save --force \
->   < .artifacts/rebase-stack/context.json
+>   < "${ARTIFACTS_ROOT}/rebase-stack/context.json"
 > ```
 
 **On any other non-zero exit, stop. Do not rebase.** The snapshot is the only
 record of the pre-rebase tips, so a rebase started without it has no recovery
 path and Step 5 cannot tell a dropped commit from a rebased one. Relay the
 script's stderr verbatim, say that nothing was rewritten, and let the user fix
-the cause — most often an unwritable `.artifacts/` directory or a branch in
+the cause — most often an unwritable `{ARTIFACTS_ROOT}/` directory or a branch in
 `context.json` that no longer resolves — then re-run `/start`. Never work
 around it by rebasing anyway or by hand-writing `pre-rebase-state.json`.
 
 Confirm the file exists and covers every branch before continuing:
 
 ```bash
-jq -r '.branches | length' .artifacts/rebase-stack/pre-rebase-state.json
-jq -r '.branches | length' .artifacts/rebase-stack/context.json
+jq -r '.branches | length' "${ARTIFACTS_ROOT}/rebase-stack/pre-rebase-state.json"
+jq -r '.branches | length' "${ARTIFACTS_ROOT}/rebase-stack/context.json"
 ```
 
 The two counts must match. If they do not, treat it as a snapshot failure and
@@ -205,7 +207,7 @@ Offer `rerere` once, and set it only if the user agrees:
 ## Step 4: Rebase the Whole Stack
 
 ```bash
-base_remote=$(jq -r '.baseRemote' .artifacts/rebase-stack/context.json)
+base_remote=$(jq -r '.baseRemote' "${ARTIFACTS_ROOT}/rebase-stack/context.json")
 gh stack rebase --remote "$base_remote"
 echo "rebase exit: $?"
 ```
@@ -237,7 +239,7 @@ compares only the conflicting commit; without the limit it walks every commit
 reachable from `REBASE_HEAD` and can report an ancestor as already-upstream:
 
 ```bash
-ctx=.artifacts/rebase-stack/context.json
+ctx="${ARTIFACTS_ROOT}/rebase-stack/context.json"
 base_remote=$(jq -r '.baseRemote' "$ctx")
 base=$(jq -r '.trunk' "$ctx")
 git cherry "${base_remote}/${base}" REBASE_HEAD REBASE_HEAD^
@@ -264,7 +266,7 @@ then:
 
 ```bash
 git diff --name-only --diff-filter=U   # must print nothing
-base_remote=$(jq -r '.baseRemote' .artifacts/rebase-stack/context.json)
+base_remote=$(jq -r '.baseRemote' "${ARTIFACTS_ROOT}/rebase-stack/context.json")
 gh stack rebase --continue --remote "$base_remote"
 echo "continue exit: $?"
 ```
@@ -275,7 +277,7 @@ Re-enter the exit-code table above on each result.
 
 ```bash
 bash "{scripts}/snapshot.sh" verify \
-  < .artifacts/rebase-stack/context.json
+  < "${ARTIFACTS_ROOT}/rebase-stack/context.json"
 echo "verify exit: $?"
 ```
 
@@ -301,7 +303,7 @@ pre-rebase SHA next to each missing commit; that object is still in the
 repository, so ask git directly whether its patch is upstream:
 
 ```bash
-ctx=.artifacts/rebase-stack/context.json
+ctx="${ARTIFACTS_ROOT}/rebase-stack/context.json"
 base_remote=$(jq -r '.baseRemote' "$ctx")
 base=$(jq -r '.trunk' "$ctx")
 missing_sha='<full SHA printed by snapshot.sh>'

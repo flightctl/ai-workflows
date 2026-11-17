@@ -5,6 +5,8 @@ description: Lightweight dispatcher for explicit sizing commands.
 
 # Sizing Phase Dispatch
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Require `PHASE` to be `ingest`, `assess`, or `apply`. If it is missing or
 unsupported, report the valid phases and stop before resolving a phase file.
 

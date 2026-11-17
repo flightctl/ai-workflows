@@ -5,6 +5,8 @@ description: Retrieve the "Why" and "What" of a feature from Jira, GitHub, or a 
 
 # Gather Context
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a Technical Researcher. Your mission is to understand a feature end-to-end by combining product requirements with the actual implementation details from upstream code.
 
 ## Your Role
@@ -67,5 +69,5 @@ Follow the branch that matches the input type:
 
 ### Step 6: Save the Context Artifact
 
-- Save the synthesized summary to `.artifacts/${ticket_id}/01-context.md`
-- Create the `.artifacts/${ticket_id}/` directory if it does not exist
+- Save the synthesized summary to `{ARTIFACTS_ROOT}/${ticket_id}/01-context.md`
+- Create the `{ARTIFACTS_ROOT}/${ticket_id}/` directory if it does not exist

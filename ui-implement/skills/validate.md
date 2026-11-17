@@ -5,6 +5,8 @@ description: Run the full validation suite, analyze coverage, and iterate on gap
 
 # Validate Implementation Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a principal quality engineer. Your job is to run the project's full validation
 suite, analyze test coverage, identify gaps, and iterate until the
 implementation meets quality standards.
@@ -30,10 +32,10 @@ and repeat until everything passes.
 ### Step 1: Read Context
 
 Read:
-1. `.artifacts/ui-implement/{issue-key}/01-context.md` (validation profile)
-2. `.artifacts/ui-implement/{issue-key}/02-plan.md` (what was implemented)
-3. `.artifacts/ui-implement/{issue-key}/04-impl-report.md` (implementation status)
-4. `.artifacts/ui-implement/{issue-key}/testplan.md` (story-scoped testplan, if exists)
+1. `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/01-context.md` (validation profile)
+2. `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/02-plan.md` (what was implemented)
+3. `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/04-impl-report.md` (implementation status)
+4. `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/testplan.md` (story-scoped testplan, if exists)
 
 Extract the validation profile's pre-PR checks list.
 
@@ -67,7 +69,7 @@ git rev-list --count HEAD..origin/{local-base}
 ```
 
 If the branch is behind base, check whether a PR has already been
-created by looking for `.artifacts/ui-implement/{issue-key}/publish-metadata.json`.
+created by looking for `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/publish-metadata.json`.
 
 **If no PR exists yet** (pre-publish), offer to rebase:
 
@@ -196,7 +198,7 @@ parameters:
 |-----------|-------|
 | DIFF_COMMAND | `git diff {local-base}...HEAD` |
 | MAX_ROUNDS | `3` |
-| CONTEXT_FILES | `.artifacts/ui-implement/{issue-key}/01-context.md`, `.artifacts/ui-implement/{issue-key}/02-plan.md` (if they exist) |
+| CONTEXT_FILES | `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/01-context.md`, `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/02-plan.md` (if they exist) |
 | SUPPLEMENTARY_CRITERIA | This is the full-branch validation review — the last quality gate before PR creation. In addition to the standard protocol criteria, evaluate: (1) **Design system compliance** — are design system components used consistently? Any raw HTML where a design system equivalent exists? (2) **i18n completeness** — are all user-visible strings wrapped with the i18n mechanism? (3) **Accessibility completeness** — do all interactive elements have ARIA attributes and keyboard handlers? (4) **State completeness** — are loading, error, and empty states handled for all data-dependent components? (5) **Backward compatibility** — does the change modify public component props or hook signatures? If so, is it backward-compatible? (6) **Completeness across usage sites** — if the story introduces a pattern (permission gate, error boundary, i18n wrapping), search for similar components needing the same treatment. A pattern applied to 7 of 8 similar components is itself a bug. |
 
 If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
@@ -240,7 +242,7 @@ satisfied:
 
 ### Step 8: Test Plan Verification
 
-If `.artifacts/ui-implement/{issue-key}/testplan.md` exists, independently
+If `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/testplan.md` exists, independently
 verify that every test case has been implemented. This check re-derives
 the required TC ID list from `testplan.md` directly — it does NOT rely
 on the plan's task-to-TC-ID mappings or `/code`'s per-task reconciliation.
@@ -272,7 +274,7 @@ changed since validation:
 git rev-parse HEAD
 ```
 
-Write `.artifacts/ui-implement/{issue-key}/05-validation-report.md`:
+Write `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/05-validation-report.md`:
 
 ```markdown
 # Validation Report — {issue-key}
@@ -390,8 +392,8 @@ Summarize for the user:
 
 ## Output
 
-- `.artifacts/ui-implement/{issue-key}/01-context.md` (E2E Coverage Policy section refreshed)
-- `.artifacts/ui-implement/{issue-key}/05-validation-report.md`
+- `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/01-context.md` (E2E Coverage Policy section refreshed)
+- `{ARTIFACTS_ROOT}/ui-implement/{issue-key}/05-validation-report.md`
 - Additional test files (if coverage gaps were found)
 - Fix commits (if issues were found and fixed)
 

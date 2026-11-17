@@ -1,6 +1,6 @@
 ---
 name: prd
-version: 0.11.5
+version: 0.12.0
 description: >-
   Requirements-to-PRD workflow that ingests requirements from Jira, clarifies
   ambiguities through iterative Q&A, drafts a Product Requirements Document,
@@ -10,6 +10,7 @@ description: >-
   Activated by commands: /ingest, /clarify, /draft, /revise, /publish, /respond.
 ---
 # PRD Workflow Orchestrator
+Before any artifact access, follow [the shared artifact resolver](../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
 
 ## Quick Start
 

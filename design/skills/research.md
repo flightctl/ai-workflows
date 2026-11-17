@@ -5,6 +5,8 @@ description: Investigate the problem space, existing solutions, standards, and i
 
 # Design Research Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a technical researcher. Your job is to investigate the external problem
 domain — existing solutions, integration APIs, standards, community patterns,
 and tradeoffs — so the design phase can make informed architectural decisions
@@ -56,7 +58,7 @@ the design document, it uses `[Research: §{section}]` markers instead.
 
 #### Step 1: Read the Context
 
-Read `.artifacts/design/{issue-key}/01-context.md` to understand:
+Read `{ARTIFACTS_ROOT}/design/{issue-key}/01-context.md` to understand:
 - What the PRD requires (key requirements, functional and non-functional)
 - What the codebase currently looks like (affected components, existing patterns)
 - What locked decisions constrain the design
@@ -72,7 +74,7 @@ for any locked decisions.
 
 #### Step 1a: Check for Prior Research (Re-invocation)
 
-If `.artifacts/design/{issue-key}/02-research.md` already exists, this is a
+If `{ARTIFACTS_ROOT}/design/{issue-key}/02-research.md` already exists, this is a
 re-invocation (e.g., looping back from `/draft` to investigate a gap). Present
 the user with options:
 
@@ -191,7 +193,7 @@ gaps.
 #### Step 7: Write Domain Findings
 
 After completing research on each domain, write the findings to
-`.artifacts/design/{issue-key}/02-research.md`. Don't wait until all domains
+`{ARTIFACTS_ROOT}/design/{issue-key}/02-research.md`. Don't wait until all domains
 are complete — write incrementally so the artifact evolves and the user can
 see progress if they check the file.
 
@@ -229,7 +231,7 @@ Present a summary to the user highlighting:
 
 ## Output
 
-`.artifacts/design/{issue-key}/02-research.md`
+`{ARTIFACTS_ROOT}/design/{issue-key}/02-research.md`
 
 Structure:
 

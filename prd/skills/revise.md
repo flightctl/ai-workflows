@@ -5,6 +5,8 @@ description: Incorporate user feedback into the PRD.
 
 # Revise PRD Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are an editor. Your job is to incorporate the user's feedback into
 the existing PRD while maintaining document consistency and quality.
 
@@ -32,7 +34,7 @@ with `WORKFLOW=prd`, `TEMPLATE_FILE=prd.md`. Per that recipe's "Using the
 Resolved Files" guidance, treat the examples below (e.g., "non-goals",
 "FR-N") as illustrations of the built-in template only.
 
-Read `.artifacts/prd/{issue-key}/03-prd.md`.
+Read `{ARTIFACTS_ROOT}/prd/{issue-key}/03-prd.md`.
 
 If the user edited the document manually since the last workflow phase, or a
 re-ingest diff shows unsynchronized manual changes, read and follow
@@ -72,7 +74,7 @@ After applying changes, verify:
 
 ### Step 5: Update Artifact
 
-Overwrite `.artifacts/prd/{issue-key}/03-prd.md` with the revised PRD.
+Overwrite `{ARTIFACTS_ROOT}/prd/{issue-key}/03-prd.md` with the revised PRD.
 
 Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 `WORKFLOW=prd`, `ISSUE_KEY={issue-key}`, `PHASE=revise`,
@@ -80,10 +82,10 @@ Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=prd`, `ISSUE_KEY={issue-key}`, and `TARGET_FILE` set to the
-absolute source-repo path to `.artifacts/prd/{issue-key}/03-prd.md`.
+absolute source-repo path to `{ARTIFACTS_ROOT}/prd/{issue-key}/03-prd.md`.
 
-Read `.artifacts/config.json` to get the docs repo path and
-`.artifacts/prd/{issue-key}/publish-metadata.json` to get `{prd-file-path}`
+Read `{ARTIFACTS_ROOT}/config.json` to get the docs repo path and
+`{ARTIFACTS_ROOT}/prd/{issue-key}/publish-metadata.json` to get `{prd-file-path}`
 and `{branch-name}` (from the `branch` field).
 If either file doesn't exist, skip the remaining steps — the PRD hasn't been
 published yet, so the artifact update is sufficient.
@@ -139,7 +141,7 @@ mkdir -p "{docs_repo_path}/$(dirname "{prd-file-path}")"
 ```
 
 ```bash
-cp ".artifacts/prd/{issue-key}/03-prd.md" "{docs_repo_path}/{prd-file-path}"
+cp "${ARTIFACTS_ROOT}/prd/{issue-key}/03-prd.md" "{docs_repo_path}/{prd-file-path}"
 ```
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
@@ -180,7 +182,7 @@ project's if a template override applies):
 
 ## Output
 
-- `.artifacts/prd/{issue-key}/03-prd.md` (updated)
+- `{ARTIFACTS_ROOT}/prd/{issue-key}/03-prd.md` (updated)
 
 ## When This Phase Is Done
 

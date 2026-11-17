@@ -5,6 +5,8 @@ description: Post the PRD as a GitHub PR for external review.
 
 # Publish PRD Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a submission specialist. Your job is to post the finalized PRD
 as a GitHub pull request so stakeholders can review it.
 
@@ -50,13 +52,13 @@ commands.
 
 ### Step 1: Read the PRD
 
-Read `.artifacts/prd/{issue-key}/03-prd.md`.
+Read `{ARTIFACTS_ROOT}/prd/{issue-key}/03-prd.md`.
 
 If the file doesn't exist, tell the user that `/draft` should be run first.
 
 ### Step 2: Resolve Docs Repo
 
-Check for an existing docs repo configuration at `.artifacts/config.json`.
+Check for an existing docs repo configuration at `{ARTIFACTS_ROOT}/config.json`.
 
 **If the config exists**, read it and validate:
 
@@ -67,7 +69,7 @@ Check for an existing docs repo configuration at `.artifacts/config.json`.
 
 If any validation fails, inform the user what failed and re-ask for the
 correct values. Resolve `~` to an absolute path before saving. Update
-`.artifacts/config.json` with the corrected values.
+`{ARTIFACTS_ROOT}/config.json` with the corrected values.
 
 **If the config does not exist**, ask the user:
 
@@ -76,11 +78,11 @@ correct values. Resolve `~` to an absolute path before saving. Update
 - **Docs repo remote:** Run `git -C "{docs_repo_path}" remote -v`, choose the
   docs repository URL without embedded credentials to save, and confirm it
   with the user before proceeding. Never save a token or password in
-  `.artifacts/config.json`.
+  `{ARTIFACTS_ROOT}/config.json`.
   The remote name is not part of the configuration contract.
 
 Validate the path and remote. Resolve `~` to the user's home directory
-so the stored path is absolute. Write `.artifacts/config.json` with the
+so the stored path is absolute. Write `{ARTIFACTS_ROOT}/config.json` with the
 validated `docs_repo_path` and `docs_repo_remote`.
 
 ### Step 3: Pre-Flight Checks
@@ -130,7 +132,7 @@ actual push transport, derive it locally with `git remote get-url --push
 "{push_remote}"`; do not copy credentials into workflow artifacts or prompts.
 
 Provenance at publish time:
-- If `.artifacts/prd/{issue-key}/provenance.json` exists from `/draft`, `/revise`,
+- If `{ARTIFACTS_ROOT}/prd/{issue-key}/provenance.json` exists from `/draft`, `/revise`,
   or `/respond`, the footer reflects the full authoring session (`provenance_kind:
   session`).
 - If the log is missing, the render recipe **auto-captures a commit-time snapshot**
@@ -209,7 +211,7 @@ mkdir -p "{docs_repo_path}/{release}/{feature}"
 ```
 
 ```bash
-cp ".artifacts/prd/{issue-key}/03-prd.md" "{docs_repo_path}/{release}/{feature}/prd.md"
+cp "${ARTIFACTS_ROOT}/prd/{issue-key}/03-prd.md" "{docs_repo_path}/{release}/{feature}/prd.md"
 ```
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
@@ -220,11 +222,11 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 git -C "{docs_repo_path}" add "{release}/{feature}/prd.md"
 ```
 
-If `.artifacts/prd/{issue-key}/02-clarifications.md` exists, publish it
+If `{ARTIFACTS_ROOT}/prd/{issue-key}/02-clarifications.md` exists, publish it
 alongside the PRD:
 
 ```bash
-cp ".artifacts/prd/{issue-key}/02-clarifications.md" "{docs_repo_path}/{release}/{feature}/clarifications.md"
+cp "${ARTIFACTS_ROOT}/prd/{issue-key}/02-clarifications.md" "{docs_repo_path}/{release}/{feature}/clarifications.md"
 ```
 
 ```bash
@@ -252,7 +254,7 @@ Push the branch using the shared script (run from the docs repo):
 ```
 
 Prepare the PR description (AI-dependent — summarize the PRD content) and
-save it to `.artifacts/prd/{issue-key}/04-pr-description.md` (in the source
+save it to `{ARTIFACTS_ROOT}/prd/{issue-key}/04-pr-description.md` (in the source
 repo's artifact directory):
 
 ```markdown
@@ -301,7 +303,7 @@ python3 "$PUBLISH_SCRIPT" create-pr \
   --base {base-branch} \
   --head {head-ref} \
   --title "{issue-key}: PRD - {title}" \
-  --body-file .artifacts/prd/{issue-key}/04-pr-description.md \
+  --body-file "${ARTIFACTS_ROOT}/prd/{issue-key}/04-pr-description.md" \
   --draft
 
 # When no issue key exists:
@@ -310,7 +312,7 @@ python3 "$PUBLISH_SCRIPT" create-pr \
   --base {base-branch} \
   --head {head-ref} \
   --title "PRD: {title}" \
-  --body-file .artifacts/prd/{issue-key}/04-pr-description.md \
+  --body-file "${ARTIFACTS_ROOT}/prd/{issue-key}/04-pr-description.md" \
   --draft
 ```
 
@@ -322,7 +324,7 @@ Save metadata for use by `/revise` and `/respond`:
 
 ```bash
 python3 "$PUBLISH_SCRIPT" save-metadata \
-  --file .artifacts/prd/{issue-key}/publish-metadata.json \
+  --file "${ARTIFACTS_ROOT}/prd/{issue-key}/publish-metadata.json" \
   release={release} \
   feature={feature} \
   prd_file_path={release}/{feature}/prd.md \
@@ -340,12 +342,12 @@ Present:
 
 ## Output
 
-- `.artifacts/config.json` (workspace-level config, created if it didn't exist)
-- `.artifacts/prd/{issue-key}/publish-metadata.json`
+- `{ARTIFACTS_ROOT}/config.json` (workspace-level config, created if it didn't exist)
+- `{ARTIFACTS_ROOT}/prd/{issue-key}/publish-metadata.json`
 - PRD committed and pushed to feature branch in the docs repo
 - Clarifications committed alongside PRD (if `02-clarifications.md` exists)
 - Draft PR created against the docs repo
-- `.artifacts/prd/{issue-key}/04-pr-description.md`
+- `{ARTIFACTS_ROOT}/prd/{issue-key}/04-pr-description.md`
 
 ## When This Phase Is Done
 

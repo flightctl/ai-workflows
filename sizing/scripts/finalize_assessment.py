@@ -14,7 +14,12 @@ import json
 import sys
 from collections import Counter
 from pathlib import Path
+
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_shared" / "scripts"))
+
+from artifacts import artifact_directory, canonical_path
 
 from _common import (
     DIMENSIONS,
@@ -630,9 +635,9 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
-    directory = Path(".artifacts") / "sizing" / args.context_dir
+    directory = artifact_directory("sizing", args.context_dir)
     context_path = directory / "01-context.json"
-    decisions_path = args.decisions or directory / "02-decisions.json"
+    decisions_path = canonical_path(args.decisions) if args.decisions else directory / "02-decisions.json"
     try:
         context = _validate_context(read_json(context_path))
         decisions = read_json(decisions_path)

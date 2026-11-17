@@ -5,6 +5,8 @@ description: Fetch all unresolved bugs and recently resolved bugs from a Jira pr
 
 # Scan Jira Bugs Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are fetching **every unresolved bug** and **recently resolved bugs** (for regression / fix-history context in `/analyze`) from the target Jira project. Your goal is to produce complete raw datasets for analysis.
 
 ## Allowed Tools
@@ -43,14 +45,14 @@ shell command. If it does not match, stop.
 PROJECT_ROOT="$PWD"
 (
   cd "{AI_WORKFLOWS_ROOT}"
-  python3 triage/scripts/scan.py "{PROJECT}" --output-dir "$PROJECT_ROOT/.artifacts/triage/{PROJECT}"
+  python3 triage/scripts/scan.py "{PROJECT}" --output-dir "${ARTIFACTS_ROOT}/triage/{PROJECT}"
 )
 ```
 
 The script handles CLI/REST pagination, normalization, and file output. It writes:
 
-- `.artifacts/triage/{PROJECT}/issues.json` — all unresolved bugs
-- `.artifacts/triage/{PROJECT}/resolved.json` — bugs resolved in the last 90 days
+- `{ARTIFACTS_ROOT}/triage/{PROJECT}/issues.json` — all unresolved bugs
+- `{ARTIFACTS_ROOT}/triage/{PROJECT}/resolved.json` — bugs resolved in the last 90 days
 
 To change the resolved-bug lookback window (default 90 days):
 
@@ -58,7 +60,7 @@ To change the resolved-bug lookback window (default 90 days):
 PROJECT_ROOT="$PWD"
 (
   cd "{AI_WORKFLOWS_ROOT}"
-  python3 triage/scripts/scan.py "{PROJECT}" --window-days 30 --output-dir "$PROJECT_ROOT/.artifacts/triage/{PROJECT}"
+  python3 triage/scripts/scan.py "{PROJECT}" --window-days 30 --output-dir "${ARTIFACTS_ROOT}/triage/{PROJECT}"
 )
 ```
 
@@ -80,8 +82,8 @@ Display the summary from Step 4 to the user.
 ## Output
 
 - Scan summary displayed to the user
-- `.artifacts/triage/{PROJECT}/issues.json` written
-- `.artifacts/triage/{PROJECT}/resolved.json` written
+- `{ARTIFACTS_ROOT}/triage/{PROJECT}/issues.json` written
+- `{ARTIFACTS_ROOT}/triage/{PROJECT}/resolved.json` written
 
 ## On Completion
 

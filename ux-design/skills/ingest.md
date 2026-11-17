@@ -7,6 +7,8 @@ description: >-
 
 # Ingest — Discovery and Context Enrichment
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Load the available feature context, frame the problem, identify who it affects,
 and survey how others have solved it. A Jira Feature or an explicitly supplied
 published `prd.md` can seed early research and exploratory prototyping before
@@ -179,7 +181,7 @@ configuration or search subsections below.
 
 #### Resolve the docs repo
 
-For Feature-key and `[UX]` story inputs, read `.artifacts/config.json` for
+For Feature-key and `[UX]` story inputs, read `{ARTIFACTS_ROOT}/config.json` for
 `docs_repo_path` and `docs_repo_remote`. Direct PRD-path inputs use the bypass
 described above.
 
@@ -196,14 +198,14 @@ record that the docs repo could not be checked and continue. Otherwise, tell
 the researcher and re-ask for the correct path and remote. Revalidate the new
 path and remote using the same checks (path exists, is a git repository, remote
 URL matches). After successful validation, persist the normalized absolute
-`docs_repo_path` and `docs_repo_remote` to `.artifacts/config.json`, including
+`docs_repo_path` and `docs_repo_remote` to `{ARTIFACTS_ROOT}/config.json`, including
 when migrating a valid legacy relative path.
 
 **If the config does not exist**, an initial Jira Feature ingest can continue
 without docs-repo setup: record that planning documents were not checked and
 skip this step. For a `[UX]` story ingest or context enrichment, ask for the
 docs repo local path and remote, normalize and validate them, then write the
-absolute `docs_repo_path` and `docs_repo_remote` to `.artifacts/config.json`.
+absolute `docs_repo_path` and `docs_repo_remote` to `{ARTIFACTS_ROOT}/config.json`.
 
 Example:
 ```
@@ -329,9 +331,9 @@ the section — a downstream phase needs to know the gap exists.
 
 ## Output
 
-`.artifacts/ux-design/{issue-key}/01-discovery.md`
+`{ARTIFACTS_ROOT}/ux-design/{issue-key}/01-discovery.md`
 
-Maintain `.artifacts/ux-design/{issue-key}/00-context.md` as the context
+Maintain `{ARTIFACTS_ROOT}/ux-design/{issue-key}/00-context.md` as the context
 manifest. It records the Feature key, linked `[UX]` story key(s), current
 context revision, context state (`exploratory` or `enriched`), source-document
 paths, the active research basis, and the prototype iteration and evaluation
@@ -346,7 +348,7 @@ linked `[UX]` story is recorded. Add `Context revision` and `Context state` to
 `01-discovery.md`.
 
 When enriching an existing context, preserve the previous active artifacts
-under `.artifacts/ux-design/{issue-key}/history/context-r{N}/` before replacing
+under `{ARTIFACTS_ROOT}/ux-design/{issue-key}/history/context-r{N}/` before replacing
 any current artifact. Include the current manifest, discovery brief, research
 findings, prototype, and evaluation when present. Do not overwrite a history
 snapshot. Include an existing handoff in the snapshot and mark it stale in the

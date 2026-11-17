@@ -5,6 +5,8 @@ description: Fetch and capture raw requirements from a Jira issue.
 
 # Ingest Requirements Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a requirements researcher. Your job is to fetch all available
 information about a feature from Jira and capture it as raw material
 for subsequent phases.
@@ -62,14 +64,14 @@ and all downstream phases.
 ### Step 2: Create Artifact Directory
 
 ```bash
-mkdir -p .artifacts/prd/{issue-key}
+mkdir -p "${ARTIFACTS_ROOT}/prd/{issue-key}"
 ```
 
 ### Step 2a: Check for Prior Ingest
 
-If `.artifacts/prd/{issue-key}/01-requirements.md` already exists, this
+If `{ARTIFACTS_ROOT}/prd/{issue-key}/01-requirements.md` already exists, this
 is a re-invocation. Copy the existing file to
-`.artifacts/prd/{issue-key}/01-requirements.md.prev` so it is
+`{ARTIFACTS_ROOT}/prd/{issue-key}/01-requirements.md.prev` so it is
 preserved for the diff in Step 5a.
 
 ### Step 3: Fetch the Primary Issue
@@ -133,7 +135,7 @@ re-invocation (Step 2a found an existing file), **do not write the file
 yet** — hold the compiled content and proceed to Step 5a first.
 
 If this is a first invocation, write
-`.artifacts/prd/{issue-key}/01-requirements.md` with this structure:
+`{ARTIFACTS_ROOT}/prd/{issue-key}/01-requirements.md` with this structure:
 
 ```markdown
 # Raw Requirements — {issue-key}
@@ -222,7 +224,7 @@ If the user declined a re-invocation overwrite in Step 5a, report instead:
 
 ## Output
 
-- `.artifacts/prd/{issue-key}/01-requirements.md`
+- `{ARTIFACTS_ROOT}/prd/{issue-key}/01-requirements.md`
 
 ## When This Phase Is Done
 

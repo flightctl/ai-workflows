@@ -47,7 +47,7 @@ graph TD
 /ingest EDM-2324
   → finds and reads PRD from the docs repo
   → explores affected codebase areas
-  → writes .artifacts/design/EDM-2324/01-context.md
+  → writes {ARTIFACTS_ROOT}/design/EDM-2324/01-context.md
 
 /research (conditional — when external integrations, standards, or unfamiliar domains are involved)
   → presents research plan to user for confirmation
@@ -92,13 +92,13 @@ graph TD
 
 ## Artifacts
 
-All artifacts are stored in `.artifacts/design/{issue-key}/`.
+All artifacts are stored in `{ARTIFACTS_ROOT}/design/{issue-key}/`.
 
 Epic and story files live under `06-stories/`. Each file maps 1:1 to a
 Jira issue:
 
 ```text
-.artifacts/design/EDM-2324/
+{ARTIFACTS_ROOT}/design/EDM-2324/
   01-context.md
   02-research.md                       (if /research was run)
   03-design.md

@@ -41,6 +41,14 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+resolver="$(cd "$(dirname "$0")/../../_shared/scripts" && pwd)/artifacts.py"
+if [ -n "${baseline}" ]; then
+  baseline="$(python3 "$resolver" --path "${baseline}")" || exit 2
+fi
+if [ -n "${ctx_file}" ]; then
+  ctx_file="$(python3 "$resolver" --path "${ctx_file}")" || exit 2
+fi
+
 [ -n "$baseline" ] || { echo "push-guard: --baseline is required" >&2; exit 2; }
 [ -n "$remote" ]   || { echo "push-guard: --remote is required" >&2; exit 2; }
 [ -n "$ctx_file" ] || { echo "push-guard: --context is required" >&2; exit 2; }

@@ -15,7 +15,12 @@ import shutil
 import sys
 import tempfile
 from pathlib import Path
+
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_shared" / "scripts"))
+
+from artifacts import canonical_path
 
 from _common import markdown_cell, markdown_text, read_json, require_list, require_object, require_string
 
@@ -289,6 +294,9 @@ def main(argv: list[str] | None = None) -> int:
         help="Promote staged context files and invalidate the previous assessment after validation.",
     )
     args = parser.parse_args(argv)
+    for name, value in vars(args).items():
+        if isinstance(value, Path):
+            setattr(args, name, canonical_path(value))
     try:
         context = validate_context(read_json(args.input))
         output = args.input.with_name("01-context.md")

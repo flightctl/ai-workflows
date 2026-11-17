@@ -5,6 +5,8 @@ description: Read the PRD and explore the codebase to build architectural contex
 
 # Ingest Context Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a technical researcher. Your job is to read the PRD, explore the
 relevant areas of the codebase, and produce a structured context document
 that will inform the design phase.
@@ -54,24 +56,24 @@ and all downstream phases.
 ### Step 2: Create Artifact Directory
 
 ```bash
-mkdir -p .artifacts/design/{issue-key}
+mkdir -p "${ARTIFACTS_ROOT}/design/{issue-key}"
 ```
 
 ### Step 2a: Check for Prior Ingest
 
-If `.artifacts/design/{issue-key}/01-context.md` already exists, this
+If `{ARTIFACTS_ROOT}/design/{issue-key}/01-context.md` already exists, this
 is a re-invocation. Copy the existing file to
-`.artifacts/design/{issue-key}/01-context.md.prev` so it is preserved
+`{ARTIFACTS_ROOT}/design/{issue-key}/01-context.md.prev` so it is preserved
 for the diff in Step 6a.
 
 ### Step 3: Read the PRD
 
 The published PRD in the docs repo is the authoritative source. Locate it
-there — do not read from `.artifacts/prd/`.
+there — do not read from `{ARTIFACTS_ROOT}/prd/`.
 
 #### Resolve the Docs Repo
 
-Read `.artifacts/config.json` for `docs_repo_path` and `docs_repo_remote`.
+Read `{ARTIFACTS_ROOT}/config.json` for `docs_repo_path` and `docs_repo_remote`.
 
 **If the config exists**, validate it:
 1. Verify the path exists on the local filesystem
@@ -80,11 +82,11 @@ Read `.artifacts/config.json` for `docs_repo_path` and `docs_repo_remote`.
 
 If any validation fails, inform the user and re-ask for the correct values.
 Resolve `~` to an absolute path before saving. Update
-`.artifacts/config.json` with the corrected values.
+`{ARTIFACTS_ROOT}/config.json` with the corrected values.
 
 **If the config does not exist**, ask the user for the docs repo local path
 and remote, validate them. Resolve `~` to the user's home directory so
-the stored path is absolute. Write `.artifacts/config.json`.
+the stored path is absolute. Write `{ARTIFACTS_ROOT}/config.json`.
 
 #### Find the PRD in the Docs Repo
 
@@ -118,7 +120,7 @@ decisions in its final form.
 #### Record the Resolved Paths
 
 Record the resolved PRD path (and clarifications path, if found) in
-`.artifacts/design/{issue-key}/01-context.md` (in the PRD Summary section)
+`{ARTIFACTS_ROOT}/design/{issue-key}/01-context.md` (in the PRD Summary section)
 so that downstream phases (`/draft`, `/research`, `/decompose`) can read
 them directly without repeating the lookup.
 
@@ -169,7 +171,7 @@ is a re-invocation (Step 2a found an existing file), **do not write the
 file yet** — hold the compiled content and proceed to Step 6a first.
 
 If this is a first invocation, write
-`.artifacts/design/{issue-key}/01-context.md` with this structure:
+`{ARTIFACTS_ROOT}/design/{issue-key}/01-context.md` with this structure:
 
 ```markdown
 # Architectural Context — {issue-key}
@@ -289,7 +291,7 @@ If the user declined a re-invocation overwrite in Step 6a, report instead:
 
 ## Output
 
-- `.artifacts/design/{issue-key}/01-context.md`
+- `{ARTIFACTS_ROOT}/design/{issue-key}/01-context.md`
 
 ## When This Phase Is Done
 

@@ -5,6 +5,8 @@ description: Push the UI design document to the docs repo and create a draft Git
 
 # Publish UI Design Skill
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a technical writer preparing a UI design document for review. Your
 job is to commit the UI design document to the docs repo and create a draft
 PR for the team to review.
@@ -40,18 +42,18 @@ confirmed `gh` installation — otherwise the push succeeds but the PR
 cannot be created, leaving an orphaned branch.
 
 Confirm these artifacts exist:
-- `.artifacts/ui-design/{workspace-id}/02-ui-design.md` (required)
-- `.artifacts/ui-design/{workspace-id}/03-api-findings.md` (optional — include if exists)
+- `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/02-ui-design.md` (required)
+- `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/03-api-findings.md` (optional — include if exists)
 
 If `02-ui-design.md` doesn't exist, tell the user that `/plan` should be
 run first.
 
 ### Step 2: Resolve the Docs Repo
 
-Read `.artifacts/config.json` for `docs_repo_path` and `docs_repo_remote`.
+Read `{ARTIFACTS_ROOT}/config.json` for `docs_repo_path` and `docs_repo_remote`.
 
 If the config doesn't exist, ask the user for the docs repo local path and
-remote. Before writing `docs_repo_remote` to `.artifacts/config.json`,
+remote. Before writing `docs_repo_remote` to `{ARTIFACTS_ROOT}/config.json`,
 strip any embedded credentials (userinfo) from the remote URL. If
 `docs_repo_remote` contains `://user:pass@` or `://token@`, remove the
 userinfo segment. Report a warning if credentials were stripped.
@@ -111,7 +113,7 @@ Present the publish plan:
 
 ```text
 Publishing UI design document:
-  Source: .artifacts/ui-design/{workspace-id}/02-ui-design.md
+  Source: {ARTIFACTS_ROOT}/ui-design/{workspace-id}/02-ui-design.md
   API findings: {included / not applicable}
   Docs repo: {UPSTREAM_REPO}
   Push to: {PUSH_URL} (branch: {BRANCH_NAME})
@@ -126,7 +128,7 @@ Wait for explicit approval.
 ### Step 6: Determine Target Directory
 
 **Resolve Feature key.** Read
-`.artifacts/ui-design/{workspace-id}/01-context.md` and extract the
+`{ARTIFACTS_ROOT}/ui-design/{workspace-id}/01-context.md` and extract the
 Feature key from the parent hierarchy in the Story Summary. If the
 `[UI]` story's grandparent is a Feature (available when
 `--parent-fields` included `parent` during ingest), use that Feature
@@ -185,14 +187,14 @@ and stash any uncommitted changes so they can be restored after publish:
 
 ```bash
 ORIGINAL_BRANCH=$(git -C "{docs_repo_path}" rev-parse --abbrev-ref HEAD)
-echo "${ORIGINAL_BRANCH}" > ".artifacts/ui-design/{workspace-id}/publish-original-branch.txt"
+echo "${ORIGINAL_BRANCH}" > "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/publish-original-branch.txt"
 STASH_COUNT_BEFORE=$(git -C "{docs_repo_path}" stash list 2>/dev/null | wc -l)
 git -C "{docs_repo_path}" stash --include-untracked --quiet 2>/dev/null || true
 STASH_COUNT_AFTER=$(git -C "{docs_repo_path}" stash list 2>/dev/null | wc -l)
 if [ "${STASH_COUNT_AFTER}" -gt "${STASH_COUNT_BEFORE}" ]; then
-  echo "true" > ".artifacts/ui-design/{workspace-id}/publish-stash-created.txt"
+  echo "true" > "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/publish-stash-created.txt"
 else
-  echo "false" > ".artifacts/ui-design/{workspace-id}/publish-stash-created.txt"
+  echo "false" > "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/publish-stash-created.txt"
 fi
 ```
 
@@ -237,13 +239,13 @@ the workflow-managed artifacts with their latest versions.
 Copy the artifacts to the docs repo:
 
 ```bash
-cp ".artifacts/ui-design/{workspace-id}/02-ui-design.md" "{target_directory}/ui-design-{workspace-id}.md"
+cp "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/02-ui-design.md" "{target_directory}/ui-design-{workspace-id}.md"
 ```
 
 If `03-api-findings.md` exists:
 
 ```bash
-cp ".artifacts/ui-design/{workspace-id}/03-api-findings.md" "{target_directory}/api-findings-{workspace-id}.md"
+cp "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/03-api-findings.md" "{target_directory}/api-findings-{workspace-id}.md"
 ```
 
 If `03-api-findings.md` does **not** exist (findings fit inline in
@@ -253,7 +255,7 @@ private overflow file from the artifacts directory:
 
 ```bash
 git -C "{docs_repo_path}" rm "{target_directory}/api-findings-{workspace-id}.md" 2>/dev/null || true
-rm -f ".artifacts/ui-design/{workspace-id}/03-api-findings.md"
+rm -f "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/03-api-findings.md"
 ```
 
 Include the docs-repo deletion in the same commit (Step 8 staging below).
@@ -329,7 +331,7 @@ git -C "{docs_repo_path}" push -u --force-with-lease "{PUSH_REMOTE}" "{BRANCH_NA
 ```
 
 Generate the PR description and save to
-`.artifacts/ui-design/{workspace-id}/04-pr-description.md`:
+`{ARTIFACTS_ROOT}/ui-design/{workspace-id}/04-pr-description.md`:
 
 ```markdown
 ## UI Design — {workspace-id}: {title}
@@ -397,14 +399,14 @@ If `CROSS_REPOSITORY` is true:
 ```bash
 gh pr create --draft --repo "{UPSTREAM_REPO}" --head "{FORK_OWNER}:{BRANCH_NAME}" \
   --base "{base_branch}" --title "UI design: {workspace-id} — {short title}" \
-  --body-file ".artifacts/ui-design/{workspace-id}/04-pr-description.md"
+  --body-file "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/04-pr-description.md"
 ```
 
 If `CROSS_REPOSITORY` is false:
 ```bash
 gh pr create --draft --repo "{UPSTREAM_REPO}" --head "{BRANCH_NAME}" \
   --base "{base_branch}" --title "UI design: {workspace-id} — {short title}" \
-  --body-file ".artifacts/ui-design/{workspace-id}/04-pr-description.md"
+  --body-file "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/04-pr-description.md"
 ```
 
 ### Step 10: Record Metadata and Report
@@ -418,7 +420,7 @@ branch:
 git -C "{docs_repo_path}" rev-parse HEAD
 ```
 
-Write `.artifacts/ui-design/{workspace-id}/publish-metadata.json` using
+Write `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/publish-metadata.json` using
 **actual values** from the preceding steps — not placeholders:
 
 ```json
@@ -456,14 +458,14 @@ one was created in Step 7. Read the saved values from files (shell
 variables do not persist across bash blocks):
 
 ```bash
-ORIGINAL_BRANCH=$(cat ".artifacts/ui-design/{workspace-id}/publish-original-branch.txt")
-STASH_CREATED=$(cat ".artifacts/ui-design/{workspace-id}/publish-stash-created.txt" 2>/dev/null || echo "false")
+ORIGINAL_BRANCH=$(cat "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/publish-original-branch.txt")
+STASH_CREATED=$(cat "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/publish-stash-created.txt" 2>/dev/null || echo "false")
 git -C "{docs_repo_path}" checkout "${ORIGINAL_BRANCH}" --quiet
 if [ "${STASH_CREATED}" = "true" ]; then
   git -C "{docs_repo_path}" stash pop --quiet
 fi
-rm -f ".artifacts/ui-design/{workspace-id}/publish-original-branch.txt" \
-      ".artifacts/ui-design/{workspace-id}/publish-stash-created.txt"
+rm -f "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/publish-original-branch.txt" \
+      "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/publish-stash-created.txt"
 ```
 
 **Error-path restore obligation.** If any step after Step 7 (branch
@@ -482,8 +484,8 @@ Present to the user:
 ## Output
 
 - PR in the docs repo (draft)
-- `.artifacts/ui-design/{workspace-id}/04-pr-description.md`
-- `.artifacts/ui-design/{workspace-id}/publish-metadata.json`
+- `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/04-pr-description.md`
+- `{ARTIFACTS_ROOT}/ui-design/{workspace-id}/publish-metadata.json`
 
 ## When This Phase Is Done
 

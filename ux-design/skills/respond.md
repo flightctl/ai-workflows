@@ -5,6 +5,8 @@ description: Fetch and address reviewer comments on the published handoff spec P
 
 # Respond — Address Review Comments
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 Fetch reviewer comments from the GitHub PR, help the user understand and
 respond to them, and apply any resulting handoff spec changes.
 
@@ -36,8 +38,8 @@ script header for full usage.
 
 ### Step 1: Fetch PR Comments
 
-Read `.artifacts/config.json` to get the docs repo path and
-`.artifacts/ux-design/{issue-key}/publish-metadata.json` to get the PR
+Read `{ARTIFACTS_ROOT}/config.json` to get the docs repo path and
+`{ARTIFACTS_ROOT}/ux-design/{issue-key}/publish-metadata.json` to get the PR
 number and `{branch-name}`. If either file doesn't exist, tell the user
 that `/publish` should be run first.
 
@@ -73,7 +75,7 @@ review comments, top-level comments, and reviews in a single call and outputs
 a unified JSON array to stdout:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" fetch --owner {owner} --repo {repo} --pr {pr-number} --responses-log .artifacts/ux-design/{issue-key}/responses.jsonl --include-review-threads
+python3 "$PR_COMMENTS_SCRIPT" fetch --owner {owner} --repo {repo} --pr {pr-number} --responses-log "${ARTIFACTS_ROOT}/ux-design/{issue-key}/responses.jsonl" --include-review-threads
 ```
 
 The `--responses-log` flag excludes comment IDs already addressed in prior
@@ -114,7 +116,7 @@ Wait for the user to approve, modify, or reject each response.
 
 **If "Handoff change needed: Yes":**
 
-Update `.artifacts/ux-design/{issue-key}/05-handoff.md` with approved changes.
+Update `{ARTIFACTS_ROOT}/ux-design/{issue-key}/05-handoff.md` with approved changes.
 
 Read and follow `../../_shared/recipes/capture-provenance-event.md` with
 `WORKFLOW=ux-design`, `ISSUE_KEY={issue-key}`, `PHASE=respond`,
@@ -140,7 +142,7 @@ git -C "{docs_repo_path}" pull --ff-only
 ```
 
 ```bash
-cp ".artifacts/ux-design/{issue-key}/05-handoff.md" "{docs_repo_path}/{handoff_file_path}"
+cp "${ARTIFACTS_ROOT}/ux-design/{issue-key}/05-handoff.md" "{docs_repo_path}/{handoff_file_path}"
 ```
 
 Read and follow `../../_shared/recipes/render-provenance-footer.md` with
@@ -167,7 +169,7 @@ is comment-only (clarification, acknowledgment, or pushback).
 **In both cases:**
 
 Write each approved reply to
-`.artifacts/ux-design/{issue-key}/tmp-reply.md` using the host's file-writing
+`{ARTIFACTS_ROOT}/ux-design/{issue-key}/tmp-reply.md` using the host's file-writing
 capability. Do not use a shell heredoc because reply content can contain the
 delimiter string.
 
@@ -176,13 +178,13 @@ Route each comment based on its `type` field from the fetch output.
 For a `line_comment`, reply in-thread using the comment's `id`:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/ux-design/{issue-key}/tmp-reply.md --comment-id {id}
+python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file "${ARTIFACTS_ROOT}/ux-design/{issue-key}/tmp-reply.md" --comment-id {id}
 ```
 
 For a `review` or `top_level` comment, post a top-level reply:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file .artifacts/ux-design/{issue-key}/tmp-reply.md
+python3 "$PR_COMMENTS_SCRIPT" reply --owner {owner} --repo {repo} --pr {pr-number} --body-file "${ARTIFACTS_ROOT}/ux-design/{issue-key}/tmp-reply.md"
 ```
 
 If the reply command fails, report the error and continue to the next comment
@@ -191,7 +193,7 @@ without logging the failed reply.
 After each successful reply, record its `id` so later respond rounds skip it:
 
 ```bash
-python3 "$PR_COMMENTS_SCRIPT" log --responses-log .artifacts/ux-design/{issue-key}/responses.jsonl --comment-id {id}
+python3 "$PR_COMMENTS_SCRIPT" log --responses-log "${ARTIFACTS_ROOT}/ux-design/{issue-key}/responses.jsonl" --comment-id {id}
 ```
 
 If logging fails, stop before posting another reply to avoid duplicate replies
@@ -200,7 +202,7 @@ on the next respond round.
 Delete the temporary reply file after a successful post and log:
 
 ```bash
-rm .artifacts/ux-design/{issue-key}/tmp-reply.md
+rm "${ARTIFACTS_ROOT}/ux-design/{issue-key}/tmp-reply.md"
 ```
 
 ### Step 5: Report to User
@@ -213,7 +215,7 @@ Summarize:
 ## Output
 
 - PR comments posted (with user approval)
-- `.artifacts/ux-design/{issue-key}/05-handoff.md` (updated if needed)
+- `{ARTIFACTS_ROOT}/ux-design/{issue-key}/05-handoff.md` (updated if needed)
 
 ## When This Phase Is Done
 

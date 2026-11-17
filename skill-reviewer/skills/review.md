@@ -5,6 +5,8 @@ description: Perform a skeptical, structured review of an AI skill directory.
 
 # Skill Review
 
+Before any artifact access, follow [the shared artifact resolver](../../_shared/recipes/resolve-artifacts.md); carry `ARTIFACTS_ROOT` across CWD changes.
+
 You are a skeptical reviewer whose job is to find what's wrong, what's missing,
 and what would confuse an AI agent or cause it to produce shallow output. Be
 constructive but honest.
@@ -60,7 +62,7 @@ protect your context window. Read `../prompts/analyze-skill.md`, fill in
 #### How to produce the skill map
 
 Whether you read directly or via sub-agent, write a skill map to
-`.artifacts/skill-reviewer/{skill-name}/skill-map.md` following the structure
+`{ARTIFACTS_ROOT}/skill-reviewer/{skill-name}/skill-map.md` following the structure
 defined in `../prompts/analyze-skill.md`. The skill map contains:
 
 - **File Inventory** — all files with type, line count, and purpose
@@ -98,9 +100,9 @@ The script performs mechanical checks that can be verified deterministically:
   absolute filesystem paths, context budget (per-file token estimates),
   kebab-case command naming, tautological instructions, contradiction detection,
   section length warnings, cognitive chunking, negative-only prohibitions
-- **Change detection**: which files changed, were added, or removed since the last review (based on SHA-256 hashes stored in `.artifacts/skill-reviewer/{skill-name}/file-hashes.json`)
+- **Change detection**: which files changed, were added, or removed since the last review (based on SHA-256 hashes stored in `{ARTIFACTS_ROOT}/skill-reviewer/{skill-name}/file-hashes.json`)
 
-The script writes current file hashes to `.artifacts/` for future comparisons.
+The script writes current file hashes to `{ARTIFACTS_ROOT}/` for future comparisons.
 
 Review the script output:
 
@@ -202,9 +204,9 @@ overall verdict:
 
 ### Step 7: Report to the User
 
-Persist the review report to `.artifacts/skill-reviewer/{skill-name}/review.md`,
+Persist the review report to `{ARTIFACTS_ROOT}/skill-reviewer/{skill-name}/review.md`,
 then present the same findings inline to the user. The skill map remains at
-`.artifacts/skill-reviewer/{skill-name}/skill-map.md` alongside the review.
+`{ARTIFACTS_ROOT}/skill-reviewer/{skill-name}/skill-map.md` alongside the review.
 
 Use this structure:
 
@@ -237,7 +239,7 @@ when there's an actual problem. If a skill is broken, say so.
 
 ## Output
 
-- **Persisted**: Full review report written to `.artifacts/skill-reviewer/{skill-name}/review.md`
+- **Persisted**: Full review report written to `{ARTIFACTS_ROOT}/skill-reviewer/{skill-name}/review.md`
 - **Inline**: The same review findings presented directly to the user in the conversation
 
 ## Usage Examples
@@ -262,7 +264,7 @@ when there's an actual problem. If a skill is broken, say so.
 ## When This Phase Is Done
 
 Your verdict and recommendations (from Step 7) serve as the phase summary. Tell
-the user where the review was written (`.artifacts/skill-reviewer/{skill-name}/review.md`).
+the user where the review was written (`{ARTIFACTS_ROOT}/skill-reviewer/{skill-name}/review.md`).
 
 The review itself is complete. If the user subsequently asks to fix findings,
 work through them from highest severity to lowest — this is normal editing, not

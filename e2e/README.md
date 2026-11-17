@@ -57,7 +57,7 @@ discovery and ambiguous requests.
   -> explores e2e test infrastructure (framework, test abstractions, patterns)
   -> selects reference suite as pattern source
   -> discovers validation profile (test execution, lint commands)
-  -> writes .artifacts/e2e/EDM-5678/01-context.md
+  -> writes {ARTIFACTS_ROOT}/e2e/EDM-5678/01-context.md
 
 /plan
   -> maps each acceptance criterion to test scenarios
@@ -98,10 +98,10 @@ discovery and ambiguous requests.
 
 ## Artifacts
 
-All artifacts are stored in `.artifacts/e2e/{issue-key}/`.
+All artifacts are stored in `{ARTIFACTS_ROOT}/e2e/{issue-key}/`.
 
 ```text
-.artifacts/e2e/EDM-5678/
+{ARTIFACTS_ROOT}/e2e/EDM-5678/
   01-context.md              (story context, e2e infrastructure, validation profile)
   02-plan.md                 (scenario breakdown, AC coverage -- updated as tasks complete)
   03-test-report.md          (tests written, test infrastructure used)
