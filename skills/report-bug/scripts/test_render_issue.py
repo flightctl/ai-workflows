@@ -17,6 +17,7 @@ assert _SPEC and _SPEC.loader
 render_issue = importlib.util.module_from_spec(_SPEC)
 sys.modules["render_issue"] = render_issue
 _SPEC.loader.exec_module(render_issue)
+SKILL_VERSION = render_issue.load_skill_metadata(SCRIPT.parents[1] / "SKILL.md")["version"]
 
 
 class RenderIssueTests(unittest.TestCase):
@@ -192,7 +193,7 @@ class RenderIssueTests(unittest.TestCase):
         provenance = render_issue.build_provenance(self.model(), skill)
         self.assertEqual(
             provenance,
-            "Reported with AI assistance using report-bug v0.1.2. Review for accuracy.",
+            f"Reported with AI assistance using report-bug v{SKILL_VERSION}. Review for accuracy.",
         )
 
         raw = self.raw_model()
@@ -265,7 +266,7 @@ class RenderIssueCliTests(unittest.TestCase):
         self.assertEqual(result.stderr, "")
         adf = json.loads(result.stdout)
         self.assertEqual(adf["type"], "doc")
-        self.assertIn("report-bug v0.1.2", adf["content"][-1]["content"][0]["text"])
+        self.assertIn(f"report-bug v{SKILL_VERSION}", adf["content"][-1]["content"][0]["text"])
 
     def test_cli_emits_markdown_preview(self):
         result = self.run_cli(
@@ -274,7 +275,7 @@ class RenderIssueCliTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(result.stdout.startswith("## Description of the problem\n"))
-        self.assertIn("report-bug v0.1.2", result.stdout)
+        self.assertIn(f"report-bug v{SKILL_VERSION}", result.stdout)
 
     def test_cli_can_disable_provenance_by_policy(self):
         result = self.run_cli(
