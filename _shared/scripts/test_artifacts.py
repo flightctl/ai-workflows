@@ -292,6 +292,64 @@ class ArtifactTests(unittest.TestCase):
                 self.assertEqual(outside.read_text(), '{"sentinel": true}')
                 target.unlink()
 
+    def test_cve_consumers_refuse_final_path_symlinks_without_mutation(self) -> None:
+        linked = self.linked()
+        outside = self.directory / "outside.json"
+        cases = (
+            ("backport", "backport-log.md",
+             "consumer.write_backport_log(target.parent, 'fixture', 'abc', [])"),
+            ("patch", "patch-log.md",
+             "consumer.append_patch_log(target.parent, 'CVE-2026-1234', 'pkg', "
+             "1, 'fixture', False, 'fixture', 1)"),
+            ("patch", "patch-log.md",
+             "consumer._count_existing_attempts(target.parent, 'CVE-2026-1234', 'pkg')"),
+            ("patch", "scan-result.json",
+             "consumer.run_verification_scan(target.parent, Path.cwd(), "
+             "'CVE-2026-1234', 'pkg', '.')"),
+            ("create_pr", "context.md",
+             "consumer.record_pr_in_context(target.parent, 'https://example.invalid/pr/1')"),
+            ("close", "context.md", "consumer.collect_artifacts(target.parent)"),
+            ("close", "scan-result.json", "consumer.load_vex_justification(target.parent)"),
+            ("close", "scan-results.md", "consumer.load_vex_justification(target.parent)"),
+            ("close", "close-report.md",
+             "consumer.write_close_report(target.parent, [], [], [], 'Done')"),
+            ("prepare_report", "report-input.json", "consumer._write_json(target, {})"),
+            ("finalize_report", "report-input.json", "consumer._read_json(target)"),
+            ("finalize_report", "report-result.json", "consumer._write_json(target, {})"),
+            ("finalize_report", "report.md",
+             "(target.parent / 'report-input.json').write_text('{}')\n"
+             "with mock.patch.object(consumer, 'finalize_report_data', "
+             "return_value=({'status': 'success'}, '# fixture')):\n"
+             "    raise SystemExit(consumer.main(['--output-dir', str(target.parent)]))"),
+            ("scan", "scan-results.md",
+             "os.environ['OUTPUT_DIR'] = str(target.parent)\n"
+             "sys.argv = ['scan.py', str(Path.cwd()), 'CVE-2026-1234', 'pkg', '--write-report']\n"
+             "consumer.main()"),
+            ("report", "report-intermediate.md",
+             "with mock.patch.multiple(consumer, "
+             "get_jira_env=mock.Mock(return_value=('https://example.invalid', 'fixture', None)), "
+             "resolve_jira_field_ids=mock.Mock(return_value={}), "
+             "fetch_all_issues=mock.Mock(return_value=[])):\n"
+             "    consumer.run_report(consumer.parse_args(['TEST', '--output-dir', str(target.parent)]))"),
+        )
+        for case_index, (module, filename, expression) in enumerate(cases):
+            with self.subTest(module=module, filename=filename, expression=expression):
+                outside.write_text('{"sentinel": true}')
+                target = artifact_directory("cve-fix", f"TEST-{case_index}", self.main) / filename
+                target.parent.mkdir(parents=True)
+                target.symlink_to(outside)
+                result = subprocess.run(
+                    [sys.executable, "-c",
+                     "import os, sys; from pathlib import Path; from unittest import mock; "
+                     f"sys.path.insert(0, {str(SOURCE / 'cve-fix/scripts')!r}); "
+                     f"import {module} as consumer; target=Path({str(target)!r})\n{expression}"],
+                    cwd=linked, capture_output=True, text=True,
+                )
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertIn("symlink", result.stderr + result.stdout)
+                self.assertTrue(target.is_symlink())
+                self.assertEqual(outside.read_text(), '{"sentinel": true}')
+
     def test_triage_writer_refuses_symlink_result_without_mutation(self) -> None:
         linked = self.linked()
         outside = self.directory / "outside.json"
