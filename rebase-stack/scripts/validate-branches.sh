@@ -30,9 +30,10 @@
 
 set -uo pipefail
 
-ARTIFACTS_ROOT="$(python3 "$(cd "$(dirname "$0")/../../_shared/scripts" && pwd)/artifacts.py")" || exit 2
-LOG_DIR="${ARTIFACTS_ROOT}/rebase-stack/logs"
-WT_DIR="${ARTIFACTS_ROOT}/rebase-stack/worktrees"
+resolver="$(cd "$(dirname "$0")/../../_shared/scripts" && pwd)/artifacts.py"
+STATE_DIR="$(python3 "$resolver" rebase-stack)" || exit 2
+LOG_DIR="$(python3 "$resolver" --path "${STATE_DIR}/logs")" || exit 2
+WT_DIR="${STATE_DIR}/worktrees"
 
 lint_cmd=""
 test_cmd=""
@@ -115,7 +116,7 @@ failed=""
 
 for branch in "${branches[@]}"; do
   safe=$(safe_name "$branch")
-  log="${LOG_DIR}/${safe}.log"
+  log="$(python3 "$resolver" --path "${LOG_DIR}/${safe}.log")" || exit 2
   work_dir=""
 
   if [ "$mode" = "checkout" ]; then
@@ -130,8 +131,8 @@ for branch in "${branches[@]}"; do
     # unnecessary.
     work_dir="$repo_root"
   else
+    wt="$(python3 "$resolver" --path "${WT_DIR}/${safe}")" || exit 2
     mkdir -p "$WT_DIR"
-    wt="${WT_DIR}/${safe}"
     # Never force-remove an existing path: it may hold someone else's worktree
     # or real work. Prune stale administrative entries, then refuse if the path
     # is still occupied.

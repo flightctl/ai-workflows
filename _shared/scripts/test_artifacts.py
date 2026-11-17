@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -291,6 +292,75 @@ class ArtifactTests(unittest.TestCase):
                 self.assertTrue(target.is_symlink())
                 self.assertEqual(outside.read_text(), '{"sentinel": true}')
                 target.unlink()
+
+    def test_rebase_snapshot_refuses_symlinked_state_and_read_targets(self) -> None:
+        linked = self.linked()
+        outside = self.directory / "outside state"
+        outside.mkdir()
+        snapshot = outside / "pre-rebase-state.json"
+        snapshot.write_text('{"branches": []}')
+        state = self.main / ".artifacts/rebase-stack"
+        state.parent.mkdir()
+        for suffix, command in (("", "restore-plan"),
+                                ("pre-rebase-state.json", "restore-plan"),
+                                ("pre-rebase-state.json", "verify")):
+            with self.subTest(suffix=suffix, command=command):
+                if suffix:
+                    state.mkdir(exist_ok=True)
+                    target = state / suffix
+                    target.symlink_to(snapshot)
+                else:
+                    target = state
+                    target.symlink_to(outside, target_is_directory=True)
+                result = subprocess.run(
+                    ["bash", str(SOURCE / "rebase-stack/scripts/snapshot.sh"), command],
+                    cwd=linked, input="{}", capture_output=True, text=True,
+                )
+                try:
+                    self.assertEqual(result.returncode, 2, result.stderr)
+                    self.assertIn("symlink", result.stderr)
+                    self.assertTrue(target.is_symlink())
+                    self.assertEqual(snapshot.read_text(), '{"branches": []}')
+                finally:
+                    target.unlink()
+
+    def test_rebase_validation_refuses_symlinked_log_and_worktree_paths(self) -> None:
+        linked = self.linked()
+        branch = self.git("branch", "--show-current", cwd=self.main).strip()
+        digest = subprocess.run(
+            ["git", "hash-object", "--stdin"], cwd=linked, input=branch,
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()[:8]
+        safe = branch.replace("/", "-") + "-" + digest
+        outside = self.directory / "outside state"
+        outside.mkdir()
+        outside_log = outside / "outside.log"
+        outside_log.write_text("sentinel")
+        state = artifact_directory("rebase-stack", repo=self.main)
+        state.mkdir(parents=True)
+        for suffix, directory in (("logs", True), (f"logs/{safe}.log", False),
+                                  ("worktrees", True), (f"worktrees/{safe}", True)):
+            with self.subTest(suffix=suffix):
+                target = state / suffix
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.symlink_to(outside if directory else outside_log,
+                                  target_is_directory=directory)
+                result = subprocess.run(
+                    ["bash", str(SOURCE / "rebase-stack/scripts/validate-branches.sh"),
+                     "--test", "true", branch],
+                    cwd=linked, capture_output=True, text=True,
+                )
+                try:
+                    self.assertEqual(result.returncode, 2, result.stderr)
+                    self.assertIn("symlink", result.stderr)
+                    self.assertTrue(target.is_symlink())
+                    self.assertEqual(list(outside.iterdir()), [outside_log])
+                    self.assertEqual(outside_log.read_text(), "sentinel")
+                    self.assertEqual(self.git("branch", "--show-current", cwd=linked).strip(),
+                                     "topic")
+                finally:
+                    shutil.rmtree(state)
+                    state.mkdir()
 
     def test_cve_consumers_refuse_final_path_symlinks_without_mutation(self) -> None:
         linked = self.linked()

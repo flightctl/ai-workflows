@@ -17,8 +17,8 @@
 
 set -uo pipefail
 
-ARTIFACTS_ROOT="$(python3 "$(cd "$(dirname "$0")/../../_shared/scripts" && pwd)/artifacts.py")" || exit 2
-STATE_DIR="${ARTIFACTS_ROOT}/rebase-stack"
+resolver="$(cd "$(dirname "$0")/../../_shared/scripts" && pwd)/artifacts.py"
+STATE_DIR="$(python3 "$resolver" rebase-stack)" || exit 2
 SNAPSHOT="${STATE_DIR}/pre-rebase-state.json"
 
 cmd="${1:-}"
@@ -161,6 +161,7 @@ case "$cmd" in
     ;;
 
   verify)
+    SNAPSHOT="$(python3 "$resolver" --path "$SNAPSHOT")" || exit 2
     [ -f "$SNAPSHOT" ] || { echo "snapshot: no snapshot at ${SNAPSHOT}; nothing to verify" >&2; exit 2; }
     ctx=$(cat)
     base_ref="$(jq -r '.baseRemote' <<<"$ctx")/$(jq -r '.trunk' <<<"$ctx")"
@@ -219,6 +220,7 @@ case "$cmd" in
     ;;
 
   restore-plan)
+    SNAPSHOT="$(python3 "$resolver" --path "$SNAPSHOT")" || exit 2
     [ -f "$SNAPSHOT" ] || { echo "snapshot: no snapshot at ${SNAPSHOT}" >&2; exit 2; }
     printf '# Recovery plan — restores every branch to its pre-rebase tip.\n'
     printf '# Review before running. These are local resets; nothing is pushed.\n'
