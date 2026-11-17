@@ -61,7 +61,7 @@ is not already on the given branch, check it out first
 2. Extract the issue key (e.g. `EDM-3467` from a Jira URL, `#421` from
    a GitHub issue)
 3. Create the artifact directory immediately:
-   `mkdir -p {ARTIFACTS_ROOT}/bugfix/{issue}`
+   `mkdir -p "${ARTIFACTS_ROOT}/bugfix/{issue}"`
 4. Execute the phase loop below, starting at `/diagnose`
 5. After each phase, proceed directly to the next — do not stop or wait
 
