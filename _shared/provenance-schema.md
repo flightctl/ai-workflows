@@ -39,8 +39,9 @@ supports same-session drift analysis only.
   from origin. This is independent of `provenance_kind` (see below).
 - `origin_untracked` reflects only the *local* session log, not absolute ground truth.
   Because `provenance.json` is gitignored (see "Published vs session-local" above), a
-  fresh clone, a new git worktree, a cleaned `{ARTIFACTS_ROOT}/`, or a CI runner all start that
-  log from empty. If the next captured event on that empty log is `respond`, `revise`, or
+  fresh clone, a cleaned `{ARTIFACTS_ROOT}/`, or a CI checkout without retained state
+  starts that log from empty. A new linked worktree reuses the main worktree's log.
+  If the next captured event on an empty log is `respond`, `revise`, or
   `manual-edit`, `origin_untracked` becomes `true` even when the document was genuinely
   drafted in an earlier session whose log no longer exists. It also does not self-heal:
   `capture_event` only appends, so a later `/draft` or `/plan` run lands past `events[0]`

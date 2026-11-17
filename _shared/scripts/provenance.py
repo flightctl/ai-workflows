@@ -21,7 +21,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from artifacts import artifact_directory, artifact_root
+from artifacts import artifact_directory, artifact_root, canonical_path
 
 GIT_TIMEOUT_SEC = 30
 
@@ -237,7 +237,7 @@ def workspace_root() -> Path:
 def provenance_path(workflow: str, issue: str) -> Path:
     if "/" in issue or "\\" in issue or ".." in issue:
         raise ValueError(f"Invalid issue key: {issue!r}")
-    return artifact_directory(workflow, issue) / "provenance.json"
+    return canonical_path(artifact_directory(workflow, issue) / "provenance.json")
 
 
 def load_provenance(path: Path, workflow: str) -> dict[str, Any]:
@@ -493,6 +493,7 @@ def replace_provenance_section(content: str, footer: str) -> str:
 
 
 def render_footer(workflow: str, issue: str, target: Path, *, allow_missing: bool = False) -> int:
+    target = canonical_path(target)
     if not target.is_file():
         print(f"Error: target file {target} does not exist", file=sys.stderr)
         return 1

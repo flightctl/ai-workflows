@@ -20,7 +20,8 @@ phase mutates the planning document. See `../provenance-schema.md`.
 
 ## Procedure
 
-From the **source repo** root (where `{ARTIFACTS_ROOT}/` lives), run:
+From the active **source worktree**, run; storage remains in the main worktree
+while the snapshot records the active source branch:
 
 ```bash
 python3 "{AI_WORKFLOWS_ROOT}/_shared/scripts/provenance.py" capture \

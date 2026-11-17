@@ -213,6 +213,54 @@ class ArtifactTests(unittest.TestCase):
         state = self.main / ".artifacts/design/TEST-1/provenance.json"
         self.assertEqual(json.loads(state.read_text())["events"][0]["source_repo_branch"], "topic")
 
+    def test_provenance_render_target_is_canonical_even_when_declined(self) -> None:
+        linked = self.linked()
+        target = artifact_directory("prd", "TEST-1", self.main) / "03-prd.md"
+        target.parent.mkdir(parents=True)
+        target.write_text("# PRD\n")
+        for options in ((), ("--allow-missing",)):
+            result = self.cli(SCRIPTS / "provenance.py", "render", "--workflow", "prd",
+                              "--issue", "TEST-1", "--target",
+                              ".artifacts/prd/TEST-1/03-prd.md", *options, cwd=linked)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("ai-workflow-provenance:", target.read_text())
+        self.assertFalse((linked / ".artifacts").exists())
+
+    def test_provenance_declined_render_refuses_legacy_state_without_mutation(self) -> None:
+        linked = self.linked()
+        legacy = linked / ".artifacts/prd/TEST-1/03-prd.md"
+        legacy.parent.mkdir(parents=True)
+        legacy.write_text("# Legacy PRD\n")
+        result = self.cli(SCRIPTS / "provenance.py", "render", "--workflow", "prd",
+                          "--issue", "TEST-1", "--target", str(legacy),
+                          "--allow-missing", cwd=linked)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("reconciliation required", result.stderr)
+        self.assertEqual(legacy.read_text(), "# Legacy PRD\n")
+        self.assertFalse((self.main / ".artifacts").exists())
+
+    def test_provenance_refuses_symlink_target_and_log_without_mutation(self) -> None:
+        directory = artifact_directory("prd", "TEST-1", self.main)
+        directory.mkdir(parents=True)
+        outside = self.directory / "outside.md"
+        outside.write_text("# Do not change\n")
+        target = directory / "03-prd.md"
+        target.symlink_to(outside)
+        for options in ((), ("--allow-missing",)):
+            result = self.cli(SCRIPTS / "provenance.py", "render", "--workflow", "prd",
+                              "--issue", "TEST-1", "--target", str(target),
+                              *options, cwd=self.main)
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("symlink", result.stderr)
+        target.unlink()
+        (directory / "provenance.json").symlink_to(outside)
+        result = self.cli(SCRIPTS / "provenance.py", "capture", "--workflow", "prd",
+                          "--issue", "TEST-1", "--phase", "draft", "--authoring-mode", "skill",
+                          cwd=self.main)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("symlink", result.stderr)
+        self.assertEqual(outside.read_text(), "# Do not change\n")
+
 
 if __name__ == "__main__":
     unittest.main()
