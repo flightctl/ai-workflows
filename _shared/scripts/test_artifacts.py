@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -139,6 +140,33 @@ class ArtifactTests(unittest.TestCase):
         resumed = canonical_path(".artifacts/config.json", linked)
         self.assertEqual(resumed, config)
         self.assertEqual(json.loads(resumed.read_text())["docs_repo_path"], "/example/docs")
+
+    def test_rebase_start_preserves_spaced_baseline_argument(self) -> None:
+        instructions = (SOURCE / "rebase-stack/skills/start.md").read_text()
+        command = next(block.split("```", 1)[0]
+                       for block in instructions.split("```bash\n")[1:]
+                       if block.startswith("baseline_args="))
+        scripts = self.directory / "installed scripts"
+        scripts.mkdir()
+        (scripts / "validate-baseline.sh").write_text("exit 0\n")
+        (scripts / "stack-status.sh").write_text("printf '%s\\n' \"$@\"\n")
+        state = artifact_directory("rebase-stack", repo=self.main)
+        state.mkdir(parents=True)
+        (state / "context.json").write_text("{}")
+        baseline = state / "pre-rebase-state.json"
+        baseline.write_text("{}")
+        for exists in (True, False):
+            with self.subTest(baseline_exists=exists):
+                if not exists:
+                    baseline.unlink()
+                result = subprocess.run(
+                    ["bash", "-c", command.replace("{scripts}", str(scripts))],
+                    cwd=self.main, capture_output=True, text=True,
+                    env={**os.environ, "ARTIFACTS_ROOT": str(state.parent)},
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                expected = (["--baseline", str(baseline)] if exists else [""])
+                self.assertEqual(result.stdout.splitlines(), expected + ["status exit: 0"])
 
     def test_disjoint_legacy_state_also_refused(self) -> None:
         linked = self.linked()

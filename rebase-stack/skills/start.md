@@ -23,14 +23,14 @@ so the health report can distinguish expected rebase divergence from genuine
 collaborator updates:
 
 ```bash
-baseline_args=""
+baseline_args=()
 if [ -f "${ARTIFACTS_ROOT}/rebase-stack/pre-rebase-state.json" ] \
    && bash "{scripts}/validate-baseline.sh" \
         "${ARTIFACTS_ROOT}/rebase-stack/pre-rebase-state.json" \
         --context "${ARTIFACTS_ROOT}/rebase-stack/context.json" >/dev/null 2>&1; then
-  baseline_args="--baseline ${ARTIFACTS_ROOT}/rebase-stack/pre-rebase-state.json"
+  baseline_args=(--baseline "${ARTIFACTS_ROOT}/rebase-stack/pre-rebase-state.json")
 fi
-bash "{scripts}/stack-status.sh" $baseline_args \
+bash "{scripts}/stack-status.sh" "${baseline_args[@]}" \
   < "${ARTIFACTS_ROOT}/rebase-stack/context.json"
 echo "status exit: $?"
 ```
