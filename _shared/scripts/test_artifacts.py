@@ -262,6 +262,53 @@ class ArtifactTests(unittest.TestCase):
         state = self.main / ".artifacts/design/TEST-1/provenance.json"
         self.assertEqual(json.loads(state.read_text())["events"][0]["source_repo_branch"], "topic")
 
+    def test_common_consumers_refuse_final_file_symlinks_without_mutation(self) -> None:
+        linked = self.linked()
+        outside = self.directory / "outside.json"
+        outside.write_text('{"sentinel": true}')
+        for case_index, (package, filename, expression) in enumerate((
+            ("cve-fix", "result.json", "write_json({}, target.parent, target.name)"),
+            ("cve-fix", "context.md", "read_context_md(target.parent)"),
+            ("sizing", "state.json", "read_json(target)"),
+            ("sizing", "state.json", "write_json(target, {})"),
+            ("sizing", ".state.json.tmp", "write_json(target.with_name('state.json'), {})"),
+            ("sizing", "state.json", "write_files_transactionally({target: b'changed'})"),
+        )):
+            with self.subTest(package=package, expression=expression, filename=filename):
+                outside.write_text('{"sentinel": true}')
+                target = artifact_directory(package, f"TEST-{case_index}", self.main) / filename
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.symlink_to(outside)
+                result = subprocess.run(
+                    [sys.executable, "-c",
+                     f"import sys; from pathlib import Path; "
+                     f"sys.path.insert(0, {str(SOURCE / package / 'scripts')!r}); "
+                     f"from _common import *; target=Path({str(target)!r}); {expression}"],
+                    cwd=linked, capture_output=True, text=True,
+                )
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertIn("symlink", result.stderr)
+                self.assertTrue(target.is_symlink())
+                self.assertEqual(outside.read_text(), '{"sentinel": true}')
+                target.unlink()
+
+    def test_reviewer_refuses_symlink_hash_log_without_mutation(self) -> None:
+        linked = self.linked()
+        target = artifact_directory("skill-reviewer", "fixture", self.main) / "file-hashes.json"
+        target.parent.mkdir(parents=True)
+        outside = self.directory / "outside.json"
+        outside.write_text('{}')
+        target.symlink_to(outside)
+        skill = linked / "fixture"
+        skill.mkdir()
+        (skill / "SKILL.md").write_text("# Fixture\n")
+        result = self.cli(SOURCE / "skill-reviewer/scripts/pre-review-checks.py",
+                          str(skill), cwd=linked)
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn("symlink", result.stderr)
+        self.assertEqual(outside.read_text(), '{}')
+        self.assertTrue(target.is_symlink())
+
     def test_provenance_render_target_is_canonical_even_when_declined(self) -> None:
         linked = self.linked()
         target = artifact_directory("prd", "TEST-1", self.main) / "03-prd.md"

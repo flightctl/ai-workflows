@@ -25,7 +25,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_shared" / "scripts"))
 
-from artifacts import artifact_directory
+from artifacts import artifact_directory, canonical_path
 
 # ---------------------------------------------------------------------------
 # Structure & reference constants
@@ -228,7 +228,7 @@ class Checker:
     def check_changes(self):
         print("--- Changes Since Last Review ---")
 
-        hashes_file = artifact_directory("skill-reviewer", self.skill_name) / "file-hashes.json"
+        hashes_file = canonical_path(artifact_directory("skill-reviewer", self.skill_name) / "file-hashes.json")
         current_hashes = self._compute_hashes()
 
         if hashes_file.is_file():

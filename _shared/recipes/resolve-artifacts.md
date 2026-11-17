@@ -38,6 +38,12 @@ the checked absolute path. Python consumers import `artifact_root`,
 `artifact_directory`, or `canonical_path` from `_shared/scripts/artifacts.py`.
 Errors stop the operation; do not fall back to a local `.artifacts` directory.
 
+Validate the complete artifact filename with `--path` (or `canonical_path` in
+Python) before reading, writing, copying, or deleting it. Checking only the root
+or containing directory cannot reject a symlink at a subsequently appended
+filename. Apply this to `config.json`, precheck inputs, temporary files, and
+cleanup targets too. Do not resolve symlinks before passing paths to the checker.
+
 ## Ownership And Lifetime
 
 Git's first worktree record identifies the main worktree, regardless of its

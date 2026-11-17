@@ -7,9 +7,14 @@ import json
 import os
 import re
 import shutil
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "_shared" / "scripts"))
+
+from artifacts import canonical_path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -58,6 +63,7 @@ def validate_context_name(value: str, label: str = "context") -> str:
 
 def read_json(path: Path) -> Any:
     """Read JSON from *path* with a concise, actionable error."""
+    path = canonical_path(path)
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except OSError as exc:
@@ -68,15 +74,17 @@ def read_json(path: Path) -> Any:
 
 def write_json(path: Path, value: Any) -> None:
     """Write stable, readable JSON atomically."""
+    path = canonical_path(path)
+    temporary = canonical_path(path.with_name(f".{path.name}.tmp"))
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(value, ensure_ascii=False, indent=2) + "\n"
-    temporary = path.with_name(f".{path.name}.tmp")
     temporary.write_text(payload, encoding="utf-8")
     temporary.replace(path)
 
 
 def write_files_transactionally(files: dict[Path, bytes | None]) -> None:
     """Replace related artifacts together and restore backups if a write fails."""
+    files = {canonical_path(target): contents for target, contents in files.items()}
     staged: dict[Path, Path] = {}
     backup_dirs: list[Path] = []
     backups: list[tuple[Path, Path]] = []
