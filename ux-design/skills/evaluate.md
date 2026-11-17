@@ -17,7 +17,15 @@ required skill is unavailable, stop and ask the researcher to run `./install.sh`
 
 Read `.artifacts/ux-design/{issue-key}/03-prototype/prototype-notes.md` for
 design decisions and open questions. If it does not exist, stop and recommend
-`/prototype` first.
+`/prototype` first, or `/import` when the team already built the prototype.
+
+When `Prototype mode` is `imported`, confirm the prototype being evaluated is
+the recorded `Prototype commit`. For a Git URL import, the clone under
+`03-prototype/code/` must be at that SHA. For a local path, its `HEAD` must
+match and its working tree must be clean, unless the import was recorded as
+`dirty` and nothing has changed since. If the commit no longer matches, stop
+and recommend `/import` at the current commit. Do not evaluate a moved
+branch under an old import record.
 
 Read `.artifacts/ux-design/{issue-key}/01-discovery.md` for user groups and
 problem framing. If `.artifacts/ux-design/{issue-key}/02-research.md` exists,
@@ -86,9 +94,20 @@ raw HTML path directly.
 
 For a standalone prototype, serve `.artifacts/ux-design/{issue-key}/03-prototype/prototype/`
 and pass its URL. For workspace mode, run the app using the project's own
-directions. If serving is not possible, capture screenshots of the important
+directions. For an imported prototype, run it with the `Run command` recorded
+in `prototype-notes.md` at the recorded commit, or use the `Hosted URL` only
+when it is recorded as verified against that commit. Scope the evaluation to
+the recorded `Prototype routes`. The import's screenshots under
+`03-prototype/screenshots/` can be reused; capture any states they miss. If
+serving is not possible, capture screenshots of the important
 screens and states into
 `.artifacts/ux-design/{issue-key}/04-eval-raw/screenshots/`.
+
+When `prototype-notes.md` records prototype-mode caveats (for example, a
+fixture API, stubbed authentication, or allow-all permissions), pass them to
+each evaluator as context. Findings that depend on real data or real
+permissions are limited by those caveats; say so instead of reporting them
+as verified.
 
 Screenshots are required at Standard and Full depth because Step 3 needs them.
 At Quick depth, a live URL or screenshots are sufficient. If the required input
@@ -152,11 +171,17 @@ each run:
    `decisions/` artifacts there when available. If the consumer project has
    `config/product-overlay.yaml`, copy it to the same path under the run
    directory; do not invent a product overlay if it is absent.
+   For an imported prototype, `/import` writes `rfe-snapshot.md` from the
+   ingested story. If it is absent, stop and recommend `/import` again; do
+   not write a snapshot here.
 4. Read the **Skill prototype ID** from
    `.artifacts/ux-design/{issue-key}/03-prototype/prototype-notes.md` and call
    it `{prototype-id}`. Keep this ID separate from the linked `[UX]` story key:
    the evaluator needs the story key for Jira, while prototype refinement
-   needs the prototype ID for its native artifact path.
+   needs the prototype ID for its native artifact path. For an imported
+   prototype, the ID is `N/A — imported`; skip the refinement-input copy in
+   item 6 because the upstream create skill does not refine imported
+   prototypes.
 5. Run the evaluator from the run directory with `{story-key}`, prototype URL,
    `--no-fix`, and `--workspace=<path>` when a workspace clone exists:
 
@@ -324,8 +349,11 @@ updates `Authorized fixes` without resetting the Confirmed status — the
 endorsed severity and finding dispositions stand.
 
 After fix authorization, recommend `/prototype` to address the authorized
-findings. The revised prototype requires a new evaluation before handoff;
-the prior authorization does not carry forward to the new iteration.
+findings. For an imported prototype, recommend that the researcher make the
+authorized fixes in the prototype repository and run `/import` at the new
+commit; list the authorized finding IDs so they can be traced. The revised
+prototype requires a new evaluation before handoff; the prior authorization
+does not carry forward to the new iteration.
 
 #### Run-ID and Path Safety for Full Evaluation Artifacts
 
@@ -398,6 +426,7 @@ Omit sections for methods that did not run. Use this structure:
 **Date:** {date}
 **Evaluation revision:** {revision number}
 **Prototype iteration:** {N}
+**Prototype commit:** {recorded SHA for an imported prototype, or "N/A"}
 **Discovery revision:** {revision evaluated}
 **Context revision:** {from 00-context.md at assessment time}
 **Depth:** {Quick / Standard / Full}

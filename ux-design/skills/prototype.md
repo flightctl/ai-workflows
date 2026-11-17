@@ -53,6 +53,13 @@ carry forward and which need revision; wait for the researcher to approve the
 direction. An early prototype is a reference for exploration, not a validated
 design for the enriched context.
 
+If the active prototype's `Prototype mode` is `imported`, do not refine it
+with `uxd-prototype-create`; the team owns that prototype in its own
+repository. Recommend fixing it there and running `/import` again. Generate a
+new prototype only when the researcher explicitly asks to replace the
+imported one. Then preserve the imported iteration in history as described in
+Step 3 and continue with a new iteration.
+
 When returning from `/evaluate`, read `04-evaluation.md`. Before
 evaluation-driven work, resolve `Authorized fixes` IDs against the
 saved finding register; verify input-snapshot bindings match
@@ -425,7 +432,7 @@ Do not invent research evidence.
 **Revalidated against discovery revision:** {revision or "Not yet revalidated"}
 **Skill prototype ID:** {ID}
 **Design direction:** {chosen direction}
-**Prototype mode:** {standalone / workspace}
+**Prototype mode:** {standalone / workspace / imported — see import.md}
 **Workspace strategy:** {contextual affected-page review / standalone exploration / standalone greenfield}
 **Workspace input:** {local path, Git URL, or "standalone"}
 **Workspace ref:** {branch used for Git URL clone, or "N/A" for local/standalone}

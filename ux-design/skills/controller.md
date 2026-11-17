@@ -26,6 +26,12 @@ by executing phases and handling transitions between them.
    Generate design prototypes informed by discovery and research findings.
    Iterative — loops with `/evaluate`.
 
+   **Import** (`/import`) — [import.md](import.md)
+   Alternative to `/prototype`. Register a prototype the team built in its own
+   repository, pinned to an exact commit, and check its coverage against the
+   current context. The workflow never edits the imported prototype; the
+   researcher fixes it in its own repository and imports it again.
+
 4. **Evaluate** (`/evaluate`) — [evaluate.md](evaluate.md)
    Run heuristic evaluation and usability assessment against prototypes.
    Iterative — loops back to `/prototype` or advances to `/handoff`.
@@ -65,12 +71,12 @@ within the source repo:
 | Context manifest | `00-context.md` | `/ingest` and downstream phases |
 | Discovery brief | `01-discovery.md` | `/ingest` |
 | Research findings | `02-research.md` | `/research` |
-| Prototype files | `03-prototype/` | `/prototype` |
-| Prototype notes | `03-prototype/prototype-notes.md` | `/prototype` |
+| Prototype files | `03-prototype/` | `/prototype` or `/import` |
+| Prototype notes | `03-prototype/prototype-notes.md` | `/prototype` or `/import` |
 | Evaluation report | `04-evaluation.md` | `/evaluate` |
 | Raw evaluator files | `04-eval-raw/` | `/evaluate`, `/prototype` |
 | Implementation handoff | `05-handoff.md` | `/handoff` |
-| History snapshots | `history/` | `/ingest`, `/research`, `/prototype`, `/evaluate` |
+| History snapshots | `history/` | `/ingest`, `/research`, `/prototype`, `/import`, `/evaluate` |
 | Provenance log | `provenance.json` | `/handoff`, `/revise`, `/respond` |
 | PR description | `06-pr-description.md` | `/publish` |
 | Publish metadata | `publish-metadata.json` | `/publish` |
@@ -114,6 +120,10 @@ PRD-only:
 
 Enriched:
 /ingest [UX] story → reconcile prior work → [research] → prototype ⇄ evaluate → handoff → revise → publish → respond
+
+Bring your own prototype:
+/ingest [UX] story → import ⇄ evaluate → handoff → revise → publish → respond
+  → fixes happen in the team's prototype repository, then /import again
 ```
 
 Research is conditional in either flow. Feature-only and PRD-only prototypes
@@ -131,8 +141,19 @@ prototype and evaluation have been reviewed against that context.
 - Enrichment `/ingest` completed → present the context-change assessment.
   Recommend `/research` for new or affected questions, `/prototype` to review
   or revise the active design, and `/evaluate` again before handoff.
+- Initial `/ingest` completed and the researcher says the team already has a
+  prototype → recommend `/import` instead of `/research` or `/prototype`
 - `/research` completed → recommend `/prototype` to explore design directions
 - `/prototype` completed → recommend `/evaluate` (always — never skip evaluation)
+- `/import` completed with gaps the researcher wants to close → recommend
+  updating the prototype repository and running `/import` again
+- `/import` accepted by the researcher → recommend `/evaluate` (always — never
+  skip evaluation)
+- Any `/evaluate` outcome below that recommends `/prototype` for an imported
+  prototype (`Prototype mode: imported`) → recommend fixing the selected
+  findings in the prototype repository and running `/import` again instead.
+  Do not run `/prototype` against an imported prototype unless the researcher
+  asks to replace it with a generated one
 - `/evaluate` Pending or Confirmed with valid finite authorized fixes (non-empty IDs from the current saved assessment, bound to current prototype iteration, discovery revision, and context revision) → recommend `/prototype` to address authorized findings; this is a requested repair loop, not phase completion — Confirmed status and severity endorsement are preserved. Stale bindings (changed prototype, discovery, or context since the assessment) require a current `/evaluate` instead. Pending without valid authorization → stay in evaluation review; severity endorsement alone is not fix permission
 - `/evaluate` Confirmed with explicit `Authorized fixes: None` and `Ready for handoff: Yes` (no critical issues, no outstanding repairs, enriched context, current bindings) → recommend `/handoff`; missing or unknown `Authorized fixes` is not `None`; missing or unknown `Ready for handoff` is not `Yes`
 - `/evaluate` Confirmed with `Authorized fixes: None` but `Ready for handoff` is No or unknown → stay in evaluation/iteration review; do not recommend `/handoff` when the saved readiness assessment does not support it
@@ -177,6 +198,8 @@ user needs, recommend `/prototype` directly.
 
 - `/research` is always skippable — go directly to `/prototype` if the
   researcher has sufficient domain knowledge or existing research data
+- `/prototype` is skippable when the team already built the prototype — use
+  `/import` to bring it in
 - If the researcher already has a validated design, they may start at `/handoff` only when the enriched context and current evaluation prerequisites are present
 - Phase entry requirements are listed below
 
@@ -189,7 +212,8 @@ Researchers can enter at any phase if they bring the prerequisite artifact:
 | `/ingest` | Jira Feature key, `[UX]` story key, published `prd.md` path, or feature description |
 | `/research` | `01-discovery.md` (or equivalent problem framing) |
 | `/prototype` | `01-discovery.md` or equivalent problem framing; `02-research.md` when `/research` runs, otherwise researcher confirms sufficient domain knowledge or validated research data |
-| `/evaluate` | Active prototype reviewed against current discovery. Full additionally needs the linked `[UX]` story key, Jira/browser access, and the private evaluator run root described in `evaluate.md` |
+| `/import` | `00-context.md` and `01-discovery.md`; prototype repository, ref, and feature routes. Proceeding to `/handoff` also needs an enriched context |
+| `/evaluate` | Active prototype (from `/prototype` or `/import`) reviewed against current discovery. Full additionally needs the linked `[UX]` story key, Jira/browser access, and the private evaluator run root described in `evaluate.md` |
 | `/handoff` | Enriched `00-context.md` (PRD, design document, linked `[UX]` story), current discovery, active prototype reviewed against it, and an evaluation of that prototype against the same context revision |
 | `/revise` | `05-handoff.md` |
 | `/publish` | `05-handoff.md` |

@@ -69,6 +69,15 @@ unverified. Do not invent design constraints.
 Invoke the `uxd-design-handoff` skill with the prototype files and prior
 artifacts as input.
 
+For an imported prototype (`Prototype mode: imported`), the prototype files
+are the code at the recorded `Prototype commit`, scoped to the recorded
+`Prototype routes`, plus `03-prototype/screenshots/` and `changeset.md` when
+present. Confirm the commit still matches the one `04-evaluation.md`
+evaluated; if it does not, stop and recommend `/import` and `/evaluate`.
+Check for PatternFly in the prototype repository's `package.json` files as
+well as the source repo, and record the prototype's PatternFly major version
+when it differs from the product UI's.
+
 The skill handles:
 - Component mapping (UI element → design system component → props/variants)
 - State matrix (empty, loading, error, populated, partial, responsive)
@@ -122,6 +131,12 @@ For each UI element in the component map, identify:
   - **Unknown** — source is unclear and `ui-design` must determine it
 - Flag any UI state that likely has no backend support (for `ui-design` to
   investigate at implementation level)
+
+For an imported prototype that renders fixture or mock data, treat that data
+as evidence of what the design needs, not as proof the API provides it. When
+the fixtures use types generated from the product's API schema, a field that
+appears in those types counts as verified in the codebase. A field the
+prototype adds outside those types is a likely backend gap; flag it.
 
 Describe the source conceptually (e.g., "API — the list of active sessions").
 Only name a concrete endpoint or field when you have verified it in the
@@ -315,6 +330,8 @@ technical design supports the full design."}
 - **Discovery:** `01-discovery.md` (context revision {revision})
 - **Research:** `02-research.md` (if available)
 - **Prototype:** `03-prototype/` (iteration {N})
+- **Imported prototype:** {repo, ref, commit, routes, hosted URL, and
+  prototype-mode caveats — omit unless `Prototype mode: imported`}
 - **Evaluation:** `04-evaluation.md` (context revision {revision})
 ```
 
