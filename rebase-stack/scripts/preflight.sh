@@ -263,9 +263,19 @@ if ! repo_json=$(gh repo view "$push_url" \
   The fork-aware /push path needs the repository owner and parent repository.
   Check authentication and access to the repository, then retry." 4
 fi
-if ! jq -e 'has("isFork") and has("nameWithOwner") and has("owner")
-            and (.isFork != true or ((.owner.login // "") != ""
-                                     and (.parent.nameWithOwner // "") != ""))' \
+if ! parent_repo=$(jq -r '
+  .parent.nameWithOwner //
+  (if ((.parent.owner.login // "") != "" and (.parent.name // "") != "")
+   then (.parent.owner.login + "/" + .parent.name)
+   else "" end)
+' <<<"$repo_json"); then
+  die "Could not normalize repository topology for '${push_url}'.
+The fork-aware /push path needs the repository owner and parent repository." 4
+fi
+if ! jq -e --arg parentRepo "$parent_repo" '
+  has("isFork") and has("nameWithOwner") and has("owner")
+  and (.isFork != true
+       or ((.owner.login // "") != "" and $parentRepo != ""))' \
     >/dev/null 2>&1 <<<"$repo_json"; then
   die "'gh repo view' returned incomplete repository topology for '${push_url}'.
   The fork-aware /push path needs the repository owner and parent repository." 4
@@ -281,6 +291,7 @@ jq -n \
   --arg baseRemoteSource "$base_remote_source" \
   --arg pushRemote "$push_remote" \
   --arg pushRemoteSource "$push_remote_source" \
+  --arg parentRepo "$parent_repo" \
   --argjson rebaseInProgress "$rebase_in_progress" \
   '{
      trunk:             $stack.trunk,
@@ -293,7 +304,7 @@ jq -n \
      isFork:            ($repo.isFork // null),
      repo:              ($repo.nameWithOwner // null),
      forkOwner:         ($repo.owner.login // null),
-     parentRepo:        ($repo.parent.nameWithOwner // null),
+     parentRepo:        (if $parentRepo == "" then null else $parentRepo end),
      branches:          [$stack.branches[] | select(.isMerged != true)
                           | {name, needsRebase, pr: (.pr.number // null), prState: (.pr.state // null)}],
      mergedBranches:    [$stack.branches[] | select(.isMerged == true) | .name]

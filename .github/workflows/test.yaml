@@ -14,6 +14,16 @@ permissions:
   contents: read
 
 jobs:
+  rebase-stack-tests:
+    name: Rebase Stack Tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: bash rebase-stack/scripts/test_preflight.sh
+      - run: bash rebase-stack/scripts/test_push_guard.sh
+
   installer-tests:
     name: Installer Tests
     runs-on: ubuntu-24.04
