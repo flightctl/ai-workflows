@@ -177,6 +177,27 @@ class ArtifactTests(unittest.TestCase):
             artifact_root(self.main)
         self.assertFalse((self.main / ".artifacts").exists())
 
+    def test_ui_response_cleanup_expands_only_response_glob(self) -> None:
+        instructions = (SOURCE / "ui-design/skills/respond.md").read_text()
+        command = next(line for line in instructions.splitlines()
+                       if line.startswith("rm -f ") and "pr-response-" in line)
+        state = artifact_directory("ui-design", "feature", self.main)
+        state.mkdir(parents=True)
+        preserved = state / "05-review-responses.md"
+        preserved.write_text("response log")
+        for name in ("pr-response-1.md", "pr-response-2.md"):
+            (state / name).write_text("temporary response")
+        for invocation in range(2):
+            with self.subTest(invocation=invocation):
+                result = subprocess.run(
+                    ["bash", "-c", command.replace("{workspace-id}", "feature")],
+                    cwd=self.main, capture_output=True, text=True,
+                    env={**os.environ, "ARTIFACTS_ROOT": str(state.parents[1])},
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(list(state.iterdir()), [preserved])
+                self.assertEqual(preserved.read_text(), "response log")
+
     def test_symlinks_and_traversal_refused(self) -> None:
         root = self.main / ".artifacts"
         root.symlink_to(self.directory, target_is_directory=True)

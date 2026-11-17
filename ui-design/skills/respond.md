@@ -57,7 +57,7 @@ branch from the push remote:
 if git -C "${DOCS_REPO_PATH}" show-ref --verify --quiet "refs/heads/${PR_BRANCH}"; then
   git -C "${DOCS_REPO_PATH}" checkout "${PR_BRANCH}"
 else
-  PUSH_REMOTE=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1])).get("push_repo", "origin").split("/")[-1])' "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/publish-metadata.json")
+  PUSH_REMOTE=$(python3 -c 'import json, sys; m=json.load(open(sys.argv[1])); print(m.get("push_repo", "origin").split("/")[-1] if "/" in m.get("push_repo", "origin") else "origin")' "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/publish-metadata.json")
   git -C "${DOCS_REPO_PATH}" fetch "${PUSH_REMOTE}" "${PR_BRANCH}"
   git -C "${DOCS_REPO_PATH}" checkout -b "${PR_BRANCH}" "${PUSH_REMOTE}/${PR_BRANCH}"
 fi
@@ -444,7 +444,7 @@ After all responses have been posted, clean up the individual response
 files — their content is captured in the per-response log entries above:
 
 ```bash
-rm -f "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/pr-response-*.md"
+rm -f "${ARTIFACTS_ROOT}/ui-design/{workspace-id}/"pr-response-*.md
 ```
 
 ### Step 7: Verify Response Log
