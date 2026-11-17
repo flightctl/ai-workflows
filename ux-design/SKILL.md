@@ -1,13 +1,13 @@
 ---
 name: ux-design
-version: 0.5.0
+version: 0.6.0
 description: >-
   UX design workflow that supports early research and exploratory prototyping
   from a Jira Feature or published PRD, then enriches the same context from its
   design document and linked [UX] story before implementation handoff. Contexts
   missing any of those upstream inputs remain exploratory and cannot be handed
   off to ui-design.
-  Activated by commands: /ingest, /research, /prototype, /evaluate, /handoff, /revise, /publish, /respond.
+  Activated by commands: /ingest, /research, /prototype, /evaluate, /handoff, /revise, /publish, /respond, /preview.
 ---
 # UX Design Workflow Orchestrator
 
@@ -16,7 +16,8 @@ description: >-
 1. If the user invoked a command, read its wrapper:
    [ingest](commands/ingest.md), [research](commands/research.md), [prototype](commands/prototype.md),
    [evaluate](commands/evaluate.md), [handoff](commands/handoff.md), [revise](commands/revise.md),
-   [publish](commands/publish.md), or [respond](commands/respond.md).
+   [publish](commands/publish.md), [respond](commands/respond.md),
+   or [preview](commands/preview.md).
 2. Otherwise, read `skills/controller.md` to load the workflow controller:
    - If the user provided a Jira issue key or URL, execute the `/ingest` phase
    - Otherwise, execute the first phase the user requests
