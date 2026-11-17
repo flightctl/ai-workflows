@@ -292,6 +292,74 @@ class ArtifactTests(unittest.TestCase):
                 self.assertEqual(outside.read_text(), '{"sentinel": true}')
                 target.unlink()
 
+    def test_triage_writer_refuses_symlink_result_without_mutation(self) -> None:
+        linked = self.linked()
+        outside = self.directory / "outside.json"
+        outside.write_text('{"sentinel": true}')
+        target = artifact_directory("triage", "TEST", self.main) / "issues.json"
+        target.parent.mkdir(parents=True)
+        target.symlink_to(outside)
+        result = subprocess.run(
+            [sys.executable, "-c",
+             f"import sys; from pathlib import Path; "
+             f"sys.path.insert(0, {str(SOURCE / 'triage/scripts')!r}); "
+             f"from scan import write_json_file; "
+             f"write_json_file(Path({str(target)!r}), {{'issues': []}})"],
+            cwd=linked, capture_output=True, text=True,
+        )
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn("symlink", result.stderr)
+        self.assertTrue(target.is_symlink())
+        self.assertEqual(outside.read_text(), '{"sentinel": true}')
+
+    def test_design_child_readers_refuse_symlinks_without_mutation(self) -> None:
+        linked = self.linked()
+        outside = self.directory / "outside.md"
+        outside.write_text("# Outside document\n")
+        expressions = (
+            "compute_file_hash(target)",
+            "read_frontmatter(target)",
+            "_extract_title_from_file(target)",
+            "_read_file_content(target)",
+            "extract_required_refs(target)",
+        )
+        for case_index, expression in enumerate(expressions):
+            with self.subTest(expression=expression):
+                target = artifact_directory("design", f"TEST-{case_index}", self.main)
+                target = target / "06-stories/epic-1/story-01-fixture.md"
+                target.parent.mkdir(parents=True)
+                target.symlink_to(outside)
+                result = subprocess.run(
+                    [sys.executable, "-c",
+                     f"import sys; from pathlib import Path; "
+                     f"sys.path.insert(0, {str(SOURCE / 'design/scripts')!r}); "
+                     f"import sync_helper as consumer; target=Path({str(target)!r}); "
+                     f"consumer.{expression}"],
+                    cwd=linked, capture_output=True, text=True,
+                )
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertIn("symlink", result.stderr)
+                self.assertTrue(target.is_symlink())
+                self.assertEqual(outside.read_text(), "# Outside document\n")
+
+    def test_design_discovery_refuses_child_directory_symlinks(self) -> None:
+        linked = self.linked()
+        outside = self.directory / "outside stories"
+        outside.mkdir()
+        for case_index, suffix in enumerate(("06-stories", "06-stories/epic-1")):
+            with self.subTest(suffix=suffix):
+                state = artifact_directory("design", f"TEST-{case_index}", self.main)
+                target = state / suffix
+                target.parent.mkdir(parents=True)
+                target.symlink_to(outside, target_is_directory=True)
+                result = self.cli(SOURCE / "design/scripts/sync_helper.py",
+                                  "detect-changes", str(state), cwd=linked)
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertIn("symlink", result.stderr)
+                self.assertTrue(target.is_symlink())
+                self.assertEqual(list(outside.iterdir()), [])
+                self.assertFalse((state / "sync-manifest.json").exists())
+
     def test_reviewer_refuses_symlink_hash_log_without_mutation(self) -> None:
         linked = self.linked()
         target = artifact_directory("skill-reviewer", "fixture", self.main) / "file-hashes.json"

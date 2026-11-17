@@ -90,6 +90,7 @@ def fail(msg: str, code: int = EXIT_ERROR) -> NoReturn:
 
 def compute_file_hash(filepath: str | Path) -> str:
     """Return the SHA-256 hex digest of a file's raw content."""
+    filepath = canonical_path(filepath)
     h = hashlib.sha256()
     with open(filepath, "rb") as f:
         for chunk in iter(lambda: f.read(8192), b""):
@@ -109,6 +110,7 @@ def read_frontmatter(filepath: str | Path) -> dict[str, str]:
     an empty dict if no frontmatter is found.  Raises ``OSError`` on I/O
     errors -- callers must handle this explicitly.
     """
+    filepath = canonical_path(filepath)
     result: dict[str, str] = {}
     with open(filepath, "r", encoding="utf-8") as f:
         first_line = f.readline().rstrip("\n")
@@ -271,6 +273,7 @@ def _extract_title_from_file(filepath: Path) -> str:
     Looks for the first markdown heading (``# ...``) after any
     frontmatter.  Falls back to the filename stem.
     """
+    filepath = canonical_path(filepath)
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             in_frontmatter = False
@@ -290,6 +293,7 @@ def _extract_title_from_file(filepath: Path) -> str:
 
 def _read_file_content(filepath: Path) -> str:
     """Read full text content of a file."""
+    filepath = canonical_path(filepath)
     with open(filepath, "r", encoding="utf-8") as f:
         return f.read()
 
@@ -383,7 +387,7 @@ def _discover_artifact_files(artifacts_dir: Path) -> tuple[list[Path], list[Path
     Epic files:  ``06-stories/epic-{N}-{slug}.md``
     Story files: ``06-stories/epic-{N}/story-{NN}-{slug}.md``
     """
-    stories_dir = artifacts_dir / "06-stories"
+    stories_dir = canonical_path(artifacts_dir / "06-stories")
     if not stories_dir.is_dir():
         return [], []
 
@@ -415,6 +419,7 @@ def _discover_artifact_files(artifacts_dir: Path) -> tuple[list[Path], list[Path
     # across directory aliases must be rejected.
     seen_story_idx_by_epic: dict[int, dict[int, str]] = {}
     for epic_dir in epic_dirs:
+        epic_dir = canonical_path(epic_dir)
         dir_epic_idx = _parse_epic_index(epic_dir.name)
         dir_stories = sorted(
             epic_dir.glob("story-*.md"),
@@ -1068,6 +1073,7 @@ def extract_required_refs(
     stories extraction.  If empty, the title is read from the file's
     ``# ...`` heading.
     """
+    filepath = canonical_path(filepath)
     result: dict[str, Any] = {"refs": [], "native_keys": [], "error": None}
     try:
         content = filepath.read_text(encoding="utf-8")
@@ -1636,7 +1642,7 @@ def check_ref_availability(
         story_idx = int(m.group(2))
 
         # Find the story artifact file using item file identity
-        epic_dir = stories_dir / f"epic-{epic_idx}"
+        epic_dir = canonical_path(stories_dir / f"epic-{epic_idx}")
         if not epic_dir.is_dir():
             blocked.append({
                 "qid": qid, "missing": [],

@@ -486,6 +486,7 @@ def build_output(
 
 def write_json_file(path: Path, data: dict[str, Any]) -> None:
     """Write a JSON object to a file, creating parent directories."""
+    path = canonical_path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
