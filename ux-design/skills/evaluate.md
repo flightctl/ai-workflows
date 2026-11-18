@@ -17,15 +17,15 @@ required skill is unavailable, stop and ask the researcher to run `./install.sh`
 
 Read `.artifacts/ux-design/{issue-key}/03-prototype/prototype-notes.md` for
 design decisions and open questions. If it does not exist, stop and recommend
-`/prototype` first, or `/import` when the team already built the prototype.
+`/prototype` first, or `/import` when the prototype was built outside this
+workflow.
 
-When `Prototype mode` is `imported`, confirm the prototype being evaluated is
-the recorded `Prototype commit`. For a Git URL import, the clone under
-`03-prototype/code/` must be at that SHA. For a local path, its `HEAD` must
-match and its working tree must be clean, unless the import was recorded as
-`dirty` and nothing has changed since. If the commit no longer matches, stop
-and recommend `/import` at the current commit. Do not evaluate a moved
-branch under an old import record.
+When `Prototype mode` is `imported`, recompute the fingerprint of
+`03-prototype/code/` using the procedure and recorded `Fingerprint
+exclusions` from `import.md` § Step 2, and confirm it matches the recorded
+`Prototype fingerprint`. When a `Git commit` is also recorded, check it as a
+secondary record. If the fingerprint does not match, stop and recommend
+`/import` again. Do not evaluate changed files under an old import record.
 
 Read `.artifacts/ux-design/{issue-key}/01-discovery.md` for user groups and
 problem framing. If `.artifacts/ux-design/{issue-key}/02-research.md` exists,
@@ -94,20 +94,19 @@ raw HTML path directly.
 
 For a standalone prototype, serve `.artifacts/ux-design/{issue-key}/03-prototype/prototype/`
 and pass its URL. For workspace mode, run the app using the project's own
-directions. For an imported prototype, run it with the `Run command` recorded
-in `prototype-notes.md` at the recorded commit, or use the `Hosted URL` only
-when it is recorded as verified against that commit. Scope the evaluation to
-the recorded `Prototype routes`. The import's screenshots under
+directions. For an imported prototype, view `03-prototype/code/` with the
+`Viewing method` recorded in `prototype-notes.md`, or use the `Hosted URL`
+only when it is recorded as verified against the snapshot. Scope the
+evaluation to the recorded `Scope`. The import's screenshots under
 `03-prototype/screenshots/` can be reused; capture any states they miss. If
 serving is not possible, capture screenshots of the important
 screens and states into
 `.artifacts/ux-design/{issue-key}/04-eval-raw/screenshots/`.
 
-When `prototype-notes.md` records prototype-mode caveats (for example, a
-fixture API, stubbed authentication, or allow-all permissions), pass them to
-each evaluator as context. Findings that depend on real data or real
-permissions are limited by those caveats; say so instead of reporting them
-as verified.
+When `prototype-notes.md` records `Prototype limits` (for example, mock
+data, stubbed authentication, or simplified permissions), pass them to each
+evaluator as context. Findings that depend on real data or real permissions
+are limited by those limits; say so instead of reporting them as verified.
 
 Screenshots are required at Standard and Full depth because Step 3 needs them.
 At Quick depth, a live URL or screenshots are sufficient. If the required input
@@ -350,8 +349,7 @@ endorsed severity and finding dispositions stand.
 
 After fix authorization, recommend `/prototype` to address the authorized
 findings. For an imported prototype, recommend that the researcher make the
-authorized fixes in the prototype repository and run `/import` at the new
-commit; list the authorized finding IDs so they can be traced. The revised
+authorized fixes at the prototype's source and run `/import` again; list the authorized finding IDs so they can be traced. The revised
 prototype requires a new evaluation before handoff; the prior authorization
 does not carry forward to the new iteration.
 
@@ -426,7 +424,8 @@ Omit sections for methods that did not run. Use this structure:
 **Date:** {date}
 **Evaluation revision:** {revision number}
 **Prototype iteration:** {N}
-**Prototype commit:** {recorded SHA for an imported prototype, or "N/A"}
+**Prototype fingerprint:** {recorded fingerprint for an imported prototype, or "N/A"}
+**Prototype Git commit:** {recorded SHA when the import came from Git, or "N/A"}
 **Discovery revision:** {revision evaluated}
 **Context revision:** {from 00-context.md at assessment time}
 **Depth:** {Quick / Standard / Full}

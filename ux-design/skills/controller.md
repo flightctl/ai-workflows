@@ -26,29 +26,30 @@ by executing phases and handling transitions between them.
    Generate design prototypes informed by discovery and research findings.
    Iterative — loops with `/evaluate`.
 
-   **Import** (`/import`) — [import.md](import.md)
-   Alternative to `/prototype`. Register a prototype the team built in its own
-   repository, pinned to an exact commit, and check its coverage against the
-   current context. The workflow never edits the imported prototype; the
-   researcher fixes it in its own repository and imports it again.
+4. **Import** (`/import`) — [import.md](import.md)
+   Alternative to `/prototype`. Register a prototype built outside this
+   workflow, with any tool, as a fingerprinted snapshot, and check its
+   coverage against the current context. The workflow never edits the
+   prototype's source; the researcher fixes it at the source and imports it
+   again.
 
-4. **Evaluate** (`/evaluate`) — [evaluate.md](evaluate.md)
+5. **Evaluate** (`/evaluate`) — [evaluate.md](evaluate.md)
    Run heuristic evaluation and usability assessment against prototypes.
    Iterative — loops back to `/prototype` or advances to `/handoff`.
 
-5. **Design handoff** (`/handoff`) — [handoff.md](handoff.md)
+6. **Design handoff** (`/handoff`) — [handoff.md](handoff.md)
    Synthesize all prior artifacts into an implementation-ready spec with
    component mapping, interaction specs, data annotations, persona-specific
    views, and acceptance criteria — reality-checked against the technical
    design, with a final-vision/MVP split when constraints require it.
 
-6. **Revise** (`/revise`) — [revise.md](revise.md)
+7. **Revise** (`/revise`) — [revise.md](revise.md)
    Incorporate stakeholder feedback into the handoff spec. Repeatable.
 
-7. **Publish** (`/publish`) — [publish.md](publish.md)
+8. **Publish** (`/publish`) — [publish.md](publish.md)
    Push the handoff spec as a PR to the docs repo for external review.
 
-8. **Respond** (`/respond`) — [respond.md](respond.md)
+9. **Respond** (`/respond`) — [respond.md](respond.md)
    Fetch and address PR reviewer comments on the published handoff spec.
 
 ## Workspace
@@ -123,7 +124,7 @@ Enriched:
 
 Bring your own prototype:
 /ingest [UX] story → import ⇄ evaluate → handoff → revise → publish → respond
-  → fixes happen in the team's prototype repository, then /import again
+  → fixes happen at the prototype's source, then /import again
 ```
 
 Research is conditional in either flow. Feature-only and PRD-only prototypes
@@ -146,12 +147,12 @@ prototype and evaluation have been reviewed against that context.
 - `/research` completed → recommend `/prototype` to explore design directions
 - `/prototype` completed → recommend `/evaluate` (always — never skip evaluation)
 - `/import` completed with gaps the researcher wants to close → recommend
-  updating the prototype repository and running `/import` again
+  updating the prototype at its source and running `/import` again
 - `/import` accepted by the researcher → recommend `/evaluate` (always — never
   skip evaluation)
 - Any `/evaluate` outcome below that recommends `/prototype` for an imported
   prototype (`Prototype mode: imported`) → recommend fixing the selected
-  findings in the prototype repository and running `/import` again instead.
+  findings at the prototype's source and running `/import` again instead.
   Do not run `/prototype` against an imported prototype unless the researcher
   asks to replace it with a generated one
 - `/evaluate` Pending or Confirmed with valid finite authorized fixes (non-empty IDs from the current saved assessment, bound to current prototype iteration, discovery revision, and context revision) → recommend `/prototype` to address authorized findings; this is a requested repair loop, not phase completion — Confirmed status and severity endorsement are preserved. Stale bindings (changed prototype, discovery, or context since the assessment) require a current `/evaluate` instead. Pending without valid authorization → stay in evaluation review; severity endorsement alone is not fix permission
@@ -212,7 +213,7 @@ Researchers can enter at any phase if they bring the prerequisite artifact:
 | `/ingest` | Jira Feature key, `[UX]` story key, published `prd.md` path, or feature description |
 | `/research` | `01-discovery.md` (or equivalent problem framing) |
 | `/prototype` | `01-discovery.md` or equivalent problem framing; `02-research.md` when `/research` runs, otherwise researcher confirms sufficient domain knowledge or validated research data |
-| `/import` | `00-context.md` and `01-discovery.md`; prototype repository, ref, and feature routes. Proceeding to `/handoff` also needs an enriched context |
+| `/import` | `00-context.md` and `01-discovery.md`; a prototype that meets the accepted-input requirements in `import.md` (files, a way to view them, and feature scope). Proceeding to `/handoff` also needs an enriched context |
 | `/evaluate` | Active prototype (from `/prototype` or `/import`) reviewed against current discovery. Full additionally needs the linked `[UX]` story key, Jira/browser access, and the private evaluator run root described in `evaluate.md` |
 | `/handoff` | Enriched `00-context.md` (PRD, design document, linked `[UX]` story), current discovery, active prototype reviewed against it, and an evaluation of that prototype against the same context revision |
 | `/revise` | `05-handoff.md` |

@@ -23,7 +23,7 @@ graph TD
     enrich --> evaluate
     enrich --> import_proto([import existing prototype])
     import_proto --> evaluate
-    evaluate -->|fix in team repo, re-import| import_proto
+    evaluate -->|fix at source, re-import| import_proto
     evaluate -->|current context and prototype| handoff
     handoff --> revise
     handoff --> publish
@@ -61,7 +61,7 @@ and linked `[UX]` story to be ingested.
 | Ingest | `/ingest` | Start from a Feature or published PRD path, or enrich its context from a linked story and design document | `00-context.md`, `01-discovery.md` |
 | Research | `/research` | Conduct user research, synthesize findings | `02-research.md` |
 | Prototype | `/prototype` | Generate design prototypes from research | `03-prototype/` |
-| Import | `/import` | Register a prototype the team built in its own repository, pinned to a commit, and check coverage against the current context | `03-prototype/` |
+| Import | `/import` | Register a prototype built outside the workflow, with any tool, as a fingerprinted snapshot, and check coverage against the current context | `03-prototype/` |
 | Evaluate | `/evaluate` | Heuristic evaluation and usability assessment | `04-evaluation.md` |
 | Design handoff | `/handoff` | Produce an implementation-ready spec after enriched context and current prototype evaluation | `05-handoff.md` |
 | Revise | `/revise` | Incorporate stakeholder feedback | `05-handoff.md` (updated) |
@@ -132,30 +132,34 @@ Alternative when the PRD exists before the design document:
 
 ### Bring your own prototype
 
-Teams that prototype in their own repository before the PRD, design document,
-and `[UX]` story are final can skip `/research` and `/prototype` and start
-once those inputs settle:
+Teams that build prototypes with their own tools before the PRD, design
+document, and `[UX]` story are final can skip `/research` and `/prototype` and
+start once those inputs settle:
 
 ```text
 /ingest EDM-UX
   → loads the [UX] story, the PRD, and the design document in one pass
 
-/import --repo <git url or path> --ref <branch|tag|sha> --routes /path/a,/path/b
-        [--start "npm run dev:ux"] [--url <hosted url>] [--upstream <repo>@<sha>]
-  → pins the prototype to an exact commit and captures its routes
-  → records what changed from the upstream product UI, when known
+/import --source <directory | git url | archive> --scope /page-a,/page-b
+        (--entry index.html | --start "<cmd>") [--ref <ref>] [--url <hosted url>]
+        [--baseline <product UI source>] [--notes <file>]
+  → copies the prototype into 03-prototype/code/ and records a content fingerprint
+  → captures the scoped screens
+  → records what changed from the baseline, when one is supplied
   → checks coverage against the PRD requirements and story acceptance criteria
   → writes rfe-snapshot.md so Full evaluation can run
 
 /evaluate
-  → evaluates the imported commit; fixes are made in the team's repository,
-    then /import runs again at the new commit
+  → verifies the fingerprint, then evaluates the snapshot; fixes are made at
+    the prototype's source, then /import runs again
 
 /handoff
 ```
 
-The workflow never edits, commits to, or pushes to the imported prototype
-repository.
+`/import` does not depend on the tool that produced the prototype. Any
+prototype that runs in a browser and can be supplied as files is accepted;
+see `skills/import.md` § Accepted Input. The workflow never edits the
+prototype's source.
 
 After `/revise` changes a published handoff, run `/publish` again to update the
 same open PR branch. Use `/respond` to address reviewer comments.
@@ -176,8 +180,8 @@ context, use the stable key agreed during `/ingest` (for example,
   03-prototype/                (mirrored skill output or imported prototype + design rationale)
     prototype-notes.md         (design decisions, user stories covered)
     prototype/                 (generated prototype files, from the skill)
-    code/                      (imported prototype clone at the recorded commit)
-    screenshots/               (imported prototype route captures)
+    code/                      (imported prototype snapshot)
+    screenshots/               (imported prototype screen captures)
   04-evaluation.md             (heuristic eval report, readiness assessment)
   04-eval-raw/                 (raw skill reports, mirrored from the eval skills)
   history/                     (prior context snapshots, prototypes, evaluations)

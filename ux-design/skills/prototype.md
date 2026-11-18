@@ -54,8 +54,9 @@ direction. An early prototype is a reference for exploration, not a validated
 design for the enriched context.
 
 If the active prototype's `Prototype mode` is `imported`, do not refine it
-with `uxd-prototype-create`; the team owns that prototype in its own
-repository. Recommend fixing it there and running `/import` again. Generate a
+with `uxd-prototype-create`; the prototype is maintained at its source,
+outside this workflow. Recommend fixing it there and running `/import`
+again. Generate a
 new prototype only when the researcher explicitly asks to replace the
 imported one. Then preserve the imported iteration in history as described in
 Step 3 and continue with a new iteration.
