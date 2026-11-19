@@ -1,6 +1,8 @@
 """Exercise the helpers through their CLI, including refusal and preservation."""
 
+import fcntl
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -93,10 +95,39 @@ class HelpersTest(unittest.TestCase):
                 self.assertEqual(self.complete().returncode, 1)
                 self.assertEqual(self.plan.read_text(), text)
 
+    def test_empty_status_fields_are_rejected_without_writing(self):
+        for empty in ("- **Status:**", "- **Status:** "):
+            for status in ("Pending", "Done"):
+                with self.subTest(empty=empty, status=status):
+                    text = PLAN.replace("- **Status:** Pending",
+                                        f"{empty}\n- **Status:** {status}", 1)
+                    self.plan.write_text(text)
+                    self.assertEqual(self.complete().returncode, 1)
+                    self.assertEqual(self.plan.read_text(), text)
+            text = PLAN.replace("- **Status:** Pending", empty, 1)
+            self.plan.write_text(text)
+            self.assertEqual(self.complete().returncode, 1)
+            self.assertEqual(self.plan.read_text(), text)
+
     def test_fenced_task_examples_are_ignored(self):
         self.plan.write_text(PLAN.replace("### Task 1: First", "```markdown\n### Task 1: Example\n- **Status:** Pending\n```\n### Task 1: First"))
         self.assertEqual(self.complete().returncode, 0)
         self.assertIn("### Task 1: Example\n- **Status:** Pending", self.plan.read_text())
+
+    def test_fence_like_content_does_not_expose_example_tasks(self):
+        for fence in ("```", "~~~"):
+            for suffix in ("python", " trailing text", "\u00a0"):
+                with self.subTest(fence=fence, suffix=suffix):
+                    example = (f"{fence}markdown\n{fence}{suffix}\n"
+                               "### Task 1: Example\n- **Status:** Pending\n"
+                               f"{fence} \t\n")
+                    text = PLAN.replace("### Task 1: First", example + "### Task 1: First")
+                    self.plan.write_text(text)
+                    result = self.complete()
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    expected = text.replace("### Task 1: First\n- **Files:** first.go\n- **Status:** Pending",
+                                            "### Task 1: First\n- **Files:** first.go\n- **Status:** Done", 1)
+                    self.assertEqual(self.plan.read_text(), expected)
 
     def test_check_selects_case_and_preserves_files(self):
         result = self.check()
@@ -116,6 +147,48 @@ class HelpersTest(unittest.TestCase):
             with self.subTest(text=text):
                 self.testplan.write_text(text)
                 self.assertEqual(self.check().returncode, 1)
+
+    def test_check_rejects_malformed_tc_headings_but_ignores_other_headings(self):
+        for heading in ("TC-FR2-01", "TC-FR2-01:", "TC-: Malformed", "TC-FR2-01 Missing colon"):
+            with self.subTest(heading=heading):
+                self.testplan.write_text(TESTPLAN + f"\n## {heading}\n")
+                result = self.check()
+                self.assertEqual(result.returncode, 1, result.stdout)
+                self.assertIn("Unsupported test case heading", result.stderr)
+        self.testplan.write_text(TESTPLAN + "\n## Notes\nNon-case material.\n")
+        self.assertEqual(self.check().returncode, 0)
+
+    def test_check_reads_utf8_under_ascii_locale(self):
+        self.plan.write_text(PLAN.replace("First |", "Première |"), encoding="utf-8")
+        self.testplan.write_text(TESTPLAN.replace("Observable result", "Résultat observé"), encoding="utf-8")
+        environment = dict(os.environ, LC_ALL="C", PYTHONUTF8="0", PYTHONCOERCECLOCALE="0")
+        result = subprocess.run([sys.executable, str(SCRIPTS / "check-testplan.py"),
+                                 "--plan", str(self.plan), "--testplan", str(self.testplan), "--task", "1"],
+                                cwd=self.root, env=environment, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Résultat observé", json.loads(result.stdout)["cases"][0]["body"])
+
+    def test_concurrent_task_updates_wait_for_plan_lock_and_preserve_both(self):
+        lock_path = self.plan.with_name(f".{self.plan.name}.lock")
+        processes = []
+        with lock_path.open("a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            try:
+                for task in (1, 2):
+                    processes.append(subprocess.Popen(
+                        [sys.executable, str(SCRIPTS / "task-state.py"),
+                         "--plan", str(self.plan), "--task", str(task)],
+                        cwd=self.root, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True))
+                for process in processes:
+                    with self.assertRaises(subprocess.TimeoutExpired):
+                        process.communicate(timeout=0.5)
+                self.assertEqual(self.plan.read_text(), PLAN)
+            finally:
+                fcntl.flock(lock, fcntl.LOCK_UN)
+                for process in processes:
+                    stdout, stderr = process.communicate(timeout=10)
+                    self.assertEqual(process.returncode, 0, stderr)
+        self.assertEqual(self.plan.read_text(), PLAN.replace("Status:** Pending", "Status:** Done"))
 
     def test_check_rejects_bad_mappings(self):
         for text in (PLAN.replace("Task 1 |", "Task 9 |"),

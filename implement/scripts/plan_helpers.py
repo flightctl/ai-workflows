@@ -9,7 +9,8 @@ def visible_lines(text):
     for line in text.splitlines(keepends=True):
         marker = re.match(r"^\s{0,3}(`{3,}|~{3,})", line)
         if fence:
-            if marker and marker[1][0] == fence[0] and len(marker[1]) >= len(fence):
+            if (marker and marker[1][0] == fence[0] and len(marker[1]) >= len(fence)
+                    and re.fullmatch(r"[ \t]*", line[marker.end():].rstrip("\r\n"))):
                 fence = None
             yield " " * len(line.rstrip("\r\n")) + line[len(line.rstrip("\r\n")):]
         elif marker:

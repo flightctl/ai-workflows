@@ -49,6 +49,8 @@ def check(plan, testplan, task=None):
     for title, a, b in sections(testplan, 2):
         match = re.fullmatch(f"({TC}): .+", title)
         if not match:
+            if title.startswith("TC-"):
+                raise ValueError(f"Unsupported test case heading: {title}")
             continue
         tc = match[1]
         if tc in cases:
@@ -91,8 +93,8 @@ def main():
     parser.add_argument("--task", type=int)
     args = parser.parse_args()
     try:
-        testplan = args.testplan.read_text() if args.testplan.exists() else None
-        print(json.dumps(check(args.plan.read_text(), testplan, args.task), indent=2))
+        testplan = args.testplan.read_text(encoding="utf-8") if args.testplan.exists() else None
+        print(json.dumps(check(args.plan.read_text(encoding="utf-8"), testplan, args.task), indent=2))
         return 0
     except (OSError, ValueError, UnicodeError) as error:
         print(f"ERROR: {error}", file=sys.stderr)
