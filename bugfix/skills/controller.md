@@ -26,7 +26,7 @@ executing phases and handling transitions between them.
    Implement the minimal code change that resolves the root cause.
 
 5. **Test** (`/test`) — `test.md`
-   Write regression tests, run the full suite, and verify the fix holds.
+   Verify the fix with change-proportionate checks and needed regression coverage.
 
 6. **Review** (`/review`) — `review.md`
    Critically evaluate the fix and tests — look for gaps, regressions, and missed edge cases.

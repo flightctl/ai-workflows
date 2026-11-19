@@ -49,7 +49,8 @@ artifacts and published output from this workflow.
 ## Quality
 
 - Follow the project's existing coding standards and conventions
-- Zero tolerance for test failures — fix them, don't skip them
+- Investigate test failures with evidence; fix attributable regressions and
+  report unrelated failures or unavailable checks without claiming success
 
 ## Escalation
 
