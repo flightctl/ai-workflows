@@ -38,6 +38,15 @@ Read these files:
 
 If the plan doesn't exist, tell the user that `/plan` should be run first.
 
+### Deterministic Helpers
+
+Resolve `../scripts/` relative to this phase file, following installation
+symlinks; retain its absolute path as `IMPLEMENT_SCRIPTS`. Execute the bundled
+helpers instead of generating Python snippets; use `--help`, reading source
+only for troubleshooting. Keep the consuming repo as CWD. Report rejected
+formats instead of bypassing gates. Readiness, coverage, and diagnosis remain
+agent judgments.
+
 ### Step 2: Determine Starting Point
 
 Check the plan for task completion status:
@@ -148,15 +157,10 @@ Before starting any task, check `02-plan.md` for a `## Pending Scope
 Decision` section or an unmerged prerequisite dependency blocking the
 current task. If found, stop and recommend `/revise`.
 
-For each task in the plan, follow this cycle. **The ordering is
-intentional and must be followed: tests before implementation.** Write
-the tests first, verify they fail for the right reason (the production
-code doesn't exist yet), then write the implementation that makes them
-pass. Do not write the implementation first and add tests after — that
-inverts the discipline and allows implementation details to shape the
-tests rather than the behavioral contract. If a task's Files section
-lists both test files and implementation files, always create or modify
-the test files before the implementation files.
+For each task, follow this cycle in order: write or modify test files first,
+verify failure because the required production behavior is absent, then write
+implementation to pass. This applies regardless of the plan's Files order;
+implementation-first development lets internal details shape the tests.
 
 #### 3a: Read Affected Files
 
@@ -294,7 +298,7 @@ If the gate reports FLAG (unfixed CRITICAL or HIGH findings), stop and
 present the findings to the user before committing.
 
 If the gate made code fixes, re-stage the affected files, then re-run
-the task-scoped tests (Step 3c) and fast quality checks (Step 3d) to
+the task-scoped tests (Step 3d) and fast quality checks (Step 3e) to
 verify the fixes. Only proceed to commit once checks pass. Note any
 dismissed findings in the implementation report (Discoveries section)
 so there is a paper trail. If a self-review fix touches files or
@@ -318,43 +322,30 @@ options (keep/extract/defer). Do not commit, write reports, or read
 `revise.md` for the canonical lifecycle: approve/decline clears the
 section; extraction retains it until the prerequisite merges).
 
-**Test plan reconciliation (if story-scoped testplan exists):**
+**Test plan reconciliation:**
 
-After the self-review gate passes, check whether this task has TC IDs
-mapped to it in the Test Plan Coverage matrix of `02-plan.md`. If it
-does, verify each mapped TC ID before proceeding to commit:
+After self-review passes, run:
 
-1. For each mapped TC ID, locate its entry in `testplan.md`. If a
-   mapped TC ID does not exist in the testplan, stop and report the
-   inconsistency — the plan references a test case that the testplan
-   does not contain. Read the full test case entry (the Preconditions,
-   Steps, and Expected Results sections). If any of these sections is
-   missing, stop and report the testplan as malformed — do not attempt
-   to reconcile against an incomplete test case.
-2. Verify that a test exists (written in Step 3b or a prior task)
-   whose assertions validate the Expected Results described in the
-   test case. The match is behavioral, not textual — the test must
-   exercise the described scenario and assert the described outcomes.
-   The test may use project-specific assertion mechanisms (e.g.,
-   Eventually/Consistently in Ginkgo, polling in pytest).
-3. If a TC ID mapped to this task has no corresponding test with
-   sufficient assertion depth, write the missing test (Step 3b), run
-   it (Step 3d), run the fast quality checks (Step 3e), stage the new
-   files (`git add`), re-run the review gate, then re-check.
+```bash
+python3 "$IMPLEMENT_SCRIPTS/check-testplan.py" \
+  --plan .artifacts/implement/{issue-key}/02-plan.md \
+  --testplan .artifacts/implement/{issue-key}/testplan.md --task {task-number}
+```
 
-This is a hard gate — the task cannot proceed to commit until every
-mapped TC ID has coverage. A TC ID may be treated as N/A only if the
-plan's Test Plan Coverage matrix already marks it N/A with a non-empty
-rationale — the code phase must not invent N/A exemptions that the
-plan did not authorize. The testplan is a floor, not a ceiling: tests
-discovered through TDD that are not tied to any TC ID are expected
-and encouraged.
+Stop on nonzero exit. The helper validates unique TC IDs, matrix/case set
+equality, existing tasks, N/A rationale, and non-empty Preconditions, Steps,
+and Expected Results. It requires the documented templates and skips only
+when neither matrix nor testplan exists. Missing or malformed inputs block.
 
-If no story-scoped testplan exists and `02-plan.md` has no Test Plan
-Coverage section, skip this check. However, if `02-plan.md` has TC
-mappings but `testplan.md` is missing, unreadable, or malformed (no
-parseable TC IDs), stop and report the inconsistency — the plan
-references a testplan that the code phase cannot use.
+Read each returned case's full scenario. Verify an actual test exercises it
+and asserts its Expected Results; match behavior, not text. Polling and
+Eventually assertions are valid. Structural validity does not prove coverage.
+
+For insufficient assertions: write/strengthen tests (3b), run tests (3d) and
+quality checks (3e), stage, re-run review, then reconcile again. Every mapped
+case needs coverage before commit. N/A requires prior plan authorization with
+a non-empty rationale; do not invent exemptions. Additional TDD tests are
+encouraged.
 
 #### 3g: Commit
 
@@ -448,8 +439,17 @@ fail, diagnose using the failure routing in Step 4.
 
 #### 3i: Update Plan
 
-Mark the task as completed in `02-plan.md`:
-- Change `Pending` to `Done`
+After checks, commit, and synchronization, read the current plan and run:
+
+```bash
+python3 "$IMPLEMENT_SCRIPTS/task-state.py" \
+  --plan .artifacts/implement/{issue-key}/02-plan.md --task {task-number}
+```
+
+This changes only the task's exact Pending status to Done; already Done is
+idempotent. Ambiguous/missing tasks or statuses and scope decisions block.
+Report refusals. Establish completion first; keep status fields exact and put
+commit/evidence details in the implementation report.
 
 Update the status immediately after each task, not in bulk at the end.
 This is the checkpoint that allows the session to resume correctly if
