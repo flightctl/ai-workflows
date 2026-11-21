@@ -7,6 +7,7 @@ This file provides guidance to AI coding assistants when working with this repos
 This repository contains reusable AI coding workflows and focused skills that can be installed globally or per-project in any environment (Cursor, Claude Code, Gemini, Codex). Each package is a self-contained directory with structured markdown files that AI agents can read and execute.
 
 **Current simple skills:**
+- **docs-handoff** — Post-delivery documentation handoff for a single [DOCS] Jira issue with evidence gathering and enrichment
 - **gh-stack** — Manages stacked PRs with gh-stack (creation, viewing, editing, push, submit, sync, rebase, merge, checkout)
 - **report-bug** — Configurable, evidence-based Jira Bug reporting with explicit confirmation
 
@@ -272,6 +273,10 @@ ai-workflows/
 ├── triage/
 ├── ui-design/
 ├── skills/                    # Focused skills (auto-discovered via SKILL.md)
+│   ├── docs-handoff/
+│   │   ├── SKILL.md
+│   │   ├── references/
+│   │   └── scripts/
 │   ├── gh-stack/
 │   │   ├── SKILL.md
 │   │   └── references/
@@ -295,5 +300,5 @@ ai-workflows/
 When a workflow or simple skill invokes commands that could affect shared systems:
 - **Git operations**: Always verify with `git status` before destructive operations
 - **PR/MR creation**: Confirm branch and base before pushing
-- **Jira writes**: cve-fix `/close`, design `/sync`, ui-design `/sync`, sizing `/apply`, and `report-bug` may write to Jira; all require explicit approval. `report-bug` may create only the fully previewed issue and approved follow-up links/attachments
+- **Jira writes**: cve-fix `/close`, design `/sync`, ui-design `/sync`, sizing `/apply`, `report-bug`, and `docs-handoff` may write to Jira; all require explicit approval. `report-bug` may create only the fully previewed issue and approved follow-up links/attachments. `docs-handoff` may add only approved PR Remote Links and eligible metadata to the target DOCS issue
 - **Documentation changes**: Run Vale validation before applying changes to repository files

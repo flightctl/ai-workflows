@@ -1,0 +1,139 @@
+# Handoff Protocol
+
+Preview/apply two-phase workflow for the docs-handoff skill.
+
+## Phase 1: Preview (No Side Effects)
+
+### Step 1 — Validate Issue
+
+Provide the DOCS issue snapshot (from Jira read or offline file) to
+`evidence.py validate --input snapshot.json`.  The script validates
+structure, extracts contributors, dependencies, and Documentation Inputs
+items.  If validation fails (exit 1), stop and report errors.
+
+### Step 2 — Gather Evidence (AI Responsibility)
+
+For each extracted contributor (NOT dependencies):
+
+1. Fetch the contributor's Jira issue to discover linked PRs.
+2. For each PR: read metadata (URL, title, target branch, merge status,
+   merge commit).
+3. Read PR diffs and assess what user-facing surfaces changed.
+4. Record semantic observations comparing planned inputs against actual
+   implementation.
+
+Evidence quality requirements:
+- Merged PR status alone does not prove target-release inclusion.
+- String equality is not semantic confirmation — actual code review is
+  required.
+- Partial evidence is a valid intermediate state — report honestly.
+- Unknown or contradictory results are reported as findings.
+- All observations are display-only context for human review — the
+  skill does not classify them as confirming or divergent.
+
+### Step 3 — Normalize Evidence
+
+Provide raw evidence items to `evidence.py normalize --input evidence.json`.
+The script validates URLs (requiring supported PR/MR structure), rejects
+credentials, deduplicates, and detects contradictory states.
+
+### Step 4 — Build Plan
+
+Provide validation result, normalized evidence, target, and optional
+profile to `evidence.py build-plan --input plan-input.json`.  The input
+is a JSON object with keys: `validation`, `evidence`, `target`, `profile`.
+
+### Step 5 — Check Enrichment
+
+Provide the plan and current issue state (with `key`, `summary`,
+`description`, `remote_links`, and optionally `fields`) to
+`evidence.py check-enrichment --input check-input.json`.  The input
+has keys: `plan`, `current_state`, `approved_baseline` (optional),
+`approved_plan_digest` (optional).
+
+When the plan proposes metadata (e.g. `target_release`), include
+`current_state.fields` with the actual Jira field values.
+`fields.fixVersions` is required for metadata writes — missing or
+unknown values are NOT defaulted to `[]` and will appear in
+`skipped_metadata` with the reason the write was blocked.  A
+link-only flow (no metadata proposed) does not require `fields`.
+
+Save the result's `baseline_fingerprint` and `plan_digest` —
+these are the approval tokens for Phase 2.
+
+### Step 6 — Present Preview
+
+Show the complete bounded preview including:
+- Target issue key and baseline
+- Per-input evidence status with PR references
+- Findings (missing evidence, unresolved refs, non-contributor evidence)
+- Eligible PR Remote Links (contributor PRs only)
+- Metadata: eligible writes (`eligible_metadata`) vs skipped proposals
+  (`skipped_metadata` with per-field reasons) — do not present skipped
+  proposals as eligible operations or declare full handoff readiness
+  while metadata gaps remain
+- Forbidden fields (`forbidden_fields`) — distinct from skipped
+  metadata; these are policy-blocked fields, not conditional gaps
+- Source-change proposal (disabled, with proposed wording)
+- Consumer readiness state
+
+## Phase 2: Apply (Explicit Approval Required)
+
+### On Approval
+
+1. Re-read the issue from Jira (fresh snapshot).
+2. Re-run `check-enrichment` with BOTH `approved_baseline` and
+   `approved_plan_digest` saved from Phase 1.
+3. If stale or invalid, stop and regenerate with a fresh preview
+   cycle — do not proceed with writes.
+4. Apply eligible links and metadata via approved runtime capabilities.
+   Report any `skipped_metadata` entries — these are proposed
+   operations that could not become writes due to missing or
+   malformed field state, not silent omissions.
+5. Re-read the issue (POSTWRITE state only in `--readback`, keep
+   PREWRITE `current_state` immutable); run
+   `check-enrichment --readback` for receipts.
+6. Interpret `all_confirmed` AND each individual receipt status —
+   exit code 0 alone does not mean all operations succeeded.
+   Status `ready` with non-empty `skipped_metadata` means some
+   proposed metadata was not eligible for writing.
+
+### On Rejection
+
+No writes.  Artifacts remain for review.
+
+## Source-Change Proposals
+
+The skill produces structured proposals for updating Documentation
+Inputs through the design workflow's `/revise` phase.  Each proposal
+carries:
+
+- `action`: `review` (observations for human review) or
+  `add_contributor` (non-contributor evidence candidate)
+- `proposed_wording`: null for review actions (human decides)
+- `evidence_urls`: supporting PR URLs
+- `source_location`: where in the source artifact
+- `observations`: display-only context — no automated classification
+
+Source/narrative apply is disabled.  This is an explicit design choice:
+the design workflow owns Documentation Inputs, direct edits risk sync
+manifest conflicts, and writer-managed content must not be overwritten.
+
+## CLI Sequence
+
+```bash
+# 1. Validate offline snapshot
+python3 evidence.py validate --input snapshot.json
+# 2. Normalize raw evidence (from AI gathering)
+python3 evidence.py normalize --input raw-evidence.json
+# 3. Build change plan
+python3 evidence.py build-plan --input plan-input.json
+# 4. Check enrichment eligibility
+python3 evidence.py check-enrichment --input check-input.json
+# 5. After approved writes, verify with readback
+python3 evidence.py check-enrichment --input check-input.json \
+  --readback readback.json
+```
+
+All inputs are file paths via `--input`.  No stdin support.  Exit 0 on
+success, exit 1 on validation/data errors, exit 2 on argument errors.

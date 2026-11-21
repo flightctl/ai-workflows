@@ -6,6 +6,12 @@ Reusable AI coding workflows and focused skills a team member can install global
 
 ### Skills
 
+- **Docs Handoff** -- Post-delivery documentation handoff for a single `[DOCS]`
+  Jira issue. Gathers implementation evidence from contributing stories,
+  validates delivery, and produces a bounded enrichment plan with PR Remote
+  Links and an owning-source narrative proposal.
+  See [skills/docs-handoff/SKILL.md](skills/docs-handoff/SKILL.md).
+
 - **gh-stack** -- Manages stacked PRs and splits multi-part work into reviewable
   branches with `gh stack`. Covers creation, viewing, editing, push, submit,
   sync, rebase, merge, and checkout.
@@ -88,6 +94,8 @@ supporting references or scripts they need. The installer discovers both forms.
   docs-writer/
     SKILL.md, skills/, commands/
   skills/
+    docs-handoff/
+      SKILL.md, references/, scripts/
     gh-stack/
       SKILL.md, references/
     report-bug/
@@ -212,6 +220,7 @@ Each workflow or skill is intended for a specific project or use case:
 - **triage** -- teams that want bulk Jira triage, categorization, and HTML reports from this repo or a clone
 - **sizing** -- teams sizing Features for cycle planning using T-shirt sizes with per-team effort breakdowns
 - **skill-reviewer** -- reviewing or standardizing Cursor/agent skills and skill packs (structure, clarity, completeness)
+- **docs-handoff** -- post-delivery documentation handoff for [DOCS] Jira issues with evidence gathering and PR Remote Link enrichment
 - **gh-stack** -- managing stacked PRs with `gh stack` in any project using stacked branches
 - **report-bug** -- filing complete Jira bugs with consumer-configurable targets and templates while leaving Priority for triage
 
