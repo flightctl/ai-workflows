@@ -69,6 +69,16 @@ unverified. Do not invent design constraints.
 Invoke the `uxd-design-handoff` skill with the prototype files and prior
 artifacts as input.
 
+For an imported prototype (`Prototype mode: imported`), the prototype files
+are the snapshot in `03-prototype/code/`, scoped to the recorded `Scope`,
+plus `03-prototype/screenshots/` and `changeset.md` when present. Recompute
+the snapshot fingerprint as described in `import.md` § Step 2 and confirm it
+matches both the recorded `Prototype fingerprint` and the fingerprint in
+`04-evaluation.md`. If either does not match, stop and recommend `/import`
+and `/evaluate`. When checking for a design system, check the snapshot's own
+package manifests as well as the source repo, and record the prototype's
+design-system version when it differs from the product UI's.
+
 The skill handles:
 - Component mapping (UI element → design system component → props/variants)
 - State matrix (empty, loading, error, populated, partial, responsive)
@@ -122,6 +132,12 @@ For each UI element in the component map, identify:
   - **Unknown** — source is unclear and `ui-design` must determine it
 - Flag any UI state that likely has no backend support (for `ui-design` to
   investigate at implementation level)
+
+For an imported prototype that renders mock or stand-in data, treat that
+data as evidence of what the design needs, not as proof that a backend
+provides it. Classify each field by the rules above. When a field cannot be
+traced to the design document or verified codebase context, flag it as a
+likely backend gap.
 
 Describe the source conceptually (e.g., "API — the list of active sessions").
 Only name a concrete endpoint or field when you have verified it in the
@@ -315,6 +331,9 @@ technical design supports the full design."}
 - **Discovery:** `01-discovery.md` (context revision {revision})
 - **Research:** `02-research.md` (if available)
 - **Prototype:** `03-prototype/` (iteration {N})
+- **Imported prototype:** {source, fingerprint, Git commit when recorded,
+  scope, viewing method, baseline, and prototype limits — omit unless
+  `Prototype mode: imported`}
 - **Evaluation:** `04-evaluation.md` (context revision {revision})
 ```
 
