@@ -76,6 +76,15 @@ Read:
 
 Extract the validation profile's pre-PR checks list.
 
+Verify report path is gitignored (`git check-ignore --
+.artifacts/implement/{issue-key}/05-validation-report.md`). If not,
+stop — see `../guidelines.md` Safety.
+
+If a prior report exists, overwrite with `FAIL — validation in
+progress` and current HEAD SHA (prevents stale PASS authorizing
+publication if this run stops early). Pending Scope Decision stops
+before this point (Step 1 item 1), preserving its no-write rule.
+
 ### Step 2: Check Base Branch Currency
 
 Before running checks, verify the branch is current with its base.
@@ -143,6 +152,9 @@ PR state.
 
 ### Step 3: Resolve Local Base and Verify Clean Worktree
 
+Record `PASS_START_HEAD` for this pass: `git rev-parse HEAD` (store
+the literal value in agent context, not a shell variable).
+
 Read the Local Base from the `## Branch` section of `02-plan.md`.
 Verify the ref resolves:
 
@@ -168,6 +180,11 @@ modified, staged, or untracked implementation files remain, stop —
 report the affected paths. Do not auto-commit, stash, reset, or delete
 them. The implementation must be completed and committed through normal
 `/code` or user-approved `/revise` handling before rerunning `/validate`.
+
+On first Step 3 entry, set `PIPELINE_ROUNDS_REMAINING = 3` (never
+reset on return). One pass = Steps 3–9. Decremented only in Step 9,
+once per pass. Step 7 passes `PIPELINE_ROUNDS_REMAINING` as
+`MAX_ROUNDS` to the self-review gate.
 
 ### Step 4: Run Pre-PR Checks
 
@@ -255,9 +272,9 @@ If regressions are found:
 After automated checks pass, review the story's full diff for issues
 that automated tooling does not catch.
 
-Re-run Step 3 (resolve Local Base, verify clean worktree) before
-proceeding — Steps 4–6 may have committed fixes that changed HEAD or
-left the worktree dirty. Stop on any failure per Step 3's rules.
+Re-run Step 3's local-base and clean-worktree checks (not the
+`PASS_START_HEAD` recording — the pass-start SHA is immutable until
+Step 9). Stop on dirty worktree or unresolvable base.
 
 If `02-plan.md` has a Scope Baseline section, compare the branch diff
 (`git diff {local-base}...HEAD`) against all baseline fields: Intended
@@ -277,7 +294,7 @@ Run the self-review gate. Read and follow
 | Parameter | Value |
 |-----------|-------|
 | DIFF_COMMAND | `git diff {local-base}...HEAD` |
-| MAX_ROUNDS | `3` |
+| MAX_ROUNDS | `PIPELINE_ROUNDS_REMAINING` |
 | CONTEXT_FILES | `.artifacts/implement/{issue-key}/01-context.md`, `.artifacts/implement/{issue-key}/02-plan.md` (if they exist) |
 | SUPPLEMENTARY_CRITERIA | Full-branch validation review — last quality gate before PR. Evaluate: (1) **Backward compatibility** — public APIs, error formats, configuration, wire protocols changed? Backward-compatible or is the break documented and justified? (2) **Completeness across call sites** — pattern applied in one location but needed in similar locations is a bug. (3) **Scope baseline compliance** — if `02-plan.md` has a Scope Baseline section, compare against all baseline fields (Intended Feature Changes, Known Supporting Refactoring, Affected Interfaces and Components, Expected Delivery Boundaries). Material unapproved work outside any field — including unapproved new behavior within an already-affected component — is HIGH scope drift; do not auto-fix, report unfixed so gate returns FLAG. Ordinary correctness fixes and small cohesive supporting cleanup within boundaries are not scope drift. A pending scope decision already in the plan must be resolved before publishing. |
 
@@ -286,17 +303,13 @@ FLAG findings, record a complete `## Pending Scope Decision` in
 `02-plan.md` per the Scope-First Remediation Policy and recommend
 `/revise`.
 
-If the gate made code fixes (the gate edits but does not commit —
-shared recipe lines 174-176): re-run affected Step 4 pre-PR checks,
-Step 5 coverage analysis when fixes touch covered packages, and full
-Step 6 regression check when fixes change production code. Then commit.
-After committing, re-run Step 3 (clean worktree, base), the scope
-comparison, and the self-review gate on the new committed HEAD. This
-re-run consumes remaining rounds from the original MAX_ROUNDS budget —
-do not reset the counter. The cycle ends successfully only when the
-committed clean HEAD passes re-review without further code fixes. If
-MAX_ROUNDS is exhausted before a clean pass, stop with FLAG — do not
-write the validation report or advance to Step 8.
+If the gate made code fixes (edits but does not commit): re-run
+affected Step 4 checks, Step 5 coverage when fixes touch covered
+packages, and Step 6 regression when fixes change production code.
+Commit the fixes. Then continue this pass through Steps 8 and 8b
+(do not return to Step 3 here — Step 9 is the only place that
+accounts for the pass and decides whether to return). The
+self-review gate's iteration limit is `PIPELINE_ROUNDS_REMAINING`.
 
 The validation report (Step 9) must reflect the final committed and
 reviewed HEAD.
@@ -326,12 +339,9 @@ Record the result for each criterion. If any criterion is not fully
 satisfied:
 
 1. If it's a gap in implementation or tests — fix it, commit the fix,
-   then re-run Step 3 (clean/base), Step 4 affected checks, Step 5
-   coverage when covered packages touched, Step 6 regression when
-   production code changed, the Step 7 scope comparison and self-review
-   gate (consuming remaining MAX_ROUNDS), and re-verify Step 8 AC on
-   the new committed HEAD. Do not reuse acceptance judgments from before
-   the fix.
+   then continue through the remaining steps (Steps 8b if applicable,
+   then Step 9 for accounting). Do not return directly to Step 3; the
+   committed fix will be detected by Step 9's HEAD comparison.
 2. If it's ambiguous whether the criterion is met — flag it to the
    user with your assessment and let them decide
 3. If the criterion cannot be verified through automated means (e.g.,
@@ -371,16 +381,28 @@ has TC mappings but `testplan.md` is missing, unreadable, or malformed
 3. If any TC ID lacks a corresponding test:
    - Write the missing test following contract-based testing standards.
    - Commit the test following the project's commit format.
-   - Re-run Step 4 affected checks, Step 5 coverage when tests affect
-     covered packages, Step 6 regression when production code changed,
-     Step 3 (clean/base), the Step 7 scope comparison and self-review
-     gate on the committed HEAD (consuming remaining MAX_ROUNDS), and
-     re-verify Step 8 AC and applicable Step 8b TC consistency on the
-     new HEAD. If the review gate proposes production fixes, route them
-     through the same post-fix cycle as Step 7.
+   - Continue to Step 9 for accounting. The committed fix will be
+     detected by Step 9's HEAD comparison and trigger a new pass.
 4. Record results for the validation report.
 
 ### Step 9: Write Validation Report
+
+**Final candidate verification.** Compare `git rev-parse HEAD` to
+`PASS_START_HEAD` (recorded at this pass's Step 3 entry). Also verify
+the worktree is clean (`git status --porcelain -z
+--ignore-submodules=none` has no non-ignored output). Then:
+
+- Dirty worktree: stop, report paths, no PASS/auto-stage/commit.
+- HEAD differs from `PASS_START_HEAD` (fixes committed this pass):
+  decrement `PIPELINE_ROUNDS_REMAINING` once. At zero → stop FLAG.
+  Otherwise return to Step 3 (counter not reset; earlier passes
+  not re-counted).
+- HEAD unchanged and clean, mandatory checks passed, all AC satisfied
+  with evidence, no blocking issues: write PASS. Otherwise FLAG with
+  unmet conditions, stop. FLAG replaces prior PASS on same HEAD
+  (Pending Scope Decision publication block is separate).
+
+Example: budget 3; fixes→2→1; clean+verified→PASS.
 
 Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
 
@@ -444,9 +466,8 @@ Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
 |----|-------------|----------------|-------|--------|
 | AC-1 | {brief} | {file:line or commit} | {test file:test name} | {satisfied/partial/not addressed/manual verification} |
 
-{If all satisfied: "All acceptance criteria verified."
- If any gaps: describe what's missing and what was done about it.
- If any require manual verification: list them with rationale.}
+{All satisfied → "All criteria verified." Gaps/manual pending →
+ describe; cannot claim PASS.}
 
 ## Test Plan Verification
 
@@ -496,18 +517,16 @@ Write `.artifacts/implement/{issue-key}/05-validation-report.md`:
  criteria satisfied, no regressions.
  OR
  FAIL — with explanation of what still needs fixing.}
+
+## Validated Commit
+
+{validated-commit-sha}
 ```
 
-### Step 10: Present Results
-
-Summarize for the user:
-- Which checks passed and which failed
-- Coverage assessment (behavioral, not numeric)
-- Acceptance criteria status (all satisfied, or which ones have gaps)
-- Test plan verification status (all covered / gaps filled / not applicable), if testplan exists
-- Any tests added during validation
-- Any regressions found (and whether they were fixed)
-- Overall verdict: ready for `/publish` or not
+The `## Validated Commit` section must contain exactly one line: the
+bare 40-character lowercase hex SHA from `git rev-parse HEAD`. No
+backticks, labels, prefixes, prose, or additional lines.
+`validation_gate.py` rejects any other format.
 
 ## Output
 
@@ -518,10 +537,12 @@ Summarize for the user:
 ## When This Phase Is Done
 
 Report your results:
-- Validation check results (all pass / some fail)
-- Coverage assessment
-- Acceptance criteria status
-- Regression status
-- Overall verdict
+- Which checks passed and which failed
+- Coverage assessment (behavioral, not numeric)
+- Acceptance criteria status (all satisfied, or which ones have gaps)
+- Test plan verification status (if testplan exists)
+- Any tests added during validation
+- Any regressions found (and whether they were fixed)
+- Overall verdict: ready for `/publish` or not
 
 Then return to the invoking workflow router for completion guidance.

@@ -5,9 +5,9 @@ description: Resolve and execute one explicitly requested implement phase.
 
 # Implement Phase Dispatch
 
-Require `PHASE` to be one of `ingest`, `plan`, `revise`, `code`, `validate`,
-`publish`, or `respond`. If it is missing or unsupported, report the valid
-phases and stop before resolving a filename.
+Require `PHASE` to be one of `ingest`, `plan`, `revise`, `code`, `review`,
+`validate`, `publish`, or `respond`. If it is missing or unsupported, report
+the valid phases and stop before resolving a filename.
 
 Before dispatching, initialize `COMPLETION_CONSUMED=false` and read the project's
 `AGENTS.md` or `CLAUDE.md` only if neither is already in the session. For
