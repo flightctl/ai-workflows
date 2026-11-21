@@ -70,8 +70,8 @@ Run these phases in order. Read each skill from the same `skills/` directory:
 | Order | Phase | Skill file | Done signal |
 |-------|-------|------------|-------------|
 | 1 | `/diagnose` | `diagnose.md` | Root cause analysis written |
-| 2 | `/fix` | `fix.md` | Code and test changes in working tree; implementation notes written |
-| 3 | `/test` | `test.md` | All tests pass; verification report written |
+| 2 | `/fix` | `fix.md` | Fix and needed coverage in working tree; implementation notes written |
+| 3 | `/test` | `test.md` | Applicable checks pass or gaps documented; verification report written |
 | 4 | `/review` | `review.md` | Review findings written |
 | 5 | Lint | *(see below)* | Lint passes cleanly |
 | 6 | `/document` | `document.md` | Documentation artifacts written |
@@ -107,15 +107,11 @@ unattended:
 
 ### /fix
 
-- **Unit tests are mandatory.** You MUST modify or create at least one test
-  file (e.g., `*_test.go`, `test_*.py`, `*.test.js`, `*.spec.ts`). Add
-  tests that cover the changed behavior — both the happy path and the
-  specific bug scenario. Do not defer tests to a later step. The `/test`
-  phase will verify that test files were actually modified; if they weren't,
-  you will be sent back here.
-  **Exception:** If the project has no test framework or the bug is in
-  infrastructure/configuration where no testable code path exists, document
-  why tests were not added in implementation notes and proceed.
+- **Regression coverage must be meaningful.** Add or extend tests for
+  changed behavior when warranted and existing coverage is insufficient,
+  following `test.md`. Document reused coverage or why no new test is
+  needed (e.g., docs/configuration or no testable code path) in implementation
+  notes, along with applicable alternative checks.
 - **Confidence threshold**: If you proceeded past a low-confidence diagnosis,
   the 80% escalation threshold from `guidelines.md` does not apply to the
   fix phase. Attempt the fix based on your best-effort diagnosis. The
@@ -131,11 +127,10 @@ unattended:
 
 ### /test
 
-**Gate check**: Before running tests, verify that you actually added or
-modified at least one test file (e.g., `*_test.go`, `test_*.py`,
-`*.test.js`, `*.spec.ts`). If no test files were modified, **stop and
-return to /fix** — do not proceed. This gate-check return counts toward
-the `/test` retry limit (`max_retries`).
+**Gate check**: Verify coverage of the changed behavior or the documented
+rationale for no new test, using `test.md` to select proportionate checks.
+Return to `/fix` only for an actual coverage gap, not solely because no test
+file changed; justified skips do not consume the retry budget.
 
 ### /document
 
@@ -146,9 +141,11 @@ unresolved concerns so the human reviewer knows to look more carefully.
 ### Lint
 
 Run the project's lint and format checks after `/review` passes.
+Use the smallest applicable documented scope unless the repository requires
+broader checks. Reuse still-valid results as described in `test.md`.
 
-**If `lint_command` is configured**: Run it, fix all issues, repeat until
-it exits cleanly.
+**If `lint_command` is configured**: Run it unless a still-valid result exists;
+investigate failures and rerun affected checks after attributable fixes.
 
 **If `lint_command` is not configured**, detect it using this priority
 order:
@@ -167,7 +164,8 @@ If no lint command can be detected by any of the above methods, skip
 this phase and note "lint: skipped (no linter detected)" in the
 completion report.
 
-Fix all reported issues before proceeding.
+Investigate failures as described in `test.md`; document unrelated or
+unavailable checks with evidence rather than fixing unrelated bugs.
 
 ### Session Context
 
@@ -214,8 +212,9 @@ Each retry loop is capped at `max_retries` (default: 3):
   (see `test.md` Error Handling).
   - **Code bug**: return to `/fix`, rework, re-run `/test`. Repeat up to
     `max_retries` times; if still failing, document and continue to `/review`.
-  - **Infrastructure error**: do NOT return to `/fix`. Retry `/test` up to
-    `max_retries` more times. If still failing, document and continue to `/review`.
+  - **Infrastructure error**: do NOT return to `/fix`. Retry only under the
+    conditions in `test.md`, up to `max_retries`; otherwise document the
+    failure and continue to `/review` without claiming validation passed.
 - `/review` verdict is "fix is inadequate" or finds CRITICAL/HIGH severity
   issues → return to `/fix`, revise, re-run `/test` and `/review` (both
   phases must pass on retry, since the review triggered the rework).
