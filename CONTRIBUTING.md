@@ -373,11 +373,13 @@ Do not make a separate commit for the version bump.
 ### AI attribution
 
 Every commit containing AI-generated or AI-assisted changes must include an
-attribution trailer:
+attribution trailer, e.g.:
 
 ```text
 Assisted-by: Codex
 ```
+
+Any other AI tool may be named in the trailer.
 
 Acceptable trailer keys are `Assisted-by`, `Generated-by`, and `Made-with`.
 Use the name of the tool that assisted the change and add the trailer to every
