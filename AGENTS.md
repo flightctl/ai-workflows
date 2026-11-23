@@ -221,6 +221,20 @@ Bump each discovered consuming package's `SKILL.md` version (PATCH increment).
 Include the version bump in the same commit as the behavioral change.
 Do not make a separate commit for the version bump.
 
+### AI attribution
+
+Every commit containing AI-generated or AI-assisted changes must include an
+attribution trailer:
+
+```text
+Assisted-by: Codex
+```
+
+Acceptable trailer keys are `Assisted-by`, `Generated-by`, and `Made-with`.
+Use the name of the tool that assisted the change. Do not use
+`Co-Authored-By` for AI tools. Add the trailer to every relevant commit, not
+only to the pull-request description.
+
 ## Installation
 
 Install with `./install.sh <target>` (targets: `cursor`, `claude`, `gemini`,
