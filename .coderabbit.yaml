@@ -717,8 +717,9 @@ reviews:
           Require every AI-assisted commit to include an attribution trailer:
           Assisted-by, Generated-by, or Made-with. If AI assistance is
           mentioned in the PR or commit messages, verify that each relevant
-          commit has one of these trailers. Do not accept Co-Authored-By for
-          AI tools.
+          commit has one of these trailers and that its value identifies the
+          assisting tool, such as Codex, Claude, or Cursor. Reject generic
+          values such as AI. Do not accept Co-Authored-By for AI tools.
         mode: "error"
 
       # ── Domain-specific gates (ai-workflows) ──────────────────
