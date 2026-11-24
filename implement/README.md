@@ -11,7 +11,10 @@ graph TD
     revise --> revise
     plan --> code
     revise --> code
+    code --> review
+    review --> review
     code --> validate
+    review --> validate
     validate -->|pass| publish
     validate -->|fail| code
     publish --> respond
@@ -36,6 +39,7 @@ graph TD
 | Plan | `/plan` | Design implementation approach and test strategy | `02-plan.md` |
 | Revise | `/revise` | Incorporate feedback into the plan | Updated `02-plan.md` |
 | Code | `/code` | Write tests and code via TDD | `03-test-report.md`, `04-impl-report.md` |
+| Review | `/implement:review` | Apply user-supplied feedback to implementation | Local commits (no artifact) |
 | Validate | `/validate` | Run tests, lint, coverage analysis | `05-validation-report.md` |
 | Publish | `/publish` | Push branch, create draft PR | `06-pr-description.md` |
 | Respond | `/respond` | Address reviewer comments | `07-review-responses.md` |
@@ -45,7 +49,9 @@ dispatcher resolves any project override, loads only that phase, and passes
 along the command context. After the phase reports its result,
 `skills/completion.md` supplies the shared next-step guidance without loading
 the full controller. The controller remains the entry point for workflow
-discovery and ambiguous requests.
+discovery and ambiguous requests. The `/implement:review` phase is optional
+and repeatable between `/code` and `/validate` for applying direct user
+feedback.
 
 ## Typical Flow
 
@@ -74,6 +80,13 @@ discovery and ambiguous requests.
   → for each task: write tests → write code → review → commit
   → updates 02-plan.md with task completion status
   → writes 03-test-report.md, 04-impl-report.md
+
+/implement:review (optional, repeatable)
+  → user provides direct feedback in command context
+  → assesses against scope, requirements, and plan
+  → applies focused change, runs scoped tests and lint
+  → commits locally (does not push)
+  → recommends another /implement:review or /validate
 
 /validate
   → runs full validation suite (discovered during /ingest)
@@ -144,6 +157,9 @@ implement/
 ├── templates/
 │   ├── 01-context.md           # Ingest context skeleton
 │   └── story-testplan.md       # Story-scoped testplan skeleton
+├── scripts/
+│   ├── validation_gate.py      # Deterministic validation freshness gate
+│   └── test_validation_gate.py # Gate tests
 ├── skills/
 │   ├── controller.md           # Discovery and ambiguous-input router
 │   ├── dispatch.md             # Explicit-phase dispatcher
@@ -152,6 +168,7 @@ implement/
 │   ├── plan.md                 # Design implementation approach
 │   ├── revise.md               # Incorporate plan feedback
 │   ├── code.md                 # Write tests and code via TDD
+│   ├── review.md               # Apply user feedback to implementation
 │   ├── validate.md             # Run validation suite
 │   ├── publish.md              # Create GitHub PR
 │   └── respond.md              # Address review comments
@@ -160,6 +177,7 @@ implement/
     ├── plan.md                 # /plan command
     ├── revise.md               # /revise command
     ├── code.md                 # /code command
+    ├── review.md               # /implement:review command
     ├── validate.md             # /validate command
     ├── publish.md              # /publish command
     └── respond.md              # /respond command

@@ -160,7 +160,16 @@ scope:
   Do not defer a necessary fix to an introduced defect — that is a
   correction, not expansion.
 
-Classify each comment's scope impact before proceeding to Step 4.
+**Documented-requirement conflict check.** For each code change request,
+also check whether it conflicts with documented requirements. Read and
+follow the documented-requirement conflict policy in `../guidelines.md`.
+Do not apply the code change or post a PR response until the user
+resolves any conflict. For `/respond` specifically: if the documented
+requirement is kept, prepare an evidence-based response supporting the
+requirement for user approval before posting.
+
+Classify each comment's scope impact and requirement-conflict status
+before proceeding to Step 4.
 
 ### Step 4: Propose Responses
 

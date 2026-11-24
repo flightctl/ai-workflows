@@ -25,13 +25,17 @@ lightweight dispatcher.
 4. **Code** (`/code`) — `code.md`
    Write tests and code via TDD, committing incrementally.
 
-5. **Validate** (`/validate`) — `validate.md`
+5. **Review** (`/implement:review`) — `review.md`
+   Apply user-supplied feedback to the current local implementation.
+   Optional and repeatable after `/code`.
+
+6. **Validate** (`/validate`) — `validate.md`
    Run the full validation suite (tests, lint, coverage), iterate on gaps.
 
-6. **Publish** (`/publish`) — `publish.md`
+7. **Publish** (`/publish`) — `publish.md`
    Push the feature branch and create a draft PR in the source repo.
 
-7. **Respond** (`/respond`) — `respond.md`
+8. **Respond** (`/respond`) — `respond.md`
    Fetch and address PR reviewer comments. Repeatable.
 
 ## Workspace
