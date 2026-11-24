@@ -370,6 +370,23 @@ during execution (e.g., `design/decomposition-review.md`). See
 Include the version bump in the same commit as the behavioral change.
 Do not make a separate commit for the version bump.
 
+### AI attribution
+
+Every commit containing AI-generated or AI-assisted changes must include an
+attribution trailer, e.g.:
+
+```text
+Assisted-by: Codex
+```
+
+Any other AI tool may be named in the trailer.
+
+Acceptable trailer keys are `Assisted-by`, `Generated-by`, and `Made-with`.
+Use the name of the tool that assisted the change and add the trailer to every
+relevant commit. Do not use `Co-Authored-By` for AI tools; that trailer is
+reserved for human contributors. A pull-request description does not replace
+the required commit trailer.
+
 ### Git tags
 
 Tags are created automatically when version bumps merge to main via
