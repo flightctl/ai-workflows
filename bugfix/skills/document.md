@@ -122,10 +122,9 @@ Use this format for the `## Title` section in `pr-description.md`:
 [Description of what was changed]
 
 ## Testing
-- [X] Unit tests added
-- [X] Integration tests pass
-- [X] Manual verification complete
-- [X] Full regression suite passes
+[Applicable checks and results from verification.md, including reused coverage,
+reasons for skipped checks, and any unavailable checks or unresolved failures.
+Do not mark checks passed unless verified.]
 
 ## Files Changed
 - `path/to/file.go:123` - [description]

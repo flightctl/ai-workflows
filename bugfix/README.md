@@ -165,16 +165,16 @@ The Bug Fix Workflow follows this approach:
 
 ### Phase 5: Test (`/test`)
 
-**Purpose**: Verify the fix and create regression tests.
+**Purpose**: Verify the fix with change-proportionate checks and meaningful regression coverage.
 
-- Create regression test that fails without fix, passes with fix
-- Write comprehensive unit tests for modified code
-- Run integration tests in realistic scenarios
-- Execute full test suite to catch side effects
-- Perform manual verification of original reproduction steps
-- Check for performance or security impacts
+- Inspect the diff and select the smallest useful existing checks
+- Add or extend regression tests when warranted and existing coverage is insufficient
+- For docs/configuration or no testable code path, use applicable content, schema, lint, render, or consumer checks
+- Run wider suites, integration, manual, or performance checks when risk, repository requirements, or an explicit request justify them; preserve required security and generation checks
+- Reuse results while tested inputs and environment are unchanged; rerun only checks affected by edits
+- Record results, justified skips, and relevant unavailable checks honestly
 
-**Output**: New test files + `.artifacts/bugfix/{issue}/verification.md`
+**Output**: New or extended tests when needed + `.artifacts/bugfix/{issue}/verification.md`
 
 **When to use**: After implementing the fix.
 
@@ -352,10 +352,10 @@ All workflow artifacts are organized in the `.artifacts/bugfix/{issue}/` directo
 
 ### Testing
 
-- Regression tests are mandatory — every fix must include a test
-- Test the test — verify it fails without the fix
-- Run the full test suite, not just new tests
-- Manual verification matters
+- Add meaningful regression coverage when needed, not merely to change a test file
+- Test new regression tests — verify they fail without the fix and pass with it
+- Select checks proportionate to changed behavior and risk, honoring repository requirements
+- Document skipped or unavailable checks without claiming they passed
 
 ### Documentation
 
