@@ -321,10 +321,53 @@ section; extraction retains it until the prerequisite merges).
 **Test plan reconciliation (if story-scoped testplan exists):**
 
 After the self-review gate passes, check whether this task has TC IDs
-mapped to it in the Test Plan Coverage matrix of `02-plan.md`. If it
-does, verify each mapped TC ID before proceeding to commit:
+mapped to it in the Test Plan Coverage matrix of `02-plan.md`.
 
-1. For each mapped TC ID, locate its entry in `testplan.md`. If a
+**Testplan source authority:** If `testplan.md` contains
+`Freshness: unresolved-source`, the source could not be checked
+during ingest. Skip TC reconciliation entirely — do not block
+commits on coverage for an unresolved testplan. AC-based work
+proceeds normally.
+
+If `testplan.md` contains `Freshness: unverified` (or the legacy
+bold form `**Freshness:**
+unverified`), the testplan was retained from a prior ingest and its
+source could not be re-checked. TC reconciliation for this retained
+plan requires the user's explicit confirmed status in `02-plan.md`
+with a SHA-256 binding. Compute the current story-scoped testplan
+SHA-256 (`sha256sum .artifacts/implement/{issue-key}/testplan.md`)
+and compare against the recorded hash. If the hash differs, the
+confirmation is stale — treat as unconfirmed and defer TC
+reconciliation. Missing SHA-256 binding is treated as unconfirmed.
+An unconfirmed retained TC does not block AC-based work or existing
+tests.
+
+**Source-Discovery: unresolved check (independent, first):** If
+`testplan.md` contains a `Source-Discovery: unresolved` marker,
+skip mandatory TC reconciliation entirely — all TCs from an
+unresolved-source plan are provisional regardless of Freshness
+marker or user confirmation. Report them as provisional coverage.
+Ordinary AC-based coding and existing tests continue; `/validate`
+blocks `Overall: PASS` until source discovery is resolved.
+
+If `testplan.md` does NOT contain a `Freshness: unverified` or
+`**Freshness:** unverified` marker (the plan was freshly ingested
+from an authoritative source), its TCs are authoritative — reconcile them directly without requiring
+user confirmation or SHA-256 binding. A stale confirmation hash
+from a prior retained plan does not invalidate a freshly ingested
+authoritative source.
+
+Verify each mapped TC ID before proceeding to commit:
+
+0. **Retained testplans only (Freshness: unverified with user
+   confirmation):** For each mapped TC ID, verify it appears in the
+   plan's confirmed TC list (the list recorded when the user confirmed
+   TC coverage). If a mapped TC is not in the confirmed list, treat
+   it as unconfirmed — do not require coverage for that TC, report it
+   as provisional. **For authoritative testplans** (freshly ingested,
+   no Freshness: unverified marker), all TCs are inherently confirmed
+   — skip this check. Skip unconfirmed TCs in the steps below.
+1. For each confirmed mapped TC ID, locate its entry in `testplan.md`. If a
    mapped TC ID does not exist in the testplan, stop and report the
    inconsistency — the plan references a test case that the testplan
    does not contain. Read the full test case entry (the Preconditions,
@@ -343,12 +386,22 @@ does, verify each mapped TC ID before proceeding to commit:
    files (`git add`), re-run the review gate, then re-check.
 
 This is a hard gate — the task cannot proceed to commit until every
-mapped TC ID has coverage. A TC ID may be treated as N/A only if the
-plan's Test Plan Coverage matrix already marks it N/A with a non-empty
-rationale — the code phase must not invent N/A exemptions that the
-plan did not authorize. The testplan is a floor, not a ceiling: tests
-discovered through TDD that are not tied to any TC ID are expected
-and encouraged.
+**authoritative or effectively confirmed** mapped TC ID has coverage.
+Unconfirmed TCs (from an unverified testplan without per-TC user
+confirmation and SHA-256 binding) are provisional — report them but
+do not block the commit on their coverage. A TC ID may be treated as
+N/A only if the plan's Test Plan Coverage matrix already marks it N/A
+with a non-empty rationale. A TC ID marked `Qualification gate` in
+the plan is external validation evidence — it does not require a test
+in the implementation and is not counted toward the coverage gate. A
+TC ID marked `Manual verification` in the plan requires human
+verification — it does not require an automated test and is not
+counted toward the coverage gate; the procedure and evidence remain
+visible in the validation report. The code phase must not invent N/A,
+qualification-gate, or manual-verification exemptions that the plan
+did not authorize. The testplan is a floor, not a ceiling: tests discovered
+through TDD that are not tied to any TC ID are expected and
+encouraged.
 
 If no story-scoped testplan exists and `02-plan.md` has no Test Plan
 Coverage section, skip this check. However, if `02-plan.md` has TC

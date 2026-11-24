@@ -12,7 +12,7 @@ affected code, and write `01-context.md` for `/plan`.
 
 - Jira is read-only. Capture, don't implement. Note unknowns explicitly.
 - Explore relevant areas only. Don't map the entire codebase. Focus on components the story will affect.
-- Re-invocation diffs before overwriting. If `01-context.md` already exists, preserve it before exploring. After compiling new context, diff against the previous version and present changes to the user before overwriting (see Steps 2a and 7a).
+- Re-invocation diffs before overwriting. If `01-context.md` already exists, preserve it before exploring. After compiling new context, diff against the previous version and present changes to the user before overwriting (see Steps 2a and 8a).
 - Ingest is an index. `/plan` opens cited files. Paths, section refs, signatures — not dumps.
 - Never Read the same path twice. Never Grep the same (path, pattern) pair twice.
 - Do not glob this workflow. Do not load `guidelines.md` or `gh-stack`.
@@ -78,7 +78,7 @@ committed with the code.
 
 If `.artifacts/implement/{issue-key}/01-context.md` already exists, this is a
 re-invocation. Copy the existing file to `01-context.md.prev` so it is
-preserved for the diff in Step 7a.
+preserved for the diff in Step 8a.
 
 ### Step 3: Fetch the Jira Story
 
@@ -91,7 +91,7 @@ Capture:
 - Acceptance criteria
 - Implementation guidance (if present)
 - Testing approach (if present)
-- `Validated by` TC IDs and `PRD Requirements` from the Design Reference (used to filter the testplan in Step 5d)
+- `Validated by` TC IDs and `PRD Requirements` from the Design Reference (used to filter the testplan in Step 6)
 - `Source` and `UI Design section` from the Design Reference (if present — used to resolve the UI design document filename in Step 5c)
 - Design refs
 - Story type prefix (`[DEV]`, `[UI]`, etc.)
@@ -177,8 +177,10 @@ files are often thousands of lines. Search, then slice.
 
 1. Collect search terms from the Jira story: issue key, design section
    refs, FR/NFR IDs, AC keywords, component names.
-2. Grep `design.md` / `prd.md` / `testplan.md` for those terms and for
-   heading lines (`^#`).
+2. Grep `design.md` / `prd.md` for those terms and for heading lines
+   (`^#`). **Do not grep or read `testplan.md` in Step 5** — all
+   testplan search, filtering, and reading is deferred to Step 6 after
+   the validation index resolver has identified the correct file.
 3. Read **only** the matching heading ranges (`offset`/`limit`). Prefer
    one contiguous range per relevant section.
 4. If grep finds nothing useful, Read the first ~80 lines of `design.md`
@@ -191,7 +193,11 @@ Need:
 2. **UI design document** (filename from the `UI Design section` field) — UI-specific design context
    (present only for features that went through the ui-design workflow)
 3. **PRD** (`prd.md`) — FR/NFR this story covers
-4. **Testplan** (`testplan.md`) — candidate test cases for Step 5d
+4. **Testplan** — candidate test cases for Step 6. The primary
+   filename is discovered in Step 6 via the validation index; do not
+   assume `testplan.md` before discovery. **Do not read the testplan
+   in Step 5** — defer all testplan reading to Step 6 after the
+   resolver has identified the correct file.
 
 **Selecting the design source (polymorphic design reference):**
 
@@ -251,13 +257,53 @@ Jira story content. The design document and PRD are valuable context
 but not strictly required — the story's acceptance criteria are the
 primary contract.
 
-#### 5d: Filter Testplan to Story Scope
+### Step 6: Discover Validation Artifacts and Filter to Story Scope
 
-Match the story's `Validated by` TC IDs (captured in Step 3) against the
-testplan's test-case headings. If `Validated by` is missing, empty, or
-`None` (no TC IDs), fall back to requirement match: collect every test case
-whose requirement heading matches a `PRD Requirements` ID from the story's
-Design Reference.
+**Resolve and validate published artifacts before reading.** Before
+reading or filtering any validation artifacts (indexed or legacy),
+resolve the validation index script and run the published resolver
+unconditionally. This ensures that malicious or invalid index entries
+cannot direct the agent to read files outside the feature directory,
+and that legacy fallback paths receive the same symlink/ownership
+validation as indexed paths.
+
+Set `SKILL_DIR` to the canonical directory of this loaded skill file
+(resolved from the path provided by the phase dispatcher or file-read
+context, following symlinks). If the loaded file path is unavailable,
+stop and report — do not fall back to `$HOME`, `BASH_SOURCE`, or the
+current working directory:
+
+```bash
+# SKILL_DIR: set by the agent to this skill file's canonical directory
+VALIDATION_INDEX_SCRIPT="$(realpath "${SKILL_DIR}/../../design/scripts/validation_index.py")" || { echo "Cannot resolve ../../design/scripts/validation_index.py" >&2; exit 1; }
+```
+
+If a `validation-index.json` exists in the source feature directory,
+run `python3 "$VALIDATION_INDEX_SCRIPT" resolve --published
+"{source-feature-directory}" --docs-root "{docs_repo_path}"` and use
+its returned validated artifact list for all subsequent reading and
+filtering. If no `validation-index.json` exists (legacy design), run
+the resolver on the feature directory to validate the legacy
+`testplan.md` path before reading it. Do not read or filter any
+artifact file that the resolver has not validated.
+
+**Artifact discovery (using validated resolver output):** Use the
+resolver's returned artifact list to identify the published
+validation artifact filenames and the primary testplan. For legacy
+designs (no `validation-index.json`), the resolver validates and
+returns the testplan path in its artifact list (e.g.,
+`[{file: "testplan.md", type: "testplan"}]`). An empty resolver
+result (`[]`) means no valid artifacts were found — route through
+the existing no-source outcome rather than reading unvalidated paths.
+
+**Filter across all validation artifacts:** For each validation
+artifact file discovered above, match the story's `Validated by`
+TC IDs (captured in Step 3) against the artifact's test-case
+headings. If `Validated by` is missing, empty, or `None` (no TC IDs),
+fall back to requirement match: collect every test case whose
+requirement heading matches a `PRD Requirements` ID from the story's
+Design Reference. Collect matching TCs from ALL artifacts (primary
+testplan and any companions).
 
 **UI-design-originated stories:** If `PRD Requirements` contains
 "Discovered during UI design" (set by ui-design `/sync` for stories that
@@ -270,18 +316,240 @@ If the field also lists FR/NFR IDs alongside the marker (e.g.,
 but treat zero matches as Expected zero rather than Anomalous zero — the
 UI-design origin means missing testplan coverage is expected, not an error.
 
+**Extract relevant gates (before TC outcome).** If any feature-level
+validation artifact (primary or companion) has a
+`## Review and Qualification Gates` section, check each gate's
+requirement and IC mappings against the story's `PRD Requirements`
+and `Interface Changes`. Gates whose requirements or ICs overlap are
+relevant to this story. Collect all relevant gates with their source
+path, gate heading/name, mapped requirements and ICs, type,
+Required Evidence (copy verbatim from the source gate's Required
+Evidence column; if missing, set to "criteria not specified in
+source — clarification needed"), and reviewer/owner. If a gate
+lacks a requirement mapping, IC mapping, or type, retain the gate
+with the missing field set to "not specified in source —
+clarification needed" and record the source origin. Do not silently
+drop gates with incomplete mappings or fabricate mappings. For
+TC-based gates, also copy the TC's Expected Results as evidence
+criteria. This extraction runs BEFORE the TC outcome table below —
+a story with zero TCs but relevant gates still produces a retained
+validation artifact.
+
+**Validate the published index before selecting an outcome.** The
+resolver was already invoked at the start of this step. If the
+resolver returned a validated artifact list, use that list as
+authoritative. Do not re-read the raw index or fall back to
+unvalidated paths.
+
+**Resolution failure handling.** If the index is present but
+malformed, contains an empty artifacts list, the source location or
+any discovered validation artifact cannot be resolved or read, or
+the resolve command exits non-zero, the source is unresolvable:
+- If a prior story-scoped testplan exists, retain it and mark it
+  `Freshness: unverified` and `Source-Discovery: unresolved`. Do not
+  overwrite prior evidence.
+- If no prior story-scoped testplan exists, write a minimal marker
+  to `.artifacts/implement/{issue-key}/testplan.md`:
+  ```
+  # Story Test Plan — {issue-key}
+  Freshness: unresolved-source
+  Source-Discovery: unresolved
+  Source: could not be read or resolved
+  ```
+  This marker is distinct from confirmed absence (expected zero) or
+  a verified empty set. Downstream validation must report this state
+  as unresolved discovery, not as confirmed absence or full coverage.
+  A successful subsequent ingest that checks the source clears both
+  the freshness and `Source-Discovery` markers by writing the normal
+  testplan or deleting it for expected zero outcomes.
+- Report that the source could not be checked. Skip the outcome
+  gate and story testplan write below. AC-based work may continue,
+  but unresolved required validation cannot be claimed as complete.
+
+**Source-Discovery tracking.** `Source-Discovery: unresolved` is
+tracked independently from `Freshness`. It records that the required
+source inspection could not be completed — not that the source is
+confirmed absent. This field blocks `Overall: PASS` in validation
+even when the user has confirmed retained TCs, because unresolved
+discovery means unknown requirements or gates may exist. Clear
+`Source-Discovery: unresolved` only upon a successful checked
+discovery (the `resolve --published` command exits zero and the
+source is readable). Confirmed absence — no design testplan exists
+and the normal path produces expected-zero — is NOT unresolved
+discovery and does not set this field.
+
+A present but invalid index is distinct from an absent index: do
+not fall back to legacy `testplan.md` discovery when a
+`validation-index.json` exists but fails validation. Failed script
+resolution or index validation is not confirmed absence.
+
+**Unknown gate relevance guard (evaluate before selecting a zero
+outcome).** The Expected zero and Anomalous zero outcomes (which
+delete stale story testplans) require that every gate's relevance
+was established. A gate's relevance requires checking both its
+requirement mappings and IC mappings against the story's scope:
+- If either dimension (requirement or IC) shows known overlap with
+  the story's scope, the gate is relevant regardless of the other
+  dimension's status.
+- If both dimensions are fully known and neither overlaps the
+  story's scope, the gate is irrelevant.
+- If any dimension needed to determine overlap is missing or marked
+  "clarification needed", and known dimensions do not already
+  establish overlap, the gate has unknown relevance — its
+  applicability cannot be confirmed or denied.
+
+Preserve origins and known mappings: do not invent mappings for
+unknown dimensions or treat all unknown-relevance gates as
+mandatory for every AC. Explicit known non-overlap (fully known on
+both dimensions) establishes irrelevance without clarification.
+
+If any gate has unknown relevance, the outcome is not a confirmed
+zero. In that case:
+- If a prior story testplan exists, retain it with
+  `Freshness: unverified` and request clarification on the unmapped
+  gate's applicability in the ingest handoff rather than deleting
+  evidence whose relevance could not be assessed.
+- If no prior story testplan exists (first ingest), record
+  `Gate-Applicability: unresolved` with the affected gate names in
+  the Story Test Plan section of `01-context.md`. Do not write a
+  testplan for gates whose relevance is unknown. Request
+  clarification in the ingest handoff.
+
+In both cases, update the `gate-applicability.pending` file in the
+artifact directory
+(`.artifacts/implement/{issue-key}/gate-applicability.pending`).
+If the file already exists, read it first and preserve its
+existing entries — a gate absent from the latest artifact set is
+not verified irrelevant, and newly unresolved gates must not
+overwrite previously recorded ones. Merge newly unresolved gates by origin and name — when that pair
+unambiguously identifies the same source gate, merge the entries.
+Preserve each entry's origin, name, and status. If distinct gates
+share both origin and name, retain separate entries and request
+clarification in the existing handoff; keep the blocker until
+every such gate is resolved. Remove an entry only through the
+allowed checked
+clearing procedure (re-ingestion with gate recording and plan
+reconciliation, or verified irrelevance). Write the merged result
+immediately during gate analysis, before Step 8 compilation — it
+is not subject to Step 8a approval and persists even if a
+re-invocation overwrite is declined. Also include the
+`Gate-Applicability: unresolved` marker in the compiled
+`01-context.md` content (Step 8) for human readability, but the
+pending file is the authoritative blocker checked by `/validate`
+and `/publish`.
+
+This marker is distinct from `Source-Discovery: unresolved` (which
+records that the source itself could not be read).
+
+**Clearing `gate-applicability.pending`** requires one of:
+- **Re-ingestion with resolved gates:** A completed `/ingest` run
+  where all previously unresolved gates have known relevance. Gates
+  confirmed relevant must be recorded with their original
+  mappings, origin, and evidence in the story testplan
+  (`testplan.md`). If a downstream plan (`02-plan.md`) exists, its
+  approval/update contract must be reconciled before clearing — the
+  plan must acknowledge the newly recorded gates. If no downstream
+  plan exists yet, the pending file is still removed after testplan
+  recording so that a subsequent `/plan` consumes the recorded
+  gates from the testplan.
+- **Verified irrelevance:** Explicit clarification establishing
+  that a specific gate is irrelevant (fully known non-overlap on
+  both requirement and IC dimensions). Verified irrelevance clears
+  only that gate's contribution to the pending state — if other
+  gates remain unresolved, the pending file persists with the
+  remaining gate names. Irrelevance does not fabricate a gate or
+  TC obligation.
+
+**Does NOT clear the pending file:** TC confirmation alone, partial
+clarification that leaves any gate unresolved, a missing prior
+testplan or downstream plan, failed or unreadable source discovery,
+or declined context/plan changes (Step 8a declined).
+
+**Legacy context marker synchronization.** The
+`Gate-Applicability: unresolved` marker in `01-context.md` serves
+as a validator fallback after the pending file is removed.
+Clearing the pending file therefore also requires updating or
+removing the legacy marker in `01-context.md` — but only when the
+context overwrite has been approved (Step 8a accepted on
+re-invocation, or first-invocation write). If the context
+overwrite was declined or unanswered, the legacy marker in
+`01-context.md` persists and the pending file must NOT be cleared,
+because the validator fallback would no longer detect the blocker.
+A re-invocation that resolves all gates must compile a new
+`01-context.md` without the unresolved marker and obtain Step 8a
+approval before removing the pending file.
+
+**Deferred finalization.** Step 6 determines clearing eligibility
+during gate analysis but does not perform the actual pending-file
+removal or legacy-marker update. These operations are deferred to
+the context write: Step 8 (first invocation) or Step 8a
+(re-invocation, accepted branch). This ensures the context has
+been written (or approved for overwrite) before the pending file
+is removed, maintaining the validator fallback invariant. The
+compiled `01-context.md` content should reflect the resolved gate
+state (omitting the `Gate-Applicability: unresolved` marker when
+all gates are resolved), but the pending file is not removed until
+the context write succeeds.
+
+Only after confirming that all gates have known relevance (or no
+gates exist) may a zero outcome proceed to deletion.
+
 | Outcome | Condition | Action |
 |---------|-----------|--------|
-| Normal | Matches found | Write `testplan.md` **once** from `../templates/story-testplan.md` |
-| Expected zero | No matches and type is `[QE]`/`[DOCS]`/`[UX]`/`[CI]` | Note expected; delete stale story testplan if present |
-| Expected zero | No matching `Validated by` IDs and PRD Requirements contains "Discovered during UI design" | Note UI-design origin; delete stale story testplan if present |
-| Anomalous zero | No matches and type is `[DEV]`/`[UI]` (or unknown) | Warn; delete stale story testplan if present |
+| Normal | TC matches found (in any artifact) | Write `testplan.md` **once** from `../templates/story-testplan.md` |
+| Gate-only | Zero TC matches but relevant gates found | Write `testplan.md` with only the `## Qualification Gates` section (no TC sections). This is not an error — the story's validation is gate-based. |
+| Expected zero | No TC matches, no relevant gates, and type is `[QE]`/`[DOCS]`/`[UX]`/`[CI]` | Note expected; delete stale story testplan if present |
+| Expected zero | No TC matches, no matching `Validated by` IDs, PRD Requirements contains "Discovered during UI design", and no relevant gates | Note UI-design origin; delete stale story testplan if present |
+| Anomalous zero | No TC matches, no relevant gates, and type is `[DEV]`/`[UI]` (or unknown) | Warn; delete stale story testplan if present |
 
-No feature testplan: note and continue. If a story-level testplan already
-exists from a prior ingest, emit a warning: "Source testplan not found —
-story testplan may be stale. Verify test coverage before proceeding."
+**Precedence:** When multiple outcome conditions match, Gate-only
+takes precedence over Expected zero. A story with zero TC matches
+but relevant qualification gates produces a gate-only testplan even
+if the story type or UI-design origin would otherwise indicate
+Expected zero.
 
-### Step 6: Explore the Codebase
+If the source location was checked successfully and no validation
+artifacts were found (neither `validation-index.json` nor
+`testplan.md` in the docs repo), note "No feature-level testplan
+available" and continue. If a story-level testplan already exists
+from a prior ingest, mark it `Freshness: unverified` but do NOT
+set `Source-Discovery: unresolved` — the source was successfully
+checked. If the retained testplan already contains a
+`Source-Discovery: unresolved` marker from an earlier failed ingest,
+remove it — the current successful check supersedes the prior
+failure. Emit a warning: "Source testplan not found — retained
+story testplan marked as unverified. `/plan` and `/validate` should
+treat its TC coverage requirements as provisional until the upstream
+source is available."
+
+When writing the story testplan from matches across multiple artifacts,
+include all matched TCs in a single `testplan.md` with a Source line
+listing each contributing artifact. Include a `## Qualification Gates`
+section for any relevant gates found above.
+
+**Per-TC verification classification:** Classify each matched TC
+by its verification method, regardless of source artifact:
+
+- **`Automation: automated`** — candidate for unit/integration test
+  implementation. These are the default.
+- **`Automation: manual`** — requires human verification (visual
+  checks, exploratory testing, UX evaluation). Listed in the story
+  testplan with a `[Manual verification]` marker. The `/plan` and
+  `/code` phases must not generate automated tests for these;
+  `/validate` tracks them as manual verification evidence.
+- **`Qualification gate`** — requires a specialized execution
+  environment (hardware device lab, security audit tooling,
+  cross-service staging not available in CI). Listed with a
+  `[Qualification gate]` marker. The `/plan` and `/code` phases
+  treat these as external validation evidence — they are not
+  candidates for unit/integration test generation.
+
+When a matched TC comes from a companion artifact, additionally note
+its source artifact and purpose in the story testplan metadata. The
+story's own Testing Approach covers the appropriate test scope for
+`[DEV]` work.
+
+### Step 7: Explore the Codebase
 
 Based on the story's scope, explore the areas of the codebase that will be
 affected.
@@ -295,7 +563,7 @@ affected.
 - Stack: `git branch --show-current`, `git log --oneline -8`, `gh stack view --json`. No `.git/` listing.
 - Topology: parse `{owner}/{repo}` from `git remote get-url origin` (never substitute a well-known upstream name). Then `gh repo view {owner}/{repo} --json isFork,parent`. If `gh` fails, ask the user whether this is a fork and, if so, for upstream `{owner}/{repo}`.
 
-**Validation cache:** If `.artifacts/implement/_validation-profile.md` exists and `.meta.json` hashes/mtimes still match, merge the profile into the in-memory context draft, skip config Reads, and do not Write `01-context.md` until Step 7 or Step 7a. Else one discovery pass: bounded Greps of present `AGENTS.md` and `CONTRIBUTING.md` (unless already in session) for lint/test/coverage commands, one Makefile grep, plus CI filenames via `git ls-files '.github/workflows/*.yml' '.github/workflows/*.yaml'`. For each listed workflow, Grep command-bearing keys (`run:`, `make`, lint/test targets) — not full workflow bodies. Then Write cache files **once**.
+**Validation cache:** If `.artifacts/implement/_validation-profile.md` exists and `.meta.json` hashes/mtimes still match, merge the profile into the in-memory context draft, skip config Reads, and do not Write `01-context.md` until Step 8 or Step 8a. Else one discovery pass: bounded Greps of present `AGENTS.md` and `CONTRIBUTING.md` (unless already in session) for lint/test/coverage commands, one Makefile grep, plus CI filenames via `git ls-files '.github/workflows/*.yml' '.github/workflows/*.yaml'`. For each listed workflow, Grep command-bearing keys (`run:`, `make`, lint/test targets) — not full workflow bodies. Then Write cache files **once**.
 
 Skip `AGENTS.md` and `CONTRIBUTING.md` Reads if already in session. Path-only for PR template unless the body is required.
 
@@ -352,18 +620,45 @@ Record components as path + signature + test path. `/plan` opens cited files.
 - **Cite what `/plan` would not guess** (path + one line; extra grep hits stay unread): sibling implementation in another component/language ("pattern only, do not import"); deploy/runtime surface if the story needs a tool on PATH or in an image (Containerfile/Dockerfile/packaging); neighboring unit **and** integration test paths if grep found them. List leftover `files_with_matches` hits under **Cited, not opened**.
 - **Open questions:** Fill or mark `N/A (reason)` for: inbound contract; story boundary vs dependency/successor; spec vs AC conflict (record both, do not pick); named knob missing in code; placement (existing package vs new); runtime dependency not on the current deploy path; shared-state predicate (CAS/lock/idempotency) if the story mutates shared records. Concrete question or N/A. No vague "how should errors work?"
 
-### Step 7: Compile Context
+### Step 8: Compile Context
 
 Compile all findings into `01-context.md`. If this is a re-invocation
 (Step 2a found an existing file), **do not write the file yet** — hold the
-compiled content and proceed to Step 7a first.
+compiled content and proceed to Step 8a first.
 
 If this is a first invocation: Read `../templates/01-context.md` **once**,
 fill it tightly (must-record bullets; 5–8 lines per component; signatures
 only; every open-question slot filled or N/A), Write `01-context.md`
 **once**.
 
-### Step 7a: Diff Against Prior Ingest (Re-invocation Only)
+**Pending finalization (first invocation).** After writing
+`01-context.md`, if Step 6 determined that all previously
+unresolved gates now have a known disposition and the clearing
+conditions are met for each gate, remove
+`gate-applicability.pending`:
+- **Relevant gates** must be recorded in the story testplan with
+  original mappings, origin, and evidence; and either no downstream
+  plan (`02-plan.md`) exists or the plan acknowledges the newly
+  recorded gates.
+- **Verified-irrelevant gates** (explicit gate-specific proof of
+  fully known non-overlap on both requirement and IC dimensions)
+  are cleared without testplan recording or gate obligation.
+  All-irrelevant outcomes (every gate verified irrelevant, including
+  zero-match / no story testplan) satisfy the clearing condition.
+
+Before removing the pending file, the written `01-context.md` must
+not contain the `Gate-Applicability: unresolved` marker. If some
+gates still have unknown relevance (source discovery failed, some
+gates remain unresolved, or any gate lacks a verified disposition),
+retain both the pending file and the marker in the written context.
+If all gate relevance is known but other clearing conditions are
+not yet met (gate recording incomplete or downstream plan
+reconciliation incomplete), omit the `Gate-Applicability: unresolved`
+marker in the written context but retain the
+`gate-applicability.pending` file until all gate-specific clearing
+conditions are satisfied.
+
+### Step 8a: Diff Against Prior Ingest (Re-invocation Only)
 
 Diff compiled content vs `.prev`. Focus on:
 - Acceptance criteria
@@ -372,9 +667,26 @@ Diff compiled content vs `.prev`. Focus on:
 - New components or patterns
 - Validation profile
 
-If `02-plan.md` or later artifacts exist, list them. Wait for confirmation. If confirmed, Write `01-context.md` **once** and delete `.prev`. If declined, delete `.prev` and stop without overwriting.
+If `02-plan.md` or later artifacts exist, list them. Wait for
+confirmation. If confirmed, Write `01-context.md` **once** and
+delete `.prev`. Apply the same pending finalization as Step 8: if
+Step 6 determined clearing eligibility and all conditions are met
+for each gate (relevant gates recorded with original
+mappings/origin/evidence and downstream plan reconciled;
+verified-irrelevant gates cleared without testplan recording or
+gate obligation — including all-irrelevant outcomes), remove
+`gate-applicability.pending`. Before removing the pending file, the
+written `01-context.md` must not contain the
+`Gate-Applicability: unresolved` marker. If some gates still have
+unknown relevance, retain both the pending file and the marker. If
+all gate relevance is known but other clearing conditions are not
+yet met, omit the marker in the written context but retain the
+pending file. If the user declined or did not answer the overwrite,
+do not clear the pending file — the legacy marker in the existing
+`01-context.md` must persist so the validator fallback continues to
+detect the blocker.
 
-### Step 8: Report
+### Step 9: Report
 
 8–12 lines. Do not paste `01-context.md`. Point at the file. Include:
 - Story scope and key ACs
@@ -386,12 +698,13 @@ If `02-plan.md` or later artifacts exist, list them. Wait for confirmation. If c
 - Open questions as `/plan` work, not blockers
 - Readiness for `/plan`
 
-If the user declined overwrite in 7a, report the diff and that existing context was kept.
+If the user declined overwrite in 8a, report the diff and that existing context was kept.
 
 ## Output
 
 - `.artifacts/implement/{issue-key}/01-context.md`
 - `.artifacts/implement/{issue-key}/testplan.md` (normal testplan outcome only)
+- `.artifacts/implement/{issue-key}/gate-applicability.pending` (if any gate has unresolved applicability)
 - `.artifacts/implement/_validation-profile.md` (+ `.meta.json`) on cache miss
 
 ## Done

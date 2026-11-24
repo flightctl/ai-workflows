@@ -66,9 +66,62 @@ Verify readiness:
      unresolved dependency.
 
 2. Read `.artifacts/implement/{issue-key}/05-validation-report.md`. Check
-   that the `## Result` section contains `PASS`. If the file doesn't exist,
-   the `## Result` section is missing, or it contains `FAIL`, tell the user
-   that `/validate` should be run (or re-run) first.
+   that the `## Result` section contains an explicit `Overall: PASS`
+   line (not `PASS (automated)` or any qualified PASS). A result of
+   `PASS (automated) — awaiting external validation` means external
+   evidence is still pending and the implementation is NOT ready for
+   publication. If the file doesn't exist, the `## Result` section is
+   missing, it contains `FAIL`, it contains only a qualified PASS, or
+   it lacks an explicit unqualified `Overall: PASS` line (including
+   legacy reports with plain `PASS`), tell the user that `/validate`
+   should be run (or re-run) first.
+
+   Additionally, check for unresolved gate applicability that may
+   have been introduced by a re-ingest after the validation report
+   was written. Check for
+   `.artifacts/implement/{issue-key}/gate-applicability.pending`. As
+   a fallback, read the Story Test Plan section of
+   `.artifacts/implement/{issue-key}/01-context.md` for
+   `Gate-Applicability: unresolved`. If either source indicates
+   unresolved applicability, stop — tell the user that gate
+   applicability must be resolved before publication. Recommend
+   re-running `/ingest` to clarify the unresolved gates, then
+   `/validate` to produce a fresh report. A cached `Overall: PASS`
+   from a prior validation does not authorize publication when
+   current gate applicability is unresolved, because the unresolved
+   gates may require evidence that the prior validation did not
+   assess.
+
+   Verify the current branch matches the planned branch:
+
+   ```bash
+   git rev-parse --abbrev-ref HEAD
+   ```
+
+   Compare the output against the `{branch-name}` recorded in the
+   `## Branch` section of `02-plan.md`. If the current branch does not
+   match the planned branch, or HEAD is detached, stop — do not
+   silently switch, create, or push a different branch. The planned
+   branch is the publication target (Step 5 pushes it by name), so the
+   current checkout must be on that branch.
+
+   Additionally, verify the validation report's identity binding
+   in the `## Validated Identity` section: the report must record the
+   candidate branch HEAD, context SHA-256, plan SHA-256, and testplan
+   SHA-256 that were validated. Compare each against:
+   - Current branch HEAD (`git rev-parse HEAD`)
+   - Current context SHA-256 (`sha256sum
+     .artifacts/implement/{issue-key}/01-context.md`, or "absent")
+   - Current plan SHA-256 (`sha256sum
+     .artifacts/implement/{issue-key}/02-plan.md`, or "absent")
+   - Current testplan SHA-256 (`sha256sum
+     .artifacts/implement/{issue-key}/testplan.md`, or "absent")
+
+   If any identity field does not match the current inputs (stale
+   report from before a re-ingest, branch change, AC change, or
+   gate addition), tell the user that `/validate` should be re-run.
+   Legacy reports without identity binding also require
+   re-validation.
 
 3. Verify the feature branch exists and has commits:
 
@@ -94,7 +147,10 @@ Verify readiness:
    and tell the user to authenticate first. Check for
    `has_uncommitted=true`, `has_staged=true`, or `has_untracked=true`.
    If there are uncommitted or untracked changes, ask the user how to
-   proceed.
+   proceed. If the user commits those changes, the existing validation
+   report's identity binding is now stale — re-run `/validate` and
+   require an unqualified `Overall: PASS` whose identity matches the
+   new HEAD before continuing. Do not reuse the earlier report.
 
 ### Step 2: Cross-Cutting Review
 
@@ -125,15 +181,24 @@ checks on the post-fix working-tree candidate **before** staging or
 committing. If checks fail or produce further unreviewed code changes,
 stop and present the gap to the user — hand back to the existing
 `/validate` and review workflow rather than entering an unbounded
-automatic cycle. Once checks pass on the unchanged post-fix candidate,
-commit the gate fixes:
+automatic cycle. Once checks pass, commit the gate fixes:
 
 ```bash
 git add {fixed files}
 git commit -m "{issue-key}: address cross-cutting review findings"
 ```
 
-Then proceed to Step 3.
+Because the fix commit changes HEAD, the existing validation report's
+identity binding is now stale. **Stop the `/publish` phase** and tell
+the user to run `/validate` on the clean committed state to produce a
+fresh report bound to the new HEAD. The publish phase cannot invoke
+`/validate` — the user must run it separately. Do not return to
+`/validate` with uncommitted changes — validate rejects dirty
+worktrees (Step 3). After `/validate` completes with an unqualified
+`Overall: PASS`, restart `/publish` from Step 1 and repeat all
+identity preflight checks against the new HEAD before proceeding.
+If evidence is stale or inapplicable after the code changes,
+`/validate` will detect and report the gap.
 
 ### Step 3: Confirm Details
 
@@ -153,13 +218,70 @@ git log --oneline {local-base}..HEAD
 
 Confirm with the user before proceeding.
 
-### Step 4: Push Branch
+### Step 4: Pre-Push Checkpoint
+
+Immediately before pushing, re-verify the current state — sidecar
+changes or new pending state may have been introduced during the
+Step 3 confirmation wait. Repeat the applicable Step 1 checks on
+the current worktree:
+
+1. Re-check for `gate-applicability.pending` and the
+   `Gate-Applicability: unresolved` context fallback.
+2. Re-verify the validation report's identity binding: current
+   branch HEAD, context SHA-256, plan SHA-256, and testplan
+   SHA-256 must still match the `## Validated Identity` section.
+3. Re-verify the worktree is clean (`git status --porcelain`),
+   ignoring `.artifacts/` paths.
+4. Re-verify the current branch matches the planned branch.
+5. Re-read the current validation report's `## Result` section and
+   require an unqualified `Overall: PASS`. If the report now shows
+   `Overall: FAIL`, `Overall: PENDING`, a qualified PASS, or a
+   missing result verdict, stop — a concurrent validation run may
+   have replaced the report after Step 1. Do not rely on the
+   Step 1 verdict alone.
+6. Reassess referenced mandatory evidence from the current
+   approved plan and validation inventory. For gates with an
+   Evidence Reference in the plan, check that each mandatory
+   reference still has a verified status using the original
+   criteria and current candidate basis. For non-TC gates
+   (no Evidence Reference in the plan), the plan's Qualification Gates
+   table has no Evidence Reference column; instead match each
+   mandatory non-TC gate by its source path and gate heading to
+   the corresponding entry in the validation report's External
+   Validation Evidence section and reassess that entry's
+   evidence link using the original source criteria and current
+   candidate basis. If any mandatory evidence has changed to
+   failed, pending, not-started, unknown, or its candidate
+   applicability cannot be established, or a mandatory non-TC
+   gate has no matching External Validation Evidence entry or
+   its evidence link is missing or unusable, stop — require the
+   user to re-run `/validate` or restart the validation cycle.
+   Do not rely on a cached `Overall: PASS` when the underlying
+   evidence it assessed is no longer verified. Stable evidence
+   (content unchanged, no external dependency) and entries where
+   no external evidence is required remain valid without
+   re-collection.
+
+If any check detects a change (new blocker, identity mismatch,
+dirty worktree, branch switch, non-PASS report verdict, or
+evidence status change), stop — do not rebind the old PASS to the
+changed state. Require the user to re-run `/ingest`, `/validate`,
+or restart `/publish` as appropriate.
+
+### Step 5: Push Branch
+
+Use the validated HEAD SHA from the validation report's `## Validated
+Identity` section to pin the push to the exact validated commit:
 
 ```bash
-python3 "$PUBLISH_SCRIPT" push --remote origin --branch {branch-name}
+python3 "$PUBLISH_SCRIPT" push --remote origin --branch {branch-name} --expected-sha {validated-head-sha}
 ```
 
-### Step 5: Create PR Description
+The `--expected-sha` flag verifies that HEAD still matches the
+validated commit and pins the push refspec to that exact SHA, so
+branch movement after preflight cannot publish an unvalidated commit.
+
+### Step 6: Create PR Description
 
 Check the **PR Conventions** section of `01-context.md`:
 
@@ -197,7 +319,7 @@ In either case, save the result to
 - [ ] AC-2: {description}
 ```
 
-### Step 6: Create Draft PR
+### Step 7: Create Draft PR
 
 Check the **Repository Topology** section of `01-context.md` to determine
 whether this is a fork-based workflow.
@@ -209,7 +331,7 @@ python3 "$PUBLISH_SCRIPT" check-existing --repo {upstream-owner}/{repo} --head {
 ```
 
 If exit code is 5, a PR already exists — parse the PR number and URL
-from the returned JSON output, then skip to Step 7 and use those values
+from the returned JSON output, then skip to Step 8 and use those values
 in the metadata. If the command fails (non-zero exit other than 5),
 stop and report the error. If exit code is 0, create a new PR.
 
@@ -250,7 +372,7 @@ providing the user with a GitHub compare URL:
 - Fork-based: `https://github.com/{upstream-owner}/{repo}/compare/{pr-target}...{fork-owner}:{branch-name}?expand=1`
 - Direct clone: `https://github.com/{upstream-owner}/{repo}/compare/{pr-target}...{branch-name}?expand=1`
 
-### Step 7: Save Publish Metadata
+### Step 8: Save Publish Metadata
 
 Read `{owner}/{repo}` from the **Origin** field of the Repository
 Topology section of `01-context.md`. If the repo is a fork, also read
@@ -287,7 +409,7 @@ python3 "$PUBLISH_SCRIPT" save-metadata \
   jira_key={issue-key}
 ```
 
-### Step 8: Report to User
+### Step 9: Report to User
 
 Present:
 - PR URL (the full `https://github.com/...` link, not just `owner/repo#number`)

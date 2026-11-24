@@ -13,7 +13,8 @@ PR creation.
 ## Your Role
 
 Execute the e2e tests, analyze the test code for anti-patterns, verify
-that every acceptance criterion is covered by a test scenario, and iterate
+that every acceptance criterion is covered by the appropriate method
+(automated test scenario, manual TC, or qualification gate), and iterate
 until quality standards are met. This phase may loop — you fix issues,
 re-run checks, and repeat until everything passes.
 
@@ -68,15 +69,19 @@ report under Branch Currency as "Unable to verify — fetch failed."
 git rev-list --count HEAD..origin/{local-base}
 ```
 
-If the branch is behind base, verify the working tree is clean before
-syncing:
+Verify the working tree is clean before running any validation,
+regardless of branch position relative to base:
 
 ```bash
 git status --porcelain
 ```
 
-If output is non-empty, stop and ask the user how to proceed (commit,
-stash, or abort) before continuing.
+If output is non-empty, stop and require the user to commit or stash
+changes before continuing. Validation must not run against uncommitted
+changes — the report binds its result to the current HEAD, and
+uncommitted changes would not be covered by that binding.
+
+If the branch is behind base, sync before continuing:
 
 Check whether a PR has already been created by looking for
 `.artifacts/e2e/{issue-key}/publish-metadata.json`.
@@ -205,67 +210,285 @@ git commit -m "{issue-key}: address validation review findings"
 ### Step 7: Acceptance Criteria Verification
 
 After automated checks and code quality review, verify that every
-acceptance criterion from the story has been covered by a test scenario.
-This is the workflow's primary contract.
+acceptance criterion from the story has been covered by the appropriate
+method from the approved plan. This is the workflow's primary contract.
 
 1. Read the **Acceptance Criteria** from `01-context.md`
 2. Read the **Acceptance Criteria Coverage** matrix from `02-plan.md`
-3. For each acceptance criterion:
-   - **Trace to test scenario:** Is there a test that exercises this
+3. For each acceptance criterion, check the plan-approved coverage
+   method:
+
+   **Automated test scenario:**
+   - Trace to test scenario: is there a test that exercises this
      criterion's behavior? Follow the task mapping —
      check that the task is marked Done and that the corresponding test
      code exists.
-   - **Verify the test runs:** Does the test pass when executed?
-   - **Assess coverage:** Is the criterion fully covered by the test
+   - Verify the test runs: does the test pass when executed?
+   - Assess coverage: is the criterion fully covered by the test
      scenarios, partially covered, or not addressed?
+
+   **Manual TC (from coverage matrix):**
+   - Read the **Evidence Reference** column from the AC coverage
+     matrix. Use the recorded reference to locate and assess the
+     evidence; if the reference is missing or unusable, ask the user
+     for clarification rather than guessing from available sources.
+   - Before marking evidence `verified`, verify the evidence basis
+     applies to the **current candidate** (build, revision, or test
+     run). Evidence collected against a different candidate whose
+     applicability to the current candidate is unknown must remain
+     `pending`. Compare the evidence against the entry's original
+     source criteria.
+   - Evidence that is pending, not started, or unverified does not
+     constitute a pass. Failed required criteria means the AC is
+     failed.
+   - Do not force an automated test scenario for an AC the plan
+     designates as manual verification.
+
+   **Qualification gate (from coverage matrix):**
+   - Read the **Evidence Reference** column from the AC coverage
+     matrix. Use the recorded reference to locate the gate's
+     evidence; if the reference is missing or unusable, ask the user
+     for clarification rather than guessing from available sources.
+   - Before marking evidence `verified`, verify the evidence basis
+     applies to the **current candidate** (build, revision, or test
+     run). Evidence collected against a different candidate whose
+     applicability is unknown must remain `pending`. Compare the
+     evidence against the entry's original source criteria.
+   - Determine the evidence status (not-started, pending, verified,
+     or failed) from the located evidence in the current run — do
+     not read from a report section that has not yet been written.
+     Reuse this same evidence result when writing the report in
+     Step 8. Pending or not-started evidence does not constitute a
+     pass. Failed required criteria means the AC is failed.
+   - Do not force an automated test scenario for an AC the plan
+     designates as a qualification gate.
+
+   **External evidence (from coverage matrix):**
+   - Read the **Evidence Reference** column from the AC coverage
+     matrix. Use the recorded reference to locate the external
+     evidence source; if the reference is missing or unusable, ask
+     the user for clarification.
+   - Before marking evidence `verified`, verify the evidence basis
+     applies to the **current candidate** (build, revision, or test
+     run). Evidence collected against a different candidate whose
+     applicability is unknown must remain `pending`. Compare the
+     evidence against the entry's original source criteria.
+   - Determine the evidence status (not-started, pending, verified,
+     or failed) from the located evidence. Reuse this same evidence
+     result when writing the report in Step 8. Pending or not-started
+     evidence does not constitute a pass. Failed required criteria
+     means the AC is failed.
+   - Do not force an automated test scenario for an AC the plan
+     designates as external evidence.
 
 Record the result for each criterion. If any criterion is not fully
 covered:
 
-1. If it's a gap in test scenarios — write the missing test, commit,
-   and re-run
+1. If the plan designates an automated scenario and it is missing —
+   write the missing test, commit, and re-run
 2. If it's ambiguous whether the criterion is covered — flag it to the
    user with your assessment
-3. If the criterion cannot be verified through e2e tests (e.g., it
-   describes internal behavior or a non-functional requirement that
-   requires manual measurement) — note it as "not e2e-testable" with
-   an explanation of why
+3. If the criterion is covered by a manual TC or qualification gate —
+   verify evidence status as above; do not write a substitute automated
+   test
 
 ### Step 7b: Test Plan Verification
 
 If `.artifacts/e2e/{issue-key}/testplan.md` exists, independently verify
-that every test case has been covered by the e2e tests. This check
-re-derives the required TC ID list from `testplan.md` directly — it does
-NOT rely on the plan's task-to-TC-ID mappings or `/code`'s per-task
-reconciliation for determining which tests exist. The only information
-carried forward from the plan is the N/A rationale for test cases marked
-inapplicable. This is an intentional independent verification: if the
+that every **automatable** test case has been covered by the e2e tests.
+Test cases marked with a `Qualification gate` marker in the story
+testplan are **not** candidates for e2e test automation — they require
+their designated execution environment (e.g., hardware lab, security
+audit tooling) and are tracked as external validation evidence, not
+automated test coverage. Exclude qualification-gate TCs from the
+coverage check; verify they are listed in the validation report's
+external evidence section instead.
+
+This check re-derives the required TC ID list from `testplan.md`
+directly — it does NOT rely on the plan's task-to-TC-ID mappings or
+`/code`'s per-task reconciliation for determining which tests exist.
+The only information carried forward from the plan is the N/A rationale
+for test cases marked inapplicable. This is an intentional independent
+verification: if the
 plan's bookkeeping or the code phase's gate drifted from reality, this
 step catches it.
 
-If `testplan.md` does not exist and `02-plan.md` has no Test Plan
-Coverage section, skip this step entirely. However, if `02-plan.md`
-has TC mappings but `testplan.md` is missing, unreadable, or malformed
-(no parseable TC IDs), stop and report the inconsistency.
+**Gate-Applicability check (before testplan-absent skip).** Check
+for `.artifacts/e2e/{issue-key}/gate-applicability.pending`. If it
+exists, read it to obtain the unresolved gate names. As a fallback
+for pre-existing contexts without a pending file, also read the
+Story Test Plan section of `01-context.md` for
+`Gate-Applicability: unresolved`. If either source indicates
+unresolved applicability, record the unresolved gate names and
+report "gate applicability unresolved — coverage completeness
+cannot be confirmed" in the validation report. The overall result
+cannot be PASS while any gate has unresolved applicability. This
+check applies regardless of whether `testplan.md` exists — even
+if the story has no testplan (first ingest with unknown gates),
+the unresolved applicability must be reported.
 
-1. Read `testplan.md` and extract all TC IDs. For each TC entry,
-   verify that Preconditions, Steps, and Expected Results sections
-   are present. If any entry is missing a required section, stop and
-   report the testplan as malformed.
-2. For each TC ID (except those the validate phase agrees are
-   legitimately N/A based on the rationale in the plan's Test Plan
-   Coverage matrix):
+If `testplan.md` does not exist and `02-plan.md` has no Test Plan
+Coverage section, skip the rest of this step (the TC coverage
+check). However, if `02-plan.md`
+has TC mappings but `testplan.md` is missing, unreadable, or malformed
+(no parseable TC IDs and no Qualification Gates section), stop and
+report the inconsistency. A gate-only testplan (zero TC IDs but a
+`## Qualification Gates` section) is valid only when `02-plan.md`
+contains no TC mappings in its Test Plan Coverage section. If TC
+mappings remain, stop and report the inconsistency — re-ingest may
+have replaced TCs with gates while the plan retains stale mappings.
+When consistent, check the testplan's freshness and discovery state
+before skipping: if `testplan.md` contains `Freshness: unresolved-source`
+or `Source-Discovery: unresolved`, the authority is unknown — report the
+unresolved state and do not skip the authority assessment below. If the
+testplan is freshly ingested or its freshness is verified/confirmed, skip
+the automated coverage check and proceed directly to step 4 below.
+
+**Testplan source authority:** Check the testplan's freshness
+marker to determine its authority level. The cases are mutually
+exclusive; evaluate in this order:
+
+1. If `testplan.md` contains `Source-Discovery: unresolved` or
+   `Freshness: unresolved-source`, the source could not be read or
+   resolved during ingest. Report this state as "unresolved
+   discovery — source unavailable" in the validation report. Do not
+   treat it as confirmed absence or full coverage. AC-based work may
+   continue, but unresolved required validation cannot be claimed as
+   complete. The overall result cannot be PASS while this state
+   persists — clear the unresolved state only upon a successful
+   checked discovery (a subsequent `/ingest` that resolves the
+   source).
+
+2. If `testplan.md` contains `Freshness: unverified` (or the legacy
+   bold form `**Freshness:** unverified`), the testplan was retained
+   from a prior ingest. Check whether the Test Plan Coverage section
+   in `02-plan.md` records a confirmed status for the TCs.
+
+3. If `testplan.md` contains neither marker (the plan was freshly
+   ingested from an authoritative source), its TCs are authoritative
+   — verify all automatable TCs have been implemented without
+   requiring user confirmation or SHA-256 binding. A stale
+   confirmation hash from a prior retained plan does not invalidate
+   a freshly ingested authoritative source.
+
+For case 2, check the confirmed status:
+
+- **Confirmed TCs** (plan records user confirmation, confirmed TC
+  IDs, and SHA-256 of `.artifacts/e2e/{issue-key}/testplan.md` at
+  confirmation time): compute the current SHA-256 of the
+  story-scoped testplan (`sha256sum
+  .artifacts/e2e/{issue-key}/testplan.md`) and compare against the
+  recorded hash. A TC is effectively confirmed only when ALL of:
+  (1) the plan records a "confirmed" status with a SHA-256 binding,
+  (2) the current story-scoped testplan hash matches the recorded
+  hash, and (3) the TC ID appears in the confirmed list. If the
+  hash differs, the confirmation is stale — treat as unconfirmed.
+  If the binding is missing (no SHA-256 recorded), treat as
+  unconfirmed. Write gap-fill tests only for effectively confirmed
+  TCs; report TC coverage normally for those.
+- **Unconfirmed TCs** (no confirmed status in plan, or missing
+  SHA-256 binding, or stale hash): coverage is provisional, not
+  normative. Do not write mandatory gap-fill tests. Report as
+  "unverified — source testplan not confirmed."
+
+**Non-TC gate confirmation (mixed and gate-only testplans).** When
+the story testplan has a `## Qualification Gates` section and the
+testplan has `Freshness: unverified` (case 2) but no
+`Source-Discovery: unresolved` marker, the retained qualification
+gates also require explicit confirmation before being treated as
+mandatory. For each non-TC gate entry, verify:
+
+- The gate's source path and evidence criteria are present and
+  legible in the retained testplan.
+- The evidence criteria and expected status can be matched against
+  the published source (if accessible) or the prior ingest record.
+- If the gate's provenance and criteria are confirmed (user
+  verification or matching published source), treat it as a
+  mandatory gate with its current evidence status (verified,
+  pending, or failed).
+- If the gate cannot be confirmed (source unavailable, criteria
+  unclear, or user declines), treat it as provisional — report its
+  status as "unverified gate — retained from prior ingest, not
+  confirmed" without forcing mandatory evidence or automated
+  replacement.
+
+If `Source-Discovery: unresolved` is present, all retained gates are
+provisional regardless of individual confirmation — source discovery
+takes precedence and cannot be cleared by confirming gates alone.
+Fresh verified source makes gates authoritative without manual
+confirmation.
+
+Do not invent automated gate confirmation or silently treat
+unverified gates as authoritative. Current approved AC obligations
+remain mandatory regardless of gate provenance. Carry source
+freshness honestly in the validation report.
+
+When the user confirms TCs during validation, record the
+confirmation in the Test Plan Coverage section of `02-plan.md`:
+set the status to "confirmed — user verified TC applicability on
+{date}", list the confirmed TC IDs, and record the SHA-256 of the
+current story-scoped testplan bytes (computed as `sha256sum
+.artifacts/e2e/{issue-key}/testplan.md`). This persistent record
+allows subsequent `/validate` runs to distinguish confirmed TCs
+from provisional ones without re-prompting and detects content
+changes from re-ingestion.
+
+In both cases, do not block the validation report or AC-based
+work.
+
+1. Read `testplan.md` and extract all TC IDs. Separate them into
+   three groups:
+   - **Automatable TCs** (`Automation: automated` without a
+     `[Qualification gate]` marker): verify Preconditions, Steps,
+     and Expected Results sections are present. If missing, stop
+     and report the testplan as malformed.
+   - **Manual verification TCs** (`[Manual verification]` marker):
+     verify the TC entry is present. These do not require
+     Preconditions/Steps/Expected Results sections (they describe
+     human verification procedures).
+   - **Qualification gate TCs** (`[Qualification gate]` marker):
+     verify the TC entry is present. These do not require
+     Preconditions/Steps/Expected Results sections.
+2. For each **automatable** TC ID (except those the validate phase
+   agrees are legitimately N/A based on the rationale in the plan's
+   Test Plan Coverage matrix):
    - Search the e2e test files on the feature branch for a test
      scenario whose validations match the TC's Steps and Expected
      Results.
    - The match is behavioral, not textual — the test must exercise the
      described scenario and assert the described outcomes.
    - Record the test file and scenario name for each TC ID.
-3. If any TC ID lacks a corresponding test:
-   - Write the missing test following the reference suite's patterns.
+3. If any automatable TC ID lacks a corresponding test:
+   - If the testplan contains `Source-Discovery: unresolved`, ALL
+     TCs from that source are provisional regardless of confirmation
+     hash or ID matches. Report gaps as provisional: "TC coverage
+     gap — source discovery unresolved, not normative until source
+     is resolved." Do not write mandatory gap-fill tests or gate
+     commits on unresolved-source TC gaps.
+   - If the TC is NOT effectively confirmed (see criteria above:
+     hash present + current story-scoped testplan hash matches
+     recorded hash + TC ID in confirmed list) AND `testplan.md`
+     contains `Freshness: unverified`, report the gap as
+     provisional: "TC coverage gap — unconfirmed source, not
+     normative until confirmed." Do not gate commits on
+     unconfirmed TC gaps.
+   - For effectively confirmed TCs or verified-source TCs (with
+     resolved source discovery): write the missing test following
+     the reference suite's patterns. These TCs are normative —
+     their gaps are real and should be filled.
    - Commit the test following the project's commit format.
    - Re-run the relevant checks from Step 3.
-4. Record results for the validation report.
+   After the last gap-fill commit, re-assess AC coverage and all
+   external-evidence applicability on the final candidate HEAD before
+   writing the report. A gap-fill commit changes the candidate; the
+   earlier assessment may no longer apply. Reuse the Step 7 assessment
+   procedure — do not bind a stale assessment to the new HEAD.
+4. For manual verification TCs, qualification gate TCs, and non-TC
+   qualification gates (from the `## Qualification Gates` section
+   of the story testplan — these have no TC IDs), record their
+   status in the External Validation Evidence section (see report
+   template below).
+5. Record results for the validation report.
 
 ### Step 8: Write Validation Report
 
@@ -334,10 +557,83 @@ Write `.artifacts/e2e/{issue-key}/05-validation-report.md`:
  - gap-filled: test scenario was written during validation
  - N/A: test case legitimately not applicable (rationale required)
 
- If all covered: "All test plan cases verified."
+ If all automatable TCs are covered: "All automatable test plan cases
+ verified." (Qualification-gate and manual-verification TCs are tracked
+ separately in External Validation Evidence.)
  If gaps were filled: "{N} test cases required additional tests during
  validation."
  If any N/A: list rationale for each.}
+
+## External Validation Evidence
+
+{Include this section when any AC criterion uses a non-automated
+ verification method (qualification-gate, manual-verification, or
+ external-evidence in the AC coverage matrix's Method column),
+ when testplan.md contains qualification-gate or manual-verification
+ TCs, or when non-TC qualification gates exist. Include AC-linked
+ evidence even when testplan.md contains zero qualifying entries —
+ ACs verified by qualification gates or external evidence must
+ appear regardless.
+
+ These entries are excluded from the automated coverage check —
+ they require a designated execution environment or human
+ verification. This section tracks their evidence status
+ separately. A pending or failed entry does NOT count as passed.}
+
+| ID | Title | Source | Verification Method | Evidence | Status |
+|----|-------|--------|--------------------|---------| -------|
+| TC-NFR3-01 | {title} | {testplan.md or companion} | {designated environment} | {link or "pending"} | {not-started / pending / verified / failed} |
+| {gate heading} | {gate name} | {source path §section} | {gate type} | {link or "pending"} | {not-started / pending / verified / failed} |
+
+{The ID column uses TC IDs for qualification-gate and manual-
+ verification TCs, and gate heading/source reference for non-TC
+ gates — do not invent TC IDs for non-TC entries.
+
+ Status values:
+ - not-started: no evidence collection has begun
+ - pending: evidence collection in progress
+ - verified: evidence reviewed and accepted — verification method
+   and source criteria compared with the provided evidence
+ - failed: evidence shows the requirement is not met
+
+ Before marking any external evidence `verified` (manual TCs,
+ qualification-gate TCs, and non-TC gates alike), compare it with
+ the entry's verification method and original source criteria, and
+ verify the evidence basis applies to the current candidate (build,
+ revision, or test run). If the evidence does not address the
+ criteria, or if the evidence was collected against a different
+ candidate or revision and applicability to the current candidate
+ is unknown, keep it `pending`. Record the evidence basis
+ (candidate identifier, date) alongside the status. An incomplete
+ or inapplicable check must not contribute to an overall PASS.
+
+ If all verified: "All external validation evidence verified."
+ If any mandatory entry failed: "N mandatory entries FAILED —
+ required evidence shows requirements not met." Overall result
+ must be FAIL.
+ If any mandatory entry is pending or not-started: "N mandatory
+ entries awaiting external evidence — these are not discharged
+ by automated test coverage." Overall result cannot be PASS.
+ Mandatory entries are: source-verified authoritative TCs,
+ effectively confirmed retained TCs, source-verified authoritative
+ non-TC qualification gates (fresh from verified source — mandatory
+ without confirmation), effectively confirmed retained non-TC
+ qualification gates (per Step 7b gate confirmation, with resolved
+ discovery), and all current AC obligations verified by their
+ approved Method and Evidence Reference. A fresh authoritative
+ gate that is pending or not-started blocks PASS; a failed
+ mandatory gate means FAIL without requiring confirmation first.
+ Unconfirmed provisional TCs do not block PASS — report them
+ separately with their current evidence status (pending,
+ not-started, or failed).
+ A failed provisional entry is informational, not verdict-
+ controlling; report it but do not force Overall: FAIL.
+ If Source-Discovery is unresolved, Overall result cannot be PASS
+ regardless of provisional TC exemptions.
+ If Gate-Applicability is unresolved (from
+ `gate-applicability.pending` or `01-context.md` fallback),
+ Overall result cannot be PASS — report the unresolved gates and
+ note that clarification is needed.}
 
 ## Quality Review Findings
 
@@ -361,12 +657,104 @@ Write `.artifacts/e2e/{issue-key}/05-validation-report.md`:
 {If no validation commits: "No additional commits needed during
  validation."}
 
+## Validated Identity
+
+Verify the working tree is clean before recording identity:
+
+```bash
+git status --porcelain
+```
+
+If output is non-empty, the candidate has uncommitted changes after
+gap-fill or reassessment. Stop — do not record a PASS or bind
+identity to a HEAD that does not include all changes. Commit or
+discard the changes first, then restart validation from Step 1 on
+the clean worktree. A commit may add untested changes; a discard
+may remove coverage that was part of the assessment. Either way,
+the prior assessment no longer applies to the current candidate.
+
+Record after the last code commit during validation, before
+writing the final result:
+
+- **Branch HEAD:** {full 40-character SHA of the branch HEAD}
+- **Context SHA-256:** {SHA-256 of `.artifacts/e2e/{issue-key}/01-context.md`,
+  or "absent" if no context file exists}
+- **Plan SHA-256:** {SHA-256 of `.artifacts/e2e/{issue-key}/02-plan.md`,
+  or "absent" if no plan file exists}
+- **Testplan SHA-256:** {SHA-256 of `.artifacts/e2e/{issue-key}/testplan.md`
+  at validation time, or "absent" if no testplan}
+
+{This section binds the validation result to the specific candidate
+ code and input artifacts that were validated. The publish step
+ compares these against current inputs to detect stale reports —
+ a re-ingest, branch change, AC change, or gate addition
+ invalidates the old PASS. Legacy reports without this section
+ require re-validation.}
+
 ## Result
 
-{PASS — all checks pass, no anti-patterns, all acceptance criteria
- covered, no regressions.
- OR
- FAIL — with explanation of what still needs fixing.}
+{Automated e2e coverage: PASS / FAIL — whether all authoritative or
+ individually confirmed automatable TC IDs have passing tests, no
+ anti-patterns, and no regressions. Provisional (unconfirmed) TCs
+ are reported separately and excluded from this line.
+
+ External validation: COMPLETE / PENDING / FAILED / NOT STARTED —
+ whether all manual verification, qualification gate, and non-TC
+ gate evidence has been provided and accepted.
+
+ Write `Overall: PASS` on its own line only when ALL of:
+ (1) all acceptance criteria pass their approved verification
+     method (automated scenario, manual TC, or qualification
+     gate — as determined in Step 7),
+ (2) all authoritative or individually confirmed automatable TC
+     IDs have passing tests with no anti-patterns or regressions,
+ (3) all authoritative or individually confirmed external
+     validation entries (manual TCs and qualification gates) are
+     verified.
+ Unconfirmed TCs (from an unverified or unconfirmed testplan) are
+ provisional — report them separately and exclude them from
+ mandatory pass checks. An unconfirmed TC gap does not block
+ Overall: PASS, but must be reported as provisional coverage.
+ A failed or pending confirmed entry, an AC without approved
+ coverage, an unresolved Source-Discovery state, or an unresolved
+ Gate-Applicability state always blocks Overall: PASS.
+ Current AC obligations are always mandatory,
+ verified by their approved Method and Evidence Reference.
+ Source-verified authoritative non-TC qualification gates are
+ mandatory without confirmation. Effectively confirmed retained
+ non-TC qualification gates (per Step 7b gate confirmation
+ procedure, with resolved discovery) are also mandatory.
+ Unconfirmed retained gates are provisional; report their pending
+ status separately but do not block Overall: PASS on their
+ account alone.
+ A provisional old-TC or gate mention of an AC does not override
+ the current approved verification method; equally it does not
+ waive a genuine current AC obligation or required gate.
+ Other outcomes:
+ - If Gate-Applicability is unresolved
+   (`gate-applicability.pending` exists or `01-context.md`
+   contains `Gate-Applicability: unresolved`): write the
+   precise reason first: "gate applicability unresolved for
+   {gate names}; coverage completeness cannot be confirmed."
+   Then end the report with `Overall: FAIL` on its own line.
+   This applies even when all known automated tests and
+   mandatory evidence pass, and regardless of whether a
+   testplan exists. Do not fabricate failed external evidence
+   observations to justify the FAIL — the unresolved
+   applicability itself is the blocking reason.
+ - If automated tests pass but mandatory entries are pending/
+   not-started: "PASS (automated) — awaiting external validation
+   for {N} mandatory entries." Overall is NOT PASS.
+ - If any mandatory entry has FAILED evidence: "FAIL — external
+   validation failed for {entry names}." Overall is FAIL.
+ - If automated tests fail: "FAIL — automated tests failed."
+ Follow the project's existing gating policy for merge readiness.
+ Do not claim acceptance passed when evidence is outstanding,
+ unverified, or failed.
+
+ The report MUST end with an explicit verdict line on its own line:
+ `Overall: PASS`, `Overall: FAIL`, or the qualified form above.
+ `/publish` requires this exact line to determine readiness.}
 ```
 
 ### Step 9: Present Results
@@ -375,9 +763,16 @@ Summarize for the user:
 - Which checks passed and which failed
 - Anti-pattern check results (clean or what was fixed)
 - Acceptance criteria coverage (all covered, or which ones have gaps)
-- Test plan verification status (all covered / gaps filled / not applicable), if testplan exists
+- Test plan verification status (all automatable TCs covered / gaps
+  filled / not applicable), if testplan exists — distinguish
+  automatable coverage from overall readiness
+- External validation evidence status: how many mandatory entries are
+  verified, pending, not-started, or failed — these are not discharged
+  by automated test coverage. Report provisional entries separately.
 - Any regressions found (and whether they were fixed)
-- Overall verdict: ready for `/publish` or not
+- Overall verdict: the `Overall:` line from the report (PASS only
+  when both automated coverage and all mandatory external evidence
+  are verified; otherwise state the specific gap)
 
 ## Output
 

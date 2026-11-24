@@ -43,7 +43,26 @@ Determine which artifacts exist and read them:
 - `.artifacts/design/{issue-key}/05-epics.md` (epic metadata, if exists)
 - `.artifacts/design/{issue-key}/06-stories/` (epic and story files, if exist)
 - `.artifacts/design/{issue-key}/07-coverage.md` (coverage matrix, if exists)
-- `.artifacts/design/{issue-key}/04-testplan.md` (testplan, if exists)
+- **Validation artifacts:** Before reading any testplan or companion,
+  resolve the validation index:
+  Set `SKILL_DIR` to the canonical directory of this loaded skill file
+  (resolved from the path provided by the phase dispatcher or file-read
+  context, following symlinks). If the loaded file path is unavailable,
+  stop and report — do not fall back to `$HOME`, `BASH_SOURCE`, or the
+  current working directory:
+  ```bash
+  # SKILL_DIR: set by the agent to this skill file's canonical directory
+  VALIDATION_INDEX_SCRIPT="$(realpath "${SKILL_DIR}/../scripts/validation_index.py")" || { echo "Cannot resolve ../scripts/validation_index.py" >&2; exit 1; }
+  python3 "$VALIDATION_INDEX_SCRIPT" resolve --local ".artifacts/design/{issue-key}"
+  ```
+  If exit 0, parse the JSON array to discover all artifact paths.
+  Read only the returned artifacts — the resolver already handles
+  legacy layouts (a valid `04-testplan.md` is included in the returned
+  list when no index exists). If the result is an empty array `[]`, no
+  validation artifacts exist. If exit non-zero (malformed index,
+  missing files, symlinks), stop and report. This resolution happens
+  here so the correct artifact set is known before any testplan content
+  is read.
 - `.artifacts/design/{issue-key}/sync-manifest.json` (if exists —
   records Jira key mappings and content-hash checkpoints from
   previous `/sync` runs; may be partial if sync was interrupted or
@@ -160,7 +179,39 @@ reflect the current contributor set — but preserve any existing
 prerequisite dependencies (e.g., infrastructure stories) that are
 not part of the contributing-story inventory.
 
-**If the testplan exists (`04-testplan.md`):**
+**If validation artifacts exist:**
+
+Use the Step 1 validated artifact set only when the artifacts,
+index, and design context are unchanged since Step 1. If the user
+edited artifacts, added or removed files, or changed the design
+document between Step 1 and Step 4, re-resolve before reading or
+mutating — do not reuse a cached set that may not reflect current
+state. When uncertain whether inputs changed, re-resolve.
+
+If the artifacts, index, or design context changed since Step 1 (or
+you are uncertain), re-resolve the validation index before reading or
+mutating any artifact files. Use the CLI helper to validate and
+resolve paths:
+
+Set `SKILL_DIR` as above (the agent's file-load context), then resolve:
+
+```bash
+VALIDATION_INDEX_SCRIPT="$(realpath "${SKILL_DIR}/../scripts/validation_index.py")" || { echo "Cannot resolve ../scripts/validation_index.py" >&2; exit 1; }
+python3 "$VALIDATION_INDEX_SCRIPT" resolve --local ".artifacts/design/{issue-key}"
+```
+
+If the inputs are unchanged since Step 1, use the Step 1 validated
+artifact set directly — skip the resolver invocation and read the
+paths already validated in Step 1.
+
+If the command exits 0 with a non-empty array, read each listed
+file — the resolver already handles legacy layouts (a valid
+`04-testplan.md` is included in the returned list), so only read
+paths from the returned array. If the result is an empty array
+`[]`, no validation artifacts exist. If the command exits non-zero,
+stop and report the error.
+
+For **each** validation artifact (primary testplan and any companions):
 - Before modifying any test cases, record the IC and requirement
   mappings of any TCs that will be removed, reassigned, or have their
   IC or requirement mapping changed (even if the TC ID is retained) —
@@ -176,20 +227,54 @@ not part of the contributing-story inventory.
   test cases anchored to changed requirements. Update TC IDs if
   requirement IDs changed.
 - If test cases were added, removed, or modified, **or** if design
-  Interface Changes (§5) were added, removed, or renamed: recompute the
-  testplan's Overview counts, Summary table, and Test Case Index per
+  Interface Changes (§5) were added, removed, or renamed, OR Review
+  and Qualification Gates were added, changed, or removed: recompute the
+  artifact's Overview counts, Summary table, and Test Case Index per
   the counting rules in the draft skill's Step 9a: each parameterized
   row counts individually toward the total, priority, and automation
   counts; requirement and IC coverage ratios count distinct mapped
-  values once each; the Index has one row per TC ID. Example: a
-  three-row parameterized TC-FR1-01 (IC-2, high, automated) plus an
-  ordinary TC-FR1-02 (IC-2, medium, automated) = 4 total test cases,
-  2 TC IDs, 2 Index rows, FR-1 counted once for requirement coverage,
-  IC-2 counted once for IC coverage. Rebuild the Gaps section from the
-  current requirement-to-TC and IC-to-TC mappings. Adding, removing,
-  or renaming an IC changes the "Interface changes covered" totals or
-  the identifiers in the Interface Change Coverage Gaps even when no
-  test case is edited.
+  values once each; the Index has one row per TC ID. Rebuild the Gaps
+  section from the current requirement-to-TC and IC-to-TC mappings
+  and the Review and Qualification Gates mappings. For requirements
+  or ICs covered only by gates, reference the gate rather than
+  listing them as uncovered. Treat ICs covered by qualification
+  gates as covered — do not report a gap for gate-covered ICs.
+
+**Cross-artifact consistency:** After updating all artifacts, verify
+that TC IDs are unique across the full artifact set. If a revision
+introduces a TC ID that conflicts with an existing ID in another
+artifact, resolve the conflict by reallocating the new ID above the
+feature-wide high-water mark for that requirement group.
+
+**Adding or removing companion plans during revision:**
+
+- **Adding:** If the user requests a new companion plan, create it
+  following the companion rules from the draft skill's Step 9e.
+  If `validation-index.json` does not exist and `04-testplan.md`
+  exists, first create the index. Resolve the script path before
+  each command — do not assume `VALIDATION_INDEX_SCRIPT` survives
+  from a prior shell:
+
+  Set `SKILL_DIR` as above (the agent's file-load context), then resolve:
+  ```bash
+  VALIDATION_INDEX_SCRIPT="$(realpath "${SKILL_DIR}/../scripts/validation_index.py")" || { echo "Cannot resolve ../scripts/validation_index.py" >&2; exit 1; }
+  python3 "$VALIDATION_INDEX_SCRIPT" build-legacy ".artifacts/design/{issue-key}" ".artifacts/design/{issue-key}/validation-index.json"
+  ```
+
+  If the command fails, stop and report the error.
+  Update `validation-index.json` to include the new entry. After
+  adding, validate:
+
+  ```bash
+  VALIDATION_INDEX_SCRIPT="$(realpath "${SKILL_DIR}/../scripts/validation_index.py")" || { echo "Cannot resolve ../scripts/validation_index.py" >&2; exit 1; }
+  python3 "$VALIDATION_INDEX_SCRIPT" validate --local ".artifacts/design/{issue-key}/validation-index.json" --artifact-dir ".artifacts/design/{issue-key}"
+  ```
+
+  If validation fails, correct the errors before proceeding.
+- **Removing:** If the user requests removing a companion, delete its
+  local file. Update `validation-index.json` to remove the entry.
+  During the docs-repo sync below, the published copy is removed.
+  Do not remove the primary testplan without explicit user confirmation.
 
 The remaining story cascades apply only when decomposition artifacts
 exist. If `.artifacts/design/{issue-key}/06-stories/` is absent (for
@@ -233,10 +318,11 @@ updates above are complete on their own.
   that lost their IC mapping during the IC update). Re-read each
   affected story file at
   `.artifacts/design/{issue-key}/06-stories/epic-{N}/story-{NN}-{slug}.md`
-  before modifying it. Collect all TC IDs from the updated testplan
-  that match this story — by IC overlap with the story's (now-updated)
-  `Interface Changes`, or by requirement overlap for cross-cutting TCs
-  with `Interface Change: —` — then write the updated `Validated by`
+  before modifying it. Collect all TC IDs **across all validation
+  artifacts** (primary testplan and companions) that match this
+  story — by IC overlap with the story's (now-updated) `Interface
+  Changes`, or by requirement overlap for cross-cutting TCs with
+  `Interface Change: —` — then write the updated `Validated by`
   line. If a story loses all its test cases, write:
   `Validated by: None — no behavioral test cases after testplan revision`.
 
@@ -313,9 +399,34 @@ Fast-forward the local branch if the remote is ahead:
 git -C "{docs_repo_path}" pull --ff-only
 ```
 
+**Validation artifact docs-repo sync:**
+
+Set `SKILL_DIR` to the canonical directory of this loaded skill file
+(resolved from the path provided by the phase dispatcher or file-read
+context, following symlinks). Each fresh shell must re-resolve this
+independently:
+
 ```bash
-mkdir -p "{docs_repo_path}/$(dirname "{design_file_path}")"
+VALIDATION_INDEX_SCRIPT="$(realpath "${SKILL_DIR}/../scripts/validation_index.py")" || { echo "Cannot resolve ../scripts/validation_index.py" >&2; exit 1; }
 ```
+
+Derive `{feature-dir}` from `design_file_path` in publish-metadata
+(e.g., `v2.1/feature-slug` from `v2.1/feature-slug/design.md`).
+
+Read and follow `../../_shared/recipes/sync-validation-artifacts.md`
+with `ISSUE_KEY={issue-key}`,
+`VALIDATION_INDEX_SCRIPT="$VALIDATION_INDEX_SCRIPT"`,
+`DOCS_REPO_PATH="{docs_repo_path}"`,
+`FEATURE_DIR="{feature-dir}"`,
+`DESIGN_FILE_PATH="{design_file_path}"`.
+
+Complete both PREFLIGHT and APPLY phases of the recipe. The recipe
+handles build/snapshot/preflight/copy/index/retirement/metadata as a
+single canonical execution. Do not duplicate those steps inline.
+
+**After the recipe's APPLY phase completes**, copy the design
+document and render provenance. The recipe's APPLY created the
+feature directory:
 
 ```bash
 cp ".artifacts/design/{issue-key}/03-design.md" "{docs_repo_path}/{design_file_path}"
@@ -325,55 +436,13 @@ Read and follow `../../_shared/recipes/render-provenance-footer.md` with
 `WORKFLOW=design`, `ISSUE_KEY={issue-key}`,
 `TARGET_FILE="{docs_repo_path}/{design_file_path}"`.
 
-**Testplan docs-repo sync:**
-
-**Skip all testplan sync steps below if any of these are true:**
-- `04-testplan.md` does not exist and `publish-metadata.json` does not
-  contain a `testplan_file_path` field (no testplan anywhere)
-- `04-testplan.md` exists but `publish-metadata.json` does NOT contain
-  `testplan_file_path` (testplan was created after initial publish) —
-  note to the user: "Testplan exists locally but was not included in
-  the original publish. Re-run `/publish` to include it in the docs
-  repo."
-
-**If `04-testplan.md` does NOT exist but `publish-metadata.json`
-contains `testplan_file_path`** (testplan was removed during revision),
-remove the published testplan from the docs repo if it is still tracked:
-
-Check whether the file is tracked:
-
-```bash
-git -C "{docs_repo_path}" ls-files --error-unmatch "{testplan_file_path}"
-```
-
-- If exit 0 (file is tracked), remove it:
-
-```bash
-git -C "{docs_repo_path}" rm "{testplan_file_path}"
-```
-
-- If exit 1 with "did not match any file(s) known to git" (file is not
-  tracked — already deleted by another process), skip the `git rm`.
-- If any other non-zero exit (unexpected git error), stop and report
-  the error to the user. Do not proceed with metadata cleanup until the
-  error is resolved.
-
-In either case, remove `testplan_file_path` from `publish-metadata.json`.
-
-**If `04-testplan.md` exists and `publish-metadata.json` contains
-`testplan_file_path`**, copy the testplan to the docs repo:
-
-```bash
-cp ".artifacts/design/{issue-key}/04-testplan.md" "{docs_repo_path}/{testplan_file_path}"
-```
+Stage the design file independently of artifact existence:
 
 ```bash
 git -C "{docs_repo_path}" add "{design_file_path}"
 ```
 
-```bash
-git -C "{docs_repo_path}" add "{testplan_file_path}"
-```
+**Commit and push:**
 
 ```bash
 git -C "{docs_repo_path}" commit -m "Design {issue-key}: revise — {brief description}"
@@ -399,10 +468,11 @@ Summarize what changed:
 - Coverage matrix: Updated to reflect new story mapping
 
 ### Testplan Changes
-- {TC-FR1-03 added — new IC in design §5}
-- {TC-NFR2-01 updated — expected result changed to match revised design}
-- {TC-FR2-02 removed — IC-4 removed from design}
-- {Omit this section if the testplan did not change or does not exist}
+- {TC-FR1-03 added in testplan.md — new IC in design §5}
+- {TC-NFR2-01 updated in testplan.md — expected result changed to match revised design}
+- {TC-FR2-02 removed from testplan.md — IC-4 removed from design}
+- {hw-validation.md added as companion — hardware qualification for NFR-3}
+- {Omit this section if no validation artifacts changed or exist}
 
 ### Consistency Updates
 - Section 9: Added open question about performance impact of new approach
@@ -436,6 +506,8 @@ The following artifacts were modified since the last sync. Re-run
 - `.artifacts/design/{issue-key}/06-stories/epic-*/story-*.md` (updated, if stories changed)
 - `.artifacts/design/{issue-key}/07-coverage.md` (updated, if coverage changed)
 - `.artifacts/design/{issue-key}/04-testplan.md` (updated, if testplan changed)
+- `.artifacts/design/{issue-key}/04-{slug}.md` (companion artifacts updated, if applicable)
+- `.artifacts/design/{issue-key}/validation-index.json` (updated, if artifacts added or removed)
 
 ## When This Phase Is Done
 
